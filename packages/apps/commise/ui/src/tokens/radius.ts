@@ -1,4 +1,4 @@
-import { pxToRem } from './emit.js';
+import { pxToRemUnit } from './emit.js';
 import { radius as scaleRadius } from './scale.js';
 
 /**
@@ -6,10 +6,10 @@ import { radius as scaleRadius } from './scale.js';
  * pill sentinel is emitted as `px` (a `rem` pill would scale with the root font, which we don't want).
  */
 export const radius = {
-    sm: pxToRem(scaleRadius.sm),
-    md: pxToRem(scaleRadius.md),
-    lg: pxToRem(scaleRadius.lg),
-    xl: pxToRem(scaleRadius.xl),
+    sm: pxToRemUnit(scaleRadius.sm),
+    md: pxToRemUnit(scaleRadius.md),
+    lg: pxToRemUnit(scaleRadius.lg),
+    xl: pxToRemUnit(scaleRadius.xl),
     full: `${scaleRadius.full}px`,
 } as const;
 

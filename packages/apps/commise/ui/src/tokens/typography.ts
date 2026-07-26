@@ -1,4 +1,4 @@
-import { pxToRem } from './emit.js';
+import { pxToRemUnit } from './emit.js';
 import { fontFamily, fontSize, fontWeight, lineHeightRatio } from './scale.js';
 
 /** Web font families — the shared stacks from the single source. */
@@ -9,17 +9,17 @@ export const fonts = fontFamily;
  * the web's kebab-case (`display-xl` …) convention; the ramp order is largest → smallest.
  */
 export const fontSizes = {
-    'display-xl': pxToRem(fontSize.displayXl),
-    'display-lg': pxToRem(fontSize.displayLg),
-    'display-md': pxToRem(fontSize.displayMd),
-    'heading-lg': pxToRem(fontSize.headingLg),
-    'heading-md': pxToRem(fontSize.headingMd),
-    'heading-sm': pxToRem(fontSize.headingSm),
-    'body-lg': pxToRem(fontSize.bodyLg),
-    'body-md': pxToRem(fontSize.bodyMd),
-    'body-sm': pxToRem(fontSize.bodySm),
-    caption: pxToRem(fontSize.caption),
-    overline: pxToRem(fontSize.overline),
+    'display-xl': pxToRemUnit(fontSize.displayXl),
+    'display-lg': pxToRemUnit(fontSize.displayLg),
+    'display-md': pxToRemUnit(fontSize.displayMd),
+    'heading-lg': pxToRemUnit(fontSize.headingLg),
+    'heading-md': pxToRemUnit(fontSize.headingMd),
+    'heading-sm': pxToRemUnit(fontSize.headingSm),
+    'body-lg': pxToRemUnit(fontSize.bodyLg),
+    'body-md': pxToRemUnit(fontSize.bodyMd),
+    'body-sm': pxToRemUnit(fontSize.bodySm),
+    caption: pxToRemUnit(fontSize.caption),
+    overline: pxToRemUnit(fontSize.overline),
 } as const;
 
 /** Web line-heights — the unitless ratios from the single source, as CSS `line-height` multipliers. */

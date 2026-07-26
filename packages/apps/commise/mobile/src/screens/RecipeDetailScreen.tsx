@@ -35,6 +35,7 @@ import {
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
 import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
@@ -45,10 +46,12 @@ import {
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
 import { canClone, canGoPrivate, isOwner, makeViewer, type RecipeVisibility } from '@kitchensink/recipe-core';
+import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { LoadingState } from '../components/LoadingState.js';
 import { mobileMessages } from '../i18n/messages.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 
@@ -134,11 +137,7 @@ export function RecipeDetailScreen({
     // flicker). A signed-out viewer's profile query is disabled, so its `isLoading` is false and this
     // never hangs for a guest reading a public recipe.
     if (query.isLoading || profile.isLoading) {
-        return (
-            <View accessibilityLabel={t.detailLoading} style={styles.center}>
-                <ActivityIndicator />
-            </View>
-        );
+        return <LoadingState label={t.detailLoading} />;
     }
 
     if (query.isError || query.data === undefined) {
@@ -241,23 +240,25 @@ export function RecipeDetailScreen({
                         actions — move behind the "More" overflow menu. The delete CONFIRMATION dialog stays a
                         sibling, not menu content, so it survives independently of the menu's open state. */}
                     <View style={styles.headerActionsRow}>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={t.editAction}
+                        {/* U8: the three owner controls are DS `Button`s — Edit takes the gradient `primary`
+                            tier, Version history the flat `secondary`, and Delete the error-toned
+                            `destructive`. The primitive owns the 44pt target, the press-scale, and the
+                            accessible name, so this screen no longer hand-rolls a parallel pill. */}
+                        <Button
+                            variant="primary"
+                            icon={<Feather name="edit-2" size={16} color={palette.white} />}
                             onPress={() => onEdit?.(recipeId)}
-                            style={styles.primaryAction}
                         >
-                            <Text style={styles.primaryActionLabel}>{t.editAction}</Text>
-                        </Pressable>
+                            {t.editAction}
+                        </Button>
                         <MoreActionsMenu>
-                            <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={t.versionsAction}
+                            <Button
+                                variant="secondary"
+                                icon={<Feather name="clock" size={16} color={palette.charcoal} />}
                                 onPress={() => onViewVersions?.(recipeId)}
-                                style={styles.secondaryAction}
                             >
-                                <Text style={styles.secondaryActionLabel}>{t.versionsAction}</Text>
-                            </Pressable>
+                                {t.versionsAction}
+                            </Button>
                             <RecipeVisibilityToggle
                                 visibility={recipe.visibility}
                                 canGoPrivate={viewerCanGoPrivate}
@@ -268,14 +269,13 @@ export function RecipeDetailScreen({
                                 error={setVisibility.error !== null && setVisibility.error !== undefined}
                                 onChange={changeVisibility}
                             />
-                            <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={t.deleteAction}
+                            <Button
+                                variant="destructive"
+                                icon={<Feather name="trash-2" size={16} color={palette.error} />}
                                 onPress={() => setDeleteOpen(true)}
-                                style={styles.deleteAction}
                             >
-                                <Text style={styles.deleteActionLabel}>{t.deleteAction}</Text>
-                            </Pressable>
+                                {t.deleteAction}
+                            </Button>
                         </MoreActionsMenu>
                     </View>
                     <RecipeDeleteDialog
@@ -304,25 +304,7 @@ const styles = StyleSheet.create({
     backLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 15 },
     ownerActions: { gap: 12, paddingHorizontal: 16, paddingBottom: 24 },
     // `[Edit] [More]` (C4 wireframe parity): Edit and the More trigger sit side by side as the header's
-    // primary + overflow controls.
+    // primary + overflow controls. The action surfaces themselves belong to the DS `Button` (U8) — this row
+    // only positions them.
     headerActionsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-    primaryAction: {
-        alignSelf: 'flex-start',
-        backgroundColor: palette.seafoam,
-        borderRadius: 999,
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-    },
-    primaryActionLabel: { color: palette.white, fontWeight: '600', fontSize: 15 },
-    secondaryAction: {
-        alignSelf: 'flex-start',
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: palette.seafoam,
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-    },
-    secondaryActionLabel: { color: palette.seafoam, fontWeight: '600', fontSize: 14 },
-    deleteAction: { alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 8 },
-    deleteActionLabel: { color: palette.error, fontWeight: '600', fontSize: 14 },
 });

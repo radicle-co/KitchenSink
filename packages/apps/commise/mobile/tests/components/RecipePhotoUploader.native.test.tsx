@@ -10,8 +10,14 @@
  * retrying re-driving only that file, a canceled pick as a no-op, remove delegating to the delete mutation,
  * the add control hiding at the 10-photo cap, and the add control staying disabled — and `expo-image-picker`
  * staying single-launched — for the full picker-launch + blob-read window (regression, B24-adjacent
- * re-entrancy) while staying ENABLED during an in-flight upload (a second pick now queues, per w3/e4). The
- * native picker itself and the real S3 upload require on-device verification (a Maestro flow) — not
+ * re-entrancy) while staying ENABLED during an in-flight upload (a second pick now queues, per w3/e4).
+ *
+ * U6's CANCEL-SAFE replace is pinned too (upload-first, then swap): a cancelled picker, an unreadable asset,
+ * and a failed upload each leave the replaced photo intact; a confirmed replacement deletes exactly that photo
+ * (after the confirm, never before) and issues no reorder, so the lowest-sort-order cover rule is untouched;
+ * and Replace at the photo cap refuses — no picker, no delete — with actionable copy.
+ *
+ * The native picker itself and the real S3 upload require on-device verification (a Maestro flow) — not
  * reachable here.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -24,6 +30,7 @@ import {
     useCreatePhotoUploadUrl,
     useDeleteRecipePhoto,
     useRecipePhotos,
+    useReorderRecipePhotos,
 } from '@kitchensink/recipe-service-client/hooks';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -522,6 +529,119 @@ describe('RecipePhotoUploader — remove', () => {
             expect.objectContaining({ onError: expect.any(Function) }),
         );
         expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+    });
+});
+
+describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
+    const twoPhotos = [makePhoto({ id: 'pht_1', order: 1 }), makePhoto({ id: 'pht_2', order: 2 })];
+
+    /** A presign double that always resolves, for the paths that get as far as the transport layer. */
+    const presignOk = () =>
+        vi.fn().mockResolvedValue({
+            uploadUrl: 'https://s3.example.com/put',
+            key: 'uploads/rec_1/replacement.jpg',
+            expiresIn: 900,
+            maxBytes: 5_242_880,
+        });
+
+    it('leaves the original untouched when the picker is CANCELED', async () => {
+        const mutate = vi.fn();
+        useRecipePhotosMock.mockReturnValue(photosResult(twoPhotos));
+        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
+        launchImageLibraryAsyncMock.mockResolvedValue({ canceled: true, assets: null } as never);
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+
+        await waitFor(() => expect(launchImageLibraryAsyncMock).toHaveBeenCalledTimes(1));
+        // The regression this pins: the old wiring deleted the photo BEFORE opening the picker, so a cancel
+        // destroyed the original.
+        expect(mutate).not.toHaveBeenCalled();
+        expect(screen.getByLabelText('Recipe photo 2')).toBeTruthy();
+    });
+
+    it('leaves the original untouched when the picked asset’s local blob read fails', async () => {
+        const mutate = vi.fn();
+        useRecipePhotosMock.mockReturnValue(photosResult(twoPhotos));
+        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
+        fetchMock.mockRejectedValueOnce(new Error('unreadable asset'));
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+
+        expect(await screen.findByText('We couldn’t add your photo. Please try again.')).toBeTruthy();
+        expect(mutate).not.toHaveBeenCalled();
+        expect(screen.getByLabelText('Recipe photo 2')).toBeTruthy();
+    });
+
+    it('leaves the original untouched when the replacement upload FAILS', async () => {
+        const mutate = vi.fn();
+        useRecipePhotosMock.mockReturnValue(photosResult(twoPhotos));
+        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
+        useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(presignOk()) as never);
+        const confirmMutateAsync = vi.fn();
+        useConfirmPhotoUploadMock.mockReturnValue(asyncMutation(confirmMutateAsync) as never);
+        fetchMock
+            .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) })
+            .mockResolvedValueOnce({ ok: false, status: 500 });
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+
+        expect(await screen.findByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        expect(confirmMutateAsync).not.toHaveBeenCalled();
+        expect(mutate).not.toHaveBeenCalled();
+        expect(screen.getByLabelText('Recipe photo 2')).toBeTruthy();
+    });
+
+    it('deletes exactly the replaced photo once its replacement has been confirmed, without reordering', async () => {
+        const mutate = vi.fn();
+        const reorderMutate = vi.fn();
+        useRecipePhotosMock.mockReturnValue(photosResult(twoPhotos));
+        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
+        vi.mocked(useReorderRecipePhotos).mockReturnValue({
+            mutate: reorderMutate,
+            isPending: false,
+        } as unknown as ReturnType<typeof useReorderRecipePhotos>);
+        const createMutateAsync = presignOk();
+        const confirmMutateAsync = vi.fn().mockResolvedValue(makePhoto({ id: 'pht_new', order: 3 }));
+        useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
+        useConfirmPhotoUploadMock.mockReturnValue(asyncMutation(confirmMutateAsync) as never);
+        fetchMock
+            .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) })
+            .mockResolvedValueOnce({ ok: true, status: 200 });
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+
+        await waitFor(() => expect(confirmMutateAsync).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1));
+
+        expect(mutate).toHaveBeenCalledWith(
+            { id: 'rec_1', photoId: 'pht_2' },
+            expect.objectContaining({ onError: expect.any(Function) }),
+        );
+        // The delete is the LAST step — the replacement was already confirmed.
+        expect(confirmMutateAsync.mock.invocationCallOrder[0]).toBeLessThan(
+            mutate.mock.invocationCallOrder[0] as number,
+        );
+        // Cover semantics untouched: replacing never reorders.
+        expect(reorderMutate).not.toHaveBeenCalled();
+    });
+
+    it('refuses to replace at the photo cap — no picker, no delete, an actionable message', async () => {
+        const mutate = vi.fn();
+        useRecipePhotosMock.mockReturnValue(
+            photosResult(Array.from({ length: 10 }, (_unused, index) => makePhoto({ id: `pht_${index + 1}` }))),
+        );
+        useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 3' }));
+
+        expect(await screen.findByText('Remove a photo first — replacing needs room for the new one.')).toBeTruthy();
+        expect(launchImageLibraryAsyncMock).not.toHaveBeenCalled();
+        expect(mutate).not.toHaveBeenCalled();
     });
 });
 

@@ -85,6 +85,21 @@ export interface RecipeBrowseRailsProps {
     readonly onClone: (id: string) => void;
 }
 
+/**
+ * The recent-search memory offered on the keyword field (U7). The view is purely presentational about it: it
+ * decides only WHEN the panel is visible (the search field focused AND the query blank — the idle/browse
+ * state) and renders one button per query; the container owns the history itself via `useRecentSearches`
+ * (what gets recorded, de-duplication, the cap, persistence).
+ */
+export interface RecipeRecentSearchesControl {
+    /** The recent searches, newest first (already de-duplicated + capped by the model). */
+    readonly queries: readonly string[];
+    /** Run this recent search — the container sets it as the query, which re-runs the search. */
+    readonly onSelect: (query: string) => void;
+    /** Forget every recent search. */
+    readonly onClear: () => void;
+}
+
 /** The sort control (S3): the active sort and a change callback. Absent → the view renders no sort control. */
 export interface RecipeDiscoverySortControl {
     readonly active: RecipeSearchSortBy;
@@ -148,6 +163,12 @@ export interface RecipeDiscoveryListProps {
     readonly filterSlot?: ReactNode;
     /** Optional sort control (S3). Absent → no sort UI (e.g. a surface that only browses). */
     readonly sort?: RecipeDiscoverySortControl;
+    /**
+     * Optional recent-search memory (U7). When provided AND the history is non-empty, the view reveals it as
+     * a compact list of buttons while the search field is focused and the query is blank. Absent → no recent
+     * searches on this surface.
+     */
+    readonly recentSearches?: RecipeRecentSearchesControl;
     /** Optional load-more pager (S4). Absent → no pagination control. */
     readonly loadMore?: RecipeDiscoveryLoadMoreControl;
     /**

@@ -4,11 +4,16 @@
  * The React Native leaf of {@link import('./RecipeDiscoveryList.js').RecipeDiscoveryList} — same controlled,
  * presentational contract and the same four states (loading, error, empty, populated), rendered with RN
  * primitives. Every recipe shown is public; each row offers a Clone action.
+ *
+ * Like its web peer it owns exactly one piece of local UI state — `searchFocused` — gating the recent-search
+ * panel (U7) to the idle state (field focused, query blank). The history itself lives in the screen's
+ * `useRecentSearches`.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { FlashList } from '@shopify/flash-list';
+import { useState } from 'react';
 import type { FC, ReactElement } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -52,14 +57,26 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     browseSlot,
     onExitToBrowse,
     refresh,
+    recentSearches,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
+
+    // Local UI state ONLY (no data, no side effect): whether the keyword field holds focus. The recent
+    // searches are an idle-state shortcut that appears on focus and vanishes on blur, so they never sit
+    // permanently between the field and the rails.
+    const [searchFocused, setSearchFocused] = useState(false);
 
     // Empty ≠ no-match, and browse ≠ either: an active query/filter turns the surface into a result list;
     // with neither, the curated `browseSlot` (when provided) is the default experience, not a bare stream.
     const searching = searchValue.trim().length > 0 || hasActiveFilters;
     const browsing = browseSlot !== undefined && !searching;
+    // Idle + focused + something to offer: anything else renders no panel at all rather than an empty one.
+    const showRecentSearches =
+        recentSearches !== undefined &&
+        recentSearches.queries.length > 0 &&
+        searchFocused &&
+        searchValue.trim().length === 0;
 
     let body: ReactElement;
 
@@ -180,8 +197,39 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 placeholderTextColor={palette.mist}
                 value={searchValue}
                 onChangeText={onSearchChange}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
                 style={styles.search}
             />
+            {/* Recent searches (U7): a compact list of buttons directly under the field while idle. Pressing
+                one does NOT blur the field on RN (no implicit focus move), so the panel survives the tap;
+                it disappears as soon as the container sets the chosen query (non-blank ⇒ result state). */}
+            {showRecentSearches && (
+                <View accessibilityLabel={discovery.recentSearchesLabel} style={styles.recentPanel}>
+                    <View style={styles.recentHeader}>
+                        <Text style={styles.recentTitle}>{discovery.recentSearchesLabel}</Text>
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={discovery.clearRecentSearchesLabel}
+                            onPress={recentSearches.onClear}
+                            style={styles.recentClear}
+                        >
+                            <Text style={styles.recentClearLabel}>{discovery.clearRecentSearches}</Text>
+                        </Pressable>
+                    </View>
+                    {recentSearches.queries.map((query) => (
+                        <Pressable
+                            key={query}
+                            accessibilityRole="button"
+                            accessibilityLabel={fillTemplate(discovery.recentSearchLabel, { query })}
+                            onPress={() => recentSearches.onSelect(query)}
+                            style={styles.recentRow}
+                        >
+                            <Text style={styles.recentRowLabel}>{query}</Text>
+                        </Pressable>
+                    ))}
+                </View>
+            )}
             {filterSlot}
             {sort !== undefined && !browsing && (
                 <View accessibilityRole="radiogroup" accessibilityLabel={discovery.sortLabel} style={styles.sortRow}>
@@ -263,6 +311,21 @@ const styles = StyleSheet.create({
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[3] },
     gridCell: { width: '48%' },
     skeletonCard: { height: 220, borderRadius: nativeTokens.radius.lg, backgroundColor: nativeTokens.borderSubtle },
+    // Recent searches (U7): a card of 44pt-tall rows under the keyword field.
+    recentPanel: {
+        backgroundColor: palette.white,
+        borderRadius: nativeTokens.radius.lg,
+        borderWidth: 1,
+        borderColor: nativeTokens.borderSubtle,
+        paddingHorizontal: nativeTokens.spacing[3],
+        paddingVertical: nativeTokens.spacing[2],
+    },
+    recentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    recentTitle: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600', color: palette.slate },
+    recentClear: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[1] },
+    recentClearLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.seafoam },
+    recentRow: { minHeight: 44, justifyContent: 'center' },
+    recentRowLabel: { fontSize: nativeTokens.fontSize.bodyMd, color: palette.charcoal },
     backToBrowse: {
         alignSelf: 'flex-start',
         paddingVertical: 6,

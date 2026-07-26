@@ -11,6 +11,9 @@
  *   per keystroke.
  * - **Browsable default.** With no active query/filter, the screen shows curated rails (Trending/New/Quick +
  *   cuisine shortcuts) instead of a bare relevance stream; a rail's "see all" reveals the full sorted list.
+ * - **Recent searches.** `useRecentSearches` keeps a small, de-duplicated history keyed off the DEBOUNCED
+ *   value (so only searches that actually ran are recorded), persisted in `AsyncStorage` via the injected
+ *   `nativeRecentSearchStore` port — the platform edge of the same shared hook web uses with `localStorage`.
  */
 import {
     RecipeBrowseRails,
@@ -34,11 +37,18 @@ import {
     type RecipeDiscoveryStatus,
     type RecipeFilterState,
 } from '@commise/features-recipes';
-import { useBrowseRails, useDebouncedValue, useIngredientFilterSearch } from '@commise/features-recipes/hooks';
+import {
+    useBrowseRails,
+    useDebouncedValue,
+    useIngredientFilterSearch,
+    useRecentSearches,
+} from '@commise/features-recipes/hooks';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { useInfiniteSearchRecipes, useCloneRecipe } from '@kitchensink/recipe-service-client/hooks';
 import type { FC, JSX } from 'react';
 import { useState } from 'react';
+
+import { nativeRecentSearchStore } from '../storage/recentSearchStore.js';
 
 /** Props for {@link RecipeDiscoveryScreen}. */
 export interface RecipeDiscoveryScreenProps {
@@ -111,6 +121,11 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
     const clone = useCloneRecipe();
     const ingredientSearch = useIngredientFilterSearch();
 
+    // Recent searches (U7) are keyed off the DEBOUNCED value — the one that actually fed the fetch above — so
+    // the history holds searches the user ran, never keystrokes. Persisted via `AsyncStorage` (the injected
+    // port), mirroring web's `localStorage`.
+    const recentSearches = useRecentSearches(debouncedSearch, nativeRecentSearchStore);
+
     const status: RecipeDiscoveryStatus = search.isError ? 'error' : search.isLoading ? 'loading' : 'ready';
     const cloningId = clone.isPending ? (clone.variables ?? null) : null;
 
@@ -139,6 +154,12 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
             cloningId={cloningId}
             hasActiveFilters={hasActiveFilters(filters)}
             sort={{ active: sortBy, onChange: setSortBy }}
+            recentSearches={{
+                queries: recentSearches.queries,
+                // Selecting one is exactly a search change — the same single code path a keystroke takes.
+                onSelect: setSearchValue,
+                onClear: recentSearches.clear,
+            }}
             loadMore={{
                 hasMore: search.hasNextPage,
                 loading: search.isFetchingNextPage,

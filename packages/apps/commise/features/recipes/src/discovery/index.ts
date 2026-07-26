@@ -14,11 +14,22 @@ export {
     RECIPE_BROWSE_RAILS,
     RECIPE_BROWSE_RAIL_PAGE_SIZE,
 } from './model.js';
+export {
+    MAX_RECENT_SEARCHES,
+    RECENT_SEARCHES_STORAGE_KEY,
+    addRecentSearch,
+    mergeRecentSearches,
+    parseRecentSearches,
+    serializeRecentSearches,
+} from './recentSearches.js';
+export type { RecentSearchStore } from './recentSearches.js';
+
 export type {
     RecipeDiscoveryCardProps,
     RecipeDiscoveryListProps,
     RecipeDiscoveryStatus,
     RecipeDiscoverySortControl,
+    RecipeRecentSearchesControl,
     RecipeBrowseRailId,
     RecipeBrowseRailDefinition,
     RecipeBrowseRailView,

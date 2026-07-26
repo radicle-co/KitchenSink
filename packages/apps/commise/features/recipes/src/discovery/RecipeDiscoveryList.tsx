@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes — web public-discovery view (T076 building block, US2).
  *
@@ -5,8 +7,14 @@
  * one of four states — loading, error, empty, populated — derived from `status` + `results`. Every recipe
  * shown is public; each row offers a Clone action that copies it into the viewer's collection. It fetches
  * nothing; the composing app wires the search query + clone mutation to these props.
+ *
+ * The one piece of local state it owns is `searchFocused` — pure UI, no data and no side effect — because the
+ * recent-search panel (U7) is an IDLE-state affordance: it appears only while focus is inside the search area
+ * AND the query is blank, and the history behind it (recording, de-duplication, cap, persistence) belongs to
+ * the container's `useRecentSearches`, not here.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { useState } from 'react';
 import type { FC, ReactElement } from 'react';
 
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
@@ -57,14 +65,27 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     loadMore,
     browseSlot,
     onExitToBrowse,
+    recentSearches,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
+
+    // Local UI state ONLY (no data, no side effect): whether focus is inside the search area. The recent
+    // searches are an idle-state shortcut, so they appear on focus and vanish once focus leaves — they must
+    // never sit permanently between the field and the results.
+    const [searchFocused, setSearchFocused] = useState(false);
 
     // Empty ≠ no-match, and browse ≠ either: an active query/filter turns the surface into a result list;
     // with neither, the curated `browseSlot` (when provided) is the default experience, not a bare stream.
     const searching = searchValue.trim().length > 0 || hasActiveFilters;
     const browsing = browseSlot !== undefined && !searching;
+    // Idle + focused + something to offer: anything else (a typed query, an empty history, a surface that
+    // wires no memory) renders no panel at all rather than an empty one.
+    const showRecentSearches =
+        recentSearches !== undefined &&
+        recentSearches.queries.length > 0 &&
+        searchFocused &&
+        searchValue.trim().length === 0;
 
     let body: ReactElement;
 
@@ -137,14 +158,61 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
             <header>
                 <h1 className="font-display text-display-md font-bold text-charcoal">{discovery.heading}</h1>
             </header>
-            <input
-                type="search"
-                aria-label={discovery.searchLabel}
-                placeholder={discovery.searchPlaceholder}
-                value={searchValue}
-                onChange={(event) => onSearchChange(event.target.value)}
-                className="w-full rounded-full border border-border bg-card px-5 py-3 text-body-md text-charcoal shadow-sm outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
-            />
+            {/* The field + its recent-search panel form ONE focus scope: `focusout` bubbles here carrying the
+                element focus is moving TO, so a click that moves focus INTO the panel keeps it mounted long
+                enough for that click to land — the classic "the suggestion vanished under my cursor" bug. */}
+            <div
+                className="flex flex-col gap-2"
+                onFocus={() => setSearchFocused(true)}
+                onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) {
+                        setSearchFocused(false);
+                    }
+                }}
+            >
+                <input
+                    type="search"
+                    aria-label={discovery.searchLabel}
+                    placeholder={discovery.searchPlaceholder}
+                    value={searchValue}
+                    onChange={(event) => onSearchChange(event.target.value)}
+                    className="w-full rounded-full border border-border bg-card px-5 py-3 text-body-md text-charcoal shadow-sm outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
+                />
+                {showRecentSearches && (
+                    <section
+                        aria-label={discovery.recentSearchesLabel}
+                        className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm"
+                    >
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-caption font-semibold uppercase tracking-wide text-slate">
+                                {discovery.recentSearchesLabel}
+                            </p>
+                            <button
+                                type="button"
+                                aria-label={discovery.clearRecentSearchesLabel}
+                                onClick={recentSearches.onClear}
+                                className="rounded-full px-2 py-1 text-caption font-semibold text-seafoam transition hover:bg-mist/20"
+                            >
+                                {discovery.clearRecentSearches}
+                            </button>
+                        </div>
+                        <ul className="flex flex-col">
+                            {recentSearches.queries.map((query) => (
+                                <li key={query}>
+                                    <button
+                                        type="button"
+                                        aria-label={fillTemplate(discovery.recentSearchLabel, { query })}
+                                        onClick={() => recentSearches.onSelect(query)}
+                                        className="w-full rounded-lg px-2 py-2 text-left text-body-sm text-charcoal transition hover:bg-pearl"
+                                    >
+                                        {query}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
+            </div>
             {filterSlot}
             {onExitToBrowse !== undefined && !browsing && (
                 <button

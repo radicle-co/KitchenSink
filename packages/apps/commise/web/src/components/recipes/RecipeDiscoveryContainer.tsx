@@ -17,6 +17,9 @@
  *   keystrokes.
  * - **Browsable default.** With no active query/filter, discovery shows curated rails (Trending/New/Quick +
  *   cuisine shortcuts) instead of a bare relevance stream; a rail's "see all" reveals the full sorted list.
+ * - **Recent searches.** `useRecentSearches` keeps a small, de-duplicated history keyed off the DEBOUNCED
+ *   query (so only searches that actually ran are recorded), persisted in `localStorage` via the injected
+ *   `webRecentSearchStore` port. Choosing one routes through the SAME `onSearchChange` a keystroke does.
  */
 import { RecipeBrowseRails, RecipeDiscoveryList, RecipeFilterBar } from '@commise/features-recipes';
 import type {
@@ -41,13 +44,20 @@ import {
     toggleFacetValue,
     type RecipeFilterState,
 } from '@commise/features-recipes';
-import { useBrowseRails, useDebouncedValue, useIngredientFilterSearch } from '@commise/features-recipes/hooks';
+import {
+    useBrowseRails,
+    useDebouncedValue,
+    useIngredientFilterSearch,
+    useRecentSearches,
+} from '@commise/features-recipes/hooks';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { useCloneRecipe, useInfiniteSearchRecipes } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import type { FC } from 'react';
+
+import { webRecentSearchStore } from '@/lib/recentSearchStore';
 
 /** Props for {@link RecipeDiscoveryContainer}. */
 export interface RecipeDiscoveryContainerProps {
@@ -134,6 +144,11 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
     const clone = useCloneRecipe();
     const ingredientSearch = useIngredientFilterSearch();
 
+    // Recent searches (U7) are keyed off the DEBOUNCED query — the value that actually fed the fetch above —
+    // so history records searches the user ran, never keystrokes. Persisted in `localStorage` through the
+    // injected port.
+    const recentSearches = useRecentSearches(debouncedQuery, webRecentSearchStore);
+
     const status = toDiscoveryStatus(search.isLoading, search.isError);
     const cloningId = clone.isPending ? clone.variables : null;
 
@@ -182,6 +197,13 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
             cloningId={cloningId}
             hasActiveFilters={hasActiveFilters(filters)}
             sort={{ active: sortBy, onChange: setSortBy }}
+            recentSearches={{
+                queries: recentSearches.queries,
+                // Selecting one is exactly a search change: the field echoes it immediately, the URL is
+                // updated (shareable), and the debounce feeds it to the query — no second code path.
+                onSelect: onSearchChange,
+                onClear: recentSearches.clear,
+            }}
             loadMore={{
                 hasMore: search.hasNextPage,
                 loading: search.isFetchingNextPage,

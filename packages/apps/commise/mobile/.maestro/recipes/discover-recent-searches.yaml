@@ -1,0 +1,66 @@
+appId: io.commise.mobile
+---
+# Recent searches on the discovery keyword field (U7). Proves on device what only the device can:
+#   1. a search that actually RAN is remembered (recorded from the debounced query, not per keystroke);
+#   2. the history appears only in the IDLE state — keyword field focused, query blank;
+#   3. tapping an entry re-runs that search (the results come back);
+#   4. "Clear" forgets the history, and the panel disappears.
+# `AsyncStorage` persistence across an app restart is exercised by step 5 (stopApp + relaunch).
+# Read-only with respect to recipe data: it types, clears, and clears history, mutating no recipe. Anchored
+# on the seeded public row "Herb Risotto" that no other flow renames.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover recipes'
+      timeout: 40000
+
+# Start from a clean history: if an earlier run left entries, forget them so step 1 is meaningful.
+- tapOn: 'Search public recipes'
+- runFlow:
+      when:
+          visible: 'Recent searches'
+      commands:
+          - tapOn: 'Clear recent searches'
+- assertNotVisible: 'Recent searches'
+
+# 1. Run a real search — the rails give way to the result list once the debounced query settles.
+- tapOn: 'Search public recipes'
+- inputText: 'Risotto'
+- extendedWaitUntil:
+      visible: 'Herb Risotto'
+      timeout: 40000
+
+# 2. Back to the idle state: clearing the field (still focused) reveals the search that ran.
+- tapOn: 'Search public recipes'
+- eraseText
+- extendedWaitUntil:
+      visible: 'Recent searches'
+      timeout: 40000
+- assertVisible: 'Risotto'
+
+# 3. Tapping the entry re-runs it: the result list returns.
+- tapOn: 'Search for “Risotto”'
+- extendedWaitUntil:
+      visible: 'Herb Risotto'
+      timeout: 40000
+
+# 4. It survives an app restart (AsyncStorage, not in-memory state). `signin.yaml` relaunches the app itself
+# and is idempotent about an already-persisted session, so it is the whole restart step.
+- stopApp
+- runFlow: ../auth/signin.yaml
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover recipes'
+      timeout: 40000
+- tapOn: 'Search public recipes'
+- extendedWaitUntil:
+      visible: 'Recent searches'
+      timeout: 40000
+- assertVisible: 'Risotto'
+
+# 5. Clear forgets everything — the panel goes away, and the rails are still there behind it.
+- tapOn: 'Clear recent searches'
+- assertNotVisible: 'Recent searches'
+- assertVisible: 'Trending'

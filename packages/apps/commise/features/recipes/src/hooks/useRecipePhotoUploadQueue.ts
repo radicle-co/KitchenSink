@@ -29,6 +29,12 @@
  * effects can never race: at most one file is ever mid-flight, and the next never starts until the current
  * one has fully resolved.
  *
+ * **Post-commit continuations.** "settle" is also the single place a file's optional
+ * {@link RecipePhotoQueueFile.onUploaded} continuation runs — exactly once, only on the `ok` arm, only while
+ * the item is still in the queue. That makes "do X once this photo is durably the server's" expressible
+ * without any leaf re-deriving per-file outcomes from `uploader` state (U6's cancel-safe Replace: the
+ * original photo is deleted only after its replacement has confirmed).
+ *
  * **`fileId` generation** is owned by this hook's own reducer — a monotonically-incrementing counter carried
  * in reducer state (not `Math.random`/`Date.now`, and not a ref: the counter is itself part of the pure
  * reducer's state transition, keeping the reducer the single source of truth for the queue's shape).
@@ -79,6 +85,22 @@ export type RecipePhotoQueueStatus = StoredStatus | 'uploading';
 export interface RecipePhotoQueueFile extends RecipePhotoUploadFile {
     /** A caller-supplied preview source for the grid thumbnail; not sent to the server. */
     readonly previewUri?: string;
+    /**
+     * Optional post-commit continuation (a Command carried ON the work item) invoked EXACTLY ONCE, and only
+     * once this file's presign → PUT → confirm has fully succeeded — i.e. once the new photo is durably the
+     * server's. It never runs for a file that failed (validation or transport), was withdrawn from the queue
+     * before settling, or is still in flight; a `retry` that finally lands does run it.
+     *
+     * This is the seam U6's cancel-safe "Replace" is built on: a leaf enqueues the replacement carrying
+     * `onUploaded: () => deletePhoto(originalId)`, so the original photo is removed only after its
+     * replacement exists. A cancelled pick never enqueues anything, and a failed upload never commits — in
+     * both cases the original survives untouched (the remove-then-add ordering it replaces lost the original
+     * on a mere picker cancel).
+     *
+     * @sideEffect The caller's continuation typically runs a mutation; this hook invokes it from its settle
+     *   effect and ignores any value it returns.
+     */
+    readonly onUploaded?: () => void;
 }
 
 /** One file's state as exposed to the grid. */
@@ -306,11 +328,22 @@ export function useRecipePhotoUploadQueue(
         if (uploader.errorMessage !== undefined) {
             dispatch({ type: 'fail', fileId: activeFileId, errorMessage: uploader.errorMessage });
         } else {
+            // The item is looked up (rather than closed over) so a file the user WITHDREW mid-flight has no
+            // continuation left to run: `remove` dropped it, so there is nothing to find and nothing fires.
+            // `status !== 'ok'` makes the invocation idempotent by construction — a continuation typically
+            // DELETES a confirmed photo (U6 Replace), so firing it twice must be impossible even if this
+            // effect were ever re-entered after its own `succeed` dispatch had applied.
+            const settled = state.items.find((item) => item.fileId === activeFileId);
+
             dispatch({ type: 'succeed', fileId: activeFileId });
+
+            if (settled !== undefined && settled.status !== 'ok') {
+                settled.file.onUploaded?.();
+            }
         }
 
         setActiveFileId(null);
-    }, [activeFileId, uploader.uploading, uploader.errorMessage]);
+    }, [activeFileId, uploader.uploading, uploader.errorMessage, state.items]);
 
     const enqueue = (files: readonly RecipePhotoQueueFile[]): void => {
         const activeCount = state.items.filter((item) => item.status !== 'ok').length;

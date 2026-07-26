@@ -348,6 +348,118 @@ describe('useRecipePhotoUploadQueue — remove', () => {
     });
 });
 
+describe('useRecipePhotoUploadQueue — the per-file `onUploaded` continuation (U6 cancel-safe Replace)', () => {
+    it('invokes onUploaded exactly once, and only AFTER the file’s confirm has resolved', async () => {
+        const presign = makeControllablePresign();
+        const confirm = vi.fn().mockResolvedValue(undefined);
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign.mutateAsync });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: confirm });
+
+        const onUploaded = vi.fn();
+        const { result } = renderHook(() => useHarness(0));
+
+        act(() => {
+            result.current.queue.enqueue([makeQueueFile({ fileName: 'replacement.png', onUploaded })]);
+        });
+
+        // Enqueued and mid-flight — the swap must NOT be committed yet (this is the whole point: nothing
+        // destructive happens until the replacement is durably confirmed).
+        expect(result.current.queue.items[0]?.status).toBe('uploading');
+        expect(onUploaded).not.toHaveBeenCalled();
+
+        act(() => {
+            presign.resolveNext({ uploadUrl: 'https://s3.example.com/put', key: 'k1' });
+        });
+        await waitFor(() => expect(result.current.queue.items[0]?.status).toBe('ok'));
+
+        expect(confirm).toHaveBeenCalledTimes(1);
+        expect(onUploaded).toHaveBeenCalledTimes(1);
+        // Ordering: the confirm landed BEFORE the continuation fired.
+        expect(confirm.mock.invocationCallOrder[0]).toBeLessThan(onUploaded.mock.invocationCallOrder[0] as number);
+    });
+
+    it('never invokes onUploaded when the upload fails — and fires it on a later successful retry', async () => {
+        const presign = vi.fn().mockResolvedValue({ uploadUrl: 'https://s3.example.com/put', key: 'k1' });
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn().mockResolvedValue(undefined) });
+        fetchMock.mockResolvedValueOnce({ ok: false, status: 500 }).mockResolvedValue({ ok: true, status: 200 });
+
+        const onUploaded = vi.fn();
+        const { result } = renderHook(() => useHarness(0));
+
+        act(() => {
+            result.current.queue.enqueue([makeQueueFile({ fileName: 'flaky.png', onUploaded })]);
+        });
+
+        await waitFor(() => expect(result.current.queue.items[0]?.status).toBe('failed'));
+        expect(onUploaded).not.toHaveBeenCalled();
+
+        const fileId = result.current.queue.items[0]?.fileId as number;
+        act(() => {
+            result.current.queue.retry(fileId);
+        });
+
+        await waitFor(() => expect(result.current.queue.items[0]?.status).toBe('ok'));
+        expect(onUploaded).toHaveBeenCalledTimes(1);
+    });
+
+    it('never invokes onUploaded for a file rejected by client-side validation', () => {
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: vi.fn() });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
+
+        const onUploaded = vi.fn();
+        const { result } = renderHook(() => useHarness(0));
+
+        act(() => {
+            result.current.queue.enqueue([
+                makeQueueFile({ fileName: 'huge.png', fileSize: MAX_RECIPE_PHOTO_UPLOAD_BYTES + 1, onUploaded }),
+            ]);
+        });
+
+        expect(result.current.queue.items[0]?.status).toBe('failed');
+        expect(onUploaded).not.toHaveBeenCalled();
+    });
+
+    it('never invokes onUploaded for a file removed from the queue while its upload was in flight', async () => {
+        const presign = makeControllablePresign();
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign.mutateAsync });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn().mockResolvedValue(undefined) });
+
+        const onUploaded = vi.fn();
+        const { result } = renderHook(() => useHarness(0));
+
+        act(() => {
+            result.current.queue.enqueue([makeQueueFile({ fileName: 'abandoned.png', onUploaded })]);
+        });
+        const fileId = result.current.queue.items[0]?.fileId as number;
+
+        act(() => {
+            result.current.queue.remove(fileId);
+        });
+        act(() => {
+            presign.resolveNext({ uploadUrl: 'https://s3.example.com/put', key: 'k1' });
+        });
+
+        // The user withdrew the file — its continuation (which would delete a confirmed photo) must never run.
+        await waitFor(() => expect(result.current.queue.items).toHaveLength(0));
+        expect(onUploaded).not.toHaveBeenCalled();
+    });
+
+    it('leaves a file without a continuation entirely unaffected', async () => {
+        const presign = vi.fn().mockResolvedValue({ uploadUrl: 'https://s3.example.com/put', key: 'k1' });
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn().mockResolvedValue(undefined) });
+
+        const { result } = renderHook(() => useHarness(0));
+
+        act(() => {
+            result.current.queue.enqueue([makeQueueFile({ fileName: 'plain.png' })]);
+        });
+
+        await waitFor(() => expect(result.current.queue.items[0]?.status).toBe('ok'));
+    });
+});
+
 describe('useRecipePhotoUploadQueue — max-10 cap', () => {
     it('caps an enqueue call so confirmed + queued items never exceed the max', () => {
         useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: vi.fn(() => new Promise(() => undefined)) });

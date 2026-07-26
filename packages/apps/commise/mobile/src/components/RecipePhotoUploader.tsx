@@ -29,7 +29,7 @@
  * MIME allowlist) — this container's only involvement is supplying the two localized rejection strings;
  * the admission check itself lives in `useRecipePhotoUploadQueue`.
  */
-import { RecipePhotoManager } from '@commise/features-recipes';
+import { RecipePhotoManager, isAtPhotoCap, visibleQueueItems } from '@commise/features-recipes';
 import { useRecipePhotoUpload, useRecipePhotoUploadQueue } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import {
@@ -73,11 +73,15 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
     // attempt at either action clears its own slot.
     const [pickErrorMessage, setPickErrorMessage] = useState<string | undefined>(undefined);
     const [removeErrorMessage, setRemoveErrorMessage] = useState<string | undefined>(undefined);
+    // A third slot for the one way a REPLACE can be refused before anything happens: no free slot for the
+    // replacement to land in (see `replacePhoto`). Cleared by the next replace attempt and by any removal
+    // (which is exactly the advice the message gives, so it must not linger once followed).
+    const [replaceErrorMessage, setReplaceErrorMessage] = useState<string | undefined>(undefined);
 
     // Tracks the picker-launch + local-blob-read window, BEFORE `enqueue()` ever runs — see the re-entrancy
     // guard in the module doc above.
     const [picking, setPicking] = useState(false);
-    const errorMessage = removeErrorMessage ?? pickErrorMessage;
+    const errorMessage = replaceErrorMessage ?? removeErrorMessage ?? pickErrorMessage;
 
     // The delete mutation carries its target in `variables`; busy only that row while its deletion is pending.
     const removingPhotoId = deletePhoto.isPending ? (deletePhoto.variables?.photoId ?? null) : null;
@@ -87,7 +91,10 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
     // blob-read window (never the upload itself), so a second tap while a PREVIOUS pick is still resolving
     // can't launch `expo-image-picker` a second time concurrently — but a tap while a PREVIOUS upload is
     // still in flight is welcomed: it enqueues, exactly the queue's reason to exist.
-    const addPhoto = async (): Promise<void> => {
+    // `onUploaded` is the optional post-commit continuation carried on the enqueued file (see
+    // `useRecipePhotoUploadQueue`): the queue runs it once, only after this file's confirm has landed. Add
+    // passes none; Replace passes the "now delete the photo you replaced" step.
+    const addPhoto = async (onUploaded?: () => void): Promise<void> => {
         if (picking) {
             // Already mid-flight (picker open, or reading the blob) — a second tap is a no-op.
             return;
@@ -136,7 +143,16 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
             // what's actually about to be uploaded — always present, since a `Blob` requires it — and it's
             // also the presign request's `fileSize`, so that request now describes the SAME bytes the S3
             // PUT sends, rather than the picker's separate (and sometimes absent) size estimate.
-            queue.enqueue([{ blob, fileName, contentType, fileSize: blob.size, previewUri: asset.uri }]);
+            queue.enqueue([
+                {
+                    blob,
+                    fileName,
+                    contentType,
+                    fileSize: blob.size,
+                    previewUri: asset.uri,
+                    ...(onUploaded === undefined ? {} : { onUploaded }),
+                },
+            ]);
         } finally {
             setPicking(false);
         }
@@ -144,6 +160,7 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
 
     const removePhoto = (photoId: string): void => {
         setRemoveErrorMessage(undefined);
+        setReplaceErrorMessage(undefined);
         deletePhoto.mutate({ id: recipeId, photoId }, { onError: () => setRemoveErrorMessage(t.removeError) });
     };
 
@@ -154,17 +171,30 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
         reorderPhotos.mutate({ id: recipeId, photoIds });
     };
 
-    // U6 "Replace": no atomic replace primitive exists, so remove the photo then re-open the picker to add its
-    // replacement (mirrors the web container's documented remove-then-add).
+    // U6 "Replace" — UPLOAD-FIRST, then swap (cancel-safe; mirrors the web container). No atomic replace
+    // primitive exists server-side, and the previous ordering deleted the photo FIRST and only then opened the
+    // picker: cancelling the picker (the single most likely outcome of an accidental tap) destroyed the
+    // original, and so did any subsequent upload failure. The destructive half now runs LAST, as the
+    // replacement's post-commit continuation — pick → blob-read → enqueue → presign → PUT → confirm → delete
+    // the original. Every earlier exit (cancel, unreadable asset, validation rejection, failed PUT/confirm)
+    // leaves the original photo exactly where it was.
+    //
+    // Cover semantics are deliberately unchanged: the replacement appends to the end, the delete promotes the
+    // next photo when the cover was the one replaced, and no reorder is issued — the same final ordering the
+    // old remove-then-add produced.
+    //
+    // At the cap there is nowhere for the replacement to land (the server enforces MAX_PHOTOS_EXCEEDED inside
+    // the confirm transaction), so rather than delete first (data loss) or surface a misleading "upload
+    // failed", Replace refuses with actionable copy and the user frees a slot deliberately.
     const replacePhoto = (photoId: string): void => {
-        setRemoveErrorMessage(undefined);
-        deletePhoto.mutate(
-            { id: recipeId, photoId },
-            {
-                onError: () => setRemoveErrorMessage(t.removeError),
-                onSuccess: () => void addPhoto(),
-            },
-        );
+        if (isAtPhotoCap(photos.length + visibleQueueItems(queue.items).length)) {
+            setReplaceErrorMessage(t.replaceAtCapError);
+
+            return;
+        }
+
+        setReplaceErrorMessage(undefined);
+        void addPhoto(() => removePhoto(photoId));
     };
 
     const addControl = (

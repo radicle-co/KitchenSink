@@ -65,9 +65,17 @@ export interface RecipePhotoManagerProps {
     readonly onSetCover?: (photoId: string) => void;
     /**
      * Replace the photo with this id (U6). Presentational only: the manager renders a per-photo "Replace"
-     * control and reports the id upward; the container owns the platform image-acquisition glue (web:
-     * remove-then-open-the-file-input; native: relaunch the picker). Omitted on a surface that does not offer
-     * replace.
+     * control and reports the id upward; the container owns the platform image-acquisition glue (web: a
+     * dedicated hidden single-select file input; native: `expo-image-picker`).
+     *
+     * The container contract both platforms implement is UPLOAD-FIRST and therefore CANCEL-SAFE: acquire the
+     * replacement, upload it, and delete the replaced photo only once the new one is durably confirmed (the
+     * queue's per-file `onUploaded` continuation). A cancelled picker, an unreadable asset, a
+     * validation-rejected file and a failed upload all leave the original photo untouched — the earlier
+     * remove-then-add ordering lost it on a mere picker cancel. Because the replacement still appends and no
+     * reorder is issued, the cover (lowest sort order) behaves exactly as before.
+     *
+     * Omitted on a surface that does not offer replace.
      */
     readonly onReplacePhoto?: (photoId: string) => void;
     /** The platform image-acquisition control (web file input / native picker button); hidden at the cap. */

@@ -238,6 +238,8 @@ export interface MobileMessages {
         readonly tooLargeError: string;
         /** Alert shown when a picked asset's type is outside the allowlist (REQ-012), before upload starts. */
         readonly unsupportedTypeError: string;
+        /** Alert shown when Replace is pressed at the photo cap — a lossless swap needs a free slot (U6). */
+        readonly replaceAtCapError: string;
     };
     readonly ingredientPicker: {
         /** Section heading for the ingredient typeahead. */
@@ -450,6 +452,7 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             removeError: 'We couldn’t remove this photo. Please try again.',
             tooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
             unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
+            replaceAtCapError: 'Remove a photo first — replacing needs room for the new one.',
         },
         ingredientPicker: {
             heading: 'Add an ingredient',

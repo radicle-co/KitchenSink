@@ -345,3 +345,92 @@ describe('RecipeDiscoveryList (web) — clone', () => {
         expect(onClone).toHaveBeenCalledWith('rec_3');
     });
 });
+
+describe('RecipeDiscoveryList (web) — recent searches (U7)', () => {
+    const recent = { queries: ['risotto', 'pasta'], onSelect: noop, onClear: noop };
+
+    /** Focus the search field — the panel is an idle-state affordance, not always-on chrome. */
+    async function focusSearch(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+        await user.click(screen.getByRole('searchbox', { name: 'Search public recipes' }));
+    }
+
+    it('renders nothing when the surface wires no recent-search memory', async () => {
+        const user = userEvent.setup();
+        renderDiscovery({ searchValue: '' });
+
+        await focusSearch(user);
+
+        expect(screen.queryByRole('region', { name: 'Recent searches' })).toBeNull();
+    });
+
+    it('stays hidden until the search field is focused', () => {
+        renderDiscovery({ searchValue: '', recentSearches: recent });
+
+        expect(screen.queryByRole('region', { name: 'Recent searches' })).toBeNull();
+    });
+
+    it('lists the recent searches, newest first, once focused with a blank query', async () => {
+        const user = userEvent.setup();
+        renderDiscovery({ searchValue: '', recentSearches: recent });
+
+        await focusSearch(user);
+
+        const panel = screen.getByRole('region', { name: 'Recent searches' });
+        const options = within(panel).getAllByRole('button', { name: /^Search for/ });
+        expect(options.map((option) => option.textContent)).toEqual(['risotto', 'pasta']);
+    });
+
+    it('stays hidden while a query is active, even when focused (that is the RESULT state, not idle)', async () => {
+        const user = userEvent.setup();
+        renderDiscovery({ searchValue: 'lamb', recentSearches: recent });
+
+        await focusSearch(user);
+
+        expect(screen.queryByRole('region', { name: 'Recent searches' })).toBeNull();
+    });
+
+    it('renders no panel at all when the history is empty', async () => {
+        const user = userEvent.setup();
+        renderDiscovery({ searchValue: '', recentSearches: { ...recent, queries: [] } });
+
+        await focusSearch(user);
+
+        expect(screen.queryByRole('region', { name: 'Recent searches' })).toBeNull();
+    });
+
+    it('reports the chosen recent search upward (so the container runs it)', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        renderDiscovery({ searchValue: '', recentSearches: { ...recent, onSelect } });
+
+        await focusSearch(user);
+        // Clicking a suggestion moves focus INTO the panel: if a blur handler tore the panel down first,
+        // this click would never land — the regression this asserts.
+        await user.click(screen.getByRole('button', { name: 'Search for “pasta”' }));
+
+        expect(onSelect).toHaveBeenCalledWith('pasta');
+    });
+
+    it('reports clear-all upward', async () => {
+        const user = userEvent.setup();
+        const onClear = vi.fn();
+        renderDiscovery({ searchValue: '', recentSearches: { ...recent, onClear } });
+
+        await focusSearch(user);
+        await user.click(screen.getByRole('button', { name: 'Clear recent searches' }));
+
+        expect(onClear).toHaveBeenCalledTimes(1);
+    });
+
+    it('hides again once focus leaves the search area entirely', async () => {
+        const user = userEvent.setup();
+        renderDiscovery({ status: 'ready', results: threeResults, searchValue: '', recentSearches: recent });
+
+        await focusSearch(user);
+        expect(screen.getByRole('region', { name: 'Recent searches' })).toBeTruthy();
+
+        await user.click(screen.getByRole('button', { name: 'Clone Asparagus with Green Sauce' }));
+
+        expect(screen.queryByRole('region', { name: 'Recent searches' })).toBeNull();
+    });
+});

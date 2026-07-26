@@ -15,6 +15,12 @@
  *  - every still-tracked preview URL is revoked on unmount (a file still mid-flight when the user navigates
  *    away must not leak its object URL).
  *
+ * They also pin U6's CANCEL-SAFE replace (upload-first, then swap): pressing Replace opens the dedicated
+ * replacement picker WITHOUT deleting anything, a cancelled dialog (no `change` event) and a failed upload
+ * both leave the original photo intact, a confirmed replacement deletes exactly the replaced photo (and never
+ * reorders, so the lowest-sort-order cover rule is untouched), and Replace at the photo cap refuses with
+ * actionable copy instead of destroying the original for a swap that cannot land.
+ *
  * `useRecipePhotos` / `useDeleteRecipePhoto` (network/query hooks) and `useRecipePhotoUpload` (the
  * presign→PUT→confirm orchestration) are replaced with lightweight doubles — this container's own
  * responsibility is the DOM wiring around them, not re-proving their internals (covered where they're
@@ -30,10 +36,14 @@ const { photosQueryMock, deletePhotoMock, reorderPhotoMock, uploadState } = vi.h
     photosQueryMock: vi.fn(),
     deletePhotoMock: vi.fn(),
     reorderPhotoMock: vi.fn(),
-    // Per-test knob for the fake `useRecipePhotoUpload` below: when `stuck` is true, an upload flips
-    // `uploading: true` and never resolves — simulating a file still mid-flight when the container unmounts.
-    uploadState: { stuck: false },
+    // Per-test knobs for the fake `useRecipePhotoUpload` below: `stuck` flips `uploading: true` and never
+    // resolves (a file still mid-flight when the container unmounts / while a swap must stay uncommitted);
+    // `fail` settles the upload with an error message (the queue then marks that file `failed`).
+    uploadState: { stuck: false, fail: false },
 }));
+
+/** The localized upload error the fake uploader settles with when `uploadState.fail` is set. */
+const UPLOAD_FAILED_MESSAGE = 'We couldn’t upload your photo. Please try again.';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRecipePhotos: photosQueryMock,
@@ -63,7 +73,10 @@ vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
                 }
 
                 await Promise.resolve();
-                setState({ uploading: false, errorMessage: undefined });
+                setState({
+                    uploading: false,
+                    errorMessage: uploadState.fail ? UPLOAD_FAILED_MESSAGE : undefined,
+                });
             }, []);
 
             return { ...state, upload };
@@ -88,6 +101,7 @@ beforeEach(() => {
     (URL as unknown as { revokeObjectURL: typeof revokeObjectURL }).revokeObjectURL = revokeObjectURL;
 
     uploadState.stuck = false;
+    uploadState.fail = false;
     photosQueryMock.mockReset().mockReturnValue({ data: [] });
     deletePhotoMock.mockReset().mockReturnValue({ mutate: vi.fn(), isPending: false, variables: undefined });
     reorderPhotoMock.mockReset().mockReturnValue({ mutate: vi.fn(), isPending: false, variables: undefined });
@@ -220,18 +234,125 @@ describe('RecipePhotoUploaderContainer (web) — set cover (U6)', () => {
     });
 });
 
-describe('RecipePhotoUploaderContainer (web) — replace (U6)', () => {
-    it('removes the chosen photo and re-opens the file input so its replacement can be picked', async () => {
-        const mutate = vi.fn();
-        deletePhotoMock.mockReturnValue({ mutate, isPending: false, variables: undefined });
+describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () => {
+    /** Arrange the three-photo recipe + a delete double, and open the replacement picker for `photoIndex`. */
+    async function startReplace(photoIndex: number): Promise<{
+        deleteMutate: ReturnType<typeof vi.fn>;
+        reorderMutate: ReturnType<typeof vi.fn>;
+        clickSpy: ReturnType<typeof vi.spyOn>;
+        user: ReturnType<typeof userEvent.setup>;
+    }> {
+        const deleteMutate = vi.fn();
+        const reorderMutate = vi.fn();
+        deletePhotoMock.mockReturnValue({ mutate: deleteMutate, isPending: false, variables: undefined });
+        reorderPhotoMock.mockReturnValue({ mutate: reorderMutate, isPending: false, variables: undefined });
         photosQueryMock.mockReturnValue({ data: threeConfirmedPhotos });
+        // `.click()` on a hidden file input would try to open a real dialog jsdom has no notion of; the pick
+        // itself is simulated by firing a change on that same input (or NOT firing one, to model a cancel).
         const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
         const user = userEvent.setup();
         render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
 
-        await user.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+        await user.click(screen.getByRole('button', { name: `Replace photo ${photoIndex}` }));
 
-        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_2' });
+        return { deleteMutate, reorderMutate, clickSpy, user };
+    }
+
+    it('opens the replacement picker WITHOUT deleting anything first', async () => {
+        const { deleteMutate, clickSpy } = await startReplace(2);
+
+        // The regression this pins: the old wiring deleted the photo up-front, so the original was already
+        // gone before the user had picked (or cancelled) anything.
         expect(clickSpy).toHaveBeenCalled();
+        expect(deleteMutate).not.toHaveBeenCalled();
+        expect(screen.getByRole('img', { name: 'Recipe photo 2' })).toBeTruthy();
+    });
+
+    it('leaves the original untouched when the user CANCELS the picker (no change event)', async () => {
+        const { deleteMutate } = await startReplace(2);
+
+        // A cancelled file dialog fires no `change` — nothing at all should have happened.
+        expect(deleteMutate).not.toHaveBeenCalled();
+        expect(screen.getByRole('img', { name: 'Recipe photo 1' })).toBeTruthy();
+        expect(screen.getByRole('img', { name: 'Recipe photo 2' })).toBeTruthy();
+        expect(screen.getByRole('img', { name: 'Recipe photo 3' })).toBeTruthy();
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('does not delete the original while the replacement upload is still in flight', async () => {
+        uploadState.stuck = true;
+        const { deleteMutate, user } = await startReplace(2);
+
+        await user.upload(screen.getByLabelText('Choose a replacement photo'), makeFile('new.png'));
+
+        await waitFor(() => expect(screen.getByRole('status', { name: 'Uploading…' })).toBeTruthy());
+        expect(deleteMutate).not.toHaveBeenCalled();
+        expect(screen.getByRole('img', { name: 'Recipe photo 2' })).toBeTruthy();
+    });
+
+    it('leaves the original untouched when the replacement upload FAILS', async () => {
+        uploadState.fail = true;
+        const { deleteMutate, user } = await startReplace(2);
+
+        await user.upload(screen.getByLabelText('Choose a replacement photo'), makeFile('new.png'));
+
+        await waitFor(() => expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy());
+        expect(deleteMutate).not.toHaveBeenCalled();
+        expect(screen.getByRole('img', { name: 'Recipe photo 2' })).toBeTruthy();
+    });
+
+    it('deletes exactly the replaced photo once its replacement has been confirmed', async () => {
+        const { deleteMutate, reorderMutate, user } = await startReplace(2);
+
+        await user.upload(screen.getByLabelText('Choose a replacement photo'), makeFile('new.png'));
+
+        await waitFor(() => expect(deleteMutate).toHaveBeenCalledTimes(1));
+        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_2' });
+        // Cover semantics are untouched by a replace: the cover is still resolved as the lowest-sort-order
+        // photo, so replacing one never reorders (and never silently reassigns the cover).
+        expect(reorderMutate).not.toHaveBeenCalled();
+        expect(screen.getByRole('radio', { name: 'Set photo 1 as cover' })).toBeChecked();
+    });
+
+    it('replaces the COVER photo without reordering — the cover stays the lowest-sort-order photo', async () => {
+        const { deleteMutate, reorderMutate, user } = await startReplace(1);
+
+        await user.upload(screen.getByLabelText('Choose a replacement photo'), makeFile('new-cover.png'));
+
+        await waitFor(() => expect(deleteMutate).toHaveBeenCalledTimes(1));
+        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' });
+        expect(reorderMutate).not.toHaveBeenCalled();
+    });
+
+    it('refuses to replace at the photo cap (a lossless swap needs a free slot) and deletes nothing', async () => {
+        const deleteMutate = vi.fn();
+        deletePhotoMock.mockReturnValue({ mutate: deleteMutate, isPending: false, variables: undefined });
+        photosQueryMock.mockReturnValue({
+            data: Array.from({ length: 10 }, (_unused, index) => ({
+                id: `ph_${index + 1}`,
+                url: `https://cdn.example/${index + 1}.jpg`,
+                order: index + 1,
+                recipeId: 'rec_1',
+                createdAt: '',
+            })),
+        });
+        const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
+        const user = userEvent.setup();
+        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+
+        await user.click(screen.getByRole('button', { name: 'Replace photo 3' }));
+
+        expect(screen.getByRole('alert')).toHaveTextContent(
+            'Remove a photo first — replacing needs room for the new one.',
+        );
+        expect(deleteMutate).not.toHaveBeenCalled();
+        expect(clickSpy).not.toHaveBeenCalled();
+
+        // Following the advice retires it: the message must not keep claiming there is no room once the user
+        // has made some.
+        await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+
+        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' });
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 });

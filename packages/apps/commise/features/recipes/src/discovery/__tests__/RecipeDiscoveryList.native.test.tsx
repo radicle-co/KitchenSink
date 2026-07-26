@@ -274,3 +274,87 @@ describe('RecipeDiscoveryList (native) — clone', () => {
         expect(onClone).toHaveBeenCalledWith('rec_3');
     });
 });
+
+describe('RecipeDiscoveryList (native) — recent searches (U7)', () => {
+    const recent = { queries: ['risotto', 'pasta'], onSelect: noop, onClear: noop };
+
+    /**
+     * Focus the keyword field — the panel is an idle-state affordance, not always-on chrome. `focusIn` (not
+     * `fireEvent.focus`) because React delegates `onFocus` to the BUBBLING `focusin` event; a bare,
+     * non-bubbling `focus` event never reaches its listener and the field would silently stay unfocused.
+     */
+    function focusSearch(): void {
+        fireEvent.focusIn(screen.getByLabelText('Search public recipes'));
+    }
+
+    it('renders nothing when the surface wires no recent-search memory', () => {
+        renderDiscovery({ searchValue: '' });
+
+        focusSearch();
+
+        expect(screen.queryByLabelText('Recent searches')).toBeNull();
+    });
+
+    it('stays hidden until the keyword field is focused', () => {
+        renderDiscovery({ searchValue: '', recentSearches: recent });
+
+        expect(screen.queryByLabelText('Recent searches')).toBeNull();
+    });
+
+    it('lists the recent searches, newest first, once focused with a blank query', () => {
+        renderDiscovery({ searchValue: '', recentSearches: recent });
+
+        focusSearch();
+
+        expect(screen.getByLabelText('Recent searches')).toBeTruthy();
+        const options = screen.getAllByRole('button', { name: /^Search for/ });
+        expect(options.map((option) => option.textContent)).toEqual(['risotto', 'pasta']);
+    });
+
+    it('stays hidden while a query is active, even when focused (that is the RESULT state, not idle)', () => {
+        renderDiscovery({ searchValue: 'lamb', recentSearches: recent });
+
+        focusSearch();
+
+        expect(screen.queryByLabelText('Recent searches')).toBeNull();
+    });
+
+    it('renders no panel at all when the history is empty', () => {
+        renderDiscovery({ searchValue: '', recentSearches: { ...recent, queries: [] } });
+
+        focusSearch();
+
+        expect(screen.queryByLabelText('Recent searches')).toBeNull();
+    });
+
+    it('reports the chosen recent search upward (so the container runs it)', () => {
+        const onSelect = vi.fn();
+        renderDiscovery({ searchValue: '', recentSearches: { ...recent, onSelect } });
+
+        focusSearch();
+        fireEvent.click(screen.getByRole('button', { name: 'Search for “pasta”' }));
+
+        expect(onSelect).toHaveBeenCalledWith('pasta');
+    });
+
+    it('reports clear-all upward', () => {
+        const onClear = vi.fn();
+        renderDiscovery({ searchValue: '', recentSearches: { ...recent, onClear } });
+
+        focusSearch();
+        fireEvent.click(screen.getByRole('button', { name: 'Clear recent searches' }));
+
+        expect(onClear).toHaveBeenCalledTimes(1);
+    });
+
+    it('hides again once the keyword field is blurred', () => {
+        renderDiscovery({ searchValue: '', recentSearches: recent });
+
+        focusSearch();
+        expect(screen.getByLabelText('Recent searches')).toBeTruthy();
+
+        fireEvent.focusOut(screen.getByLabelText('Search public recipes'));
+
+        expect(screen.queryByLabelText('Recent searches')).toBeNull();
+    });
+});

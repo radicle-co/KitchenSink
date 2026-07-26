@@ -29,11 +29,11 @@
         "@radix-ui/react-dialog": "^1.1.20"
     },
     "peerDependencies": {
-        "@expo/vector-icons": ">=14.0.0",
+        "@expo/vector-icons": ">=15.0.0",
         "@shopify/flash-list": ">=2.0.0",
-        "expo-image": ">=2.0.0",
+        "expo-image": ">=57.0.0 <58.0.0",
         "react": "^19.0.0",
-        "react-native": ">=0.79.0"
+        "react-native": ">=0.81.0"
     },
     "peerDependenciesMeta": {
         "@expo/vector-icons": {

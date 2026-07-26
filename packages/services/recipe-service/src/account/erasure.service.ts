@@ -31,15 +31,23 @@ import {
     Logger,
     ServiceUnavailableException,
 } from '@nestjs/common';
-import { ACCOUNT_ALREADY_ERASED_CODE, type AccountErasureMessage } from '@kitchensink/recipe-core';
+import {
+    ACCOUNT_ALREADY_ERASED_CODE,
+    type AccountErasureMessage,
+    type ErasureTriggerSource,
+} from '@kitchensink/recipe-core';
 
 import { ErasureJobsDal } from './dal/erasure-jobs.dal.js';
 import { ERASURE_QUEUE, type ErasureQueuePort } from './erasure.queue.js';
+import { ServicePrincipalErasureMetrics } from './erasure-metrics.js';
 import {
     ACCOUNT_ERASURE_CONFIRMATION_PHRASE,
     type ErasureRequestDto,
     type ErasureRequestAcceptedResponse,
 } from './dto/erasure.dto.js';
+import type { ServiceErasureAcceptedResponse } from './dto/service-erasure.dto.js';
+import type { ServicePrincipal } from '../auth/service-principal.js';
+import type { ActiveErasureJobStatus } from '../database/schema/account.js';
 
 /**
  * How many times a single request re-evaluates the C-007 outcome before giving up.
@@ -53,6 +61,24 @@ import {
  */
 export const MAX_ERASURE_REQUEST_ATTEMPTS = 3;
 
+/**
+ * The outcome of the shared C-007 enqueue core, before each caller maps it to its own HTTP contract.
+ *
+ *  - `accepted` — a job is in flight for the owner. `created` distinguishes a job THIS request enqueued
+ *    from a pre-existing in-flight one it returned idempotently (only a newly-created SERVICE job is
+ *    metric-counted for the volume alarm).
+ *  - `alreadyErased` — a prior erasure completed. The user path turns this into `410`; the service path
+ *    treats it as an idempotent no-op success.
+ */
+type ErasureEnqueueOutcome =
+    | {
+          readonly kind: 'accepted';
+          readonly jobId: string;
+          readonly status: ActiveErasureJobStatus;
+          readonly created: boolean;
+      }
+    | { readonly kind: 'alreadyErased' };
+
 @Injectable()
 export class ErasureService {
     private readonly logger = new Logger(ErasureService.name);
@@ -60,10 +86,11 @@ export class ErasureService {
     public constructor(
         private readonly jobs: ErasureJobsDal,
         @Inject(ERASURE_QUEUE) private readonly queue: ErasureQueuePort,
+        private readonly metrics: ServicePrincipalErasureMetrics,
     ) {}
 
     /**
-     * Request erasure of the caller's own account data.
+     * Request erasure of the caller's own account data (the USER path — confirmation-gated).
      *
      * @param ownerId - The VERIFIED app-user ULID from the session token. Never client-supplied: this is
      *   the only thing scoping the erasure, so accepting it from a request body would let any caller
@@ -76,37 +103,123 @@ export class ErasureService {
      * @sideEffect Inserts an `account_erasure_jobs` row and sends an SQS message.
      */
     public async requestErasure(ownerId: string, request?: ErasureRequestDto): Promise<ErasureRequestAcceptedResponse> {
+        // The confirmation phrase is the USER path's authorization gate — enforced BEFORE anything is
+        // written, and NEVER skipped. The service path skips it because its signed single-target token IS
+        // the authorization; a user token can never reach that branch (separate route + separate guard).
         assertConfirmationPhrase(request?.confirmationPhrase);
 
         // The per-recipe DONATE election (U3b). Defaulted to [] ("donate nothing") when absent, so the
         // durable row always records an explicit election rather than a NULL the worker has to interpret.
         const publishRecipeIds = request?.publishRecipeIds ?? [];
 
+        // R8 audit: a user-initiated erasure's actor IS the owner (they authorized it via the phrase).
+        const outcome = await this.enqueueErasure({
+            ownerId,
+            publishRecipeIds,
+            triggerSource: 'user',
+            actor: ownerId,
+        });
+
+        if (outcome.kind === 'alreadyErased') {
+            throw new GoneException({
+                code: ACCOUNT_ALREADY_ERASED_CODE,
+                message: 'Account has already been erased',
+            });
+        }
+
+        return { jobId: outcome.jobId, status: outcome.status };
+    }
+
+    /**
+     * Trigger erasure of a target account on behalf of a VERIFIED service principal (CR-002 / U4a — the
+     * `user.deleted`/close event path). NO confirmation phrase: the signed, single-target token verified by
+     * {@link import('../auth/service-erasure.guard.js').ServiceErasureGuard} IS the authorization, and the
+     * target owner comes from the token's bound claim — never a request body/query.
+     *
+     * There is NO donate election on this path (KTD-2): a webhook/admin erasure defaults to removing every
+     * owner-only recipe. Every job records `trigger_source='service'` + the token's `actor` (R8), and a
+     * newly-created job emits the volume metric (a burst of distinct owners is the incident signal).
+     *
+     * Idempotent by the same C-007 machinery as the user path (R9): a job already in flight for the owner
+     * is returned rather than duplicated, and an already-erased account is a no-op success (not a `410`) —
+     * the worker only needs to know the erasure is handled.
+     *
+     * @param principal - The verified service principal (bound target owner, event id, actor).
+     * @returns `202` when a job is queued/in-flight, `200`-shaped when the account was already erased.
+     * @throws {ServiceUnavailableException} (→ 503) when the outcome never settles within the attempt bound.
+     * @sideEffect Inserts an `account_erasure_jobs` row, sends an SQS message, and emits a CloudWatch metric.
+     */
+    public async requestServiceErasure(principal: ServicePrincipal): Promise<ServiceErasureAcceptedResponse> {
+        const outcome = await this.enqueueErasure({
+            ownerId: principal.ownerId,
+            publishRecipeIds: [],
+            triggerSource: 'service',
+            actor: principal.actor,
+        });
+
+        if (outcome.kind === 'alreadyErased') {
+            this.logger.log(
+                `service erasure no-op: owner ${principal.ownerId} already erased (event ${principal.eventId}, actor ${principal.actor})`,
+            );
+
+            return { status: 'completed', triggerSource: 'service' };
+        }
+
+        if (outcome.created) {
+            // Detective control: one metric per NEWLY-created service erasure feeds the volume alarm.
+            this.metrics.recordServicePrincipalErasure({ ownerId: principal.ownerId });
+        }
+
+        this.logger.log(
+            `service erasure ${outcome.created ? 'created' : 'idempotent'} job ${outcome.jobId} for owner ` +
+                `${principal.ownerId} (event ${principal.eventId}, actor ${principal.actor})`,
+        );
+
+        return { jobId: outcome.jobId, status: outcome.status, triggerSource: 'service' };
+    }
+
+    /**
+     * The shared C-007 enqueue core: idempotently ensure exactly one in-flight erasure job for the owner,
+     * deferring the "already in flight?" arbitration to the `idx_erasure_jobs_active_owner` partial unique
+     * index. Both the user and service paths run it; they differ ONLY in the authorization gate that
+     * precedes it and how they map its {@link ErasureEnqueueOutcome} to HTTP. Extracting it here keeps that
+     * one piece of idempotency knowledge in one place (R9) rather than forked per caller.
+     *
+     * @param input - The owner, the DONATE election, and the R8 trigger source + actor to persist.
+     * @returns The outcome: an accepted (created or pre-existing) job, or already-erased.
+     * @throws {ServiceUnavailableException} (→ 503) when the outcome never settles within the attempt bound.
+     * @sideEffect Inserts an `account_erasure_jobs` row and (on a fresh insert) sends an SQS message.
+     */
+    private async enqueueErasure(input: {
+        readonly ownerId: string;
+        readonly publishRecipeIds: readonly string[];
+        readonly triggerSource: ErasureTriggerSource;
+        readonly actor: string;
+    }): Promise<ErasureEnqueueOutcome> {
+        const { ownerId, publishRecipeIds, triggerSource, actor } = input;
+
         for (let attempt = 1; attempt <= MAX_ERASURE_REQUEST_ATTEMPTS; attempt += 1) {
             // Terminal state first: an account whose erasure already completed has nothing left to erase,
             // and the index would happily accept a new row for it (a `completed` row is outside the
             // partial index's predicate).
             if (await this.jobs.hasCompletedJob(ownerId)) {
-                throw new GoneException({
-                    code: ACCOUNT_ALREADY_ERASED_CODE,
-                    message: 'Account has already been erased',
-                });
+                return { kind: 'alreadyErased' };
             }
 
-            const jobId = await this.jobs.insertQueuedJob(ownerId, publishRecipeIds);
+            const jobId = await this.jobs.insertQueuedJob({ ownerId, publishRecipeIds, triggerSource, actor });
 
             if (jobId !== undefined) {
                 await this.enqueue(ownerId, jobId, publishRecipeIds);
 
-                return { jobId, status: 'queued' };
+                return { kind: 'accepted', jobId, status: 'queued', created: true };
             }
 
-            // The insert lost the race on `idx_erasure_jobs_active_owner` → someone else's job is in
-            // flight. That IS the idempotent answer: hand back their job, and do not enqueue again.
+            // The insert lost the race on `idx_erasure_jobs_active_owner` → a job is already in flight.
+            // That IS the idempotent answer: hand back that job, and do not enqueue again (R9).
             const active = await this.jobs.findActiveJob(ownerId);
 
             if (active !== undefined) {
-                return { jobId: active.id, status: active.status };
+                return { kind: 'accepted', jobId: active.id, status: active.status, created: false };
             }
 
             // Neither a completed job, nor an insert, nor an in-flight job: the job we collided with

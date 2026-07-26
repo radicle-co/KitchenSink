@@ -27,6 +27,7 @@ import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
 import type { NextFunction, Response } from 'express';
 
 import { ClerkAuthService } from './clerk-auth.service.js';
+import { extractBearer } from './bearer.js';
 import type { AuthenticatedRequest, Principal } from './principal.js';
 
 /** Routes served without authentication (liveness + readiness probes hit by the ALB / ECS, no token). */
@@ -37,17 +38,6 @@ function getPath(req: AuthenticatedRequest): string {
     const raw = req.originalUrl ?? req.path ?? '/';
 
     return raw.split('?')[0]!.replace(/\/+$/, '') || '/';
-}
-
-/** Extract the bearer token from an `Authorization` header, else `undefined`. Pure. */
-function extractBearer(authorization: string | undefined): string | undefined {
-    if (typeof authorization !== 'string') {
-        return undefined;
-    }
-
-    const match = authorization.match(/^Bearer\s+(.+)$/i);
-
-    return match ? match[1]!.trim() : undefined;
 }
 
 /**

@@ -16,6 +16,7 @@
  */
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, inArray, sql } from 'drizzle-orm';
+import type { ErasureTriggerSource } from '@kitchensink/recipe-core';
 
 import { DrizzleProvider, type RecipeDrizzle } from '../../database/database.module.js';
 import {
@@ -31,6 +32,22 @@ export interface ActiveErasureJob {
     readonly id: string;
     /** The job's in-flight status. */
     readonly status: ActiveErasureJobStatus;
+}
+
+/**
+ * The audit-bearing input to {@link ErasureJobsDal.insertQueuedJob} (R8). Carries the DONATE election plus
+ * the trigger source + actor recorded on the durable row, so who/what triggered every erasure is
+ * attributable independently of the mutable status column.
+ */
+export interface InsertErasureJobInput {
+    /** The app-user ULID whose data is to be erased. */
+    readonly ownerId: string;
+    /** The recipe ids the owner elected to publish (donate); empty ⇒ donate none (default). */
+    readonly publishRecipeIds?: readonly string[];
+    /** Who/what triggered the erasure — `'user'` (phrase-gated) or `'service'` (verified service principal). */
+    readonly triggerSource: ErasureTriggerSource;
+    /** The triggering principal: the owner's ULID (user path) or the token's machine actor label (service path). */
+    readonly actor: string;
 }
 
 /**
@@ -57,15 +74,25 @@ export class ErasureJobsDal {
      * worker reads it from the row it claims, not from the SQS message, so a lost/replayed message cannot
      * change which recipes were donated. An empty election ⇒ every owner-only recipe is removed.
      *
-     * @param ownerId - The app-user ULID whose data is to be erased.
-     * @param publishRecipeIds - The recipe ids the owner elected to publish (donate); empty ⇒ donate none.
+     * The R8 audit fields (`trigger_source`, `actor`, `confirmed_at`) are written HERE, at insert time,
+     * because the row's creation IS the erasure confirmation — the phrase was validated (user path) or the
+     * single-target token verified (service path) immediately before this call. `confirmed_at` is the DB
+     * clock at insert; the two never meaningfully diverge in the current single-step flow.
+     *
+     * @param input - The owner, the DONATE election, and the R8 trigger source + actor.
      * @returns The new job's id, or `undefined` when an in-flight job already exists (conflict).
-     * @sideEffect Inserts into `account_erasure_jobs`.
+     * @sideEffect Inserts into `account_erasure_jobs`; reads the clock for `confirmed_at`.
      */
-    public async insertQueuedJob(ownerId: string, publishRecipeIds: readonly string[] = []): Promise<string | undefined> {
+    public async insertQueuedJob(input: InsertErasureJobInput): Promise<string | undefined> {
         const inserted = await this.db
             .insert(accountErasureJobs)
-            .values({ ownerId, publishRecipeIds: [...publishRecipeIds] })
+            .values({
+                ownerId: input.ownerId,
+                publishRecipeIds: [...(input.publishRecipeIds ?? [])],
+                triggerSource: input.triggerSource,
+                actor: input.actor,
+                confirmedAt: new Date(),
+            })
             .onConflictDoNothing({ target: accountErasureJobs.ownerId, where: ACTIVE_OWNER_INDEX_PREDICATE })
             .returning({ id: accountErasureJobs.id });
 

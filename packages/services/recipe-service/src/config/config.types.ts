@@ -254,6 +254,37 @@ export const clerkConfigMeta: Record<keyof ClerkConfig, ConfigFieldMeta> = {
 };
 
 // ---------------------------------------------------------------------------
+// Service-principal auth Config (CR-002 / U4a)
+// ---------------------------------------------------------------------------
+
+/**
+ * Config for the GREENFIELD service-principal account-erasure path (CR-002 / U4a). The deletion-worker
+ * Lambda signs a short-lived, single-target erasure token with a PRIVATE key; this service verifies it
+ * networklessly with the corresponding PUBLIC key — mirroring the Clerk public-key posture (no secret on
+ * this public-ALB service, no network round-trip).
+ *
+ * `RECIPE_SERVICE_PRINCIPAL_JWT_KEY` is OPTIONAL: a stage that has not yet provisioned the key (or local
+ * dev) simply has no service-principal path — {@link import('../auth/service-erasure-auth.service.js').ServiceErasureAuthService}
+ * fails CLOSED (rejects every service token) rather than failing to boot. This lets U4b provision the key
+ * without a lockstep deploy. Non-secret: it is a PUBLIC verification key, not a signing secret.
+ */
+export const serviceAuthConfigSchema = z.object({
+    /** Public SPKI PEM (EdDSA) used to verify the deletion-worker's erasure token. Absent ⇒ service path fails closed. */
+    RECIPE_SERVICE_PRINCIPAL_JWT_KEY: z.string().min(1).optional(),
+});
+
+/** Typed service-principal auth configuration. */
+export type ServiceAuthConfig = z.infer<typeof serviceAuthConfigSchema>;
+
+/** Secret/non-secret metadata for service-principal auth config fields. */
+export const serviceAuthConfigMeta: Record<keyof ServiceAuthConfig, ConfigFieldMeta> = {
+    RECIPE_SERVICE_PRINCIPAL_JWT_KEY: {
+        secret: false,
+        description: 'Public EdDSA SPKI PEM verifying the deletion-worker service-erasure token (CR-002 / U4a)',
+    },
+};
+
+// ---------------------------------------------------------------------------
 // S3 / Storage Config
 // ---------------------------------------------------------------------------
 
@@ -427,6 +458,7 @@ export const accountErasureConfigMeta: Record<keyof AccountErasureConfig, Config
 export const apiConfigSchema = baseConfigSchema
     .merge(databasePoolConfigSchema)
     .merge(clerkConfigSchema)
+    .merge(serviceAuthConfigSchema)
     .merge(storageConfigSchema)
     .merge(rateLimitConfigSchema)
     .merge(foodServiceConfigSchema)

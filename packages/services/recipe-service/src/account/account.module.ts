@@ -21,16 +21,30 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { DEFAULT_AWS_REGION } from '../config/config.types.js';
+import { AuthModule } from '../auth/auth.module.js';
 import { AccountController } from './account.controller.js';
+import { ServiceErasureController } from './service-erasure.controller.js';
 import { ErasureJobsDal } from './dal/erasure-jobs.dal.js';
 import { ErasureService } from './erasure.service.js';
+import { ServicePrincipalErasureMetrics } from './erasure-metrics.js';
 import { AccountExportDal } from './dal/export.dal.js';
 import { AccountExportService, ACCOUNT_EXPORT_CONFIG, type AccountExportConfig } from './export.service.js';
 import { createSqsErasureQueue, ERASURE_QUEUE, type ErasureQueuePort } from './erasure.queue.js';
 
 @Module({
-    controllers: [AccountController],
+    // AuthModule supplies ServiceErasureGuard + ServiceErasureAuthService for the internal erasure route.
+    imports: [AuthModule],
+    controllers: [AccountController, ServiceErasureController],
     providers: [
+        // Detective control for the greenfield service-principal erasure path (U4a): one CloudWatch metric
+        // per service-attributed erasure, watched by a volume alarm (CDK seam — see the emitter docstring).
+        // Provided via a factory (not a bare class) because the emitter is a plain class with defaulted
+        // constructor args and no `@Injectable()` — a factory instantiates it unambiguously (defaults: stage
+        // from env, sink = console.log) rather than relying on Nest reflecting an empty dependency list.
+        {
+            provide: ServicePrincipalErasureMetrics,
+            useFactory: (): ServicePrincipalErasureMetrics => new ServicePrincipalErasureMetrics(),
+        },
         {
             provide: ERASURE_QUEUE,
             inject: [ConfigService],

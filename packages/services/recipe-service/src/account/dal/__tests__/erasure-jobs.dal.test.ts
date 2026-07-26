@@ -35,11 +35,20 @@ describe('ErasureJobsDal.insertQueuedJob', () => {
         fake.enqueue([{ id: JOB_ID }]);
         const dal = new ErasureJobsDal(fake.db);
 
-        await expect(dal.insertQueuedJob(OWNER)).resolves.toBe(JOB_ID);
+        await expect(dal.insertQueuedJob({ ownerId: OWNER, triggerSource: 'user', actor: OWNER })).resolves.toBe(
+            JOB_ID,
+        );
         expect(fake.calls[0]).toMatchObject({ method: 'insert' });
         // Default election ⇒ donate nothing: an explicit empty array is persisted, never a NULL the worker
-        // has to interpret.
-        expect(fake.calls[1]?.args[0]).toEqual({ ownerId: OWNER, publishRecipeIds: [] });
+        // has to interpret. The R8 audit fields ride the same insert.
+        expect(fake.calls[1]?.args[0]).toMatchObject({
+            ownerId: OWNER,
+            publishRecipeIds: [],
+            triggerSource: 'user',
+            actor: OWNER,
+        });
+        // confirmed_at is stamped at insert (the confirmation moment) — a real Date, never null.
+        expect((fake.calls[1]?.args[0] as { confirmedAt: unknown }).confirmedAt).toBeInstanceOf(Date);
     });
 
     it('persists the DONATE election on the job row as the durable source of truth (U3b)', async () => {
@@ -48,9 +57,23 @@ describe('ErasureJobsDal.insertQueuedJob', () => {
         const dal = new ErasureJobsDal(fake.db);
         const publishRecipeIds = ['00000000-0000-4000-8000-0000000000d1'];
 
-        await dal.insertQueuedJob(OWNER, publishRecipeIds);
+        await dal.insertQueuedJob({ ownerId: OWNER, publishRecipeIds, triggerSource: 'user', actor: OWNER });
 
-        expect(fake.calls[1]?.args[0]).toEqual({ ownerId: OWNER, publishRecipeIds });
+        expect(fake.calls[1]?.args[0]).toMatchObject({ ownerId: OWNER, publishRecipeIds });
+    });
+
+    it('records the trigger source + actor for a SERVICE-triggered erasure (R8 audit)', async () => {
+        const fake = createFakeDb();
+        fake.enqueue([{ id: JOB_ID }]);
+        const dal = new ErasureJobsDal(fake.db);
+
+        await dal.insertQueuedJob({ ownerId: OWNER, triggerSource: 'service', actor: 'identity-deletion-worker' });
+
+        expect(fake.calls[1]?.args[0]).toMatchObject({
+            ownerId: OWNER,
+            triggerSource: 'service',
+            actor: 'identity-deletion-worker',
+        });
     });
 
     it('defers to the partial unique index via ON CONFLICT DO NOTHING (no read-then-write TOCTOU)', async () => {
@@ -58,7 +81,7 @@ describe('ErasureJobsDal.insertQueuedJob', () => {
         fake.enqueue([{ id: JOB_ID }]);
         const dal = new ErasureJobsDal(fake.db);
 
-        await dal.insertQueuedJob(OWNER);
+        await dal.insertQueuedJob({ ownerId: OWNER, triggerSource: 'user', actor: OWNER });
 
         expect(methodsOf(fake)).toEqual(['insert', 'values', 'onConflictDoNothing', 'returning']);
         // The conflict target MUST carry the index predicate, or Postgres cannot match the partial index.
@@ -70,7 +93,9 @@ describe('ErasureJobsDal.insertQueuedJob', () => {
         fake.enqueue([]); // ON CONFLICT DO NOTHING → zero rows returned.
         const dal = new ErasureJobsDal(fake.db);
 
-        await expect(dal.insertQueuedJob(OWNER)).resolves.toBeUndefined();
+        await expect(
+            dal.insertQueuedJob({ ownerId: OWNER, triggerSource: 'user', actor: OWNER }),
+        ).resolves.toBeUndefined();
     });
 });
 

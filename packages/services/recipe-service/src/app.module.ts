@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 
@@ -67,6 +67,13 @@ import { ErasureLockGuard } from './account/erasure-lock.guard.js';
 })
 export class AppModule implements NestModule {
     public configure(consumer: MiddlewareConsumer): void {
-        consumer.apply(AuthMiddleware).forRoutes('*');
+        consumer
+            .apply(AuthMiddleware)
+            // The internal service-principal erasure route (CR-002 / U4a) authenticates with a signed
+            // machine token, NOT a Clerk user session token — the Clerk middleware would 401 it before its
+            // own `ServiceErasureGuard` runs. Exclude it so the guard is its (fail-closed) enforcement
+            // point. This is the ONLY route not covered by the Clerk middleware besides the health probes.
+            .exclude({ path: 'v1/internal/account/erasure', method: RequestMethod.POST })
+            .forRoutes('*');
     }
 }

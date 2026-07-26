@@ -18,6 +18,10 @@ export function makeErasureJobRow(overrides: Partial<AccountErasureJobRow> = {})
         lastError: null,
         publishRecipeIds: null,
         removedRecipeIds: null,
+        // CR-002 / U4a R8 audit fields — a fixture defaults to a user-triggered, owner-confirmed job.
+        triggerSource: 'user',
+        actor: 'owner-1',
+        confirmedAt: FIXED_DATE,
         createdAt: FIXED_DATE,
         updatedAt: FIXED_DATE,
         ...overrides,

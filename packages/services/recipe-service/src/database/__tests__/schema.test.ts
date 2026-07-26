@@ -296,6 +296,12 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             // CR-002 / U3b+U3a: the durable DONATE election + the captured removed-recipe set (crash-convergence).
             publish_recipe_ids: { type: 'jsonb', notNull: false },
             removed_recipe_ids: { type: 'jsonb', notNull: false },
+            // CR-002 / U4a (migration 0018): the R8 audit fields — who/what triggered the erasure and when
+            // it was confirmed. trigger_source is NOT NULL (default 'user'); actor/confirmed_at are nullable
+            // (backfilled for pre-0018 rows, always written by the app on new rows).
+            trigger_source: { type: 'text', notNull: true },
+            actor: { type: 'varchar(255)', notNull: false },
+            confirmed_at: { type: 'timestamp with time zone', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
             updated_at: { type: 'timestamp with time zone', notNull: true },
         });

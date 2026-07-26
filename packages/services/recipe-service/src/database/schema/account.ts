@@ -7,6 +7,7 @@
  * data is being erased directly as `VARCHAR(255) NOT NULL` — no FK, no user replication.
  */
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
+import { ERASURE_TRIGGER_SOURCES } from '@kitchensink/recipe-core';
 import {
     check,
     index,
@@ -68,11 +69,35 @@ export const accountErasureJobs = pgTable(
         // this column to finish the sweep. Written ONCE (guarded `IS NULL`), so a replay never clobbers it.
         removedRecipeIds: jsonb('removed_recipe_ids').$type<string[]>(),
 
+        // ── R8 audit fields (CR-002 / U4a — migration 0018) ────────────────────────────────────────────
+        // WHO/WHAT triggered this erasure job and WHEN it was confirmed, recorded independently of the
+        // mutable `status` column so the audit survives a status transition.
+        //
+        // trigger_source — 'user' (owner via the confirmation-gated POST /v1/account/erasure) or 'service'
+        // (the deletion-worker's verified service principal via the internal route, which skips the phrase
+        // BECAUSE the signed single-target token is the authorization; KTD-2). DEFAULT 'user' matches every
+        // historical row (all predate the service path).
+        triggerSource: text('trigger_source')
+            .notNull()
+            .default('user')
+            .$type<(typeof ERASURE_TRIGGER_SOURCES)[number]>(),
+        // The principal that triggered it: the owner's own ULID for a user erasure, or the signed token's
+        // machine actor label (e.g. the deletion-worker) for a service erasure. Nullable only for the
+        // pre-0018 backfilled rows; the application always writes it on new rows.
+        actor: varchar('actor', { length: 255 }),
+        // When the erasure was CONFIRMED — the phrase validated (user path) or the token verified (service
+        // path). Distinct from created_at in intent (it asserts a deliberate confirmation happened), even
+        // though the two coincide in the current single-step flow.
+        confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [
         check('erasure_jobs_status_check', sql`${table.status} IN ('queued', 'running', 'completed', 'failed')`),
+        // trigger_source is a two-value audit enum; the CHECK is the DB-level guard mirroring
+        // ERASURE_TRIGGER_SOURCES (the authoritative union in @kitchensink/recipe-core).
+        check('erasure_jobs_trigger_source_check', sql`${table.triggerSource} IN ('user', 'service')`),
         // At most one in-flight job per user: a duplicate POST while a job is 'queued'/'running' collides
         // here, so the endpoint returns 202 with the existing job id (no second enqueue).
         uniqueIndex('idx_erasure_jobs_active_owner')

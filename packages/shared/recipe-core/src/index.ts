@@ -1,6 +1,7 @@
 export * from './recipe.types.js';
 export * from './recipeObjectKeys.js';
 export * from './accountErasure.js';
+export * from './serviceErasureToken.js';
 export * from './cdnInvalidation.js';
 export * from './ids.js';
 export * from './viewer.js';

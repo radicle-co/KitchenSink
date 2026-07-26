@@ -46,7 +46,7 @@ let exporter: ExportMock;
 let controller: AccountController;
 
 beforeEach(() => {
-    erasure = { requestErasure: vi.fn().mockResolvedValue(ACCEPTED) };
+    erasure = { requestErasure: vi.fn().mockResolvedValue(ACCEPTED), requestServiceErasure: vi.fn() };
     exporter = { exportForOwner: vi.fn().mockResolvedValue(EXPORT_DOC) };
     controller = new AccountController(
         erasure as unknown as ErasureService,

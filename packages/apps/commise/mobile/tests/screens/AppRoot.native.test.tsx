@@ -26,7 +26,14 @@ vi.mock('react-native-safe-area-context', () => ({
     useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
     SafeAreaProvider: ({ children }: { readonly children?: unknown }) => children,
 }));
-vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: () => ({ data: undefined }) }));
+vi.mock('../../src/hooks/useUserProfile.js', () => ({
+    useUserProfile: () => ({ data: undefined }),
+    // CR-002 / U4b: ProfileScreen now composes AccountDangerZone, which reads `useDeleteAccount` and imports
+    // `@clerk/expo` directly (not only through `useUserProfile`) — stub both so the real ProfileScreen module
+    // graph parses even though it never renders here.
+    useDeleteAccount: () => ({ mutate: () => undefined, isPending: false }),
+}));
+vi.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut: () => undefined }) }));
 
 const { shouldThrowRef } = vi.hoisted(() => ({ shouldThrowRef: { current: true } }));
 

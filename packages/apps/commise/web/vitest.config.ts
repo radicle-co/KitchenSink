@@ -23,6 +23,11 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': srcPath,
+            // The `/danger` subpath (the account danger-zone components) must be listed BEFORE the base
+            // package alias so it wins the more-specific match.
+            '@commise/features-account/danger': fileURLToPath(
+                new URL('../features/account/src/danger/index.ts', import.meta.url),
+            ),
             '@commise/features-account': fileURLToPath(new URL('../features/account/src/index.ts', import.meta.url)),
         },
     },

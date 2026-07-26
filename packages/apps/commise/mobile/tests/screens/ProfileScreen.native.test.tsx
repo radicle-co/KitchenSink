@@ -10,9 +10,15 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useUpdateProfile, useUserProfile } from '../../src/hooks/useUserProfile';
 import { ProfileScreen } from '../../src/screens/profile';
 
+// ProfileScreen now composes the shared AccountDangerZone (CR-002 / U4b), which pulls `@clerk/expo` and
+// `useDeleteAccount`. Mock the Clerk native module (its ESM graph is the CI-only local-fail source) and stub
+// the closure hook so the danger-zone controls render without a live session or provider.
+vi.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut: vi.fn() }) }));
+
 vi.mock('../../src/hooks/useUserProfile', () => ({
     useUserProfile: vi.fn(),
     useUpdateProfile: vi.fn(),
+    useDeleteAccount: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 const useUserProfileMock = vi.mocked(useUserProfile);

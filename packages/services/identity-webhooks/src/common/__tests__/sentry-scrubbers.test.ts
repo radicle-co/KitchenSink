@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
     isDeniedKey,
+    isIdKey,
     looksLikeBearerToken,
+    pseudonymizeId,
     scrubEvent,
     scrubLog,
     scrubText,
@@ -48,20 +50,71 @@ describe('sentry-scrubbers', () => {
         });
     });
 
+    describe('isIdKey', () => {
+        it('matches person-linked id keys case-insensitively, not bare id', () => {
+            expect(isIdKey('sub')).toBe(true);
+            expect(isIdKey('identityId')).toBe(true);
+            expect(isIdKey('userId')).toBe(true);
+            expect(isIdKey('ownerId')).toBe(true);
+            expect(isIdKey('requesterId')).toBe(true);
+            expect(isIdKey('clerkUserId')).toBe(true);
+            expect(isIdKey('id')).toBe(false);
+            expect(isIdKey('jobId')).toBe(false);
+            expect(isIdKey('recipeId')).toBe(false);
+        });
+    });
+
+    describe('pseudonymizeId', () => {
+        it('is deterministic, prefixed, and non-reversible in shape', () => {
+            const a = pseudonymizeId('user_2abcDEF');
+            expect(a).toMatch(/^anon_[0-9a-f]{16}$/);
+            expect(pseudonymizeId('user_2abcDEF')).toBe(a); // stable → correlation preserved
+            expect(pseudonymizeId('01JQ8N2X4RBV6WK3ZT5Y7A9C0P')).not.toBe(a); // distinct inputs → distinct
+            expect(a).not.toContain('user_2abcDEF'); // raw id does not survive
+        });
+    });
+
     describe('scrubEvent', () => {
-        it('scrubs extra and user fields but preserves the opaque user id', () => {
+        it('scrubs extra and user fields and PSEUDONYMIZES the user id', () => {
             const event = {
-                extra: { email: 'a@b.com', ok: 1 },
-                user: { id: 'u1', email: 'a@b.com', name: 'Bob' },
+                extra: { email: 'a@b.com', ok: 1, ownerId: '01JQ8N2X4RBV6WK3ZT5Y7A9C0P' },
+                user: { id: 'user_2abcDEFghiJKL', email: 'a@b.com', name: 'Bob' },
             } as unknown as Parameters<typeof scrubEvent>[0];
 
             const out = scrubEvent(event);
 
             expect(out.extra?.['email']).toBe('[redacted]');
             expect(out.extra?.['ok']).toBe(1);
-            expect(out.user?.id).toBe('u1');
+            expect(out.extra?.['ownerId']).toBe(pseudonymizeId('01JQ8N2X4RBV6WK3ZT5Y7A9C0P'));
+            expect(out.user?.id).toBe(pseudonymizeId('user_2abcDEFghiJKL'));
+            expect(out.user?.id).not.toBe('user_2abcDEFghiJKL');
             expect(out.user?.['email']).toBe('[redacted]');
             expect(out.user?.['name']).toBe('[redacted]');
+        });
+    });
+
+    describe('scrubAttributes id pseudonymization', () => {
+        it('pseudonymizes person-linked id VALUES (stable), leaves bare id, redacts denied keys', () => {
+            const input = {
+                sub: 'user_2abcDEFghiJKL',
+                userId: '01JQ8N2X4RBV6WK3ZT5Y7A9C0P',
+                ownerId: '01JQ8N2X4RBV6WK3ZT5Y7A9C0P',
+                id: 'u1',
+                jobId: 'job-123',
+                email: 'a@b.com',
+                nested: { identityId: 'user_zzz', note: 'ok' },
+            };
+
+            const out = scrubAttributes(input);
+
+            expect(out.sub).toBe(pseudonymizeId('user_2abcDEFghiJKL'));
+            expect(out.userId).toBe(pseudonymizeId('01JQ8N2X4RBV6WK3ZT5Y7A9C0P'));
+            expect(out.ownerId).toBe(out.userId); // same id → same token (correlatable)
+            expect(out.id).toBe('u1'); // bare id untouched
+            expect(out.jobId).toBe('job-123'); // non-person id untouched
+            expect(out.email).toBe('[redacted]');
+            expect(out.nested.identityId).toBe(pseudonymizeId('user_zzz'));
+            expect(out.nested.note).toBe('ok');
         });
     });
 
@@ -70,6 +123,13 @@ describe('sentry-scrubbers', () => {
             expect(scrubText('contact me at a@b.com please')).toBe('contact me at [redacted] please');
             expect(scrubText('token aaaaaaaa.bbbbbbbb.cccccccc rejected')).toBe('token [redacted] rejected');
             expect(scrubText('nothing sensitive here')).toBe('nothing sensitive here');
+        });
+
+        it('pseudonymizes an embedded Clerk sub in free text', () => {
+            const sub = 'user_2abcDEFghiJKLmnopqrstuvwx'; // realistic Clerk sub length (24 chars after prefix)
+            expect(scrubText(`provisioning failed for ${sub}`)).toBe(
+                `provisioning failed for ${pseudonymizeId(sub)}`,
+            );
         });
     });
 

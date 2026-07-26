@@ -2,12 +2,17 @@ import type { Route } from 'next';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
-import { LogoutButton } from '@/components/auth/LogoutButton';
+
+import { SettingsContent } from './SettingsContent';
 
 export const metadata: Metadata = {
     title: 'Settings | Commise',
     description: 'Account security and settings',
 };
+
+// L9: like every AppShell-hosted route, the authenticated nav shell's Clerk-backed hooks require a live
+// session, so this route is per-request dynamic, not statically prerenderable. Matches the recipes routes.
+export const dynamic = 'force-dynamic';
 
 export default async function SettingsPage({ params }: { params: Promise<{ locale: string }> }) {
     const { locale } = await params;
@@ -17,13 +22,5 @@ export default async function SettingsPage({ params }: { params: Promise<{ local
         redirect(`/${locale}/sign-in` as Route);
     }
 
-    return (
-        <main>
-            <h1>Settings</h1>
-            <section aria-labelledby="session-heading">
-                <h2 id="session-heading">Session</h2>
-                <LogoutButton />
-            </section>
-        </main>
-    );
+    return <SettingsContent locale={locale} />;
 }

@@ -109,6 +109,31 @@ describe('RecipeCard (native)', () => {
     });
 });
 
+describe('RecipeCard (native) — U8 brand treatment', () => {
+    // NOTE: the card's `nativeTokens.elevation.md` shadow is a react-native-web class-compiled boxShadow
+    // that jsdom's getComputedStyle does not surface reliably; the token itself is covered by the
+    // single-source scale tests, and its on-device rendering by the Maestro suite. Here we guard the
+    // STRUCTURE the U8 change touches: the actionable card is wrapped by the PressScale press primitive.
+    it('wraps the actionable card in a single press-feedback button (no nested pressables)', () => {
+        const onSelect = vi.fn();
+        renderCard(<RecipeCard recipe={model({ id: 'rec_7', title: 'Herb Risotto' })} onSelect={onSelect} />);
+
+        // PressScale (native) OWNS the Pressable — there must be exactly ONE button (a stray inner Pressable
+        // from a botched wrap would surface as a second button), named by the title, still reporting the id.
+        const buttons = screen.getAllByRole('button', { name: 'Herb Risotto' });
+        expect(buttons).toHaveLength(1);
+
+        fireEvent.click(buttons[0]!);
+        expect(onSelect).toHaveBeenCalledWith('rec_7');
+    });
+
+    it('adds NO press button to the non-interactive widget card (no onSelect)', () => {
+        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
+
+        expect(screen.queryByRole('button')).toBeNull();
+    });
+});
+
 describe('RecipeCard (native) — merged fields (CR-002 / L2·L3)', () => {
     it('renders the cuisine when present, and nothing when absent', () => {
         renderCard(<RecipeCard recipe={model({ cuisine: 'Mediterranean' })} />);

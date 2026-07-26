@@ -128,6 +128,35 @@ describe('RecipeCard (web)', () => {
     });
 });
 
+describe('RecipeCard (web) — U8 brand treatment', () => {
+    it('carries the tokenized md card elevation on the shell', () => {
+        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
+
+        // The shared shell (list + widget) RESTS at the `shadow-md` token (a standalone class, distinct from
+        // any `hover:shadow-*` lift), giving the card real depth.
+        const article = screen.getByRole('article', { name: 'Herb Risotto' });
+        expect(article.className.split(/\s+/)).toContain('shadow-md');
+    });
+
+    it('wraps the actionable (list) card in the reduced-motion-safe press-scale primitive', () => {
+        const { container } = renderCard(
+            <RecipeCard recipe={model({ title: 'Herb Risotto' })} onSelect={() => undefined} />,
+        );
+
+        // PressScale (web) is a span carrying the motion-safe active-scale utility; the interactive button
+        // it wraps is the child that drives the scale (reduce-motion is gated inside the utility).
+        const press = container.querySelector('[class*="motion-safe:active:scale-[0.98]"]');
+        expect(press).not.toBeNull();
+        expect(press?.querySelector('button')).not.toBeNull();
+    });
+
+    it('adds NO press motion to the non-interactive widget card (no onSelect)', () => {
+        const { container } = renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
+
+        expect(container.querySelector('[class*="motion-safe:active:scale-[0.98]"]')).toBeNull();
+    });
+});
+
 describe('RecipeCard (web) — merged fields (CR-002 / L2·L3)', () => {
     it('renders the cuisine when present, and nothing when absent', () => {
         renderCard(<RecipeCard recipe={model({ cuisine: 'Mediterranean' })} />);

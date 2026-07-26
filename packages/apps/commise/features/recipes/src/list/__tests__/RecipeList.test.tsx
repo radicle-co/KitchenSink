@@ -80,6 +80,37 @@ describe('RecipeList (web) — chrome', () => {
     });
 });
 
+describe('RecipeList (web) — U8 brand title band', () => {
+    it('sits the heading in a brand gradient title band', () => {
+        const { container } = render(
+            <RecipeList
+                status="loading"
+                recipes={[]}
+                searchValue=""
+                onSearchChange={noop}
+                onSelectRecipe={noop}
+                onCreateRecipe={noop}
+                onRetry={noop}
+            />,
+        );
+
+        // GradientSurface (web) paints an inline linear-gradient background behind the header; the heading
+        // lives inside that band.
+        const band = Array.from(container.querySelectorAll<HTMLElement>('*')).find((el) =>
+            el.style.backgroundImage.startsWith('linear-gradient'),
+        );
+
+        expect(band).toBeDefined();
+        expect(band?.querySelector('h1')).not.toBeNull();
+    });
+
+    it('threads the Playfair display family onto the list heading', () => {
+        renderList({ status: 'loading' });
+
+        expect(screen.getByRole('heading', { name: 'Recipes' }).className).toContain('font-display');
+    });
+});
+
 describe('RecipeList (web) — create FAB (L1)', () => {
     it('renders the create control as a pinned FAB OUTSIDE the header', () => {
         renderList({ status: 'ready', recipes: threeRecipes });

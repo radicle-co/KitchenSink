@@ -65,6 +65,30 @@ describe('RecipeList (native) — chrome', () => {
     });
 });
 
+describe('RecipeList (native) — U8 brand title band', () => {
+    // The heading's Playfair `display` family (U8) is a react-native-web class-compiled `fontFamily` that
+    // jsdom's getComputedStyle does not surface reliably; the family is covered by the single-source scale
+    // tests and its on-device rendering by Maestro. Here we assert the gradient band via the stub marker.
+    it('sits the heading in a brand gradient title band', () => {
+        const { container } = render(
+            <RecipeList
+                status="loading"
+                recipes={[]}
+                searchValue=""
+                onSearchChange={noop}
+                onSelectRecipe={noop}
+                onCreateRecipe={noop}
+                onRetry={noop}
+            />,
+        );
+
+        const band = container.querySelector('[data-commise-stub="linear-gradient"]');
+        expect(band).not.toBeNull();
+        // The heading rides inside the gradient band.
+        expect(band?.querySelector('[role="heading"]')).not.toBeNull();
+    });
+});
+
 describe('RecipeList (native) — create FAB (L1)', () => {
     it('renders the create control as a FAB OUTSIDE the header row', () => {
         renderList({ status: 'ready', recipes: threeRecipes });

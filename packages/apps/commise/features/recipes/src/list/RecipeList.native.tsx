@@ -12,6 +12,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+import { GradientSurface } from '@commise/ui/surface';
 import { FlashList } from '@shopify/flash-list';
 import type { FC, ReactElement } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -121,11 +122,14 @@ export const RecipeList: FC<RecipeListViewProps> = ({
 
     return (
         <View accessibilityLabel={list.heading} style={styles.container}>
-            <View style={styles.headerRow}>
-                <Text accessibilityRole="header" style={styles.heading}>
-                    {list.heading}
-                </Text>
-            </View>
+            {/* U8: the heading rides a beach-glow gradient title band (mockup recipe-list). */}
+            <GradientSurface gradient="hero" style={styles.titleBand}>
+                <View style={styles.headerRow}>
+                    <Text accessibilityRole="header" style={styles.heading}>
+                        {list.heading}
+                    </Text>
+                </View>
+            </GradientSurface>
 
             {tab !== undefined && (
                 <View accessibilityRole="tablist" accessibilityLabel={list.tabsLabel} style={styles.tabs}>
@@ -212,8 +216,16 @@ const CardSeparator: FC = () => <View style={styles.cardSeparator} />;
 
 const styles = StyleSheet.create({
     container: { flex: 1, gap: nativeTokens.spacing[4], paddingHorizontal: nativeTokens.spacing[4], paddingTop: nativeTokens.spacing[2] },
+    // U8: the beach-glow gradient title band the heading sits in.
+    titleBand: { borderRadius: nativeTokens.radius.lg, padding: nativeTokens.spacing[4] },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    heading: { fontSize: nativeTokens.fontSize.displayMd, fontWeight: '700', color: palette.charcoal },
+    // U8 brand leaf: the display heading threads the Playfair `display` family.
+    heading: {
+        fontFamily: nativeTokens.fontFamily.display,
+        fontSize: nativeTokens.fontSize.displayMd,
+        fontWeight: '700',
+        color: palette.charcoal,
+    },
     createButton: {
         backgroundColor: palette.seafoam,
         borderRadius: nativeTokens.radius.full,

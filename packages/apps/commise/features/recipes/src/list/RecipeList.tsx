@@ -6,6 +6,7 @@
  * fetches nothing; the composing app wires `useRecipes` (and search) to these props.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { GradientSurface } from '@commise/ui/surface';
 import type { FC, ReactElement } from 'react';
 
 import { recipeMessages } from '../messages.js';
@@ -110,9 +111,12 @@ export const RecipeList: FC<RecipeListViewProps> = ({
 
     return (
         <section aria-label={list.heading} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
-            <header className="flex items-center justify-between gap-4">
-                <h1 className="font-display text-display-md font-bold text-charcoal">{list.heading}</h1>
-            </header>
+            {/* U8: the heading rides a beach-glow gradient title band (mockup recipe-list). */}
+            <GradientSurface gradient="hero" className="rounded-2xl">
+                <header className="flex items-center justify-between gap-4 p-6">
+                    <h1 className="font-display text-display-md font-bold text-charcoal">{list.heading}</h1>
+                </header>
+            </GradientSurface>
 
             {tab !== undefined && (
                 <div role="tablist" aria-label={list.tabsLabel} className="flex gap-2 border-b border-border">

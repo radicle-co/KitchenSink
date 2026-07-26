@@ -15,7 +15,13 @@ vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 
 vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn(),
-    users: { id: 'id', identityId: 'identity_id', status: 'status', updatedAt: 'updated_at', reconciledAt: 'reconciled_at' },
+    users: {
+        id: 'id',
+        identityId: 'identity_id',
+        status: 'status',
+        updatedAt: 'updated_at',
+        reconciledAt: 'reconciled_at',
+    },
 }));
 
 vi.mock('drizzle-orm', () => ({
@@ -89,7 +95,10 @@ const mockDbWith = (rows: Array<{ id: string; identityId: string }>): MockDb => 
     return db;
 };
 
-const complete = { recipe: { service: 'recipe', ok: true, jobStatus: 'completed' }, food: { service: 'food', ok: true, deletedRequesterRows: 0 } };
+const complete = {
+    recipe: { service: 'recipe', ok: true, jobStatus: 'completed' },
+    food: { service: 'food', ok: true, deletedRequesterRows: 0 },
+};
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -104,12 +113,20 @@ beforeEach(() => {
 
 describe('erasure-reconciliation handler', () => {
     it('re-drives every erased user (actor = reconciliation) and flags none when both legs are terminal/clean', async () => {
-        mockGetDb.mockResolvedValue(mockDbWith([{ id: 'usr_01', identityId: 'user_a' }, { id: 'usr_02', identityId: 'user_b' }]) as never);
+        mockGetDb.mockResolvedValue(
+            mockDbWith([
+                { id: 'usr_01', identityId: 'user_a' },
+                { id: 'usr_02', identityId: 'user_b' },
+            ]) as never,
+        );
 
         const result = await handler(makeEvent(), makeContext());
 
         expect(mockRunErasureFanout).toHaveBeenCalledTimes(2);
-        expect(mockRunErasureFanout.mock.calls[0]![0]).toMatchObject({ userId: 'usr_01', actor: 'erasure-reconciliation' });
+        expect(mockRunErasureFanout.mock.calls[0]![0]).toMatchObject({
+            userId: 'usr_01',
+            actor: 'erasure-reconciliation',
+        });
         expect(result).toMatchObject({ scanned: 2, incomplete: 0 });
         expect(emitMetric).toHaveBeenCalledWith('ErasureIncomplete', 0);
     });
@@ -220,7 +237,12 @@ describe('erasure-reconciliation handler', () => {
     });
 
     it('one user erroring does NOT abort the batch (the rest are still reconciled)', async () => {
-        mockGetDb.mockResolvedValue(mockDbWith([{ id: 'usr_01', identityId: 'user_a' }, { id: 'usr_02', identityId: 'user_b' }]) as never);
+        mockGetDb.mockResolvedValue(
+            mockDbWith([
+                { id: 'usr_01', identityId: 'user_a' },
+                { id: 'usr_02', identityId: 'user_b' },
+            ]) as never,
+        );
         mockRunErasureFanout.mockImplementation((target: { userId: string }) =>
             target.userId === 'usr_01' ? Promise.reject(new Error('boom')) : Promise.resolve(complete),
         );

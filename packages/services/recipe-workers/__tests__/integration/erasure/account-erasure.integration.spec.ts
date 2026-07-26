@@ -126,7 +126,11 @@ describe.skipIf(!canRun)('account-erasure worker — scoped erasure on the real 
      * Insert one recipe and return its generated id. Defaults to OWNER-ONLY (`private`, `published`) so a
      * fixture recipe is REMOVED unless a test makes it truly-public or donates it. `deletedAt` → a tombstone.
      */
-    async function insertRecipe(ownerId: string, title: string, options: RecipeVisibilityOptions = {}): Promise<string> {
+    async function insertRecipe(
+        ownerId: string,
+        title: string,
+        options: RecipeVisibilityOptions = {},
+    ): Promise<string> {
         const result = await db.execute<{ id: string }>(sql`
             INSERT INTO recipes
                 (owner_id, title, servings, prep_time_minutes, cook_time_minutes, total_time_minutes,
@@ -388,7 +392,11 @@ describe.skipIf(!canRun)('account-erasure worker — scoped erasure on the real 
             }),
         );
         await s3.send(
-            new PutObjectCommand({ Bucket: MEDIA_BUCKET, Key: `${recipeMediaPrefix(OWNER_B, B_RECIPE)}cover.jpg`, Body: 'b' }),
+            new PutObjectCommand({
+                Bucket: MEDIA_BUCKET,
+                Key: `${recipeMediaPrefix(OWNER_B, B_RECIPE)}cover.jpg`,
+                Body: 'b',
+            }),
         );
 
         const listKeys = async (bucket: string, prefix: string): Promise<string[]> => {

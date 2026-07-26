@@ -52,7 +52,10 @@ const mockGetDb = vi.mocked(getDb);
 const mockBanUser = vi.mocked(banUser);
 const mockUnbanUser = vi.mocked(unbanUser);
 
-const bothLegsOk = { recipe: { service: 'recipe', ok: true, jobStatus: 'queued' }, food: { service: 'food', ok: true, deletedRequesterRows: 1 } };
+const bothLegsOk = {
+    recipe: { service: 'recipe', ok: true, jobStatus: 'queued' },
+    food: { service: 'food', ok: true, deletedRequesterRows: 1 },
+};
 
 const makeContext = (): Context => ({ awsRequestId: 'test-req-id' }) as unknown as Context;
 
@@ -117,13 +120,22 @@ describe('deletion-worker handler', () => {
     describe('erasure event (tombstone-sweep) — fan out only (identity already scrubbed by the sweep)', () => {
         it('fans out to recipe + food keyed by the app ULID, actor = the sweep', async () => {
             await handler(
-                makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'erasure', enqueuedAt: '2026-07-26T00:00:00Z' }),
+                makeSqsEvent({
+                    identityId: 'user_abc',
+                    userId: 'usr_01',
+                    event: 'erasure',
+                    enqueuedAt: '2026-07-26T00:00:00Z',
+                }),
                 makeContext(),
             );
 
             expect(mockRunErasureFanout).toHaveBeenCalledTimes(1);
             const [target] = mockRunErasureFanout.mock.calls[0]!;
-            expect(target).toMatchObject({ userId: 'usr_01', eventId: '2026-07-26T00:00:00Z', actor: 'identity-tombstone-sweep' });
+            expect(target).toMatchObject({
+                userId: 'usr_01',
+                eventId: '2026-07-26T00:00:00Z',
+                actor: 'identity-tombstone-sweep',
+            });
             // The sweep already scrubbed the identity + deleted Clerk; the worker must NOT re-do those.
             expect(mockEraseIdentityRow).not.toHaveBeenCalled();
             expect(mockBanUser).not.toHaveBeenCalled();
@@ -165,7 +177,11 @@ describe('deletion-worker handler', () => {
 
             expect(mockEraseIdentityRow).toHaveBeenCalledTimes(1);
             const [, eraseInput] = mockEraseIdentityRow.mock.calls[0]!;
-            expect(eraseInput).toMatchObject({ userId: 'usr_01', triggerSource: 'admin', actor: 'clerk-user-deleted-webhook' });
+            expect(eraseInput).toMatchObject({
+                userId: 'usr_01',
+                triggerSource: 'admin',
+                actor: 'clerk-user-deleted-webhook',
+            });
             expect(mockRunErasureFanout).toHaveBeenCalledTimes(1);
             expect(mockRunErasureFanout.mock.calls[0]![0]).toMatchObject({ userId: 'usr_01' });
         });

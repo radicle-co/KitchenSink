@@ -9,8 +9,8 @@ suite by the `.load.js` suffix / this `tests/load/` directory (vitest's `include
 > deployed preview — lives in `packages/tools/loadtest` and is driven by `.github/workflows/food-loadtest.yml`.
 > This directory is the lightweight, contract-scoped k6 suite mirroring the recipe pattern.
 
-| Script                    | Requirement  | Assertion (via `options.thresholds`)                                       |
-| ------------------------- | ------------ | -------------------------------------------------------------------------- |
+| Script                    | Requirement  | Assertion (via `options.thresholds`)                                             |
+| ------------------------- | ------------ | -------------------------------------------------------------------------------- |
 | `service-erasure.load.js` | CR-002 / U4b | internal EdDSA-guarded erasure POST p95 ≤ 500ms (200) + expired → 401 under load |
 
 A threshold breach makes `k6 run` exit non-zero, which fails the invoking CI job.
@@ -34,17 +34,17 @@ harmless idempotent no-op that never touches real data.
 
 ## Configuration (environment variables)
 
-| Variable                      | Default                          | Meaning                                             |
-| ----------------------------- | -------------------------------- | --------------------------------------------------- |
-| `FOOD_API_BASE_URL`           | `http://localhost:3000`          | Base URL of the food-service under test             |
-| `FOOD_LOAD_PEAK_VUS`          | `50`                             | Peak concurrent VUs                                 |
-| `FOOD_LOAD_RAMP_UP`           | `30s`                            | Ramp-up duration                                    |
-| `FOOD_LOAD_HOLD`              | `1m`                             | Hold-at-peak duration                               |
-| `FOOD_LOAD_RAMP_DOWN`         | `15s`                            | Ramp-down duration                                  |
-| `FOOD_ERASURE_P95_MS`         | `500`                            | p95 budget (ms) for the internal erasure POST       |
-| `FOOD_ERASURE_TOKENS_FILE`    | `tests/load/erasure-tokens.json` | pool file `service-erasure.load.js` opens           |
-| `ERASURE_TOKEN_POOL_SIZE`     | `200`                            | distinct single-target tokens minted by prepare     |
-| `ERASURE_TOKEN_TTL_SECONDS`   | `120`                            | minted-token TTL (capped at the 120s contract max)  |
+| Variable                    | Default                          | Meaning                                            |
+| --------------------------- | -------------------------------- | -------------------------------------------------- |
+| `FOOD_API_BASE_URL`         | `http://localhost:3000`          | Base URL of the food-service under test            |
+| `FOOD_LOAD_PEAK_VUS`        | `50`                             | Peak concurrent VUs                                |
+| `FOOD_LOAD_RAMP_UP`         | `30s`                            | Ramp-up duration                                   |
+| `FOOD_LOAD_HOLD`            | `1m`                             | Hold-at-peak duration                              |
+| `FOOD_LOAD_RAMP_DOWN`       | `15s`                            | Ramp-down duration                                 |
+| `FOOD_ERASURE_P95_MS`       | `500`                            | p95 budget (ms) for the internal erasure POST      |
+| `FOOD_ERASURE_TOKENS_FILE`  | `tests/load/erasure-tokens.json` | pool file `service-erasure.load.js` opens          |
+| `ERASURE_TOKEN_POOL_SIZE`   | `200`                            | distinct single-target tokens minted by prepare    |
+| `ERASURE_TOKEN_TTL_SECONDS` | `120`                            | minted-token TTL (capped at the 120s contract max) |
 
 ## Running
 

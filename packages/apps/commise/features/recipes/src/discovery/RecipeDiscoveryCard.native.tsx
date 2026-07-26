@@ -72,7 +72,12 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
 
 const styles = StyleSheet.create({
     titleWrap: { paddingHorizontal: nativeTokens.spacing[4], paddingTop: nativeTokens.spacing[4] },
-    body: { paddingHorizontal: nativeTokens.spacing[4], paddingBottom: nativeTokens.spacing[4], paddingTop: nativeTokens.spacing[2], gap: nativeTokens.spacing[2] },
+    body: {
+        paddingHorizontal: nativeTokens.spacing[4],
+        paddingBottom: nativeTokens.spacing[4],
+        paddingTop: nativeTokens.spacing[2],
+        gap: nativeTokens.spacing[2],
+    },
     attribution: { fontSize: 13, color: palette.slate },
     // Demoted to a ghost/outline (U7): the card should read "tap to open" first, so Clone is a quiet
     // secondary action (coral outline) rather than a filled-coral CTA competing with the cover/title. The

@@ -20,8 +20,10 @@ interface ListRenderItemInfo<TItem> {
 type ListSlot = ReactElement | ComponentType | null | undefined;
 
 /** The subset of `FlashListProps` the recipe native leaves pass. */
-interface FlashListStubProps<TItem>
-    extends Pick<ScrollViewProps, 'style' | 'contentContainerStyle' | 'keyboardShouldPersistTaps' | 'accessibilityLabel'> {
+interface FlashListStubProps<TItem> extends Pick<
+    ScrollViewProps,
+    'style' | 'contentContainerStyle' | 'keyboardShouldPersistTaps' | 'accessibilityLabel'
+> {
     readonly data?: readonly TItem[] | null;
     readonly renderItem?: (info: ListRenderItemInfo<TItem>) => ReactElement | null;
     readonly keyExtractor?: (item: TItem, index: number) => string;

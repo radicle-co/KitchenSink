@@ -7,14 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { palette } from '../colors.js';
-import {
-    glass,
-    glassBackdropCss,
-    gradient,
-    gradientCss,
-    toNativeGlass,
-    toNativeGradient,
-} from '../gradients.js';
+import { glass, glassBackdropCss, gradient, gradientCss, toNativeGlass, toNativeGradient } from '../gradients.js';
 
 describe('gradient specs', () => {
     it('threads the SAME brand CTA gradient the web Button carries (seafoam → ocean-dark, 135°)', () => {
@@ -52,7 +45,9 @@ describe('gradient specs', () => {
 
 describe('gradientCss (web composition)', () => {
     it('composes a CSS linear-gradient with the angle and percentage stops', () => {
-        expect(gradientCss(gradient.brand)).toBe(`linear-gradient(135deg, ${palette.seafoam} 0%, ${palette['ocean-dark']} 100%)`);
+        expect(gradientCss(gradient.brand)).toBe(
+            `linear-gradient(135deg, ${palette.seafoam} 0%, ${palette['ocean-dark']} 100%)`,
+        );
     });
 
     it('emits every stop for a 3-stop gradient', () => {

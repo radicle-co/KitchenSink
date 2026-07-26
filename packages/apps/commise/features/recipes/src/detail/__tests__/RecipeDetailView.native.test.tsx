@@ -248,7 +248,9 @@ describe('RecipeDetailView (native) — touch targets (U4 / RC-3)', () => {
     it('gives the ingredient checkbox a 44pt tap target', () => {
         render(
             <RecipeDetailView
-                recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil' })] })}
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil' })],
+                })}
                 onToggleIngredient={vi.fn()}
             />,
         );

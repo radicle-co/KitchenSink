@@ -64,7 +64,15 @@ async function seed(page: Page): Promise<void> {
                 ownerId: viewerId,
                 title: 'Weeknight Pasta with Garlic',
                 description: baseSnapshot.description,
-                ingredients: [{ ingredientId: 'ing_olive_oil', name: 'Olive oil', quantity: 2, unit: 'tbsp', isUserEntered: false }],
+                ingredients: [
+                    {
+                        ingredientId: 'ing_olive_oil',
+                        name: 'Olive oil',
+                        quantity: 2,
+                        unit: 'tbsp',
+                        isUserEntered: false,
+                    },
+                ],
                 currentVersion: 3,
             }),
         ],
@@ -151,9 +159,7 @@ test.describe('recipe/home responsive — 375px phone (U5)', () => {
         await expectNoHorizontalOverflow(page);
     });
 
-    test('the recipe detail fits the viewport and the ingredient checkbox is a ≥44px tap target', async ({
-        page,
-    }) => {
+    test('the recipe detail fits the viewport and the ingredient checkbox is a ≥44px tap target', async ({ page }) => {
         await seed(page);
         await page.goto(route(`/recipes/${RECIPE_ID}`));
         await expect(page.getByRole('heading', { level: 1, name: 'Weeknight Pasta with Garlic' })).toBeVisible();

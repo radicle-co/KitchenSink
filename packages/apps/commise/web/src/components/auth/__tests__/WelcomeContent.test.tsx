@@ -23,11 +23,7 @@ function renderWelcome() {
     return render(
         // Cast to the typed-routes `Route` as the real page does — a bare string literal is not assignable
         // to Next's `Route` under `typedRoutes` unless the route manifest has been regenerated.
-        <WelcomeContent
-            messages={messages}
-            signUpHref={'/en/sign-up' as Route}
-            signInHref={'/en/sign-in' as Route}
-        />,
+        <WelcomeContent messages={messages} signUpHref={'/en/sign-up' as Route} signInHref={'/en/sign-in' as Route} />,
     );
 }
 

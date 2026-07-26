@@ -136,7 +136,11 @@ export class AdminService {
 
         // Hand the Clerk unban to the deletion-worker; the sub survived the ban, so the same ULID resolves.
         try {
-            await this.sqs.enqueueDeletion({ identityId: existing.identityId, userId: existing.id, event: 'reactivation' });
+            await this.sqs.enqueueDeletion({
+                identityId: existing.identityId,
+                userId: existing.id,
+                event: 'reactivation',
+            });
         } catch (err) {
             this.logger.warn('reactivation: failed to enqueue unban (tombstone already cleared)', {
                 targetSub,

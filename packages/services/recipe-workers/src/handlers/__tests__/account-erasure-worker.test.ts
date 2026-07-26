@@ -335,7 +335,9 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
 
         await eraseRecipeRows(control.db, OWNER, []);
 
-        const persist = control.statements().find((s) => /update account_erasure_jobs set removed_recipe_ids/i.test(s.text));
+        const persist = control
+            .statements()
+            .find((s) => /update account_erasure_jobs set removed_recipe_ids/i.test(s.text));
 
         expect(persist).toBeDefined();
         // The captured ids — the exact set the S3 sweep will use after the rows are gone.
@@ -816,12 +818,7 @@ describe('handler', () => {
      * rest fall back to `{ rows: [] }`. The removed-SELECT (2nd execute inside eraseRecipeRows) must be
      * enqueued right after the flip filler.
      */
-    const seedRecord = (
-        db: FakeDbControl,
-        claim: { rows: unknown[] },
-        removedIds: string[],
-        trailing = 0,
-    ): void => {
+    const seedRecord = (db: FakeDbControl, claim: { rows: unknown[] }, removedIds: string[], trailing = 0): void => {
         db.enqueue(claim); // claim
         db.enqueue({ rows: [] }); // flip
         db.enqueue({ rows: removedIds.map((id) => ({ id })) }); // removed-SELECT

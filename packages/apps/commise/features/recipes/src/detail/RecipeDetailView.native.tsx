@@ -210,7 +210,11 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
 };
 
 const styles = StyleSheet.create({
-    container: { gap: nativeTokens.spacing[4], paddingHorizontal: nativeTokens.spacing[4], paddingVertical: nativeTokens.spacing[4] },
+    container: {
+        gap: nativeTokens.spacing[4],
+        paddingHorizontal: nativeTokens.spacing[4],
+        paddingVertical: nativeTokens.spacing[4],
+    },
     // U8: the beach-glow gradient title band the header sits in.
     titleBand: {
         gap: nativeTokens.spacing[3],
@@ -252,7 +256,12 @@ const styles = StyleSheet.create({
     },
     statCell: { flex: 1, alignItems: 'center', gap: nativeTokens.spacing[1] },
     statValue: { fontSize: nativeTokens.fontSize.bodyLg, fontWeight: '700', color: palette.charcoal },
-    statLabel: { fontSize: nativeTokens.fontSize.overline, textTransform: 'uppercase', letterSpacing: 0.5, color: palette.slate },
+    statLabel: {
+        fontSize: nativeTokens.fontSize.overline,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        color: palette.slate,
+    },
     sectionHeading: { fontSize: nativeTokens.fontSize.headingMd, fontWeight: '600', color: palette.charcoal },
     card: {
         backgroundColor: palette.white,
@@ -263,7 +272,13 @@ const styles = StyleSheet.create({
         // U8 brand leaf: tokenized card elevation (was flat, border-only).
         ...nativeTokens.elevation.sm,
     },
-    ingredientRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: nativeTokens.spacing[1], paddingHorizontal: nativeTokens.spacing[2] },
+    ingredientRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: nativeTokens.spacing[1],
+        paddingHorizontal: nativeTokens.spacing[2],
+    },
     // 44pt tap target (RC-3) around the compact visible checkbox.
     checkboxTouch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     checkbox: {

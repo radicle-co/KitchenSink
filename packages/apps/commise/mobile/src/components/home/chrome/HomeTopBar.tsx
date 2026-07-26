@@ -74,7 +74,12 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: nativeTokens.borderSubtle,
     },
-    title: { fontFamily: DISPLAY_FONT_SEMIBOLD, fontSize: nativeTokens.fontSize.bodyLg, fontWeight: '600', color: palette.charcoal },
+    title: {
+        fontFamily: DISPLAY_FONT_SEMIBOLD,
+        fontSize: nativeTokens.fontSize.bodyLg,
+        fontWeight: '600',
+        color: palette.charcoal,
+    },
     // 44pt tap target (RC-3); pushed to the row's right edge so the larger hit box does not shift the avatar.
     avatarTouch: { width: 44, height: 44, alignItems: 'flex-end', justifyContent: 'center' },
     avatar: {

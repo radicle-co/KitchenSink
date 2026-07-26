@@ -75,22 +75,20 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
             .fn()
             .mockReturnValueOnce(selectChain([{ user: userRow, accountId: 'acc-1', profileId: 'prof-1' }]));
 
-        await expect(
-            usersService.resolveOrCreateFromClaims({ sub: 'user_tomb', email: 'u@b.com' }),
-        ).rejects.toThrow(/closed/i);
+        await expect(usersService.resolveOrCreateFromClaims({ sub: 'user_tomb', email: 'u@b.com' })).rejects.toThrow(
+            /closed/i,
+        );
         expect(mockDb.insert).not.toHaveBeenCalled();
     });
 
     it('DENIES an erased account — rejects before attempting to heal its purged companion rows', async () => {
         const userRow = { id: '01ERASED000000000000000AB', email: 'u@erased.invalid', status: 'erased' };
         // erasure purges accounts/profiles → both null; must DENY, never re-provision.
-        mockDb.select = vi
-            .fn()
-            .mockReturnValueOnce(selectChain([{ user: userRow, accountId: null, profileId: null }]));
+        mockDb.select = vi.fn().mockReturnValueOnce(selectChain([{ user: userRow, accountId: null, profileId: null }]));
 
-        await expect(
-            usersService.resolveOrCreateFromClaims({ sub: 'user_erased', email: 'u@b.com' }),
-        ).rejects.toThrow(/closed/i);
+        await expect(usersService.resolveOrCreateFromClaims({ sub: 'user_erased', email: 'u@b.com' })).rejects.toThrow(
+            /closed/i,
+        );
         expect(mockDb.insert).not.toHaveBeenCalled();
     });
 

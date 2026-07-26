@@ -210,7 +210,12 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, gap: nativeTokens.spacing[4], paddingHorizontal: nativeTokens.spacing[4], paddingTop: nativeTokens.spacing[2] },
+    container: {
+        flex: 1,
+        gap: nativeTokens.spacing[4],
+        paddingHorizontal: nativeTokens.spacing[4],
+        paddingTop: nativeTokens.spacing[2],
+    },
     heading: { fontSize: nativeTokens.fontSize.displayMd, fontWeight: '700', color: palette.charcoal },
     search: {
         backgroundColor: palette.white,
@@ -224,7 +229,14 @@ const styles = StyleSheet.create({
     },
     count: { fontSize: 13, fontWeight: '500', color: palette.slate },
     sortRow: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
-    sortChip: { borderRadius: nativeTokens.radius.full, paddingHorizontal: nativeTokens.spacing[3], paddingVertical: 6, minHeight: 44, justifyContent: 'center', backgroundColor: palette.pearl },
+    sortChip: {
+        borderRadius: nativeTokens.radius.full,
+        paddingHorizontal: nativeTokens.spacing[3],
+        paddingVertical: 6,
+        minHeight: 44,
+        justifyContent: 'center',
+        backgroundColor: palette.pearl,
+    },
     sortChipActive: { backgroundColor: palette.charcoal },
     sortLabelText: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.slate },
     sortLabelActive: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.white },

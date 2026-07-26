@@ -201,7 +201,9 @@ describe('erasure-orphan-sweeper handler — the reconciliation path (both bucke
     });
 
     it('sweeps every completed owner returned, each under its own prefix', async () => {
-        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners([completed('own-1'), completed('own-2')]) as never);
+        vi.mocked(getRecipeDbMock).mockReturnValue(
+            dbWithCompletedOwners([completed('own-1'), completed('own-2')]) as never,
+        );
         s3WithOrphansAt(new Set([`${ARCHIVE}|recipes/own-2/own-2-rem/`]));
 
         await handler();
@@ -221,7 +223,9 @@ describe('erasure-orphan-sweeper handler — the reconciliation path (both bucke
     });
 
     it('is a no-op over completed owners whose prefixes are already clean (the common case)', async () => {
-        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners([completed('own-1'), completed('own-2')]) as never);
+        vi.mocked(getRecipeDbMock).mockReturnValue(
+            dbWithCompletedOwners([completed('own-1'), completed('own-2')]) as never,
+        );
         s3WithOrphansAt(new Set());
 
         await handler();
@@ -232,7 +236,9 @@ describe('erasure-orphan-sweeper handler — the reconciliation path (both bucke
     });
 
     it('keeps sweeping the remaining owners when one owner’s sweep fails', async () => {
-        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners([completed('own-1'), completed('own-2')]) as never);
+        vi.mocked(getRecipeDbMock).mockReturnValue(
+            dbWithCompletedOwners([completed('own-1'), completed('own-2')]) as never,
+        );
         let firstListSeen = false;
         s3Send.mockImplementation(async (command: unknown) => {
             if (isList(command)) {
@@ -300,7 +306,9 @@ describe('CDN invalidation of orphaned media (Finding 2 / HAZ-051/067)', () => {
     });
 
     it('invalidates each owner’s own prefix independently across a multi-owner batch', async () => {
-        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners([completed('own-1'), completed('own-2')]) as never);
+        vi.mocked(getRecipeDbMock).mockReturnValue(
+            dbWithCompletedOwners([completed('own-1'), completed('own-2')]) as never,
+        );
         s3WithOrphansAt(new Set([`${MEDIA}|recipes/own-1/own-1-rem/`, `${MEDIA}|recipes/own-2/own-2-rem/`]));
 
         await handler();
@@ -327,7 +335,9 @@ describe('CDN invalidation of orphaned media (Finding 2 / HAZ-051/067)', () => {
     });
 
     it('an invalidation failure is non-blocking — the tick still completes and the next owner is still swept', async () => {
-        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners([completed('own-1'), completed('own-2')]) as never);
+        vi.mocked(getRecipeDbMock).mockReturnValue(
+            dbWithCompletedOwners([completed('own-1'), completed('own-2')]) as never,
+        );
         s3WithOrphansAt(new Set([`${MEDIA}|recipes/own-1/own-1-rem/`, `${MEDIA}|recipes/own-2/own-2-rem/`]));
         cdnInvalidate.mockRejectedValueOnce(new Error('CloudFront throttled'));
 
@@ -351,7 +361,9 @@ describe('orphans-deleted metric (the resurrection-caught alarm signal)', () => 
 
     it('counts orphans across BOTH buckets — a nonzero value means a resurrection was caught', async () => {
         const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-        vi.mocked(getRecipeDbMock).mockReturnValue(dbWithCompletedOwners([completed('own-1'), completed('own-2')]) as never);
+        vi.mocked(getRecipeDbMock).mockReturnValue(
+            dbWithCompletedOwners([completed('own-1'), completed('own-2')]) as never,
+        );
         // own-1 has an archive orphan; own-2 has a media orphan — the total is 2 across both buckets.
         s3WithOrphansAt(new Set([`${ARCHIVE}|recipes/own-1/own-1-rem/`, `${MEDIA}|recipes/own-2/own-2-rem/`]));
 

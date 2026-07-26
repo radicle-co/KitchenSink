@@ -253,7 +253,13 @@ const styles = StyleSheet.create({
         borderBottomColor: nativeTokens.borderSubtle,
     },
     // The recipe tabs are a 44pt touch target (RC-3); the underline sits at the tab's foot.
-    tab: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[1], borderBottomWidth: 2, borderBottomColor: 'transparent' },
+    tab: {
+        minHeight: 44,
+        justifyContent: 'center',
+        paddingHorizontal: nativeTokens.spacing[1],
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
+    },
     tabSelected: { borderBottomColor: palette.seafoam },
     tabLabel: { fontSize: 15, fontWeight: '500', color: palette.slate },
     tabLabelSelected: { color: palette.seafoam, fontWeight: '600' },

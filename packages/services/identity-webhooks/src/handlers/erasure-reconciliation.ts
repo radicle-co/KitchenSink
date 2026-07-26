@@ -101,11 +101,7 @@ async function stampReconciled(db: DbContext['db'], userId: string): Promise<voi
  *
  * @implements CR-002 R7
  */
-const innerHandler = async (
-    _event: ScheduledEvent,
-    _context: Context,
-    { db }: DbContext,
-): Promise<ReconcileResult> => {
+const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: DbContext): Promise<ReconcileResult> => {
     const config = getErasureFanoutConfig();
     const cutoff = new Date(Date.now() - RECONCILE_GRACE_MS);
 

@@ -215,7 +215,12 @@ export const RecipeList: FC<RecipeListViewProps> = ({
 const CardSeparator: FC = () => <View style={styles.cardSeparator} />;
 
 const styles = StyleSheet.create({
-    container: { flex: 1, gap: nativeTokens.spacing[4], paddingHorizontal: nativeTokens.spacing[4], paddingTop: nativeTokens.spacing[2] },
+    container: {
+        flex: 1,
+        gap: nativeTokens.spacing[4],
+        paddingHorizontal: nativeTokens.spacing[4],
+        paddingTop: nativeTokens.spacing[2],
+    },
     // U8: the beach-glow gradient title band the heading sits in.
     titleBand: { borderRadius: nativeTokens.radius.lg, padding: nativeTokens.spacing[4] },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -237,13 +242,29 @@ const styles = StyleSheet.create({
     createLabel: { color: palette.white, fontWeight: '600', fontSize: nativeTokens.fontSize.bodySm },
     emptyBody: { gap: nativeTokens.spacing[3], alignItems: 'flex-start' },
     // The mine/community source tabs are a 44pt touch target (RC-3); the underline sits at the row's foot.
-    tabs: { flexDirection: 'row', gap: nativeTokens.spacing[2], borderBottomWidth: 1, borderBottomColor: nativeTokens.borderSubtle },
-    tab: { paddingHorizontal: nativeTokens.spacing[4], minHeight: 44, justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+    tabs: {
+        flexDirection: 'row',
+        gap: nativeTokens.spacing[2],
+        borderBottomWidth: 1,
+        borderBottomColor: nativeTokens.borderSubtle,
+    },
+    tab: {
+        paddingHorizontal: nativeTokens.spacing[4],
+        minHeight: 44,
+        justifyContent: 'center',
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
+    },
     tabSelected: { borderBottomColor: palette.seafoam },
     tabLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.slate },
     tabLabelSelected: { color: palette.seafoam },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
-    chip: { borderRadius: nativeTokens.radius.full, paddingHorizontal: nativeTokens.spacing[3], paddingVertical: 6, backgroundColor: palette.pearl },
+    chip: {
+        borderRadius: nativeTokens.radius.full,
+        paddingHorizontal: nativeTokens.spacing[3],
+        paddingVertical: 6,
+        backgroundColor: palette.pearl,
+    },
     chipActive: { backgroundColor: palette.seafoam },
     chipLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.slate },
     chipLabelActive: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.white },
@@ -279,5 +300,10 @@ const styles = StyleSheet.create({
     cards: { paddingBottom: nativeTokens.spacing[5] },
     cardSeparator: { height: CARD_GAP },
     // Inert loading placeholder shaped like a recipe card (cover + body height); borderSubtle fill, no motion.
-    skeletonCard: { height: 300, borderRadius: nativeTokens.radius.lg, backgroundColor: nativeTokens.borderSubtle, marginBottom: CARD_GAP },
+    skeletonCard: {
+        height: 300,
+        borderRadius: nativeTokens.radius.lg,
+        backgroundColor: nativeTokens.borderSubtle,
+        marginBottom: CARD_GAP,
+    },
 });

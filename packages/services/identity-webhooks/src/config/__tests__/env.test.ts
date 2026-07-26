@@ -286,34 +286,33 @@ describe('getErasureFanoutConfig (CR-002 / U4b — fail-closed fan-out gate)', (
         });
     });
 
-    it.each([
-        ['SERVICE_ERASURE_SIGNING_KEY'],
-        ['RECIPE_SERVICE_BASE_URL'],
-        ['FOOD_SERVICE_BASE_URL'],
-    ])('throws a ConfigError naming %s when it is missing (never silently skips a leg)', (missing) => {
-        const all = {
-            SERVICE_ERASURE_SIGNING_KEY: 'PRIVATE-PEM',
-            RECIPE_SERVICE_BASE_URL: 'https://recipe.example.test',
-            FOOD_SERVICE_BASE_URL: 'https://food.example.test',
-        } as Record<string, string>;
+    it.each([['SERVICE_ERASURE_SIGNING_KEY'], ['RECIPE_SERVICE_BASE_URL'], ['FOOD_SERVICE_BASE_URL']])(
+        'throws a ConfigError naming %s when it is missing (never silently skips a leg)',
+        (missing) => {
+            const all = {
+                SERVICE_ERASURE_SIGNING_KEY: 'PRIVATE-PEM',
+                RECIPE_SERVICE_BASE_URL: 'https://recipe.example.test',
+                FOOD_SERVICE_BASE_URL: 'https://food.example.test',
+            } as Record<string, string>;
 
-        for (const [key, value] of Object.entries(all)) {
-            if (key !== missing) {
-                vi.stubEnv(key, value);
+            for (const [key, value] of Object.entries(all)) {
+                if (key !== missing) {
+                    vi.stubEnv(key, value);
+                }
             }
-        }
 
-        let caught: unknown;
+            let caught: unknown;
 
-        try {
-            getErasureFanoutConfig();
-        } catch (err) {
-            caught = err;
-        }
+            try {
+                getErasureFanoutConfig();
+            } catch (err) {
+                caught = err;
+            }
 
-        expect(isConfigError(caught)).toBe(true);
-        expect((caught as ConfigError).message).toContain(missing);
-    });
+            expect(isConfigError(caught)).toBe(true);
+            expect((caught as ConfigError).message).toContain(missing);
+        },
+    );
 
     it('treats an EMPTY value as missing (fails closed, not a blank-signing-key erase)', () => {
         vi.stubEnv('SERVICE_ERASURE_SIGNING_KEY', '');

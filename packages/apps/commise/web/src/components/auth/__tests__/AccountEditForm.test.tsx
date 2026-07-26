@@ -119,9 +119,7 @@ describe('AccountEditForm (U3) — submit', () => {
         renderForm('');
         await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 
-        expect(screen.getByRole('alert').textContent).toBe(
-            'You’re not signed in. Please sign in and try again.',
-        );
+        expect(screen.getByRole('alert').textContent).toBe('You’re not signed in. Please sign in and try again.');
         expect(fetchMock).not.toHaveBeenCalled();
     });
 });

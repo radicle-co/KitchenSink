@@ -38,8 +38,8 @@ describe('FoodServiceErasureGuard', () => {
         const auth = { verify: vi.fn().mockRejectedValue(new UnauthorizedException()) };
         const guard = new FoodServiceErasureGuard(auth as unknown as FoodServiceErasureAuthService);
 
-        await expect(
-            guard.canActivate(ctxFor({ headers: { authorization: 'Bearer bad' } })),
-        ).rejects.toBeInstanceOf(UnauthorizedException);
+        await expect(guard.canActivate(ctxFor({ headers: { authorization: 'Bearer bad' } }))).rejects.toBeInstanceOf(
+            UnauthorizedException,
+        );
     });
 });

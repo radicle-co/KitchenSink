@@ -10,13 +10,14 @@
  */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
-import {
-    SERVICE_ERASURE_TOKEN_AUDIENCE,
-    SERVICE_ERASURE_TOKEN_MAX_TTL_SECONDS,
-} from '@kitchensink/recipe-core';
+import { SERVICE_ERASURE_TOKEN_AUDIENCE, SERVICE_ERASURE_TOKEN_MAX_TTL_SECONDS } from '@kitchensink/recipe-core';
 
 import { FoodServiceErasureAuthService } from '../food-service-erasure-auth.service.js';
-import { generateServiceKeypair, signServiceErasureToken, type ServiceKeypair } from '../../../tests/support/service-token.js';
+import {
+    generateServiceKeypair,
+    signServiceErasureToken,
+    type ServiceKeypair,
+} from '../../../tests/support/service-token.js';
 
 const KEY_ENV = 'FOOD_SERVICE_PRINCIPAL_JWT_KEY';
 const OWNER = '01JOWNER00000000000000000A';

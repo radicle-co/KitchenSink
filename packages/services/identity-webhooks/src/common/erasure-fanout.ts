@@ -25,10 +25,7 @@
  *
  * `fetch` (Node 24 global) is the HTTP client — no hand-rolled client, no axios; injected for tests.
  */
-import {
-    SERVICE_ERASURE_TOKEN_AUDIENCE,
-    SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD,
-} from '@kitchensink/recipe-core';
+import { SERVICE_ERASURE_TOKEN_AUDIENCE, SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD } from '@kitchensink/recipe-core';
 
 import { mintServiceErasureToken } from './service-erasure-token.js';
 
@@ -104,8 +101,22 @@ export async function runErasureFanout(
     const fetchImpl = deps.fetchImpl ?? ((url, init) => fetch(url, init));
 
     // Recipe FIRST (R9): the election-bearing job must exist before the Clerk echo lands.
-    const recipe = await callLeg('recipe', config.recipeBaseUrl, SERVICE_ERASURE_TOKEN_AUDIENCE, target, config, fetchImpl);
-    const food = await callLeg('food', config.foodBaseUrl, SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD, target, config, fetchImpl);
+    const recipe = await callLeg(
+        'recipe',
+        config.recipeBaseUrl,
+        SERVICE_ERASURE_TOKEN_AUDIENCE,
+        target,
+        config,
+        fetchImpl,
+    );
+    const food = await callLeg(
+        'food',
+        config.foodBaseUrl,
+        SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD,
+        target,
+        config,
+        fetchImpl,
+    );
 
     return { recipe, food };
 }

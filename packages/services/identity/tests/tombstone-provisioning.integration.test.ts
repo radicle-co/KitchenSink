@@ -57,7 +57,9 @@ describe.skipIf(!DATABASE_URL)('lifecycle-aware provisioning — no resurrection
     });
 
     beforeEach(async () => {
-        await pool.query('DELETE FROM lifecycle_events; DELETE FROM profiles; DELETE FROM accounts; DELETE FROM users;');
+        await pool.query(
+            'DELETE FROM lifecycle_events; DELETE FROM profiles; DELETE FROM accounts; DELETE FROM users;',
+        );
     });
 
     it('the CR-002 migrations add the tombstoned/erased enum values and the lifecycle_events table', async () => {

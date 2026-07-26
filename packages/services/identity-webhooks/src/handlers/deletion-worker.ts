@@ -83,7 +83,11 @@ const eraseFromWebhook = async (identityId: string, { db, userDao }: DbContext):
     if (user.status !== 'erased') {
         // KTD-2 full erasure: scrub to {id} + R8 audit. Setting status='erased' is what brings this
         // webhook-erased user under the R10 anti-resurrection guard (else it stays `active`+soft-deleted).
-        await eraseIdentityRow(db, { userId: user.id, triggerSource: 'admin', actor: 'clerk-user-deleted-webhook' }, new Date());
+        await eraseIdentityRow(
+            db,
+            { userId: user.id, triggerSource: 'admin', actor: 'clerk-user-deleted-webhook' },
+            new Date(),
+        );
         emitMetric('UserDeletedWebhookErased', 1, { identityId });
         logger.info('deletion-worker: user.deleted — identity erased (KTD-2)', { identityId, userId: user.id });
     } else {

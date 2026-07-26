@@ -144,7 +144,12 @@ const CollectionRow: FC<{ collection: Collection; onSelect: (id: string) => void
 const CardSeparator: FC = () => <View style={styles.cardSeparator} />;
 
 const styles = StyleSheet.create({
-    container: { flex: 1, gap: nativeTokens.spacing[4], paddingHorizontal: nativeTokens.spacing[4], paddingTop: nativeTokens.spacing[2] },
+    container: {
+        flex: 1,
+        gap: nativeTokens.spacing[4],
+        paddingHorizontal: nativeTokens.spacing[4],
+        paddingTop: nativeTokens.spacing[2],
+    },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     heading: { fontSize: nativeTokens.fontSize.displayMd, fontWeight: '700', color: palette.charcoal },
     createButton: {
@@ -182,5 +187,10 @@ const styles = StyleSheet.create({
     cardTitle: { fontSize: nativeTokens.fontSize.headingSm, fontWeight: '600', color: palette.charcoal },
     cardDescription: { fontSize: 13, color: palette.slate },
     // Inert loading placeholder shaped like a collection row; borderSubtle fill, no motion.
-    skeletonCard: { height: 76, borderRadius: nativeTokens.radius.lg, backgroundColor: nativeTokens.borderSubtle, marginBottom: CARD_GAP },
+    skeletonCard: {
+        height: 76,
+        borderRadius: nativeTokens.radius.lg,
+        backgroundColor: nativeTokens.borderSubtle,
+        marginBottom: CARD_GAP,
+    },
 });

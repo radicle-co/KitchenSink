@@ -24,12 +24,7 @@ const chrome = webMessages.en.home.chrome;
 
 const renderTabBar = (): void => {
     render(
-        <HomeTabBar
-            chrome={chrome}
-            locale="en"
-            liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
-            activeId="home"
-        />,
+        <HomeTabBar chrome={chrome} locale="en" liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]} activeId="home" />,
     );
 };
 

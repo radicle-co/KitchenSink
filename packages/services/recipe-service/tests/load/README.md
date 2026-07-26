@@ -7,13 +7,13 @@ excluded from the vitest suite by the `.load.js` suffix / this `tests/load/` dir
 
 They target the performance requirements of Feature 001:
 
-| Script                         | Requirement     | Assertion (via `options.thresholds`)                                     |
-| ------------------------------ | --------------- | ------------------------------------------------------------------------ |
-| `sc009-read-write.load.js`     | SC-009          | `http_req_duration` p95 ≤ 500ms on recipe list / get / create            |
-| `search-latency.load.js`       | SC-009          | search `http_req_duration` p95 < 2s                                      |
-| `save-under-archive.load.js`   | FR-007b-i       | recipe-save (create + update) p95 ≤ 500ms while the S3 archive is queued |
-| `pull-from-source.load.js`     | W8-a.8 / FR-011 | collection pull `previewPull` / `commitPull` p95 ≤ 500ms (read + write)  |
-| `version-archive-read.load.js` | W8-a.7          | version GET served via the S3 archive fallback p95 < 1s                  |
+| Script                         | Requirement     | Assertion (via `options.thresholds`)                                             |
+| ------------------------------ | --------------- | -------------------------------------------------------------------------------- |
+| `sc009-read-write.load.js`     | SC-009          | `http_req_duration` p95 ≤ 500ms on recipe list / get / create                    |
+| `search-latency.load.js`       | SC-009          | search `http_req_duration` p95 < 2s                                              |
+| `save-under-archive.load.js`   | FR-007b-i       | recipe-save (create + update) p95 ≤ 500ms while the S3 archive is queued         |
+| `pull-from-source.load.js`     | W8-a.8 / FR-011 | collection pull `previewPull` / `commitPull` p95 ≤ 500ms (read + write)          |
+| `version-archive-read.load.js` | W8-a.7          | version GET served via the S3 archive fallback p95 < 1s                          |
 | `service-erasure.load.js`      | CR-002 / U4a    | internal EdDSA-guarded erasure POST p95 ≤ 500ms (202) + expired → 401 under load |
 
 A threshold breach makes `k6 run` exit non-zero, which fails the invoking CI job.
@@ -45,22 +45,22 @@ per-user-tracking follow-up in the service's throttle notes.)
 
 ## Configuration (environment variables)
 
-| Variable                             | Default                 | Meaning                                                  |
-| ------------------------------------ | ----------------------- | -------------------------------------------------------- |
-| `RECIPE_API_BASE_URL`                | `http://localhost:3000` | Base URL of the service under test                       |
-| `RECIPE_LOAD_TEST_TOKEN`             | _(empty)_               | Bearer session token                                     |
-| `RECIPE_LOAD_PEAK_VUS`               | `50`                    | Peak concurrent VUs (see the SC-009 note below)          |
-| `RECIPE_LOAD_RAMP_UP`                | `30s`                   | Ramp-up duration                                         |
-| `RECIPE_LOAD_HOLD`                   | `1m`                    | Hold-at-peak duration                                    |
-| `RECIPE_LOAD_RAMP_DOWN`              | `15s`                   | Ramp-down duration                                       |
-| `RECIPE_SAVE_P95_MS`                 | `500`                   | p95 budget (ms) for read/write/save                      |
-| `RECIPE_SEARCH_P95_MS`               | `2000`                  | p95 budget (ms) for search                               |
-| `RECIPE_VERSION_ARCHIVE_READ_P95_MS` | `1000`                  | p95 budget (ms) for the S3 version-archive fallback read |
-| `RECIPE_ARCHIVE_FIXTURE_RECIPE_ID`   | _(fixed id, see below)_ | recipe id `version-archive-read.load.js` reads           |
-| `RECIPE_ERASURE_P95_MS`              | `500`                   | p95 budget (ms) for the internal erasure POST            |
-| `RECIPE_ERASURE_TOKENS_FILE`         | `tests/load/erasure-tokens.json` | pool file `service-erasure.load.js` opens        |
-| `ERASURE_TOKEN_POOL_SIZE`            | `200`                   | distinct single-target tokens minted by the prepare step |
-| `ERASURE_TOKEN_TTL_SECONDS`          | `120`                   | minted-token TTL (capped at the 120s contract max)       |
+| Variable                             | Default                          | Meaning                                                  |
+| ------------------------------------ | -------------------------------- | -------------------------------------------------------- |
+| `RECIPE_API_BASE_URL`                | `http://localhost:3000`          | Base URL of the service under test                       |
+| `RECIPE_LOAD_TEST_TOKEN`             | _(empty)_                        | Bearer session token                                     |
+| `RECIPE_LOAD_PEAK_VUS`               | `50`                             | Peak concurrent VUs (see the SC-009 note below)          |
+| `RECIPE_LOAD_RAMP_UP`                | `30s`                            | Ramp-up duration                                         |
+| `RECIPE_LOAD_HOLD`                   | `1m`                             | Hold-at-peak duration                                    |
+| `RECIPE_LOAD_RAMP_DOWN`              | `15s`                            | Ramp-down duration                                       |
+| `RECIPE_SAVE_P95_MS`                 | `500`                            | p95 budget (ms) for read/write/save                      |
+| `RECIPE_SEARCH_P95_MS`               | `2000`                           | p95 budget (ms) for search                               |
+| `RECIPE_VERSION_ARCHIVE_READ_P95_MS` | `1000`                           | p95 budget (ms) for the S3 version-archive fallback read |
+| `RECIPE_ARCHIVE_FIXTURE_RECIPE_ID`   | _(fixed id, see below)_          | recipe id `version-archive-read.load.js` reads           |
+| `RECIPE_ERASURE_P95_MS`              | `500`                            | p95 budget (ms) for the internal erasure POST            |
+| `RECIPE_ERASURE_TOKENS_FILE`         | `tests/load/erasure-tokens.json` | pool file `service-erasure.load.js` opens                |
+| `ERASURE_TOKEN_POOL_SIZE`            | `200`                            | distinct single-target tokens minted by the prepare step |
+| `ERASURE_TOKEN_TTL_SECONDS`          | `120`                            | minted-token TTL (capped at the 120s contract max)       |
 
 ## Running
 

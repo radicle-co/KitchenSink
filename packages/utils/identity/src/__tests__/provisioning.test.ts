@@ -108,7 +108,11 @@ describe('provisionCompleteUser', () => {
         // integration suite proves the CASE preserves a tombstoned row's deletedAt.
         const { deps, conflictSets } = buildMockDb();
 
-        await provisionCompleteUser(deps, { identityId: 'id_1', email: 'a@b.com' }, { onEmailCollision: 'placeholder' });
+        await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com' },
+            { onEmailCollision: 'placeholder' },
+        );
 
         expect(conflictSets[0]).toHaveProperty('deletedAt');
     });
@@ -142,7 +146,11 @@ describe('provisionCompleteUser', () => {
     it('R10: does NOT rebuild account/profile when the upserted row is erased (no resurrection)', async () => {
         const { deps, insertedTables } = buildMockDb({ rowStatus: 'erased' });
 
-        await provisionCompleteUser(deps, { identityId: 'id_1', email: 'a@b.com' }, { onEmailCollision: 'placeholder' });
+        await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com' },
+            { onEmailCollision: 'placeholder' },
+        );
 
         expect(insertedTables).toEqual(['users']);
     });
@@ -191,7 +199,11 @@ describe('provisionCompleteUser', () => {
     it('defaults displayName to name (then empty) and accepts a null avatar', async () => {
         const { deps, valuesByTable } = buildMockDb();
 
-        await provisionCompleteUser(deps, { identityId: 'id_1', email: 'a@b.com' }, { onEmailCollision: 'placeholder' });
+        await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com' },
+            { onEmailCollision: 'placeholder' },
+        );
 
         expect(valuesByTable.get('profiles')).toEqual({ userId: 'usr_test', displayName: '', avatarUrl: null });
     });

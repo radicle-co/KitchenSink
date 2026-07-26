@@ -13,7 +13,9 @@ const PRINCIPAL: ServicePrincipal = { ownerId: '01JOWNER00000000000000000A', eve
 
 describe('ServiceErasureController', () => {
     it('erases the TOKEN-bound owner and returns the requester id + deleted-row count', async () => {
-        const erasure = { eraseUser: vi.fn().mockResolvedValue({ requesterId: PRINCIPAL.ownerId, deletedRequesterRows: 3 }) };
+        const erasure = {
+            eraseUser: vi.fn().mockResolvedValue({ requesterId: PRINCIPAL.ownerId, deletedRequesterRows: 3 }),
+        };
         const controller = new ServiceErasureController(erasure as unknown as UserErasureService);
 
         const result = await controller.eraseAccount(PRINCIPAL);
@@ -24,9 +26,14 @@ describe('ServiceErasureController', () => {
     });
 
     it('surfaces an idempotent no-op (0 rows) for an owner with no food footprint', async () => {
-        const erasure = { eraseUser: vi.fn().mockResolvedValue({ requesterId: PRINCIPAL.ownerId, deletedRequesterRows: 0 }) };
+        const erasure = {
+            eraseUser: vi.fn().mockResolvedValue({ requesterId: PRINCIPAL.ownerId, deletedRequesterRows: 0 }),
+        };
         const controller = new ServiceErasureController(erasure as unknown as UserErasureService);
 
-        expect(await controller.eraseAccount(PRINCIPAL)).toEqual({ requesterId: PRINCIPAL.ownerId, deletedRequesterRows: 0 });
+        expect(await controller.eraseAccount(PRINCIPAL)).toEqual({
+            requesterId: PRINCIPAL.ownerId,
+            deletedRequesterRows: 0,
+        });
     });
 });

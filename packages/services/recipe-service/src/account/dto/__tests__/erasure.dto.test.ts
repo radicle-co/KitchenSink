@@ -10,7 +10,11 @@ import { describe, it, expect } from 'vitest';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE, ACCOUNT_ERASURE_PUBLISH_WARNING, ErasureRequestDto } from '../erasure.dto.js';
+import {
+    ACCOUNT_ERASURE_CONFIRMATION_PHRASE,
+    ACCOUNT_ERASURE_PUBLISH_WARNING,
+    ErasureRequestDto,
+} from '../erasure.dto.js';
 
 const RECIPE_ID = '00000000-0000-4000-8000-0000000000d1';
 

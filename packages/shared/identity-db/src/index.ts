@@ -11,9 +11,15 @@
  * `DatabaseModule` (the NestJS connection-pool provider) and the numbered SQL migrations — neither
  * is schema/DAO code a Lambda needs, and moving them would pull Nest into the Lambda bundle.
  */
-export { userStatusEnum, users, accounts, profiles, webhookEvents } from './schema/index.js';
+export { userStatusEnum, users, accounts, profiles, webhookEvents, lifecycleEvents } from './schema/index.js';
 export type { NewUserRow, UserRow, AccountRow, NewAccountRow, NewProfileRow, ProfileRow } from './schema/index.js';
 export type { NewWebhookEventRow, WebhookEventRow } from './schema/index.js';
+export type {
+    NewLifecycleEventRow,
+    LifecycleEventRow,
+    LifecycleEventType,
+    LifecycleTriggerSource,
+} from './schema/index.js';
 
 export { UserDAO, AccountDAO, hasProcessedWebhookEvent, recordOnce } from './dao/index.js';
 

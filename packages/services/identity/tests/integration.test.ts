@@ -57,6 +57,7 @@ describe('UsersService', () => {
     let mockDb: any;
     let mockSqs: any;
     let mockResolver: any;
+    let mockAvatarStore: any;
 
     beforeEach(async () => {
         vi.resetModules();
@@ -74,6 +75,7 @@ describe('UsersService', () => {
         };
 
         mockSqs = { enqueueDeletion: vi.fn().mockResolvedValue(undefined) };
+        mockAvatarStore = { deleteAllForUser: vi.fn().mockResolvedValue(undefined) };
         mockResolver = {
             resolveUser: vi.fn().mockResolvedValue({
                 user: mockUser,
@@ -89,7 +91,7 @@ describe('UsersService', () => {
 
         const { UsersService } = await import('../src/users/users.service.js');
 
-        usersService = new UsersService(mockDb, mockSqs, mockResolver, noopHandleSyncPublisher);
+        usersService = new UsersService(mockDb, mockSqs, mockResolver, noopHandleSyncPublisher, mockAvatarStore);
     });
 
     it('getUserMe returns aggregated profile', async () => {
@@ -147,16 +149,42 @@ describe('UsersService', () => {
         expect(result.created).toBe(true);
     });
 
-    it('deleteUserMe enqueues SQS deletion with clerkUserId', async () => {
+    it('deleteUserMe tombstones (closure): scrubs email+avatar, keeps the row, and enqueues a closure ban', async () => {
         mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
+        const setMock = vi.fn().mockReturnValue({ where: () => Promise.resolve() });
+        mockDb.update = vi.fn().mockReturnValue({ set: setMock });
+        const insertValues = vi.fn().mockResolvedValue(undefined);
+        mockDb.insert = vi.fn().mockReturnValue({ values: insertValues });
 
         await usersService.deleteUserMe(userCtx);
 
-        expect(mockSqs.enqueueDeletion).toHaveBeenCalledWith(
-            expect.stringContaining('user_abc123'),
-            expect.any(String),
-            expect.any(String),
+        // The users row is UPDATEd (never deleted — R1) to the tombstoned closure state with a scrubbed email.
+        const userSet = setMock.mock.calls.map((c: any[]) => c[0]).find((s: any) => s.status === 'tombstoned');
+        expect(userSet).toBeDefined();
+        expect(userSet.email).toContain('@closed.invalid');
+        expect(userSet.picture).toBeNull();
+        expect(userSet.deletedAt).toBeInstanceOf(Date);
+
+        // R8 audit row written for the closure transition (trigger = user self-service).
+        expect(insertValues).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'closure', triggerSource: 'user', userId: userCtx.userId }),
         );
+
+        // The avatar S3 object is deleted, and the Clerk BAN is handed to the deletion-worker as a closure event.
+        expect(mockAvatarStore.deleteAllForUser).toHaveBeenCalledWith(userCtx.userId);
+        expect(mockSqs.enqueueDeletion).toHaveBeenCalledWith(
+            expect.objectContaining({ identityId: 'user_abc123', userId: userCtx.userId, event: 'closure' }),
+        );
+    });
+
+    it('deleteUserMe closure still succeeds when the avatar S3 delete fails (best-effort)', async () => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
+        mockDb.update = vi.fn().mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) });
+        mockDb.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
+        mockAvatarStore.deleteAllForUser.mockRejectedValue(new Error('s3 down'));
+
+        await expect(usersService.deleteUserMe(userCtx)).resolves.toMatchObject({ sub: userCtx.userId });
+        expect(mockSqs.enqueueDeletion).toHaveBeenCalled();
     });
 
     it('deleteUserMe throws when user missing', async () => {
@@ -213,7 +241,7 @@ describe('AdminService', () => {
 
         const { AdminService } = await import('../src/admin/admin.service.js');
 
-        adminService = new AdminService(mockDb);
+        adminService = new AdminService(mockDb, { enqueueDeletion: vi.fn() } as never);
     });
 
     it('suspendUser updates db status to suspended', async () => {

@@ -2,11 +2,12 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
-import { buildHandleSyncMessage, deriveDisplayName } from '@kitchensink/identity-core';
+import { buildHandleSyncMessage, computeProfileScrub, deriveDisplayName } from '@kitchensink/identity-core';
 
 import { HANDLE_SYNC_PUBLISHER, type HandleSyncPublisher } from './handle-sync.publisher.js';
+import { AVATAR_OBJECT_STORE, type AvatarObjectStore } from './avatar-object-store.js';
 
-import { users, accounts, profiles } from '../database/index.js';
+import { users, accounts, profiles, lifecycleEvents } from '../database/index.js';
 import { DrizzleProvider } from '../database/database.module.js';
 import { SqsService } from '../queue/sqs.service.js';
 import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
@@ -30,6 +31,7 @@ export class UsersService {
         private readonly sqs: SqsService,
         private readonly resolver: ResolveUserService,
         @Inject(HANDLE_SYNC_PUBLISHER) private readonly handleSync: HandleSyncPublisher,
+        @Inject(AVATAR_OBJECT_STORE) private readonly avatarStore: AvatarObjectStore,
     ) {}
 
     /** Dependency bundle for the shared provisioning routine (KTD2: schema-injected, db cast per repo convention). */
@@ -235,6 +237,18 @@ export class UsersService {
         };
     }
 
+    /**
+     * Account CLOSURE (CR-002 U2, the app's "close account" action) — a RECOVERABLE tombstone, NOT erasure.
+     *
+     * Applies the closure field-scrub (Specification A): the users row is UPDATEd (never hard-deleted — R1) to
+     * `status='tombstoned'` with a ULID-keyed placeholder email and a nulled avatar mirror; the companion rows
+     * are KEPT (only the profile avatar is scrubbed) so an admin-mediated `unbanUser` recovery restores the
+     * display name. The R8 audit row is written in the SAME transaction. The avatar S3 object is deleted
+     * best-effort (S3 is not transactional), and the Clerk BAN is handed to the deletion-worker via a `closure`
+     * queue message — this service holds no Clerk secret (public ALB), so it never calls Clerk directly.
+     *
+     * @sideEffect tombstones the user, writes an audit row, deletes the avatar S3 object, and enqueues a ban.
+     */
     async deleteUserMe(ctx: AuthorizerContext) {
         const userId = ctx.userId;
         const clerkUserId = ctx.clerkUserId;
@@ -245,30 +259,60 @@ export class UsersService {
             throw new NotFoundException('User not found');
         }
 
-        const deletedAt = new Date();
+        const now = new Date();
+        const directive = computeProfileScrub('closure', userId);
 
-        // Same EU data policy as the user.deleted webhook (see UserDAO.purgePrivateDataByIdentityId):
-        // retain the user's PUBLIC attribution data (id/email/name) so their public recipes still show
-        // a creator, but purge everything private — soft-delete + clear the avatar on the user row, and
-        // delete the account + profile rows. Lock the users row first (UPDATE), then delete the
-        // children — matching provisionCompleteUser's lock order so a concurrent provision can't
-        // deadlock (the d59e11c 40P01 class).
+        // Lock the users row FIRST (the UPDATE), then touch the profile — matching provisionCompleteUser's
+        // lock order so a delete racing a concurrent provision of the same identity can't deadlock (d59e11c).
         await this.db.transaction(async (tx) => {
-            await tx.update(users).set({ deletedAt, picture: null, updatedAt: deletedAt }).where(eq(users.id, userId));
-            await tx.delete(accounts).where(eq(accounts.userId, userId));
-            await tx.delete(profiles).where(eq(profiles.userId, userId));
+            await tx
+                .update(users)
+                .set({ ...directive.userColumns, deletedAt: now, updatedAt: now })
+                .where(eq(users.id, userId));
+
+            // Closure keeps the companion rows (displayName survives for recovery); scrub only the avatar.
+            if (directive.profileScrub) {
+                await tx
+                    .update(profiles)
+                    .set({ ...directive.profileScrub, updatedAt: now })
+                    .where(eq(profiles.userId, userId));
+            }
+
+            // R8: append-only audit row, written in the SAME transaction as the state change (trigger = the
+            // user's own self-service close action).
+            await tx.insert(lifecycleEvents).values({
+                userId,
+                event: 'closure',
+                triggerSource: 'user',
+                actor: userId,
+                occurredAt: now,
+            });
         });
 
+        // Best-effort avatar S3 delete: a failed delete leaves an orphaned object (no DB link) but must NEVER
+        // block closure — the DB tombstone above is already the source of truth.
+        if (directive.removeAvatarObject) {
+            try {
+                await this.avatarStore.deleteAllForUser(userId);
+            } catch (err) {
+                this.logger.warn('closure: avatar S3 delete failed (row already scrubbed)', {
+                    userId,
+                    error: String(err),
+                });
+            }
+        }
+
+        // Hand the durable, reversible Clerk BAN to the deletion-worker (the only holder of the Clerk secret).
         try {
-            await this.sqs.enqueueDeletion(clerkUserId, userId, 'user-initiated');
+            await this.sqs.enqueueDeletion({ identityId: clerkUserId, userId, event: 'closure' });
         } catch (err) {
-            this.logger.warn('Failed to enqueue deletion', { userId, error: String(err) });
+            this.logger.warn('Failed to enqueue closure ban', { userId, error: String(err) });
         }
 
         return {
             sub: userId,
-            deletedAt: deletedAt.toISOString(),
-            message: 'Account deletion initiated',
+            deletedAt: now.toISOString(),
+            message: 'Account closure initiated',
         };
     }
 }

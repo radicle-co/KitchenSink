@@ -17,6 +17,12 @@ export class AdminUnsuspendUserResponseDto {
     unsuspendedAt!: string;
 }
 
+export class AdminReactivateUserResponseDto {
+    sub!: string;
+    status!: 'active';
+    reactivatedAt!: string;
+}
+
 export class ImpersonationStartResponseDto {
     impersonatorSub!: string;
     impersonatedSub!: string;

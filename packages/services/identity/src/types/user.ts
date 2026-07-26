@@ -4,7 +4,7 @@ export type UserId = string & { readonly __brand: 'UserId' };
 export type UserSub = UserId;
 
 /** @implements REQ-013 REQ-014 REQ-015 REQ-017 REQ-018 REQ-019 REQ-025 REQ-CN-003 FR-013 FR-014 FR-015 FR-017 FR-018 FR-019 FR-025 ARCH-011 ARCH-012 ARCH-015 MOD-011 MOD-012 MOD-015 */
-export type UserStatus = 'active' | 'suspended';
+export type UserStatus = 'active' | 'suspended' | 'tombstoned' | 'erased';
 
 /** @implements REQ-005 REQ-006 REQ-039 FR-005 FR-006 FR-039 ARCH-003 MOD-003 */
 export interface UserReadDto {

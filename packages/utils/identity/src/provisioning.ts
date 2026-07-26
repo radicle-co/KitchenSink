@@ -9,11 +9,19 @@ import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 /** Drizzle handle. Callers pass `db as unknown as PostgresJsDatabase` per the repo cast convention. */
 export type Db = PostgresJsDatabase<Record<string, never>>;
 
-/** The `users` table must expose the columns the routine reads (conflict target + COALESCE sources). */
+/**
+ * The `users` table must expose the columns the routine reads: the conflict target (`identityId`), the
+ * COALESCE sources (`name`/`picture`), and the lifecycle columns the R10 no-resurrection guard references in
+ * its `case` expressions (`status`/`deletedAt`/`email`).
+ */
 export interface UsersTableShape extends PgTable {
     readonly identityId: PgColumn;
     readonly name: PgColumn;
     readonly picture: PgColumn;
+    readonly status: PgColumn;
+    readonly deletedAt: PgColumn;
+    readonly email: PgColumn;
+    readonly updatedAt: PgColumn;
 }
 
 /** The Drizzle table objects, injected so this package never imports a service schema (KTD2). */
@@ -64,6 +72,20 @@ export interface ProvisionedUser {
     readonly email: string;
     readonly createdAt: Date;
     readonly updatedAt: Date;
+    /** The lifecycle state — the R10 guard reads it to refuse companion-row rebuild for a closed/erased user. */
+    readonly status: string;
+}
+
+/**
+ * Lifecycle states whose row must NEVER be resurrected by provisioning (R10): a closed (`tombstoned`) or erased
+ * (`erased`) account. A sign-in read-through or the nightly reconciliation MUST NOT clear `deletedAt`, restore
+ * name/avatar, or rebuild the companion `accounts`/`profiles` rows for such a user.
+ */
+const NON_REVIVABLE_STATES = ['tombstoned', 'erased'] as const;
+
+/** True when a row's lifecycle state forbids resurrection (tombstoned/erased). */
+function isNonRevivable(status: string): boolean {
+    return (NON_REVIVABLE_STATES as readonly string[]).includes(status);
 }
 
 export type ProvisionResult<TUser extends ProvisionedUser = ProvisionedUser> =
@@ -133,6 +155,14 @@ export async function provisionCompleteUser<TUser extends ProvisionedUser = Prov
         user = await upsertUser<TUser>(deps, { ...input, email: placeholderEmail(input.identityId) }, false);
     }
 
+    // R10 (anti-resurrection): a closed/erased account's row survives (never hard-deleted) but its companion
+    // rows were scrubbed away. The lifecycle-aware upsert above already preserved the tombstoned/erased row's
+    // deletedAt/name/picture; here we STOP before ensureAccountAndProfile so a sign-in read-through or the
+    // nightly reconciliation cannot silently rebuild the account/profile it deliberately removed.
+    if (isNonRevivable(user.status)) {
+        return { kind: 'complete', user };
+    }
+
     await ensureAccountAndProfile(deps, user.id, input);
 
     return { kind: 'complete', user };
@@ -159,17 +189,23 @@ async function upsertUser<TUser extends ProvisionedUser>(
         })
         .onConflictDoUpdate({
             target: schema.users.identityId,
+            // R10 (anti-resurrection): every mutated column is guarded by a `case` on the EXISTING row's
+            // status. For a `tombstoned`/`erased` row each column resolves to its own current value — a total
+            // no-op update — so a sign-in read-through OR the nightly reconciliation can never clear deletedAt,
+            // restore name/avatar, revive the email, or even bump updatedAt for a closed/erased account.
+            // For every other row the behaviour is unchanged: overwrite email only when real; COALESCE
+            // name/picture (a null incoming keeps the existing value); clear deletedAt (revive a re-registered
+            // soft-deleted identity); bump updatedAt.
             set: {
-                // Overwrite email only when it's real (never clobber a concurrent webhook's real email
-                // with a placeholder); COALESCE name/picture so a null incoming keeps the existing value.
-                ...(emailIsReal ? { email: input.email } : {}),
-                name: sql`coalesce(${input.name ?? null}, ${schema.users.name})`,
-                picture: sql`coalesce(${input.picture ?? null}, ${schema.users.picture})`,
-                // Revive a re-registered soft-deleted identity (matches the prior `upsertByIdentityId`
-                // behavior; the read-through's old `upsertUserRecord` did NOT do this, so porting from it
-                // without this line would silently leave a re-registered user soft-deleted-but-readable).
-                deletedAt: null,
-                updatedAt: now,
+                ...(emailIsReal
+                    ? {
+                          email: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.email} else ${input.email} end`,
+                      }
+                    : {}),
+                name: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.name} else coalesce(${input.name ?? null}, ${schema.users.name}) end`,
+                picture: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.picture} else coalesce(${input.picture ?? null}, ${schema.users.picture}) end`,
+                deletedAt: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.deletedAt} else null end`,
+                updatedAt: sql`case when ${schema.users.status} in ('tombstoned', 'erased') then ${schema.users.updatedAt} else ${now} end`,
             },
         })
         .returning();

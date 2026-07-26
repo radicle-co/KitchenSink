@@ -7,6 +7,7 @@ import { RequireScopes } from '../auth/decorators/require-scopes.decorator.js';
 import {
     AdminSuspendUserResponseDto,
     AdminUnsuspendUserResponseDto,
+    AdminReactivateUserResponseDto,
     ImpersonationStartResponseDto,
     ImpersonationStopResponseDto,
 } from './dto/admin.dto.js';
@@ -54,6 +55,15 @@ export class AdminController {
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<AdminUnsuspendUserResponseDto> {
         return this.adminService.unsuspendUser(userId, ctx);
+    }
+
+    @Post(':userId/reactivate')
+    @HttpCode(HttpStatus.OK)
+    async reactivateUser(
+        @Param('userId') userId: string,
+        @CurrentAuthorizerContext() ctx: AuthorizerContext,
+    ): Promise<AdminReactivateUserResponseDto> {
+        return this.adminService.reactivateUser(userId, ctx);
     }
 
     @Post(':userId/impersonation/start')

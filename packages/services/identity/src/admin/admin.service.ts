@@ -1,9 +1,10 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, eq, ilike } from 'drizzle-orm';
 
-import { users, DrizzleProvider } from '../database/index.js';
+import { users, lifecycleEvents, DrizzleProvider } from '../database/index.js';
 import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
+import { SqsService } from '../queue/sqs.service.js';
 import { createServiceLogger } from '../observability/sentry-logging.js';
 
 // Authorization (the `admin:users` scope check) is enforced declaratively by `ScopesGuard` +
@@ -17,7 +18,10 @@ import { createServiceLogger } from '../observability/sentry-logging.js';
 export class AdminService {
     private readonly logger = createServiceLogger(AdminService.name);
 
-    constructor(@Inject(DrizzleProvider) private readonly db: NodePgDatabase) {}
+    constructor(
+        @Inject(DrizzleProvider) private readonly db: NodePgDatabase,
+        private readonly sqs: SqsService,
+    ) {}
 
     async listUsers(filters: { email?: string; name?: string; sub?: string; limit?: number; offset?: number }) {
         const predicates = [
@@ -82,6 +86,67 @@ export class AdminService {
         this.logger.warn('user unsuspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
         return { sub: targetSub, status: 'active', unsuspendedAt: now.toISOString() };
+    }
+
+    /**
+     * Admin-mediated recovery of a CLOSED (tombstoned) account (CR-002 U2). Self-service recovery is not
+     * buildable — `@clerk/backend` has no server-side sign-in-attempt verification, and a banned user can't
+     * sign in to be verified — so a support agent verifies the owner out-of-band and calls this.
+     *
+     * Clears the tombstone (status→active, deletedAt→null) and writes the R8 audit row in ONE transaction,
+     * then enqueues a `reactivation` event so the deletion-worker performs the Clerk `unbanUser` (this
+     * public-ALB service holds no Clerk secret). `erased` accounts are irreversible and rejected.
+     *
+     * @sideEffect updates the user, writes an audit row, and enqueues an unban.
+     */
+    async reactivateUser(
+        targetSub: string,
+        adminCtx: AuthorizerContext,
+    ): Promise<{ sub: string; status: 'active'; reactivatedAt: string }> {
+        const [existing] = await this.db.select().from(users).where(eq(users.id, targetSub)).limit(1);
+
+        if (!existing) {
+            throw new NotFoundException(`User ${targetSub} not found`);
+        }
+
+        if (existing.status !== 'tombstoned') {
+            // Only a closed (tombstoned) account is recoverable: an `active` user is not closed, and an
+            // `erased`/`suspended` account is out of this flow (erased is irreversible by design).
+            throw new ConflictException(
+                `User ${targetSub} is '${existing.status}', not 'tombstoned'; only a closed account can be reactivated`,
+            );
+        }
+
+        const now = new Date();
+
+        await this.db.transaction(async (tx) => {
+            await tx
+                .update(users)
+                .set({ status: 'active', deletedAt: null, updatedAt: now })
+                .where(eq(users.id, targetSub));
+
+            await tx.insert(lifecycleEvents).values({
+                userId: existing.id,
+                event: 'reactivation',
+                triggerSource: 'admin',
+                actor: adminCtx.userId,
+                occurredAt: now,
+            });
+        });
+
+        // Hand the Clerk unban to the deletion-worker; the sub survived the ban, so the same ULID resolves.
+        try {
+            await this.sqs.enqueueDeletion({ identityId: existing.identityId, userId: existing.id, event: 'reactivation' });
+        } catch (err) {
+            this.logger.warn('reactivation: failed to enqueue unban (tombstone already cleared)', {
+                targetSub,
+                error: String(err),
+            });
+        }
+
+        this.logger.warn('user reactivated', { adminSub: adminCtx.userId, targetSub, id: existing.id });
+
+        return { sub: targetSub, status: 'active', reactivatedAt: now.toISOString() };
     }
 
     async startImpersonation(

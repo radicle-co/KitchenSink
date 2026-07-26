@@ -17,6 +17,11 @@ vi.mock('@kitchensink/identity-db', () => {
     return { UserDAO };
 });
 
+vi.mock('../../common/identityClient.js', () => ({
+    banUser: vi.fn().mockResolvedValue(undefined),
+    unbanUser: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../../common/observability.js', () => ({
     emitMetric: vi.fn(),
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -25,21 +30,24 @@ vi.mock('../../common/observability.js', () => ({
 
 import { handler as rawHandler } from '../deletion-worker.js';
 import { getDb } from '../../common/db.js';
+import { banUser, unbanUser } from '../../common/identityClient.js';
 import { resetConfigCacheForTests } from '../../config/env.js';
 
 type TestHandler = (event: SQSEvent, ctx: Context) => Promise<void>;
 const handler = rawHandler as unknown as TestHandler;
 
 const mockGetDb = vi.mocked(getDb);
+const mockBanUser = vi.mocked(banUser);
+const mockUnbanUser = vi.mocked(unbanUser);
 
 const makeContext = (): Context => ({ awsRequestId: 'test-req-id' }) as unknown as Context;
 
-const makeSqsEvent = (identityId: string): SQSEvent => ({
+const makeSqsEvent = (body: Record<string, unknown>): SQSEvent => ({
     Records: [
         {
             messageId: 'msg-1',
             receiptHandle: 'receipt-1',
-            body: JSON.stringify({ identityId }),
+            body: JSON.stringify(body),
             attributes: {
                 ApproximateReceiveCount: '1',
                 SentTimestamp: '1234567890',
@@ -60,48 +68,80 @@ beforeEach(() => {
     resetConfigCacheForTests();
     mockGetDb.mockResolvedValue({} as never);
     process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
-    // The real deletion-worker Lambda's env always carries AUTH_SECRET_ARN (part of the CDK stack's
-    // shared commonEnv), even though this handler's own code never reads it — the schema's
-    // IDP_SECRET_KEY/AUTH_SECRET_ARN refine reflects that real, always-present surface.
     process.env.AUTH_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
 });
 
 describe('deletion-worker handler', () => {
-    it('existing user → private data purged, no error thrown', async () => {
-        const identityId = 'user_abc123';
-        // The purge keeps the soft-deleted user row (id/email/name) and returns it.
-        const userRow = { id: 'usr_01', identityId, email: 'test@example.com', deletedAt: new Date(), picture: null };
+    describe('legacy user.deleted purge (no event field)', () => {
+        it('existing user → private data purged, no Clerk mutation', async () => {
+            const identityId = 'user_abc123';
+            const userRow = { id: 'usr_01', identityId, email: 'test@example.com', deletedAt: new Date() };
 
-        mockPurgePrivateData.mockResolvedValue(userRow);
+            mockPurgePrivateData.mockResolvedValue(userRow);
 
-        await expect(handler(makeSqsEvent(identityId), makeContext())).resolves.toBeUndefined();
+            await expect(handler(makeSqsEvent({ identityId }), makeContext())).resolves.toBeUndefined();
 
-        expect(mockPurgePrivateData).toHaveBeenCalledWith(identityId);
-        // Reads DB_SECRET_ARN from the typed config (getConfig()), not a hand-rolled requireEnv lookup.
-        expect(mockGetDb).toHaveBeenCalledWith('arn:aws:secretsmanager:us-east-1:123:secret:db');
+            expect(mockPurgePrivateData).toHaveBeenCalledWith(identityId);
+            expect(mockBanUser).not.toHaveBeenCalled();
+            expect(mockUnbanUser).not.toHaveBeenCalled();
+        });
+
+        it('missing user → no error thrown (idempotent)', async () => {
+            mockPurgePrivateData.mockResolvedValue(undefined);
+
+            await expect(handler(makeSqsEvent({ identityId: 'user_nope' }), makeContext())).resolves.toBeUndefined();
+
+            expect(mockPurgePrivateData).toHaveBeenCalledWith('user_nope');
+        });
     });
 
-    it('missing user → no error thrown (idempotent)', async () => {
-        const identityId = 'user_nonexistent';
+    describe('lifecycle routing (event field)', () => {
+        it('closure → BANS the Clerk identity, never purges the identity DB', async () => {
+            await handler(
+                makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'closure' }),
+                makeContext(),
+            );
 
-        mockPurgePrivateData.mockResolvedValue(undefined);
+            expect(mockBanUser).toHaveBeenCalledWith('user_abc');
+            expect(mockUnbanUser).not.toHaveBeenCalled();
+            expect(mockPurgePrivateData).not.toHaveBeenCalled();
+        });
 
-        await expect(handler(makeSqsEvent(identityId), makeContext())).resolves.toBeUndefined();
+        it('reactivation → UNBANS the Clerk identity', async () => {
+            await handler(
+                makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'reactivation' }),
+                makeContext(),
+            );
 
-        expect(mockPurgePrivateData).toHaveBeenCalledWith(identityId);
+            expect(mockUnbanUser).toHaveBeenCalledWith('user_abc');
+            expect(mockBanUser).not.toHaveBeenCalled();
+            expect(mockPurgePrivateData).not.toHaveBeenCalled();
+        });
+
+        it('erasure → leaves the recipe/food fan-out seam (U3/U4): no ban/unban/purge, no throw', async () => {
+            await expect(
+                handler(makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'erasure' }), makeContext()),
+            ).resolves.toBeUndefined();
+
+            expect(mockBanUser).not.toHaveBeenCalled();
+            expect(mockUnbanUser).not.toHaveBeenCalled();
+            expect(mockPurgePrivateData).not.toHaveBeenCalled();
+        });
     });
 
-    it('missing DB_SECRET_ARN → fails fast on the typed config before touching the DB', async () => {
-        delete process.env.DB_SECRET_ARN;
+    describe('config guards', () => {
+        it('missing DB_SECRET_ARN → fails fast before touching the DB', async () => {
+            delete process.env.DB_SECRET_ARN;
 
-        await expect(handler(makeSqsEvent('user_abc'), makeContext())).rejects.toThrow();
-        expect(mockGetDb).not.toHaveBeenCalled();
-    });
+            await expect(handler(makeSqsEvent({ identityId: 'user_abc' }), makeContext())).rejects.toThrow();
+            expect(mockGetDb).not.toHaveBeenCalled();
+        });
 
-    it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN → fails fast on the typed config', async () => {
-        delete process.env.AUTH_SECRET_ARN;
+        it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN → fails fast on the typed config', async () => {
+            delete process.env.AUTH_SECRET_ARN;
 
-        await expect(handler(makeSqsEvent('user_abc'), makeContext())).rejects.toThrow();
-        expect(mockGetDb).not.toHaveBeenCalled();
+            await expect(handler(makeSqsEvent({ identityId: 'user_abc' }), makeContext())).rejects.toThrow();
+            expect(mockGetDb).not.toHaveBeenCalled();
+        });
     });
 });

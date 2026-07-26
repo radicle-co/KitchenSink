@@ -28,7 +28,7 @@ function fakeDb(limitResults: unknown[][]): NodePgDatabase {
 }
 
 function makeService(db: NodePgDatabase, publisher: HandleSyncPublisher): UsersService {
-    return new UsersService(db, {} as unknown as SqsService, {} as unknown as ResolveUserService, publisher);
+    return new UsersService(db, {} as unknown as SqsService, {} as unknown as ResolveUserService, publisher, {} as never);
 }
 
 const CTX = { userId: USER_ID } as unknown as AuthorizerContext;

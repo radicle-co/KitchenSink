@@ -40,7 +40,7 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
 
         const { UsersService } = await import('../src/users/users.service.js');
 
-        usersService = new UsersService(mockDb, {} as never, {} as never, noopHandleSyncPublisher);
+        usersService = new UsersService(mockDb, {} as never, {} as never, noopHandleSyncPublisher, {} as never);
     });
 
     it('returns context for a complete existing user (no writes)', async () => {

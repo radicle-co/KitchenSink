@@ -60,7 +60,7 @@ describe.skipIf(!DATABASE_URL)('create-user flow — idempotency under concurren
         // No schema option: the test uses explicit table operations (not relational `db.query.*`),
         // and this keeps the type aligned with UsersService's bare NodePgDatabase parameter.
         db = drizzle(pool);
-        usersService = new UsersService(db, {} as never, {} as never, noopHandleSyncPublisher);
+        usersService = new UsersService(db, {} as never, {} as never, noopHandleSyncPublisher, {} as never);
     });
 
     afterAll(async () => {

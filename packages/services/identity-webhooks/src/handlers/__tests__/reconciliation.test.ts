@@ -69,6 +69,15 @@ const idpUserExisting = {
     imageUrl: 'https://example.com/existing.jpg',
 };
 
+// A tombstoned (closed) user still exists in Clerk (banned, not deleted) so it appears in listUsers().
+const idpUserTombstoned = {
+    id: 'user_tombstoned',
+    emailAddresses: [{ id: 'ea_3', emailAddress: 'closed@example.com' }],
+    primaryEmailAddressId: 'ea_3',
+    fullName: 'Closed User',
+    imageUrl: 'https://example.com/closed.jpg',
+};
+
 describe('reconciliation handler', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -81,9 +90,14 @@ describe('reconciliation handler', () => {
         mockProvisionCompleteUser.mockResolvedValue({ kind: 'complete', user: { id: 'ulid_x' } } as never);
 
         // findByIdentityId drives the inserted-vs-updated count: user_existing already present, user_new not.
+        // A tombstoned row surfaces its lifecycle status so the R10 skip can refuse to resurrect it.
         const findByIdentityIdMock = vi.fn().mockImplementation((identityId: string) => {
             if (identityId === 'user_existing') {
-                return Promise.resolve({ id: 'ulid_existing', identityId });
+                return Promise.resolve({ id: 'ulid_existing', identityId, status: 'active' });
+            }
+
+            if (identityId === 'user_tombstoned') {
+                return Promise.resolve({ id: 'ulid_tombstoned', identityId, status: 'tombstoned' });
             }
 
             return Promise.resolve(undefined);
@@ -179,6 +193,25 @@ describe('reconciliation handler', () => {
         expect(res.updated).toBe(1);
         // R5: the genuine failure emits the distinct paging signal carrying the Clerk identity id.
         expect(vi.mocked(captureProvisioningFailure)).toHaveBeenCalledWith(expect.any(Error), 'user_new');
+    });
+
+    it('R10: SKIPS a tombstoned user — never re-provisions (resurrects) a closed account', async () => {
+        mockListIdpUsers.mockResolvedValue([idpUserNew, idpUserTombstoned] as never);
+
+        await handler(makeEvent(), makeContext());
+
+        // Only the new user is provisioned; the tombstoned user is skipped entirely (no upsert = no revival).
+        expect(mockProvisionCompleteUser).toHaveBeenCalledTimes(1);
+        expect(mockProvisionCompleteUser).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ identityId: 'user_new' }),
+            expect.anything(),
+        );
+        expect(mockProvisionCompleteUser).not.toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ identityId: 'user_tombstoned' }),
+            expect.anything(),
+        );
     });
 
     it('handles an empty IdP user list gracefully', async () => {

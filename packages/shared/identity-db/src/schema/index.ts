@@ -10,3 +10,11 @@ export type { NewProfileRow, ProfileRow } from './profiles.js';
 
 export { webhookEvents } from './webhookEvents.js';
 export type { NewWebhookEventRow, WebhookEventRow } from './webhookEvents.js';
+
+export { lifecycleEvents } from './lifecycleEvents.js';
+export type {
+    NewLifecycleEventRow,
+    LifecycleEventRow,
+    LifecycleEventType,
+    LifecycleTriggerSource,
+} from './lifecycleEvents.js';

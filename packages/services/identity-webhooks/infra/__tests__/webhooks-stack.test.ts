@@ -116,6 +116,22 @@ describe.skipIf(!distBuilt)('WebhooksStack (authoritative, consumes the consolid
         expect(mapping.Properties.FunctionName).toEqual({ Ref: deletionWorkerLogicalId });
     });
 
+    it('provisions the tombstone-sweep Lambda on its own daily EventBridge schedule (CR-002 KTD-3)', () => {
+        // The 12-month tombstone → erasure sweep is a NEW scheduled handler, distinct from reconciliation.
+        template.hasResourceProperties('AWS::Lambda::Function', { Handler: 'handlers/tombstone-sweep.handler' });
+
+        const [sweepLogicalId] = Object.entries(
+            template.findResources('AWS::Lambda::Function', {
+                Properties: { Handler: 'handlers/tombstone-sweep.handler' },
+            }),
+        )[0]!;
+
+        template.hasResourceProperties('AWS::Events::Rule', {
+            ScheduleExpression: 'cron(0 3 * * ? *)',
+            Targets: [{ Arn: { 'Fn::GetAtt': [sweepLogicalId, 'Arn'] } }],
+        });
+    });
+
     it('grants the webhook role GetSecretValue on the auth secret WITH the -?????? wildcard (regression)', () => {
         // Same bug class as the identity service stack: the auth secret is imported from the data stack's
         // suffix-LESS `SecretArn` export, so the grant must append the `-??????` wildcard to match the

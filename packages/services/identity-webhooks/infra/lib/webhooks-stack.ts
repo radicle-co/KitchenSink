@@ -205,15 +205,30 @@ export class WebhooksStack extends Stack {
         handleSyncTopic.grantPublish(webhookRole);
 
         // deletion-worker (handlers/deletion-worker.ts): reads the DB creds (getDb) and drains the SQS
-        // deletion queue. It does NOT import identityClient, so it never reads the auth secret; it does
-        // not send to SQS. (The SqsEventSource below also grants consume; the explicit grant states the
-        // intent.) No auth secret, no SQS send, no buckets.
+        // deletion queue. CR-002: it now calls the Clerk backend SDK (banUser/unbanUser on closure/
+        // reactivation events) — the secret is deploy-embedded in clerkBackendEnv (IDP_SECRET_KEY), but the
+        // auth-secret read grant is retained for identityClient's runtime GetSecretValue fallback, matching
+        // the webhook/reconciliation roles. It does not send to SQS. (The SqsEventSource below also grants
+        // consume; the explicit grant states the intent.)
         const deletionWorkerRole = makeLambdaRole(
             'DeletionWorkerLambdaRole',
             'Least-privilege role for the SQS deletion-worker Lambda',
         );
         dbCredentialsSecret.grantRead(deletionWorkerRole);
+        authSecretKey.grantRead(deletionWorkerRole);
         deletionQueue.grantConsumeMessages(deletionWorkerRole);
+
+        // tombstone-sweep (handlers/tombstone-sweep.ts, CR-002 KTD-3): reads the DB creds (getDb) to scrub
+        // expired tombstones, calls the Clerk backend SDK (deleteUser) — so it needs the auth-secret read
+        // fallback — and enqueues the recipe/food erasure legs to the deletion queue (SendMessage). Runs on
+        // its own schedule, off no queue.
+        const tombstoneSweepRole = makeLambdaRole(
+            'TombstoneSweepLambdaRole',
+            'Least-privilege role for the scheduled 12-month tombstone-sweep Lambda',
+        );
+        dbCredentialsSecret.grantRead(tombstoneSweepRole);
+        authSecretKey.grantRead(tombstoneSweepRole);
+        deletionQueue.grantSendMessages(tombstoneSweepRole);
 
         // reconciliation (handlers/reconciliation.ts): reads the DB creds and lists Clerk users via the
         // backend SDK, which (like the webhook) may fall back to a runtime GetSecretValue on the auth
@@ -315,6 +330,30 @@ export class WebhooksStack extends Stack {
         new events.Rule(this, 'ReconciliationSchedule', {
             schedule: events.Schedule.cron({ minute: '0', hour: '7' }),
             targets: [new events_targets.LambdaFunction(reconciliationFn)],
+        });
+
+        // CR-002 KTD-3: the 12-month tombstone → erasure sweep. Finds closed (tombstoned) accounts past the
+        // retention window and erases them (identity scrub + Clerk deleteUser + audit + recipe/food erasure
+        // legs). Runs daily (the handler applies the 12-month cutoff itself), on a distinct schedule from
+        // reconciliation. 03:00 UTC = low-traffic window, offset from reconciliation's 07:00.
+        const tombstoneSweepFn = new lambda.Function(this, 'TombstoneSweepFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/tombstone-sweep.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: tombstoneSweepRole,
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(300),
+            memorySize: 512,
+            environment: clerkBackendEnv,
+            logGroup: webhooksLogGroup,
+        });
+
+        new events.Rule(this, 'TombstoneSweepSchedule', {
+            schedule: events.Schedule.cron({ minute: '0', hour: '3' }),
+            targets: [new events_targets.LambdaFunction(tombstoneSweepFn)],
         });
 
         // In-VPC schema migration runner. The RDS instance lives in private-isolated subnets, so the

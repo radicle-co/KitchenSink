@@ -9,7 +9,10 @@ export const citext = customType<{ data: string; driverData: string }>({
 });
 
 /** @implements REQ-013 REQ-014 REQ-015 REQ-017 REQ-018 REQ-019 REQ-025 REQ-CN-003 FR-013 FR-014 FR-015 FR-017 FR-018 FR-019 FR-025 ARCH-011 ARCH-012 ARCH-015 MOD-011 MOD-012 MOD-015 */
-export const userStatusEnum = pgEnum('user_status', ['active', 'suspended']);
+// `tombstoned`/`erased` are the CR-002 lifecycle states (account closure vs. right-to-erasure), added via
+// `ALTER TYPE ... ADD VALUE` in migration 0010. They are NEW values — distinct from `suspended`, which is an
+// admin moderation hold that RETAINS all PII; tombstoned/erased both scrub PII (see ProfileScrubPolicy).
+export const userStatusEnum = pgEnum('user_status', ['active', 'suspended', 'tombstoned', 'erased']);
 
 /** @implements REQ-013 REQ-014 REQ-015 REQ-017 REQ-018 REQ-019 REQ-025 REQ-CN-003 FR-013 FR-014 FR-015 FR-017 FR-018 FR-019 FR-025 ARCH-011 ARCH-012 ARCH-015 MOD-011 MOD-012 MOD-015 */
 export const users = pgTable(

@@ -64,22 +64,28 @@ beforeEach(() => {
 });
 
 describe('RecipeCreateScreen — chrome', () => {
-    it('renders the create wizard, seeded at step 1, with the Publish submit label (w3/e7)', () => {
+    it('renders the create wizard seeded at step 1 with first-step guidance and a Next footer primary (U6)', () => {
         render(<RecipeCreateScreen onCreated={vi.fn()} onCancel={vi.fn()} />);
 
         expect(screen.getByLabelText('Title')).toBeTruthy();
         expect(screen.getByText('Step 1 of 4')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
+        // U6: empty-state first-step guidance on a brand-new form.
+        expect(screen.getByText('Let’s build your recipe')).toBeTruthy();
+        // U6 chrome: the contextual footer primary is "Next" on step 1 — Publish is the step-4 primary, not here.
+        expect(screen.getByLabelText(/Next: Ingredients/)).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
     });
 });
 
 describe('RecipeCreateScreen — validation gate', () => {
-    it('shows validation errors and does not run the mutation for an empty form', () => {
+    it('shows validation errors and does not run the mutation for an empty Save Draft (U6 overflow menu)', () => {
         const mutate = vi.fn();
         useCreateRecipeMock.mockReturnValue(createRecipeMutation({ mutate: mutate as never }));
 
         render(<RecipeCreateScreen onCreated={vi.fn()} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        // Save Draft now lives in the header "More actions" overflow menu (U6).
+        fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
 
         expect(screen.getByText('A title is required.')).toBeTruthy();
         expect(mutate).not.toHaveBeenCalled();
@@ -114,11 +120,12 @@ describe('RecipeCreateScreen — happy path', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Olive oil' }));
         fireEvent.click(screen.getByLabelText(/Next: Instructions/));
 
-        // Step 3: add and fill an instruction step.
+        // Step 3: add and fill an instruction step, then advance to step 4 (Photos).
         fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
         fireEvent.change(screen.getByLabelText('Step 1 instruction'), { target: { value: 'Boil the pasta.' } });
+        fireEvent.click(screen.getByLabelText(/Next: Photos/));
 
-        // Publish is the top-bar action, reachable from any step (w3/e7: labeled "Publish" in every mode).
+        // U6: Publish is the contextual footer primary on step 4 (create no longer dead-ends on Photos).
         fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(mutate).toHaveBeenCalledTimes(1);

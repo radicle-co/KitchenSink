@@ -25,7 +25,11 @@ import { RecipePhotoManager } from '@commise/features-recipes';
 import { useRecipePhotoUpload, useRecipePhotoUploadQueue } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
-import { useDeleteRecipePhoto, useRecipePhotos } from '@kitchensink/recipe-service-client/hooks';
+import {
+    useDeleteRecipePhoto,
+    useRecipePhotos,
+    useReorderRecipePhotos,
+} from '@kitchensink/recipe-service-client/hooks';
 import { useEffect, useRef } from 'react';
 import type { ChangeEvent, FC } from 'react';
 
@@ -47,6 +51,7 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
     const { recipes } = useMessages(webMessages);
     const photosQuery = useRecipePhotos(recipeId);
     const deletePhoto = useDeleteRecipePhoto();
+    const reorderPhotos = useReorderRecipePhotos();
     const uploader = useRecipePhotoUpload(recipeId, recipes.photos.uploadError);
 
     const photos: readonly RecipePhoto[] = photosQuery.data ?? [];
@@ -124,6 +129,26 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
 
     const removingPhotoId = deletePhoto.isPending ? (deletePhoto.variables?.photoId ?? null) : null;
 
+    // U6 "Set as cover": the cover is the LOWEST-sort-order photo, so choosing a cover is a REORDER that moves
+    // the chosen id to index 0 (rest keep their current relative order). The existing `reorder` endpoint
+    // persists it and `invalidateRecipeProjections` (inside the hook's `onSuccess`) reprojects the new
+    // `coverPhotoUrl` into the card/detail surfaces — no backend change, no `isCover` field. Selecting the
+    // photo that is ALREADY the cover would be a no-op reorder; a checked radio does not re-fire `onChange`,
+    // so that call never happens.
+    const handleSetCover = (photoId: string): void => {
+        const photoIds = [photoId, ...photos.filter((photo) => photo.id !== photoId).map((photo) => photo.id)];
+        reorderPhotos.mutate({ id: recipeId, photoIds });
+    };
+
+    // U6 "Replace": the web uploader has no atomic replace primitive, so a replace is remove-then-add — delete
+    // the chosen photo, then open the SAME hidden file input so the user picks its replacement (which uploads
+    // and appends via the normal queue). Deleting the current cover promotes the next photo automatically
+    // (server reprojects), matching the "remove-cover reassigns to the next" rule.
+    const handleReplacePhoto = (photoId: string): void => {
+        deletePhoto.mutate({ id: recipeId, photoId });
+        inputRef.current?.click();
+    };
+
     const addControl = (
         <label>
             {recipes.photos.addLabel}
@@ -140,6 +165,8 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
             queueItems={queue.items}
             onRetryQueueItem={queue.retry}
             onRemoveQueueItem={queue.remove}
+            onSetCover={handleSetCover}
+            onReplacePhoto={handleReplacePhoto}
             addControl={addControl}
         />
     );

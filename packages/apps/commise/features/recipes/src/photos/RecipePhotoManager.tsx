@@ -25,6 +25,7 @@ import { fillTemplate } from '../list/model.js';
 import { photoMessages } from './messages.js';
 import {
     isAtPhotoCap,
+    isCoverPhoto,
     MAX_RECIPE_PHOTO_UPLOAD_MB,
     MAX_RECIPE_PHOTOS,
     visibleQueueItems,
@@ -40,6 +41,8 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     queueItems,
     onRetryQueueItem,
     onRemoveQueueItem,
+    onSetCover,
+    onReplacePhoto,
     addControl,
 }) => {
     const m = useMessages(photoMessages);
@@ -65,6 +68,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                 <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {photos.map((photo, index) => {
                         const removing = removingPhotoId === photo.id;
+                        const isCover = isCoverPhoto(photos, photo.id);
 
                         return (
                             <li key={photo.id} className="relative overflow-hidden rounded-xl ring-1 ring-border">
@@ -75,6 +79,14 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     decoding="async"
                                     className="aspect-square w-full object-cover"
                                 />
+                                {/* U6: the cover status is text (never colour alone, WCAG 1.4.1); shown only on the
+                                    index-0 photo the server resolves as `coverPhotoUrl`, and only where the surface
+                                    offers cover selection. */}
+                                {onSetCover !== undefined && isCover ? (
+                                    <span className="absolute left-2 top-2 rounded-full bg-seafoam px-2 py-1 text-caption font-semibold text-white">
+                                        {m.coverBadge}
+                                    </span>
+                                ) : null}
                                 <button
                                     type="button"
                                     aria-label={fillTemplate(m.removeLabel, { index: index + 1 })}
@@ -85,6 +97,41 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                 >
                                     {removing ? m.removing : m.remove}
                                 </button>
+                                {onSetCover !== undefined || onReplacePhoto !== undefined ? (
+                                    <div className="absolute inset-x-2 bottom-2 flex items-center justify-between gap-2">
+                                        {/* U6: single-select cover with RADIO semantics — native radios sharing one
+                                            `name` form one group (exactly one checked = the current cover), keyboard-
+                                            navigable and screen-reader-announced ("N of M"); each is named by its
+                                            1-based index so every control is uniquely addressable. Fully controlled:
+                                            the checked state derives from `isCoverPhoto`, so after the container's
+                                            reorder + refetch reprojects `photos[0]`, the check follows. */}
+                                        {onSetCover !== undefined ? (
+                                            <span className="rounded-full bg-charcoal/70 p-1.5">
+                                                {/* Accessible name via `aria-label` (the indexed setCoverLabel); the
+                                                    visible "Cover" state is the badge above + the checked circle, so no
+                                                    duplicate "Cover" text here. */}
+                                                <input
+                                                    type="radio"
+                                                    name="recipe-cover-photo"
+                                                    className="block accent-seafoam"
+                                                    aria-label={fillTemplate(m.setCoverLabel, { index: index + 1 })}
+                                                    checked={isCover}
+                                                    onChange={() => onSetCover(photo.id)}
+                                                />
+                                            </span>
+                                        ) : null}
+                                        {onReplacePhoto !== undefined ? (
+                                            <button
+                                                type="button"
+                                                aria-label={fillTemplate(m.replaceLabel, { index: index + 1 })}
+                                                onClick={() => onReplacePhoto(photo.id)}
+                                                className="rounded-full bg-white px-3 py-1 text-caption font-medium text-charcoal shadow-sm transition hover:bg-pearl"
+                                            >
+                                                {m.replace}
+                                            </button>
+                                        ) : null}
+                                    </div>
+                                ) : null}
                             </li>
                         );
                     })}

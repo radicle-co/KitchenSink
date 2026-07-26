@@ -1,24 +1,34 @@
 /**
- * Ingredient typeahead (mobile, T067 support). A thin renderer (CP-6/P2) over the shared, platform-agnostic
- * `useIngredientResolver` (`@commise/features-recipes/hooks`), which owns the search text, the
- * disambiguation state, and all four ways a line resolves (catalog-hit, addByName, candidate pick,
- * freeform). This leaf's job is ONLY to render `viewState` with its own RN markup and wire the hook's
- * actions to `Pressable`/`TextInput` events — see the hook's module doc for the full state machine, the
+ * Ingredient typeahead (mobile, T067 support; U6 styled). A thin renderer (CP-6/P2) over the shared,
+ * platform-agnostic `useIngredientResolver` (`@commise/features-recipes/hooks`), which owns the search text,
+ * the disambiguation state, and all four ways a line resolves (catalog-hit, addByName, candidate pick,
+ * freeform). This leaf's job is ONLY to render `viewState` with its own RN markup and wire the hook's actions
+ * to `PressScale`/`TextInput` events — see the hook's module doc for the full state machine, the
  * async-resolution vertical (data-model R5 / FR-007), and the drift-unification decisions made when it was
  * extracted from this leaf and its web sibling.
  *
- * The hook's callback contract is `onResolved: (line: RecipeFormIngredient) => void`; this leaf keeps its
- * own public `onResolve` prop (its `ResolvedIngredient` shape, narrower than `RecipeFormIngredient` — no
+ * U6 gave the previously unstyled leaf (bare `<Text>/<TextInput>/<Pressable>` rows) the form's
+ * field/card/list-row treatment: a search field with a leading icon + a clear (×) control, tappable result
+ * rows with `PressScale` press feedback, inline loading/error text, a subtle "USDA database" badge, and a
+ * STYLED-BUT-INERT "Search USDA for '…'" seam that a separate USDA-autocomplete CR will wire (owner decision:
+ * local-first, USDA on-demand). No behaviour changed: every accessible name, role, and the resolution wiring
+ * are preserved from the pre-U6 leaf.
+ *
+ * The hook's callback contract is `onResolved: (line: RecipeFormIngredient) => void`; this leaf keeps its own
+ * public `onResolve` prop (its `ResolvedIngredient` shape, narrower than `RecipeFormIngredient` — no
  * `quantity`) unchanged for its existing caller (`RecipeEditor`), adapting at this boundary.
  */
 import { fillTemplate } from '@commise/features-recipes';
 import type { RecipeFormIngredient } from '@commise/features-recipes';
 import { useIngredientResolver } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
+import { palette } from '@commise/ui';
+import { PressScale } from '@commise/ui/press-scale';
+import { Feather } from '@expo/vector-icons';
 import type { FoodResolutionStatus, Ingredient } from '@kitchensink/recipe-core';
 import type { IngredientCandidate } from '@kitchensink/recipe-service-client';
 import type { JSX } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { mobileMessages } from '../i18n/messages.js';
 
@@ -52,9 +62,12 @@ function toResolvedIngredient(line: RecipeFormIngredient): ResolvedIngredient | 
 /** One search-result row: the clickable match. No terminal notice — matches this leaf's prior behavior. */
 function ResultRow({ ingredient, onPress }: { ingredient: Ingredient; onPress: () => void }): JSX.Element {
     return (
-        <Pressable accessibilityRole="button" accessibilityLabel={ingredient.name} onPress={onPress}>
-            <Text>{ingredient.name}</Text>
-        </Pressable>
+        <PressScale accessibilityRole="button" accessibilityLabel={ingredient.name} onPress={onPress}>
+            <View style={styles.row}>
+                <Text style={styles.rowText}>{ingredient.name}</Text>
+                <Feather name="chevron-right" size={18} color={palette.mist} />
+            </View>
+        </PressScale>
     );
 }
 
@@ -69,16 +82,19 @@ function CandidateRow({
     onPress: () => void;
 }): JSX.Element {
     return (
-        <Pressable
+        <PressScale
             accessibilityRole="button"
             accessibilityLabel={candidate.name}
-            accessibilityState={{ disabled }}
             disabled={disabled}
             onPress={onPress}
         >
-            <Text>{candidate.name}</Text>
-            {candidate.summary !== null && <Text>{candidate.summary}</Text>}
-        </Pressable>
+            <View style={styles.row}>
+                <View style={styles.rowTextGroup}>
+                    <Text style={styles.rowText}>{candidate.name}</Text>
+                    {candidate.summary !== null && <Text style={styles.rowSubText}>{candidate.summary}</Text>}
+                </View>
+            </View>
+        </PressScale>
     );
 }
 
@@ -116,44 +132,62 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
         const resolving = viewState.kind === 'resolving';
 
         return (
-            <View accessibilityLabel={title}>
-                <Text accessibilityRole="header">{title}</Text>
-                {viewState.kind === 'disambiguating' && viewState.isLoading && <Text>{t.disambiguateLoading}</Text>}
+            <View accessibilityLabel={title} style={styles.card}>
+                <Text accessibilityRole="header" style={styles.heading}>
+                    {title}
+                </Text>
+                {viewState.kind === 'disambiguating' && viewState.isLoading && (
+                    <Text style={styles.muted}>{t.disambiguateLoading}</Text>
+                )}
                 {viewState.kind === 'disambiguating' && viewState.isError && (
-                    <Text accessibilityRole="alert">{t.disambiguateError}</Text>
+                    <Text accessibilityRole="alert" style={styles.error}>
+                        {t.disambiguateError}
+                    </Text>
                 )}
                 {viewState.kind === 'disambiguating' &&
                     !viewState.isLoading &&
                     !viewState.isError &&
-                    viewState.candidates.length === 0 && <Text>{t.disambiguateEmpty}</Text>}
-                {viewState.candidates.map((candidate) => (
-                    <CandidateRow
-                        key={candidate.candidateId}
-                        candidate={candidate}
-                        disabled={resolving}
-                        onPress={() => pickCandidate(candidate.candidateId)}
-                    />
-                ))}
-                {resolving && <Text>{t.resolving}</Text>}
+                    viewState.candidates.length === 0 && <Text style={styles.muted}>{t.disambiguateEmpty}</Text>}
+                <View style={styles.list}>
+                    {viewState.candidates.map((candidate) => (
+                        <CandidateRow
+                            key={candidate.candidateId}
+                            candidate={candidate}
+                            disabled={resolving}
+                            onPress={() => pickCandidate(candidate.candidateId)}
+                        />
+                    ))}
+                </View>
+                {resolving && <Text style={styles.muted}>{t.resolving}</Text>}
                 {viewState.kind === 'disambiguating' && resolveError && (
-                    <Text accessibilityRole="alert">{t.resolveError}</Text>
+                    <Text accessibilityRole="alert" style={styles.error}>
+                        {t.resolveError}
+                    </Text>
                 )}
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={fillTemplate(t.create, { query: viewState.name })}
-                    accessibilityState={{ disabled: createStatus.isPending, busy: createStatus.isPending }}
-                    disabled={createStatus.isPending}
-                    onPress={addFreeform}
-                >
-                    <Text>{fillTemplate(t.create, { query: viewState.name })}</Text>
-                </Pressable>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t.disambiguateBack}
-                    onPress={cancelDisambiguation}
-                >
-                    <Text>{t.disambiguateBack}</Text>
-                </Pressable>
+                <View style={styles.actions}>
+                    <PressScale
+                        accessibilityRole="button"
+                        accessibilityLabel={t.disambiguateBack}
+                        onPress={cancelDisambiguation}
+                    >
+                        <View style={styles.ghostAction}>
+                            <Text style={styles.ghostActionLabel}>{t.disambiguateBack}</Text>
+                        </View>
+                    </PressScale>
+                    <PressScale
+                        accessibilityRole="button"
+                        accessibilityLabel={fillTemplate(t.create, { query: viewState.name })}
+                        disabled={createStatus.isPending}
+                        busy={createStatus.isPending}
+                        onPress={addFreeform}
+                    >
+                        <View style={[styles.fallbackAction, createStatus.isPending && styles.actionDisabled]}>
+                            <Text style={styles.fallbackActionLabel}>
+                                {fillTemplate(t.create, { query: viewState.name })}
+                            </Text>
+                        </View>
+                    </PressScale>
+                </View>
             </View>
         );
     }
@@ -172,49 +206,179 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
     const showEmpty = viewState.kind === 'results' && results.length === 0;
 
     return (
-        <View accessibilityLabel={t.heading}>
-            <Text accessibilityRole="header">{t.heading}</Text>
-            <View>
+        <View accessibilityLabel={t.heading} style={styles.card}>
+            <Text accessibilityRole="header" style={styles.heading}>
+                {t.heading}
+            </Text>
+            <View style={styles.searchField}>
+                <Feather name="search" size={18} color={palette.slate} />
                 <TextInput
                     accessibilityLabel={t.searchLabel}
                     placeholder={t.searchPlaceholder}
+                    placeholderTextColor={palette.mist}
                     value={query}
                     onChangeText={setQuery}
+                    style={styles.searchInput}
                 />
+                {query.length > 0 && (
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t.searchClear}
+                        onPress={() => setQuery('')}
+                        hitSlop={8}
+                    >
+                        <Feather name="x" size={18} color={palette.slate} />
+                    </Pressable>
+                )}
                 {/* C5: names the ingredient database the typeahead searches (wireframe recipe-edit.md:56). */}
-                <Text>{t.usdaBadge}</Text>
+                <View style={styles.badge}>
+                    <Text style={styles.badgeLabel}>{t.usdaBadge}</Text>
+                </View>
             </View>
-            {results.map((ingredient) => (
-                <ResultRow key={ingredient.id} ingredient={ingredient} onPress={() => selectMatch(ingredient)} />
-            ))}
-            {showEmpty && <Text>{t.empty}</Text>}
+
+            {results.length > 0 && (
+                <View style={styles.list}>
+                    {results.map((ingredient) => (
+                        <ResultRow
+                            key={ingredient.id}
+                            ingredient={ingredient}
+                            onPress={() => selectMatch(ingredient)}
+                        />
+                    ))}
+                </View>
+            )}
+            {showEmpty && <Text style={styles.muted}>{t.empty}</Text>}
+
             {hasQuery && (
                 <>
-                    {/* PRIMARY: resolve real nutrition via the food service (the async-resolution entry point). */}
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={fillTemplate(t.addByName, { query: trimmed })}
-                        accessibilityState={{ disabled: addByNameStatus.isPending, busy: addByNameStatus.isPending }}
-                        disabled={addByNameStatus.isPending}
-                        onPress={findNutrition}
-                    >
-                        <Text>{fillTemplate(t.addByName, { query: trimmed })}</Text>
-                    </Pressable>
-                    {/* FALLBACK: an explicit freeform (user-entered) ingredient with no food resolution. */}
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={fillTemplate(t.create, { query: trimmed })}
-                        accessibilityState={{ disabled: createStatus.isPending, busy: createStatus.isPending }}
-                        disabled={createStatus.isPending}
-                        onPress={addFreeform}
-                    >
-                        <Text>{fillTemplate(t.create, { query: trimmed })}</Text>
-                    </Pressable>
+                    <View style={styles.actions}>
+                        {/* PRIMARY: resolve real nutrition via the food service (the async-resolution entry). */}
+                        <PressScale
+                            accessibilityRole="button"
+                            accessibilityLabel={fillTemplate(t.addByName, { query: trimmed })}
+                            disabled={addByNameStatus.isPending}
+                            busy={addByNameStatus.isPending}
+                            onPress={findNutrition}
+                        >
+                            <View style={[styles.primaryAction, addByNameStatus.isPending && styles.actionDisabled]}>
+                                <Text style={styles.primaryActionLabel}>
+                                    {fillTemplate(t.addByName, { query: trimmed })}
+                                </Text>
+                            </View>
+                        </PressScale>
+                        {/* FALLBACK: an explicit freeform (user-entered) ingredient with no food resolution. */}
+                        <PressScale
+                            accessibilityRole="button"
+                            accessibilityLabel={fillTemplate(t.create, { query: trimmed })}
+                            disabled={createStatus.isPending}
+                            busy={createStatus.isPending}
+                            onPress={addFreeform}
+                        >
+                            <View style={[styles.fallbackAction, createStatus.isPending && styles.actionDisabled]}>
+                                <Text style={styles.fallbackActionLabel}>
+                                    {fillTemplate(t.create, { query: trimmed })}
+                                </Text>
+                            </View>
+                        </PressScale>
+                    </View>
+
+                    {/* U6 SEAM: the styled-but-inert "Search USDA for '…'" affordance. A separate
+                        USDA-autocomplete CR wires the on-demand USDA search behind it; rendered here (visibly
+                        marked "coming soon", non-interactive) so its slot + styling land now without shipping a
+                        dead button. Deliberately NOT a `PressScale`/button — nothing to press yet. */}
+                    <View style={styles.usdaSeam}>
+                        <Feather name="database" size={14} color={palette.mist} />
+                        <Text style={styles.usdaSeamLabel}>{fillTemplate(t.searchUsdaFor, { query: trimmed })}</Text>
+                        <View style={styles.usdaSeamTag}>
+                            <Text style={styles.usdaSeamTagLabel}>{t.searchUsdaSoon}</Text>
+                        </View>
+                    </View>
                 </>
             )}
-            {addByNameStatus.isPending && <Text>{t.addingByName}</Text>}
-            {addByNameStatus.isError && <Text accessibilityRole="alert">{t.addByNameError}</Text>}
-            {createStatus.isPending && <Text>{t.creating}</Text>}
+
+            {addByNameStatus.isPending && <Text style={styles.muted}>{t.addingByName}</Text>}
+            {addByNameStatus.isError && (
+                <Text accessibilityRole="alert" style={styles.error}>
+                    {t.addByNameError}
+                </Text>
+            )}
+            {createStatus.isPending && <Text style={styles.muted}>{t.creating}</Text>}
         </View>
     );
 }
+
+const border = 'rgba(178, 190, 195, 0.3)';
+
+const styles = StyleSheet.create({
+    card: {
+        backgroundColor: palette.white,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: border,
+        padding: 16,
+        gap: 12,
+    },
+    heading: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
+    searchField: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: palette.white,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: border,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+    },
+    searchInput: { flex: 1, fontSize: 16, color: palette.charcoal, padding: 0 },
+    badge: {
+        borderRadius: 999,
+        backgroundColor: 'rgba(46, 196, 182, 0.12)',
+        paddingVertical: 2,
+        paddingHorizontal: 8,
+    },
+    badgeLabel: { fontSize: 11, fontWeight: '600', color: palette.seafoam },
+    list: { borderRadius: 10, borderWidth: 1, borderColor: border, overflow: 'hidden' },
+    row: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: border,
+        backgroundColor: palette.white,
+    },
+    rowTextGroup: { flex: 1, gap: 2 },
+    rowText: { fontSize: 16, color: palette.charcoal },
+    rowSubText: { fontSize: 13, color: palette.slate },
+    muted: { fontSize: 13, color: palette.slate },
+    error: { fontSize: 13, color: palette.error },
+    actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
+    primaryAction: { borderRadius: 999, backgroundColor: palette.seafoam, paddingVertical: 10, paddingHorizontal: 16 },
+    primaryActionLabel: { fontSize: 14, fontWeight: '600', color: palette.white },
+    fallbackAction: {
+        borderRadius: 999,
+        backgroundColor: 'rgba(46, 196, 182, 0.12)',
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+    },
+    fallbackActionLabel: { fontSize: 14, fontWeight: '500', color: palette.seafoam },
+    ghostAction: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16 },
+    ghostActionLabel: { fontSize: 14, fontWeight: '500', color: palette.slate },
+    actionDisabled: { opacity: 0.6 },
+    usdaSeam: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        borderColor: border,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+    },
+    usdaSeamLabel: { flex: 1, fontSize: 13, color: palette.mist },
+    usdaSeamTag: { borderRadius: 999, backgroundColor: palette.pearl, paddingVertical: 2, paddingHorizontal: 8 },
+    usdaSeamTagLabel: { fontSize: 10, fontWeight: '600', color: palette.slate, textTransform: 'uppercase' },
+});

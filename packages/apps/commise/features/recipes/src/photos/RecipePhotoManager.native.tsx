@@ -23,6 +23,7 @@ import { fillTemplate } from '../list/model.js';
 import { photoMessages } from './messages.js';
 import {
     isAtPhotoCap,
+    isCoverPhoto,
     MAX_RECIPE_PHOTO_UPLOAD_MB,
     MAX_RECIPE_PHOTOS,
     visibleQueueItems,
@@ -38,6 +39,8 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     queueItems,
     onRetryQueueItem,
     onRemoveQueueItem,
+    onSetCover,
+    onReplacePhoto,
     addControl,
 }) => {
     const m = useMessages(photoMessages);
@@ -63,6 +66,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                 <View style={styles.grid}>
                     {photos.map((photo, index) => {
                         const removing = removingPhotoId === photo.id;
+                        const isCover = isCoverPhoto(photos, photo.id);
 
                         return (
                             <View key={photo.id} style={styles.cell}>
@@ -72,6 +76,11 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     cachePolicy="memory-disk"
                                     style={styles.photo}
                                 />
+                                {/* U6: cover status carried as TEXT (never colour alone); shown on the index-0 photo
+                                    only, and only where the surface offers cover selection. */}
+                                {onSetCover !== undefined && isCover ? (
+                                    <Text style={styles.coverBadge}>{m.coverBadge}</Text>
+                                ) : null}
                                 <Pressable
                                     accessibilityRole="button"
                                     accessibilityLabel={fillTemplate(m.removeLabel, { index: index + 1 })}
@@ -82,6 +91,40 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                 >
                                     <Text style={styles.removeLabel}>{removing ? m.removing : m.remove}</Text>
                                 </Pressable>
+                                {onSetCover !== undefined || onReplacePhoto !== undefined ? (
+                                    <View style={styles.photoControls}>
+                                        {/* U6: single-select cover with RADIO semantics — `accessibilityRole="radio"`
+                                            + `checked` state; exactly one is checked (the current cover). Named by its
+                                            1-based index so every control is uniquely addressable. Fully controlled by
+                                            `isCoverPhoto`, so the check follows the reprojected `photos[0]` after the
+                                            container's reorder. */}
+                                        {onSetCover !== undefined ? (
+                                            <Pressable
+                                                accessibilityRole="radio"
+                                                accessibilityLabel={fillTemplate(m.setCoverLabel, { index: index + 1 })}
+                                                // `accessibilityState` drives iOS VoiceOver / Android TalkBack;
+                                                // `aria-checked` is what react-native-web emits to the DOM (RNW does
+                                                // not forward `accessibilityState.checked`). Both name the SAME state.
+                                                accessibilityState={{ checked: isCover }}
+                                                aria-checked={isCover}
+                                                onPress={() => onSetCover(photo.id)}
+                                                style={styles.coverControl}
+                                            >
+                                                <View style={[styles.radioDot, isCover && styles.radioDotChecked]} />
+                                            </Pressable>
+                                        ) : null}
+                                        {onReplacePhoto !== undefined ? (
+                                            <Pressable
+                                                accessibilityRole="button"
+                                                accessibilityLabel={fillTemplate(m.replaceLabel, { index: index + 1 })}
+                                                onPress={() => onReplacePhoto(photo.id)}
+                                                style={styles.replaceButton}
+                                            >
+                                                <Text style={styles.replaceLabel}>{m.replace}</Text>
+                                            </Pressable>
+                                        ) : null}
+                                    </View>
+                                ) : null}
                             </View>
                         );
                     })}
@@ -212,4 +255,43 @@ const styles = StyleSheet.create({
     },
     removeButtonBusy: { opacity: 0.6 },
     removeLabel: { color: palette.white, fontSize: 11, fontWeight: '500' },
+    // U6 cover badge (top-left) — text on a solid seafoam pill; distinct from the top-right remove button.
+    coverBadge: {
+        position: 'absolute',
+        top: 6,
+        left: 6,
+        backgroundColor: palette.seafoam,
+        color: palette.white,
+        fontSize: 11,
+        fontWeight: '600',
+        borderRadius: 999,
+        paddingVertical: 2,
+        paddingHorizontal: 8,
+        overflow: 'hidden',
+    },
+    // U6 per-photo control bar (bottom): the cover radio (left) + the Replace button (right).
+    photoControls: { position: 'absolute', bottom: 6, left: 6, right: 6, flexDirection: 'row', gap: 6 },
+    coverControl: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(45, 52, 54, 0.7)',
+        borderRadius: 999,
+        padding: 6,
+    },
+    radioDot: {
+        width: 12,
+        height: 12,
+        borderRadius: 999,
+        borderWidth: 2,
+        borderColor: palette.white,
+    },
+    radioDotChecked: { backgroundColor: palette.seafoam },
+    replaceButton: {
+        flex: 1,
+        alignItems: 'center',
+        backgroundColor: palette.white,
+        borderRadius: 999,
+        paddingVertical: 4,
+    },
+    replaceLabel: { color: palette.charcoal, fontSize: 11, fontWeight: '500' },
 });

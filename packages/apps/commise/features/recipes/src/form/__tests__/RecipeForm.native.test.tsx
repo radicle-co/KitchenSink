@@ -78,10 +78,15 @@ describe('RecipeForm (native) — basics fields', () => {
 
         expect(inputValue('Title')).toBe('Herb Risotto');
         expect(inputValue('Description')).toBe('Creamy and quick.');
-        expect(screen.getByRole('radiogroup', { name: 'Cuisine' })).toBeTruthy();
-        expect(screen.getByRole<HTMLElement>('radio', { name: 'Italian' }).getAttribute('aria-checked')).toBe('true');
-        expect(inputValue('Tags')).toBe('quick, dinner');
-        expect(inputValue('Dietary flags')).toBe('vegetarian');
+        // U6: cuisine is a Select/dropdown (button trigger showing the current value), not a radio cloud.
+        expect(screen.getByRole('button', { name: 'Cuisine' })).toBeTruthy();
+        expect(screen.getByText('Italian')).toBeTruthy();
+        // U6: tags + dietary flags are CHIP inputs — committed values render as removable chips; drafts empty.
+        expect(screen.getByRole('button', { name: 'Remove quick' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Remove dinner' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Remove vegetarian' })).toBeTruthy();
+        expect(inputValue('Tags')).toBe('');
+        expect(inputValue('Dietary flags')).toBe('');
         expect(inputValue('Servings')).toBe('4');
         expect(inputValue('Prep time (minutes)')).toBe('10');
         expect(inputValue('Cook time (minutes)')).toBe('25');
@@ -111,49 +116,84 @@ describe('RecipeForm (native) — basics fields', () => {
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ servings: 6 }));
     });
 
-    it('parses a comma-separated tags edit into a trimmed list', () => {
+    it('adds a tag chip when the draft is submitted (no comma parsing; U6) — appended to existing chips', () => {
         const onChange = vi.fn();
         renderForm({ onChange });
 
-        fireEvent.change(screen.getByLabelText('Tags'), { target: { value: 'quick,  easy , ' } });
+        const draft = screen.getByLabelText('Tags');
+        fireEvent.change(draft, { target: { value: 'easy' } });
+        // react-native-web maps a single-line TextInput's onSubmitEditing to Enter keydown.
+        fireEvent.keyDown(draft, { key: 'Enter' });
 
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['quick', 'easy'] }));
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['quick', 'dinner', 'easy'] }));
+    });
+
+    it('adds a tag chip via the explicit Add control (U6)', () => {
+        const onChange = vi.fn();
+        renderForm({ values: filledValues({ tags: [] }), onChange });
+
+        fireEvent.change(screen.getByLabelText('Tags'), { target: { value: 'gluten free' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Add Tags' }));
+
+        // The whole phrase becomes ONE chip — a space (or comma) is never a separator.
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['gluten free'] }));
+    });
+
+    it('removes a tag chip when its remove control is pressed (U6)', () => {
+        const onChange = vi.fn();
+        renderForm({ onChange });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Remove quick' }));
+
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['dinner'] }));
     });
 });
 
-describe('RecipeForm (native) — cuisine picker (w3/e5)', () => {
-    const isChecked = (label: string): boolean =>
-        screen.getByRole('radio', { name: label }).getAttribute('aria-checked') === 'true';
+describe('RecipeForm (native) — cuisine dropdown (w3/e5; U6 Select, not a radio cloud)', () => {
+    /** Open the collapsed dropdown so its options render. */
+    const openMenu = (): void => {
+        fireEvent.click(screen.getByRole('button', { name: 'Cuisine' }));
+    };
 
-    it('renders a radiogroup with every curated CUISINES option plus the explicit "no cuisine" choice', () => {
+    it('renders a collapsed Select trigger showing the current cuisine (no radio cloud)', () => {
+        renderForm({ values: filledValues({ cuisine: 'Italian' }) });
+
+        expect(screen.getByRole('button', { name: 'Cuisine' })).toBeTruthy();
+        expect(screen.getByText('Italian')).toBeTruthy();
+        // The options are collapsed until opened — no radio group.
+        expect(screen.queryByRole('radiogroup', { name: 'Cuisine' })).toBeNull();
+        expect(screen.queryByRole('menuitem', { name: 'Thai' })).toBeNull();
+    });
+
+    it('lists every curated CUISINES option plus the explicit "no cuisine" choice when opened', () => {
         renderForm({ values: filledValues({ cuisine: '' }) });
 
-        expect(screen.getByRole('radiogroup', { name: 'Cuisine' })).toBeTruthy();
+        openMenu();
+
         for (const cuisine of CUISINES) {
-            expect(screen.getByRole('radio', { name: cuisine })).toBeTruthy();
+            expect(screen.getByRole('menuitem', { name: cuisine })).toBeTruthy();
         }
-        expect(screen.getByRole('radio', { name: 'No cuisine' })).toBeTruthy();
+        expect(screen.getByRole('menuitem', { name: 'No cuisine' })).toBeTruthy();
     });
 
-    it('checks the curated option bound to the form', () => {
-        renderForm({ values: filledValues({ cuisine: 'Mexican' }) });
-
-        expect(isChecked('Mexican')).toBe(true);
-        expect(isChecked('Italian')).toBe(false);
-    });
-
-    it('keeps a preselected CUSTOM cuisine (not in CUISINES) visible and checked, never lost', () => {
+    it('keeps a preselected CUSTOM cuisine (not in CUISINES) visible + selected, never lost', () => {
         renderForm({ values: filledValues({ cuisine: 'Grandma’s Secret Blend' }) });
 
-        expect(screen.getByRole('radio', { name: 'Grandma’s Secret Blend' })).toBeTruthy();
-        expect(isChecked('Grandma’s Secret Blend')).toBe(true);
+        // Visible on the collapsed trigger…
+        expect(screen.getByText('Grandma’s Secret Blend')).toBeTruthy();
+        // …and present as a selected option once opened.
+        openMenu();
+        expect(screen.getByRole('menuitem', { name: 'Grandma’s Secret Blend' }).getAttribute('aria-selected')).toBe(
+            'true',
+        );
     });
 
     it('reports a cuisine selection upward, preserving the free-text wire contract', () => {
         const onChange = vi.fn();
         renderForm({ values: filledValues({ cuisine: 'Italian' }), onChange });
 
-        fireEvent.click(screen.getByRole('radio', { name: 'Thai' }));
+        openMenu();
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Thai' }));
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ cuisine: 'Thai' }));
     });
@@ -162,7 +202,8 @@ describe('RecipeForm (native) — cuisine picker (w3/e5)', () => {
         const onChange = vi.fn();
         renderForm({ values: filledValues({ cuisine: 'Italian' }), onChange });
 
-        fireEvent.click(screen.getByRole('radio', { name: 'No cuisine' }));
+        openMenu();
+        fireEvent.click(screen.getByRole('menuitem', { name: 'No cuisine' }));
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ cuisine: '' }));
     });
@@ -286,6 +327,19 @@ describe('RecipeForm (native) — ingredients', () => {
         expect(inputValue('Ingredient 1 unit')).toBe('g');
     });
 
+    it('renders a RESOLVED line’s name READ-ONLY, and an UNRESOLVED line’s name editable (U6)', () => {
+        cleanup();
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300 }] }),
+        });
+        // `editable={false}` renders a readOnly DOM input under react-native-web.
+        expect(screen.getByLabelText<HTMLInputElement>('Ingredient 1 name').readOnly).toBe(true);
+
+        cleanup();
+        renderForm({ values: filledValues({ ingredients: [{ ingredientId: null, name: 'rice', quantity: 1 }] }) });
+        expect(screen.getByLabelText<HTMLInputElement>('Ingredient 1 name').readOnly).toBe(false);
+    });
+
     it('appends a blank ingredient line on add', () => {
         const onChange = vi.fn();
         renderForm({ values: filledValues({ ingredients: [] }), onChange });
@@ -316,15 +370,18 @@ describe('RecipeForm (native) — ingredients', () => {
         );
     });
 
-    it('reports an ingredient name change upward', () => {
+    it('reports an UNRESOLVED line’s name edit upward (freeform-in-progress; U6)', () => {
         const onChange = vi.fn();
-        renderForm({ onChange });
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: null, name: 'ric', quantity: 1 }] }),
+            onChange,
+        });
 
-        fireEvent.change(screen.getByLabelText('Ingredient 1 name'), { target: { value: 'Carnaroli rice' } });
+        fireEvent.change(screen.getByLabelText('Ingredient 1 name'), { target: { value: 'rice' } });
 
         expect(onChange).toHaveBeenCalledWith(
             expect.objectContaining({
-                ingredients: [expect.objectContaining({ name: 'Carnaroli rice', ingredientId: 'ing_1' })],
+                ingredients: [expect.objectContaining({ name: 'rice', ingredientId: null })],
             }),
         );
     });

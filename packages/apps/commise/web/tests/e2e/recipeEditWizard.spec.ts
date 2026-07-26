@@ -32,9 +32,11 @@ test.describe('recipe edit wizard (w3/e8)', () => {
         await page.goto(route('/recipes/new'));
         await expect(page.getByText('Step 1 of 4')).toBeVisible();
 
-        // Save Draft's floor is step 1 only (title/servings/times) — no ingredients/steps needed.
+        // Save Draft's floor is step 1 only (title/servings/times) — no ingredients/steps needed. U6 chrome
+        // demoted Save Draft off the header into the "More actions" overflow menu.
         await page.getByLabel('Title').fill('E2E Weeknight Draft');
-        await page.getByRole('button', { name: 'Save Draft' }).click();
+        await page.getByRole('button', { name: 'More actions' }).click();
+        await page.getByRole('menuitem', { name: 'Save Draft' }).click();
 
         // A successful save (draft or publish) navigates to the new recipe's detail, same as Publish.
         await expect(page.getByRole('heading', { name: 'E2E Weeknight Draft' })).toBeVisible();
@@ -66,13 +68,17 @@ test.describe('recipe edit wizard (w3/e8)', () => {
         await page.goto(route('/recipes/rec_incomplete/edit'));
         await expect(page.getByText('Step 1 of 4')).toBeVisible();
 
-        // Publish is the top-bar action, reachable from step 1 without navigating there first.
+        // Publish is the footer's FINAL-step primary (U6: no longer a top-bar action live on every step). Jump
+        // to Photos (step 4) via the rail — FORWARD navigation is ungated even with an invalid earlier step —
+        // and attempt to publish from there.
+        await page.getByRole('button', { name: /Photos:/ }).click();
+        await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await page.getByRole('button', { name: 'Publish' }).click();
 
-        // The rail flags the OTHER (non-current) invalid step; the wizard never navigated off step 1, and
-        // nothing was persisted — the version stays at its seeded value.
+        // The rail flags the OTHER (non-current) invalid step; the blocked Publish neither navigated away from
+        // the final step nor persisted anything — the version stays at its seeded value.
         await expect(page.getByRole('button', { name: /Ingredients: needs attention/ })).toBeVisible();
-        await expect(page.getByText('Step 1 of 4')).toBeVisible();
+        await expect(page.getByText('Step 4 of 4')).toBeVisible();
         await expect(page).toHaveURL(/\/recipes\/rec_incomplete\/edit/);
         expect(store.get('rec_incomplete')?.currentVersion).toBe(1);
     });
@@ -87,7 +93,10 @@ test.describe('recipe edit wizard (w3/e8)', () => {
         await page.goto(route('/recipes/rec_seed/edit'));
         await page.getByLabel('Title').fill('An Unsaved Edit');
 
-        await page.getByRole('button', { name: 'Cancel' }).click();
+        // U6 chrome demoted Cancel off the header into the "More actions" overflow menu; it still routes through
+        // the discard guard.
+        await page.getByRole('button', { name: 'More actions' }).click();
+        await page.getByRole('menuitem', { name: 'Cancel' }).click();
         await expect(page.getByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeVisible();
 
         await page.getByRole('button', { name: 'Discard changes' }).click();

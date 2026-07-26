@@ -67,6 +67,7 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useCreatePhotoUploadUrl: vi.fn(),
     useConfirmPhotoUpload: vi.fn(),
     useDeleteRecipePhoto: vi.fn(),
+    useReorderRecipePhotos: () => ({ mutate: () => undefined, isPending: false, reset: () => undefined }),
 }));
 
 const useRecipeMock = vi.mocked(useRecipe);
@@ -171,6 +172,18 @@ function conflictError(currentVersion: number, conflictingVersion: number, their
     return new VersionConflictError(currentVersion, conflictingVersion, 'Recipe version conflict', {
         server: toVersionConflictSide(theirs),
     });
+}
+
+/**
+ * Navigate the (seeded, valid) edit wizard to step 4 (Photos) and click the footer Publish primary. U6 moved
+ * Publish from an always-present top-bar button to the ONE contextual footer primary, live only on step 4;
+ * every seeded edit fixture here is fully valid, so the `Next` footer primary advances cleanly to Photos.
+ */
+function publish(): void {
+    fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
+    fireEvent.click(screen.getByLabelText(/Next: Instructions/));
+    fireEvent.click(screen.getByLabelText(/Next: Photos/));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 }
 
 afterEach(cleanup);
@@ -283,7 +296,7 @@ describe('RecipeEditScreen — save', () => {
         const onSaved = vi.fn();
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        publish();
 
         expect(mutate).toHaveBeenCalledTimes(1);
         const [vars] = mutate.mock.calls[0] as [{ id: string; input: { expectedVersion: number; title: string } }];
@@ -332,7 +345,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         );
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        publish();
 
         expect(await screen.findByRole('heading', { name: 'This recipe changed while you were editing' })).toBeTruthy();
         expect(screen.getByText(/^Server version \(v5\): Saved .* on iPhone$/)).toBeTruthy();
@@ -361,7 +374,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         const onSaved = vi.fn();
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        publish();
 
         expect(mutate).toHaveBeenCalledTimes(2);
         const [secondVars] = mutate.mock.calls[1] as [{ input: { expectedVersion: number } }];
@@ -383,7 +396,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         const onSaved = vi.fn();
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        publish();
         // This fake conflict carries no `base` (W8-a.5 real conflicts may also lack one — the base-evicted
         // case), so the W7 Task 5 / X6 stale-base gate applies: confirm before Overwrite proceeds.
         await screen.findByRole('button', { name: 'Overwrite with your version' });
@@ -411,7 +424,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         const onSaved = vi.fn();
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        publish();
         await screen.findByRole('button', { name: 'Overwrite with your version' });
         fireEvent.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
         fireEvent.click(screen.getByRole('button', { name: 'Overwrite with your version' }));
@@ -441,7 +454,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         const onSaved = vi.fn();
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={vi.fn()} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        publish();
 
         // Enter the merge panel, keep my title (default), pull servings from the latest saved version. This
         // fake conflict carries no `base`, so the W7 Task 5 / X6 stale-base gate applies here too.
@@ -478,7 +491,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         const onCancel = vi.fn();
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={onCancel} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        publish();
         fireEvent.click(await screen.findByRole('button', { name: 'Keep server version' }));
 
         expect(screen.queryByText('This recipe changed while you were editing')).toBeNull();
@@ -501,7 +514,7 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
         const onCancel = vi.fn();
 
         render(<RecipeEditScreen recipeId="rec_1" onSaved={onSaved} onCancel={onCancel} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        publish();
         await screen.findByRole('heading', { name: 'This recipe changed while you were editing' });
         mutate.mockClear(); // isolate the assertion below to what "Discard and close" itself does.
 
@@ -534,7 +547,9 @@ describe('RecipeEditScreen — concurrent-edit conflict (T070/W7)', () => {
 
         expect(screen.getByText('This recipe was changed elsewhere. Reload and try again.')).toBeTruthy();
         expect(screen.queryByRole('heading', { name: 'This recipe changed while you were editing' })).toBeNull();
-        // Stays editing — the form is still rendered and interactive (the retry path is preserved).
-        expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
+        // Stays editing — the wizard form is still rendered and interactive (the retry path is preserved). Under
+        // the U6 chrome the step-1 primary is the footer "Next", not Publish (Publish is the step-4 primary).
+        expect(screen.getByLabelText(/Next: Ingredients/)).toBeTruthy();
+        expect(screen.getByLabelText('Title')).toBeTruthy();
     });
 });

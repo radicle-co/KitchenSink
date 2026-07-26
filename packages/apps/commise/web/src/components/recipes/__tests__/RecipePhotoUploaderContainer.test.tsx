@@ -26,9 +26,10 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useCallback, useState } from 'react';
 
-const { photosQueryMock, deletePhotoMock, uploadState } = vi.hoisted(() => ({
+const { photosQueryMock, deletePhotoMock, reorderPhotoMock, uploadState } = vi.hoisted(() => ({
     photosQueryMock: vi.fn(),
     deletePhotoMock: vi.fn(),
+    reorderPhotoMock: vi.fn(),
     // Per-test knob for the fake `useRecipePhotoUpload` below: when `stuck` is true, an upload flips
     // `uploading: true` and never resolves — simulating a file still mid-flight when the container unmounts.
     uploadState: { stuck: false },
@@ -37,6 +38,7 @@ const { photosQueryMock, deletePhotoMock, uploadState } = vi.hoisted(() => ({
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRecipePhotos: photosQueryMock,
     useDeleteRecipePhoto: deletePhotoMock,
+    useReorderRecipePhotos: reorderPhotoMock,
 }));
 
 vi.mock('@commise/features-recipes/hooks', async (importOriginal) => {
@@ -88,7 +90,14 @@ beforeEach(() => {
     uploadState.stuck = false;
     photosQueryMock.mockReset().mockReturnValue({ data: [] });
     deletePhotoMock.mockReset().mockReturnValue({ mutate: vi.fn(), isPending: false, variables: undefined });
+    reorderPhotoMock.mockReset().mockReturnValue({ mutate: vi.fn(), isPending: false, variables: undefined });
 });
+
+const threeConfirmedPhotos = [
+    { id: 'ph_1', url: 'https://cdn.example/1.jpg', order: 1, recipeId: 'rec_1', createdAt: '' },
+    { id: 'ph_2', url: 'https://cdn.example/2.jpg', order: 2, recipeId: 'rec_1', createdAt: '' },
+    { id: 'ph_3', url: 'https://cdn.example/3.jpg', order: 3, recipeId: 'rec_1', createdAt: '' },
+];
 
 afterEach(() => {
     cleanup();
@@ -193,5 +202,36 @@ describe('RecipePhotoUploaderContainer (web) — delete', () => {
         await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
 
         expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' });
+    });
+});
+
+describe('RecipePhotoUploaderContainer (web) — set cover (U6)', () => {
+    it('reorders the chosen photo to index 0 (cover = lowest sort order), rest keeping their order', async () => {
+        const mutate = vi.fn();
+        reorderPhotoMock.mockReturnValue({ mutate, isPending: false, variables: undefined });
+        photosQueryMock.mockReturnValue({ data: threeConfirmedPhotos });
+        const user = userEvent.setup();
+        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+
+        // ph_1 is the current cover (index 0, checked); choosing ph_3 must move it to the front.
+        await user.click(screen.getByRole('radio', { name: 'Set photo 3 as cover' }));
+
+        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', photoIds: ['ph_3', 'ph_1', 'ph_2'] });
+    });
+});
+
+describe('RecipePhotoUploaderContainer (web) — replace (U6)', () => {
+    it('removes the chosen photo and re-opens the file input so its replacement can be picked', async () => {
+        const mutate = vi.fn();
+        deletePhotoMock.mockReturnValue({ mutate, isPending: false, variables: undefined });
+        photosQueryMock.mockReturnValue({ data: threeConfirmedPhotos });
+        const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
+        const user = userEvent.setup();
+        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+
+        await user.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+
+        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_2' });
+        expect(clickSpy).toHaveBeenCalled();
     });
 });

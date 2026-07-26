@@ -43,6 +43,15 @@ export interface PhotoMessages {
     readonly queueRetryLabel: string;
     /** Accessible label of the remove action on a queued/failed queue item (contains `{fileName}`). */
     readonly queueRemoveLabel: string;
+    /** Visible + accessible badge on the current cover photo (U6). */
+    readonly coverBadge: string;
+    /** Accessible label of a photo's radio-semantic "set as cover" control (contains `{index}`, so each
+     *  photo's control is uniquely named). */
+    readonly setCoverLabel: string;
+    /** Accessible label of a photo's replace action (contains `{index}`, so each photo's replace is unique). */
+    readonly replaceLabel: string;
+    /** Visible label of the replace action. */
+    readonly replace: string;
 }
 
 /** The photo manager copy, per locale. `en` is required; other locales extend the same shape. */
@@ -64,5 +73,9 @@ export const photoMessages: LocalizedMessages<PhotoMessages> = {
         queueRetry: 'Retry',
         queueRetryLabel: 'Retry upload of {fileName}',
         queueRemoveLabel: 'Remove {fileName}',
+        coverBadge: 'Cover',
+        setCoverLabel: 'Set photo {index} as cover',
+        replaceLabel: 'Replace photo {index}',
+        replace: 'Replace',
     },
 };

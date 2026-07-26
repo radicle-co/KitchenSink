@@ -72,8 +72,13 @@ describe('RecipeForm (web) — basics fields', () => {
         expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Title' }).value).toBe('Herb Risotto');
         expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Description' }).value).toBe('Creamy and quick.');
         expect(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Cuisine' }).value).toBe('Italian');
-        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Tags' }).value).toBe('quick, dinner');
-        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Dietary flags' }).value).toBe('vegetarian');
+        // U6: tags + dietary flags are CHIP inputs now — each committed value renders as a removable chip
+        // (its own "Remove {value}" control), and the draft text field is empty (no comma-joined string).
+        expect(screen.getByRole('button', { name: 'Remove quick' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Remove dinner' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Remove vegetarian' })).toBeTruthy();
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Tags' }).value).toBe('');
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Dietary flags' }).value).toBe('');
         expect(screen.getByRole<HTMLInputElement>('spinbutton', { name: 'Servings' }).value).toBe('4');
         expect(screen.getByRole<HTMLInputElement>('spinbutton', { name: 'Prep time (minutes)' }).value).toBe('10');
         expect(screen.getByRole<HTMLInputElement>('spinbutton', { name: 'Cook time (minutes)' }).value).toBe('25');
@@ -120,18 +125,67 @@ describe('RecipeForm (web) — basics fields', () => {
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ servings: 6 }));
     });
 
-    it('parses a comma-separated tags edit into a trimmed list', async () => {
+    it('adds a tag chip on Enter (no comma parsing) — appended to the existing chips', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
         renderForm({ onChange });
 
-        // tripleClick() + paste() — see the title test above for why (controlled field, inert mock, no
-        // rerender between keystrokes).
         const tags = screen.getByRole('textbox', { name: 'Tags' });
-        await user.tripleClick(tags);
-        await user.paste('quick,  easy , ');
+        await user.click(tags);
+        await user.paste('easy');
+        await user.keyboard('{Enter}');
 
-        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['quick', 'easy'] }));
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['quick', 'dinner', 'easy'] }));
+    });
+
+    it('does not treat a comma as a list separator — a comma commits ONE chip, verbatim', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({ values: filledValues({ tags: [] }), onChange });
+
+        const tags = screen.getByRole('textbox', { name: 'Tags' });
+        await user.click(tags);
+        await user.paste('gluten free');
+        // A comma is a COMMIT key (like Enter), never a separator folded into or splitting the token.
+        await user.keyboard(',');
+
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['gluten free'] }));
+    });
+
+    it('drops a blank/duplicate tag entry (case-insensitive) rather than adding it', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({ onChange });
+
+        const tags = screen.getByRole('textbox', { name: 'Tags' });
+        await user.click(tags);
+        await user.paste('QUICK');
+        await user.keyboard('{Enter}');
+
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('removes a tag chip when its remove control is pressed', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({ onChange });
+
+        await user.click(screen.getByRole('button', { name: 'Remove quick' }));
+
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['dinner'] }));
+    });
+
+    it('reports dietary-flag chips through the same control', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({ onChange });
+
+        const dietary = screen.getByRole('textbox', { name: 'Dietary flags' });
+        await user.click(dietary);
+        await user.paste('vegan');
+        await user.keyboard('{Enter}');
+
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ dietaryFlags: ['vegetarian', 'vegan'] }));
     });
 });
 
@@ -397,6 +451,22 @@ describe('RecipeForm (web) — ingredients', () => {
         expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 unit' }).value).toBe('g');
     });
 
+    it('renders a RESOLVED line’s name READ-ONLY (bound to its ingredientId, cannot drift; U6)', () => {
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300 }] }),
+        });
+
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 name' }).readOnly).toBe(true);
+    });
+
+    it('keeps an UNRESOLVED line’s name editable (the freeform search text, not yet a resolved identity; U6)', () => {
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: null, name: 'rice', quantity: 1 }] }),
+        });
+
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 name' }).readOnly).toBe(false);
+    });
+
     it('appends a blank ingredient line on add', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
@@ -429,22 +499,67 @@ describe('RecipeForm (web) — ingredients', () => {
         );
     });
 
-    it('reports an ingredient name change upward', async () => {
+    it('does NOT let a resolved line’s name be edited (typing into it emits nothing; U6 data-integrity)', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        renderForm({ onChange });
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300 }] }),
+            onChange,
+        });
+
+        const name = screen.getByRole('textbox', { name: 'Ingredient 1 name' });
+        await user.click(name);
+        await user.paste('Carnaroli rice');
+
+        // Read-only: the resolved name never drifts from its ingredientId, so no change is ever reported.
+        expect(onChange).not.toHaveBeenCalled();
+        expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Ingredient 1 name' }).value).toBe('Arborio rice');
+    });
+
+    it('reports an UNRESOLVED line’s name edit upward (freeform-in-progress line; U6)', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({ ingredients: [{ ingredientId: null, name: 'ric', quantity: 1 }] }),
+            onChange,
+        });
 
         // tripleClick() + paste() — see the Basics "reports a title edit upward" test for why (controlled
         // field, inert mock, no rerender between keystrokes).
         const name = screen.getByRole('textbox', { name: 'Ingredient 1 name' });
         await user.tripleClick(name);
-        await user.paste('Carnaroli rice');
+        await user.paste('rice');
 
         expect(onChange).toHaveBeenCalledWith(
             expect.objectContaining({
-                ingredients: [expect.objectContaining({ name: 'Carnaroli rice', ingredientId: 'ing_1' })],
+                ingredients: [expect.objectContaining({ name: 'rice', ingredientId: null })],
             }),
         );
+    });
+
+    it('keeps a resolved line’s identity + nutrition when its quantity/unit changes (U6)', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300, unit: 'g', caloriesPer100g: 130 },
+                ],
+            }),
+            onChange,
+        });
+
+        const quantity = screen.getByRole('spinbutton', { name: 'Ingredient 1 quantity' });
+        await user.tripleClick(quantity);
+        await user.paste('250');
+
+        const next = onChange.mock.calls[0]?.[0] as RecipeFormValues;
+        const line = next.ingredients[0];
+        expect(line?.quantity).toBe(250);
+        // Identity + resolved nutrition are untouched by a quantity edit.
+        expect(line?.ingredientId).toBe('ing_1');
+        expect(line?.name).toBe('Arborio rice');
+        expect(line?.caloriesPer100g).toBe(130);
     });
 
     it('parses an ingredient quantity change to a number', async () => {

@@ -144,6 +144,58 @@ describe('RecipePhotoManager (native) — add control + cap', () => {
     });
 });
 
+describe('RecipePhotoManager (native) — per-photo cover selection (U6)', () => {
+    it('renders no cover badge and no cover radios when onSetCover is not wired (feature gated)', () => {
+        renderManager({ photos: threePhotos });
+
+        expect(screen.queryByText('Cover')).toBeNull();
+        expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    });
+
+    it('shows the "Cover" badge on the FIRST photo only (cover defaults to index 0)', () => {
+        renderManager({ photos: threePhotos, onSetCover: noop });
+
+        expect(screen.getAllByText('Cover')).toHaveLength(1);
+    });
+
+    it('renders one radio-semantic "Set as cover" control per photo, indexed, with only the first checked', () => {
+        renderManager({ photos: threePhotos, onSetCover: noop });
+
+        expect(screen.getAllByRole('radio')).toHaveLength(3);
+        expect(screen.getByRole('radio', { name: 'Set photo 1 as cover' }).getAttribute('aria-checked')).toBe('true');
+        expect(screen.getByRole('radio', { name: 'Set photo 2 as cover' }).getAttribute('aria-checked')).not.toBe(
+            'true',
+        );
+    });
+
+    it('reports the chosen photo id upward when a non-cover "Set as cover" control is pressed', () => {
+        const onSetCover = vi.fn();
+        renderManager({ photos: threePhotos, onSetCover });
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Set photo 3 as cover' }));
+
+        expect(onSetCover).toHaveBeenCalledWith('ph_3');
+    });
+});
+
+describe('RecipePhotoManager (native) — per-photo replace (U6)', () => {
+    it('renders no Replace control when onReplacePhoto is not wired (feature gated)', () => {
+        renderManager({ photos: threePhotos });
+
+        expect(screen.queryByRole('button', { name: /replace/i })).toBeNull();
+    });
+
+    it('renders one indexed Replace control per photo, and reports the id upward when pressed', () => {
+        const onReplacePhoto = vi.fn();
+        renderManager({ photos: threePhotos, onReplacePhoto });
+
+        expect(screen.getByRole('button', { name: 'Replace photo 1' })).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+
+        expect(onReplacePhoto).toHaveBeenCalledWith('ph_2');
+    });
+});
+
 describe('RecipePhotoManager (native) — per-file queue grid (w3/e4)', () => {
     it('renders a status badge for a queued file', () => {
         renderManager({ queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'queued' })] });

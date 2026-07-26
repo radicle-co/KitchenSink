@@ -11,6 +11,8 @@ export {
     RecipeInstructionsFields,
     RecipeVisibilityField,
 } from './RecipeFormSections.js';
+export { ChipInput } from './ChipInput.js';
+export type { ChipInputProps } from './ChipInput.js';
 
 export {
     canAdvanceFromStep,
@@ -34,6 +36,7 @@ export type {
 } from './model.js';
 
 export {
+    addChip,
     addIngredient,
     addStep,
     blankIngredient,
@@ -41,6 +44,7 @@ export {
     difficultyOptions,
     parseCommaList,
     parseNumericInput,
+    removeChipAt,
     removeIngredientAt,
     removeStepAt,
     resolutionStatusLabel,

@@ -28,6 +28,8 @@ import {
     type RecipeFormValues,
     type RecipeWizardStep,
 } from '@commise/features-recipes';
+import { useMessages } from '@commise/i18n/react';
+import { palette } from '@commise/ui';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { JSX, ReactNode } from 'react';
 import { useCallback } from 'react';
@@ -35,6 +37,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { IngredientPicker, type ResolvedIngredient } from '../components/IngredientPicker.js';
 import { IngredientStatusPoller } from '../components/IngredientStatusPoller.js';
+import { mobileMessages } from '../i18n/messages.js';
 
 /** Props for {@link RecipeEditor}. */
 export interface RecipeEditorProps {
@@ -100,6 +103,13 @@ export function RecipeEditor({
     onCancel,
     photosSlot,
 }: RecipeEditorProps): JSX.Element {
+    const { recipes: t } = useMessages(mobileMessages);
+
+    // U6 empty-state guidance: a brand-new create drops into a blank Basics form — show first-step guidance
+    // until the author has put anything in. Edit mode (seeded from a saved recipe) never shows it.
+    const isEmptyDraft = values.title.trim() === '' && values.ingredients.length === 0 && values.steps.length === 0;
+    const showFirstStepGuidance = mode === 'create' && isEmptyDraft;
+
     // Carry the line's ACTUAL resolution status from the picker (a food added by name may be PENDING and
     // resolve later) — never assume RESOLVED, or a still-resolving line would never be polled. A line with no
     // status (a plain freeform create) simply carries none.
@@ -161,6 +171,12 @@ export function RecipeEditor({
                 >
                     <Wizard.Rail />
                     <Wizard.Step step={1}>
+                        {showFirstStepGuidance && (
+                            <View accessibilityLabel={t.createGuidanceTitle} style={styles.guidance}>
+                                <Text style={styles.guidanceTitle}>{t.createGuidanceTitle}</Text>
+                                <Text style={styles.guidanceBody}>{t.createGuidanceBody}</Text>
+                            </View>
+                        )}
                         <RecipeBasicsFields values={values} errors={errors} onChange={onChange} />
                         <RecipeVisibilityField values={values} onChange={onChange} />
                     </Wizard.Step>
@@ -186,4 +202,15 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
     scroll: { flex: 1 },
     scrollContent: { gap: 16, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 48 },
+    guidance: {
+        gap: 4,
+        borderRadius: 12,
+        backgroundColor: 'rgba(46, 196, 182, 0.10)',
+        borderWidth: 1,
+        borderColor: 'rgba(46, 196, 182, 0.25)',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+    },
+    guidanceTitle: { fontSize: 15, fontWeight: '600', color: palette.charcoal },
+    guidanceBody: { fontSize: 13, color: palette.slate },
 });

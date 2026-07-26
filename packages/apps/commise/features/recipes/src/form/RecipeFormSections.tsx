@@ -17,6 +17,7 @@ import { Button } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
 import type { FC, ReactElement } from 'react';
 
+import { ChipInput } from './ChipInput.js';
 import { fillTemplate } from '../list/model.js';
 import { PlusIcon, TrashIcon } from './icons.js';
 import {
@@ -32,7 +33,6 @@ import {
     addStep,
     cuisineOptions,
     difficultyOptions,
-    parseCommaList,
     parseNumericInput,
     removeIngredientAt,
     removeStepAt,
@@ -134,28 +134,20 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                         ))}
                     </select>
                 </label>
-                <label className="flex flex-col gap-1">
-                    <span className={fieldLabel}>{m.tagsLabel}</span>
-                    <input
-                        type="text"
-                        aria-label={m.tagsLabel}
-                        placeholder={m.tagsHint}
-                        value={values.tags.join(', ')}
-                        onChange={(event) => onChange({ ...values, tags: parseCommaList(event.target.value) })}
-                        className={field}
-                    />
-                </label>
-                <label className="flex flex-col gap-1">
-                    <span className={fieldLabel}>{m.dietaryFlagsLabel}</span>
-                    <input
-                        type="text"
-                        aria-label={m.dietaryFlagsLabel}
-                        placeholder={m.tagsHint}
-                        value={values.dietaryFlags.join(', ')}
-                        onChange={(event) => onChange({ ...values, dietaryFlags: parseCommaList(event.target.value) })}
-                        className={field}
-                    />
-                </label>
+                <ChipInput
+                    label={m.tagsLabel}
+                    values={values.tags}
+                    onChange={(tags) => onChange({ ...values, tags })}
+                    placeholder={m.tagsHint}
+                    removeChipLabel={m.removeChipLabel}
+                />
+                <ChipInput
+                    label={m.dietaryFlagsLabel}
+                    values={values.dietaryFlags}
+                    onChange={(dietaryFlags) => onChange({ ...values, dietaryFlags })}
+                    placeholder={m.tagsHint}
+                    removeChipLabel={m.removeChipLabel}
+                />
                 <label className="flex flex-col gap-1">
                     <span className={fieldLabel}>{m.servingsLabel}</span>
                     <input
@@ -257,20 +249,41 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
     const ingredientRows: ReactElement[] = values.ingredients.map((line, index) => {
         const number = index + 1;
         const calories = lineCalories(line);
+        // U6 (data-integrity): once a line RESOLVES (`ingredientId` set — via typeahead pick, USDA/add-by-name
+        // admission, or freeform create), its name is BOUND to the food supplying the calories and is rendered
+        // READ-ONLY; identity changes only by re-picking through the resolver. Only an UNRESOLVED line
+        // (`ingredientId === null`) still edits its name inline — before it resolves, that field is the
+        // freeform search text, not a persisted name — so `nameInvalid` (an unresolved-line concern) can only
+        // ever apply to that editable branch.
+        const resolved = line.ingredientId !== null;
         const nameInvalid = ingredientsInvalid && line.ingredientId === null;
         const quantityInvalid = ingredientsInvalid && line.quantity <= 0;
 
         return (
             <li key={index} className="flex flex-wrap items-center gap-2">
-                <input
-                    type="text"
-                    aria-label={fillTemplate(m.ingredientNameLabel, { number })}
-                    aria-invalid={nameInvalid || undefined}
-                    aria-describedby={nameInvalid ? ingredientsErrorId : undefined}
-                    value={line.name}
-                    onChange={(event) => onChange(updateIngredientAt(values, index, { name: event.target.value }))}
-                    className={rowField}
-                />
+                {resolved ? (
+                    // A read-only textbox (not a plain span): keeps the "Ingredient N name" accessible label AND
+                    // announces the resolved value, while making the name un-editable so it cannot drift from
+                    // the `ingredientId` supplying the calories. No `onChange` — the value is fixed until a
+                    // re-pick replaces the line.
+                    <input
+                        type="text"
+                        readOnly
+                        aria-label={fillTemplate(m.ingredientNameLabel, { number })}
+                        value={line.name}
+                        className={`${rowField} bg-pearl/40`}
+                    />
+                ) : (
+                    <input
+                        type="text"
+                        aria-label={fillTemplate(m.ingredientNameLabel, { number })}
+                        aria-invalid={nameInvalid || undefined}
+                        aria-describedby={nameInvalid ? ingredientsErrorId : undefined}
+                        value={line.name}
+                        onChange={(event) => onChange(updateIngredientAt(values, index, { name: event.target.value }))}
+                        className={rowField}
+                    />
+                )}
                 <input
                     type="number"
                     aria-label={fillTemplate(m.ingredientQuantityLabel, { number })}

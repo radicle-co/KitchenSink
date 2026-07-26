@@ -176,6 +176,10 @@ export interface MobileMessages {
         readonly saveError: string;
         /** Shown on the create wizard's Photos step (a new recipe has no id yet to attach photos to). */
         readonly photosAfterCreateNotice: string;
+        /** Title of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
+        readonly createGuidanceTitle: string;
+        /** Body of the first-step guidance banner shown on a brand-new (empty) create form (U6). */
+        readonly createGuidanceBody: string;
         /** Alert shown when deleting a recipe fails. */
         readonly deleteError: string;
         /** Alert shown when cloning a recipe fails. */
@@ -204,9 +208,16 @@ export interface MobileMessages {
         readonly searchLabel: string;
         /** Placeholder shown inside the ingredient search field. */
         readonly searchPlaceholder: string;
+        /** Accessible label for the search field's clear (×) control (U6). */
+        readonly searchClear: string;
         /** Badge next to the search box naming the ingredient database it searches (C5, wireframe
          *  recipe-edit.md:56 "[USDA database]"). */
         readonly usdaBadge: string;
+        /** Styled (not-yet-wired) "Search USDA for …" seam label (U6; a separate USDA-autocomplete CR wires it;
+         *  contains `{query}`). */
+        readonly searchUsdaFor: string;
+        /** Short "coming soon" tag on the USDA-search seam (U6). */
+        readonly searchUsdaSoon: string;
         /** Empty-state copy shown when a search returns no catalog matches. */
         readonly empty: string;
         /** Primary "find nutrition" action for a typed name (addByName, the async-resolution entry point; contains `{query}`). */
@@ -366,7 +377,11 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             visibilityUpgradeReason: 'Upgrade to premium to make a recipe private.',
             createError: 'We couldn’t create your recipe. Please try again.',
             saveError: 'We couldn’t save your changes. Please try again.',
-            photosAfterCreateNotice: 'Save this recipe first — you can add photos from its edit screen.',
+            photosAfterCreateNotice:
+                'Publish your recipe to add photos — tap Publish below, then add photos from its page. Nothing here to do yet.',
+            createGuidanceTitle: 'Let’s build your recipe',
+            createGuidanceBody:
+                'Start with a title and the basics. You’ll add ingredients, steps, and photos as you go — tap Next when a step is ready.',
             deleteError: 'We couldn’t delete this recipe. Please try again.',
             cloneError: 'We couldn’t clone this recipe. Please try again.',
             versionsLoading: 'Loading version history…',
@@ -383,7 +398,10 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             heading: 'Add an ingredient',
             searchLabel: 'Search ingredients',
             searchPlaceholder: 'e.g. olive oil',
+            searchClear: 'Clear search',
             usdaBadge: 'USDA database',
+            searchUsdaFor: 'Search USDA for “{query}”',
+            searchUsdaSoon: 'Soon',
             empty: 'No matching ingredients. Create a new one below.',
             addByName: 'Find nutrition for “{query}”',
             addingByName: 'Finding nutrition…',

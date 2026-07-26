@@ -221,8 +221,10 @@ export const parseNumericInput = (text: string): number => {
 };
 
 /**
- * Parse a comma-separated text input into a trimmed, non-empty list of tokens (used for tags and dietary
- * flags). Pure — order-preserving; empties are dropped.
+ * Parse a comma-separated text input into a trimmed, non-empty list of tokens. Pure — order-preserving;
+ * empties are dropped. Retained as a general list-parsing util; the tags/dietary fields no longer use it (they
+ * moved to the {@link import('./ChipInput.js').ChipInput} token control — U6), which appends one chip at a time
+ * via {@link addChip} instead of re-parsing a whole comma string on every keystroke.
  *
  * @param text - The raw comma-separated text.
  * @returns The list of trimmed, non-empty tokens.
@@ -232,6 +234,36 @@ export const parseCommaList = (text: string): string[] =>
         .split(',')
         .map((token) => token.trim())
         .filter((token) => token.length > 0);
+
+/**
+ * Append `token` (trimmed) to a chip `list`, unless it is blank or a case-insensitive duplicate of a chip
+ * already present — the pure transition the {@link import('./ChipInput.js').ChipInput} token control commits on
+ * each entry (U6, replacing the comma-text field's whole-string re-parse). Returns a NEW array on an actual
+ * add and a copy otherwise, so a caller can compare lengths to detect whether anything was added. Pure.
+ *
+ * @param list - The current chip list.
+ * @param token - The raw text the user entered for the next chip.
+ * @returns The next chip list (a copy when the token was blank or a duplicate).
+ */
+export const addChip = (list: readonly string[], token: string): string[] => {
+    const trimmed = token.trim();
+
+    if (trimmed === '' || list.some((existing) => existing.toLowerCase() === trimmed.toLowerCase())) {
+        return [...list];
+    }
+
+    return [...list, trimmed];
+};
+
+/**
+ * Remove the chip at `index` from a chip `list`. Out-of-range indices are a no-op copy. Pure — the
+ * {@link import('./ChipInput.js').ChipInput} control's remove-chip transition (U6).
+ *
+ * @param list - The current chip list.
+ * @param index - The zero-based chip index to remove.
+ * @returns The next chip list with that chip removed.
+ */
+export const removeChipAt = (list: readonly string[], index: number): string[] => list.filter((_, i) => i !== index);
 
 /**
  * The localized label for an ingredient line's resolution status. Pure — the single mapping from a

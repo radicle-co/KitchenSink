@@ -13,7 +13,7 @@
  */
 import 'reflect-metadata';
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -201,10 +201,13 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-        // Apply the FULL ordered migration set — including 0002 (CR-002/U1 fetch_requesters `sub`→
-        // `requester_id` rekey). The prior hardcoded 0000+0001 list predated 0002, so every seed/query on
-        // `requester_id` 500'd against the post-U1 schema.
-        for (const file of ['0000_food_schema.sql', '0001_food_fts.sql', '0002_fetch_requesters_rekey.sql']) {
+        // DISCOVER the ordered migration set — never a hardcoded list. A hardcoded list has now silently
+        // rotted TWICE (it predated 0002's `fetch_requesters` rekey, and then 0003's `food.origin`), and each
+        // time the symptom was every route 500'ing against a schema the app expects but the test never
+        // applied. Discovery makes a new `.sql` file self-applying here, exactly as the real runner does.
+        for (const file of readdirSync(migrationsDir)
+            .filter((name) => name.endsWith('.sql'))
+            .sort()) {
             await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
         }
 

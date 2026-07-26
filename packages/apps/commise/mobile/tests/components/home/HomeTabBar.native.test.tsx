@@ -5,7 +5,7 @@
  * destination is the selected tab; and activating a reachable tab routes its id.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import { renderWithProviders } from '@commise/test-utils';
@@ -77,5 +77,20 @@ describe('HomeTabBar (mobile)', () => {
 
         fireEvent.click(nutrition);
         expect(onSelect).toHaveBeenCalledWith('nutrition');
+    });
+
+    it('gives every tab — reachable and gated — a 44pt touch target (U4 / RC-3)', () => {
+        renderTabBar();
+
+        for (const tab of screen.getAllByRole('tab')) {
+            expect(window.getComputedStyle(tab).minHeight).toBe('44px');
+        }
+    });
+
+    it('renders the "coming soon" label in slate (AA), not the 1.9:1 mist (U4)', () => {
+        renderTabBar();
+
+        const mealPlan = screen.getByRole('tab', { name: `Meal Plan, ${chrome.comingSoonSuffix}` });
+        expect(window.getComputedStyle(within(mealPlan).getByText('Meal Plan')).color).toBe('rgb(99, 110, 114)');
     });
 });

@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
 
 import { mobileMessages } from '../i18n/messages.js';
 import { CollectionDetailScreen } from './CollectionDetailScreen.js';
@@ -245,13 +246,14 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: palette.sand },
     tabBar: {
         flexDirection: 'row',
-        gap: 8,
-        paddingHorizontal: 16,
-        paddingBottom: 8,
+        gap: nativeTokens.spacing[2],
+        paddingHorizontal: nativeTokens.spacing[4],
+        paddingBottom: nativeTokens.spacing[2],
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(178, 190, 195, 0.3)',
+        borderBottomColor: nativeTokens.borderSubtle,
     },
-    tab: { paddingVertical: 8, paddingHorizontal: 4, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+    // The recipe tabs are a 44pt touch target (RC-3); the underline sits at the tab's foot.
+    tab: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[1], borderBottomWidth: 2, borderBottomColor: 'transparent' },
     tabSelected: { borderBottomColor: palette.seafoam },
     tabLabel: { fontSize: 15, fontWeight: '500', color: palette.slate },
     tabLabelSelected: { color: palette.seafoam, fontWeight: '600' },

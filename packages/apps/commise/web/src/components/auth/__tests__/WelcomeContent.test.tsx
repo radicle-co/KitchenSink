@@ -4,6 +4,7 @@
  * into sign-up; and that the "Sign in" link targets sign-in — all from localized props (no hard-coded copy).
  */
 import { render, screen } from '@testing-library/react';
+import type { Route } from 'next';
 import { describe, expect, it } from 'vitest';
 
 import { WelcomeContent } from '../WelcomeContent';
@@ -20,7 +21,13 @@ const messages = {
 
 function renderWelcome() {
     return render(
-        <WelcomeContent messages={messages} signUpHref={'/en/sign-up'} signInHref={'/en/sign-in'} />,
+        // Cast to the typed-routes `Route` as the real page does — a bare string literal is not assignable
+        // to Next's `Route` under `typedRoutes` unless the route manifest has been regenerated.
+        <WelcomeContent
+            messages={messages}
+            signUpHref={'/en/sign-up' as Route}
+            signInHref={'/en/sign-in' as Route}
+        />,
     );
 }
 

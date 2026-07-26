@@ -11,6 +11,8 @@ import { Feather } from '@expo/vector-icons';
 import type { FC, ReactElement, ReactNode } from 'react';
 import { StyleSheet, Switch, Text, TextInput, View, Pressable } from 'react-native';
 
+import { ChipInput } from './ChipInput.native.js';
+import { CuisineSelect } from './CuisineSelect.native.js';
 import { fillTemplate } from '../list/model.js';
 import {
     computeTotalTime,
@@ -23,9 +25,7 @@ import { recipeFormMessages } from './messages.js';
 import {
     addIngredient,
     addStep,
-    cuisineOptions,
     difficultyOptions,
-    parseCommaList,
     parseNumericInput,
     removeIngredientAt,
     removeStepAt,
@@ -103,31 +103,7 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                     })}
                 </Text>
             </Field>
-            <View style={styles.field}>
-                <Text style={styles.fieldLabel}>{m.cuisineLabel}</Text>
-                <View role="radiogroup" aria-label={m.cuisineLabel} style={styles.difficultyRow}>
-                    {cuisineOptions(values.cuisine, m).map((option) => {
-                        const selected = values.cuisine === option.value;
-
-                        return (
-                            <Pressable
-                                key={option.value}
-                                role="radio"
-                                aria-label={option.label}
-                                aria-checked={selected}
-                                onPress={() => onChange({ ...values, cuisine: option.value })}
-                                style={[styles.difficultyChip, selected && styles.difficultyChipSelected]}
-                            >
-                                <Text
-                                    style={[styles.difficultyChipLabel, selected && styles.difficultyChipLabelSelected]}
-                                >
-                                    {option.label}
-                                </Text>
-                            </Pressable>
-                        );
-                    })}
-                </View>
-            </View>
+            <CuisineSelect value={values.cuisine} onChange={(cuisine) => onChange({ ...values, cuisine })} />
             <View style={styles.field}>
                 <Text style={styles.fieldLabel}>{m.difficultyLabel}</Text>
                 <View role="radiogroup" aria-label={m.difficultyLabel} style={styles.difficultyRow}>
@@ -153,26 +129,20 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                     })}
                 </View>
             </View>
-            <Field label={m.tagsLabel}>
-                <TextInput
-                    accessibilityLabel={m.tagsLabel}
-                    placeholder={m.tagsHint}
-                    placeholderTextColor={palette.mist}
-                    value={values.tags.join(', ')}
-                    onChangeText={(text) => onChange({ ...values, tags: parseCommaList(text) })}
-                    style={styles.input}
-                />
-            </Field>
-            <Field label={m.dietaryFlagsLabel}>
-                <TextInput
-                    accessibilityLabel={m.dietaryFlagsLabel}
-                    placeholder={m.tagsHint}
-                    placeholderTextColor={palette.mist}
-                    value={values.dietaryFlags.join(', ')}
-                    onChangeText={(text) => onChange({ ...values, dietaryFlags: parseCommaList(text) })}
-                    style={styles.input}
-                />
-            </Field>
+            <ChipInput
+                label={m.tagsLabel}
+                values={values.tags}
+                onChange={(tags) => onChange({ ...values, tags })}
+                placeholder={m.tagsHint}
+                removeChipLabel={m.removeChipLabel}
+            />
+            <ChipInput
+                label={m.dietaryFlagsLabel}
+                values={values.dietaryFlags}
+                onChange={(dietaryFlags) => onChange({ ...values, dietaryFlags })}
+                placeholder={m.tagsHint}
+                removeChipLabel={m.removeChipLabel}
+            />
             <Field label={m.servingsLabel}>
                 <TextInput
                     accessibilityLabel={m.servingsLabel}
@@ -189,28 +159,35 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                     {m.errors[errors.servings]}
                 </Text>
             )}
-            <Field label={m.prepTimeLabel}>
-                <TextInput
-                    accessibilityLabel={m.prepTimeLabel}
-                    aria-invalid={timesInvalid || undefined}
-                    aria-describedby={timesInvalid ? timesErrorId : undefined}
-                    keyboardType="numeric"
-                    value={String(values.prepTimeMinutes)}
-                    onChangeText={(text) => onChange({ ...values, prepTimeMinutes: parseNumericInput(text) })}
-                    style={styles.input}
-                />
-            </Field>
-            <Field label={m.cookTimeLabel}>
-                <TextInput
-                    accessibilityLabel={m.cookTimeLabel}
-                    aria-invalid={timesInvalid || undefined}
-                    aria-describedby={timesInvalid ? timesErrorId : undefined}
-                    keyboardType="numeric"
-                    value={String(values.cookTimeMinutes)}
-                    onChangeText={(text) => onChange({ ...values, cookTimeMinutes: parseNumericInput(text) })}
-                    style={styles.input}
-                />
-            </Field>
+            {/* Prep + cook grouped on one row (U6 — de-densify the step-1 pile). */}
+            <View style={styles.timesRow}>
+                <View style={styles.timeCol}>
+                    <Field label={m.prepTimeLabel}>
+                        <TextInput
+                            accessibilityLabel={m.prepTimeLabel}
+                            aria-invalid={timesInvalid || undefined}
+                            aria-describedby={timesInvalid ? timesErrorId : undefined}
+                            keyboardType="numeric"
+                            value={String(values.prepTimeMinutes)}
+                            onChangeText={(text) => onChange({ ...values, prepTimeMinutes: parseNumericInput(text) })}
+                            style={styles.input}
+                        />
+                    </Field>
+                </View>
+                <View style={styles.timeCol}>
+                    <Field label={m.cookTimeLabel}>
+                        <TextInput
+                            accessibilityLabel={m.cookTimeLabel}
+                            aria-invalid={timesInvalid || undefined}
+                            aria-describedby={timesInvalid ? timesErrorId : undefined}
+                            keyboardType="numeric"
+                            value={String(values.cookTimeMinutes)}
+                            onChangeText={(text) => onChange({ ...values, cookTimeMinutes: parseNumericInput(text) })}
+                            style={styles.input}
+                        />
+                    </Field>
+                </View>
+            </View>
             {errors?.times !== undefined && (
                 <Text id={timesErrorId} accessibilityRole="alert" style={styles.error}>
                     {m.errors[errors.times]}
@@ -235,6 +212,11 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
     const ingredientRows: ReactElement[] = values.ingredients.map((line, index) => {
         const number = index + 1;
         const calories = lineCalories(line);
+        // U6 (data-integrity): a RESOLVED line (`ingredientId` set) binds its name to the food supplying the
+        // calories — render it READ-ONLY (`editable={false}`); identity changes only by re-picking. Only an
+        // UNRESOLVED line still edits its name inline (the freeform search text), so `nameInvalid` can only
+        // apply to that editable branch. See the web leaf for the shared rationale.
+        const resolved = line.ingredientId !== null;
         const nameInvalid = ingredientsInvalid && line.ingredientId === null;
         const quantityInvalid = ingredientsInvalid && line.quantity <= 0;
 
@@ -242,11 +224,14 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
             <View key={index} style={styles.row}>
                 <TextInput
                     accessibilityLabel={fillTemplate(m.ingredientNameLabel, { number })}
+                    editable={!resolved}
                     aria-invalid={nameInvalid || undefined}
                     aria-describedby={nameInvalid ? ingredientsErrorId : undefined}
                     value={line.name}
-                    onChangeText={(text) => onChange(updateIngredientAt(values, index, { name: text }))}
-                    style={[styles.input, styles.rowGrow]}
+                    onChangeText={
+                        resolved ? undefined : (text) => onChange(updateIngredientAt(values, index, { name: text }))
+                    }
+                    style={[styles.input, styles.rowGrow, resolved && styles.inputReadOnly]}
                 />
                 <TextInput
                     accessibilityLabel={fillTemplate(m.ingredientQuantityLabel, { number })}
@@ -435,6 +420,9 @@ const styles = StyleSheet.create({
         color: palette.charcoal,
     },
     multiline: { minHeight: 88, textAlignVertical: 'top' },
+    inputReadOnly: { backgroundColor: palette.pearl },
+    timesRow: { flexDirection: 'row', gap: 12 },
+    timeCol: { flex: 1 },
     difficultyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     difficultyChip: {
         borderRadius: 999,

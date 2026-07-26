@@ -46,8 +46,12 @@ export interface RecipeFormMessages {
     readonly difficultyNotStated: string;
     /** Accessible label for the tags field. */
     readonly tagsLabel: string;
-    /** Hint explaining the comma-separated entry for tags. */
+    /** Placeholder/hint for the tags + dietary chip inputs — explains the type-and-enter entry (U6). */
     readonly tagsHint: string;
+    /** Accessible label template for a chip's remove control (contains `{value}`; U6). */
+    readonly removeChipLabel: string;
+    /** Accessible label template for the native chip input's Add control (contains `{field}`; U6). */
+    readonly addChipLabel: string;
     /** Accessible label for the dietary-flags field. */
     readonly dietaryFlagsLabel: string;
     /** Accessible label for the servings field. */
@@ -147,7 +151,9 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         difficultyHard: 'Hard',
         difficultyNotStated: 'Not stated',
         tagsLabel: 'Tags',
-        tagsHint: 'Separate tags with commas',
+        tagsHint: 'Type and press Enter',
+        removeChipLabel: 'Remove {value}',
+        addChipLabel: 'Add {field}',
         dietaryFlagsLabel: 'Dietary flags',
         servingsLabel: 'Servings',
         prepTimeLabel: 'Prep time (minutes)',

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
+import { AppShell } from '@/components/app/AppShell';
 import { RecipeDetailContainer } from '@/components/recipes/RecipeDetailContainer';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
@@ -41,9 +42,13 @@ export default async function RecipeDetailPage({
 
     await queryClient.prefetchQuery(recipeQueries(client).detail(id));
 
+    // L9: the detail surface renders inside the shared app nav shell with `recipes` active — on mobile web,
+    // opening a recipe previously removed the bottom tab bar entirely.
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
-            <RecipeDetailContainer id={id} />
+            <AppShell activeId="recipes">
+                <RecipeDetailContainer id={id} />
+            </AppShell>
         </HydrationBoundary>
     );
 }

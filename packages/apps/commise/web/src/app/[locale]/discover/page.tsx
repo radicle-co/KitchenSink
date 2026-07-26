@@ -7,6 +7,7 @@ import { filtersFromQueryString, filtersToSearchParams } from '@commise/features
 import { RecipeServiceClient, recipeQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
+import { AppShell } from '@/components/app/AppShell';
 import { RecipeDiscoveryContainer } from '@/components/recipes/RecipeDiscoveryContainer';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
@@ -83,11 +84,17 @@ export default async function DiscoverPage({
 
     // The container reads the search criteria from the URL via `useSearchParams()`, which requires a Suspense
     // boundary during pre-render.
+    //
+    // L9: discovery renders inside the shared app nav shell. It is a recipe-domain surface, so `recipes` is the
+    // active destination (the shared nav model has no separate discovery entry). The shell sits OUTSIDE the
+    // Suspense boundary, so the chrome is present while the search results stream in — never a bare fallback.
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
-            <Suspense>
-                <RecipeDiscoveryContainer locale={locale} />
-            </Suspense>
+            <AppShell activeId="recipes">
+                <Suspense>
+                    <RecipeDiscoveryContainer locale={locale} />
+                </Suspense>
+            </AppShell>
         </HydrationBoundary>
     );
 }

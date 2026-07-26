@@ -26,12 +26,17 @@ import { ErrorBoundary } from 'react-error-boundary';
 
 import { RootErrorFallback } from '../components/RootErrorFallback.js';
 import { homeContainer } from '../components/home/homeContainer.js';
+import { AccountSettingsScreen } from './AccountSettings.js';
 import { HomeScreen } from './HomeScreen.js';
 import { ProfileScreen } from './profile.js';
 import { RecipesScreen } from './RecipesScreen.js';
 
-/** The top-level destinations reachable from the post-login landing. */
-type RootDestination = 'home' | 'recipes' | 'profile';
+/**
+ * The top-level destinations reachable from the post-login landing. `account` is the account hub
+ * (security + sign-out + danger zone); it is entered from the profile surface's "Account settings" action —
+ * WITHOUT it, `AccountSettingsScreen` (and the only sign-out control) would be unreachable (audit L2).
+ */
+type RootDestination = 'home' | 'recipes' | 'profile' | 'account';
 
 /** The DA9 reporter resolved once from the shared appShell container (bound to Sentry in production). */
 const reportRootError = resolveErrorReporter(homeContainer);
@@ -50,7 +55,9 @@ export function AppRoot(): JSX.Element {
     if (destination === 'recipes') {
         content = <RecipesScreen />;
     } else if (destination === 'profile') {
-        content = <ProfileScreen />;
+        content = <ProfileScreen onOpenAccountSettings={() => setDestination('account')} />;
+    } else if (destination === 'account') {
+        content = <AccountSettingsScreen onBack={() => setDestination('profile')} />;
     } else {
         content = (
             <HomeScreen

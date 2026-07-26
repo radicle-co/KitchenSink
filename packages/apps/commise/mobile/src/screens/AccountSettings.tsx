@@ -1,47 +1,100 @@
 /**
- * @module screens/AccountSettings — the mobile account-settings surface (security + danger zone).
+ * @module screens/AccountSettings — the mobile account hub (security + sign-out + danger zone), U2 rebuild.
  *
- * The destructive controls come from the shared {@link AccountDangerZone}, which presents CLOSE (recoverable)
- * and ERASE (irreversible) as two DISTINCT actions — replacing this screen's earlier single "Delete account"
- * button whose copy wrongly claimed the recoverable closure "permanently deletes your account and data" (the
- * exact conflation CR-002 / U4b fixes).
+ * Reachable from the profile surface's "Account settings" action ({@link import('./AppRoot.js').AppRoot}
+ * wires it as a top-level destination). It is the single home for account-level actions: the signed-in
+ * identity, the IdP-hosted security note, SIGN OUT, and the shared {@link AccountDangerZone} — which presents
+ * CLOSE (recoverable) and ERASE (irreversible) as two DISTINCT actions through the design-system
+ * `ConfirmDialog` (CR-002 / U4b), never the earlier conflated single "delete" button.
+ *
+ * On the design system now: the sign-out/back controls are `@commise/ui` {@link Button}s, all copy comes
+ * from `mobileMessages`, and the surface is wrapped in a `SafeAreaView`.
  */
 import { useAuth, useUser } from '@clerk/expo';
+import { Button } from '@commise/ui/button';
+import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
+import { useMessages } from '@commise/i18n/react';
+import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AccountDangerZone } from '../components/account/AccountDangerZone';
+import { AccountDangerZone } from '../components/account/AccountDangerZone.js';
+import { mobileMessages } from '../i18n/messages.js';
 
-export function AccountSettingsScreen(): JSX.Element {
+/** Props for {@link AccountSettingsScreen}. */
+export interface AccountSettingsScreenProps {
+    /** When provided, renders a back affordance returning to the profile surface. */
+    readonly onBack?: () => void;
+}
+
+export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps = {}): JSX.Element {
+    const { account: t } = useMessages(mobileMessages);
     const { signOut } = useAuth();
     const { user } = useUser();
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.heading}>Account</Text>
-            <Text style={styles.body}>{user?.primaryEmailAddress?.emailAddress ?? 'Signed in'}</Text>
+        <SafeAreaView style={styles.safe}>
+            <ScrollView contentContainerStyle={styles.container}>
+                {onBack ? (
+                    <View style={styles.backRow}>
+                        <Button
+                            variant="secondary"
+                            icon={<Feather name="arrow-left" size={16} color={palette.charcoal} />}
+                            onPress={onBack}
+                        >
+                            {t.backAction}
+                        </Button>
+                    </View>
+                ) : null}
 
-            <View style={styles.section}>
-                <Text style={styles.heading}>Security</Text>
-                <Text style={styles.body}>
-                    Manage your password, MFA, and linked social accounts from the IdP-hosted user profile.
-                </Text>
-            </View>
+                <Text style={styles.heading}>{t.heading}</Text>
+                <Text style={styles.body}>{user?.primaryEmailAddress?.emailAddress ?? t.signedInFallback}</Text>
 
-            <View style={styles.section}>
-                <Button title="Sign out" onPress={() => signOut()} />
-            </View>
+                <View style={styles.section}>
+                    <Text style={styles.sectionHeading}>{t.securityHeading}</Text>
+                    <Text style={styles.body}>{t.securityBody}</Text>
+                </View>
 
-            <View style={styles.section}>
-                <AccountDangerZone />
-            </View>
-        </View>
+                <View style={styles.section}>
+                    <Button
+                        variant="secondary"
+                        icon={<Feather name="log-out" size={16} color={palette.charcoal} />}
+                        onPress={() => void signOut()}
+                    >
+                        {t.signOutAction}
+                    </Button>
+                </View>
+
+                <View style={styles.section}>
+                    <AccountDangerZone />
+                </View>
+            </ScrollView>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 24 },
-    heading: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
-    body: { fontSize: 14, color: '#555', marginBottom: 8 },
-    section: { marginTop: 24 },
+    safe: { flex: 1, backgroundColor: palette.sand },
+    container: {
+        flexGrow: 1,
+        gap: nativeTokens.spacing[3],
+        paddingHorizontal: nativeTokens.spacing[5],
+        paddingVertical: nativeTokens.spacing[6],
+    },
+    backRow: { alignItems: 'flex-start' },
+    heading: {
+        fontSize: nativeTokens.fontSize.displayMd,
+        fontWeight: '700',
+        color: palette.charcoal,
+    },
+    sectionHeading: {
+        fontSize: nativeTokens.fontSize.headingMd,
+        fontWeight: '600',
+        color: palette.charcoal,
+        marginBottom: nativeTokens.spacing[1],
+    },
+    body: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
+    section: { marginTop: nativeTokens.spacing[4] },
 });

@@ -1,14 +1,34 @@
+/**
+ * @module screens/login — the mobile sign-in surface (U2 rebuild).
+ *
+ * A custom Clerk sign-in form (the app ships its own UI, not Clerk's hosted screens) built on the design
+ * system: the `@commise/ui` {@link Button} (with its real `busy` spinner) + tokenized {@link Input}, all copy
+ * from `mobileMessages` (no hard-coded English), every field label associated for assistive tech, and the
+ * form wrapped in a `SafeAreaView` + `KeyboardAvoidingView` so the keyboard never occludes the inputs. It
+ * mirrors the web `<SignIn>` flow the custom form must otherwise reproduce: `signIn.create` →
+ * `signIn.password`, and — when the instance requires new-device verification — an email-code step
+ * (`sendCode` → a `oneTimeCode` field → `verifyCode`) before `setActive`.
+ */
 import { useClerk, useSignIn } from '@clerk/expo';
+import { Button } from '@commise/ui/button';
+import { Input } from '@commise/ui/input';
+import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
+import { useMessages } from '@commise/i18n/react';
+import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { ActivityIndicator } from 'react-native';
-import { Button, Input, SizableText, YStack } from 'tamagui';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { mobileMessages } from '../i18n/messages.js';
 
 export interface LoginScreenProps {
     onSignUp: () => void;
 }
 
 export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
+    const { auth: t } = useMessages(mobileMessages);
     const { setActive } = useClerk();
     const { signIn } = useSignIn();
     const [email, setEmail] = useState('');
@@ -37,7 +57,7 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
             const sendResult = await signIn.emailCode.sendCode({ emailAddress: email });
 
             if (sendResult.error) {
-                setError(sendResult.error.message ?? 'Could not send a verification code');
+                setError(sendResult.error.message ?? t.sendCodeFailed);
 
                 return false;
             }
@@ -48,7 +68,7 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
             return false;
         }
 
-        setError('Additional verification required');
+        setError(t.additionalVerification);
 
         return false;
     }
@@ -68,7 +88,7 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
                 setError(
                     typeof createResult.error === 'string'
                         ? createResult.error
-                        : (createResult.error.message ?? 'Sign-in failed'),
+                        : (createResult.error.message ?? t.signInFailed),
                 );
 
                 return;
@@ -83,7 +103,7 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
                     setError(
                         typeof pwResult.error === 'string'
                             ? pwResult.error
-                            : (pwResult.error.message ?? 'Sign-in failed'),
+                            : (pwResult.error.message ?? t.signInFailed),
                     );
 
                     return;
@@ -92,7 +112,7 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
 
             await resolveStatus();
         } catch (e) {
-            setError(e instanceof Error ? e.message : 'Sign-in failed');
+            setError(e instanceof Error && e.message ? e.message : t.signInFailed);
         } finally {
             setBusy(false);
         }
@@ -110,119 +130,128 @@ export function LoginScreen({ onSignUp }: LoginScreenProps): JSX.Element {
             const result = await signIn.emailCode.verifyCode({ code });
 
             if (result.error) {
-                setError(result.error.message ?? 'Verification failed');
+                setError(result.error.message ?? t.verifyFailed);
 
                 return;
             }
 
             await resolveStatus();
         } catch (e) {
-            setError(e instanceof Error ? e.message : 'Verification failed');
+            setError(e instanceof Error && e.message ? e.message : t.verifyFailed);
         } finally {
             setBusy(false);
         }
     }
 
+    const onCredentials = step === 'credentials';
+
     return (
-        <YStack flex={1} justifyContent="center" backgroundColor="$background" padding="$5" gap="$4">
-            <SizableText
-                fontFamily="$heading"
-                fontSize={36}
-                fontWeight="700"
-                color="$color"
-                textAlign="center"
-                marginBottom="$3"
-            >
-                Commise
-            </SizableText>
+        <SafeAreaView style={styles.safe}>
+            <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+                    <Text style={styles.brand}>{t.brand}</Text>
 
-            {step === 'credentials' ? (
-                <YStack gap="$3">
-                    <Input
-                        placeholder="Email"
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                        value={email}
-                        onChangeText={setEmail}
-                        borderColor="$borderColor"
-                        borderWidth={1}
-                        borderRadius="$2"
-                        padding="$3"
-                        fontSize={16}
-                        backgroundColor="white"
-                        color="$color"
-                    />
-                    <Input
-                        placeholder="Password"
-                        secureTextEntry
-                        value={password}
-                        onChangeText={setPassword}
-                        borderColor="$borderColor"
-                        borderWidth={1}
-                        borderRadius="$2"
-                        padding="$3"
-                        fontSize={16}
-                        backgroundColor="white"
-                        color="$color"
-                    />
-                </YStack>
-            ) : (
-                <YStack gap="$3">
-                    <SizableText color="$color" fontSize={14} textAlign="center">
-                        Enter the verification code sent to your email.
-                    </SizableText>
-                    <Input
-                        placeholder="Verification code"
-                        keyboardType="number-pad"
-                        value={code}
-                        onChangeText={setCode}
-                        borderColor="$borderColor"
-                        borderWidth={1}
-                        borderRadius="$2"
-                        padding="$3"
-                        fontSize={16}
-                        backgroundColor="white"
-                        color="$color"
-                    />
-                </YStack>
-            )}
+                    {onCredentials ? (
+                        <View style={styles.fields}>
+                            <Input
+                                label={t.emailLabel}
+                                placeholder={t.emailPlaceholder}
+                                value={email}
+                                onChangeText={setEmail}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoComplete="email"
+                                textContentType="emailAddress"
+                                returnKeyType="next"
+                            />
+                            <Input
+                                label={t.passwordLabel}
+                                placeholder={t.passwordPlaceholder}
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry
+                                autoComplete="password"
+                                textContentType="password"
+                                returnKeyType="go"
+                                onSubmitEditing={() => void handleSignIn()}
+                            />
+                        </View>
+                    ) : (
+                        <View style={styles.fields}>
+                            <Text style={styles.prompt}>{t.codePrompt}</Text>
+                            <Input
+                                label={t.codeLabel}
+                                placeholder={t.codePlaceholder}
+                                value={code}
+                                onChangeText={setCode}
+                                keyboardType="number-pad"
+                                autoComplete="one-time-code"
+                                textContentType="oneTimeCode"
+                                returnKeyType="done"
+                                onSubmitEditing={() => void handleVerifyCode()}
+                            />
+                        </View>
+                    )}
 
-            {error ? (
-                <SizableText color="$destructive" fontSize={14} textAlign="center">
-                    {error}
-                </SizableText>
-            ) : null}
+                    {error ? (
+                        <Text role="alert" style={styles.error}>
+                            {error}
+                        </Text>
+                    ) : null}
 
-            {busy ? (
-                <ActivityIndicator color="#5BA8A0" />
-            ) : (
-                <Button
-                    onPress={step === 'credentials' ? handleSignIn : handleVerifyCode}
-                    disabled={!signIn || busy}
-                    backgroundColor="$primary"
-                    color="white"
-                    borderRadius="$5"
-                    padding="$3"
-                    fontSize={16}
-                    fontWeight="600"
-                    pressStyle={{ backgroundColor: '#3D8B85' }}
-                >
-                    {step === 'credentials' ? 'Sign in' : 'Verify'}
-                </Button>
-            )}
+                    <Button
+                        icon={<Feather name={onCredentials ? 'log-in' : 'check'} size={16} color={palette.white} />}
+                        busy={busy}
+                        disabled={!signIn}
+                        onPress={() => void (onCredentials ? handleSignIn() : handleVerifyCode())}
+                    >
+                        {onCredentials ? t.signInAction : t.verifyAction}
+                    </Button>
 
-            <Button
-                onPress={onSignUp}
-                backgroundColor="transparent"
-                color="rgba(0,0,0,0.5)"
-                fontSize={14}
-                pressStyle={{ opacity: 0.8 }}
-            >
-                Don't have an account?{' '}
-                <SizableText color="rgba(0,0,0,0.7)" fontSize={14} fontWeight="600">
-                    Sign up
-                </SizableText>
-            </Button>
-        </YStack>
+                    <View style={styles.toggle}>
+                        <Text style={styles.togglePrompt}>{t.noAccountPrompt}</Text>
+                        <Button
+                            variant="secondary"
+                            icon={<Feather name="user-plus" size={16} color={palette.charcoal} />}
+                            onPress={onSignUp}
+                        >
+                            {t.signUpLink}
+                        </Button>
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 }
+
+const styles = StyleSheet.create({
+    safe: { flex: 1, backgroundColor: palette.sand },
+    flex: { flex: 1 },
+    container: {
+        flexGrow: 1,
+        justifyContent: 'center',
+        gap: nativeTokens.spacing[4],
+        paddingHorizontal: nativeTokens.spacing[5],
+        paddingVertical: nativeTokens.spacing[6],
+    },
+    brand: {
+        fontSize: nativeTokens.fontSize.displayLg,
+        fontWeight: '700',
+        color: palette.charcoal,
+        textAlign: 'center',
+        marginBottom: nativeTokens.spacing[3],
+    },
+    fields: { gap: nativeTokens.spacing[3] },
+    prompt: {
+        fontSize: nativeTokens.fontSize.bodySm,
+        color: palette.slate,
+        textAlign: 'center',
+    },
+    error: {
+        fontSize: nativeTokens.fontSize.bodySm,
+        color: palette.error,
+        textAlign: 'center',
+    },
+    toggle: { alignItems: 'center', gap: nativeTokens.spacing[2] },
+    togglePrompt: { fontSize: nativeTokens.fontSize.bodySm, color: palette.slate },
+});

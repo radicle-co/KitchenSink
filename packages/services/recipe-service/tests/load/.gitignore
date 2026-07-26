@@ -1,0 +1,4 @@
+# Runtime artifacts minted by prepare-erasure-tokens.ts before a k6 run — never committed (fresh keypair
+# + short-lived, single-target tokens per run).
+erasure-tokens.json
+erasure-public-key.pem

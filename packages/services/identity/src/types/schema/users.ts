@@ -27,6 +27,9 @@ export const users = pgTable(
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
         deletedAt: timestamp('deleted_at', { withTimezone: true }),
+        // CR-002 R7: set once the erasure-completion sweep verifies both legs jointly complete (migration
+        // 0012). Kept in lockstep with the authoritative `@kitchensink/identity-db` users schema.
+        reconciledAt: timestamp('reconciled_at', { withTimezone: true }),
     },
     (table) => [uniqueIndex('users_email_unique').on(table.email), index('users_email_idx').on(table.email)],
 );

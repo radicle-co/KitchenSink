@@ -201,7 +201,10 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-        for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
+        // Apply the FULL ordered migration set — including 0002 (CR-002/U1 fetch_requesters `sub`→
+        // `requester_id` rekey). The prior hardcoded 0000+0001 list predated 0002, so every seed/query on
+        // `requester_id` 500'd against the post-U1 schema.
+        for (const file of ['0000_food_schema.sql', '0001_food_fts.sql', '0002_fetch_requesters_rekey.sql']) {
             await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
         }
 

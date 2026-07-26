@@ -122,7 +122,8 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             try {
                 const result = await runMigrations({ pool: perPrPool, migrationsDir: sourceMigrationsDir });
 
-                expect(result.applied).toEqual(['0000_food_schema', '0001_food_fts']);
+                // The runner discovers the full ordered set — including 0002 (CR-002/U1 requester rekey).
+                expect(result.applied).toEqual(['0000_food_schema', '0001_food_fts', '0002_fetch_requesters_rekey']);
                 expect(result.validated.tables).toBeGreaterThanOrEqual(13);
             } finally {
                 await perPrPool.end();

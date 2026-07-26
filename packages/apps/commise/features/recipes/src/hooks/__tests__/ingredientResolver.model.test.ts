@@ -8,7 +8,7 @@
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
 import { makeIngredient } from '@kitchensink/recipe-core/testing';
-import type { IngredientCandidate } from '@kitchensink/recipe-service-client';
+import type { IngredientCandidate, IngredientSuggestion } from '@kitchensink/recipe-service-client';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -19,9 +19,22 @@ import {
     meetsIngredientSearchThreshold,
     nextMatchAction,
     rankIngredientResults,
+    rankIngredientSuggestions,
+    suggestionKey,
+    suggestionName,
     toIngredientLine,
     type DeriveViewStateInput,
 } from '../ingredientResolver.model.js';
+
+/** Wrap one of the user's own catalog rows as a `local` blended suggestion. */
+function local(ingredient: Ingredient): IngredientSuggestion {
+    return { provenance: 'local', ingredient };
+}
+
+/** A food-catalog (not-yet-admitted) blended suggestion. */
+function catalog(foodId: string, name: string, score = 0.9): IngredientSuggestion {
+    return { provenance: 'catalog', foodId, name, score };
+}
 
 /**
  * A complete `deriveViewState` input with every field at its "nothing happening" default, overridable.
@@ -35,7 +48,8 @@ function baseInput(overrides: Partial<DeriveViewStateInput> = {}): DeriveViewSta
         disambiguating: null,
         trimmed: '',
         debouncedTrimmed: overrides.trimmed ?? '',
-        results: [],
+        suggestions: [],
+        catalogAvailability: 'ok',
         searchIsLoading: false,
         searchIsSuccess: false,
         searchIsError: false,
@@ -211,7 +225,7 @@ describe('deriveViewState', () => {
                     debouncedTrimmed: 'ol',
                     searchIsLoading: false,
                     searchIsSuccess: true,
-                    results: [stale],
+                    suggestions: [local(stale)],
                 }),
             ),
         ).toEqual({ kind: 'searching' });
@@ -221,22 +235,32 @@ describe('deriveViewState', () => {
         // `debouncedTrimmed` explicitly equals `trimmed` here (the debounce settled) — proves the fix does
         // not mask the REAL empty state, only the transient pending-debounce window above.
         expect(
-            deriveViewState(baseInput({ trimmed: 'zzz', debouncedTrimmed: 'zzz', searchIsSuccess: true, results: [] })),
-        ).toEqual({ kind: 'results', results: [], isSuccess: true, isError: false });
+            deriveViewState(
+                baseInput({ trimmed: 'zzz', debouncedTrimmed: 'zzz', searchIsSuccess: true, suggestions: [] }),
+            ),
+        ).toEqual({ kind: 'results', suggestions: [], catalogAvailability: 'ok', isSuccess: true, isError: false });
     });
 
     it('is idle below the 2-character trigger (REQ-057), even with a match already loaded', () => {
         const hit = makeIngredient({ id: 'ing_9', name: 'Salt' });
 
         expect(
-            deriveViewState(baseInput({ trimmed: 's', searchIsSuccess: true, searchIsLoading: true, results: [hit] })),
+            deriveViewState(
+                baseInput({
+                    trimmed: 's',
+                    searchIsSuccess: true,
+                    searchIsLoading: true,
+                    suggestions: [local(hit)],
+                }),
+            ),
         ).toEqual({ kind: 'idle' });
     });
 
     it('is results (empty) once the search settles with no matches', () => {
-        expect(deriveViewState(baseInput({ trimmed: 'zzz', searchIsSuccess: true, results: [] }))).toEqual({
+        expect(deriveViewState(baseInput({ trimmed: 'zzz', searchIsSuccess: true, suggestions: [] }))).toEqual({
             kind: 'results',
-            results: [],
+            suggestions: [],
+            catalogAvailability: 'ok',
             isSuccess: true,
             isError: false,
         });
@@ -245,11 +269,12 @@ describe('deriveViewState', () => {
     it('is results (populated) with multiple matches, even when one of them is terminal', () => {
         const resolved = makeIngredient({ id: 'ing_1', foodResolutionStatus: FoodResolutionStatus.RESOLVED });
         const notFound = makeIngredient({ id: 'ing_2', foodResolutionStatus: FoodResolutionStatus.NOT_FOUND });
-        const results = [resolved, notFound];
+        const suggestions = [local(resolved), local(notFound)];
 
-        expect(deriveViewState(baseInput({ trimmed: 'xy', searchIsSuccess: true, results }))).toEqual({
+        expect(deriveViewState(baseInput({ trimmed: 'xy', searchIsSuccess: true, suggestions }))).toEqual({
             kind: 'results',
-            results,
+            suggestions,
+            catalogAvailability: 'ok',
             isSuccess: true,
             isError: false,
         });
@@ -258,7 +283,8 @@ describe('deriveViewState', () => {
     it('is results with isError set when the search fails', () => {
         expect(deriveViewState(baseInput({ trimmed: 'oli', searchIsError: true }))).toEqual({
             kind: 'results',
-            results: [],
+            suggestions: [],
+            catalogAvailability: 'ok',
             isSuccess: false,
             isError: true,
         });
@@ -271,7 +297,9 @@ describe('deriveViewState', () => {
             foodResolutionStatus: FoodResolutionStatus.NOT_FOUND,
         });
 
-        expect(deriveViewState(baseInput({ trimmed: 'mystery', searchIsSuccess: true, results: [notFound] }))).toEqual({
+        expect(
+            deriveViewState(baseInput({ trimmed: 'mystery', searchIsSuccess: true, suggestions: [local(notFound)] })),
+        ).toEqual({
             kind: 'terminal',
             ingredient: notFound,
             status: FoodResolutionStatus.NOT_FOUND,
@@ -281,12 +309,82 @@ describe('deriveViewState', () => {
     it('is results (not terminal) for a single non-terminal match', () => {
         const resolved = makeIngredient({ id: 'ing_1', foodResolutionStatus: FoodResolutionStatus.RESOLVED });
 
-        expect(deriveViewState(baseInput({ trimmed: 'oli', searchIsSuccess: true, results: [resolved] }))).toEqual({
+        expect(
+            deriveViewState(baseInput({ trimmed: 'oli', searchIsSuccess: true, suggestions: [local(resolved)] })),
+        ).toEqual({
             kind: 'results',
-            results: [resolved],
+            suggestions: [local(resolved)],
+            catalogAvailability: 'ok',
             isSuccess: true,
             isError: false,
         });
+    });
+
+    // ── Search Stage 2 — the blended-suggestion states ───────────────────────────────────────────────
+
+    it('is results carrying BOTH sections, in the order given (local first, never interleaved)', () => {
+        const mine = makeIngredient({ id: 'ing_1', name: 'My chicken' });
+        const suggestions = [local(mine), catalog('01J0FOOD', 'Chicken breast, raw', 0.99)];
+
+        expect(deriveViewState(baseInput({ trimmed: 'chick', searchIsSuccess: true, suggestions }))).toEqual({
+            kind: 'results',
+            suggestions,
+            catalogAvailability: 'ok',
+            isSuccess: true,
+            isError: false,
+        });
+    });
+
+    it('carries a degraded catalog through as `unavailable` WITHOUT suppressing the local section (F2)', () => {
+        const mine = makeIngredient({ id: 'ing_1', name: 'My chicken' });
+
+        expect(
+            deriveViewState(
+                baseInput({
+                    trimmed: 'chick',
+                    searchIsSuccess: true,
+                    suggestions: [local(mine)],
+                    catalogAvailability: 'unavailable',
+                }),
+            ),
+        ).toEqual({
+            kind: 'results',
+            suggestions: [local(mine)],
+            catalogAvailability: 'unavailable',
+            isSuccess: true,
+            isError: false,
+        });
+    });
+
+    it('carries `disabled` through distinctly from `unavailable` (an operator switch is not an error)', () => {
+        const state = deriveViewState(
+            baseInput({ trimmed: 'chick', searchIsSuccess: true, catalogAvailability: 'disabled' }),
+        );
+
+        expect(state.kind === 'results' ? state.catalogAvailability : undefined).toBe('disabled');
+    });
+
+    it('is NEVER terminal for a lone CATALOG hit — a golden record has nutrition, not a dead end', () => {
+        // A catalog suggestion has no `foodResolutionStatus` at all; collapsing to `terminal` here would tell
+        // the user "no nutrition match" about the one row that definitely HAS nutrition.
+        const suggestions = [catalog('01J0FOOD', 'Chicken breast, raw')];
+
+        expect(deriveViewState(baseInput({ trimmed: 'chick', searchIsSuccess: true, suggestions }))).toEqual({
+            kind: 'results',
+            suggestions,
+            catalogAvailability: 'ok',
+            isSuccess: true,
+            isError: false,
+        });
+    });
+
+    it('is NOT terminal when a lone terminal local row is joined by a catalog hit (more IS on offer)', () => {
+        const notFound = makeIngredient({ id: 'ing_x', foodResolutionStatus: FoodResolutionStatus.NOT_FOUND });
+        const suggestions = [local(notFound), catalog('01J0FOOD', 'Chicken breast, raw')];
+
+        expect(deriveViewState(baseInput({ trimmed: 'chick', searchIsSuccess: true, suggestions })).kind).toBe(
+            'results',
+        );
     });
 
     it('is disambiguating while a match is being disambiguated and no resolve is in flight', () => {
@@ -405,5 +503,84 @@ describe('rankIngredientResults (REQ-057 — prefix > substring > fuzzy, alphabe
 
     it('returns an empty array unchanged', () => {
         expect(rankIngredientResults([], 'apple')).toEqual([]);
+    });
+});
+
+describe('suggestionName / suggestionKey (search Stage 2)', () => {
+    it('reads the display name from whichever provenance the suggestion has', () => {
+        expect(suggestionName(local(makeIngredient({ id: 'ing_1', name: 'My apple' })))).toBe('My apple');
+        expect(suggestionName(catalog('01J0FOOD', 'Apples, raw'))).toBe('Apples, raw');
+    });
+
+    it('namespaces the key by provenance so the two unrelated id spaces cannot collide', () => {
+        // Same underlying id string in both spaces: unprefixed keys would make React reuse one row for the
+        // other, carrying over its DOM state.
+        const collidingId = 'same-id';
+
+        expect(suggestionKey(local(makeIngredient({ id: collidingId })))).not.toBe(
+            suggestionKey(catalog(collidingId, 'Apples, raw')),
+        );
+    });
+
+    it('keys are stable for the same suggestion', () => {
+        const suggestion = catalog('01J0FOOD', 'Apples, raw');
+
+        expect(suggestionKey(suggestion)).toBe(suggestionKey(suggestion));
+    });
+});
+
+describe('rankIngredientSuggestions (REQ-057 applied WITHIN each provenance section)', () => {
+    it('ranks each section independently and keeps local before catalog', () => {
+        const prefix = local(makeIngredient({ id: 'ing_1', name: 'Apple pie spice' }));
+        const substring = local(makeIngredient({ id: 'ing_2', name: 'Pineapple' }));
+        const catalogPrefix = catalog('food_1', 'Apples, raw', 0.1);
+        const catalogSubstring = catalog('food_2', 'Crab apple', 0.99);
+
+        // Scrambled, and with catalog scores that would invert the intended order if score were used.
+        const ranked = rankIngredientSuggestions([catalogSubstring, substring, catalogPrefix, prefix], 'apple');
+
+        expect(ranked.map(suggestionKey)).toEqual(['local:ing_1', 'local:ing_2', 'catalog:food_1', 'catalog:food_2']);
+    });
+
+    it('NEVER interleaves the sections, even when a catalog hit is the better match', () => {
+        const fuzzyLocal = local(makeIngredient({ id: 'ing_z', name: 'Zucchini' }));
+        const prefixCatalog = catalog('food_1', 'Apples, raw');
+
+        // The catalog hit is a prefix match and the local row matches not at all — yet local stays first.
+        expect(rankIngredientSuggestions([fuzzyLocal, prefixCatalog], 'apple').map((s) => s.provenance)).toEqual([
+            'local',
+            'catalog',
+        ]);
+    });
+
+    it('breaks ties within a section alphabetically by display name', () => {
+        const zucchini = catalog('food_z', 'Zucchini apple', 0.9);
+        const banana = catalog('food_b', 'Banana apple', 0.9);
+
+        expect(rankIngredientSuggestions([zucchini, banana], 'apple').map(suggestionKey)).toEqual([
+            'catalog:food_b',
+            'catalog:food_z',
+        ]);
+    });
+
+    it('handles a single-section list (all local, or all catalog)', () => {
+        const onlyLocal = [local(makeIngredient({ id: 'ing_1', name: 'Apple' }))];
+        const onlyCatalog = [catalog('food_1', 'Apples, raw')];
+
+        expect(rankIngredientSuggestions(onlyLocal, 'apple')).toEqual(onlyLocal);
+        expect(rankIngredientSuggestions(onlyCatalog, 'apple')).toEqual(onlyCatalog);
+    });
+
+    it('does not mutate the input array (pure)', () => {
+        const suggestions = [catalog('food_2', 'Pineapple'), local(makeIngredient({ id: 'ing_1', name: 'Zucchini' }))];
+        const original = [...suggestions];
+
+        rankIngredientSuggestions(suggestions, 'apple');
+
+        expect(suggestions).toEqual(original);
+    });
+
+    it('returns an empty array unchanged', () => {
+        expect(rankIngredientSuggestions([], 'apple')).toEqual([]);
     });
 });

@@ -8,7 +8,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-import { useCreateIngredient, useCreateRecipe, useSearchIngredients } from '@kitchensink/recipe-service-client/hooks';
+import {
+    useAddIngredientByFood,
+    useCreateIngredient,
+    useCreateRecipe,
+    useSuggestIngredients,
+} from '@kitchensink/recipe-service-client/hooks';
 
 import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '@commise/features-recipes/hooks';
 
@@ -17,7 +22,8 @@ import { makeIngredient, makeRecipeDetail } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useCreateRecipe: vi.fn(),
-    useSearchIngredients: vi.fn(),
+    useSuggestIngredients: vi.fn(),
+    useAddIngredientByFood: vi.fn(),
     useCreateIngredient: vi.fn(),
     // The ingredient picker + editor also read the async-resolution hooks; inert idle defaults keep them in
     // the search branch (this screen never drives an UNRESOLVED disambiguation or a poll-after-add).
@@ -33,7 +39,8 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
 }));
 
 const useCreateRecipeMock = vi.mocked(useCreateRecipe);
-const useSearchIngredientsMock = vi.mocked(useSearchIngredients);
+const useSuggestIngredientsMock = vi.mocked(useSuggestIngredients);
+const useAddIngredientByFoodMock = vi.mocked(useAddIngredientByFood);
 const useCreateIngredientMock = vi.mocked(useCreateIngredient);
 
 function createRecipeMutation(
@@ -48,14 +55,28 @@ afterEach(cleanup);
 
 beforeEach(() => {
     useCreateRecipeMock.mockReset();
-    useSearchIngredientsMock.mockReset();
+    useSuggestIngredientsMock.mockReset();
+    useAddIngredientByFoodMock.mockReset();
     useCreateIngredientMock.mockReset();
     useCreateRecipeMock.mockReturnValue(createRecipeMutation());
-    useSearchIngredientsMock.mockReturnValue({
+    // Search Stage 2: the picker reads the BLENDED envelope, not a bare array. This screen only exercises the
+    // "pick one of your own ingredients" path, so the one fixture row is a `local` suggestion and the food
+    // catalog contributes nothing.
+    useSuggestIngredientsMock.mockReturnValue({
         isLoading: false,
         isError: false,
-        data: [makeIngredient({ id: 'ing_1', name: 'Olive oil' })],
-    } as unknown as ReturnType<typeof useSearchIngredients>);
+        isSuccess: true,
+        data: {
+            suggestions: [{ provenance: 'local', ingredient: makeIngredient({ id: 'ing_1', name: 'Olive oil' }) }],
+            catalogAvailability: 'ok',
+        },
+    } as unknown as ReturnType<typeof useSuggestIngredients>);
+    useAddIngredientByFoodMock.mockReturnValue({
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+        reset: vi.fn(),
+    } as unknown as ReturnType<typeof useAddIngredientByFood>);
     useCreateIngredientMock.mockReturnValue({
         mutate: vi.fn(),
         isPending: false,

@@ -21,8 +21,14 @@
 import { act, fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import type { Ingredient } from '@kitchensink/recipe-core';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
-import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import type {
+    IngredientCatalogAvailability,
+    IngredientSuggestion,
+    IngredientSuggestions,
+    RecipeServiceClient,
+} from '@kitchensink/recipe-service-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '@commise/features-recipes/hooks';
@@ -31,6 +37,24 @@ import { renderWithRecipeClient } from '@commise/test-utils';
 import { IngredientPicker } from '@/components/recipes/IngredientPicker';
 
 import { makeIngredient } from './__fixtures__/ingredientFixtures';
+
+/** Wrap the caller's own catalog rows as `local` blended suggestions (search Stage 2). */
+function own(ingredients: readonly Ingredient[]): IngredientSuggestion[] {
+    return ingredients.map((ingredient) => ({ provenance: 'local', ingredient }));
+}
+
+/** A food-catalog (not-yet-admitted) blended suggestion. */
+function fromCatalog(foodId: string, name: string, score = 0.9): IngredientSuggestion {
+    return { provenance: 'catalog', foodId, name, score };
+}
+
+/** The `GET /v1/ingredients/suggest` envelope the picker consumes. */
+function blended(
+    suggestions: readonly IngredientSuggestion[],
+    catalogAvailability: IngredientCatalogAvailability = 'ok',
+): IngredientSuggestions {
+    return { suggestions, catalogAvailability };
+}
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -59,7 +83,7 @@ describe('IngredientPicker', () => {
     it('renders a loading indicator while the search is in flight', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'searchIngredients').mockReturnValue(new Promise(() => {}));
+        vi.spyOn(client, 'suggestIngredients').mockReturnValue(new Promise(() => {}));
 
         renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
 
@@ -72,9 +96,17 @@ describe('IngredientPicker', () => {
         const user = userEvent.setup();
         const onSelect = vi.fn();
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'searchIngredients').mockResolvedValue([
-            makeIngredient({ id: 'ing_9', name: 'Olive oil', foodResolutionStatus: FoodResolutionStatus.RESOLVED }),
-        ]);
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended(
+                own([
+                    makeIngredient({
+                        id: 'ing_9',
+                        name: 'Olive oil',
+                        foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                    }),
+                ]),
+            ),
+        );
 
         renderWithRecipeClient(<IngredientPicker onSelect={onSelect} />, client);
 
@@ -92,7 +124,7 @@ describe('IngredientPicker', () => {
     it('shows an empty state and a freeform option when nothing matches', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
 
         renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
 
@@ -105,7 +137,7 @@ describe('IngredientPicker', () => {
     it('surfaces a search error', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'searchIngredients').mockRejectedValue(new Error('network down'));
+        vi.spyOn(client, 'suggestIngredients').mockRejectedValue(new Error('network down'));
 
         renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
 
@@ -124,7 +156,7 @@ describe('IngredientPicker', () => {
             foodResolutionStatus: FoodResolutionStatus.PENDING,
         });
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
         vi.spyOn(client, 'createIngredient').mockResolvedValue(created);
 
         renderWithRecipeClient(<IngredientPicker onSelect={onSelect} />, client);
@@ -143,13 +175,17 @@ describe('IngredientPicker', () => {
     it('surfaces a terminal NOT_FOUND match and still offers the freeform fallback (FR-007)', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'searchIngredients').mockResolvedValue([
-            makeIngredient({
-                id: 'ing_x',
-                name: 'Mystery spice',
-                foodResolutionStatus: FoodResolutionStatus.NOT_FOUND,
-            }),
-        ]);
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended(
+                own([
+                    makeIngredient({
+                        id: 'ing_x',
+                        name: 'Mystery spice',
+                        foodResolutionStatus: FoodResolutionStatus.NOT_FOUND,
+                    }),
+                ]),
+            ),
+        );
 
         renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
 
@@ -164,7 +200,7 @@ describe('IngredientPicker', () => {
         it('offers "Find nutrition for …" (addByName) as the PRIMARY action for a typed name', async () => {
             const user = userEvent.setup();
             const client = createFakeRecipeServiceClient();
-            vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+            vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
 
             renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
 
@@ -179,7 +215,7 @@ describe('IngredientPicker', () => {
             const user = userEvent.setup();
             const onSelect = vi.fn();
             const client = createFakeRecipeServiceClient();
-            vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+            vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
             const addByNameSpy = vi.spyOn(client, 'addIngredientByName').mockResolvedValue(
                 makeIngredient({
                     id: 'ing_food',
@@ -213,7 +249,7 @@ describe('IngredientPicker', () => {
             const user = userEvent.setup();
             const onSelect = vi.fn();
             const client = createFakeRecipeServiceClient();
-            vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+            vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
             vi.spyOn(client, 'addIngredientByName').mockResolvedValue(
                 makeIngredient({ id: 'ing_u', name: 'Pepper', foodResolutionStatus: FoodResolutionStatus.UNRESOLVED }),
             );
@@ -234,7 +270,7 @@ describe('IngredientPicker', () => {
         it('surfaces an addByName failure and keeps the freeform fallback available', async () => {
             const user = userEvent.setup();
             const client = createFakeRecipeServiceClient();
-            vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+            vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
             vi.spyOn(client, 'addIngredientByName').mockRejectedValue(new Error('network down'));
 
             renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
@@ -257,9 +293,17 @@ describe('IngredientPicker', () => {
 
         /** Stubs the client's search to return a single UNRESOLVED match named "Quinoa". */
         function searchWithUnresolved(client: RecipeServiceClient): void {
-            vi.spyOn(client, 'searchIngredients').mockResolvedValue([
-                makeIngredient({ id: 'ing_u', name: 'Quinoa', foodResolutionStatus: FoodResolutionStatus.UNRESOLVED }),
-            ]);
+            vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+                blended(
+                    own([
+                        makeIngredient({
+                            id: 'ing_u',
+                            name: 'Quinoa',
+                            foodResolutionStatus: FoodResolutionStatus.UNRESOLVED,
+                        }),
+                    ]),
+                ),
+            );
         }
 
         it('opens the disambiguation panel (candidates), and does NOT resolve the line yet', async () => {
@@ -401,7 +445,7 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
 
     it('never calls the search endpoint below the 2-character trigger', async () => {
         const client = createFakeRecipeServiceClient();
-        const searchSpy = vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+        const searchSpy = vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
 
         renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
 
@@ -422,7 +466,7 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
     // invite a premature freeform-add click before the real search has even fired).
     it('shows the searching status — not the empty/create-freeform flash — the instant the query crosses the threshold, before the debounce settles', async () => {
         const client = createFakeRecipeServiceClient();
-        const searchSpy = vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+        const searchSpy = vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
 
         renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
 
@@ -452,7 +496,7 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
 
     it('debounces rapid keystrokes into exactly ONE search call, on the settled (final) query', async () => {
         const client = createFakeRecipeServiceClient();
-        const searchSpy = vi.spyOn(client, 'searchIngredients').mockResolvedValue([]);
+        const searchSpy = vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
         const input = () => screen.getByRole('searchbox', { name: 'Search ingredients' });
 
         renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
@@ -485,12 +529,16 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
         // Deliberately unordered: the picker must re-rank this, not merely display it as returned.
-        vi.spyOn(client, 'searchIngredients').mockResolvedValue([
-            makeIngredient({ id: 'ing_fuzzy', name: 'Aplpe' }), // fuzzy — neither prefix nor substring
-            makeIngredient({ id: 'ing_sub_z', name: 'Zucchini apple' }), // substring
-            makeIngredient({ id: 'ing_pre', name: 'Apple pie spice' }), // prefix
-            makeIngredient({ id: 'ing_sub_b', name: 'Banana apple' }), // substring (alphabetically first)
-        ]);
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended(
+                own([
+                    makeIngredient({ id: 'ing_fuzzy', name: 'Aplpe' }), // fuzzy — neither prefix nor substring
+                    makeIngredient({ id: 'ing_sub_z', name: 'Zucchini apple' }), // substring
+                    makeIngredient({ id: 'ing_pre', name: 'Apple pie spice' }), // prefix
+                    makeIngredient({ id: 'ing_sub_b', name: 'Banana apple' }), // substring (alphabetically first)
+                ]),
+            ),
+        );
 
         renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
 
@@ -503,5 +551,265 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
             .map((button) => button.textContent);
 
         expect(names).toEqual(['Apple pie spice', 'Banana apple', 'Zucchini apple', 'Aplpe']);
+    });
+});
+
+/**
+ * Search Stage 2 — the BLENDED, sectioned typeahead. Covers every state the two-section list adds: both
+ * sections populated, catalog-only, local-only, the degraded-catalog notice (F2), the catalog pick's admit
+ * round-trip (F1's client half), and its pending/error branches.
+ */
+describe('IngredientPicker — search Stage 2 (blended food-catalog suggestions)', () => {
+    /** Type a query and wait for the blended list to settle. */
+    async function search(user: ReturnType<typeof userEvent.setup>, query = 'chick'): Promise<void> {
+        await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), query);
+    }
+
+    it('renders the caller’s own ingredients and the food catalog as TWO labeled sections', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended([
+                ...own([makeIngredient({ id: 'ing_1', name: 'My chicken' })]),
+                fromCatalog('01J0FOOD', 'Chicken breast, raw'),
+            ]),
+        );
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await search(user);
+
+        const ownSection = await screen.findByRole('region', { name: 'Your ingredients' });
+        const catalogSection = await screen.findByRole('region', { name: 'Food catalog' });
+        expect(within(ownSection).getByRole('button', { name: 'My chicken' })).toBeInTheDocument();
+        expect(within(catalogSection).getByRole('button', { name: 'Chicken breast, raw' })).toBeInTheDocument();
+        // Provenance is legible, not implied: the catalog row is badged.
+        expect(within(catalogSection).getByText('USDA')).toBeInTheDocument();
+    });
+
+    it('renders the local section FIRST in the DOM, never interleaved with the catalog section', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended([
+                ...own([makeIngredient({ id: 'ing_1', name: 'Zzz mine' })]),
+                // Alphabetically and by score this catalog hit would sort first under any global ordering.
+                fromCatalog('01J0FOOD', 'Aaa catalog', 0.99),
+            ]),
+        );
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await search(user);
+
+        const ownSection = await screen.findByRole('region', { name: 'Your ingredients' });
+        const catalogSection = await screen.findByRole('region', { name: 'Food catalog' });
+        expect(ownSection.compareDocumentPosition(catalogSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('renders ONLY the catalog section when the caller has no matching ingredients of their own', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended([fromCatalog('01J0FOOD', 'Chicken breast, raw')]),
+        );
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await search(user);
+
+        expect(await screen.findByRole('region', { name: 'Food catalog' })).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Your ingredients' })).not.toBeInTheDocument();
+        // A lone catalog hit is NOT a dead end — no terminal notice must appear for a golden record.
+        expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    });
+
+    it('renders ONLY the local section when the food catalog returns nothing', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended(own([makeIngredient({ id: 'ing_1', name: 'My chicken' })])),
+        );
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await search(user);
+
+        expect(await screen.findByRole('region', { name: 'Your ingredients' })).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Food catalog' })).not.toBeInTheDocument();
+    });
+
+    it('picking a catalog row ADMITS it by food id and resolves the line from the admitted row', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended([fromCatalog('01J0FOOD', 'Chicken breast, raw')]),
+        );
+        const admit = vi.spyOn(client, 'addIngredientByFood').mockResolvedValue(
+            makeIngredient({
+                id: 'ing_admitted',
+                name: 'Chicken breast, raw',
+                foodId: '01J0FOOD',
+                foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                caloriesPer100g: 165,
+            }),
+        );
+        const addByName = vi.spyOn(client, 'addIngredientByName');
+
+        renderWithRecipeClient(<IngredientPicker onSelect={onSelect} />, client);
+        await search(user);
+        await user.click(await screen.findByRole('button', { name: 'Chicken breast, raw' }));
+
+        // The opaque food id is what the admit is keyed on…
+        await vi.waitFor(() => expect(admit).toHaveBeenCalledWith('01J0FOOD'));
+        // …and the line carries the ADMITTED row's ingredient id + its backfilled nutrition (F1), not a
+        // fabricated id derived from the suggestion.
+        await vi.waitFor(() =>
+            expect(onSelect).toHaveBeenCalledWith(
+                expect.objectContaining({ ingredientId: 'ing_admitted', caloriesPer100g: 165 }),
+            ),
+        );
+        // Mutation guard: the pick must NOT fall back to the by-name async fan-out.
+        expect(addByName).not.toHaveBeenCalled();
+    });
+
+    it('shows a busy indicator and disables the catalog row while the admit is in flight', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended([fromCatalog('01J0FOOD', 'Chicken breast, raw')]),
+        );
+        vi.spyOn(client, 'addIngredientByFood').mockReturnValue(new Promise(() => {}));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await search(user);
+        await user.click(await screen.findByRole('button', { name: 'Chicken breast, raw' }));
+
+        expect(await screen.findByRole('status', { name: 'Adding from the food catalog' })).toBeInTheDocument();
+        await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Chicken breast, raw' })).toBeDisabled());
+    });
+
+    it('surfaces a failed admit as an error and keeps the freeform fallback reachable (FR-007)', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended([fromCatalog('01J0FOOD', 'Chicken breast, raw')]),
+        );
+        vi.spyOn(client, 'addIngredientByFood').mockRejectedValue(new Error('food gone'));
+        vi.spyOn(client, 'createIngredient').mockResolvedValue(
+            makeIngredient({ id: 'ing_free', name: 'chick', isUserEntered: true }),
+        );
+
+        renderWithRecipeClient(<IngredientPicker onSelect={onSelect} />, client);
+        await search(user);
+        await user.click(await screen.findByRole('button', { name: 'Chicken breast, raw' }));
+
+        expect(
+            await screen.findByText('We couldn’t add that food. Try again, or add it as a custom ingredient.'),
+        ).toBeInTheDocument();
+        expect(onSelect).not.toHaveBeenCalled();
+
+        // The dead-end escape is still there.
+        await user.click(screen.getByRole('button', { name: 'Add “chick” as a custom ingredient' }));
+        await vi.waitFor(() =>
+            expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ ingredientId: 'ing_free' })),
+        );
+    });
+
+    it('picking a LOCAL row resolves immediately, with no admit round-trip', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended([
+                ...own([
+                    makeIngredient({
+                        id: 'ing_1',
+                        name: 'My chicken',
+                        foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                    }),
+                ]),
+                fromCatalog('01J0FOOD', 'Chicken breast, raw'),
+            ]),
+        );
+        const admit = vi.spyOn(client, 'addIngredientByFood');
+
+        renderWithRecipeClient(<IngredientPicker onSelect={onSelect} />, client);
+        await search(user);
+        await user.click(await screen.findByRole('button', { name: 'My chicken' }));
+
+        await vi.waitFor(() =>
+            expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ ingredientId: 'ing_1' })),
+        );
+        expect(admit).not.toHaveBeenCalled();
+    });
+
+    describe('F2 — a degraded food catalog never blocks the local section', () => {
+        it('renders the local results plus a non-blocking notice when the catalog is unavailable', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+                blended(own([makeIngredient({ id: 'ing_1', name: 'My chicken' })]), 'unavailable'),
+            );
+
+            renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+            await search(user);
+
+            expect(await screen.findByRole('button', { name: 'My chicken' })).toBeInTheDocument();
+            const notice = await screen.findByText(
+                'Showing your ingredients only — the food catalog is unavailable right now.',
+            );
+            expect(notice).toBeInTheDocument();
+            // A `status`, NOT an `alert`: from the user's side nothing failed and the list is fully usable.
+            expect(notice).toHaveAttribute('role', 'status');
+            expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        });
+
+        it('does NOT show the notice when the catalog answered normally', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+                blended(own([makeIngredient({ id: 'ing_1', name: 'My chicken' })])),
+            );
+
+            renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+            await search(user);
+
+            await screen.findByRole('button', { name: 'My chicken' });
+            expect(
+                screen.queryByText('Showing your ingredients only — the food catalog is unavailable right now.'),
+            ).not.toBeInTheDocument();
+        });
+
+        it('does NOT show the notice when the blend was deliberately DISABLED (not an incident)', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+                blended(own([makeIngredient({ id: 'ing_1', name: 'My chicken' })]), 'disabled'),
+            );
+
+            renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+            await search(user);
+
+            await screen.findByRole('button', { name: 'My chicken' });
+            expect(
+                screen.queryByText('Showing your ingredients only — the food catalog is unavailable right now.'),
+            ).not.toBeInTheDocument();
+        });
+
+        it('shows the empty state (not the notice alone) when the catalog degrades AND there are no local hits', async () => {
+            const user = userEvent.setup();
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([], 'unavailable'));
+
+            renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+            await search(user, 'zzz');
+
+            expect(await screen.findByText('No matching ingredients found.')).toBeInTheDocument();
+            expect(
+                screen.getByText('Showing your ingredients only — the food catalog is unavailable right now.'),
+            ).toBeInTheDocument();
+            // And the two escapes are still offered.
+            expect(screen.getByRole('button', { name: 'Find nutrition for “zzz”' })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Add “zzz” as a custom ingredient' })).toBeInTheDocument();
+        });
     });
 });

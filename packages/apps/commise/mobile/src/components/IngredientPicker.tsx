@@ -17,6 +17,15 @@
  * The hook's callback contract is `onResolved: (line: RecipeFormIngredient) => void`; this leaf keeps its own
  * public `onResolve` prop (its `ResolvedIngredient` shape, narrower than `RecipeFormIngredient` — no
  * `quantity`) unchanged for its existing caller (`RecipeEditor`), adapting at this boundary.
+ *
+ * **Search Stage 2 — the blended, sectioned result list.** Results are now a discriminated `local | catalog`
+ * union: the caller's own previously-used ingredients and food-catalog golden records (the USDA-seeded
+ * catalog, previously invisible to this typeahead). They render as TWO labeled sections — "Your ingredients"
+ * then "Food catalog" — never interleaved, per the command-palette pattern: the fast familiar list keeps a
+ * stable position whether or not the catalog section is present, which matters more on a small screen where a
+ * reflow can move a row out from under a thumb mid-tap. Catalog rows carry a provenance badge and cost one
+ * admit round-trip on pick (hence disabled while `addByFoodStatus.isPending`). When the food catalog is
+ * unreachable, a muted notice says so and the local section still renders in full (F2).
  */
 import { fillTemplate } from '@commise/features-recipes';
 import type { RecipeFormIngredient } from '@commise/features-recipes';
@@ -25,8 +34,9 @@ import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { PressScale } from '@commise/ui/press-scale';
 import { Feather } from '@expo/vector-icons';
+import { suggestionKey } from '@commise/features-recipes/hooks';
 import type { FoodResolutionStatus, Ingredient } from '@kitchensink/recipe-core';
-import type { IngredientCandidate } from '@kitchensink/recipe-service-client';
+import type { IngredientCandidate, IngredientSuggestion } from '@kitchensink/recipe-service-client';
 import type { JSX } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -66,6 +76,40 @@ function ResultRow({ ingredient, onPress }: { ingredient: Ingredient; onPress: (
             <View style={styles.row}>
                 <Text style={styles.rowText}>{ingredient.name}</Text>
                 <Feather name="chevron-right" size={18} color={palette.mist} />
+            </View>
+        </PressScale>
+    );
+}
+
+/**
+ * One food-CATALOG row (search Stage 2): a golden record with no `ingredients` row yet. Badged so its
+ * provenance is unmistakable, and disabled while an admit is in flight — picking it costs one round-trip
+ * before the line can resolve.
+ */
+function CatalogRow({
+    name,
+    badge,
+    disabled,
+    onPress,
+}: {
+    name: string;
+    badge: string;
+    disabled: boolean;
+    onPress: () => void;
+}): JSX.Element {
+    return (
+        <PressScale
+            accessibilityRole="button"
+            accessibilityLabel={name}
+            disabled={disabled}
+            busy={disabled}
+            onPress={onPress}
+        >
+            <View style={[styles.row, disabled && styles.actionDisabled]}>
+                <Text style={styles.rowText}>{name}</Text>
+                <View style={styles.badge}>
+                    <Text style={styles.badgeLabel}>{badge}</Text>
+                </View>
             </View>
         </PressScale>
     );
@@ -112,8 +156,10 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
         trimmed,
         viewState,
         addByNameStatus,
+        addByFoodStatus,
         createStatus,
         resolveError,
+        selectSuggestion,
         selectMatch,
         findNutrition,
         pickCandidate,
@@ -192,18 +238,29 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
         );
     }
 
-    // idle | searching | results | terminal: the single-match "terminal" kind renders exactly like a
-    // one-item results list (no distinct notice — mobile has never surfaced one; see the CP-6/P2 report).
-    let results: readonly Ingredient[] = [];
+    // idle | searching | results | terminal. The single-match "terminal" kind renders exactly like a one-item
+    // local list (no distinct notice — mobile has never surfaced one; see the CP-6/P2 report). Search Stage 2
+    // splits the `results` payload into TWO sections: the caller's own ingredients, then the food catalog,
+    // never interleaved (see the module doc).
+    let ownRows: readonly Ingredient[] = [];
+    let catalogRows: readonly Extract<IngredientSuggestion, { provenance: 'catalog' }>[] = [];
 
     if (viewState.kind === 'terminal') {
-        results = [viewState.ingredient];
+        ownRows = [viewState.ingredient];
     } else if (viewState.kind === 'results') {
-        results = viewState.results;
+        ownRows = viewState.suggestions.flatMap((suggestion) =>
+            suggestion.provenance === 'local' ? [suggestion.ingredient] : [],
+        );
+        catalogRows = viewState.suggestions.flatMap((suggestion) =>
+            suggestion.provenance === 'catalog' ? [suggestion] : [],
+        );
     }
 
     const hasQuery = trimmed.length > 0;
-    const showEmpty = viewState.kind === 'results' && results.length === 0;
+    const showEmpty = viewState.kind === 'results' && ownRows.length === 0 && catalogRows.length === 0;
+    // F2: the food catalog degraded, so only the caller's own ingredients rendered. `disabled` (an operator
+    // switch) deliberately shows nothing — it is not an incident to report to the user.
+    const showCatalogUnavailable = viewState.kind === 'results' && viewState.catalogAvailability === 'unavailable';
 
     return (
         <View accessibilityLabel={t.heading} style={styles.card}>
@@ -236,18 +293,44 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
                 </View>
             </View>
 
-            {results.length > 0 && (
-                <View style={styles.list}>
-                    {results.map((ingredient) => (
-                        <ResultRow
-                            key={ingredient.id}
-                            ingredient={ingredient}
-                            onPress={() => selectMatch(ingredient)}
-                        />
-                    ))}
+            {ownRows.length > 0 && (
+                <View accessibilityLabel={t.ownSectionTitle}>
+                    <Text accessibilityRole="header" style={styles.sectionTitle}>
+                        {t.ownSectionTitle}
+                    </Text>
+                    <View style={styles.list}>
+                        {ownRows.map((ingredient) => (
+                            <ResultRow
+                                key={ingredient.id}
+                                ingredient={ingredient}
+                                onPress={() => selectMatch(ingredient)}
+                            />
+                        ))}
+                    </View>
                 </View>
             )}
+
+            {catalogRows.length > 0 && (
+                <View accessibilityLabel={t.catalogSectionTitle}>
+                    <Text accessibilityRole="header" style={styles.sectionTitle}>
+                        {t.catalogSectionTitle}
+                    </Text>
+                    <View style={styles.list}>
+                        {catalogRows.map((suggestion) => (
+                            <CatalogRow
+                                key={suggestionKey(suggestion)}
+                                name={suggestion.name}
+                                badge={t.catalogBadge}
+                                disabled={addByFoodStatus.isPending}
+                                onPress={() => selectSuggestion(suggestion)}
+                            />
+                        ))}
+                    </View>
+                </View>
+            )}
+
             {showEmpty && <Text style={styles.muted}>{t.empty}</Text>}
+            {showCatalogUnavailable && <Text style={styles.muted}>{t.catalogUnavailable}</Text>}
 
             {hasQuery && (
                 <>
@@ -302,6 +385,12 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
                     {t.addByNameError}
                 </Text>
             )}
+            {addByFoodStatus.isPending && <Text style={styles.muted}>{t.addingFromCatalog}</Text>}
+            {addByFoodStatus.isError && (
+                <Text accessibilityRole="alert" style={styles.error}>
+                    {t.catalogAddError}
+                </Text>
+            )}
             {createStatus.isPending && <Text style={styles.muted}>{t.creating}</Text>}
         </View>
     );
@@ -319,6 +408,14 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     heading: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
+    sectionTitle: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: palette.slate,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 6,
+    },
     searchField: {
         flexDirection: 'row',
         alignItems: 'center',

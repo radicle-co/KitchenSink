@@ -219,6 +219,18 @@ export interface WebMessages {
             readonly searching: string;
             /** Empty-state copy shown when a search returns no matches. */
             readonly noMatches: string;
+            /** Heading of the "your own previously-used ingredients" section of the blended typeahead (Stage 2). */
+            readonly ownSectionTitle: string;
+            /** Heading of the food-catalog (USDA-seeded golden records) section of the blended typeahead. */
+            readonly catalogSectionTitle: string;
+            /** Provenance badge on a food-catalog row (it is not yet one of the caller's ingredients). */
+            readonly catalogBadge: string;
+            /** Non-blocking notice shown when the food catalog is unreachable and only local matches rendered (F2). */
+            readonly catalogUnavailable: string;
+            /** Accessible label for the in-flight indicator while a picked catalog row is being added. */
+            readonly addingFromCatalog: string;
+            /** Message shown when adding a picked food-catalog row fails. */
+            readonly catalogAddError: string;
             /** Message shown when the ingredient search fails. */
             readonly errorTitle: string;
             /** Primary "find nutrition" action for a typed name not in the results (addByName; contains `{query}`). */
@@ -415,6 +427,12 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 usdaBadge: 'USDA database',
                 searching: 'Searching ingredients',
                 noMatches: 'No matching ingredients found.',
+                ownSectionTitle: 'Your ingredients',
+                catalogSectionTitle: 'Food catalog',
+                catalogBadge: 'USDA',
+                catalogUnavailable: 'Showing your ingredients only — the food catalog is unavailable right now.',
+                addingFromCatalog: 'Adding from the food catalog',
+                catalogAddError: 'We couldn’t add that food. Try again, or add it as a custom ingredient.',
                 errorTitle: 'We couldn’t search ingredients.',
                 addByName: 'Find nutrition for “{query}”',
                 addingByName: 'Finding nutrition',

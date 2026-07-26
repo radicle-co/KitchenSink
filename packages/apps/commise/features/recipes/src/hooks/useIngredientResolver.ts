@@ -5,16 +5,27 @@
  * disambiguated, and drives the four ways a line can resolve to a real catalog `ingredientId` (data-model
  * R5 / FR-007):
  *
- *  1. **catalog-hit** (`selectMatch`) — clicking a search result: an `UNRESOLVED` match opens disambiguation
- *     ({@link nextMatchAction}); anything else resolves immediately.
- *  2. **addByName** (`findNutrition`, the PRIMARY entry point for a typed name) — adds the food by name
- *     through the source-agnostic food service; routes by the returned status exactly like a catalog-hit.
+ *  1. **suggestion pick** (`selectSuggestion`) — clicking a row in the BLENDED result list (search Stage 2).
+ *     Dispatches on provenance: one of the user's own `ingredients` rows resolves through `selectMatch` (an
+ *     `UNRESOLVED` one opens disambiguation — {@link nextMatchAction}); a food-CATALOG hit is first ADMITTED
+ *     (`POST /v1/ingredients/by-food`, which creates the row and backfills its nutrition in one round-trip)
+ *     and the line resolves from that response.
+ *  2. **addByName** (`findNutrition`, the PRIMARY entry point for a typed name NOT in the list) — adds the food
+ *     by name through the source-agnostic food service; routes by the returned status like a catalog-hit.
  *  3. **candidate** (`pickCandidate`) — resolves the disambiguated match from a chosen candidate.
  *  4. **freeform** (`addFreeform`, the explicit FALLBACK) — creates a plain user-entered ingredient with no
  *     food resolution. Reachable from every non-idle `viewState` — there is no dead end.
  *
  * All four converge on one `resolveLine`, which reports the resolved `RecipeFormIngredient` via the
  * caller's `onResolved` and resets the picker to a blank search.
+ *
+ * **Search Stage 2 (blended typeahead).** The search read is `useSuggestIngredients`
+ * (`GET /v1/ingredients/suggest`), which returns a discriminated `local | catalog` union sectioned by
+ * provenance plus a `catalogAvailability` flag. The local-only `useSearchIngredients` deliberately stays with
+ * the recipe-SEARCH ingredient filter (`useIngredientFilterSearch`), whose result ids are filter values — a
+ * food with no `ingredients` row could match no recipe there. The endpoint degrades to local-only rather than
+ * failing when the food catalog is slow/down, so a degraded catalog arrives as a SUCCESS whose
+ * `catalogAvailability` is `'unavailable'`, never as `isError` (F2).
  *
  * **Unifies three platform drifts** (see `.superpowers/sdd/cp6-current-state.md` §3):
  *  1. **Callback contract.** Web's `onSelect: (line: RecipeFormIngredient) => void` and mobile's
@@ -42,12 +53,14 @@
  */
 import type { Ingredient } from '@kitchensink/recipe-core';
 import {
+    useAddIngredientByFood,
     useAddIngredientByName,
     useCreateIngredient,
     useIngredientCandidates,
     useResolveIngredient,
-    useSearchIngredients,
+    useSuggestIngredients,
 } from '@kitchensink/recipe-service-client/hooks';
+import type { IngredientSuggestion } from '@kitchensink/recipe-service-client';
 import { useState } from 'react';
 
 import type { RecipeFormIngredient } from '../form/model.js';
@@ -57,7 +70,7 @@ import {
     INGREDIENT_SEARCH_DEBOUNCE_MS,
     meetsIngredientSearchThreshold,
     nextMatchAction,
-    rankIngredientResults,
+    rankIngredientSuggestions,
     toIngredientLine,
 } from './ingredientResolver.model.js';
 import type { IngredientResolverViewState, MutationView } from './ingredientResolver.model.js';
@@ -75,11 +88,28 @@ export interface UseIngredientResolverResult {
     readonly viewState: IngredientResolverViewState;
     /** `addIngredientByName`'s pending/error flags — relevant outside disambiguation. */
     readonly addByNameStatus: MutationView;
+    /**
+     * `addIngredientByFood`'s pending/error flags — the Stage-2 catalog pick's admit round-trip. Distinct
+     * from {@link addByNameStatus} so a leaf can show the pick's own busy/failed state on the row the user
+     * actually tapped, instead of lighting up the unrelated "Find nutrition" action.
+     */
+    readonly addByFoodStatus: MutationView;
     /** `createIngredient`'s (freeform) pending/error flags — relevant in both search and disambiguation. */
     readonly createStatus: MutationView;
     /** `resolveIngredient`'s error flag — relevant only within disambiguation (pending is `viewState.kind === 'resolving'`). */
     readonly resolveError: boolean;
-    /** Catalog-hit: an `UNRESOLVED` match opens disambiguation; anything else resolves immediately. */
+    /**
+     * Pick a blended suggestion (search Stage 2) — the ONE action a result row wires. Dispatches on
+     * provenance: one of the user's own rows goes straight through {@link selectMatch}; a food-catalog hit is
+     * first ADMITTED into the catalog (`POST /v1/ingredients/by-food`, which also backfills its nutrition)
+     * and only then resolves the line.
+     */
+    readonly selectSuggestion: (suggestion: IngredientSuggestion) => void;
+    /**
+     * Catalog-hit: an `UNRESOLVED` match opens disambiguation; anything else resolves immediately. Still
+     * exported because the `terminal` view state carries a bare `Ingredient` (not a suggestion) — prefer
+     * {@link selectSuggestion} for a row in the blended result list.
+     */
     readonly selectMatch: (ingredient: Ingredient) => void;
     /** addByName — the PRIMARY entry point for a typed name (data-model R5 / FR-007). */
     readonly findNutrition: () => void;
@@ -106,17 +136,21 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
     // idle/terminal state) so those react to every keystroke instantly.
     const debouncedTrimmed = useDebouncedValue(trimmed, INGREDIENT_SEARCH_DEBOUNCE_MS);
 
-    const search = useSearchIngredients(debouncedTrimmed, undefined, {
+    // Search Stage 2: the BLENDED read (local `ingredients` + the food-service golden catalog), not the
+    // local-only `/search` — that one stays the recipe-SEARCH filter's read, where a not-yet-admitted food
+    // would be a meaningless filter value.
+    const search = useSuggestIngredients(debouncedTrimmed, undefined, {
         enabled: disambiguating === null && meetsIngredientSearchThreshold(debouncedTrimmed),
     });
     const addIngredientByName = useAddIngredientByName();
+    const addIngredientByFood = useAddIngredientByFood();
     const createIngredient = useCreateIngredient();
     const candidates = useIngredientCandidates(disambiguating?.id ?? '', { enabled: disambiguating !== null });
     const resolveIngredient = useResolveIngredient();
 
-    // REQ-057: re-rank the backend's results by match quality (prefix > substring > fuzzy) so the picker's
-    // order is deterministic regardless of the search DAL's own ordering.
-    const results = rankIngredientResults(search.data ?? [], trimmed);
+    // REQ-057: re-rank each provenance section by match quality (prefix > substring > fuzzy) so the picker's
+    // order is deterministic regardless of either catalog's own ordering — WITHIN sections, never across them.
+    const suggestions = rankIngredientSuggestions(search.data?.suggestions ?? [], trimmed);
 
     /** Append a resolved line and reset the picker back to a blank search (drift #2 — see module doc). */
     const resolveLine = (ingredient: Ingredient): void => {
@@ -124,6 +158,7 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
         setQuery('');
         setDisambiguating(null);
         addIngredientByName.reset();
+        addIngredientByFood.reset();
         createIngredient.reset();
         resolveIngredient.reset();
     };
@@ -137,6 +172,37 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
         }
 
         resolveLine(ingredient);
+    };
+
+    /**
+     * Pick a blended suggestion (search Stage 2). Dispatches on provenance — the whole reason the wire shape
+     * is a discriminated union:
+     *  - `local` — a real `ingredients` row; hand it straight to {@link selectMatch} (no round-trip).
+     *  - `catalog` — a golden record with no `ingredients` row yet, so it MUST be admitted first. The server
+     *    creates the row and backfills its nutrition in one request; the resolved ingredient it returns is
+     *    what goes on the line (which is why we resolve from the RESPONSE, not from the suggestion — the
+     *    suggestion carries no ingredient id and no nutrition). Its status still routes through
+     *    {@link nextMatchAction}, so the rare not-yet-`RESOLVED` food opens disambiguation instead of
+     *    silently landing a nutrition-less line. On failure the freeform fallback stays available.
+     */
+    const selectSuggestion = (suggestion: IngredientSuggestion): void => {
+        if (suggestion.provenance === 'local') {
+            selectMatch(suggestion.ingredient);
+
+            return;
+        }
+
+        addIngredientByFood.mutate(suggestion.foodId, {
+            onSuccess: (ingredient) => {
+                if (nextMatchAction(ingredient.foodResolutionStatus) === 'disambiguate') {
+                    setDisambiguating(ingredient);
+
+                    return;
+                }
+
+                resolveLine(ingredient);
+            },
+        });
     };
 
     /**
@@ -181,7 +247,10 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
         disambiguating,
         trimmed,
         debouncedTrimmed,
-        results,
+        suggestions,
+        // Absent data (still loading, or the query is below the trigger) is NOT a degraded catalog — default
+        // to `ok` so the picker never flashes a "catalog unavailable" notice before the first response lands.
+        catalogAvailability: search.data?.catalogAvailability ?? 'ok',
         searchIsLoading: search.isLoading,
         searchIsSuccess: search.isSuccess,
         searchIsError: search.isError,
@@ -197,8 +266,10 @@ export function useIngredientResolver(onResolved: (line: RecipeFormIngredient) =
         trimmed,
         viewState,
         addByNameStatus: { isPending: addIngredientByName.isPending, isError: addIngredientByName.isError },
+        addByFoodStatus: { isPending: addIngredientByFood.isPending, isError: addIngredientByFood.isError },
         createStatus: { isPending: createIngredient.isPending, isError: createIngredient.isError },
         resolveError: resolveIngredient.isError,
+        selectSuggestion,
         selectMatch,
         findNutrition,
         pickCandidate,

@@ -28,14 +28,16 @@ import {
     useIngredientCandidates,
     useIngredientStatus,
     useResolveIngredient,
-    useSearchIngredients,
+    useAddIngredientByFood,
+    useSuggestIngredients,
 } from '@kitchensink/recipe-service-client/hooks';
 
 import { RecipeEditor } from '../../src/screens/RecipeEditor.js';
 import { makeIngredient } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useSearchIngredients: vi.fn(),
+    useSuggestIngredients: vi.fn(),
+    useAddIngredientByFood: vi.fn(),
     useAddIngredientByName: vi.fn(),
     useCreateIngredient: vi.fn(),
     useIngredientStatus: vi.fn(),
@@ -43,7 +45,8 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useResolveIngredient: vi.fn(),
 }));
 
-const useSearchIngredientsMock = vi.mocked(useSearchIngredients);
+const useSuggestIngredientsMock = vi.mocked(useSuggestIngredients);
+const useAddIngredientByFoodMock = vi.mocked(useAddIngredientByFood);
 const useAddIngredientByNameMock = vi.mocked(useAddIngredientByName);
 const useCreateIngredientMock = vi.mocked(useCreateIngredient);
 const useIngredientStatusMock = vi.mocked(useIngredientStatus);
@@ -65,16 +68,28 @@ function addByNameMutation(added: ReturnType<typeof makeIngredient>): ReturnType
 afterEach(cleanup);
 
 beforeEach(() => {
-    useSearchIngredientsMock.mockReset();
+    useSuggestIngredientsMock.mockReset();
+    useAddIngredientByFoodMock.mockReset();
     useAddIngredientByNameMock.mockReset();
     useCreateIngredientMock.mockReset();
     useIngredientStatusMock.mockReset();
     useIngredientCandidatesMock.mockReset();
     useResolveIngredientMock.mockReset();
 
-    useSearchIngredientsMock.mockReturnValue({ isLoading: false, isError: false, data: [] } as unknown as ReturnType<
-        typeof useSearchIngredients
-    >);
+    // Search Stage 2: the picker reads the BLENDED envelope, not a bare array. These screen suites do not
+    // exercise the typeahead, so an empty, healthy-catalog envelope plus an inert admit mutation is enough.
+    useSuggestIngredientsMock.mockReturnValue({
+        isLoading: false,
+        isError: false,
+        isSuccess: true,
+        data: { suggestions: [], catalogAvailability: 'ok' },
+    } as unknown as ReturnType<typeof useSuggestIngredients>);
+    useAddIngredientByFoodMock.mockReturnValue({
+        mutate: vi.fn(),
+        isPending: false,
+        isError: false,
+        reset: vi.fn(),
+    } as unknown as ReturnType<typeof useAddIngredientByFood>);
     useCreateIngredientMock.mockReturnValue({
         mutate: vi.fn(),
         isPending: false,

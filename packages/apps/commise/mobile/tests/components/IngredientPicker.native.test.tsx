@@ -1,20 +1,23 @@
 /**
  * Component tests for the mobile IngredientPicker (rendered via react-native-web under jsdom — see
  * `vitest.native.config.ts`). The picker resolves a free-typed name to a catalog `ingredientId` via the
- * (mocked) `useSearchIngredients` query and `useCreateIngredient` mutation, reporting the resolved ingredient
+ * (mocked) `useSuggestIngredients` blended query and `useCreateIngredient` mutation, reporting the resolved ingredient
  * upward. Covers the search-results, empty, select, and create-freeform paths.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import type { Ingredient } from '@kitchensink/recipe-core';
 import {
+    useAddIngredientByFood,
     useAddIngredientByName,
     useCreateIngredient,
     useIngredientCandidates,
     useResolveIngredient,
-    useSearchIngredients,
+    useSuggestIngredients,
 } from '@kitchensink/recipe-service-client/hooks';
+import type { IngredientCatalogAvailability, IngredientSuggestion } from '@kitchensink/recipe-service-client';
 
 import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '@commise/features-recipes/hooks';
 
@@ -22,25 +25,57 @@ import { IngredientPicker } from '../../src/components/IngredientPicker.js';
 import { makeIngredient } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useSearchIngredients: vi.fn(),
+    useSuggestIngredients: vi.fn(),
     useAddIngredientByName: vi.fn(),
+    useAddIngredientByFood: vi.fn(),
     useCreateIngredient: vi.fn(),
     useIngredientCandidates: vi.fn(),
     useResolveIngredient: vi.fn(),
 }));
 
-const useSearchIngredientsMock = vi.mocked(useSearchIngredients);
+const useSuggestIngredientsMock = vi.mocked(useSuggestIngredients);
 const useAddIngredientByNameMock = vi.mocked(useAddIngredientByName);
+const useAddIngredientByFoodMock = vi.mocked(useAddIngredientByFood);
 const useCreateIngredientMock = vi.mocked(useCreateIngredient);
 const useIngredientCandidatesMock = vi.mocked(useIngredientCandidates);
 const useResolveIngredientMock = vi.mocked(useResolveIngredient);
 
-/** Build a `useSearchIngredients` result double from the fields the picker reads. */
+/** Wrap the caller's own catalog rows as `local` blended suggestions (search Stage 2). */
+function own(ingredients: readonly Ingredient[]): IngredientSuggestion[] {
+    return ingredients.map((ingredient) => ({ provenance: 'local', ingredient }));
+}
+
+/** A food-catalog (not-yet-admitted) blended suggestion. */
+function fromCatalog(foodId: string, name: string, score = 0.9): IngredientSuggestion {
+    return { provenance: 'catalog', foodId, name, score };
+}
+
+/**
+ * Build a `useSuggestIngredients` result double from the fields the picker reads. `suggestions` is the
+ * blended `local | catalog` list; `catalogAvailability` drives the F2 degraded notice.
+ */
 function searchResult(
-    overrides: Partial<ReturnType<typeof useSearchIngredients>> = {},
-): ReturnType<typeof useSearchIngredients> {
-    return { isLoading: false, isError: false, data: [], ...overrides } as unknown as ReturnType<
-        typeof useSearchIngredients
+    suggestions: readonly IngredientSuggestion[] = [],
+    overrides: {
+        readonly isLoading?: boolean;
+        readonly isError?: boolean;
+        readonly catalogAvailability?: IngredientCatalogAvailability;
+    } = {},
+): ReturnType<typeof useSuggestIngredients> {
+    return {
+        isLoading: overrides.isLoading ?? false,
+        isError: overrides.isError ?? false,
+        isSuccess: true,
+        data: { suggestions, catalogAvailability: overrides.catalogAvailability ?? 'ok' },
+    } as unknown as ReturnType<typeof useSuggestIngredients>;
+}
+
+/** Build a `useAddIngredientByFood` mutation double (the Stage-2 catalog pick). */
+function addByFoodMutation(
+    overrides: Partial<ReturnType<typeof useAddIngredientByFood>> = {},
+): ReturnType<typeof useAddIngredientByFood> {
+    return { mutate: vi.fn(), isPending: false, isError: false, reset: vi.fn(), ...overrides } as unknown as ReturnType<
+        typeof useAddIngredientByFood
     >;
 }
 
@@ -91,17 +126,19 @@ afterEach(() => {
 
 beforeEach(() => {
     // The picker's real `useIngredientResolver` debounces `trimmed` (REQ-057, ~300ms) BEFORE the search
-    // hook's `enabled` gate flips true — regardless of `useSearchIngredients` being mocked here, since the
+    // hook's `enabled` gate flips true — regardless of `useSuggestIngredients` being mocked here, since the
     // debounce itself lives in `useDebouncedValue`, a real (unmocked) hook. Fake timers + `settleDebounce`
     // let each test cross that window deterministically instead of racing real `setTimeout`.
     vi.useFakeTimers();
-    useSearchIngredientsMock.mockReset();
+    useSuggestIngredientsMock.mockReset();
     useAddIngredientByNameMock.mockReset();
+    useAddIngredientByFoodMock.mockReset();
     useCreateIngredientMock.mockReset();
     useIngredientCandidatesMock.mockReset();
     useResolveIngredientMock.mockReset();
-    useSearchIngredientsMock.mockReturnValue(searchResult());
+    useSuggestIngredientsMock.mockReturnValue(searchResult());
     useAddIngredientByNameMock.mockReturnValue(addByNameMutation());
+    useAddIngredientByFoodMock.mockReturnValue(addByFoodMutation());
     useCreateIngredientMock.mockReturnValue(createMutation());
     useIngredientCandidatesMock.mockReturnValue(candidatesResult());
     useResolveIngredientMock.mockReturnValue(resolveMutation());
@@ -116,9 +153,7 @@ function settleDebounce(): void {
 
 describe('IngredientPicker — search + select', () => {
     it('lists catalog matches and resolves the selected one, then clears the query', () => {
-        useSearchIngredientsMock.mockReturnValue(
-            searchResult({ data: [makeIngredient({ id: 'ing_7', name: 'Basil' })] }),
-        );
+        useSuggestIngredientsMock.mockReturnValue(searchResult(own([makeIngredient({ id: 'ing_7', name: 'Basil' })])));
         const onResolve = vi.fn();
 
         render(<IngredientPicker onResolve={onResolve} />);
@@ -146,7 +181,7 @@ describe('IngredientPicker — USDA badge (C5)', () => {
 
 describe('IngredientPicker — search field controls (U6 styling)', () => {
     it('shows a clear (×) control only when the query is non-empty, and clears the query when pressed', () => {
-        useSearchIngredientsMock.mockReturnValue(searchResult({ data: [] }));
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
 
         render(<IngredientPicker onResolve={vi.fn()} />);
         // No query yet → no clear control.
@@ -159,7 +194,7 @@ describe('IngredientPicker — search field controls (U6 styling)', () => {
     });
 
     it('renders a styled — but inert (not a button) — "Search USDA for …" seam once a query is typed (U6)', () => {
-        useSearchIngredientsMock.mockReturnValue(searchResult({ data: [] }));
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
 
         render(<IngredientPicker onResolve={vi.fn()} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'kimchi' } });
@@ -174,7 +209,7 @@ describe('IngredientPicker — search field controls (U6 styling)', () => {
 
 describe('IngredientPicker — empty state', () => {
     it('shows the empty message when a non-empty query returns no matches', () => {
-        useSearchIngredientsMock.mockReturnValue(searchResult({ data: [] }));
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
 
         render(<IngredientPicker onResolve={vi.fn()} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'zzz' } });
@@ -208,7 +243,7 @@ describe('IngredientPicker — create freeform', () => {
 
 describe('IngredientPicker — addByName (the async-resolution entry point, R5)', () => {
     it('offers "Find nutrition for …" (addByName) as the primary action for a typed name', () => {
-        useSearchIngredientsMock.mockReturnValue(searchResult({ data: [] }));
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
 
         render(<IngredientPicker onResolve={vi.fn()} />);
         fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'zzz' } });
@@ -218,7 +253,7 @@ describe('IngredientPicker — addByName (the async-resolution entry point, R5)'
     });
 
     it('adds a PENDING line via addByName (NOT createFreeform) that the editor will poll', () => {
-        useSearchIngredientsMock.mockReturnValue(searchResult({ data: [] }));
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
         const added = makeIngredient({
             id: 'ing_food',
             name: 'Quinoa',
@@ -248,7 +283,7 @@ describe('IngredientPicker — addByName (the async-resolution entry point, R5)'
     });
 
     it('opens disambiguation when addByName comes back UNRESOLVED', () => {
-        useSearchIngredientsMock.mockReturnValue(searchResult({ data: [] }));
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
         const added = makeIngredient({
             id: 'ing_u',
             name: 'Pepper',
@@ -288,16 +323,16 @@ describe('IngredientPicker — UNRESOLVED disambiguation (R5)', () => {
 
     /** Search returning a single UNRESOLVED match named "Quinoa". */
     function withUnresolvedSearch(): void {
-        useSearchIngredientsMock.mockReturnValue(
-            searchResult({
-                data: [
+        useSuggestIngredientsMock.mockReturnValue(
+            searchResult(
+                own([
                     makeIngredient({
                         id: 'ing_u',
                         name: 'Quinoa',
                         foodResolutionStatus: FoodResolutionStatus.UNRESOLVED,
                     }),
-                ],
-            } as never),
+                ]),
+            ),
         );
     }
 
@@ -380,5 +415,203 @@ describe('IngredientPicker — UNRESOLVED disambiguation (R5)', () => {
 
         expect(screen.getByText(/No options to choose from/)).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Create “Quinoa”' })).toBeTruthy();
+    });
+});
+
+/**
+ * Search Stage 2 — the BLENDED, sectioned typeahead on mobile. Covers every state the two-section list adds:
+ * both sections, catalog-only, local-only, the degraded-catalog notice (F2), the catalog pick's admit
+ * round-trip, and its pending/error branches.
+ */
+describe('IngredientPicker — search Stage 2 (blended food-catalog suggestions)', () => {
+    /** Type a query and let the REQ-057 debounce settle so the blended list renders. */
+    function typeQuery(query = 'chick'): void {
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: query } });
+        settleDebounce();
+    }
+
+    it('renders the caller’s own ingredients and the food catalog as TWO labeled sections', () => {
+        useSuggestIngredientsMock.mockReturnValue(
+            searchResult([
+                ...own([makeIngredient({ id: 'ing_1', name: 'My chicken' })]),
+                fromCatalog('01J0FOOD', 'Chicken breast, raw'),
+            ]),
+        );
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        typeQuery();
+
+        expect(screen.getByText('Your ingredients')).toBeTruthy();
+        expect(screen.getByText('Food catalog')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'My chicken' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Chicken breast, raw' })).toBeTruthy();
+        // Provenance is legible, not implied: the catalog row is badged.
+        expect(screen.getByText('USDA')).toBeTruthy();
+    });
+
+    it('renders the local section FIRST in the tree, never interleaved with the catalog section', () => {
+        useSuggestIngredientsMock.mockReturnValue(
+            searchResult([
+                ...own([makeIngredient({ id: 'ing_1', name: 'Zzz mine' })]),
+                // Alphabetically and by score this catalog hit would sort first under any global ordering.
+                fromCatalog('01J0FOOD', 'Aaa catalog', 0.99),
+            ]),
+        );
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        typeQuery();
+
+        const ownHeading = screen.getByText('Your ingredients');
+        const catalogHeading = screen.getByText('Food catalog');
+        expect(ownHeading.compareDocumentPosition(catalogHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('renders ONLY the catalog section when the caller has no matching ingredients of their own', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult([fromCatalog('01J0FOOD', 'Chicken breast, raw')]));
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        typeQuery();
+
+        expect(screen.getByText('Food catalog')).toBeTruthy();
+        expect(screen.queryByText('Your ingredients')).toBeNull();
+        // Not an empty state either — there IS something on offer.
+        expect(screen.queryByText(/No matching ingredients/)).toBeNull();
+    });
+
+    it('renders ONLY the local section when the food catalog returns nothing', () => {
+        useSuggestIngredientsMock.mockReturnValue(
+            searchResult(own([makeIngredient({ id: 'ing_1', name: 'My chicken' })])),
+        );
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        typeQuery();
+
+        expect(screen.getByText('Your ingredients')).toBeTruthy();
+        expect(screen.queryByText('Food catalog')).toBeNull();
+    });
+
+    it('picking a catalog row ADMITS it by food id and resolves the line from the admitted row', () => {
+        const onResolve = vi.fn();
+        const admitted = makeIngredient({
+            id: 'ing_admitted',
+            name: 'Chicken breast, raw',
+            foodId: '01J0FOOD',
+            foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+        });
+        const mutate = vi.fn((_foodId: string, options?: { onSuccess?: (value: unknown) => void }) => {
+            options?.onSuccess?.(admitted);
+        });
+        useSuggestIngredientsMock.mockReturnValue(searchResult([fromCatalog('01J0FOOD', 'Chicken breast, raw')]));
+        useAddIngredientByFoodMock.mockReturnValue(addByFoodMutation({ mutate } as never));
+
+        render(<IngredientPicker onResolve={onResolve} />);
+        typeQuery();
+        fireEvent.click(screen.getByRole('button', { name: 'Chicken breast, raw' }));
+
+        // The opaque food id — never the suggestion's name — is what the admit is keyed on.
+        expect(mutate).toHaveBeenCalledWith('01J0FOOD', expect.anything());
+        // The line carries the ADMITTED row's ingredient id, not a fabricated one off the suggestion.
+        expect(onResolve).toHaveBeenCalledWith({
+            id: 'ing_admitted',
+            name: 'Chicken breast, raw',
+            resolutionStatus: FoodResolutionStatus.RESOLVED,
+        });
+        // Mutation guard: the pick must NOT fall back to the by-name async fan-out.
+        expect(vi.mocked(useAddIngredientByNameMock.mock.results[0]?.value.mutate)).not.toHaveBeenCalled();
+    });
+
+    it('shows a busy label and disables the catalog row while the admit is in flight', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult([fromCatalog('01J0FOOD', 'Chicken breast, raw')]));
+        useAddIngredientByFoodMock.mockReturnValue(addByFoodMutation({ isPending: true } as never));
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        typeQuery();
+
+        expect(screen.getByText('Adding from the food catalog…')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Chicken breast, raw' }).getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('surfaces a failed admit as an alert and keeps the freeform fallback reachable (FR-007)', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult([fromCatalog('01J0FOOD', 'Chicken breast, raw')]));
+        useAddIngredientByFoodMock.mockReturnValue(addByFoodMutation({ isError: true } as never));
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        typeQuery();
+
+        expect(screen.getByText(/We couldn’t add that food/)).toBeTruthy();
+        // The dead-end escape is still offered.
+        expect(screen.getByRole('button', { name: 'Create “chick”' })).toBeTruthy();
+    });
+
+    it('picking a LOCAL row resolves immediately, with no admit round-trip', () => {
+        const onResolve = vi.fn();
+        const mutate = vi.fn();
+        useSuggestIngredientsMock.mockReturnValue(
+            searchResult([
+                ...own([makeIngredient({ id: 'ing_1', name: 'My chicken' })]),
+                fromCatalog('01J0FOOD', 'Chicken breast, raw'),
+            ]),
+        );
+        useAddIngredientByFoodMock.mockReturnValue(addByFoodMutation({ mutate } as never));
+
+        render(<IngredientPicker onResolve={onResolve} />);
+        typeQuery();
+        fireEvent.click(screen.getByRole('button', { name: 'My chicken' }));
+
+        expect(onResolve).toHaveBeenCalledWith(expect.objectContaining({ id: 'ing_1' }));
+        expect(mutate).not.toHaveBeenCalled();
+    });
+
+    describe('F2 — a degraded food catalog never blocks the local section', () => {
+        it('renders the local results plus a non-blocking notice when the catalog is unavailable', () => {
+            useSuggestIngredientsMock.mockReturnValue(
+                searchResult(own([makeIngredient({ id: 'ing_1', name: 'My chicken' })]), {
+                    catalogAvailability: 'unavailable',
+                }),
+            );
+
+            render(<IngredientPicker onResolve={vi.fn()} />);
+            typeQuery();
+
+            expect(screen.getByRole('button', { name: 'My chicken' })).toBeTruthy();
+            expect(screen.getByText(/the food catalog is unavailable right now/)).toBeTruthy();
+        });
+
+        it('does NOT show the notice when the catalog answered normally', () => {
+            useSuggestIngredientsMock.mockReturnValue(
+                searchResult(own([makeIngredient({ id: 'ing_1', name: 'My chicken' })])),
+            );
+
+            render(<IngredientPicker onResolve={vi.fn()} />);
+            typeQuery();
+
+            expect(screen.queryByText(/the food catalog is unavailable right now/)).toBeNull();
+        });
+
+        it('does NOT show the notice when the blend was deliberately DISABLED (not an incident)', () => {
+            useSuggestIngredientsMock.mockReturnValue(
+                searchResult(own([makeIngredient({ id: 'ing_1', name: 'My chicken' })]), {
+                    catalogAvailability: 'disabled',
+                }),
+            );
+
+            render(<IngredientPicker onResolve={vi.fn()} />);
+            typeQuery();
+
+            expect(screen.queryByText(/the food catalog is unavailable right now/)).toBeNull();
+        });
+
+        it('shows the empty state alongside the notice when the catalog degrades AND there are no local hits', () => {
+            useSuggestIngredientsMock.mockReturnValue(searchResult([], { catalogAvailability: 'unavailable' }));
+
+            render(<IngredientPicker onResolve={vi.fn()} />);
+            typeQuery('zzz');
+
+            expect(screen.getByText(/No matching ingredients/)).toBeTruthy();
+            expect(screen.getByText(/the food catalog is unavailable right now/)).toBeTruthy();
+            // And both escapes are still offered.
+            expect(screen.getByRole('button', { name: 'Find nutrition for “zzz”' })).toBeTruthy();
+            expect(screen.getByRole('button', { name: 'Create “zzz”' })).toBeTruthy();
+        });
     });
 });

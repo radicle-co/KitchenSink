@@ -20,8 +20,12 @@
  * Every picked file also passes through the queue's client-side pre-validation (REQ-011 size, REQ-012 MIME
  * allowlist) — this container's only involvement is supplying the two localized rejection strings; the
  * admission check itself lives in `useRecipePhotoUploadQueue`.
+ *
+ * **Replace is upload-first (U6, cancel-safe).** A second, single-select hidden input serves the per-photo
+ * "Replace" control, and the original photo is deleted only from the replacement's `onUploaded` continuation
+ * — never up-front. See the `handleReplacePhoto` comment for the full ordering + the at-cap refusal.
  */
-import { RecipePhotoManager } from '@commise/features-recipes';
+import { RecipePhotoManager, isAtPhotoCap, visibleQueueItems } from '@commise/features-recipes';
 import { useRecipePhotoUpload, useRecipePhotoUploadQueue } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
@@ -30,7 +34,7 @@ import {
     useRecipePhotos,
     useReorderRecipePhotos,
 } from '@kitchensink/recipe-service-client/hooks';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FC } from 'react';
 
 import { webMessages } from '@/i18n/messages';
@@ -140,13 +144,71 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
         reorderPhotos.mutate({ id: recipeId, photoIds });
     };
 
-    // U6 "Replace": the web uploader has no atomic replace primitive, so a replace is remove-then-add — delete
-    // the chosen photo, then open the SAME hidden file input so the user picks its replacement (which uploads
-    // and appends via the normal queue). Deleting the current cover promotes the next photo automatically
-    // (server reprojects), matching the "remove-cover reassigns to the next" rule.
+    // U6 "Replace" — UPLOAD-FIRST, then swap (cancel-safe). There is no atomic replace primitive server-side,
+    // and the previous remove-then-add ordering deleted the original the instant Replace was pressed: a mere
+    // picker CANCEL (or any upload failure afterwards) left the user with nothing. So the destructive half now
+    // runs LAST, as the replacement's post-commit continuation:
+    //   press Replace → open the picker → (cancel ⇒ nothing happened) → enqueue the picked file → presign →
+    //   PUT → confirm → ONLY THEN delete the original (`onUploaded`, see `useRecipePhotoUploadQueue`).
+    // A failed/withdrawn replacement never reaches that continuation, so the original survives every path
+    // except a genuine, confirmed swap.
+    //
+    // Cover semantics are deliberately UNCHANGED: the cover is still the lowest-sort-order photo, the
+    // replacement still appends to the end, and the delete still promotes the next photo when the cover is the
+    // one replaced — the exact final ordering remove-then-add produced ([A,B,C] → replace B → [A,C,D] either
+    // way). No reorder call is made here, so the U6 cover selection is untouched.
+    //
+    // The one behavioural trade-off: at the photo cap the server rejects the confirm (`MAX_PHOTOS_EXCEEDED`
+    // is enforced in one transaction with the INSERT), so a lossless swap has nowhere to land. Rather than
+    // delete first (data loss on cancel) or surface a bogus "upload failed", Replace refuses with an
+    // actionable message and the user frees a slot deliberately.
+    const [replacingPhotoId, setReplacingPhotoId] = useState<string | null>(null);
+    const [replaceErrorMessage, setReplaceErrorMessage] = useState<string | undefined>(undefined);
+
+    // ALLOWED REF (§3 — same rationale as `inputRef`): the replacement picker is its OWN hidden
+    // `<input type="file">` (single-select) so a replacement pick can never be confused with an additive
+    // multi-file Add pick, and so cancelling one does not disturb the other.
+    const replaceInputRef = useRef<HTMLInputElement>(null);
+
     const handleReplacePhoto = (photoId: string): void => {
-        deletePhoto.mutate({ id: recipeId, photoId });
-        inputRef.current?.click();
+        if (isAtPhotoCap(photos.length + visibleQueueItems(queue.items).length)) {
+            setReplaceErrorMessage(recipes.photos.replaceAtCapError);
+
+            return;
+        }
+
+        setReplaceErrorMessage(undefined);
+        setReplacingPhotoId(photoId);
+        replaceInputRef.current?.click();
+    };
+
+    // The replacement pick. A cancelled dialog fires no `change` at all, so this never runs and the original
+    // photo is still there; `replacingPhotoId` simply stays inert until the next Replace press overwrites it.
+    const handleReplaceFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
+        const [file] = Array.from(event.target.files ?? []);
+        const replacedPhotoId = replacingPhotoId;
+
+        setReplacingPhotoId(null);
+
+        if (replaceInputRef.current !== null) {
+            replaceInputRef.current.value = '';
+        }
+
+        if (file === undefined || replacedPhotoId === null) {
+            return;
+        }
+
+        queue.enqueue([
+            {
+                blob: file,
+                fileName: file.name,
+                contentType: file.type,
+                fileSize: file.size,
+                previewUri: URL.createObjectURL(file),
+                // The swap's commit step — runs exactly once, only after this file has been confirmed.
+                onUploaded: () => deletePhoto.mutate({ id: recipeId, photoId: replacedPhotoId }),
+            },
+        ]);
     };
 
     const addControl = (
@@ -157,17 +219,30 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
     );
 
     return (
-        <RecipePhotoManager
-            photos={photos}
-            onRemovePhoto={(photoId) => deletePhoto.mutate({ id: recipeId, photoId })}
-            removingPhotoId={removingPhotoId}
-            uploading={uploader.uploading}
-            queueItems={queue.items}
-            onRetryQueueItem={queue.retry}
-            onRemoveQueueItem={queue.remove}
-            onSetCover={handleSetCover}
-            onReplacePhoto={handleReplacePhoto}
-            addControl={addControl}
-        />
+        <>
+            <RecipePhotoManager
+                photos={photos}
+                onRemovePhoto={(photoId) => deletePhoto.mutate({ id: recipeId, photoId })}
+                removingPhotoId={removingPhotoId}
+                uploading={uploader.uploading}
+                errorMessage={replaceErrorMessage}
+                queueItems={queue.items}
+                onRetryQueueItem={queue.retry}
+                onRemoveQueueItem={queue.remove}
+                onSetCover={handleSetCover}
+                onReplacePhoto={handleReplacePhoto}
+                addControl={addControl}
+            />
+            {/* The replacement picker lives OUTSIDE the block (which hides `addControl` at the cap) so it is
+                never conditionally unmounted mid-flow; it is named for assistive tech, never visible. */}
+            <input
+                ref={replaceInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                aria-label={recipes.photos.replaceInputLabel}
+                onChange={handleReplaceFileChange}
+            />
+        </>
     );
 };

@@ -6,7 +6,7 @@
  */
 export { RecipePhotoManager } from './RecipePhotoManager.js';
 
-export { isAtPhotoCap, MAX_RECIPE_PHOTOS } from './model.js';
+export { isAtPhotoCap, visibleQueueItems, MAX_RECIPE_PHOTOS } from './model.js';
 export type { RecipePhotoManagerProps } from './model.js';
 
 export { photoMessages } from './messages.js';

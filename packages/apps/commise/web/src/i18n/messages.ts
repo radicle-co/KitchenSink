@@ -266,6 +266,10 @@ export interface WebMessages {
             readonly tooLargeError: string;
             /** Error shown when a picked file's type is outside the allowlist (REQ-012), before upload starts. */
             readonly unsupportedTypeError: string;
+            /** Accessible label of the hidden single-select input that picks a photo's replacement (U6). */
+            readonly replaceInputLabel: string;
+            /** Error shown when Replace is pressed at the photo cap — a lossless swap needs a free slot (U6). */
+            readonly replaceAtCapError: string;
         };
     };
     /**
@@ -436,6 +440,8 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 uploadError: 'We couldn’t upload that photo. Please try again.',
                 tooLargeError: 'That photo is larger than 5 MB. Choose a smaller file.',
                 unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
+                replaceInputLabel: 'Choose a replacement photo',
+                replaceAtCapError: 'Remove a photo first — replacing needs room for the new one.',
             },
         },
         collections: {

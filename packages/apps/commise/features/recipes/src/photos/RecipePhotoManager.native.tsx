@@ -21,7 +21,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { photoMessages } from './messages.js';
-import { isAtPhotoCap, MAX_RECIPE_PHOTOS, visibleQueueItems, type RecipePhotoManagerProps } from './model.js';
+import {
+    isAtPhotoCap,
+    MAX_RECIPE_PHOTO_UPLOAD_MB,
+    MAX_RECIPE_PHOTOS,
+    visibleQueueItems,
+    type RecipePhotoManagerProps,
+} from './model.js';
 
 export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     photos,
@@ -142,7 +148,12 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
             {atCap ? (
                 <Text style={styles.muted}>{fillTemplate(m.maxReached, { max: MAX_RECIPE_PHOTOS })}</Text>
             ) : (
-                addControl
+                <>
+                    <Text style={styles.formatHint}>
+                        {fillTemplate(m.formatHint, { maxMb: MAX_RECIPE_PHOTO_UPLOAD_MB })}
+                    </Text>
+                    {addControl}
+                </>
             )}
         </View>
     );
@@ -152,6 +163,7 @@ const styles = StyleSheet.create({
     container: { gap: 12 },
     heading: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
     muted: { fontSize: 13, color: palette.slate },
+    formatHint: { fontSize: 11, color: palette.slate },
     error: { fontSize: 13, color: palette.error },
     // Fixed 3-column grid (wireframe): each cell claims a third of the row, minus the inter-cell gap.
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

@@ -23,7 +23,13 @@ import type { FC } from 'react';
 
 import { fillTemplate } from '../list/model.js';
 import { photoMessages } from './messages.js';
-import { isAtPhotoCap, MAX_RECIPE_PHOTOS, visibleQueueItems, type RecipePhotoManagerProps } from './model.js';
+import {
+    isAtPhotoCap,
+    MAX_RECIPE_PHOTO_UPLOAD_MB,
+    MAX_RECIPE_PHOTOS,
+    visibleQueueItems,
+    type RecipePhotoManagerProps,
+} from './model.js';
 
 export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     photos,
@@ -147,7 +153,12 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
             {atCap ? (
                 <p className="text-body-sm text-slate">{fillTemplate(m.maxReached, { max: MAX_RECIPE_PHOTOS })}</p>
             ) : (
-                addControl
+                <>
+                    <p className="text-caption text-slate">
+                        {fillTemplate(m.formatHint, { maxMb: MAX_RECIPE_PHOTO_UPLOAD_MB })}
+                    </p>
+                    {addControl}
+                </>
             )}
         </section>
     );

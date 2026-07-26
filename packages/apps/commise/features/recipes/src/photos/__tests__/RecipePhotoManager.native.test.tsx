@@ -113,6 +113,35 @@ describe('RecipePhotoManager (native) — add control + cap', () => {
         expect(screen.queryByRole('button', { name: 'Add photo' })).toBeNull();
         expect(screen.getByText(`Maximum of ${MAX_RECIPE_PHOTOS} photos reached.`)).toBeTruthy();
     });
+
+    // C6: wireframe recipe-edit.md:101-104 lists accepted formats/size inline near "+ Add Photo".
+    it('renders the accepted-formats hint (derived from the shared 5 MB constant) next to the add control', () => {
+        renderManager({
+            addControl: (
+                <Pressable accessibilityRole="button" accessibilityLabel="Add photo">
+                    <Text>Add photo</Text>
+                </Pressable>
+            ),
+        });
+
+        expect(screen.getByText('JPEG, PNG, or WebP · max 5 MB')).toBeTruthy();
+    });
+
+    it('hides the accepted-formats hint at the photo cap, alongside the add control', () => {
+        const photos = Array.from({ length: MAX_RECIPE_PHOTOS }, (_unused, index) =>
+            makePhoto({ id: `ph_${index}`, order: index + 1 }),
+        );
+        renderManager({
+            photos,
+            addControl: (
+                <Pressable accessibilityRole="button" accessibilityLabel="Add photo">
+                    <Text>Add photo</Text>
+                </Pressable>
+            ),
+        });
+
+        expect(screen.queryByText('JPEG, PNG, or WebP · max 5 MB')).toBeNull();
+    });
 });
 
 describe('RecipePhotoManager (native) — per-file queue grid (w3/e4)', () => {

@@ -10,7 +10,7 @@
  * stays free of DOM/native APIs. The container owns the presign → PUT → confirm upload orchestration (via
  * `useRecipePhotoUpload` + the `useRecipePhotoUploadQueue` layer above it) and passes results down as props.
  */
-import { MAX_RECIPE_PHOTOS } from '@kitchensink/recipe-core';
+import { MAX_RECIPE_PHOTO_UPLOAD_BYTES, MAX_RECIPE_PHOTOS } from '@kitchensink/recipe-core';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import type { ReactNode } from 'react';
 
@@ -21,6 +21,12 @@ import type { RecipePhotoQueueItem } from '../hooks/useRecipePhotoUploadQueue.js
  * `MAX_PHOTOS_EXCEEDED` at the same value); the block hides `addControl` at cap.
  */
 export { MAX_RECIPE_PHOTOS };
+
+/**
+ * The per-photo upload size bound in whole megabytes, DERIVED from the single recipe-core byte constant
+ * (C6 — never a second "5 MB" literal) — rendered in the accepted-formats hint next to `addControl`.
+ */
+export const MAX_RECIPE_PHOTO_UPLOAD_MB = MAX_RECIPE_PHOTO_UPLOAD_BYTES / (1024 * 1024);
 
 /** Props for the recipe photo manager. Purely presentational — no fetching, no platform APIs. */
 export interface RecipePhotoManagerProps {

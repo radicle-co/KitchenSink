@@ -174,12 +174,16 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
     return (
         <View accessibilityLabel={t.heading}>
             <Text accessibilityRole="header">{t.heading}</Text>
-            <TextInput
-                accessibilityLabel={t.searchLabel}
-                placeholder={t.searchPlaceholder}
-                value={query}
-                onChangeText={setQuery}
-            />
+            <View>
+                <TextInput
+                    accessibilityLabel={t.searchLabel}
+                    placeholder={t.searchPlaceholder}
+                    value={query}
+                    onChangeText={setQuery}
+                />
+                {/* C5: names the ingredient database the typeahead searches (wireframe recipe-edit.md:56). */}
+                <Text>{t.usdaBadge}</Text>
+            </View>
             {results.map((ingredient) => (
                 <ResultRow key={ingredient.id} ingredient={ingredient} onPress={() => selectMatch(ingredient)} />
             ))}

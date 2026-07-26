@@ -47,6 +47,15 @@ describe('IngredientPicker', () => {
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
+    // C5: wireframe recipe-edit.md:56 shows a "[USDA database]" badge next to the ingredient search box.
+    it('renders a "USDA database" badge next to the search box', () => {
+        const client = createFakeRecipeServiceClient();
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+
+        expect(screen.getByText('USDA database')).toBeInTheDocument();
+    });
+
     it('renders a loading indicator while the search is in flight', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();

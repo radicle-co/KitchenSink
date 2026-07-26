@@ -135,6 +135,15 @@ describe('IngredientPicker — search + select', () => {
     });
 });
 
+describe('IngredientPicker — USDA badge (C5)', () => {
+    // C5: wireframe recipe-edit.md:56 shows a "[USDA database]" badge next to the ingredient search box.
+    it('renders a "USDA database" badge next to the search box', () => {
+        render(<IngredientPicker onResolve={vi.fn()} />);
+
+        expect(screen.getByText('USDA database')).toBeTruthy();
+    });
+});
+
 describe('IngredientPicker — empty state', () => {
     it('shows the empty message when a non-empty query returns no matches', () => {
         useSearchIngredientsMock.mockReturnValue(searchResult({ data: [] }));

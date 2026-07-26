@@ -188,6 +188,9 @@ export interface WebMessages {
             readonly searchLabel: string;
             /** Placeholder inside the search input. */
             readonly searchPlaceholder: string;
+            /** Badge next to the search box naming the ingredient database it searches (C5, wireframe
+             *  recipe-edit.md:56 "[USDA database]"). */
+            readonly usdaBadge: string;
             /** Accessible label for the in-flight search indicator. */
             readonly searching: string;
             /** Empty-state copy shown when a search returns no matches. */
@@ -372,6 +375,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 regionLabel: 'Ingredient search',
                 searchLabel: 'Search ingredients',
                 searchPlaceholder: 'Search for an ingredient',
+                usdaBadge: 'USDA database',
                 searching: 'Searching ingredients',
                 noMatches: 'No matching ingredients found.',
                 errorTitle: 'We couldn’t search ingredients.',

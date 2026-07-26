@@ -123,6 +123,9 @@ export interface MobileMessages {
         readonly searchLabel: string;
         /** Placeholder shown inside the ingredient search field. */
         readonly searchPlaceholder: string;
+        /** Badge next to the search box naming the ingredient database it searches (C5, wireframe
+         *  recipe-edit.md:56 "[USDA database]"). */
+        readonly usdaBadge: string;
         /** Empty-state copy shown when a search returns no catalog matches. */
         readonly empty: string;
         /** Primary "find nutrition" action for a typed name (addByName, the async-resolution entry point; contains `{query}`). */
@@ -260,6 +263,7 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             heading: 'Add an ingredient',
             searchLabel: 'Search ingredients',
             searchPlaceholder: 'e.g. olive oil',
+            usdaBadge: 'USDA database',
             empty: 'No matching ingredients. Create a new one below.',
             addByName: 'Find nutrition for “{query}”',
             addingByName: 'Finding nutrition…',

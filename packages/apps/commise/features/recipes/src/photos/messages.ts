@@ -26,6 +26,9 @@ export interface PhotoMessages {
     readonly uploadingLabel: string;
     /** Notice shown when the recipe is at the photo cap (contains `{max}`). */
     readonly maxReached: string;
+    /** Accepted-formats hint shown next to `addControl` (C6, wireframe recipe-edit.md:101-104; contains
+     *  `{maxMb}`, derived from the shared `MAX_RECIPE_PHOTO_UPLOAD_BYTES` constant — never a second literal). */
+    readonly formatHint: string;
     /** Accessible alt text for a queued/uploading/failed file's thumbnail (contains `{fileName}`). */
     readonly queuePhotoAlt: string;
     /** Visible + accessible status word for a file waiting its turn in the queue. */
@@ -53,6 +56,7 @@ export const photoMessages: LocalizedMessages<PhotoMessages> = {
         removeLabel: 'Remove photo {index}',
         uploadingLabel: 'Uploading photo',
         maxReached: 'Maximum of {max} photos reached.',
+        formatHint: 'JPEG, PNG, or WebP · max {maxMb} MB',
         queuePhotoAlt: 'Photo {fileName}',
         queueStatusQueued: 'Queued',
         queueStatusUploading: 'Uploading…',

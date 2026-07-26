@@ -12,6 +12,9 @@ import userEvent from '@testing-library/user-event';
 const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }));
 vi.mock('@clerk/nextjs', () => ({ useClerk: () => ({ signOut }) }));
 
+const { navigateTo } = vi.hoisted(() => ({ navigateTo: vi.fn() }));
+vi.mock('@/lib/navigation', () => ({ navigateTo }));
+
 const { deleteMe } = vi.hoisted(() => ({ deleteMe: vi.fn() }));
 vi.mock('@/lib/identityServiceClient', () => ({
     createProfileServiceClient: () => ({ deleteMe }),
@@ -19,6 +22,7 @@ vi.mock('@/lib/identityServiceClient', () => ({
 
 beforeEach(() => {
     signOut.mockReset().mockResolvedValue(undefined);
+    navigateTo.mockReset();
     deleteMe.mockReset().mockResolvedValue(undefined);
 });
 
@@ -62,7 +66,11 @@ describe('AccountCloseForm (web) — confirm', () => {
         await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Close account' }));
 
         expect(deleteMe).toHaveBeenCalledTimes(1);
-        await vi.waitFor(() => expect(signOut).toHaveBeenCalledWith({ redirectUrl: '/' }));
+        // Sign out, then leave with a FULL-DOCUMENT navigation — a client-side push would re-render the
+        // authenticated shell from a payload resolved for the session that was just destroyed.
+        await vi.waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
+        await vi.waitFor(() => expect(navigateTo).toHaveBeenCalledWith('/'));
+        expect(signOut.mock.invocationCallOrder[0]).toBeLessThan(navigateTo.mock.invocationCallOrder[0] ?? 0);
     });
 
     it('surfaces an alert (does not fail silently) when the closure rejects', async () => {
@@ -78,6 +86,8 @@ describe('AccountCloseForm (web) — confirm', () => {
             'We couldn’t close your account. Please try again.',
         );
         expect(signOut).not.toHaveBeenCalled();
+        // …and the viewer is left exactly where they are: no sign-out, no navigation away from the error.
+        expect(navigateTo).not.toHaveBeenCalled();
     });
 });
 

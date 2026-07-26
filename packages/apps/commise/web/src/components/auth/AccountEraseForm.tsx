@@ -13,6 +13,13 @@
  *
  * The confirmation phrase sent is the viewer's typed input (guaranteed by the dialog's gate to satisfy
  * `confirmsErasurePhrase`); the server re-validates it. `publishRecipeIds` carries the donate election.
+ *
+ * **Leaving the app after erasure is a FULL-DOCUMENT navigation, deliberately.** `signOut({ redirectUrl })`
+ * leaves via the Next router, which re-renders the authenticated shell from a client-side payload that was
+ * resolved for a session — and an account — that no longer exists; observed end-to-end, the viewer was left
+ * sitting on the authenticated Home route after erasing. So this flow awaits `signOut()` (session cookies
+ * gone) and then hard-navigates to the app's public entry, where the root route's own auth gate sends a
+ * signed-out caller to the branded welcome hero. Nothing authenticated survives an irreversible erasure.
  */
 import { useState } from 'react';
 import { useClerk } from '@clerk/nextjs';
@@ -23,6 +30,8 @@ import { AccountEraseDialog, accountDangerMessages } from '@commise/features-acc
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 
 import { TrashIcon } from '@/components/auth/icons';
+import { withBasePath } from '@/lib/basePath';
+import { navigateTo } from '@/lib/navigation';
 
 /**
  * The mounted-while-open erasure flow: owns the recipe fetch, the mutation, and the form state. Mounted only
@@ -48,10 +57,20 @@ function AccountEraseFlow({ onClose }: { readonly onClose: () => void }) {
         );
     };
 
+    /**
+     * End the session, then leave the app with a full document load (see the module doc).
+     *
+     * @sideEffect Destroys the Clerk session and replaces the current document.
+     */
+    const leaveSignedOut = async (): Promise<void> => {
+        await signOut();
+        navigateTo(withBasePath('/'));
+    };
+
     const handleConfirm = () => {
         erasure.mutate(
             { confirmationPhrase: phrase, publishRecipeIds: selectedRecipeIds },
-            { onSuccess: () => void signOut({ redirectUrl: '/' }) },
+            { onSuccess: () => void leaveSignedOut() },
         );
     };
 

@@ -5,10 +5,15 @@
  * contract and content sections, styled to the Commise design language (@commise/ui palette): a display
  * title, seafoam/coral tag pills, a stats strip, checklist ingredients, numbered seafoam step markers, and
  * a nutrition grid. Mirrors the web `RecipeDetailView`.
+ *
+ * U8 brand layer: the header sits in a {@link GradientSurface} title band, the display title threads the
+ * Playfair `display` family, and the stat/ingredient/step cards carry tokenized elevation — so the native
+ * detail reads as branded as the web leaf.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+import { GradientSurface } from '@commise/ui/surface';
 import { hasUserEnteredIngredients, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -42,32 +47,35 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
 
     return (
         <View accessibilityLabel={recipe.title} style={styles.container}>
-            <Text accessibilityRole="header" style={styles.title}>
-                {recipe.title}
-            </Text>
-            {(staticBadges.length > 0 || recipe.tags.length > 0) && (
-                <View style={styles.badgeRow}>
-                    {staticBadges.map((badge, index) => (
-                        <Text
-                            key={badge}
-                            style={[styles.badge, index % 2 === 0 ? styles.badgeSeafoam : styles.badgeCoral]}
-                        >
-                            {badge}
-                        </Text>
-                    ))}
-                    {recipe.tags.map((tag) => (
-                        <Pressable
-                            key={tag}
-                            accessibilityRole="button"
-                            accessibilityLabel={fillTemplate(detail.tagFilterLabel, { tag })}
-                            onPress={() => onFilterByTag?.(tag)}
-                        >
-                            <Text style={[styles.badge, styles.badgeCoral]}>{tag}</Text>
-                        </Pressable>
-                    ))}
-                </View>
-            )}
-            <Text style={styles.description}>{recipe.description}</Text>
+            {/* U8: the header rides a beach-glow gradient title band (mockup recipe-detail). */}
+            <GradientSurface gradient="hero" style={styles.titleBand}>
+                <Text accessibilityRole="header" style={styles.title}>
+                    {recipe.title}
+                </Text>
+                {(staticBadges.length > 0 || recipe.tags.length > 0) && (
+                    <View style={styles.badgeRow}>
+                        {staticBadges.map((badge, index) => (
+                            <Text
+                                key={badge}
+                                style={[styles.badge, index % 2 === 0 ? styles.badgeSeafoam : styles.badgeCoral]}
+                            >
+                                {badge}
+                            </Text>
+                        ))}
+                        {recipe.tags.map((tag) => (
+                            <Pressable
+                                key={tag}
+                                accessibilityRole="button"
+                                accessibilityLabel={fillTemplate(detail.tagFilterLabel, { tag })}
+                                onPress={() => onFilterByTag?.(tag)}
+                            >
+                                <Text style={[styles.badge, styles.badgeCoral]}>{tag}</Text>
+                            </Pressable>
+                        ))}
+                    </View>
+                )}
+                <Text style={styles.description}>{recipe.description}</Text>
+            </GradientSurface>
 
             {/* C2 wireframe parity: Serves leads the strip, then Prep, Cook, Total. */}
             <View style={styles.statStrip}>
@@ -203,7 +211,19 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
 
 const styles = StyleSheet.create({
     container: { gap: nativeTokens.spacing[4], paddingHorizontal: nativeTokens.spacing[4], paddingVertical: nativeTokens.spacing[4] },
-    title: { fontSize: nativeTokens.fontSize.displayMd, fontWeight: '700', color: palette.charcoal },
+    // U8: the beach-glow gradient title band the header sits in.
+    titleBand: {
+        gap: nativeTokens.spacing[3],
+        borderRadius: nativeTokens.radius.lg,
+        padding: nativeTokens.spacing[4],
+    },
+    // U8 brand leaf: the display title threads the Playfair `display` family (was system-serif bold).
+    title: {
+        fontFamily: nativeTokens.fontFamily.display,
+        fontSize: nativeTokens.fontSize.displayMd,
+        fontWeight: '700',
+        color: palette.charcoal,
+    },
     badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
     badge: {
         borderRadius: nativeTokens.radius.full,
@@ -227,12 +247,22 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: nativeTokens.borderSubtle,
         paddingVertical: nativeTokens.spacing[4],
+        // U8 brand leaf: tokenized card elevation (was flat, border-only).
+        ...nativeTokens.elevation.sm,
     },
     statCell: { flex: 1, alignItems: 'center', gap: nativeTokens.spacing[1] },
     statValue: { fontSize: nativeTokens.fontSize.bodyLg, fontWeight: '700', color: palette.charcoal },
     statLabel: { fontSize: nativeTokens.fontSize.overline, textTransform: 'uppercase', letterSpacing: 0.5, color: palette.slate },
     sectionHeading: { fontSize: nativeTokens.fontSize.headingMd, fontWeight: '600', color: palette.charcoal },
-    card: { backgroundColor: palette.white, borderRadius: nativeTokens.radius.lg, borderWidth: 1, borderColor: nativeTokens.borderSubtle, padding: nativeTokens.spacing[2] },
+    card: {
+        backgroundColor: palette.white,
+        borderRadius: nativeTokens.radius.lg,
+        borderWidth: 1,
+        borderColor: nativeTokens.borderSubtle,
+        padding: nativeTokens.spacing[2],
+        // U8 brand leaf: tokenized card elevation (was flat, border-only).
+        ...nativeTokens.elevation.sm,
+    },
     ingredientRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: nativeTokens.spacing[1], paddingHorizontal: nativeTokens.spacing[2] },
     // 44pt tap target (RC-3) around the compact visible checkbox.
     checkboxTouch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },

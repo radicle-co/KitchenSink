@@ -28,6 +28,19 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.getByRole('heading', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
     });
 
+    // NOTE: the title's Playfair `display` family (U8 brand leaf) is a react-native-web class-compiled
+    // `fontFamily` that jsdom's getComputedStyle/CSSOM does not surface reliably; the family itself is
+    // covered by the single-source `scale.test.ts`, and its on-device rendering by the Maestro suite.
+
+    it('sits the header in a brand gradient title band (U8)', () => {
+        const { container } = render(<RecipeDetailView recipe={makeRecipeDetail({ title: 'Lamb' })} />);
+        const band = container.querySelector('[data-commise-stub="linear-gradient"]');
+
+        expect(band).not.toBeNull();
+        // The heading is inside the gradient band.
+        expect(band?.querySelector('[role="heading"]')).not.toBeNull();
+    });
+
     it('renders the description and badges', () => {
         render(
             <RecipeDetailView

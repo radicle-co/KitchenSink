@@ -64,6 +64,11 @@ export default defineConfig({
             // the wizard's new `Feather` usage — mirrors `@commise/mobile`'s identical fix, same root cause).
             // Icons are decorative in these tests, so stub the whole module.
             '@expo/vector-icons': path.resolve(import.meta.dirname, 'test-utils/expoVectorIconsStub.tsx'),
+            // `expo-linear-gradient` / `expo-blur` back the U8 brand surfaces (`@commise/ui/surface`) the
+            // hero native leaves adopt; both bridge to native views absent under jsdom, so stub them. Real
+            // gradient/blur rendering is a device/Maestro concern.
+            'expo-linear-gradient': path.resolve(import.meta.dirname, 'test-utils/expoLinearGradientStub.tsx'),
+            'expo-blur': path.resolve(import.meta.dirname, 'test-utils/expoBlurStub.tsx'),
         },
     },
 });

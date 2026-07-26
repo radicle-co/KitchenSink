@@ -7,14 +7,15 @@ excluded from the vitest suite by the `.load.js` suffix / this `tests/load/` dir
 
 They target the performance requirements of Feature 001:
 
-| Script                         | Requirement     | Assertion (via `options.thresholds`)                                             |
-| ------------------------------ | --------------- | -------------------------------------------------------------------------------- |
-| `sc009-read-write.load.js`     | SC-009          | `http_req_duration` p95 ≤ 500ms on recipe list / get / create                    |
-| `search-latency.load.js`       | SC-009          | search `http_req_duration` p95 < 2s                                              |
-| `save-under-archive.load.js`   | FR-007b-i       | recipe-save (create + update) p95 ≤ 500ms while the S3 archive is queued         |
-| `pull-from-source.load.js`     | W8-a.8 / FR-011 | collection pull `previewPull` / `commitPull` p95 ≤ 500ms (read + write)          |
-| `version-archive-read.load.js` | W8-a.7          | version GET served via the S3 archive fallback p95 < 1s                          |
-| `service-erasure.load.js`      | CR-002 / U4a    | internal EdDSA-guarded erasure POST p95 ≤ 500ms (202) + expired → 401 under load |
+| Script                               | Requirement         | Assertion (via `options.thresholds`)                                                          |
+| ------------------------------------ | ------------------- | --------------------------------------------------------------------------------------------- |
+| `sc009-read-write.load.js`           | SC-009              | `http_req_duration` p95 ≤ 500ms on recipe list / get / create                                 |
+| `search-latency.load.js`             | SC-009              | search `http_req_duration` p95 < 2s                                                           |
+| `ingredient-suggest-latency.load.js` | search Stage 2 / F2 | blended ingredient typeahead p95 < 1.5s AND a degrading food catalog never produces a non-2xx |
+| `save-under-archive.load.js`         | FR-007b-i           | recipe-save (create + update) p95 ≤ 500ms while the S3 archive is queued                      |
+| `pull-from-source.load.js`           | W8-a.8 / FR-011     | collection pull `previewPull` / `commitPull` p95 ≤ 500ms (read + write)                       |
+| `version-archive-read.load.js`       | W8-a.7              | version GET served via the S3 archive fallback p95 < 1s                                       |
+| `service-erasure.load.js`            | CR-002 / U4a        | internal EdDSA-guarded erasure POST p95 ≤ 500ms (202) + expired → 401 under load              |
 
 A threshold breach makes `k6 run` exit non-zero, which fails the invoking CI job.
 
@@ -56,6 +57,7 @@ per-user-tracking follow-up in the service's throttle notes.)
 | `RECIPE_SAVE_P95_MS`                 | `500`                            | p95 budget (ms) for read/write/save                      |
 | `RECIPE_SEARCH_P95_MS`               | `2000`                           | p95 budget (ms) for search                               |
 | `RECIPE_VERSION_ARCHIVE_READ_P95_MS` | `1000`                           | p95 budget (ms) for the S3 version-archive fallback read |
+| `RECIPE_SUGGEST_P95_MS`              | `1500`                           | p95 budget (ms) for the blended ingredient typeahead     |
 | `RECIPE_ARCHIVE_FIXTURE_RECIPE_ID`   | _(fixed id, see below)_          | recipe id `version-archive-read.load.js` reads           |
 | `RECIPE_ERASURE_P95_MS`              | `500`                            | p95 budget (ms) for the internal erasure POST            |
 | `RECIPE_ERASURE_TOKENS_FILE`         | `tests/load/erasure-tokens.json` | pool file `service-erasure.load.js` opens                |
@@ -71,6 +73,7 @@ export RECIPE_LOAD_TEST_TOKEN='<clerk session token>'
 # Individual scenarios
 k6 run tests/load/sc009-read-write.load.js
 k6 run tests/load/search-latency.load.js
+k6 run tests/load/ingredient-suggest-latency.load.js
 k6 run tests/load/save-under-archive.load.js
 k6 run tests/load/pull-from-source.load.js
 

@@ -22,6 +22,15 @@ export const SEARCH_P95_MS = Number(__ENV['RECIPE_SEARCH_P95_MS'] || 2000);
 // (a full-text query). 1s gives headroom above the DB baseline while still catching a genuinely slow
 // archive read (e.g. S3 throttling, a cold connection).
 export const VERSION_ARCHIVE_READ_P95_MS = Number(__ENV['RECIPE_VERSION_ARCHIVE_READ_P95_MS'] || 1000);
+// Search Stage 2 — the blended ingredient typeahead (GET /v1/ingredients/suggest). Budgeted as a DEGRADATION
+// bound rather than a query cost: the route issues the recipe-local read and the food-catalog read
+// concurrently, and the catalog read is capped by the short typeahead timeout (600ms default,
+// FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS) after which it falls back to local-only. So the worst healthy case is
+// roughly "local trgm/FTS read + that timeout", and 1.5s leaves headroom for a cold connection while still
+// catching the two regressions that matter: the timeout no longer being enforced (which would drift toward the
+// food client's 8s default) or the two reads collapsing into sequential awaits. Deliberately TIGHTER than
+// search's 2s — a per-keystroke path cannot be given a full-text query's budget.
+export const SUGGEST_P95_MS = Number(__ENV['RECIPE_SUGGEST_P95_MS'] || 1500);
 
 // --- Load shape ---------------------------------------------------------------------------------
 // SC-009's headline target is p95 <= 500ms at 10k concurrent. A single k6 runner cannot honestly

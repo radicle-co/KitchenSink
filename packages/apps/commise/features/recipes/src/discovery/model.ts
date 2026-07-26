@@ -11,6 +11,7 @@ import type { ReactNode } from 'react';
 import { RecipeSearchSortBy, type RecipeSearchResult } from '@kitchensink/recipe-core';
 
 import type { RecipeCardModel } from '../card/model.js';
+import type { RecipeListRefreshControl } from '../list/model.js';
 
 /**
  * The sort options the discovery UI offers (S3), in display order — a subset of {@link RecipeSearchSortBy}
@@ -160,6 +161,13 @@ export interface RecipeDiscoveryListProps {
      * browse into the full result list while no query/filter is active, so the user can return to the rails.
      */
     readonly onExitToBrowse?: () => void;
+    /**
+     * Optional pull-to-refresh (U4/L8) — mobile only; the web leaf ignores it (no web pull gesture). Bound to
+     * the result list (not the browse rails). Reuses the
+     * {@link import('../list/model.js').RecipeListRefreshControl} shape — one pull-to-refresh contract across
+     * every list. The container wires it to the search query's `isRefetching` + `refetch`.
+     */
+    readonly refresh?: RecipeListRefreshControl;
 }
 
 /**

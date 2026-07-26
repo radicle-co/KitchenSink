@@ -61,4 +61,12 @@ describe('HomeTopBar (mobile)', () => {
         // No digit anywhere in the bar — the top bar carries no notifications feed in v1.
         expect(screen.queryByText(/\d/u)).toBeNull();
     });
+
+    it('gives the account avatar a 44pt touch target (U4 / RC-3)', () => {
+        renderTopBar();
+
+        const target = window.getComputedStyle(screen.getByRole('button', { name: chrome.account }));
+        expect(target.width).toBe('44px');
+        expect(target.height).toBe('44px');
+    });
 });

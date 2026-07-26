@@ -80,6 +80,18 @@ describe('RecipeCard (native)', () => {
         expect(screen.queryByRole('img', { name: /Rated/ })).toBeNull();
     });
 
+    // U4 contrast (WCAG AA): a rated-but-all-empty row (average 0) renders 5 empty pips — each must be the
+    // AA-legible slate, not the old 1.9:1 mist.
+    it('renders empty star pips in slate (AA), not the 1.9:1 mist', () => {
+        renderCard(<RecipeCard recipe={model({ averageRating: 0, ratingCount: 3 })} />);
+
+        const pips = screen.getAllByText('★');
+        expect(pips).toHaveLength(5);
+        for (const pip of pips) {
+            expect(window.getComputedStyle(pip).color).toBe('rgb(99, 110, 114)');
+        }
+    });
+
     it('is non-interactive (no button) when no onSelect is given (the Home widget card)', () => {
         renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
 
@@ -121,6 +133,14 @@ describe('RecipeCard (native) — merged fields (CR-002 / L2·L3)', () => {
 
         expect(screen.getByText('grill')).toBeTruthy();
         expect(screen.getByText('summer')).toBeTruthy();
+    });
+
+    // U4 contrast (WCAG AA) — the one place this suite asserts computed colour rather than the a11y tree,
+    // because a colour fix is not observable in the tree.
+    it('renders tag chips with a slate (AA-legible) text colour, not the 2.2:1 coral', () => {
+        renderCard(<RecipeCard recipe={model({ tags: ['grill'] })} />);
+
+        expect(window.getComputedStyle(screen.getByText('grill')).color).toBe('rgb(99, 110, 114)');
     });
 
     it('shows the version badge past v1 and hides it at v1', () => {

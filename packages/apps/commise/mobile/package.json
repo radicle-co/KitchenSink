@@ -30,6 +30,7 @@
         "@kitchensink/recipe-service-client": "*",
         "@react-native-community/netinfo": "12.0.1",
         "@sentry/react-native": "~7.11.0",
+        "@shopify/flash-list": "~2.3.2",
         "@tamagui/core": "^2.1.0",
         "@tamagui/web": "^2.1.0",
         "@tanstack/react-query": "^5.62.0",

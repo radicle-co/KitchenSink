@@ -13,6 +13,7 @@
  */
 import { initialsFor } from '@commise/features-core';
 import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
 import type { JSX } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -49,11 +50,14 @@ export function HomeTopBar({ chrome, displayName, onOpenAccount }: HomeTopBarPro
                 accessibilityRole="button"
                 accessibilityLabel={initials === '' ? chrome.accountNoName : chrome.account}
                 onPress={onOpenAccount}
-                style={styles.avatar}
+                style={styles.avatarTouch}
             >
-                {/* The initials are decorative — the accessible name is on the Pressable — so they carry no
-                    separate label; a name-less viewer shows a neutral dot instead of guessed letters. */}
-                <Text style={styles.avatarText}>{initials === '' ? '·' : initials}</Text>
+                {/* 44pt tap target (RC-3) around the compact 32px avatar circle. The initials are decorative —
+                    the accessible name is on the Pressable — so they carry no separate label; a name-less
+                    viewer shows a neutral dot instead of guessed letters. */}
+                <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{initials === '' ? '·' : initials}</Text>
+                </View>
             </Pressable>
         </View>
     );
@@ -65,16 +69,18 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
+        paddingHorizontal: nativeTokens.spacing[4],
         backgroundColor: 'rgba(255, 255, 255, 0.5)',
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(178, 190, 195, 0.3)',
+        borderBottomColor: nativeTokens.borderSubtle,
     },
-    title: { fontFamily: DISPLAY_FONT_SEMIBOLD, fontSize: 18, fontWeight: '600', color: palette.charcoal },
+    title: { fontFamily: DISPLAY_FONT_SEMIBOLD, fontSize: nativeTokens.fontSize.bodyLg, fontWeight: '600', color: palette.charcoal },
+    // 44pt tap target (RC-3); pushed to the row's right edge so the larger hit box does not shift the avatar.
+    avatarTouch: { width: 44, height: 44, alignItems: 'flex-end', justifyContent: 'center' },
     avatar: {
         width: 32,
         height: 32,
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.full,
         backgroundColor: palette.seafoam,
         alignItems: 'center',
         justifyContent: 'center',

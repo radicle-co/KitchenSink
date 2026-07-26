@@ -238,6 +238,21 @@ describe('RecipeDiscoveryList (native) — compact grid (U7)', () => {
     });
 });
 
+describe('RecipeDiscoveryList (native) — pull-to-refresh (U4/L8)', () => {
+    it('still renders the result grid when a refresh control is wired (RefreshControl is inert in jsdom)', () => {
+        // The pull gesture + spinner are a device/Maestro concern; this guards that wiring the control through
+        // the virtualized results list does not break the grid.
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            refresh: { refreshing: true, onRefresh: noop },
+        });
+
+        expect(screen.getByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
+        expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(3);
+    });
+});
+
 describe('RecipeDiscoveryList (native) — clone', () => {
     it('reports the cloned recipe id upward', () => {
         const onClone = vi.fn();

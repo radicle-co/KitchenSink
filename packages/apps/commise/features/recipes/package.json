@@ -30,6 +30,7 @@
     },
     "peerDependencies": {
         "@expo/vector-icons": ">=14.0.0",
+        "@shopify/flash-list": ">=2.0.0",
         "expo-image": ">=2.0.0",
         "react": "^19.0.0",
         "react-native": ">=0.79.0"
@@ -38,12 +39,16 @@
         "@expo/vector-icons": {
             "optional": true
         },
+        "@shopify/flash-list": {
+            "optional": true
+        },
         "expo-image": {
             "optional": true
         }
     },
     "devDependencies": {
         "@expo/vector-icons": "^14.1.0",
+        "@shopify/flash-list": "~2.3.2",
         "expo-image": "~57.0.1",
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",

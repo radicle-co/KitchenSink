@@ -159,6 +159,14 @@ describe('RecipesScreen — navigation', () => {
         expect(screen.getByRole('heading', { name: 'Discover recipes' })).toBeTruthy();
     });
 
+    it('gives the top-level tabs a 44pt touch target (U4 / RC-3)', () => {
+        render(<RecipesScreen />);
+
+        for (const tab of screen.getAllByRole('tab')) {
+            expect(window.getComputedStyle(tab).minHeight).toBe('44px');
+        }
+    });
+
     it('switches to the collections tab', () => {
         render(<RecipesScreen />);
 

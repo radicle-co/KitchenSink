@@ -7,8 +7,10 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
+import { FlashList } from '@shopify/flash-list';
 import type { FC, ReactElement } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 
@@ -49,6 +51,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     loadMore,
     browseSlot,
     onExitToBrowse,
+    refresh,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
@@ -100,54 +103,69 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
         // S5 — echo the active query in the results header; a bare browse shows just the count.
         const query = searchValue.trim();
         const header = query.length > 0 ? fillTemplate(discovery.resultsForQuery, { count, query }) : count;
-        // ScrollView, not View: even a 2-col grid overflows a phone once several rows load, so the cards must
-        // scroll. Header + search + filters stay pinned above. Cards lay out in a wrapping 2-col grid (U7).
+        // FlashList (U4), not ScrollView + .map: even a 2-col grid overflows a phone once several rows load, so
+        // the cards must both scroll AND recycle cells. `numColumns={2}` keeps the wrapping 2-col grid (U7); v2
+        // auto-measures — no `estimatedItemSize`. The back-to-browse + count are the list header, the `[Load
+        // more]` pager the footer; header/search/filters stay pinned above. Pull-to-refresh (U4/L8) binds to
+        // the query refetch (results only, not the browse rails); absent on web.
         body = (
-            <ScrollView
+            <FlashList
+                role="list"
+                data={results}
+                numColumns={2}
+                keyExtractor={(result) => result.recipe.id}
+                renderItem={({ item }) => (
+                    <View role="listitem" style={styles.flashCell}>
+                        <RecipeDiscoveryCard
+                            recipe={toRecipeCardModel(item.recipe)}
+                            authorHandle={item.recipe.authorHandle}
+                            sourceAttribution={item.recipe.sourceAttribution}
+                            isCloning={cloningId === item.recipe.id}
+                            onSelect={onSelectRecipe}
+                            onClone={onClone}
+                        />
+                    </View>
+                )}
+                ListHeaderComponent={
+                    <View style={styles.resultsHeader}>
+                        {onExitToBrowse !== undefined && (
+                            <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={discovery.backToBrowse}
+                                onPress={onExitToBrowse}
+                                style={styles.backToBrowse}
+                            >
+                                <Text style={styles.backToBrowseText}>{discovery.backToBrowse}</Text>
+                            </Pressable>
+                        )}
+                        <Text style={styles.count}>{header}</Text>
+                    </View>
+                }
+                ListFooterComponent={
+                    loadMore?.hasMore === true ? (
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={loadMore.loading ? discovery.loadingMore : discovery.loadMore}
+                            accessibilityState={{ busy: loadMore.loading, disabled: loadMore.loading }}
+                            disabled={loadMore.loading}
+                            onPress={loadMore.onLoadMore}
+                            style={[styles.loadMore, loadMore.loading && styles.loadMoreBusy]}
+                        >
+                            <Text style={styles.loadMoreLabel}>
+                                {loadMore.loading ? discovery.loadingMore : discovery.loadMore}
+                            </Text>
+                        </Pressable>
+                    ) : null
+                }
                 style={styles.cardsScroll}
                 contentContainerStyle={styles.cards}
                 keyboardShouldPersistTaps="handled"
-            >
-                {onExitToBrowse !== undefined && (
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={discovery.backToBrowse}
-                        onPress={onExitToBrowse}
-                        style={styles.backToBrowse}
-                    >
-                        <Text style={styles.backToBrowseText}>{discovery.backToBrowse}</Text>
-                    </Pressable>
-                )}
-                <Text style={styles.count}>{header}</Text>
-                <View role="list" style={styles.grid}>
-                    {results.map((result) => (
-                        <View key={result.recipe.id} role="listitem" style={styles.gridCell}>
-                            <RecipeDiscoveryCard
-                                recipe={toRecipeCardModel(result.recipe)}
-                                authorHandle={result.recipe.authorHandle}
-                                sourceAttribution={result.recipe.sourceAttribution}
-                                isCloning={cloningId === result.recipe.id}
-                                onSelect={onSelectRecipe}
-                                onClone={onClone}
-                            />
-                        </View>
-                    ))}
-                </View>
-                {loadMore?.hasMore === true && (
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={loadMore.loading ? discovery.loadingMore : discovery.loadMore}
-                        accessibilityState={{ busy: loadMore.loading, disabled: loadMore.loading }}
-                        disabled={loadMore.loading}
-                        onPress={loadMore.onLoadMore}
-                        style={[styles.loadMore, loadMore.loading && styles.loadMoreBusy]}
-                    >
-                        <Text style={styles.loadMoreLabel}>
-                            {loadMore.loading ? discovery.loadingMore : discovery.loadMore}
-                        </Text>
-                    </Pressable>
-                )}
-            </ScrollView>
+                refreshControl={
+                    refresh !== undefined ? (
+                        <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
+                    ) : undefined
+                }
+            />
         );
     }
 
@@ -192,46 +210,53 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, gap: 16, paddingHorizontal: 16, paddingTop: 8 },
-    heading: { fontSize: 28, fontWeight: '700', color: palette.charcoal },
+    container: { flex: 1, gap: nativeTokens.spacing[4], paddingHorizontal: nativeTokens.spacing[4], paddingTop: nativeTokens.spacing[2] },
+    heading: { fontSize: nativeTokens.fontSize.displayMd, fontWeight: '700', color: palette.charcoal },
     search: {
         backgroundColor: palette.white,
-        borderRadius: 999,
+        borderRadius: nativeTokens.radius.full,
         borderWidth: 1,
-        borderColor: 'rgba(178, 190, 195, 0.3)',
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        fontSize: 16,
+        borderColor: nativeTokens.borderSubtle,
+        paddingVertical: nativeTokens.spacing[3],
+        paddingHorizontal: nativeTokens.spacing[4],
+        fontSize: nativeTokens.fontSize.bodyMd,
         color: palette.charcoal,
     },
     count: { fontSize: 13, fontWeight: '500', color: palette.slate },
-    sortRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    sortChip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: palette.pearl },
+    sortRow: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
+    sortChip: { borderRadius: nativeTokens.radius.full, paddingHorizontal: nativeTokens.spacing[3], paddingVertical: 6, minHeight: 44, justifyContent: 'center', backgroundColor: palette.pearl },
     sortChipActive: { backgroundColor: palette.charcoal },
-    sortLabelText: { fontSize: 14, fontWeight: '500', color: palette.slate },
-    sortLabelActive: { fontSize: 14, fontWeight: '500', color: palette.white },
+    sortLabelText: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.slate },
+    sortLabelActive: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500', color: palette.white },
     loadMore: {
         alignSelf: 'center',
         backgroundColor: palette.pearl,
-        borderRadius: 999,
+        borderRadius: nativeTokens.radius.full,
         paddingVertical: 10,
-        paddingHorizontal: 24,
-        marginTop: 8,
-    },
-    loadMoreBusy: { opacity: 0.6 },
-    loadMoreLabel: { fontSize: 14, fontWeight: '600', color: palette.charcoal },
-    cardsScroll: { flex: 1 },
-    cards: { gap: 12, paddingBottom: 24 },
-    // 2-col grid (U7): a wrapping row of half-width cells, each holding one result/skeleton card.
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    gridCell: { width: '48%' },
-    skeletonCard: { height: 220, borderRadius: 20, backgroundColor: 'rgba(178, 190, 195, 0.3)' },
-    backToBrowse: {
-        alignSelf: 'flex-start',
-        paddingVertical: 6,
-        paddingHorizontal: 4,
+        paddingHorizontal: nativeTokens.spacing[5],
+        marginTop: nativeTokens.spacing[2],
         minHeight: 44,
         justifyContent: 'center',
     },
-    backToBrowseText: { fontSize: 14, fontWeight: '600', color: palette.seafoam },
+    loadMoreBusy: { opacity: 0.6 },
+    loadMoreLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.charcoal },
+    cardsScroll: { flex: 1 },
+    cards: { paddingBottom: nativeTokens.spacing[5] },
+    // The virtualized results header — back-to-browse (when present) + the result count.
+    resultsHeader: { gap: nativeTokens.spacing[3], marginBottom: nativeTokens.spacing[3] },
+    // A FlashList grid cell (U4): `flex: 1` fills its `numColumns={2}` column; the horizontal padding is the
+    // inter-column gutter, the bottom padding the inter-row rhythm.
+    flashCell: { flex: 1, paddingHorizontal: nativeTokens.spacing[1], paddingBottom: nativeTokens.spacing[3] },
+    // 2-col skeleton grid (U7 — preserved): a wrapping row of half-width cells, each an inert placeholder card.
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[3] },
+    gridCell: { width: '48%' },
+    skeletonCard: { height: 220, borderRadius: nativeTokens.radius.lg, backgroundColor: nativeTokens.borderSubtle },
+    backToBrowse: {
+        alignSelf: 'flex-start',
+        paddingVertical: 6,
+        paddingHorizontal: nativeTokens.spacing[1],
+        minHeight: 44,
+        justifyContent: 'center',
+    },
+    backToBrowseText: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.seafoam },
 });

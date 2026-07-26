@@ -197,6 +197,25 @@ describe('RecipeList (native) — loading state', () => {
         expect(screen.getByLabelText('Loading recipes')).toBeTruthy();
         expect(screen.queryByRole('button', { name: /Grilled Lamb/ })).toBeNull();
     });
+
+    it('renders inert skeleton cards (not a blank view) while loading (U4)', () => {
+        renderList({ status: 'loading' });
+
+        // The loading region stays labelled for assistive tech but now carries motion-free skeleton cards,
+        // hidden from it — mirrors the discovery skeletons.
+        const region = screen.getByLabelText('Loading recipes');
+        expect(region.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(0);
+    });
+});
+
+describe('RecipeList (native) — touch targets (U4 / RC-3)', () => {
+    it('gives the source tabs a 44pt minimum hit area', () => {
+        renderList({ status: 'ready', recipes: threeRecipes, tab: { active: 'mine', onChange: noop } });
+
+        for (const tab of screen.getAllByRole('tab')) {
+            expect(window.getComputedStyle(tab).minHeight).toBe('44px');
+        }
+    });
 });
 
 describe('RecipeList (native) — error state', () => {

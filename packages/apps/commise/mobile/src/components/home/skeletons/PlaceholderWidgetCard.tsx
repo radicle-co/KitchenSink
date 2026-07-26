@@ -12,6 +12,7 @@
  * other way to tell "coming soon" from "stuck loading". There is no pulse animation — nothing is in progress.
  */
 import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
 import type { JSX, ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -52,14 +53,14 @@ export function PlaceholderWidgetCard({ title, comingSoonLabel, children }: Plac
 
 const styles = StyleSheet.create({
     card: {
-        gap: 16,
-        borderRadius: 20,
+        gap: nativeTokens.spacing[4],
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
-        borderColor: 'rgba(178, 190, 195, 0.3)',
+        borderColor: nativeTokens.borderSubtle,
         backgroundColor: 'rgba(255, 255, 255, 0.6)',
         padding: 20,
     },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-    title: { fontSize: 16, fontWeight: '600', color: palette.charcoal },
-    badge: { fontSize: 12, fontWeight: '500', color: palette.slate },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: nativeTokens.spacing[3] },
+    title: { fontSize: nativeTokens.fontSize.bodyMd, fontWeight: '600', color: palette.charcoal },
+    badge: { fontSize: nativeTokens.fontSize.caption, fontWeight: '500', color: palette.slate },
 });

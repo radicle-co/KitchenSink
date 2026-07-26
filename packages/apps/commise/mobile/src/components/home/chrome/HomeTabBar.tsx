@@ -11,6 +11,7 @@
  */
 import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
 import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
 import type { JSX } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -95,14 +96,19 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-around',
-        paddingTop: 8,
-        paddingHorizontal: 4,
+        paddingTop: nativeTokens.spacing[2],
+        paddingHorizontal: nativeTokens.spacing[1],
         backgroundColor: 'rgba(255, 255, 255, 0.9)',
         borderTopWidth: 1,
-        borderTopColor: 'rgba(178, 190, 195, 0.3)',
+        borderTopColor: nativeTokens.borderSubtle,
     },
-    tab: { flex: 1, alignItems: 'center', paddingVertical: 6 },
-    label: { fontSize: 12, color: palette.slate },
-    labelActive: { fontSize: 12, fontWeight: '600', color: palette.seafoam },
-    labelDisabled: { fontSize: 12, color: palette.mist },
+    // Each tab is a 44pt touch target (RC-3) — reachable Pressables and the non-interactive "coming soon"
+    // Views share this style, so every destination clears the minimum.
+    tab: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingVertical: 6 },
+    label: { fontSize: nativeTokens.fontSize.caption, color: palette.slate },
+    labelActive: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600', color: palette.seafoam },
+    // Contrast (U4 / WCAG AA): the "coming soon" label is real text — mist is 1.9:1, slate is 5:1. The
+    // non-interactivity (a View, not a Pressable) and the "…, coming soon" accessible name carry the disabled
+    // meaning, not a sub-legible colour.
+    labelDisabled: { fontSize: nativeTokens.fontSize.caption, color: palette.slate },
 });

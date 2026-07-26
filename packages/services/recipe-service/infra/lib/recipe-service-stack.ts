@@ -266,6 +266,16 @@ export class RecipeServiceStack extends Stack {
                 this,
                 `/kitchensink/${baseStage}/clerk/jwt-public-key`,
             ),
+            // CR-002 / U4a — the PUBLIC EdDSA verification key for the internal service-principal erasure
+            // route (`ServiceErasureAuthService`, `POST /v1/internal/account/erasure`). Non-secret, resolved
+            // from SSM at deploy (same wiring as CLERK_JWT_KEY above); the matching PRIVATE key is held only
+            // by the identity deletion-worker / erasure-reconciliation Lambdas. Absent ⇒ the internal route
+            // fails closed (401), never open. Per-stage keypair (a pr-{N} preview shares the sandbox key via
+            // baseStage), matching food-service's identical wiring for its own leg of the fan-out.
+            RECIPE_SERVICE_PRINCIPAL_JWT_KEY: ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/${baseStage}/recipe/service-principal-jwt-public-key`,
+            ),
             // The account-erasure queue the recipe-workers stack owns (T136b). REQUIRED — ErasureService
             // refuses to boot without it, so a stage wired with no queue fails the deploy loudly instead of
             // degrading every "erase my data" request to a silent cron-tick wait. Read from SSM, NOT a

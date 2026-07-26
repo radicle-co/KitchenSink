@@ -176,6 +176,28 @@ describe('Account-erasure queue wiring', () => {
         expect(apiEnvironment(template).map((entry) => entry.Name)).toContain('ACCOUNT_ERASURE_QUEUE_URL');
     });
 
+    it('injects RECIPE_SERVICE_PRINCIPAL_JWT_KEY so the internal erasure route can verify service tokens (CR-002/U4a)', () => {
+        // The API container serves `POST /v1/internal/account/erasure`, whose ServiceErasureAuthService
+        // verifies the deletion-worker's single-target EdDSA token against this PUBLIC key. U4a deferred the
+        // wiring, so the route fail-closed (401) on every deployed stage — the identity fan-out's recipe leg
+        // could never succeed. Mirrors food-service's identical assertion for its own leg.
+        expect(apiEnvironment(template).map((entry) => entry.Name)).toContain('RECIPE_SERVICE_PRINCIPAL_JWT_KEY');
+    });
+
+    it('reads the service-principal PUBLIC key from the BASE stage (a pr-{N} preview shares the sandbox keypair)', () => {
+        // The keypair is per-platform-stage, not per-preview: the identity deletion-worker holds ONE private
+        // key per base stage, so a pr-{N} recipe service must verify against that same base-stage public key
+        // or every preview erasure 401s. (Contrast ACCOUNT_ERASURE_QUEUE_URL above, which is per-stage.)
+        const keyEnv = apiEnvironment(template).find((entry) => entry.Name === 'RECIPE_SERVICE_PRINCIPAL_JWT_KEY');
+        // `valueForStringParameter` emits a `Ref` to a synthesized CFN parameter whose logical id is the SSM
+        // path with the separators stripped — so assert on that flattened form. It carries the resolved stage,
+        // which is what actually matters here: `sandbox` (the BASE stage), never the deploy stage `test`.
+        const serialized = JSON.stringify(keyEnv?.Value);
+
+        expect(serialized).toContain('sandboxrecipeserviceprincipaljwtpublickey');
+        expect(serialized).not.toContain('testrecipeserviceprincipaljwtpublickey');
+    });
+
     it('sources the queue URL from SSM, not a cross-stack export', () => {
         // The mechanism matters as much as the value. An `Fn.importValue` of a recipe-workers export would
         // lock that export for as long as this stack imports it, and the ADR-0005 PR-close cleanup deletes

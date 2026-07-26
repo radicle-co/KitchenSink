@@ -27,7 +27,9 @@
             "default": "./dist/tokens/*.js"
         },
         "./button": "./src/button/index.ts",
-        "./confirm-dialog": "./src/confirmDialog/index.ts"
+        "./confirm-dialog": "./src/confirmDialog/index.ts",
+        "./press-scale": "./src/pressScale/index.ts",
+        "./input": "./src/input/index.ts"
     },
     "dependencies": {
         "@radix-ui/react-alert-dialog": "^1.1.15"

@@ -9,7 +9,7 @@
  *
  * @implements ARCH-001
  */
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +27,19 @@ import { DATABASE_URL } from './support/db.js';
 
 const sourceMigrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/db/migrations');
 
+/**
+ * The ordered migration names, derived from the directory INDEPENDENTLY of `discoverMigrations` (so the
+ * assertions below still test the runner rather than restating it). Adding a `.sql` file must not require
+ * editing this suite — a hardcoded list here has already rotted twice, and each time it turned a
+ * legitimately-applied migration into a red build with a misleading diff.
+ */
+function expectedMigrationNames(): string[] {
+    return readdirSync(sourceMigrationsDir)
+        .filter((file) => file.endsWith('.sql'))
+        .sort()
+        .map((file) => file.replace(/\.sql$/, ''));
+}
+
 describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
     const pool = new pg.Pool({ connectionString: DATABASE_URL });
 
@@ -39,29 +52,30 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
     });
 
     describe('discoverMigrations', () => {
-        it('discovers the ordered .sql migrations from the source dir (0000, 0001, 0002 — no hardcoded list)', () => {
+        it('discovers every .sql migration in filename order (no hardcoded list)', () => {
             const names = discoverMigrations(sourceMigrationsDir).map((migration) => migration.name);
 
-            expect(names).toEqual(['0000_food_schema', '0001_food_fts', '0002_fetch_requesters_rekey']);
+            expect(names).toEqual(expectedMigrationNames());
+            // The base schema must be first, and the ordinal prefix must strictly increase.
+            expect(names[0]).toBe('0000_food_schema');
+            expect([...names].sort()).toEqual(names);
         });
+
     });
 
     describe('runMigrations', () => {
         it('applies every discovered migration in order and validates the expected tables exist', async () => {
+            const expected = expectedMigrationNames();
             const result = await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
 
-            expect(result.applied).toEqual(['0000_food_schema', '0001_food_fts', '0002_fetch_requesters_rekey']);
+            expect(result.applied).toEqual(expected);
             expect(result.skipped).toEqual([]);
-            expect(result.validated.migrations).toBe(3);
+            expect(result.validated.migrations).toBe(expected.length);
             expect(result.validated.tables).toBeGreaterThanOrEqual(13);
 
             const recorded = await pool.query<{ name: string }>('SELECT name FROM schema_migrations ORDER BY name');
 
-            expect(recorded.rows.map((row) => row.name)).toEqual([
-                '0000_food_schema',
-                '0001_food_fts',
-                '0002_fetch_requesters_rekey',
-            ]);
+            expect(recorded.rows.map((row) => row.name)).toEqual([...expected].sort());
         });
 
         it('is idempotent — a re-invocation skips already-recorded migrations and applies nothing', async () => {
@@ -69,7 +83,7 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             const second = await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
 
             expect(second.applied).toEqual([]);
-            expect(second.skipped).toEqual(['0000_food_schema', '0001_food_fts', '0002_fetch_requesters_rekey']);
+            expect(second.skipped).toEqual(expectedMigrationNames());
         });
 
         it('throws when an expected Drizzle-schema table is missing after applying the discovered SQL', async () => {
@@ -122,8 +136,8 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             try {
                 const result = await runMigrations({ pool: perPrPool, migrationsDir: sourceMigrationsDir });
 
-                // The runner discovers the full ordered set — including 0002 (CR-002/U1 requester rekey).
-                expect(result.applied).toEqual(['0000_food_schema', '0001_food_fts', '0002_fetch_requesters_rekey']);
+                // The runner discovers the full ordered set — every `.sql` in the directory, no exceptions.
+                expect(result.applied).toEqual(expectedMigrationNames());
                 expect(result.validated.tables).toBeGreaterThanOrEqual(13);
             } finally {
                 await perPrPool.end();

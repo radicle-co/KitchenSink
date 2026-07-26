@@ -2,7 +2,7 @@ import 'reflect-metadata';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AddressInfo } from 'node:net';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import type { INestApplication } from '@nestjs/common';
@@ -42,7 +42,11 @@ const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../src/d
  */
 async function applyMigration(pool: pg.Pool): Promise<void> {
     await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-    for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
+    // DISCOVER the ordered migrations — a hardcoded list silently rots the moment a migration lands
+    // (this one already predated 0002's requester rekey and 0003's `food.origin`).
+    for (const file of readdirSync(migrationsDir)
+        .filter((name) => name.endsWith('.sql'))
+        .sort()) {
         await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
     }
 }

@@ -19,7 +19,7 @@
  */
 import 'reflect-metadata';
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -191,7 +191,11 @@ describe.skipIf(!DATABASE_URL)('real UsdaApiClient + UsdaSourceAdapter over undi
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
 
-        for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
+        // DISCOVER the ordered migrations — a hardcoded list silently rots the moment a migration lands
+        // (this one already predated 0002's requester rekey and 0003's `food.origin`).
+        for (const file of readdirSync(migrationsDir)
+            .filter((name) => name.endsWith('.sql'))
+            .sort()) {
             await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
         }
 

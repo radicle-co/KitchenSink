@@ -39,6 +39,9 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useCreatePhotoUploadUrl: vi.fn(),
     useConfirmPhotoUpload: vi.fn(),
     useDeleteRecipePhoto: vi.fn(),
+    // U6: the uploader now wires "Set as cover" to the reorder mutation. A stable inert double keeps every
+    // existing case (which never sets a cover) working; the cover case below overrides `mutate`.
+    useReorderRecipePhotos: vi.fn(() => ({ mutate: vi.fn(), isPending: false, reset: vi.fn() })),
 }));
 
 const launchImageLibraryAsyncMock = vi.mocked(ImagePicker.launchImageLibraryAsync);

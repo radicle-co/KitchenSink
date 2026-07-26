@@ -32,7 +32,11 @@
 import { RecipePhotoManager } from '@commise/features-recipes';
 import { useRecipePhotoUpload, useRecipePhotoUploadQueue } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
-import { useDeleteRecipePhoto, useRecipePhotos } from '@kitchensink/recipe-service-client/hooks';
+import {
+    useDeleteRecipePhoto,
+    useRecipePhotos,
+    useReorderRecipePhotos,
+} from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useState } from 'react';
 import { Pressable, Text } from 'react-native';
@@ -55,6 +59,7 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
     const { recipePhotos: t } = useMessages(mobileMessages);
     const photosQuery = useRecipePhotos(recipeId);
     const deletePhoto = useDeleteRecipePhoto();
+    const reorderPhotos = useReorderRecipePhotos();
     const uploader = useRecipePhotoUpload(recipeId, t.uploadError);
     const photos = photosQuery.data ?? [];
     const queue = useRecipePhotoUploadQueue(uploader, photos.length, {
@@ -142,6 +147,26 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
         deletePhoto.mutate({ id: recipeId, photoId }, { onError: () => setRemoveErrorMessage(t.removeError) });
     };
 
+    // U6 "Set as cover": the cover is the lowest-sort-order photo (server projection), so choosing a cover is
+    // a reorder that moves the chosen id to the front, keeping the rest in their current order.
+    const setCover = (photoId: string): void => {
+        const photoIds = [photoId, ...photos.filter((photo) => photo.id !== photoId).map((photo) => photo.id)];
+        reorderPhotos.mutate({ id: recipeId, photoIds });
+    };
+
+    // U6 "Replace": no atomic replace primitive exists, so remove the photo then re-open the picker to add its
+    // replacement (mirrors the web container's documented remove-then-add).
+    const replacePhoto = (photoId: string): void => {
+        setRemoveErrorMessage(undefined);
+        deletePhoto.mutate(
+            { id: recipeId, photoId },
+            {
+                onError: () => setRemoveErrorMessage(t.removeError),
+                onSuccess: () => void addPhoto(),
+            },
+        );
+    };
+
     const addControl = (
         <Pressable
             accessibilityRole="button"
@@ -164,6 +189,8 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
             queueItems={queue.items}
             onRetryQueueItem={queue.retry}
             onRemoveQueueItem={queue.remove}
+            onSetCover={setCover}
+            onReplacePhoto={replacePhoto}
             addControl={addControl}
         />
     );

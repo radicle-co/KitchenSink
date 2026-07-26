@@ -52,9 +52,39 @@ export interface RecipePhotoManagerProps {
     readonly onRetryQueueItem?: (fileId: number) => void;
     /** Remove a queued/failed queue item from the grid (never a confirmed photo — use `onRemovePhoto`). */
     readonly onRemoveQueueItem?: (fileId: number) => void;
+    /**
+     * Make the photo with this id the recipe's cover (U6). The cover is NOT a stored boolean: the server
+     * resolves `coverPhotoUrl` as the LOWEST-sort-order photo, so "set as cover" is a reorder that moves the
+     * chosen id to index 0 — the container runs `reorderRecipePhotos` and the projection refetch reprojects
+     * the new cover into `photos[0]` (and into every `RecipeCard.Cover`). Because index 0 is always the cover,
+     * the cover DEFAULTS to the first photo with no explicit selection, and removing the current cover
+     * promotes the next photo automatically. Omitted (never passed `undefined`, per exactOptionalPropertyTypes)
+     * on a surface that does not offer cover selection — the manager then renders neither the badge nor the
+     * radios.
+     */
+    readonly onSetCover?: (photoId: string) => void;
+    /**
+     * Replace the photo with this id (U6). Presentational only: the manager renders a per-photo "Replace"
+     * control and reports the id upward; the container owns the platform image-acquisition glue (web:
+     * remove-then-open-the-file-input; native: relaunch the picker). Omitted on a surface that does not offer
+     * replace.
+     */
+    readonly onReplacePhoto?: (photoId: string) => void;
     /** The platform image-acquisition control (web file input / native picker button); hidden at the cap. */
     readonly addControl?: ReactNode;
 }
+
+/**
+ * Whether `photoId` is the recipe's cover photo. The cover is the LOWEST-sort-order photo — the same rule the
+ * server uses to resolve `coverPhotoUrl` — which, in the already-sorted `photos` array, is simply index 0. So
+ * the cover defaults to the first photo for free, and once the current cover is removed the next photo (the
+ * new index 0) becomes the cover with no extra client work.
+ *
+ * @param photos - The recipe's confirmed photos, in display (sort) order.
+ * @param photoId - The candidate photo id.
+ * @returns `true` when `photoId` is the first photo, `false` otherwise (including an empty list).
+ */
+export const isCoverPhoto = (photos: readonly RecipePhoto[], photoId: string): boolean => photos[0]?.id === photoId;
 
 /** Whether the recipe is at the photo cap (used to hide the add control and show the cap notice). */
 export const isAtPhotoCap = (photoCount: number): boolean => photoCount >= MAX_RECIPE_PHOTOS;

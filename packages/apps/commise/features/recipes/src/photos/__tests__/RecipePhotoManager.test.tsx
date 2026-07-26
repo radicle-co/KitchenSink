@@ -138,6 +138,82 @@ describe('RecipePhotoManager (web) — add control + cap', () => {
     });
 });
 
+describe('RecipePhotoManager (web) — per-photo cover selection (U6)', () => {
+    it('renders no cover badge and no cover radios when onSetCover is not wired (feature gated)', () => {
+        renderManager({ photos: threePhotos });
+
+        expect(screen.queryByText('Cover')).toBeNull();
+        expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    });
+
+    it('shows the "Cover" badge on the FIRST photo only (cover defaults to index 0)', () => {
+        renderManager({ photos: threePhotos, onSetCover: noop });
+
+        const badges = screen.getAllByText('Cover');
+        expect(badges).toHaveLength(1);
+        // The badge lives inside the first photo's list item — not the second or third.
+        const firstItem = within(screen.getByRole('list')).getAllByRole('listitem')[0];
+        expect(within(firstItem!).getByText('Cover')).toBeTruthy();
+    });
+
+    it('renders one radio-semantic "Set as cover" control per photo, indexed, with only the first checked', () => {
+        renderManager({ photos: threePhotos, onSetCover: noop });
+
+        expect(screen.getAllByRole('radio')).toHaveLength(3);
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Set photo 1 as cover' }).checked).toBe(true);
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Set photo 2 as cover' }).checked).toBe(false);
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Set photo 3 as cover' }).checked).toBe(false);
+    });
+
+    it('reports the chosen photo id upward when a non-cover "Set as cover" control is selected', async () => {
+        const user = userEvent.setup();
+        const onSetCover = vi.fn();
+        renderManager({ photos: threePhotos, onSetCover });
+
+        await user.click(screen.getByRole('radio', { name: 'Set photo 3 as cover' }));
+
+        expect(onSetCover).toHaveBeenCalledWith('ph_3');
+    });
+
+    it('moves the "Cover" badge and the checked radio to the next photo once the former cover is removed', () => {
+        const { rerender } = render(<RecipePhotoManager photos={threePhotos} onRemovePhoto={noop} onSetCover={noop} />);
+
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Set photo 1 as cover' }).checked).toBe(true);
+
+        // The former cover `ph_1` is removed → the projection re-sorts and `ph_2` becomes index 0 (the new cover).
+        rerender(<RecipePhotoManager photos={threePhotos.slice(1)} onRemovePhoto={noop} onSetCover={noop} />);
+
+        expect(screen.getAllByText('Cover')).toHaveLength(1);
+        expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Set photo 1 as cover' }).checked).toBe(true);
+        // `ph_2` is now the sole remaining "photo 1"; the label is positional (index), so the check followed the cover.
+    });
+});
+
+describe('RecipePhotoManager (web) — per-photo replace (U6)', () => {
+    it('renders no Replace control when onReplacePhoto is not wired (feature gated)', () => {
+        renderManager({ photos: threePhotos });
+
+        expect(screen.queryByRole('button', { name: /replace/i })).toBeNull();
+    });
+
+    it('renders one indexed Replace control per photo when onReplacePhoto is wired', () => {
+        renderManager({ photos: threePhotos, onReplacePhoto: noop });
+
+        expect(screen.getByRole('button', { name: 'Replace photo 1' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Replace photo 3' })).toBeTruthy();
+    });
+
+    it('reports the photo id to replace upward when Replace is clicked', async () => {
+        const user = userEvent.setup();
+        const onReplacePhoto = vi.fn();
+        renderManager({ photos: threePhotos, onReplacePhoto });
+
+        await user.click(screen.getByRole('button', { name: 'Replace photo 2' }));
+
+        expect(onReplacePhoto).toHaveBeenCalledWith('ph_2');
+    });
+});
+
 describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
     it('renders the confirmed photos in a fixed 3-column grid', () => {
         renderManager({ photos: threePhotos });

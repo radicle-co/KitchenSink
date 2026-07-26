@@ -12,10 +12,11 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+import { PressScale } from '@commise/ui/press-scale';
 import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { createContext, useContext, type FC, type ReactNode } from 'react';
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
 import { formatDurationMinutes } from '../list/model.js';
@@ -244,6 +245,9 @@ const DefaultCardContent: FC = () => (
 /**
  * The shared recipe card (native, compound-component Root). `onSelect` present → a Pressable button named by
  * the title (list); absent → a plain View (the Home widget). The view-model reaches the parts via context.
+ *
+ * U8: the actionable form delegates its press to {@link PressScale} (which OWNS the `Pressable`, its button
+ * role/label, and the reduce-motion-safe scale), keeping the visual card style on the inner View.
  */
 const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => {
     const content = children ?? <DefaultCardContent />;
@@ -253,14 +257,13 @@ const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => 
             {onSelect === undefined ? (
                 <View style={styles.card}>{content}</View>
             ) : (
-                <Pressable
+                <PressScale
                     accessibilityRole="button"
                     accessibilityLabel={recipe.title}
                     onPress={() => onSelect(recipe.id)}
-                    style={styles.card}
                 >
-                    {content}
-                </Pressable>
+                    <View style={styles.card}>{content}</View>
+                </PressScale>
             )}
         </RecipeCardContext.Provider>
     );
@@ -283,6 +286,9 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: nativeTokens.borderSubtle,
         overflow: 'hidden',
+        // U8 brand elevation: the tokenized `md` shadow (Android elevation renders unconditionally; on iOS
+        // the co-located `overflow: 'hidden'` masks the layer, so the drop shadow is a Maestro/device check).
+        ...nativeTokens.elevation.md,
     },
     cover: { position: 'relative', width: '100%', aspectRatio: 4 / 3, backgroundColor: palette.pearl },
     coverImage: { width: '100%', height: '100%' },

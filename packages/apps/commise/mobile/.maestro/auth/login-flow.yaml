@@ -18,8 +18,14 @@ appId: io.commise.mobile
 - launchApp:
       clearState: true
 
-# The login screen renders (custom Clerk form — Commise brand + credential fields + submit).
+# U8: cleared state opens on the branded WELCOME hero (brand wordmark + tagline + the two entry CTAs).
 - assertVisible: 'Commise'
+- assertVisible: 'Cook with confidence. Plan with ease.'
+- assertVisible: 'Get started'
+- assertVisible: 'Already have an account? Sign in'
+
+# Cross into the sign-in form (returning-user path) and assert the login chrome (credential fields + submit).
+- tapOn: 'Already have an account? Sign in'
 - assertVisible: 'Email'
 - assertVisible: 'Password'
 - assertVisible: 'Sign in'

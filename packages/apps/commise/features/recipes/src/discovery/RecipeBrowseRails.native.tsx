@@ -9,6 +9,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+import { GradientSurface } from '@commise/ui/surface';
 import type { FC, ReactElement } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -17,6 +18,19 @@ import { fillTemplate } from '../list/model.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.native.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from './model.js';
+
+/**
+ * A browse section heading: the display title over a short brand-gradient accent bar (U8). The accent is a
+ * decorative, unlabelled {@link GradientSurface} (no accessibilityLabel ⇒ not in the accessibility tree).
+ */
+const SectionHeading: FC<{ readonly title: string }> = ({ title }) => (
+    <View style={styles.headingGroup}>
+        <Text accessibilityRole="header" style={styles.railTitle}>
+            {title}
+        </Text>
+        <GradientSurface gradient="brand" style={styles.railAccent} />
+    </View>
+);
 
 /** Visible title for each rail (S). */
 const railTitle = (id: RecipeBrowseRailId, m: DiscoveryMessages): string => {
@@ -75,9 +89,7 @@ const Rail: FC<{
     return (
         <View style={styles.rail}>
             <View style={styles.railHeader}>
-                <Text accessibilityRole="header" style={styles.railTitle}>
-                    {title}
-                </Text>
+                <SectionHeading title={title} />
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={fillTemplate(discovery.seeAllLabel, { rail: title })}
@@ -119,9 +131,7 @@ export const RecipeBrowseRails: FC<RecipeBrowseRailsProps> = ({
             ))}
             {cuisines.length > 0 && (
                 <View style={styles.rail}>
-                    <Text accessibilityRole="header" style={styles.railTitle}>
-                        {discovery.cuisinesTitle}
-                    </Text>
+                    <SectionHeading title={discovery.cuisinesTitle} />
                     <View style={styles.cuisineRow}>
                         {cuisines.map((cuisine) => (
                             <Pressable
@@ -147,7 +157,10 @@ const styles = StyleSheet.create({
     container: { gap: nativeTokens.spacing[7] },
     rail: { gap: nativeTokens.spacing[3] },
     railHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    // U8: the section title stacked over its short brand-gradient accent bar.
+    headingGroup: { gap: 6 },
     railTitle: { fontSize: nativeTokens.fontSize.headingMd, fontWeight: '600', color: palette.charcoal },
+    railAccent: { height: 4, width: 40, borderRadius: nativeTokens.radius.full },
     seeAll: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[2] },
     seeAllText: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.seafoam },
     railStrip: { gap: nativeTokens.spacing[3], paddingRight: nativeTokens.spacing[4] },

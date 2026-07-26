@@ -1,7 +1,10 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { defineConfig, type Plugin } from 'vitest/config';
+
+const stubDir = fileURLToPath(new URL('./test/stubs', import.meta.url));
 
 /**
  * Metro-style `.native.*` resolution for Vitest. Metro prefers a `Foo.native.tsx` leaf over `Foo.tsx`;
@@ -53,6 +56,11 @@ export default defineConfig({
     resolve: {
         alias: {
             'react-native': 'react-native-web',
+            // The Expo native modules have no jsdom/react-native-web implementation; alias them to
+            // lightweight stubs so the `.native` surface leaves render (and assert) under Vitest. The real
+            // gradient/blur rendering is emulator-only (Maestro).
+            'expo-linear-gradient': path.join(stubDir, 'expo-linear-gradient.tsx'),
+            'expo-blur': path.join(stubDir, 'expo-blur.tsx'),
         },
     },
 });

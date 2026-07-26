@@ -29,10 +29,15 @@
         "./button": "./src/button/index.ts",
         "./confirm-dialog": "./src/confirmDialog/index.ts",
         "./press-scale": "./src/pressScale/index.ts",
+        "./surface": "./src/surface/index.ts",
         "./input": "./src/input/index.ts"
     },
     "dependencies": {
         "@radix-ui/react-alert-dialog": "^1.1.15"
+    },
+    "optionalDependencies": {
+        "expo-blur": "~14.1.5",
+        "expo-linear-gradient": "~14.1.5"
     },
     "peerDependencies": {
         "react": "^19.0.0",

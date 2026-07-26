@@ -10,6 +10,7 @@
  * markers, and a nutrition grid — all via `@commise/ui` design tokens exposed as Tailwind v4 utilities.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { GradientSurface } from '@commise/ui/surface';
 import { hasUserEnteredIngredients, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
@@ -38,37 +39,41 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
 
     return (
         <article aria-label={recipe.title} className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8">
-            <header className="flex flex-col gap-4">
-                <h1 className="font-display text-2xl font-bold leading-tight text-charcoal sm:text-4xl">
-                    {recipe.title}
-                </h1>
-                {(staticBadges.length > 0 || recipe.tags.length > 0) && (
-                    <ul aria-label={`${recipe.title} tags`} className="flex flex-wrap gap-2">
-                        {staticBadges.map((badge, index) => (
-                            <li
-                                key={badge}
-                                className={`rounded-full px-3 py-1 text-body-sm font-medium ${
-                                    index % 2 === 0 ? 'bg-seafoam/10 text-seafoam' : 'bg-coral/15 text-coral'
-                                }`}
-                            >
-                                {badge}
-                            </li>
-                        ))}
-                        {recipe.tags.map((tag) => (
-                            <li key={tag}>
-                                <button
-                                    type="button"
-                                    aria-label={fillTemplate(detail.tagFilterLabel, { tag })}
-                                    onClick={() => onFilterByTag?.(tag)}
-                                    className="rounded-full bg-coral/15 px-3 py-1 text-body-sm font-medium text-coral transition hover:bg-coral/25"
+            {/* U8: the header rides a beach-glow gradient title band (mockup recipe-detail), mirroring the
+                native leaf so both platforms present the same branded hero. */}
+            <header>
+                <GradientSurface gradient="hero" className="flex flex-col gap-4 rounded-2xl p-6">
+                    <h1 className="font-display text-2xl font-bold leading-tight text-charcoal sm:text-4xl">
+                        {recipe.title}
+                    </h1>
+                    {(staticBadges.length > 0 || recipe.tags.length > 0) && (
+                        <ul aria-label={`${recipe.title} tags`} className="flex flex-wrap gap-2">
+                            {staticBadges.map((badge, index) => (
+                                <li
+                                    key={badge}
+                                    className={`rounded-full px-3 py-1 text-body-sm font-medium ${
+                                        index % 2 === 0 ? 'bg-seafoam/10 text-seafoam' : 'bg-coral/15 text-coral'
+                                    }`}
                                 >
-                                    {tag}
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-                <p className="text-body-lg leading-relaxed text-slate">{recipe.description}</p>
+                                    {badge}
+                                </li>
+                            ))}
+                            {recipe.tags.map((tag) => (
+                                <li key={tag}>
+                                    <button
+                                        type="button"
+                                        aria-label={fillTemplate(detail.tagFilterLabel, { tag })}
+                                        onClick={() => onFilterByTag?.(tag)}
+                                        className="rounded-full bg-coral/15 px-3 py-1 text-body-sm font-medium text-coral transition hover:bg-coral/25"
+                                    >
+                                        {tag}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                    <p className="text-body-lg leading-relaxed text-slate">{recipe.description}</p>
+                </GradientSurface>
             </header>
 
             {/* C2 wireframe parity: Serves leads the strip, then Prep, Cook, Total. */}

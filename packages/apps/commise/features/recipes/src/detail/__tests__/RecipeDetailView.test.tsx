@@ -28,6 +28,17 @@ describe('RecipeDetailView (web) — header', () => {
         expect(screen.getByRole('heading', { level: 1, name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
     });
 
+    it('sits the header in a brand gradient title band (U8)', () => {
+        const { container } = render(<RecipeDetailView recipe={makeRecipeDetail({ title: 'Lamb' })} />);
+        // The GradientSurface paints an inline linear-gradient background behind the header.
+        const band = Array.from(container.querySelectorAll<HTMLElement>('*')).find((el) =>
+            el.style.backgroundImage.startsWith('linear-gradient'),
+        );
+
+        expect(band).toBeDefined();
+        expect(band?.querySelector('h1')).not.toBeNull();
+    });
+
     it('renders the description', () => {
         render(<RecipeDetailView recipe={makeRecipeDetail({ description: 'Tender and herby.' })} />);
 

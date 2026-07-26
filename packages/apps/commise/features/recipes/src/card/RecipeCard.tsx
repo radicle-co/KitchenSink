@@ -22,6 +22,7 @@
  * - The cover is the FULL-SIZE original (up to 5 MB) painted into a small tile (FOLLOW-UP-CR-001-A).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { PressScale } from '@commise/ui/press-scale';
 import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { createContext, useContext, type FC, type ReactNode } from 'react';
 
@@ -306,13 +307,20 @@ const DefaultCardContent: FC = () => (
     </>
 );
 
+// U8 brand elevation: the shell RESTS at the `shadow-md` token (was `shadow-sm`) and lifts to `shadow-lg`
+// on hover, giving the card real depth across the list + Home widget.
 const CARD_SHELL =
-    'block overflow-hidden rounded-2xl bg-card text-left shadow-sm ring-1 ring-border transition hover:-translate-y-0.5 hover:shadow-md';
+    'block overflow-hidden rounded-2xl bg-card text-left shadow-md ring-1 ring-border transition hover:-translate-y-0.5 hover:shadow-lg';
 
 /**
  * The shared recipe card (compound-component Root). `onSelect` present → an actionable button (list); absent
  * → a non-interactive article (the Home widget). Either way the outer element is named by the recipe title,
  * and the view-model is provided to the `RecipeCard.*` parts via context.
+ *
+ * U8: the actionable form wraps its button in {@link PressScale} for a tactile, reduce-motion-safe press
+ * shrink. `PressScale` (web) is an `inline-flex` span whose child drives the scale, so the article is a
+ * `grid` — blockifying the span into a grid item that stretches to the full cell width, preserving the
+ * card's layout while adding only motion.
  */
 const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => {
     const content = children ?? <DefaultCardContent />;
@@ -324,15 +332,17 @@ const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => 
                     {content}
                 </article>
             ) : (
-                <article aria-label={recipe.title}>
-                    <button
-                        type="button"
-                        aria-label={recipe.title}
-                        onClick={() => onSelect(recipe.id)}
-                        className={`${CARD_SHELL} w-full`}
-                    >
-                        {content}
-                    </button>
+                <article aria-label={recipe.title} className="grid">
+                    <PressScale>
+                        <button
+                            type="button"
+                            aria-label={recipe.title}
+                            onClick={() => onSelect(recipe.id)}
+                            className={`${CARD_SHELL} w-full`}
+                        >
+                            {content}
+                        </button>
+                    </PressScale>
                 </article>
             )}
         </RecipeCardContext.Provider>

@@ -19,10 +19,12 @@ test.describe('route protection (signed out)', () => {
         });
     }
 
-    test('home / redirects unauthenticated users to the app sign-in', async ({ page }) => {
+    test('home / redirects unauthenticated users to the branded welcome entry', async ({ page }) => {
         await page.goto(route('/'));
 
-        await expect.poll(() => isRoute(pathnameOf(page), '/sign-in')).toBe(true);
+        // U8: the front-door landing is the branded welcome hero (which then leads into sign-in/sign-up),
+        // not the bare sign-in form. Deep protected routes still bounce to /sign-in (asserted above).
+        await expect.poll(() => isRoute(pathnameOf(page), '/welcome')).toBe(true);
     });
 
     test('the sign-in and sign-up pages are reachable without auth', async ({ page }) => {

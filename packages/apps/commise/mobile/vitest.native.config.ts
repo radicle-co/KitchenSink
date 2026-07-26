@@ -77,6 +77,10 @@ export default defineConfig({
             // that compose the virtualized recipe/collection/discovery lists render through this stub (same
             // approach as `expo-image`; virtualization is a device/Maestro concern).
             '@shopify/flash-list': path.resolve(import.meta.dirname, 'tests/stubs/flashList.tsx'),
+            // `expo-linear-gradient` / `expo-blur` (U8 brand surfaces + the Button primary CTA gradient)
+            // bridge to native views with no jsdom runtime — stub them; real gradient/blur is emulator-only.
+            'expo-linear-gradient': path.resolve(import.meta.dirname, 'tests/stubs/expoLinearGradient.tsx'),
+            'expo-blur': path.resolve(import.meta.dirname, 'tests/stubs/expoBlur.tsx'),
         },
     },
 });

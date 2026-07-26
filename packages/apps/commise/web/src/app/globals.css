@@ -17,3 +17,23 @@
         color: var(--color-foreground);
     }
 }
+
+/* U8 — the Home gradient hero's subtle enter (a short rise + fade on mount). Registered as a theme
+   `--animate-*` token so it surfaces as the `animate-home-hero-enter` utility, applied ONLY behind the
+   `motion-safe:` variant: under `prefers-reduced-motion: reduce` the utility is never emitted, so there is
+   no transform/opacity animation at all (a clean gate, not an override fight). */
+@theme {
+    --animate-home-hero-enter: home-hero-enter 400ms ease-out both;
+}
+
+@keyframes home-hero-enter {
+    from {
+        opacity: 0;
+        transform: translateY(0.5rem);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}

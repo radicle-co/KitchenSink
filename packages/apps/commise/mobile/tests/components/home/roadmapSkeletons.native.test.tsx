@@ -54,6 +54,18 @@ describe.each(Object.entries(SKELETONS))('%s skeleton (mobile)', (_id, { Compone
 
         expect(screen.queryAllByRole('button')).toHaveLength(0);
     });
+
+    it('presents the placeholder on a frosted-glass card (U8 shared GlassCard surface)', () => {
+        const { container } = renderWithProviders(<Component />);
+
+        // The GlassCard primitive renders through `expo-blur`'s `BlurView` — under jsdom that is the stub,
+        // marked `data-commise-stub="blur-view"`. The real widget heading lives INSIDE that frosted surface,
+        // so a regression that dropped the primitive back to a plain `View` fails here.
+        const card = container.querySelector('[data-commise-stub="blur-view"]');
+
+        expect(card).not.toBeNull();
+        expect(card?.textContent).toContain(title);
+    });
 });
 
 describe('roadmap skeletons (mobile) — no fake data (the CR-001 red line)', () => {

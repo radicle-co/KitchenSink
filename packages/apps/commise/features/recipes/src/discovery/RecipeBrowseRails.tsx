@@ -8,6 +8,7 @@
  * these props. Same contract as the native leaf so the two cannot drift.
  */
 import { useMessages } from '@commise/i18n/react';
+import { GradientSurface } from '@commise/ui/surface';
 import type { FC, ReactElement } from 'react';
 
 import { toRecipeCardModel } from '../card/model.js';
@@ -15,6 +16,17 @@ import { fillTemplate } from '../list/model.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from './model.js';
+
+/**
+ * A browse section heading: the Playfair title over a short brand-gradient accent bar (U8). The accent is a
+ * decorative, unlabelled {@link GradientSurface} (empty + role-less ⇒ ignored by assistive tech).
+ */
+const SectionHeading: FC<{ readonly title: string }> = ({ title }) => (
+    <div className="flex flex-col gap-1.5">
+        <h2 className="font-display text-heading-md font-semibold text-charcoal">{title}</h2>
+        <GradientSurface gradient="brand" className="h-1 w-10 rounded-full" />
+    </div>
+);
 
 /** Visible title for each rail (S). */
 const railTitle = (id: RecipeBrowseRailId, m: DiscoveryMessages): string => {
@@ -78,7 +90,7 @@ const Rail: FC<{
     return (
         <section className="flex flex-col gap-3">
             <header className="flex items-center justify-between">
-                <h2 className="font-display text-heading-md font-semibold text-charcoal">{title}</h2>
+                <SectionHeading title={title} />
                 <button
                     type="button"
                     aria-label={fillTemplate(discovery.seeAllLabel, { rail: title })}
@@ -120,9 +132,7 @@ export const RecipeBrowseRails: FC<RecipeBrowseRailsProps> = ({
             ))}
             {cuisines.length > 0 && (
                 <section className="flex flex-col gap-3">
-                    <h2 className="font-display text-heading-md font-semibold text-charcoal">
-                        {discovery.cuisinesTitle}
-                    </h2>
+                    <SectionHeading title={discovery.cuisinesTitle} />
                     <div className="flex flex-wrap gap-2">
                         {cuisines.map((cuisine) => (
                             <button

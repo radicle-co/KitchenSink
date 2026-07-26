@@ -83,6 +83,30 @@ describe('RecipeBrowseRails (web) — rails', () => {
     });
 });
 
+describe('RecipeBrowseRails (web) — U8 rail header accent', () => {
+    it('paints a brand gradient accent under each rail section header', () => {
+        const { container } = render(
+            <RecipeBrowseRails
+                rails={[
+                    rail({ id: 'trending', results: [result({ id: 'rec_t', title: 'Viral Pad Thai' })] }),
+                    rail({ id: 'new', results: [result({ id: 'rec_n', title: 'Fresh Ceviche' })] }),
+                    rail({ id: 'quick', results: [result({ id: 'rec_q', title: 'Ten-Minute Omelette' })] }),
+                ]}
+                cuisines={[]}
+                onSelectRecipe={noop}
+                onClone={noop}
+            />,
+        );
+
+        // Each rail header carries a decorative GradientSurface accent bar (an inline linear-gradient), so
+        // three rails ⇒ at least three gradient accents.
+        const accents = Array.from(container.querySelectorAll<HTMLElement>('*')).filter((el) =>
+            el.style.backgroundImage.startsWith('linear-gradient'),
+        );
+        expect(accents.length).toBeGreaterThanOrEqual(3);
+    });
+});
+
 describe('RecipeBrowseRails (web) — rail states', () => {
     it('shows a busy status for a loading rail', () => {
         renderRails({ rails: [rail({ id: 'trending', status: 'loading' })] });

@@ -69,6 +69,31 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
         expect(mockDb.insert).not.toHaveBeenCalled();
     });
 
+    it('DENIES a tombstoned (closed) account — no context granted, no heal', async () => {
+        const userRow = { id: '01TOMBSTONE0000000000000A', email: 'u@closed.invalid', status: 'tombstoned' };
+        mockDb.select = vi
+            .fn()
+            .mockReturnValueOnce(selectChain([{ user: userRow, accountId: 'acc-1', profileId: 'prof-1' }]));
+
+        await expect(
+            usersService.resolveOrCreateFromClaims({ sub: 'user_tomb', email: 'u@b.com' }),
+        ).rejects.toThrow(/closed/i);
+        expect(mockDb.insert).not.toHaveBeenCalled();
+    });
+
+    it('DENIES an erased account — rejects before attempting to heal its purged companion rows', async () => {
+        const userRow = { id: '01ERASED000000000000000AB', email: 'u@erased.invalid', status: 'erased' };
+        // erasure purges accounts/profiles → both null; must DENY, never re-provision.
+        mockDb.select = vi
+            .fn()
+            .mockReturnValueOnce(selectChain([{ user: userRow, accountId: null, profileId: null }]));
+
+        await expect(
+            usersService.resolveOrCreateFromClaims({ sub: 'user_erased', email: 'u@b.com' }),
+        ).rejects.toThrow(/closed/i);
+        expect(mockDb.insert).not.toHaveBeenCalled();
+    });
+
     it('creates user + account + profile for a never-seen identity', async () => {
         const createdAt = new Date(1_000);
         const createdRow = { id: '01NEWUSER0000000000000000', email: 'n@b.com', createdAt, updatedAt: createdAt };

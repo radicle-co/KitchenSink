@@ -53,6 +53,18 @@ describe('ResolveUserService.resolveUser', () => {
         await expect(svc.resolveUser(activeUser.id)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
+    it('throws 403 Forbidden for a tombstoned (closed) account', async () => {
+        findById.mockResolvedValue({ ...activeUser, status: 'tombstoned' });
+
+        await expect(svc.resolveUser(activeUser.id)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('throws 403 Forbidden for an erased account', async () => {
+        findById.mockResolvedValue({ ...activeUser, status: 'erased' });
+
+        await expect(svc.resolveUser(activeUser.id)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
     it('present user with no account: fails LOUD (500 + paging signal), not a silent 404', async () => {
         findById.mockResolvedValue(activeUser);
         findByUserId.mockResolvedValue(undefined);

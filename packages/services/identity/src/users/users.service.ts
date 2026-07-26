@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 import { provisionCompleteUser, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
@@ -123,6 +123,15 @@ export class UsersService {
         } else {
             userRow = found.user;
             traceAuth('provision.existing', { sub: claims.sub, userId: userRow.id });
+
+            // A CLOSED (tombstoned) or ERASED account MUST NOT be granted an authorizer context — deny
+            // before any heal or context build. Defense-in-depth alongside the Clerk ban/delete, which is
+            // async (deletion-worker) and networkless-verified here, so an already-issued, still-valid
+            // session token would otherwise pass. Recovery is admin-mediated reactivation, never a
+            // self-service sign-in. (Mirrors resolveUser's status gate.)
+            if (userRow.status === 'tombstoned' || userRow.status === 'erased') {
+                throw new ForbiddenException('Account is closed');
+            }
 
             // Heal an incomplete existing user (missing account OR profile — the old check looked only at
             // accounts) through the same idempotent routine. Only fires when the pre-check found a gap.

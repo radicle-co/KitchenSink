@@ -37,8 +37,11 @@ export class ResolveUserService {
             throw new NotFoundException('User not found');
         }
 
-        if (user.status === 'suspended') {
-            throw new ForbiddenException('User is suspended');
+        // Any non-active lifecycle state is denied access: `suspended` (admin moderation hold),
+        // `tombstoned` (closed — recoverable only via admin reactivation), `erased` (gone). The account
+        // exists (R1: the row is never hard-deleted) but must not be usable.
+        if (user.status !== 'active') {
+            throw new ForbiddenException(user.status === 'suspended' ? 'User is suspended' : 'Account is closed');
         }
 
         const account = await this.accountDao.findByUserId(sub as UserId);

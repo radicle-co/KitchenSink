@@ -104,7 +104,13 @@ appId: io.commise.mobile
           text: 'Mediterranean Grilled Lamb .v3.*'
       timeout: 40000
 
-# ── VERSION HISTORY ── the owner-action entry point sits alongside "Edit recipe" at the foot of the detail.
+# ── VERSION HISTORY ── the owner-action entry point sits behind the "More" overflow menu (C4 wireframe
+# parity), alongside "Edit recipe" at the foot of the detail.
+- scrollUntilVisible:
+      element: 'More'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'More'
 - scrollUntilVisible:
       element: 'Version history'
       direction: DOWN

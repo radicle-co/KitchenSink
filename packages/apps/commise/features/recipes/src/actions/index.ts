@@ -7,12 +7,19 @@
 export { RecipeDeleteDialog } from './RecipeDeleteDialog.js';
 export { RecipeVisibilityToggle } from './RecipeVisibilityToggle.js';
 export { RecipeCloneAction } from './RecipeCloneAction.js';
+export { MoreActionsMenu } from './MoreActionsMenu.js';
 
 export { recipeActionMessages } from './messages.js';
 export type {
     RecipeActionMessages,
     RecipeCloneActionMessages,
     RecipeDeleteDialogMessages,
+    RecipeMoreMenuMessages,
     RecipeVisibilityToggleMessages,
 } from './messages.js';
-export type { RecipeCloneActionProps, RecipeDeleteDialogProps, RecipeVisibilityToggleProps } from './model.js';
+export type {
+    MoreActionsMenuProps,
+    RecipeCloneActionProps,
+    RecipeDeleteDialogProps,
+    RecipeVisibilityToggleProps,
+} from './model.js';

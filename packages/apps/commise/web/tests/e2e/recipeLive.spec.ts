@@ -28,9 +28,11 @@ test.describe('recipe live backend (no mocks)', () => {
         await expect(page.getByRole('button', { name: 'Asparagus with Green Sauce' })).toBeVisible();
 
         // Open a detail: the owner-only Delete action renders ONLY when the live identity `/v1/users/me`
-        // resolves the viewer id AND it matches the recipe's owner — the end-to-end owner-gating proof.
+        // resolves the viewer id AND it matches the recipe's owner — the end-to-end owner-gating proof. It
+        // sits behind the "More" overflow menu (C4).
         await page.getByRole('button', { name: 'Mediterranean Grilled Lamb' }).click();
         await expect(page.getByRole('heading', { name: 'Mediterranean Grilled Lamb' })).toBeVisible();
+        await page.getByRole('button', { name: 'More' }).click();
         await expect(page.getByRole('button', { name: 'Delete recipe' })).toBeVisible();
     });
 });

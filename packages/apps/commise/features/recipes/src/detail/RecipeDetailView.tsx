@@ -29,6 +29,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
     checkedSteps,
     onToggleStep,
     onFilterByTag,
+    footerActions,
 }) => {
     const { list, detail } = useMessages(recipeMessages);
     const locale = useLocale();
@@ -68,7 +69,12 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                 <p className="text-body-lg leading-relaxed text-slate">{recipe.description}</p>
             </header>
 
+            {/* C2 wireframe parity: Serves leads the strip, then Prep, Cook, Total. */}
             <dl className={statCards}>
+                <div className="flex flex-col items-center gap-1 text-center">
+                    <dt className={statLabel}>{detail.servingsLabel}</dt>
+                    <dd className={statValue}>{recipe.servings}</dd>
+                </div>
                 <div className="flex flex-col items-center gap-1 text-center">
                     <dt className={statLabel}>{detail.prepLabel}</dt>
                     <dd className={statValue}>{formatDurationMinutes(recipe.prepTimeMinutes, list.durationMinutes)}</dd>
@@ -82,10 +88,6 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                     <dd className={statValue}>
                         {formatDurationMinutes(recipe.totalTimeMinutes, list.durationMinutes)}
                     </dd>
-                </div>
-                <div className="flex flex-col items-center gap-1 text-center">
-                    <dt className={statLabel}>{detail.servingsLabel}</dt>
-                    <dd className={statValue}>{recipe.servings}</dd>
                 </div>
             </dl>
 
@@ -202,7 +204,10 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                 )}
             </section>
 
+            {/* C3 wireframe parity: the clone action (caller-supplied) + version + visibility badges are ONE
+                grouped footer row — `[Clone to My Recipes] [v12] [Public]` — rather than three loose pieces. */}
             <footer role="group" aria-label={detail.badgesLabel} className="flex flex-wrap items-center gap-2">
+                {footerActions}
                 {recipe.currentVersion > 1 && (
                     <span
                         aria-label={fillTemplate(detail.versionLabel, { version: recipe.currentVersion })}

@@ -15,8 +15,14 @@
  * where the clone gate previously disagreed: web ignored ownership while mobile checked it). Every mutation
  * is owned here and reported upward so the navigator can route (back to the list after delete, to the new
  * recipe after clone). Remote state stays in the query cache — this screen derives its view state from it.
+ *
+ * Recipe-detail wireframe parity (C3/C4): Edit stays the sole primary, always-visible owner control; version
+ * history, the visibility toggle, and the delete trigger are grouped behind a `MoreActionsMenu` (C4,
+ * `[Edit] [More]`). The clone action is passed into `RecipeDetailView`'s `footerActions` slot so it renders
+ * alongside the version + visibility badges in ONE grouped footer row (C3), instead of as a separate block.
  */
 import {
+    MoreActionsMenu,
     RecipeCloneAction,
     RecipeDeleteDialog,
     RecipeDetailView,
@@ -189,6 +195,24 @@ export function RecipeDetailScreen({
                 checkedSteps={cooking.checkedSteps}
                 onToggleStep={cooking.toggleStep}
                 onFilterByTag={onFilterByTag}
+                // C3 wireframe parity: the clone action lives IN the detail's grouped footer row, alongside
+                // the version + visibility badges, rather than as a loose block below every other control.
+                // D7: `canClone` (P4) already combines "public" + "not the owner" — the SAME predicate the
+                // web container evaluates, so the two platforms can no longer disagree on this gate.
+                footerActions={
+                    viewerCanClone && (
+                        <RecipeCloneAction
+                            canClone={viewerCanClone}
+                            {...(recipe.sourceAttribution === undefined
+                                ? {}
+                                : { sourceAttribution: recipe.sourceAttribution })}
+                            cloning={cloneRecipe.isPending}
+                            onClone={() =>
+                                cloneRecipe.mutate(recipeId, { onSuccess: (created) => onCloned?.(created.id) })
+                            }
+                        />
+                    )
+                }
             />
 
             {/* Orchestration picks the render component (B15): the owner sees the read-only aggregate (Sc8);
@@ -212,39 +236,48 @@ export function RecipeDetailScreen({
 
             {viewerIsOwner && (
                 <View style={styles.ownerActions}>
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={t.editAction}
-                        onPress={() => onEdit?.(recipeId)}
-                        style={styles.primaryAction}
-                    >
-                        <Text style={styles.primaryActionLabel}>{t.editAction}</Text>
-                    </Pressable>
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={t.versionsAction}
-                        onPress={() => onViewVersions?.(recipeId)}
-                        style={styles.secondaryAction}
-                    >
-                        <Text style={styles.secondaryActionLabel}>{t.versionsAction}</Text>
-                    </Pressable>
-                    <RecipeVisibilityToggle
-                        visibility={recipe.visibility}
-                        canGoPrivate={viewerCanGoPrivate}
-                        disabledReason={viewerCanGoPrivate ? undefined : t.visibilityUpgradeReason}
-                        // B17 — a failed toggle snaps back to the query's value; surface an honest reason so
-                        // the change doesn't fail silently. Cleared on the next attempt (and on recipe switch).
-                        error={setVisibility.error !== null && setVisibility.error !== undefined}
-                        onChange={changeVisibility}
-                    />
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={t.deleteAction}
-                        onPress={() => setDeleteOpen(true)}
-                        style={styles.deleteAction}
-                    >
-                        <Text style={styles.deleteActionLabel}>{t.deleteAction}</Text>
-                    </Pressable>
+                    {/* C4 wireframe parity (`[Edit] [More]`): Edit stays the sole primary, always-visible
+                        owner control; Version history, visibility, and the delete trigger — the SECONDARY
+                        actions — move behind the "More" overflow menu. The delete CONFIRMATION dialog stays a
+                        sibling, not menu content, so it survives independently of the menu's open state. */}
+                    <View style={styles.headerActionsRow}>
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={t.editAction}
+                            onPress={() => onEdit?.(recipeId)}
+                            style={styles.primaryAction}
+                        >
+                            <Text style={styles.primaryActionLabel}>{t.editAction}</Text>
+                        </Pressable>
+                        <MoreActionsMenu>
+                            <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={t.versionsAction}
+                                onPress={() => onViewVersions?.(recipeId)}
+                                style={styles.secondaryAction}
+                            >
+                                <Text style={styles.secondaryActionLabel}>{t.versionsAction}</Text>
+                            </Pressable>
+                            <RecipeVisibilityToggle
+                                visibility={recipe.visibility}
+                                canGoPrivate={viewerCanGoPrivate}
+                                disabledReason={viewerCanGoPrivate ? undefined : t.visibilityUpgradeReason}
+                                // B17 — a failed toggle snaps back to the query's value; surface an honest
+                                // reason so the change doesn't fail silently. Cleared on the next attempt (and
+                                // on recipe switch).
+                                error={setVisibility.error !== null && setVisibility.error !== undefined}
+                                onChange={changeVisibility}
+                            />
+                            <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={t.deleteAction}
+                                onPress={() => setDeleteOpen(true)}
+                                style={styles.deleteAction}
+                            >
+                                <Text style={styles.deleteActionLabel}>{t.deleteAction}</Text>
+                            </Pressable>
+                        </MoreActionsMenu>
+                    </View>
                     <RecipeDeleteDialog
                         recipeTitle={recipe.title}
                         open={deleteOpen}
@@ -256,17 +289,6 @@ export function RecipeDetailScreen({
                         onCancel={() => setDeleteOpen(false)}
                     />
                 </View>
-            )}
-
-            {/* D7: `canClone` (P4) already combines "public" + "not the owner" — the SAME predicate the web
-                container evaluates, so the two platforms can no longer disagree on this gate. */}
-            {viewerCanClone && (
-                <RecipeCloneAction
-                    canClone={viewerCanClone}
-                    {...(recipe.sourceAttribution === undefined ? {} : { sourceAttribution: recipe.sourceAttribution })}
-                    cloning={cloneRecipe.isPending}
-                    onClone={() => cloneRecipe.mutate(recipeId, { onSuccess: (created) => onCloned?.(created.id) })}
-                />
             )}
         </ScrollView>
     );
@@ -281,6 +303,9 @@ const styles = StyleSheet.create({
     backButton: { alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 16 },
     backLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 15 },
     ownerActions: { gap: 12, paddingHorizontal: 16, paddingBottom: 24 },
+    // `[Edit] [More]` (C4 wireframe parity): Edit and the More trigger sit side by side as the header's
+    // primary + overflow controls.
+    headerActionsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
     primaryAction: {
         alignSelf: 'flex-start',
         backgroundColor: palette.seafoam,

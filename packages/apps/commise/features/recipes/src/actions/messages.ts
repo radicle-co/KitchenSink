@@ -46,6 +46,12 @@ export interface RecipeCloneActionMessages {
     readonly attribution: string;
 }
 
+/** Copy for the "More" overflow menu (C4) that groups the detail header's secondary owner actions. */
+export interface RecipeMoreMenuMessages {
+    /** Visible label and accessible name of the disclosure trigger. */
+    readonly trigger: string;
+}
+
 /** The shape of the recipe-action cluster's shared copy. */
 export interface RecipeActionMessages {
     /** Copy for the delete-confirmation dialog. */
@@ -54,6 +60,8 @@ export interface RecipeActionMessages {
     readonly visibility: RecipeVisibilityToggleMessages;
     /** Copy for the clone action. */
     readonly clone: RecipeCloneActionMessages;
+    /** Copy for the "More" overflow menu. */
+    readonly moreMenu: RecipeMoreMenuMessages;
 }
 
 export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
@@ -76,6 +84,9 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             clone: 'Clone',
             cloningLabel: 'Cloning…',
             attribution: 'Cloned from {source}',
+        },
+        moreMenu: {
+            trigger: 'More',
         },
     },
 };

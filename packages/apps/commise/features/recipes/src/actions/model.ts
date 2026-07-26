@@ -7,6 +7,8 @@
  * presentational prop types. Each component fetches nothing and derives no remote state; the composing app
  * owns the mutations and feeds these props.
  */
+import type { ReactNode } from 'react';
+
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
 
 /**
@@ -62,4 +64,15 @@ export interface RecipeCloneActionProps {
     readonly cloning?: boolean;
     /** Invoked when the user requests a clone. */
     readonly onClone: () => void;
+}
+
+/**
+ * Props for the "More" overflow menu (C4 wireframe parity) that groups the detail header's SECONDARY owner
+ * actions — version history, delete, visibility — behind one disclosure, leaving Edit as the sole primary
+ * control (`[Edit] [More]`). A pure Composite/slot shell: `children` is whatever secondary actions the
+ * composing app supplies; the menu owns no business logic, only its own open/closed UI state.
+ */
+export interface MoreActionsMenuProps {
+    /** The secondary actions rendered inside the menu panel while it is open. */
+    readonly children: ReactNode;
 }

@@ -21,9 +21,16 @@
  * platforms can never diverge on a gate (this closes D7, where the clone gate previously disagreed: web
  * ignored ownership while mobile checked it). Free-tier owners see the private option disabled with a
  * localized upgrade reason; the tier read fails safe (gated OFF) while the profile is still loading or absent.
+ *
+ * Recipe-detail wireframe parity (C1/C3/C4): a Back control returns to the recipe list (C1, mirroring
+ * mobile's `onBack`); the header keeps Edit as the sole primary owner control, with Version history, the
+ * visibility toggle, and the delete trigger grouped behind a `MoreActionsMenu` (C4, `[Edit] [More]`); the
+ * clone action is passed into `RecipeDetailView`'s `footerActions` slot so it renders alongside the version +
+ * visibility badges in ONE grouped footer row (C3), instead of as a separate block.
  */
 import { useAuth } from '@clerk/nextjs';
 import {
+    MoreActionsMenu,
     RecipeCloneAction,
     RecipeDeleteDialog,
     RecipeDetailView,
@@ -174,6 +181,14 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
 
     return (
         <>
+            {/* C1 wireframe parity: an explicit in-app back control on the detail header — mirrors mobile's
+                `onBack` (RecipeDetailScreen), which the web detail never had (it relied on browser back). */}
+            <Link
+                href={`/${locale}/recipes` as Route}
+                className="self-start rounded-full px-3 py-1.5 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10"
+            >
+                {recipes.actions.backAction}
+            </Link>
             <RecipeDetailView
                 recipe={recipe}
                 checkedIngredients={cooking.checkedIngredients}
@@ -184,6 +199,25 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
                     // D6: deep-link to the SAME visibility-scoped search the discover page runs; reuse its
                     // canonical query encoder so the tag round-trips exactly (no new unfiltered tag endpoint).
                     router.push(`/${locale}/discover?${filtersToQueryString({ tags: [tag] }, '')}` as Route)
+                }
+                // C3 wireframe parity: the clone action lives IN the detail's grouped footer row, alongside
+                // the version + visibility badges, rather than as a loose block below every other control.
+                // W2/D7: an owner never clones their OWN recipe — the orchestration layer omits the slot
+                // entirely (absent, not a disabled button). `canClone` already excludes the owner (P4); this
+                // outer guard additionally hides the control for the owner rather than merely disabling it.
+                footerActions={
+                    !viewerIsOwner && (
+                        <RecipeCloneAction
+                            canClone={viewerCanClone}
+                            sourceAttribution={recipe.sourceAttribution}
+                            cloning={cloneRecipe.isPending}
+                            onClone={() =>
+                                cloneRecipe.mutate(id, {
+                                    onSuccess: (created) => router.push(`/${locale}/recipes/${created.id}` as Route),
+                                })
+                            }
+                        />
+                    )
                 }
             />
 
@@ -205,22 +239,32 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
 
             {viewerIsOwner && (
                 <>
-                    {/* W2/D1: the web detail was a dead end — restore the owner's entry points to the editor
-                        and the version history (mirrors mobile's RecipeDetailScreen header). */}
-                    <Link href={`/${locale}/recipes/${id}/edit` as Route}>{recipes.actions.editAction}</Link>
-                    <Link href={`/${locale}/recipes/${id}/versions` as Route}>{recipes.actions.versionHistory}</Link>
-                    <RecipeVisibilityToggle
-                        visibility={recipe.visibility}
-                        canGoPrivate={viewerCanGoPrivate}
-                        disabledReason={recipes.actions.premiumRequired}
-                        // B17 — a failed toggle snaps back to the query's value; surface an honest reason so
-                        // the change doesn't fail silently. Cleared on the next attempt (and on recipe switch).
-                        error={setVisibility.error !== null && setVisibility.error !== undefined}
-                        onChange={(visibility) => setVisibility.mutate({ id, visibility })}
-                    />
-                    <button type="button" aria-haspopup="dialog" onClick={() => setDeleteDialogOpen(true)}>
-                        {recipes.actions.deleteAction}
-                    </button>
+                    {/* C4 wireframe parity (`[Edit] [More]`): Edit stays the sole primary, always-visible
+                        owner control (W2/D1's restored entry point); Version history, visibility, and the
+                        delete trigger — the SECONDARY actions — move behind the "More" overflow menu. The
+                        delete CONFIRMATION dialog stays a sibling, not menu content, so it survives the menu
+                        closing (e.g. its own outside-click) while it is open. */}
+                    <div className="flex items-center gap-2">
+                        <Link href={`/${locale}/recipes/${id}/edit` as Route}>{recipes.actions.editAction}</Link>
+                        <MoreActionsMenu>
+                            <Link href={`/${locale}/recipes/${id}/versions` as Route}>
+                                {recipes.actions.versionHistory}
+                            </Link>
+                            <RecipeVisibilityToggle
+                                visibility={recipe.visibility}
+                                canGoPrivate={viewerCanGoPrivate}
+                                disabledReason={recipes.actions.premiumRequired}
+                                // B17 — a failed toggle snaps back to the query's value; surface an honest
+                                // reason so the change doesn't fail silently. Cleared on the next attempt (and
+                                // on recipe switch).
+                                error={setVisibility.error !== null && setVisibility.error !== undefined}
+                                onChange={(visibility) => setVisibility.mutate({ id, visibility })}
+                            />
+                            <button type="button" aria-haspopup="dialog" onClick={() => setDeleteDialogOpen(true)}>
+                                {recipes.actions.deleteAction}
+                            </button>
+                        </MoreActionsMenu>
+                    </div>
                     <RecipeDeleteDialog
                         recipeTitle={recipe.title}
                         open={isDeleteDialogOpen}
@@ -236,22 +280,6 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
                         onCancel={() => setDeleteDialogOpen(false)}
                     />
                 </>
-            )}
-
-            {/* W2/D7: an owner never clones their OWN recipe — the orchestration layer omits the control
-                entirely (absent, not a disabled button). `canClone` already excludes the owner (P4); the
-                outer guard additionally hides the control for the owner rather than merely disabling it. */}
-            {!viewerIsOwner && (
-                <RecipeCloneAction
-                    canClone={viewerCanClone}
-                    sourceAttribution={recipe.sourceAttribution}
-                    cloning={cloneRecipe.isPending}
-                    onClone={() =>
-                        cloneRecipe.mutate(id, {
-                            onSuccess: (created) => router.push(`/${locale}/recipes/${created.id}` as Route),
-                        })
-                    }
-                />
             )}
         </>
     );

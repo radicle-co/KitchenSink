@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Pressable, Text } from 'react-native';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
 import {
@@ -46,6 +47,22 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.getByText('15 min')).toBeTruthy();
         expect(screen.getByText('45 min')).toBeTruthy();
         expect(screen.getByText('4')).toBeTruthy();
+    });
+
+    it('orders the stat cards Serves, Prep, Cook, Total (wireframe parity, C2)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    prepTimeMinutes: 15,
+                    cookTimeMinutes: 30,
+                    totalTimeMinutes: 45,
+                    servings: 4,
+                })}
+            />,
+        );
+
+        const labels = screen.getAllByText(/^(Serves|Prep|Cook|Total)$/).map((el) => el.textContent);
+        expect(labels).toEqual(['Serves', 'Prep', 'Cook', 'Total']);
     });
 
     it('renders each ingredient with its formatted quantity and name', () => {
@@ -238,5 +255,31 @@ describe('RecipeDetailView (native) — version + visibility badges (D3)', () =>
         render(<RecipeDetailView recipe={makeRecipeDetail({ visibility: RecipeVisibility.PRIVATE })} />);
 
         expect(within(screen.getByLabelText('Recipe status')).getByText('Private')).toBeTruthy();
+    });
+});
+
+describe('RecipeDetailView (native) — grouped footer (C3 wireframe parity)', () => {
+    it('groups caller-supplied footerActions with the version + visibility badges in ONE footer row', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ currentVersion: 2, visibility: RecipeVisibility.PUBLIC })}
+                footerActions={
+                    <Pressable accessibilityRole="button" accessibilityLabel="Clone">
+                        <Text>Clone</Text>
+                    </Pressable>
+                }
+            />,
+        );
+
+        const footer = screen.getByLabelText('Recipe status');
+        expect(within(footer).getByRole('button', { name: 'Clone' })).toBeTruthy();
+        expect(within(footer).getByText('v2')).toBeTruthy();
+        expect(within(footer).getByText('Public')).toBeTruthy();
+    });
+
+    it('renders no footerActions slot when the caller omits it (e.g. the owner viewing their own recipe)', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ currentVersion: 1 })} />);
+
+        expect(screen.queryByRole('button', { name: 'Clone' })).toBeNull();
     });
 });

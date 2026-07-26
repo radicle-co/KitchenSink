@@ -47,6 +47,8 @@ test.describe('clone + visibility (T080)', () => {
         await page.goto(route('/recipes/rec_own'));
         await expect(page.getByRole('heading', { name: 'My Public Dish' })).toBeVisible();
 
+        // The visibility toggle is a secondary owner action, behind the "More" overflow menu (C4).
+        await page.getByRole('button', { name: 'More' }).click();
         const privateOption = page.getByRole('radio', { name: 'Private' });
         await expect(privateOption).toBeEnabled();
 

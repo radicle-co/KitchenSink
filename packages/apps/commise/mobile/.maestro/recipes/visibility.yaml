@@ -37,6 +37,12 @@ appId: io.commise.mobile
       element: 'Edit recipe'
       direction: DOWN
       timeout: 20000
+# The visibility toggle is a secondary owner action, behind the "More" overflow menu (C4 wireframe parity).
+- scrollUntilVisible:
+      element: 'More'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'More'
 # Scroll to the "Public" radio (a VISIBLE label) rather than the toggle's group label "Recipe visibility",
 # which is only an accessibility label on the radiogroup container and so isn't a matchable scroll target.
 - scrollUntilVisible:

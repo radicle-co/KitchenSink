@@ -5,6 +5,8 @@
  * views. The detail render consumes a {@link RecipeDetail} directly (it is already the read model); the
  * only shaping needed is small formatting the two platforms must not diverge on.
  */
+import type { ReactNode } from 'react';
+
 import type { Locale } from '@commise/i18n';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
 
@@ -46,4 +48,10 @@ export interface RecipeDetailViewProps {
     readonly onToggleStep?: (stepNumber: number) => void;
     /** Navigate to the visibility-scoped search filtered by `tag` (D6). */
     readonly onFilterByTag?: (tag: string) => void;
+    /**
+     * Caller-supplied content grouped into the ONE footer row alongside the version + visibility badges (C3
+     * wireframe parity) — e.g. the clone action for a non-owner viewer. Absent renders no slot (e.g. the
+     * owner viewing their own recipe, where the shared `canClone` gate excludes a clone control entirely).
+     */
+    readonly footerActions?: ReactNode;
 }

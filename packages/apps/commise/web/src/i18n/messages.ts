@@ -149,6 +149,8 @@ export interface WebMessages {
          * trigger that opens the shared dialog, and the premium gate reason for the visibility toggle.
          */
         readonly actions: {
+            /** Label of the in-app back control on the detail header, back to the recipe list (C1). */
+            readonly backAction: string;
             /** Label of the owner-only link to the recipe editor (W2/D1 — restores the web detail entry point). */
             readonly editAction: string;
             /** Label of the owner-only link to the recipe's version history (W2/D1). */
@@ -351,6 +353,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 retry: 'Try again',
             },
             actions: {
+                backAction: 'Back',
                 editAction: 'Edit recipe',
                 versionHistory: 'Version history',
                 deleteAction: 'Delete recipe',

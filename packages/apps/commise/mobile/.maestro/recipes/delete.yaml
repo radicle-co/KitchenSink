@@ -16,7 +16,13 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - tapOn: 'Gourmet Garden Salad'
-# RecipeDetailScreen: owner-only delete trigger, in the owner-action block at the foot of the scrolling detail.
+# RecipeDetailScreen: Edit + the "More" overflow trigger sit together at the foot of the scrolling detail
+# (C4 wireframe parity); the owner-only delete trigger lives behind "More".
+- scrollUntilVisible:
+      element: 'More'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'More'
 - scrollUntilVisible:
       element: 'Delete recipe'
       direction: DOWN

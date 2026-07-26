@@ -32,6 +32,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
     checkedSteps,
     onToggleStep,
     onFilterByTag,
+    footerActions,
 }) => {
     const { list, detail } = useMessages(recipeMessages);
     const locale = useLocale();
@@ -67,7 +68,9 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
             )}
             <Text style={styles.description}>{recipe.description}</Text>
 
+            {/* C2 wireframe parity: Serves leads the strip, then Prep, Cook, Total. */}
             <View style={styles.statStrip}>
+                <Stat label={detail.servingsLabel} value={String(recipe.servings)} />
                 <Stat
                     label={detail.prepLabel}
                     value={formatDurationMinutes(recipe.prepTimeMinutes, list.durationMinutes)}
@@ -80,7 +83,6 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                     label={detail.totalLabel}
                     value={formatDurationMinutes(recipe.totalTimeMinutes, list.durationMinutes)}
                 />
-                <Stat label={detail.servingsLabel} value={String(recipe.servings)} />
             </View>
 
             <PhotoCarousel photos={recipe.photos} title={recipe.title} />
@@ -171,7 +173,10 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                 <Text style={styles.sourceNote}>{detail.nutritionSourceNote}</Text>
             )}
 
+            {/* C3 wireframe parity: the clone action (caller-supplied) + version + visibility badges are ONE
+                grouped footer row — `[Clone to My Recipes] [v12] [Public]` — rather than three loose pieces. */}
             <View accessibilityLabel={detail.badgesLabel} style={styles.badgeRow}>
+                {footerActions}
                 {recipe.currentVersion > 1 && (
                     <Text
                         accessibilityLabel={fillTemplate(detail.versionLabel, { version: recipe.currentVersion })}

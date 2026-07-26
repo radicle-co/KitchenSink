@@ -8,7 +8,7 @@
  * visibility option, the delete flow, and the clone action for a public recipe the viewer does not own.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 import { NotFoundError } from '@kitchensink/recipe-service-client';
 import {
@@ -153,13 +153,14 @@ describe('RecipeDetailScreen — ready state', () => {
         expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
     });
 
-    it('hides owner actions from a non-owner', () => {
+    it('hides owner actions (including the More menu) from a non-owner', () => {
         useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ ownerId: 'usr_owner' }) }));
         useUserProfileMock.mockReturnValue(profile('usr_viewer'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         expect(screen.queryByRole('button', { name: 'Edit recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Delete recipe' })).toBeNull();
     });
 
@@ -202,12 +203,13 @@ describe('RecipeDetailScreen — owner actions', () => {
         useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
     });
 
-    it('opens the editor and version history from the owner actions', () => {
+    it('opens the editor (primary) and version history (behind More) from the owner actions', () => {
         const onEdit = vi.fn();
         const onViewVersions = vi.fn();
 
         render(<RecipeDetailScreen recipeId="rec_1" onEdit={onEdit} onViewVersions={onViewVersions} />);
         fireEvent.click(screen.getByRole('button', { name: 'Edit recipe' }));
+        fireEvent.click(screen.getByRole('button', { name: 'More' }));
         fireEvent.click(screen.getByRole('button', { name: 'Version history' }));
 
         expect(onEdit).toHaveBeenCalledWith('rec_1');
@@ -232,6 +234,7 @@ describe('RecipeDetailScreen — owner actions', () => {
         const onDeleted = vi.fn();
 
         render(<RecipeDetailScreen recipeId="rec_1" onDeleted={onDeleted} />);
+        fireEvent.click(screen.getByRole('button', { name: 'More' }));
         fireEvent.click(screen.getByRole('button', { name: 'Delete recipe' }));
         fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
@@ -246,6 +249,7 @@ describe('RecipeDetailScreen — owner actions', () => {
         );
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'More' }));
         fireEvent.click(screen.getByRole('radio', { name: 'Public' }));
 
         expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'public' });
@@ -257,6 +261,7 @@ describe('RecipeDetailScreen — owner actions', () => {
         );
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'More' }));
         fireEvent.click(screen.getByRole('button', { name: 'Delete recipe' }));
 
         expect(screen.getByText('We couldn’t delete this recipe. Please try again.')).toBeTruthy();
@@ -268,6 +273,7 @@ describe('RecipeDetailScreen — owner actions', () => {
         );
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'More' }));
 
         expect(screen.getByText('We couldn’t change who can see this recipe. Please try again.')).toBeTruthy();
     });
@@ -279,6 +285,7 @@ describe('RecipeDetailScreen — visibility gating', () => {
         useUserProfileMock.mockReturnValue(profile('usr_1', 'free'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'More' }));
 
         expect(screen.getByText('Upgrade to premium to make a recipe private.')).toBeTruthy();
     });
@@ -334,6 +341,22 @@ describe('RecipeDetailScreen — rating error does not leak across a recipeId ch
 });
 
 describe('RecipeDetailScreen — clone', () => {
+    it('groups the Clone action with the version + visibility badges in ONE footer row (C3)', () => {
+        useRecipeMock.mockReturnValue(
+            detailResult({
+                data: makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_owner', visibility: 'public', currentVersion: 2 }),
+            }),
+        );
+        useUserProfileMock.mockReturnValue(profile('usr_viewer'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        const footer = screen.getByLabelText('Recipe status');
+        expect(within(footer).getByRole('button', { name: 'Clone' })).toBeTruthy();
+        expect(within(footer).getByText('v2')).toBeTruthy();
+        expect(within(footer).getByText('Public')).toBeTruthy();
+    });
+
     it('clones a public recipe the viewer does not own and reports the new id', () => {
         const cloned = makeRecipeDetail({ id: 'rec_clone' });
         useRecipeMock.mockReturnValue(

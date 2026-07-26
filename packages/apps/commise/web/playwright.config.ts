@@ -20,6 +20,10 @@ const ORIGIN = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
 export default defineConfig({
     testDir: './tests/e2e',
+    // Only `*.spec.ts` are Playwright specs (project convention). The default testMatch also grabs
+    // `*.test.ts`, which would wrongly try to run co-located VITEST unit tests (e.g. the e2e utils'
+    // readViewerAppId.test.ts) as Playwright specs and crash the run on their `vitest` imports.
+    testMatch: '**/*.spec.ts',
     // Serial (single worker), not parallel: these auth flows share ONE Clerk test user and ONE Next
     // dev server, and concurrent sign-ins / on-demand route compilation under load flake intermittently.
     // Reliability matters more than wall-clock for a red-alert auth suite (~40s serially).

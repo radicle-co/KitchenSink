@@ -61,6 +61,11 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             expect([...names].sort()).toEqual(names);
         });
 
+        it('includes the food.origin migration (the F-C2 change-refresh exclusion marker)', () => {
+            const names = discoverMigrations(sourceMigrationsDir).map((migration) => migration.name);
+
+            expect(names).toContain('0003_food_origin');
+        });
     });
 
     describe('runMigrations', () => {

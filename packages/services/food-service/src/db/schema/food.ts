@@ -62,6 +62,18 @@ export const foodFieldEnum = pgEnum('food_field', [
 /** Nutrient amount basis; lives on the value row (FR-028/FR-MRG-3). */
 export const nutrientBasisEnum = pgEnum('nutrient_basis', ['per_100g', 'per_serving']);
 
+/**
+ * Where a golden record's data came from (migration `0003_food_origin.sql`, ingredient-search plan §2
+ * Stage 1 / F-C2). `live` = admitted through a source API and refreshed by the change-driven scan;
+ * `bulk` = imported from the USDA bulk download and **excluded from the live change-refresh scan**
+ * (`FoodSourcesDao.listResolvedBackingItems`), re-freshened from the next bulk file instead.
+ *
+ * This lives on `food` rather than `food_sources.fetch_state` on purpose: `fetch_state` is
+ * CHECK-constrained to `fetched`/`error` AND rewritten by every `upsertSource`, so a marker there would
+ * be clobbered on the next write.
+ */
+export const foodOriginEnum = pgEnum('food_origin', ['live', 'bulk']);
+
 // ── food: the golden record (internal id PK) ────────────────────────────────────────────────────
 
 /**
@@ -81,6 +93,10 @@ export const food = pgTable(
         brandName: text('brand_name'),
         barcode: text('barcode'),
         status: foodStatusEnum('status').notNull().default('PENDING'),
+        // Data provenance class (0003 migration). Defaults to `live` so every pre-existing row — and
+        // every future API-admitted food — stays in the live change-refresh scan; only the bulk seed
+        // importer sets `bulk` (F-C2).
+        origin: foodOriginEnum('origin').notNull().default('live'),
         tombstonedAt: timestamp('tombstoned_at', { withTimezone: true }),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

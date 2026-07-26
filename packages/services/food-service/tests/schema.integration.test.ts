@@ -47,8 +47,15 @@ const EXPECTED_TABLES = [
     'source_sync_metadata',
 ] as const;
 
-/** The 5 controlled-set enums modelled with `pgEnum` (DB-7). */
-const EXPECTED_ENUMS = ['food_status', 'food_kind', 'food_source', 'food_field', 'nutrient_basis'] as const;
+/** The 6 controlled-set enums modelled with `pgEnum` (DB-7). `food_origin` arrives in the 0003 migration. */
+const EXPECTED_ENUMS = [
+    'food_status',
+    'food_kind',
+    'food_source',
+    'food_field',
+    'nutrient_basis',
+    'food_origin',
+] as const;
 
 /**
  * Apply the ordered hand-authored migration SQL to a clean `public` schema.
@@ -117,7 +124,7 @@ describe.skipIf(!DATABASE_URL)('kitchensink_food schema (integration)', () => {
             expect(names.size).toBe(EXPECTED_TABLES.length);
         });
 
-        it('creates the 5 controlled-set enum types (DB-7)', async () => {
+        it('creates the 6 controlled-set enum types (DB-7)', async () => {
             const { rows } = await pool.query<{ typname: string }>(`SELECT typname FROM pg_type WHERE typtype = 'e'`);
             const names = new Set(rows.map((row) => row.typname));
             for (const enumType of EXPECTED_ENUMS) {
@@ -131,6 +138,34 @@ describe.skipIf(!DATABASE_URL)('kitchensink_food schema (integration)', () => {
                   WHERE table_schema = 'public' AND column_name = 'fdc_id'`,
             );
             expect(rows).toHaveLength(0);
+        });
+    });
+
+    describe('food.origin (0003 migration — the live change-refresh exclusion marker, F-C2)', () => {
+        it("adds a NOT NULL food.origin defaulting to 'live' (the backfill for pre-existing rows)", async () => {
+            const { rows } = await pool.query<{ is_nullable: string; column_default: string; udt_name: string }>(
+                `SELECT is_nullable, column_default, udt_name FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'food' AND column_name = 'origin'`,
+            );
+            expect(rows).toHaveLength(1);
+            expect(rows[0]?.is_nullable).toBe('NO');
+            expect(rows[0]?.udt_name).toBe('food_origin');
+            expect(rows[0]?.column_default).toContain("'live'");
+        });
+
+        it('backfilled every row that existed before the migration to live (the seeded fixtures)', async () => {
+            const { rows } = await pool.query<{ n: number }>(
+                `SELECT count(*)::int AS n FROM food WHERE origin <> 'live'`,
+            );
+            expect(rows[0]?.n).toBe(0);
+        });
+
+        it("constrains origin to the ('live','bulk') enum domain", async () => {
+            await expect(
+                pool.query(
+                    `INSERT INTO food (id, normalized_name, status, origin) VALUES ('food_bad_origin', 'bad', 'PENDING', 'branded')`,
+                ),
+            ).rejects.toThrow();
         });
     });
 

@@ -14,6 +14,7 @@ import {
     food,
     foodFieldProvenance,
     foodNutrients,
+    foodOriginEnum,
     foodPortions,
     foodSources,
     foodStatusEnum,
@@ -129,6 +130,17 @@ export interface SetStatusInput {
     status: FoodStatus;
     /** Optional explicit tombstone timestamp (ISO-8601); defaults to `now()` for terminal targets. */
     tombstonedAt?: string;
+}
+
+/** The data-provenance class of a golden record (`food.origin`, 0003 migration). */
+export type FoodOrigin = (typeof foodOriginEnum.enumValues)[number];
+
+/** Input for {@link FoodDao.markOrigin}. */
+export interface MarkOriginInput {
+    /** The food id. */
+    id: string;
+    /** The target provenance class. */
+    origin: FoodOrigin;
 }
 
 /** Input for {@link FoodDao.upsertGoldenScalars}. */
@@ -325,6 +337,24 @@ export class FoodDao {
         const rows = await this.db.update(food).set(patch).where(eq(food.id, scalars.id)).returning();
 
         return rows[0];
+    }
+
+    /**
+     * Classify a food's data provenance (`food.origin`, 0003 migration). Marking a food `bulk` is what
+     * REMOVES it from the live change-refresh scan (`listResolvedBackingItems`) — see F-C2: a bulk row's
+     * content-derived `item_version` can never equal an API version, so an unexcluded bulk food would be
+     * re-enqueued on every sweep AND have its lab-analyzed nutrition clobbered with API values.
+     *
+     * Deliberately NOT folded into {@link upsertGoldenScalars}: `origin` is not a merge-winner scalar —
+     * no source supplies it and no merge may overwrite it. It is also NOT a status transition, so it is
+     * safe to call at any point in the lifecycle (the bulk importer calls it while the food is still
+     * PENDING, so the food is never visible to the scan as a refreshable RESOLVED row).
+     *
+     * @param input - The food id + target provenance class.
+     * @sideEffect Updates `food.origin` (and `updated_at`).
+     */
+    public async markOrigin(input: MarkOriginInput): Promise<void> {
+        await this.db.update(food).set({ origin: input.origin, updatedAt: new Date() }).where(eq(food.id, input.id));
     }
 
     /**

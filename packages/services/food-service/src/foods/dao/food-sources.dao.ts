@@ -100,6 +100,27 @@ export class FoodSourcesDao {
     }
 
     /**
+     * Resolve a `(source, external_key)` to its FULL crosswalk row via `UNIQUE(source, external_key)`.
+     * The bulk-seed importer needs the row (not just the `food_id`) so it can compare the recorded
+     * `item_version` against the incoming bulk item's version and skip an unchanged food outright — the
+     * fast path that makes a re-run over ~8k rows resumable instead of 8k no-op transactions.
+     *
+     * @param source - The source identifier.
+     * @param externalKey - That source's item key.
+     * @returns The crosswalk row, or `undefined` when the crosswalk has no such item.
+     * @sideEffect Reads `food_sources`.
+     */
+    public async findByExternalKey(source: FoodSource, externalKey: string): Promise<FoodSourceRow | undefined> {
+        const rows = await this.db
+            .select()
+            .from(foodSources)
+            .where(and(eq(foodSources.source, source), eq(foodSources.externalKey, externalKey)))
+            .limit(1);
+
+        return rows[0];
+    }
+
+    /**
      * Resolve a product barcode to its internal food id via the partial `food_barcode_idx`.
      *
      * @param barcode - The product barcode.
@@ -124,12 +145,24 @@ export class FoodSourcesDao {
     }
 
     /**
-     * List the backing items of `RESOLVED` foods for the change-refresh scan (T-170/MOD-020). The
-     * `status = 'RESOLVED'` join deliberately excludes `NOT_FOUND`/`FAILED` tombstones — they are never
-     * refreshed (FR-032). Ordered by `food_id` for stable paging; bounded by `limit`.
+     * List the backing items of **live-origin** `RESOLVED` foods for the change-refresh scan
+     * (T-170/MOD-020). Two exclusions, both load-bearing:
+     *
+     * - `status = 'RESOLVED'` skips `NOT_FOUND`/`FAILED` tombstones — never refreshed (FR-032);
+     * - `origin <> 'bulk'` skips foods imported from the USDA **bulk** download (F-C2, migration 0003).
+     *   This is CORRECTNESS-critical, not a quota nicety: a bulk crosswalk row's `item_version` is
+     *   derived from the bulk file's content and can never equal an API `publicationDate`, so an
+     *   unexcluded bulk food would compare "changed" on EVERY sweep — re-enqueued forever, and the
+     *   drain's `mergeChangedSources` would overwrite its lab-analyzed bulk nutrition with API values.
+     *   It also protects the shared 1,000/hr per-IP USDA window from ~8k pointless re-fetches per sweep
+     *   (SR Legacy is frozen upstream and never changes). Bulk foods are re-freshened from the next bulk
+     *   download instead.
+     *
+     * Ordered by `food_id` for stable paging; bounded by `limit` (the limit applies AFTER the filters, so
+     * a large bulk catalog can never starve the live foods out of a pass).
      *
      * @param limit - Max rows to return (the scan budget bound).
-     * @returns The backing items of `RESOLVED` foods.
+     * @returns The backing items of live-origin `RESOLVED` foods.
      * @sideEffect Reads `food_sources` joined to `food`.
      */
     public async listResolvedBackingItems(limit = 1000): Promise<BackingItem[]> {
@@ -143,6 +176,7 @@ export class FoodSourcesDao {
               FROM food_sources fs
               JOIN food f ON f.id = fs.food_id
              WHERE f.status = 'RESOLVED'
+               AND f.origin <> 'bulk'
              ORDER BY fs.food_id
              LIMIT ${limit}
         `);

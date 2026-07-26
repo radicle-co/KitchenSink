@@ -30,7 +30,6 @@ import { resetSchema } from '../support/db.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 
-
 /**
  * Reset to a blank schema and apply the ordered migration SQL. The SQL is not idempotent (bare
  * CREATE TABLE), so it must run against a clean schema — matches `tests/schema.integration.test.ts`.

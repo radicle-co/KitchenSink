@@ -2,9 +2,11 @@
 
 import type { ReactNode } from 'react';
 import { useAuth, useUser } from '@clerk/nextjs';
+import { useMessages } from '@commise/i18n/react';
 import { deriveAuthState } from '@commise/features-account';
 
 import { AccountStateNotice } from '@/components/auth/AccountStateNotice';
+import { authMessages } from '@/components/auth/messages';
 
 interface AccountStateGateProps {
     children: ReactNode;
@@ -20,6 +22,7 @@ interface AccountStateGateProps {
  * is not silently omitted on web (cross-platform parity).
  */
 export function AccountStateGate({ children }: AccountStateGateProps) {
+    const { state: stateCopy } = useMessages(authMessages);
     const { isLoaded, isSignedIn, userId, sessionClaims } = useAuth();
     const { user } = useUser();
 
@@ -32,7 +35,11 @@ export function AccountStateGate({ children }: AccountStateGateProps) {
     });
 
     if (state.status === 'loading') {
-        return <p role="status">Loading your account…</p>;
+        return (
+            <p role="status" className="text-body-md text-slate">
+                {stateCopy.loading}
+            </p>
+        );
     }
 
     if (state.status === 'blocked') {

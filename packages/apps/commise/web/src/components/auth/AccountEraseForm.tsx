@@ -17,9 +17,12 @@
 import { useState } from 'react';
 import { useClerk } from '@clerk/nextjs';
 import { useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
 import { selectDonatableRecipes } from '@commise/features-account';
 import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
+
+import { TrashIcon } from '@/components/auth/icons';
 
 /**
  * The mounted-while-open erasure flow: owns the recipe fetch, the mutation, and the form state. Mounted only
@@ -76,9 +79,9 @@ export function AccountEraseForm() {
 
     return (
         <>
-            <button type="button" onClick={() => setOpen(true)}>
+            <Button variant="destructive" icon={<TrashIcon />} onPress={() => setOpen(true)}>
                 {erase.trigger}
-            </button>
+            </Button>
             {open && <AccountEraseFlow onClose={() => setOpen(false)} />}
         </>
     );

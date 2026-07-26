@@ -57,7 +57,10 @@ export function HomeTopBar({ chrome, locale, displayName, onOpenNav }: HomeTopBa
                     type="button"
                     onClick={onOpenNav}
                     aria-label={chrome.openNav}
-                    className="-ml-2 rounded-full p-2 text-charcoal transition-colors hover:bg-pearl md:hidden"
+                    // `min-h-11 min-w-11` (44px) is an explicit mobile touch-target FLOOR, reset at `md:` to
+                    // keep desktop density. It sits below the control's current ~48px computed size, so it
+                    // changes no pixels today — it guards the target minimum against future icon/padding drift.
+                    className="-ml-2 min-h-11 min-w-11 rounded-full p-2 text-charcoal transition-colors hover:bg-pearl md:hidden md:min-h-0 md:min-w-0"
                 >
                     <HomeIcon name="menu" className="size-6" />
                 </button>
@@ -68,7 +71,8 @@ export function HomeTopBar({ chrome, locale, displayName, onOpenNav }: HomeTopBa
                 <button
                     type="button"
                     aria-label={chrome.search}
-                    className="rounded-full p-2 text-charcoal transition-colors hover:bg-pearl"
+                    // 44px mobile touch-target floor, reset at md — a no-op below the ~48px control today.
+                    className="min-h-11 min-w-11 rounded-full p-2 text-charcoal transition-colors hover:bg-pearl md:min-h-0 md:min-w-0"
                 >
                     <HomeIcon name="search" className="size-6" />
                 </button>
@@ -78,7 +82,7 @@ export function HomeTopBar({ chrome, locale, displayName, onOpenNav }: HomeTopBa
                 <button
                     type="button"
                     aria-label={chrome.notifications}
-                    className="rounded-full p-2 text-charcoal transition-colors hover:bg-pearl"
+                    className="min-h-11 min-w-11 rounded-full p-2 text-charcoal transition-colors hover:bg-pearl md:min-h-0 md:min-w-0"
                 >
                     <HomeIcon name="notifications" className="size-6" />
                 </button>
@@ -86,7 +90,8 @@ export function HomeTopBar({ chrome, locale, displayName, onOpenNav }: HomeTopBa
                 <Link
                     href={`/${locale}/profile` as Route}
                     aria-label={initials === '' ? chrome.accountNoName : chrome.account}
-                    className="ml-1 flex size-8 items-center justify-center rounded-full bg-seafoam text-sm font-semibold text-white"
+                    // 44px mobile touch-target floor, reset at md — a no-op below the size-8 avatar today.
+                    className="ml-1 flex size-8 min-h-11 min-w-11 items-center justify-center rounded-full bg-seafoam text-sm font-semibold text-white md:min-h-0 md:min-w-0"
                 >
                     {initials === '' ? (
                         <HomeIcon name="profile" className="size-5" />

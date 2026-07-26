@@ -46,7 +46,11 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId }: HomeT
     return (
         <nav
             aria-label={chrome.tabNavLabel}
-            className="fixed inset-x-0 bottom-0 z-50 flex h-16 items-center justify-around border-t border-white/30 bg-gradient-to-t from-white/90 to-white/80 px-2 backdrop-blur-[24px] lg:hidden"
+            // The bar grows by the device's bottom safe-area inset and pads its foot by the same amount, so the
+            // 64px (`4rem`) icon row sits clear ABOVE the home indicator rather than being squished under it.
+            // `env(safe-area-inset-bottom)` is 0 in a normal viewport, so height stays 4rem and the browser
+            // output is unchanged; the bar is `lg:hidden`, so desktop never renders it at all.
+            className="fixed inset-x-0 bottom-0 z-50 flex h-[calc(4rem+env(safe-area-inset-bottom))] items-center justify-around border-t border-white/30 bg-gradient-to-t from-white/90 to-white/80 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-[24px] lg:hidden"
         >
             {destinations.map((item) => {
                 const label = chrome.destinations[item.id];

@@ -75,9 +75,13 @@ export function HomeChrome({
                     onOpenNav={() => setMobileNavOpen(true)}
                 />
 
-                {/* pb-20 clears the fixed bottom tab bar; it collapses once the tab bar is hidden at `lg`
-                    (the shared desktop-vs-narrow cutover — sidebar above it, bottom nav below). */}
-                <main className="flex-1 px-4 pb-20 pt-6 md:px-6 lg:pb-6">{children}</main>
+                {/* The foot clears the fixed bottom tab bar (`5rem`) PLUS the device safe-area inset, and
+                    collapses to `lg:pb-6` once the tab bar becomes a desktop sidebar at the shared
+                    desktop-vs-narrow cutover. `env(...)` is 0 in a normal viewport, so the base stays 5rem
+                    (identical to the former `pb-20`) and desktop is unchanged. */}
+                <main className="flex-1 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-6 md:px-6 lg:pb-6">
+                    {children}
+                </main>
             </div>
 
             <HomeTabBar chrome={chrome} locale={locale} liveCapabilities={liveCapabilities} activeId={activeId} />

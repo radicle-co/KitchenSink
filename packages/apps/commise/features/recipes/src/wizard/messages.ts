@@ -17,9 +17,15 @@ export interface WizardMessages {
     readonly railLabel: string;
     /** Accessible label template for one rail step's status announcement (contains `{name}`, `{state}`). */
     readonly railStepLabel: string;
-    /** Accessible label for the persistent top-bar (Save Draft/Preview/Cancel/Publish) toolbar region — its OWN
+    /** Accessible label for the persistent top-bar (Preview + the actions overflow menu) toolbar region — its OWN
      * landmark name, deliberately distinct from {@link railLabel} so two different regions never share one name. */
     readonly topBarLabel: string;
+    /**
+     * Accessible name for the header's overflow ("More actions") menu — used BOTH for the kebab trigger button
+     * and for the `role="menu"` list it discloses (Save Draft / Cancel), so neither is an unnamed control.
+     * The secondary/destructive actions live here so the header never packs four filled buttons (plan U6).
+     */
+    readonly actionsMenu: string;
     /** Rail step-state word: completed. */
     readonly stateCompleted: string;
     /** Rail step-state word: current. */
@@ -88,6 +94,7 @@ export const wizardMessages: LocalizedMessages<WizardMessages> = {
         railLabel: 'Recipe wizard steps',
         railStepLabel: '{name}: {state}',
         topBarLabel: 'Recipe wizard actions',
+        actionsMenu: 'More actions',
         stateCompleted: 'completed',
         stateCurrent: 'current step',
         stateInvalid: 'needs attention',

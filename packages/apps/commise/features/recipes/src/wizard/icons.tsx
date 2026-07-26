@@ -41,3 +41,32 @@ export const ChevronLeftIcon: FC = () => <Glyph d="M15 18l-6-6 6-6" />;
 
 /** Chevron-right — the footer "Next" nav. */
 export const ChevronRightIcon: FC = () => <Glyph d="M9 18l6-6-6-6" />;
+
+/** Check — the footer "Publish" primary (mirrors the native leaf's `Feather` name `check`). */
+export const CheckIcon: FC = () => <Glyph d="M20 6L9 17l-5-5" />;
+
+/** X — the overflow menu's "Cancel" item (mirrors the native leaf's `Feather` name `x`). */
+export const XIcon: FC = () => <Glyph d="M18 6L6 18M6 6l12 12" />;
+
+/**
+ * More-vertical (kebab) — the header's overflow ("More actions") trigger (U6). Three stacked dots; mirrors
+ * the native leaf's `Feather` name `more-vertical`. Decorative like the rest of the set: `aria-hidden`, so the
+ * trigger's own `aria-label` owns the accessible name. Rendered directly (not via {@link Glyph}) because the
+ * dots are `<circle>`s, not a single stroked path.
+ */
+export const MoreVerticalIcon: FC = () => (
+    <svg
+        aria-hidden="true"
+        className="h-4 w-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+    >
+        <circle cx="12" cy="12" r="1" />
+        <circle cx="12" cy="5" r="1" />
+        <circle cx="12" cy="19" r="1" />
+    </svg>
+);

@@ -20,12 +20,24 @@
  * photo manager — as children of the matching `Wizard.Step`, so no field is duplicated or rewritten.
  *
  * **Deliberate split from the plan's literal "Wizard.Controls (footer nav + top-bar actions)" wording**: this
- * implementation exposes `Wizard.TopBar` (Save Draft / Preview / Cancel / Publish — the wireframe's persistent
- * header row, present on every step) and `Wizard.Controls` (the footer `< Prev` / `Next >` nav) as TWO
- * separate parts, not one. The wireframe places these in two visually distinct regions (a page header vs. a
- * per-step footer); a single component could not let the composing container position them independently
+ * implementation exposes `Wizard.TopBar` (the persistent header) and `Wizard.Controls` (the per-step footer)
+ * as TWO separate parts, not one. The wireframe places these in two visually distinct regions (a page header
+ * vs. a per-step footer); a single component could not let the composing container position them independently
  * without an internal portal, which is more machinery than the wireframe calls for. Both parts read the SAME
  * context, so nothing about the wizard's behavior differs — only how the two chrome regions are placed.
+ *
+ * **U6 chrome remediation (plan bullet U6, SHARED with the native leaf).** The header no longer packs four
+ * filled buttons (Save Draft / Preview / Cancel / Publish) that wrap to two rows on a phone. Instead:
+ *  - `Wizard.Controls` (footer) is the ONE contextual primary: a filled `Next: {name}` on steps 1–3, swapping
+ *    to a filled `Publish` on step 4 (so Publish is NO LONGER live on steps 1–3), with a secondary `Prev` on
+ *    the left once past step 1. Never more than two footer buttons.
+ *  - `Wizard.TopBar` (header) keeps `Preview` as its own icon button and demotes `Save Draft` + `Cancel` into
+ *    an overflow ("More actions") disclosure — a kebab trigger opening a `role="menu"` list. Cancel still
+ *    routes through `requestCancel` (so the discard guard fires) and Save Draft through `saveDraft`. Publish
+ *    is gone from the header entirely (it lives in the footer now).
+ * The overflow menu is a small self-contained disclosure (house style, cf. the preview panel below): a trigger
+ * with `aria-haspopup`/`aria-expanded`, a `role="menu"` of real `role="menuitem"` buttons, Escape-to-close and
+ * an outside-click backdrop — no new dependency, since `@commise/ui` ships no menu primitive.
  *
  * **The discard guard** (Cancel, and backward step navigation, while dirty) and the **preview panel** are
  * owned entirely by the Root — the composing container does not place or wire either; they render themselves
@@ -39,7 +51,7 @@ import { createContext, useContext, useEffect, useState, type FC, type ReactNode
 
 import { fillTemplate } from '../list/model.js';
 import type { RecipeFormErrors, RecipeFormValues, RecipeWizardStep } from '../form/model.js';
-import { ChevronLeftIcon, ChevronRightIcon, EyeIcon, SaveIcon } from './icons.js';
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, EyeIcon, MoreVerticalIcon, SaveIcon, XIcon } from './icons.js';
 import { deriveRailStepState, WIZARD_STEPS, WIZARD_TOTAL_STEPS } from './model.js';
 import { wizardMessages } from './messages.js';
 
@@ -347,32 +359,122 @@ const WizardRail: FC = () => {
     );
 };
 
-/** The persistent top bar: Save Draft (left) · Preview (center) · Cancel + Publish (right) — FR-002. */
+/**
+ * The header's overflow ("More actions") disclosure (U6): a kebab trigger opening a `role="menu"` list with
+ * `Save Draft` and `Cancel`. Demoting these two off the header is what keeps it from packing four filled
+ * buttons that wrap on a phone. Self-contained (no `@commise/ui` menu primitive exists): the trigger carries
+ * `aria-haspopup`/`aria-expanded` + a localized `aria-label`; each item is a real `role="menuitem"` button
+ * (keyboard-operable); Escape and an outside-click backdrop both close it. Cancel routes through
+ * `requestCancel` so the discard guard still fires; Save Draft through `saveDraft` and busies while submitting.
+ */
+const WizardActionsMenu: FC = () => {
+    const model = useWizardModel();
+    const m = useMessages(wizardMessages);
+    const [open, setOpen] = useState(false);
+
+    // Escape-to-close, scoped to exactly the window the menu is open (mirrors the preview panel's listener) so
+    // it never fires — or leaks a listener — while closed. The trigger itself never holds DOM focus once an
+    // item is focused, so a document-level listener is the reliable catch.
+    useEffect(() => {
+        if (!open) {
+            return undefined;
+        }
+
+        const onKeyDown = (event: KeyboardEvent): void => {
+            if (event.key === 'Escape') {
+                setOpen(false);
+            }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [open]);
+
+    // Every item closes the menu first, then runs its action — so Cancel's discard dialog opens over a closed
+    // menu, not behind an open one.
+    const runAndClose = (action: () => void): void => {
+        setOpen(false);
+        action();
+    };
+
+    return (
+        <div className="relative">
+            <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={open}
+                aria-label={m.actionsMenu}
+                onClick={() => setOpen((prev) => !prev)}
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-border bg-white px-3 text-charcoal shadow-sm transition hover:bg-pearl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light md:min-h-0 md:py-2.5"
+            >
+                <MoreVerticalIcon />
+            </button>
+            {open && (
+                <>
+                    {/* Outside-click backdrop: a click anywhere off the menu dismisses it. Below the menu's
+                        z-index and decorative (the menu items own the interaction). */}
+                    <div aria-hidden="true" onClick={() => setOpen(false)} className="fixed inset-0 z-30" />
+                    <ul
+                        role="menu"
+                        aria-label={m.actionsMenu}
+                        className="absolute right-0 z-40 mt-2 flex min-w-44 flex-col gap-1 rounded-2xl border border-border bg-card p-1 shadow-lg"
+                    >
+                        <li role="none">
+                            <button
+                                type="button"
+                                role="menuitem"
+                                disabled={model.submitting}
+                                aria-busy={model.submitting || undefined}
+                                onClick={() => runAndClose(model.saveDraft)}
+                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-body-sm font-medium text-charcoal transition hover:bg-pearl disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <SaveIcon />
+                                {m.saveDraft}
+                            </button>
+                        </li>
+                        <li role="none">
+                            <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => runAndClose(model.requestCancel)}
+                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-body-sm font-medium text-error transition hover:bg-error/10"
+                            >
+                                <XIcon />
+                                {m.cancel}
+                            </button>
+                        </li>
+                    </ul>
+                </>
+            )}
+        </div>
+    );
+};
+
+/**
+ * The persistent header (U6): `Preview` as its own icon button plus the overflow ("More actions") menu that
+ * carries Save Draft + Cancel. Two controls, never four — the four-filled-button wrap is gone. Publish is no
+ * longer here; it is the footer's step-4 primary.
+ */
 const WizardTopBar: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
 
     return (
-        <div role="toolbar" aria-label={m.topBarLabel} className="flex flex-wrap items-center justify-between gap-3">
-            <Button variant="secondary" icon={<SaveIcon />} busy={model.submitting} onPress={model.saveDraft}>
-                {m.saveDraft}
-            </Button>
+        <div role="toolbar" aria-label={m.topBarLabel} className="flex items-center justify-end gap-2">
             <Button variant="secondary" icon={<EyeIcon />} onPress={model.togglePreview}>
                 {m.preview}
             </Button>
-            <div className="flex items-center gap-3">
-                <Button variant="secondary" icon={<ChevronLeftIcon />} onPress={model.requestCancel}>
-                    {m.cancel}
-                </Button>
-                <Button icon={<ChevronRightIcon />} busy={model.submitting} onPress={model.requestPublish}>
-                    {m.publish}
-                </Button>
-            </div>
+            <WizardActionsMenu />
         </div>
     );
 };
 
-/** The footer step nav: `< Prev: {name}` / `Next: {name} >`. */
+/**
+ * The footer — the ONE contextual primary (U6). Left: a secondary `< Prev: {name}` once past step 1. Right: a
+ * single FILLED primary that is `Next: {name} >` on steps 1–3 (advances via `requestGoNext`) and swaps to
+ * `Publish` on step 4 (submits via `requestPublish`, busies while submitting). Never more than two buttons.
+ */
 const WizardControls: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
@@ -389,9 +491,13 @@ const WizardControls: FC = () => {
             ) : (
                 <span />
             )}
-            {nextName !== undefined && (
+            {nextName !== undefined ? (
                 <Button icon={<ChevronRightIcon />} onPress={model.requestGoNext}>
                     {fillTemplate(m.nextLabel, { name: nextName })}
+                </Button>
+            ) : (
+                <Button icon={<CheckIcon />} busy={model.submitting} onPress={model.requestPublish}>
+                    {m.publish}
                 </Button>
             )}
         </div>

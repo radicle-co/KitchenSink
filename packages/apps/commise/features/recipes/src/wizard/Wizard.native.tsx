@@ -9,6 +9,13 @@
  * "Step N of 4"; `Wizard.Step` bodies are full-screen (the composing screen wraps its `Wizard.Step` content
  * in its own `ScrollView`, exactly as `RecipeForm.native.tsx` already does for the flat form); `Wizard.TopBar`
  * is a sticky header row the composing screen places above the scrolling step content.
+ *
+ * **U6 chrome remediation (plan bullet U6, SHARED with the web leaf — see its doc).** `Wizard.Controls`
+ * (footer) is the ONE contextual primary: `Next: {name}` on steps 1–3, swapping to `Publish` on step 4 (so
+ * Publish is NO LONGER live on steps 1–3), with a secondary `Prev` once past step 1. `Wizard.TopBar` (header)
+ * keeps `Preview` and demotes `Save Draft` + `Cancel` into an overflow ("More actions") menu — a kebab
+ * `Feather` trigger opening a `Modal` sheet of `Pressable` items (house style, cf. `ConfirmDialog.native`).
+ * Cancel routes through `requestCancel` so the discard guard fires; Save Draft busies while submitting.
  */
 import { Button } from '@commise/ui/button';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
@@ -16,7 +23,7 @@ import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { Feather } from '@expo/vector-icons';
 import { createContext, useContext, useState, type FC, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import type { RecipeFormErrors, RecipeFormValues, RecipeWizardStep } from '../form/model.js';
@@ -265,7 +272,79 @@ const WizardRail: FC = () => {
     );
 };
 
-/** The sticky top bar: Save Draft · Preview · Cancel + Publish — FR-002. */
+/**
+ * The header's overflow ("More actions") disclosure (U6): a kebab (`more-vertical`) trigger opening a `Modal`
+ * sheet of `Pressable` items — `Save Draft` and `Cancel` — in the house `ConfirmDialog.native` idiom.
+ * Demoting these two off the header is what keeps it from packing four buttons that wrap on a phone. Cancel
+ * routes through `requestCancel` so the discard guard still fires; Save Draft busies while submitting (a
+ * disabled item cannot be double-fired). The `Modal` is rendered only while `open`, so its items are absent
+ * from the tree when closed (react-native-web keeps a `visible={false}` Modal mounted — see
+ * `ConfirmDialog.native`'s same guard).
+ */
+const WizardActionsMenu: FC = () => {
+    const model = useWizardModel();
+    const m = useMessages(wizardMessages);
+    const [open, setOpen] = useState(false);
+
+    // Every item closes the menu first, then runs its action — so Cancel's discard dialog opens over a closed
+    // menu, not behind an open one.
+    const runAndClose = (action: () => void): void => {
+        setOpen(false);
+        action();
+    };
+
+    return (
+        <>
+            <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={m.actionsMenu}
+                accessibilityState={{ expanded: open }}
+                onPress={() => setOpen(true)}
+                style={styles.menuTrigger}
+            >
+                <Feather name="more-vertical" size={20} color={palette.charcoal} />
+            </Pressable>
+            {open && (
+                <Modal visible transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+                    <Pressable
+                        accessibilityLabel={m.actionsMenu}
+                        style={styles.menuBackdrop}
+                        onPress={() => setOpen(false)}
+                    >
+                        <View style={styles.menuSheet}>
+                            <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={m.saveDraft}
+                                accessibilityState={{ disabled: model.submitting, busy: model.submitting }}
+                                disabled={model.submitting}
+                                onPress={() => runAndClose(model.saveDraft)}
+                                style={[styles.menuItem, model.submitting && styles.menuItemDisabled]}
+                            >
+                                <Feather name="save" size={16} color={palette.charcoal} />
+                                <Text style={styles.menuItemLabel}>{m.saveDraft}</Text>
+                            </Pressable>
+                            <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={m.cancel}
+                                onPress={() => runAndClose(model.requestCancel)}
+                                style={styles.menuItem}
+                            >
+                                <Feather name="x" size={16} color={palette.error} />
+                                <Text style={styles.menuItemDestructiveLabel}>{m.cancel}</Text>
+                            </Pressable>
+                        </View>
+                    </Pressable>
+                </Modal>
+            )}
+        </>
+    );
+};
+
+/**
+ * The sticky header (U6): `Preview` as its own button plus the overflow ("More actions") menu carrying Save
+ * Draft + Cancel. Two controls, never four — the four-button wrap is gone. Publish is no longer here; it is
+ * the footer's step-4 primary.
+ */
 const WizardTopBar: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
@@ -274,38 +353,21 @@ const WizardTopBar: FC = () => {
         <View accessibilityLabel={m.topBarLabel} style={styles.topBar}>
             <Button
                 variant="secondary"
-                icon={<Feather name="save" size={16} color={palette.charcoal} />}
-                busy={model.submitting}
-                onPress={model.saveDraft}
-            >
-                {m.saveDraft}
-            </Button>
-            <Button
-                variant="secondary"
                 icon={<Feather name="eye" size={16} color={palette.charcoal} />}
                 onPress={model.togglePreview}
             >
                 {m.preview}
             </Button>
-            <Button
-                variant="secondary"
-                icon={<Feather name="x" size={16} color={palette.charcoal} />}
-                onPress={model.requestCancel}
-            >
-                {m.cancel}
-            </Button>
-            <Button
-                icon={<Feather name="check" size={16} color={palette.white} />}
-                busy={model.submitting}
-                onPress={model.requestPublish}
-            >
-                {m.publish}
-            </Button>
+            <WizardActionsMenu />
         </View>
     );
 };
 
-/** The footer step nav: `< Prev: {name}` / `Next: {name} >`. */
+/**
+ * The footer — the ONE contextual primary (U6). Left: a secondary `< Prev: {name}` once past step 1. Right: a
+ * single filled primary that is `Next: {name} >` on steps 1–3 (advances via `requestGoNext`) and swaps to
+ * `Publish` on step 4 (submits via `requestPublish`, busies while submitting). Never more than two buttons.
+ */
 const WizardControls: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
@@ -326,12 +388,20 @@ const WizardControls: FC = () => {
             ) : (
                 <View />
             )}
-            {nextName !== undefined && (
+            {nextName !== undefined ? (
                 <Button
                     icon={<Feather name="chevron-right" size={16} color={palette.white} />}
                     onPress={model.requestGoNext}
                 >
                     {fillTemplate(m.nextLabel, { name: nextName })}
+                </Button>
+            ) : (
+                <Button
+                    icon={<Feather name="check" size={16} color={palette.white} />}
+                    busy={model.submitting}
+                    onPress={model.requestPublish}
+                >
+                    {m.publish}
                 </Button>
             )}
         </View>
@@ -380,6 +450,44 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 16,
     },
+    menuTrigger: {
+        minHeight: 44,
+        minWidth: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: border,
+        backgroundColor: palette.white,
+    },
+    menuBackdrop: {
+        flex: 1,
+        alignItems: 'flex-end',
+        paddingTop: 64,
+        paddingHorizontal: 16,
+        backgroundColor: 'rgba(44, 62, 80, 0.2)',
+    },
+    menuSheet: {
+        minWidth: 200,
+        backgroundColor: palette.white,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: border,
+        padding: 8,
+        gap: 4,
+    },
+    menuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        minHeight: 44,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 12,
+    },
+    menuItemDisabled: { opacity: 0.6 },
+    menuItemLabel: { fontSize: 15, fontWeight: '500', color: palette.charcoal },
+    menuItemDestructiveLabel: { fontSize: 15, fontWeight: '500', color: palette.error },
     previewBackdrop: {
         position: 'absolute',
         top: 0,

@@ -1,7 +1,12 @@
 /**
- * Component tests for the native `Wizard` compound shell (w3/e1,e2) — mirrors `Wizard.test.tsx`'s harness
- * and coverage (Step gating, Next gating + rail invalidity, top-bar actions, discard guard, Preview) against
- * the RN leaf, run through react-native-web under jsdom per this package's native test convention.
+ * Component tests for the native `Wizard` compound shell (w3/e1,e2; U6 chrome remediation) — mirrors
+ * `Wizard.test.tsx`'s harness and coverage against the RN leaf, run through react-native-web under jsdom per
+ * this package's native test convention.
+ *
+ * **U6 chrome model (mirrored from the web spec):** the footer (`Wizard.Controls`) is the ONE contextual
+ * primary — `Next: {name}` on steps 1–3, `Publish` on step 4 (never both), with a secondary `Prev` once past
+ * step 1. The header (`Wizard.TopBar`) keeps `Preview` and demotes `Save Draft` + `Cancel` into an overflow
+ * ("More actions") menu, so it never packs four buttons and Publish is gone from it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -32,6 +37,7 @@ interface HarnessProps {
     readonly initialStep?: RecipeWizardStep;
     readonly mode?: 'create' | 'edit';
     readonly isDirty?: boolean;
+    readonly submitting?: boolean;
     readonly onCancel?: () => void;
     readonly onSaveDraft?: () => void;
     readonly onPublish?: () => void;
@@ -42,6 +48,7 @@ const Harness: FC<HarnessProps> = ({
     initialStep = 1,
     mode = 'create',
     isDirty = false,
+    submitting = false,
     onCancel = vi.fn(),
     onSaveDraft = vi.fn(),
     onPublish = vi.fn(),
@@ -71,7 +78,7 @@ const Harness: FC<HarnessProps> = ({
             publish={onPublish}
             onCancel={onCancel}
             isDirty={isDirty}
-            submitting={false}
+            submitting={submitting}
         >
             <Wizard.Rail />
             <Wizard.TopBar />
@@ -94,6 +101,11 @@ const Harness: FC<HarnessProps> = ({
             <Wizard.Controls />
         </Wizard>
     );
+};
+
+/** Open the header's overflow ("More actions") menu, disclosing the Save Draft / Cancel items. */
+const openActionsMenu = (): void => {
+    fireEvent.click(screen.getByLabelText('More actions'));
 };
 
 describe('Wizard (native) — Wizard.Step gating', () => {
@@ -148,19 +160,73 @@ describe('Wizard (native) — Next gating + rail invalidity', () => {
     });
 });
 
-describe('Wizard (native) — top-bar actions', () => {
-    it('Save Draft calls the given action', () => {
+describe('Wizard (native) — footer is the ONE contextual primary (U6)', () => {
+    it('shows Next — and NO Publish, NO Prev — on step 1', () => {
+        render(<Harness initialValues={validValues()} initialStep={1} />);
+
+        expect(screen.getByLabelText(/Next: Ingredients/)).toBeTruthy();
+        expect(screen.queryByLabelText('Publish')).toBeFalsy();
+        expect(screen.queryByLabelText(/Prev:/)).toBeFalsy();
+    });
+
+    it('shows Next — and NO Publish — on step 3, plus a Prev', () => {
+        render(<Harness initialValues={validValues()} initialStep={3} />);
+
+        expect(screen.getByLabelText(/Next: Photos/)).toBeTruthy();
+        expect(screen.getByLabelText(/Prev: Ingredients/)).toBeTruthy();
+        expect(screen.queryByLabelText('Publish')).toBeFalsy();
+    });
+
+    it('swaps the footer primary to Publish — and NO Next — on step 4', () => {
+        render(<Harness initialValues={validValues()} initialStep={4} />);
+
+        expect(screen.getByLabelText('Publish')).toBeTruthy();
+        expect(screen.queryByLabelText(/Next:/)).toBeFalsy();
+    });
+
+    it('Publish in the footer calls publish', () => {
+        const onPublish = vi.fn();
+        render(<Harness initialValues={validValues()} initialStep={4} onPublish={onPublish} />);
+
+        fireEvent.click(screen.getByLabelText('Publish'));
+
+        expect(onPublish).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('Wizard (native) — header overflow menu (U6: Save Draft + Cancel demoted)', () => {
+    it('does not pack four buttons in the header — only Preview + the overflow trigger', () => {
+        render(<Harness />);
+
+        const toolbar = screen.getByLabelText('Recipe wizard actions');
+        expect(within(toolbar).getAllByRole('button')).toHaveLength(2);
+        expect(within(toolbar).queryByLabelText('Publish')).toBeFalsy();
+        // Save Draft + Cancel stay hidden until the overflow menu opens.
+        expect(screen.queryByLabelText('Save Draft')).toBeFalsy();
+        expect(screen.queryByLabelText('Cancel')).toBeFalsy();
+    });
+
+    it('discloses Save Draft + Cancel from the overflow menu, and Save Draft calls the given action', () => {
         const onSaveDraft = vi.fn();
         render(<Harness onSaveDraft={onSaveDraft} />);
+
+        openActionsMenu();
+
+        expect(screen.getByLabelText('Save Draft')).toBeTruthy();
+        expect(screen.getByLabelText('Cancel')).toBeTruthy();
 
         fireEvent.click(screen.getByLabelText('Save Draft'));
 
         expect(onSaveDraft).toHaveBeenCalledTimes(1);
+        // Choosing an item closes the menu.
+        expect(screen.queryByLabelText('Save Draft')).toBeFalsy();
     });
+});
 
+describe('Wizard (native) — top-bar actions & submitting', () => {
     it('Publish calls the given action and carries the "Publish" accessible name in create mode (w3/e7)', () => {
         const onPublish = vi.fn();
-        render(<Harness mode="create" onPublish={onPublish} />);
+        render(<Harness mode="create" initialValues={validValues()} initialStep={4} onPublish={onPublish} />);
 
         fireEvent.click(screen.getByLabelText('Publish'));
 
@@ -168,7 +234,7 @@ describe('Wizard (native) — top-bar actions', () => {
     });
 
     it('Publish carries the SAME "Publish" accessible name in edit mode (w3/e7: label matches behavior, not mode)', () => {
-        render(<Harness mode="edit" />);
+        render(<Harness mode="edit" initialValues={validValues()} initialStep={4} />);
 
         expect(screen.getByLabelText('Publish')).toBeTruthy();
     });
@@ -176,22 +242,42 @@ describe('Wizard (native) — top-bar actions', () => {
     it('Publish while another step is invalid flags that OTHER step in the rail (no navigation occurs)', () => {
         const onPublish = vi.fn();
         const partial: RecipeFormValues = { ...defaultRecipeFormValues(), title: 'Herb Risotto', servings: 4 };
-        render(<Harness initialValues={partial} initialStep={1} onPublish={onPublish} />);
+        render(<Harness initialValues={partial} initialStep={4} onPublish={onPublish} />);
 
         fireEvent.click(screen.getByLabelText('Publish'));
 
         expect(onPublish).toHaveBeenCalledTimes(1);
         expect(screen.getByLabelText(/Ingredients: needs attention/)).toBeTruthy();
         expect(screen.getByLabelText(/Instructions: needs attention/)).toBeTruthy();
-        expect(screen.getByLabelText('Title')).toBeTruthy();
+        expect(screen.getByText('Photos step body')).toBeTruthy();
+    });
+
+    it('busies the footer Publish primary so it cannot be double-fired while a save is in flight', () => {
+        const onPublish = vi.fn();
+        render(<Harness initialValues={validValues()} initialStep={4} submitting onPublish={onPublish} />);
+
+        fireEvent.click(screen.getByLabelText('Publish'));
+
+        expect(onPublish).not.toHaveBeenCalled();
+    });
+
+    it('busies the overflow Save Draft item so it cannot be double-fired while a save is in flight', () => {
+        const onSaveDraft = vi.fn();
+        render(<Harness submitting onSaveDraft={onSaveDraft} />);
+
+        openActionsMenu();
+        fireEvent.click(screen.getByLabelText('Save Draft'));
+
+        expect(onSaveDraft).not.toHaveBeenCalled();
     });
 });
 
-describe('Wizard (native) — discard guard', () => {
+describe('Wizard (native) — discard guard (Cancel now lives in the overflow menu)', () => {
     it('Cancel with no unsaved edits calls onCancel immediately (no dialog)', () => {
         const onCancel = vi.fn();
         render(<Harness isDirty={false} onCancel={onCancel} />);
 
+        openActionsMenu();
         fireEvent.click(screen.getByLabelText('Cancel'));
 
         expect(onCancel).toHaveBeenCalledTimes(1);
@@ -202,6 +288,7 @@ describe('Wizard (native) — discard guard', () => {
         const onCancel = vi.fn();
         render(<Harness isDirty onCancel={onCancel} />);
 
+        openActionsMenu();
         fireEvent.click(screen.getByLabelText('Cancel'));
 
         expect(onCancel).not.toHaveBeenCalled();
@@ -216,6 +303,7 @@ describe('Wizard (native) — discard guard', () => {
         const onCancel = vi.fn();
         render(<Harness isDirty onCancel={onCancel} />);
 
+        openActionsMenu();
         fireEvent.click(screen.getByLabelText('Cancel'));
         fireEvent.click(screen.getByLabelText('Keep editing'));
 
@@ -242,6 +330,12 @@ describe('Wizard (native) — chrome landmark labels (a11y, localized, not share
 
         expect(screen.getByLabelText('Recipe wizard steps')).toBeTruthy();
         expect(screen.getByLabelText('Recipe wizard actions')).toBeTruthy();
+    });
+
+    it('names the overflow trigger with a localized label (not a raw literal)', () => {
+        render(<Harness />);
+
+        expect(screen.getByLabelText('More actions')).toBeTruthy();
     });
 
     it('gives the footer step-navigation region a localized accessible label (not a raw literal)', () => {

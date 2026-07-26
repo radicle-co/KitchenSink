@@ -4,7 +4,16 @@
  * objects; `nativeTokens` is the RN-facing projection of the exact same scale, so the two platforms
  * cannot drift. This module is pure data (no `react-native` import) and safe under Node/Vitest.
  */
-import { borderSubtle, elevation, fontFamily, fontSize, fontWeight, lineHeightRatio, radius, spacing } from './scale.js';
+import {
+    borderSubtle,
+    elevation,
+    fontFamily,
+    fontSize,
+    fontWeight,
+    lineHeightRatio,
+    radius,
+    spacing,
+} from './scale.js';
 
 /**
  * A React Native shadow, composed from a `scale.elevation` spec. `shadowColor` + `shadowOpacity` are

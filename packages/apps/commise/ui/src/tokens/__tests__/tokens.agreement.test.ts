@@ -22,11 +22,17 @@ function typedKeys<T extends object>(o: T): (keyof T)[] {
 
 /** Web length string → pixels. Accepts unitless `0`, `<n>rem` (×16), and `<n>px`. */
 function toPx(value: string | number): number {
-    if (typeof value === 'number') {return value;}
+    if (typeof value === 'number') {
+        return value;
+    }
 
-    if (value.endsWith('rem')) {return Number.parseFloat(value) * 16;}
+    if (value.endsWith('rem')) {
+        return Number.parseFloat(value) * 16;
+    }
 
-    if (value.endsWith('px')) {return Number.parseFloat(value);}
+    if (value.endsWith('px')) {
+        return Number.parseFloat(value);
+    }
 
     throw new Error(`Unexpected length token: ${value}`);
 }

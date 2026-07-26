@@ -106,23 +106,41 @@ function renderThemeCss(): string {
     const kebab = (s: string): string => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
     const lines: string[] = ['@import "tailwindcss";', '', '@theme {'];
 
-    for (const [k, v] of Object.entries(palette)) {lines.push(`    --color-${kebab(k)}: ${v};`);}
+    for (const [k, v] of Object.entries(palette)) {
+        lines.push(`    --color-${kebab(k)}: ${v};`);
+    }
 
-    for (const [k, v] of Object.entries(semantic)) {lines.push(`    --color-${kebab(k)}: ${v};`);}
+    for (const [k, v] of Object.entries(semantic)) {
+        lines.push(`    --color-${kebab(k)}: ${v};`);
+    }
 
-    for (const [k, v] of Object.entries(fonts)) {lines.push(`    --font-${kebab(k)}: ${v};`);}
+    for (const [k, v] of Object.entries(fonts)) {
+        lines.push(`    --font-${kebab(k)}: ${v};`);
+    }
 
-    for (const [k, v] of Object.entries(fontSizes)) {lines.push(`    --font-size-${kebab(k)}: ${v};`);}
+    for (const [k, v] of Object.entries(fontSizes)) {
+        lines.push(`    --font-size-${kebab(k)}: ${v};`);
+    }
 
-    for (const [k, v] of Object.entries(lineHeights)) {lines.push(`    --line-height-${kebab(k)}: ${v};`);}
+    for (const [k, v] of Object.entries(lineHeights)) {
+        lines.push(`    --line-height-${kebab(k)}: ${v};`);
+    }
 
-    for (const [k, v] of Object.entries(fontWeights)) {lines.push(`    --font-weight-${kebab(k)}: ${v};`);}
+    for (const [k, v] of Object.entries(fontWeights)) {
+        lines.push(`    --font-weight-${kebab(k)}: ${v};`);
+    }
 
-    for (const [k, v] of Object.entries(space)) {lines.push(`    --spacing-${k}: ${v};`);}
+    for (const [k, v] of Object.entries(space)) {
+        lines.push(`    --spacing-${k}: ${v};`);
+    }
 
-    for (const [k, v] of Object.entries(radius)) {lines.push(`    --radius-${k}: ${v};`);}
+    for (const [k, v] of Object.entries(radius)) {
+        lines.push(`    --radius-${k}: ${v};`);
+    }
 
-    for (const [k, v] of Object.entries(shadows)) {lines.push(`    --shadow-${k}: ${v};`);}
+    for (const [k, v] of Object.entries(shadows)) {
+        lines.push(`    --shadow-${k}: ${v};`);
+    }
 
     lines.push('}');
 

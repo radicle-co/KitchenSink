@@ -47,14 +47,32 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     filterSlot,
     sort,
     loadMore,
+    browseSlot,
+    onExitToBrowse,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
 
+    // Empty ≠ no-match, and browse ≠ either: an active query/filter turns the surface into a result list;
+    // with neither, the curated `browseSlot` (when provided) is the default experience, not a bare stream.
+    const searching = searchValue.trim().length > 0 || hasActiveFilters;
+    const browsing = browseSlot !== undefined && !searching;
+
     let body: ReactElement;
 
-    if (status === 'loading') {
-        body = <View accessibilityLabel={discovery.loadingLabel} />;
+    if (browsing) {
+        body = <>{browseSlot}</>;
+    } else if (status === 'loading') {
+        // Skeleton cards (NOT a blank view — the previous bug): inert, motion-free placeholders in the same
+        // 2-col grid the results use, so the surface has shape while the first page loads. Being motion-free,
+        // they need no reduce-motion gate (there is no non-essential animation to suppress).
+        body = (
+            <View accessibilityLabel={discovery.loadingLabel} style={styles.grid}>
+                {[0, 1, 2, 3].map((card) => (
+                    <View key={card} aria-hidden style={[styles.gridCell, styles.skeletonCard]} />
+                ))}
+            </View>
+        );
     } else if (status === 'error') {
         body = (
             <View accessibilityRole="alert">
@@ -67,7 +85,6 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     } else if (results.length === 0) {
         // Empty ≠ no-match: a search/filter with zero hits is a NO-MATCH, not the browse-empty "no public
         // recipes" state. `searchValue` or an active filter distinguishes them.
-        const searching = searchValue.trim().length > 0 || hasActiveFilters;
         body = (
             <View>
                 <Text>{searching ? discovery.noMatchTitle : discovery.emptyTitle}</Text>
@@ -83,26 +100,39 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
         // S5 — echo the active query in the results header; a bare browse shows just the count.
         const query = searchValue.trim();
         const header = query.length > 0 ? fillTemplate(discovery.resultsForQuery, { count, query }) : count;
-        // ScrollView, not View: the full-bleed 4:3 cover cards mean only ~1 card fits, so without scrolling
-        // every discovered recipe past the first is unreachable. Header + search + filters stay pinned above.
+        // ScrollView, not View: even a 2-col grid overflows a phone once several rows load, so the cards must
+        // scroll. Header + search + filters stay pinned above. Cards lay out in a wrapping 2-col grid (U7).
         body = (
             <ScrollView
                 style={styles.cardsScroll}
                 contentContainerStyle={styles.cards}
                 keyboardShouldPersistTaps="handled"
             >
+                {onExitToBrowse !== undefined && (
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={discovery.backToBrowse}
+                        onPress={onExitToBrowse}
+                        style={styles.backToBrowse}
+                    >
+                        <Text style={styles.backToBrowseText}>{discovery.backToBrowse}</Text>
+                    </Pressable>
+                )}
                 <Text style={styles.count}>{header}</Text>
-                {results.map((result) => (
-                    <RecipeDiscoveryCard
-                        key={result.recipe.id}
-                        recipe={toRecipeCardModel(result.recipe)}
-                        authorHandle={result.recipe.authorHandle}
-                        sourceAttribution={result.recipe.sourceAttribution}
-                        isCloning={cloningId === result.recipe.id}
-                        onSelect={onSelectRecipe}
-                        onClone={onClone}
-                    />
-                ))}
+                <View role="list" style={styles.grid}>
+                    {results.map((result) => (
+                        <View key={result.recipe.id} role="listitem" style={styles.gridCell}>
+                            <RecipeDiscoveryCard
+                                recipe={toRecipeCardModel(result.recipe)}
+                                authorHandle={result.recipe.authorHandle}
+                                sourceAttribution={result.recipe.sourceAttribution}
+                                isCloning={cloningId === result.recipe.id}
+                                onSelect={onSelectRecipe}
+                                onClone={onClone}
+                            />
+                        </View>
+                    ))}
+                </View>
                 {loadMore?.hasMore === true && (
                     <Pressable
                         accessibilityRole="button"
@@ -135,7 +165,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 style={styles.search}
             />
             {filterSlot}
-            {sort !== undefined && (
+            {sort !== undefined && !browsing && (
                 <View accessibilityRole="radiogroup" accessibilityLabel={discovery.sortLabel} style={styles.sortRow}>
                     {DISCOVERY_SORTS.map((option) => {
                         const checked = sort.active === option;
@@ -192,4 +222,16 @@ const styles = StyleSheet.create({
     loadMoreLabel: { fontSize: 14, fontWeight: '600', color: palette.charcoal },
     cardsScroll: { flex: 1 },
     cards: { gap: 12, paddingBottom: 24 },
+    // 2-col grid (U7): a wrapping row of half-width cells, each holding one result/skeleton card.
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+    gridCell: { width: '48%' },
+    skeletonCard: { height: 220, borderRadius: 20, backgroundColor: 'rgba(178, 190, 195, 0.3)' },
+    backToBrowse: {
+        alignSelf: 'flex-start',
+        paddingVertical: 6,
+        paddingHorizontal: 4,
+        minHeight: 44,
+        justifyContent: 'center',
+    },
+    backToBrowseText: { fontSize: 14, fontWeight: '600', color: palette.seafoam },
 });

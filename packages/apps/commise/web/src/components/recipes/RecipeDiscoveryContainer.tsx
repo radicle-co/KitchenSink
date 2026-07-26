@@ -2,18 +2,31 @@
 
 /**
  * Container for the public-discovery route: binds the shared, presentational `RecipeDiscoveryList` +
- * `RecipeFilterBar` building blocks to live data. It owns NO server data — TanStack Query is the source of
- * truth for the remote search results — and it holds NO filter state of its own either: the search term and
- * the active filters live in the URL (`?query=…&dietaryFlags=…&tags=…&maxTotalTime=…`), so a filtered view is
- * shareable and survives reload/back. It derives `{ filters, query }` from the URL, projects them onto the
- * `useSearchRecipes` params via the shared pure model, and writes changes back with
- * `window.history.replaceState` — the Next-integrated history API that updates `useSearchParams()` WITHOUT a
- * server round-trip (a `router.replace` per keystroke would re-render this `force-dynamic` server page). The
- * search response's `facets` drive the filter chips; per-row clone navigates to the caller's fresh copy.
+ * `RecipeFilterBar` + curated `RecipeBrowseRails` building blocks to live data. It owns NO server data —
+ * TanStack Query is the source of truth for the remote search results — and it holds NO filter state of its
+ * own either: the search term and the active filters live in the URL (`?query=…&dietaryFlags=…&tags=…`), so
+ * a filtered view is shareable and survives reload/back. It derives `{ filters, query }` from the URL,
+ * projects them onto the `useInfiniteSearchRecipes` params via the shared pure model, and writes changes
+ * back with `window.history.replaceState` — the Next-integrated history API that updates
+ * `useSearchParams()` WITHOUT a server round-trip.
+ *
+ * Two U7 behaviours layer on top:
+ * - **Debounced search (per-container).** The per-keystroke cost is the FETCH, not the URL write. The input
+ *   is echoed immediately from local state, while the value FED TO the query is debounced
+ *   ({@link DISCOVERY_SEARCH_DEBOUNCE_MS}); the URL push stays immediate (shareable) and does not gate
+ *   keystrokes.
+ * - **Browsable default.** With no active query/filter, discovery shows curated rails (Trending/New/Quick +
+ *   cuisine shortcuts) instead of a bare relevance stream; a rail's "see all" reveals the full sorted list.
  */
-import { RecipeDiscoveryList, RecipeFilterBar } from '@commise/features-recipes';
-import type { FacetDimension, RecipeDiscoveryStatus } from '@commise/features-recipes';
+import { RecipeBrowseRails, RecipeDiscoveryList, RecipeFilterBar } from '@commise/features-recipes';
+import type {
+    FacetDimension,
+    RecipeBrowseCuisineShortcut,
+    RecipeBrowseRailView,
+    RecipeDiscoveryStatus,
+} from '@commise/features-recipes';
 import {
+    DISCOVERY_SEARCH_DEBOUNCE_MS,
     addIngredientFilter,
     clearRecipeFilters,
     filtersFromQueryString,
@@ -28,7 +41,7 @@ import {
     toggleFacetValue,
     type RecipeFilterState,
 } from '@commise/features-recipes';
-import { useIngredientFilterSearch } from '@commise/features-recipes/hooks';
+import { useBrowseRails, useDebouncedValue, useIngredientFilterSearch } from '@commise/features-recipes/hooks';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { useCloneRecipe, useInfiniteSearchRecipes } from '@kitchensink/recipe-service-client/hooks';
 import type { Route } from 'next';
@@ -55,39 +68,83 @@ function toDiscoveryStatus(isLoading: boolean, isError: boolean): RecipeDiscover
     return 'ready';
 }
 
+/** Props for the mount-gated browse-rails section (only rendered while browsing — see the container). */
+interface BrowseRailsSectionProps {
+    readonly cuisines: readonly RecipeBrowseCuisineShortcut[];
+    readonly cloningId?: string | null;
+    readonly onSelectRecipe: (id: string) => void;
+    readonly onClone: (id: string) => void;
+    readonly onSeeAll: (sortBy: RecipeSearchSortBy) => void;
+}
+
+/**
+ * The curated rails' data section — its `useBrowseRails` runs ONLY while mounted, and the container mounts
+ * it solely when browsing, so the three rail queries are a browse-time cost, not an always-on one.
+ */
+const BrowseRailsSection: FC<BrowseRailsSectionProps> = ({
+    cuisines,
+    cloningId,
+    onSelectRecipe,
+    onClone,
+    onSeeAll,
+}) => {
+    const { rails } = useBrowseRails();
+    const railViews: readonly RecipeBrowseRailView[] = rails.map((rail) => ({
+        id: rail.id,
+        status: rail.status,
+        results: rail.results,
+        onSeeAll: () => onSeeAll(rail.sortBy),
+    }));
+
+    return (
+        <RecipeBrowseRails
+            rails={railViews}
+            cuisines={cuisines}
+            cloningId={cloningId}
+            onSelectRecipe={onSelectRecipe}
+            onClone={onClone}
+        />
+    );
+};
+
 /**
  * The live public-discovery container.
  *
  * @param props - The active locale.
- * @returns The wired {@link RecipeDiscoveryList} with its {@link RecipeFilterBar}.
+ * @returns The wired {@link RecipeDiscoveryList} with its {@link RecipeFilterBar} and curated rails.
  */
 export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ locale }) => {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
 
-    // The URL is the single source of truth for the search criteria. Deriving (never copying into state) keeps
-    // the view in lockstep with a shared/reloaded link and the back button.
+    // The URL is the single source of truth for the shareable criteria (filters + query). The FIELD, though,
+    // is driven by immediate local state so a keystroke never waits on the debounce or a re-render.
     const { filters, query } = filtersFromQueryString(searchParams.toString());
+    const [searchInput, setSearchInput] = useState(query);
+    const debouncedQuery = useDebouncedValue(searchInput, DISCOVERY_SEARCH_DEBOUNCE_MS);
 
-    // Sort is a view preference (S3), kept in local state — it re-runs the visibility-scoped search with a new
-    // `sortBy` but is not part of the shareable URL criteria (those are the filters + query).
+    // Sort is a view preference (S3), kept in local state; a rail's "see all" sets it AND dismisses browse.
     const [sortBy, setSortBy] = useState<RecipeSearchSortBy>(RecipeSearchSortBy.RELEVANCE);
+    const [browseDismissed, setBrowseDismissed] = useState(false);
 
-    const search = useInfiniteSearchRecipes({ ...filtersToSearchParams(filters, query), sortBy });
+    // The debounced query — not the immediate `searchInput` — feeds the fetch, so typing does not fire a
+    // request per keystroke.
+    const search = useInfiniteSearchRecipes({ ...filtersToSearchParams(filters, debouncedQuery), sortBy });
     const clone = useCloneRecipe();
     const ingredientSearch = useIngredientFilterSearch();
 
     const status = toDiscoveryStatus(search.isLoading, search.isError);
     const cloningId = clone.isPending ? clone.variables : null;
 
-    // S4 — flatten the fetched pages into one result list; facets describe the whole set, so read them from
-    // the first page. `hasNextPage`/`fetchNextPage` drive the "Load more" control.
     const results = search.data?.pages.flatMap((page) => page.results) ?? [];
     const facets = search.data?.pages[0]?.facets ?? {};
 
+    const searching = searchInput.trim().length > 0 || hasActiveFilters(filters);
+    const browsing = !searching && !browseDismissed;
+
     // Write the next criteria to the URL via the Next-integrated history API (no server round-trip per
-    // keystroke, unlike router.replace on this force-dynamic page). `useSearchParams()` re-renders in response.
+    // keystroke). The field carries `searchInput` (immediate), so a URL write never lags the input.
     const applyCriteria = useCallback(
         (nextFilters: RecipeFilterState, nextQuery: string) => {
             const qs = filtersToQueryString(nextFilters, nextQuery);
@@ -96,12 +153,25 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
         [pathname],
     );
 
+    const onSearchChange = useCallback(
+        (value: string) => {
+            setSearchInput(value);
+            applyCriteria(filters, value);
+        },
+        [applyCriteria, filters],
+    );
+
+    const cuisines: readonly RecipeBrowseCuisineShortcut[] = (facets.cuisine ?? []).map((facet) => ({
+        value: facet.value,
+        onSelect: () => applyCriteria(setCuisine(filters, facet.value), searchInput),
+    }));
+
     return (
         <RecipeDiscoveryList
             status={status}
             results={results}
-            searchValue={query}
-            onSearchChange={(value) => applyCriteria(filters, value)}
+            searchValue={searchInput}
+            onSearchChange={onSearchChange}
             onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
             onClone={(id) =>
                 clone.mutate(id, {
@@ -117,27 +187,46 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
                 loading: search.isFetchingNextPage,
                 onLoadMore: () => void search.fetchNextPage(),
             }}
+            onExitToBrowse={browseDismissed && !searching ? () => setBrowseDismissed(false) : undefined}
+            browseSlot={
+                browsing ? (
+                    <BrowseRailsSection
+                        cuisines={cuisines}
+                        cloningId={cloningId}
+                        onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
+                        onClone={(id) =>
+                            clone.mutate(id, {
+                                onSuccess: (recipe) => router.push(`/${locale}/recipes/${recipe.id}` as Route),
+                            })
+                        }
+                        onSeeAll={(railSort) => {
+                            setSortBy(railSort);
+                            setBrowseDismissed(true);
+                        }}
+                    />
+                ) : undefined
+            }
             filterSlot={
                 <RecipeFilterBar
                     facets={facets}
                     filters={filters}
                     onToggleFacet={(dimension: FacetDimension, value: string) =>
-                        applyCriteria(toggleFacetValue(filters, dimension, value), query)
+                        applyCriteria(toggleFacetValue(filters, dimension, value), searchInput)
                     }
-                    onSetCuisine={(cuisine) => applyCriteria(setCuisine(filters, cuisine), query)}
-                    onSetMaxPrepTime={(minutes) => applyCriteria(setMaxPrepTime(filters, minutes), query)}
-                    onSetMaxCookTime={(minutes) => applyCriteria(setMaxCookTime(filters, minutes), query)}
-                    onSetMaxTotalTime={(minutes) => applyCriteria(setMaxTotalTime(filters, minutes), query)}
+                    onSetCuisine={(cuisine) => applyCriteria(setCuisine(filters, cuisine), searchInput)}
+                    onSetMaxPrepTime={(minutes) => applyCriteria(setMaxPrepTime(filters, minutes), searchInput)}
+                    onSetMaxCookTime={(minutes) => applyCriteria(setMaxCookTime(filters, minutes), searchInput)}
+                    onSetMaxTotalTime={(minutes) => applyCriteria(setMaxTotalTime(filters, minutes), searchInput)}
                     ingredientSearch={{
                         query: ingredientSearch.query,
                         onQueryChange: ingredientSearch.setQuery,
                         viewState: ingredientSearch.viewState,
                     }}
                     onAddIngredientFilter={(ingredient) =>
-                        applyCriteria(addIngredientFilter(filters, ingredient), query)
+                        applyCriteria(addIngredientFilter(filters, ingredient), searchInput)
                     }
-                    onRemoveIngredientFilter={(id) => applyCriteria(removeIngredientFilter(filters, id), query)}
-                    onClearAll={() => applyCriteria(clearRecipeFilters(), query)}
+                    onRemoveIngredientFilter={(id) => applyCriteria(removeIngredientFilter(filters, id), searchInput)}
+                    onClearAll={() => applyCriteria(clearRecipeFilters(), searchInput)}
                 />
             }
         />

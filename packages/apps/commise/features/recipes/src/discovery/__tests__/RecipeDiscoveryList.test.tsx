@@ -260,6 +260,60 @@ describe('RecipeDiscoveryList (web) — populated state', () => {
     });
 });
 
+describe('RecipeDiscoveryList (web) — browse slot (U7)', () => {
+    const browseSlot = <div>CURATED RAILS</div>;
+
+    it('renders the browse slot (not a bare search) when no query/filter is active', () => {
+        renderDiscovery({ status: 'ready', results: [], searchValue: '', browseSlot });
+
+        expect(screen.getByText('CURATED RAILS')).toBeTruthy();
+        // The browse-empty copy must NOT show — the rails ARE the browse experience.
+        expect(screen.queryByText('No recipes found')).toBeNull();
+    });
+
+    it('takes precedence over the flat result body while browsing', () => {
+        renderDiscovery({ status: 'ready', results: threeResults, searchValue: '', browseSlot });
+
+        expect(screen.getByText('CURATED RAILS')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeNull();
+    });
+
+    it('shows the result list (not the browse slot) once a query is active', () => {
+        renderDiscovery({ status: 'ready', results: threeResults, searchValue: 'lamb', browseSlot });
+
+        expect(screen.queryByText('CURATED RAILS')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
+    });
+
+    it('shows the result list (not the browse slot) once a filter is active', () => {
+        renderDiscovery({ status: 'ready', results: threeResults, hasActiveFilters: true, browseSlot });
+
+        expect(screen.queryByText('CURATED RAILS')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
+    });
+
+    it('hides the sort control while browsing', () => {
+        renderDiscovery({
+            status: 'ready',
+            searchValue: '',
+            browseSlot,
+            sort: { active: RecipeSearchSortBy.RELEVANCE, onChange: noop },
+        });
+
+        expect(screen.queryByRole('radiogroup', { name: 'Sort by' })).toBeNull();
+    });
+
+    it('renders a back-to-browse action in the result list and reports it', async () => {
+        const user = userEvent.setup();
+        const onExitToBrowse = vi.fn();
+        renderDiscovery({ status: 'ready', results: threeResults, searchValue: '', onExitToBrowse });
+
+        await user.click(screen.getByRole('button', { name: 'Back to browse' }));
+
+        expect(onExitToBrowse).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('RecipeDiscoveryList (web) — clone', () => {
     it('reports the cloned recipe id upward', async () => {
         const user = userEvent.setup();

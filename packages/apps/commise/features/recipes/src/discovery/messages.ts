@@ -63,6 +63,28 @@ export interface DiscoveryMessages {
     readonly cloneLabel: string;
     /** Accessible label for the in-flight clone action (contains `{title}`). */
     readonly cloningLabel: string;
+    /** Accessible name for the curated browse-rails region (U7). */
+    readonly browseLabel: string;
+    /** Title of the Trending rail (most-cloned). */
+    readonly railTrending: string;
+    /** Title of the New rail (recent). */
+    readonly railNew: string;
+    /** Title of the Quick rail (quickest). */
+    readonly railQuick: string;
+    /** Visible label of a rail's "see all" action. */
+    readonly seeAll: string;
+    /** Accessible-name template for a rail's "see all" action (contains `{rail}`). */
+    readonly seeAllLabel: string;
+    /** Section title for the cuisine shortcuts. */
+    readonly cuisinesTitle: string;
+    /** Accessible-name template for a cuisine shortcut (contains `{cuisine}`) — S. */
+    readonly cuisineShortcutLabel: string;
+    /** Shown inside a rail that settled with no recipes. */
+    readonly railEmpty: string;
+    /** Shown inside a rail that failed to load. */
+    readonly railError: string;
+    /** Visible label of the "back to browse" action shown after a rail's see-all. */
+    readonly backToBrowse: string;
 }
 
 export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
@@ -93,5 +115,16 @@ export const discoveryMessages: LocalizedMessages<DiscoveryMessages> = {
         cloning: 'Cloning',
         cloneLabel: 'Clone {title}',
         cloningLabel: 'Cloning {title}',
+        browseLabel: 'Browse recipes',
+        railTrending: 'Trending',
+        railNew: 'New',
+        railQuick: 'Quick',
+        seeAll: 'See all',
+        seeAllLabel: 'See all {rail}',
+        cuisinesTitle: 'Browse by cuisine',
+        cuisineShortcutLabel: 'Browse {cuisine} recipes',
+        railEmpty: 'Nothing here yet.',
+        railError: 'Couldn’t load this row.',
+        backToBrowse: 'Back to browse',
     },
 };

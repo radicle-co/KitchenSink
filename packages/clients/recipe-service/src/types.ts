@@ -192,10 +192,16 @@ export interface ErasureRequestAcceptedResponse {
 /** Ordered facet buckets for a single search facet (an object-per-bucket, extensible per entry). */
 export type RecipeSearchFacetCounts = readonly RecipeFacetCount[];
 
-/** Facet counts returned alongside recipe search results (the server aggregates dietary flags + tags). */
+/**
+ * Facet counts returned alongside recipe search results. The server aggregates dietary flags, tags, the
+ * distinct cuisines in the match sample (drives the single-select Cuisine facet + discovery's cuisine
+ * shortcuts, W8-a.9), and the total-time buckets (`quickest`/`maxTotalTime`).
+ */
 export interface RecipeSearchFacets {
     readonly dietaryFlags?: RecipeSearchFacetCounts;
     readonly tags?: RecipeSearchFacetCounts;
+    readonly cuisine?: RecipeSearchFacetCounts;
+    readonly totalTime?: RecipeSearchFacetCounts;
 }
 
 /** Response from `searchRecipes` (`GET /v1/search/recipes`). Results are an object-per-hit envelope. */

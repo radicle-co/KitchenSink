@@ -13,9 +13,10 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
 import type { Ingredient } from '@kitchensink/recipe-core';
-import type { FC, ReactElement } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useState, type FC, type ReactElement } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
 import { filterMessages, type FilterMessages } from './messages.js';
@@ -231,37 +232,118 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
         },
     };
 
-    return (
-        <View role="group" aria-label={m.barLabel} style={styles.container}>
-            {FACET_DESCRIPTORS.map((descriptor) => (
-                <View key={descriptor.id}>{renderers[descriptor.kind](descriptor)}</View>
-            ))}
+    // Collapse the ~7 always-open facet groups into a single "Filters" button + a bottom sheet (U7): the
+    // groups above the results were eating the phone viewport before a single card was visible. The button
+    // carries an active-count badge; the sheet holds every facet + Clear-all, unchanged.
+    const [open, setOpen] = useState(false);
+    const activeCount = countActiveFilters(filters);
+    const triggerLabel =
+        activeCount > 0 ? fillTemplate(m.filtersButtonActive, { count: activeCount }) : m.filtersButton;
 
-            {hasActiveFilters(filters) && (
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={formatRecipeCount(
-                        countActiveFilters(filters),
-                        { one: m.clearOne, other: m.clearOther },
-                        locale,
-                    )}
-                    onPress={onClearAll}
-                    style={styles.clear}
-                >
-                    <Text style={styles.clearText}>
-                        {formatRecipeCount(
-                            countActiveFilters(filters),
-                            { one: m.clearOne, other: m.clearOther },
-                            locale,
-                        )}
-                    </Text>
-                </Pressable>
-            )}
+    return (
+        <View style={styles.bar}>
+            <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={triggerLabel}
+                onPress={() => setOpen(true)}
+                style={styles.trigger}
+            >
+                <Text style={styles.triggerText}>{m.filtersButton}</Text>
+                {activeCount > 0 && (
+                    <View style={styles.badge}>
+                        <Text style={styles.badgeText}>{activeCount}</Text>
+                    </View>
+                )}
+            </Pressable>
+
+            <Modal visible={open} transparent onRequestClose={() => setOpen(false)}>
+                <View style={styles.sheetBackdrop}>
+                    <View role="group" aria-label={m.barLabel} style={styles.sheet}>
+                        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+                            {FACET_DESCRIPTORS.map((descriptor) => (
+                                <View key={descriptor.id}>{renderers[descriptor.kind](descriptor)}</View>
+                            ))}
+
+                            {hasActiveFilters(filters) && (
+                                <Pressable
+                                    accessibilityRole="button"
+                                    accessibilityLabel={formatRecipeCount(
+                                        activeCount,
+                                        { one: m.clearOne, other: m.clearOther },
+                                        locale,
+                                    )}
+                                    onPress={onClearAll}
+                                    style={styles.clear}
+                                >
+                                    <Text style={styles.clearText}>
+                                        {formatRecipeCount(
+                                            activeCount,
+                                            { one: m.clearOne, other: m.clearOther },
+                                            locale,
+                                        )}
+                                    </Text>
+                                </Pressable>
+                            )}
+                        </ScrollView>
+
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={m.filtersDone}
+                            onPress={() => setOpen(false)}
+                            style={styles.done}
+                        >
+                            <Text style={styles.doneText}>{m.filtersDone}</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
+    bar: { alignSelf: 'flex-start' },
+    trigger: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: nativeTokens.spacing[2],
+        minHeight: 44,
+        borderRadius: nativeTokens.radius.full,
+        borderWidth: 1,
+        borderColor: nativeTokens.borderSubtle,
+        backgroundColor: palette.white,
+        paddingHorizontal: nativeTokens.spacing[4],
+    },
+    triggerText: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.charcoal },
+    badge: {
+        minWidth: 22,
+        height: 22,
+        borderRadius: nativeTokens.radius.full,
+        backgroundColor: palette.seafoam,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: nativeTokens.spacing[1],
+    },
+    badgeText: { fontSize: nativeTokens.fontSize.overline, fontWeight: '700', color: palette.white },
+    sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(45, 52, 54, 0.4)' },
+    sheet: {
+        maxHeight: '85%',
+        backgroundColor: palette.white,
+        borderTopLeftRadius: nativeTokens.radius.xl,
+        borderTopRightRadius: nativeTokens.radius.xl,
+        paddingTop: nativeTokens.spacing[4],
+        paddingHorizontal: nativeTokens.spacing[4],
+        paddingBottom: nativeTokens.spacing[4],
+        gap: nativeTokens.spacing[3],
+    },
+    done: {
+        minHeight: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: nativeTokens.radius.full,
+        backgroundColor: palette.charcoal,
+    },
+    doneText: { fontSize: nativeTokens.fontSize.bodyMd, fontWeight: '600', color: palette.white },
     container: { gap: 12 },
     group: { gap: 6 },
     groupLabel: {

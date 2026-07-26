@@ -34,6 +34,16 @@ describe('RecipeDetailView (web) — header', () => {
         expect(screen.getByText('Tender and herby.')).toBeTruthy();
     });
 
+    it('sizes the title responsively — smaller at base, the original text-4xl from sm up (U5)', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ title: 'Mediterranean Grilled Lamb' })} />);
+
+        // A long title overflows a 360px viewport at text-4xl, so the base drops to text-2xl and restores the
+        // original text-4xl at `sm:` — tablet/desktop are unchanged.
+        const heading = screen.getByRole('heading', { level: 1, name: 'Mediterranean Grilled Lamb' });
+        expect(heading.className).toContain('text-2xl');
+        expect(heading.className).toContain('sm:text-4xl');
+    });
+
     it('renders cuisine, dietary flags, and tags as badges', () => {
         render(
             <RecipeDetailView
@@ -253,6 +263,29 @@ describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
 
         expect(screen.getByRole('checkbox', { name: /Olive oil/ }).getAttribute('aria-checked')).toBe('true');
         expect(screen.getByRole('checkbox', { name: /Garlic/ }).getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('gives the ingredient checkbox a 44px base touch target around a smaller visual box, reset at sm (U5)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil' })],
+                })}
+                checkedIngredients={new Set(['ing_1'])}
+            />,
+        );
+
+        // The interactive control (the button carrying role=checkbox) is the tap target: `size-11` (44px) at
+        // base, `sm:size-5` back to the original 24px on wider viewports. The visible tick box is a nested
+        // element sized `size-6 sm:size-5`, so the mobile target grows without enlarging the desktop glyph.
+        const box = screen.getByRole('checkbox', { name: /Olive oil/ });
+        expect(box.className).toContain('size-11');
+        expect(box.className).toContain('sm:size-5');
+
+        const visual = box.firstElementChild as HTMLElement | null;
+        expect(visual).not.toBeNull();
+        expect(visual?.className).toContain('size-6');
+        expect(visual?.className).toContain('sm:size-5');
     });
 
     it('invokes onToggleIngredient with the ingredient id when its checkbox is activated (D5)', async () => {

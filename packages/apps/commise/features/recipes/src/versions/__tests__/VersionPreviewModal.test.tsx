@@ -123,6 +123,18 @@ describe('VersionPreviewModal (web) — loading', () => {
     });
 });
 
+describe('VersionPreviewModal (web) — responsive width (U5)', () => {
+    it('keeps a screen-edge gutter at base, restoring the original max width at md', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
+
+        // The `w-full` centered panel would touch both edges at 360px; the base cap `calc(100% - 2rem)` leaves
+        // a 1rem gutter each side and `md:max-w-2xl` restores the original desktop width (byte-identical 1280px).
+        const dialog = screen.getByRole('dialog');
+        expect(dialog.className).toContain('max-w-[calc(100%-2rem)]');
+        expect(dialog.className).toContain('md:max-w-2xl');
+    });
+});
+
 describe('VersionPreviewModal (web) — populated version', () => {
     it('renders the snapshot title, description, servings, and prep/cook/total time', () => {
         render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);

@@ -213,7 +213,7 @@ const WizardRoot: FC<WizardProps> = (props) => {
                     }}
                     className="fixed inset-0 z-40 flex items-center justify-center bg-charcoal/40 p-4"
                 >
-                    <div className="flex w-full max-w-md flex-col gap-4 rounded-2xl bg-card p-6 shadow-lg">
+                    <div className="flex max-h-[85vh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-2xl bg-card p-6 shadow-lg">
                         <div className="flex items-center justify-between">
                             <h2 className="font-display text-heading-lg font-semibold text-charcoal">
                                 {m.previewHeading}

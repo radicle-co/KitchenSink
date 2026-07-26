@@ -292,6 +292,21 @@ describe('Wizard (web) — Preview', () => {
         expect(screen.queryByRole('dialog', { name: 'Preview' })).toBeFalsy();
     });
 
+    it('caps the preview panel height and scrolls its body so it fits a short viewport (U5)', async () => {
+        const user = userEvent.setup();
+        render(<Harness initialValues={validValues()} />);
+
+        await user.click(screen.getByRole('button', { name: 'Preview' }));
+
+        // On a short 360px-tall device the centered panel could exceed the viewport; capping the CARD at
+        // `max-h-[85vh]` with `overflow-y-auto` keeps it on-screen and scrollable. The card is the dialog's
+        // content child (the dialog element itself is the backdrop). Desktop is unaffected — the short preview
+        // never reaches 85vh there.
+        const card = screen.getByRole('dialog', { name: 'Preview' }).firstElementChild as HTMLElement;
+        expect(card.className).toContain('max-h-[85vh]');
+        expect(card.className).toContain('overflow-y-auto');
+    });
+
     // Minor a11y gap (opus review): the hand-rolled preview dialog previously had no Escape/backdrop
     // dismissal, unlike the Radix ConfirmDialog rendered in the same file.
     it('closes on Escape', async () => {

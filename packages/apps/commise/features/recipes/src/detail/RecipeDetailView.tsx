@@ -39,7 +39,9 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
     return (
         <article aria-label={recipe.title} className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8">
             <header className="flex flex-col gap-4">
-                <h1 className="font-display text-4xl font-bold leading-tight text-charcoal">{recipe.title}</h1>
+                <h1 className="font-display text-2xl font-bold leading-tight text-charcoal sm:text-4xl">
+                    {recipe.title}
+                </h1>
                 {(staticBadges.length > 0 || recipe.tags.length > 0) && (
                     <ul aria-label={`${recipe.title} tags`} className="flex flex-wrap gap-2">
                         {staticBadges.map((badge, index) => (
@@ -104,17 +106,29 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
 
                         return (
                             <li key={ingredient.ingredientId} className="flex items-center gap-3 px-3 py-3">
+                                {/* The interactive control is the 44px base touch target (`size-11`), collapsing
+                                    to the original 24px box (`sm:size-5`) from sm up. The visible tick box is a
+                                    nested element (`size-6 sm:size-5`) so the mobile tap area grows without
+                                    enlarging the desktop glyph — desktop is byte-identical (a 24px box in a 24px
+                                    control). */}
                                 <button
                                     type="button"
                                     role="checkbox"
                                     aria-checked={checked}
                                     aria-label={`${label} ${ingredient.name}`.trim()}
                                     onClick={() => onToggleIngredient?.(ingredient.ingredientId)}
-                                    className={`flex size-5 shrink-0 items-center justify-center rounded border-2 transition ${
-                                        checked ? 'border-seafoam bg-seafoam text-white' : 'border-mist bg-transparent'
-                                    }`}
+                                    className="flex size-11 shrink-0 items-center justify-center sm:size-5"
                                 >
-                                    {checked && <span aria-hidden>✓</span>}
+                                    <span
+                                        aria-hidden
+                                        className={`flex size-6 items-center justify-center rounded border-2 transition sm:size-5 ${
+                                            checked
+                                                ? 'border-seafoam bg-seafoam text-white'
+                                                : 'border-mist bg-transparent'
+                                        }`}
+                                    >
+                                        {checked && <span>✓</span>}
+                                    </span>
                                 </button>
                                 <span className="font-medium text-charcoal">{label}</span>{' '}
                                 <span className="text-charcoal">{ingredient.name}</span>

@@ -179,6 +179,21 @@ describe('VersionCompareView (web) — populated diff', () => {
         const originalValue = screen.getByText('Original description.');
         expect(updatedValue.compareDocumentPosition(originalValue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
+
+    it('stacks the A/B columns at base and restores the side-by-side pair at md (U5 — 360px fit)', () => {
+        render(<VersionCompareView {...baseProps({ versionA, versionB, diff: populatedDiff })} />);
+
+        // Two columns of diff text are unreadable at 360px, so both the column-header grid and every field
+        // row's value grid stack to one column at base and restore the original two-up at `md:` — desktop
+        // unchanged. Assert via the B-column header's grid ancestor and a changed-field value's grid ancestor.
+        const headerGrid = screen.getByText('Version 12').closest('.grid');
+        expect(headerGrid?.className).toContain('grid-cols-1');
+        expect(headerGrid?.className).toContain('md:grid-cols-2');
+
+        const valueGrid = screen.getByText('Updated description.').closest('.grid');
+        expect(valueGrid?.className).toContain('grid-cols-1');
+        expect(valueGrid?.className).toContain('md:grid-cols-2');
+    });
 });
 
 describe('VersionCompareView (web) — no-change diff', () => {

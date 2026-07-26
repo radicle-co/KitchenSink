@@ -56,6 +56,16 @@ describe('RecipePhotoManager (web) — populated', () => {
         expect(screen.getByRole('button', { name: 'Remove photo 3' })).toBeTruthy();
     });
 
+    it('lays the photo grid out two-up at base and three-up from sm (U5 — 360px fit)', () => {
+        renderManager({ photos: threePhotos });
+
+        // Three 1/3-width cells are too narrow to tap at 360px, so the grid is two-up at base and restores the
+        // original three-up at `sm:` — tablet/desktop unchanged.
+        const list = screen.getByRole('list');
+        expect(list.className).toContain('grid-cols-2');
+        expect(list.className).toContain('sm:grid-cols-3');
+    });
+
     it('renders confirmed-photo images lazy-loaded with an explicit dimension ratio (B7)', () => {
         renderManager({ photos: threePhotos });
 

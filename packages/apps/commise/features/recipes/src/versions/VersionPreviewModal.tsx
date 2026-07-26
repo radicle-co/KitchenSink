@@ -83,7 +83,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                         event.preventDefault();
                         triggerRef.current?.focus();
                     }}
-                    className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-2xl bg-card p-6 shadow-lg"
+                    className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-2xl bg-card p-6 shadow-lg md:max-w-2xl"
                 >
                     <Dialog.Title className="font-display text-heading-lg font-semibold text-charcoal">
                         {title}

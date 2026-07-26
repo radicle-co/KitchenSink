@@ -12,12 +12,26 @@ import { recipeMessages } from '../messages.js';
 import { RecipeListCard } from './RecipeListCard.js';
 import { filterChipLabel, formatRecipeCount, type RecipeListViewProps } from './model.js';
 
-/** The loading placeholder — a busy status region with inert skeleton rows (hidden from assistive tech). */
+/** How many card skeletons the loading grid paints — enough to fill the first rows across breakpoints. */
+const SKELETON_COUNT = 6;
+
+/**
+ * The loading placeholder — a busy status region whose visible content is a grid of card-shaped shimmer
+ * skeletons (the old body was empty spans, which read as a broken page). The skeletons mirror the populated
+ * grid's column rhythm so the layout does not jump on load, animate with `animate-pulse`, and are
+ * `aria-hidden` (the `role="status"` label alone announces the wait to assistive tech).
+ */
 const LoadingBody: FC<{ label: string }> = ({ label }) => (
     <div role="status" aria-label={label}>
-        {[0, 1, 2].map((row) => (
-            <span key={row} aria-hidden="true" />
-        ))}
+        <div aria-hidden="true" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: SKELETON_COUNT }, (_, index) => (
+                <div key={index} className="flex flex-col gap-3 rounded-2xl bg-card p-4 shadow-sm">
+                    <div className="aspect-[4/3] w-full animate-pulse rounded-xl bg-pearl" />
+                    <div className="h-4 w-3/4 animate-pulse rounded bg-pearl" />
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-pearl" />
+                </div>
+            ))}
+        </div>
     </div>
 );
 
@@ -141,7 +155,8 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                         type="button"
                         aria-pressed={filters.active.length === 0}
                         onClick={filters.onClear}
-                        className={`rounded-full px-3 py-1 text-body-sm font-medium transition ${
+                        // Base `py-1.5` grows the mobile tap target; `md:py-1` restores the desktop chip density.
+                        className={`rounded-full px-3 py-1.5 text-body-sm font-medium transition md:py-1 ${
                             filters.active.length === 0
                                 ? 'bg-seafoam text-white'
                                 : 'bg-pearl text-slate hover:bg-mist/40'
@@ -158,7 +173,7 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                                 type="button"
                                 aria-pressed={active}
                                 onClick={() => filters.onToggle(value)}
-                                className={`rounded-full px-3 py-1 text-body-sm font-medium transition ${
+                                className={`rounded-full px-3 py-1.5 text-body-sm font-medium transition md:py-1 ${
                                     active ? 'bg-seafoam text-white' : 'bg-pearl text-slate hover:bg-mist/40'
                                 }`}
                             >

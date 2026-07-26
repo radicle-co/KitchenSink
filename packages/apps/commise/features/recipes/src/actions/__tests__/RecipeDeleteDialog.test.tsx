@@ -56,6 +56,17 @@ describe('RecipeDeleteDialog (web)', () => {
         expect(screen.getByText(/Asparagus with Green Sauce/)).toBeTruthy();
     });
 
+    it('keeps a screen-edge gutter at base, restoring the original max width at md (U5)', () => {
+        renderDialog();
+
+        // A `w-full` centered dialog touches both screen edges at 360px; capping the base width at
+        // `calc(100% - 2rem)` leaves a 1rem gutter each side, and `md:max-w-md` restores the original desktop
+        // width — so the 1280px surface is byte-identical.
+        const dialog = screen.getByRole('alertdialog', { name: 'Delete recipe' });
+        expect(dialog.className).toContain('max-w-[calc(100%-2rem)]');
+        expect(dialog.className).toContain('md:max-w-md');
+    });
+
     it('reports confirm requests upward', async () => {
         const user = userEvent.setup();
         const onConfirm = vi.fn();

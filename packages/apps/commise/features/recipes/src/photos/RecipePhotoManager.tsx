@@ -62,7 +62,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
             {photos.length === 0 && pendingItems.length === 0 ? (
                 <p className="text-body-sm text-slate">{m.emptyBody}</p>
             ) : (
-                <ul className="grid grid-cols-3 gap-3">
+                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {photos.map((photo, index) => {
                         const removing = removingPhotoId === photo.id;
 

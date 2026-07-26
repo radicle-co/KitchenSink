@@ -5,7 +5,7 @@
  * two platform renders cannot drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { RecipeSearchSortBy, type Recipe, type RecipeSearchResult } from '@kitchensink/recipe-core';
 
@@ -192,6 +192,49 @@ describe('RecipeDiscoveryList (native) — populated state', () => {
         expect(screen.getByText('From Serious Eats')).toBeTruthy();
         expect(screen.getByText('From Bon Appétit')).toBeTruthy();
         expect(screen.queryByText(/From undefined/)).toBeNull();
+    });
+});
+
+describe('RecipeDiscoveryList (native) — loading skeleton (U7)', () => {
+    it('renders skeleton cards (not a blank view) while loading', () => {
+        renderDiscovery({ status: 'loading' });
+
+        // The loading region is still labelled for assistive tech, but now carries inert skeleton cards.
+        const region = screen.getByLabelText('Loading recipes');
+        expect(region.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(0);
+    });
+});
+
+describe('RecipeDiscoveryList (native) — browse slot (U7)', () => {
+    it('renders the browse slot (not a bare search) when no query/filter is active', () => {
+        renderDiscovery({ status: 'ready', results: [], searchValue: '', browseSlot: <>{'CURATED RAILS'}</> });
+
+        expect(screen.getByText('CURATED RAILS')).toBeTruthy();
+        expect(screen.queryByText('No recipes found')).toBeNull();
+    });
+
+    it('shows the result list once a query is active', () => {
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            searchValue: 'lamb',
+            browseSlot: <>{'CURATED RAILS'}</>,
+        });
+
+        expect(screen.queryByText('CURATED RAILS')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
+    });
+});
+
+describe('RecipeDiscoveryList (native) — compact grid (U7)', () => {
+    it('lays the result cards out in a grid of one cell per result', () => {
+        renderDiscovery({ status: 'ready', results: threeResults });
+
+        // The results now live in a wrapping 2-col grid (role=list) — one cell (listitem) per result — rather
+        // than a single full-bleed column; the row selection contract is preserved.
+        const grid = screen.getByRole('list');
+        expect(within(grid).getAllByRole('listitem')).toHaveLength(3);
+        expect(screen.getByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
     });
 });
 

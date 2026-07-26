@@ -48,6 +48,12 @@ export interface FilterMessages {
     readonly clearOne: string;
     /** Plural clear-all template (contains `{count}`). */
     readonly clearOther: string;
+    /** Visible label of the button that opens the filter bottom sheet (native, U7). */
+    readonly filtersButton: string;
+    /** Accessible-name template for the filters button while filters are active (contains `{count}`). */
+    readonly filtersButtonActive: string;
+    /** Visible label of the action that closes the filter bottom sheet. */
+    readonly filtersDone: string;
 }
 
 export const filterMessages: LocalizedMessages<FilterMessages> = {
@@ -64,6 +70,9 @@ export const filterMessages: LocalizedMessages<FilterMessages> = {
         chipCountOther: '{count} recipes',
         clearOne: 'Clear {count} filter',
         clearOther: 'Clear {count} filters',
+        filtersButton: 'Filters',
+        filtersButtonActive: 'Filters, {count} active',
+        filtersDone: 'Done',
         ingredientsLabel: 'Ingredients',
         ingredientSearchLabel: 'Search ingredients',
         ingredientSearchPlaceholder: 'e.g. chicken',

@@ -73,14 +73,18 @@ const styles = StyleSheet.create({
     titleWrap: { paddingHorizontal: 16, paddingTop: 16 },
     body: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8, gap: 8 },
     attribution: { fontSize: 13, color: palette.slate },
+    // Demoted to a ghost/outline (U7): the card should read "tap to open" first, so Clone is a quiet
+    // secondary action (coral outline) rather than a filled-coral CTA competing with the cover/title.
     cloneButton: {
         alignSelf: 'flex-start',
-        backgroundColor: palette.coral,
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: palette.coral,
         borderRadius: 999,
         paddingVertical: 8,
         paddingHorizontal: 16,
         marginTop: 4,
     },
     cloneButtonBusy: { opacity: 0.6 },
-    cloneLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
+    cloneLabel: { color: palette.coral, fontWeight: '600', fontSize: 14 },
 });

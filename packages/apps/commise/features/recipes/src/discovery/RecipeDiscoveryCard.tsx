@@ -68,7 +68,7 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
                     aria-busy={isCloning}
                     disabled={isCloning}
                     onClick={() => onClone(recipe.id)}
-                    className="mt-1 self-start rounded-full bg-coral px-4 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
+                    className="mt-1 self-start rounded-full border border-coral bg-transparent px-4 py-2 text-body-sm font-semibold text-coral transition hover:bg-coral/10 disabled:opacity-60"
                 >
                     {isCloning ? discovery.cloning : discovery.clone}
                 </button>

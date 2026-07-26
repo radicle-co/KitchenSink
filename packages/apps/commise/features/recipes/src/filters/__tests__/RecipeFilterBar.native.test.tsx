@@ -25,7 +25,11 @@ const idleIngredientSearch: RecipeIngredientSearchState = {
     viewState: { kind: 'idle' },
 };
 
-function renderBar(overrides: Partial<RecipeFilterBarProps> = {}) {
+/**
+ * Render the bar and (by default) OPEN its bottom sheet, so the existing facet/chip/time/ingredient/clear
+ * assertions run against the sheet's contents. Pass `{ open: false }` to inspect the collapsed trigger.
+ */
+function renderBar(overrides: Partial<RecipeFilterBarProps> = {}, { open = true }: { open?: boolean } = {}) {
     const props: RecipeFilterBarProps = {
         facets: {},
         filters: EMPTY_RECIPE_FILTERS,
@@ -42,6 +46,11 @@ function renderBar(overrides: Partial<RecipeFilterBarProps> = {}) {
     };
     render(<RecipeFilterBar {...props} />);
 
+    if (open) {
+        // The facets now live behind a "Filters" bottom sheet (U7); open it so the groups are in the tree.
+        fireEvent.click(screen.getByRole('button', { name: /^Filters/ }));
+    }
+
     return props;
 }
 
@@ -52,6 +61,54 @@ const facets = {
     ],
     tags: [{ value: 'quick', count: 3 }],
 };
+
+describe('RecipeFilterBar (native) — bottom sheet (U7)', () => {
+    it('renders a "Filters" trigger button', () => {
+        renderBar({}, { open: false });
+
+        expect(screen.getByRole('button', { name: 'Filters' })).toBeTruthy();
+    });
+
+    it('keeps the facet groups collapsed until the sheet is opened', () => {
+        renderBar({ facets }, { open: false });
+
+        expect(screen.queryByRole('group', { name: 'Total time' })).toBeNull();
+        expect(screen.queryByRole('group', { name: 'Dietary' })).toBeNull();
+    });
+
+    it('reveals the facet groups when the trigger is pressed', () => {
+        renderBar({ facets }, { open: false });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+
+        expect(screen.getByRole('group', { name: 'Total time' })).toBeTruthy();
+        expect(screen.getByRole('group', { name: 'Dietary' })).toBeTruthy();
+    });
+
+    it('shows the active-filter count on the trigger badge', () => {
+        renderBar({ facets, filters: { dietaryFlags: ['vegan'], tags: ['quick'], maxTotalTime: 30 } }, { open: false });
+
+        // The badge count is visible on the collapsed trigger, and the accessible name conveys it too.
+        expect(screen.getByRole('button', { name: 'Filters, 3 active' })).toBeTruthy();
+        expect(screen.getByText('3')).toBeTruthy();
+    });
+
+    it('shows no active-count badge when nothing is filtered', () => {
+        renderBar({ facets }, { open: false });
+
+        expect(screen.getByRole('button', { name: 'Filters' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /active/ })).toBeNull();
+    });
+
+    it('closes the sheet from the Done action', () => {
+        renderBar({ facets });
+
+        expect(screen.getByRole('group', { name: 'Total time' })).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+
+        expect(screen.queryByRole('group', { name: 'Total time' })).toBeNull();
+    });
+});
 
 describe('RecipeFilterBar (native) — structure', () => {
     it('exposes the bar and each dimension as a named group', () => {

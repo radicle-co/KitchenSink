@@ -55,13 +55,22 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     filterSlot,
     sort,
     loadMore,
+    browseSlot,
+    onExitToBrowse,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
 
+    // Empty ≠ no-match, and browse ≠ either: an active query/filter turns the surface into a result list;
+    // with neither, the curated `browseSlot` (when provided) is the default experience, not a bare stream.
+    const searching = searchValue.trim().length > 0 || hasActiveFilters;
+    const browsing = browseSlot !== undefined && !searching;
+
     let body: ReactElement;
 
-    if (status === 'loading') {
+    if (browsing) {
+        body = <>{browseSlot}</>;
+    } else if (status === 'loading') {
         body = <LoadingBody label={discovery.loadingLabel} />;
     } else if (status === 'error') {
         body = (
@@ -75,7 +84,6 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     } else if (results.length === 0) {
         // Empty ≠ no-match: a search/filter with zero hits is a NO-MATCH, not the browse-empty "no public
         // recipes" state. `searchValue` or an active filter distinguishes them.
-        const searching = searchValue.trim().length > 0 || hasActiveFilters;
         body = (
             <div>
                 <p>{searching ? discovery.noMatchTitle : discovery.emptyTitle}</p>
@@ -138,7 +146,16 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 className="w-full rounded-full border border-border bg-card px-5 py-3 text-body-md text-charcoal shadow-sm outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
             />
             {filterSlot}
-            {sort !== undefined && (
+            {onExitToBrowse !== undefined && !browsing && (
+                <button
+                    type="button"
+                    onClick={onExitToBrowse}
+                    className="self-start rounded-full px-3 py-1 text-body-sm font-semibold text-seafoam transition hover:bg-mist/20"
+                >
+                    {discovery.backToBrowse}
+                </button>
+            )}
+            {sort !== undefined && !browsing && (
                 <div role="radiogroup" aria-label={discovery.sortLabel} className="flex flex-wrap gap-2">
                     {DISCOVERY_SORTS.map((option) => {
                         const checked = sort.active === option;

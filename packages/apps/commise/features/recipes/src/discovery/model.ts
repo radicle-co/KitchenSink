@@ -23,6 +23,67 @@ export const DISCOVERY_SORTS: readonly RecipeSearchSortBy[] = [
     RecipeSearchSortBy.QUICKEST,
 ];
 
+/**
+ * How long the keyword search box must settle (no keystroke) before its value feeds the network search
+ * (U7). The per-keystroke cost is the FETCH, so both platforms hold an immediate local echo for the input
+ * and debounce only the value passed to `useInfiniteSearchRecipes` by this window. Single-sourced here so
+ * web and native cannot drift on the debounce budget.
+ */
+export const DISCOVERY_SEARCH_DEBOUNCE_MS = 250;
+
+/**
+ * The curated browse rails shown when discovery has no active query/filter (U7, net-new). Each rail is one
+ * fixed-sort search over the SAME visibility-scoped `useInfiniteSearchRecipes`, so a rail never surfaces a
+ * recipe the viewer couldn't otherwise see. Ordered as displayed: what's catching on, what's fresh, what's
+ * fast.
+ */
+export type RecipeBrowseRailId = 'trending' | 'new' | 'quick';
+
+/** A browse rail's identity + the search sort that populates it. */
+export interface RecipeBrowseRailDefinition {
+    readonly id: RecipeBrowseRailId;
+    readonly sortBy: RecipeSearchSortBy;
+}
+
+/** The browse rails, in display order (Trending → New → Quick). */
+export const RECIPE_BROWSE_RAILS: readonly RecipeBrowseRailDefinition[] = [
+    { id: 'trending', sortBy: RecipeSearchSortBy.MOST_CLONED },
+    { id: 'new', sortBy: RecipeSearchSortBy.RECENT },
+    { id: 'quick', sortBy: RecipeSearchSortBy.QUICKEST },
+];
+
+/** A single browse rail is a teaser row, not the full list — cap each rail's fetch to a small page. */
+export const RECIPE_BROWSE_RAIL_PAGE_SIZE = 12;
+
+/** One browse rail projected for the presentational rails view: its identity, state, results, and see-all. */
+export interface RecipeBrowseRailView {
+    readonly id: RecipeBrowseRailId;
+    readonly status: RecipeDiscoveryStatus;
+    readonly results: readonly RecipeSearchResult[];
+    /** Reveal the full sorted list for this rail (leaves browse for the result list, U7). */
+    readonly onSeeAll: () => void;
+}
+
+/** A cuisine shortcut chip in the browse view — selecting one applies a cuisine filter (leaving browse). */
+export interface RecipeBrowseCuisineShortcut {
+    readonly value: string;
+    readonly onSelect: () => void;
+}
+
+/**
+ * Props for the curated browse-rails block (U7) — a controlled, presentational view rendered when discovery
+ * has no active query/filter. It fetches nothing; the composing container runs one search per rail (fixed
+ * sort, small page) and projects them here, alongside the cuisine shortcuts derived from the search facets.
+ */
+export interface RecipeBrowseRailsProps {
+    readonly rails: readonly RecipeBrowseRailView[];
+    readonly cuisines: readonly RecipeBrowseCuisineShortcut[];
+    /** The id of the recipe whose clone is in flight, if any (busies exactly that card). */
+    readonly cloningId?: string | null;
+    readonly onSelectRecipe: (id: string) => void;
+    readonly onClone: (id: string) => void;
+}
+
 /** The sort control (S3): the active sort and a change callback. Absent → the view renders no sort control. */
 export interface RecipeDiscoverySortControl {
     readonly active: RecipeSearchSortBy;
@@ -88,6 +149,17 @@ export interface RecipeDiscoveryListProps {
     readonly sort?: RecipeDiscoverySortControl;
     /** Optional load-more pager (S4). Absent → no pagination control. */
     readonly loadMore?: RecipeDiscoveryLoadMoreControl;
+    /**
+     * Optional curated browse block (U7). When provided AND no query/filter is active, the view renders this
+     * in place of the flat result body (and hides the sort control) — the default browse experience is the
+     * curated rails, not a bare relevance stream. Absent → the view always renders its result states.
+     */
+    readonly browseSlot?: ReactNode;
+    /**
+     * Optional "back to browse" affordance. Provided by a container only after a rail's "see all" has left
+     * browse into the full result list while no query/filter is active, so the user can return to the rails.
+     */
+    readonly onExitToBrowse?: () => void;
 }
 
 /**

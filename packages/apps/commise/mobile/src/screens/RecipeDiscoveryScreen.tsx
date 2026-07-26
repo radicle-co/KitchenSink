@@ -1,15 +1,22 @@
 /**
- * Public-recipe discovery screen (mobile, T076 / US2 + FR-006). Drives the shared native `RecipeDiscoveryList`
- * + `RecipeFilterBar` building blocks from `useSearchRecipes`. Unlike web (URL-persisted), mobile holds the
- * search term and the active filters in component state — the platform edge — but feeds them through the SAME
- * shared pure model (`filtersToSearchParams`, `toggleFacetValue`, …), so the two platforms cannot drift on
- * filter semantics. The search response's `facets` drive the filter chips. Each row's Clone action runs
- * `useCloneRecipe`; the mutation's in-flight `variables` busy exactly that row. Remote state stays in the
- * query cache — the screen derives its view state and never copies it.
+ * Public-recipe discovery screen (mobile, T076 / US2 + FR-006, U7 overhaul). Drives the shared native
+ * `RecipeDiscoveryList` + `RecipeFilterBar` + curated `RecipeBrowseRails` building blocks from
+ * `useInfiniteSearchRecipes`. Unlike web (URL-persisted), mobile holds the search term and the active
+ * filters in component state — the platform edge — but feeds them through the SAME shared pure model
+ * (`filtersToSearchParams`, `toggleFacetValue`, …), so the two platforms cannot drift on filter semantics.
+ *
+ * Two U7 behaviours mirror the web container:
+ * - **Debounced search (per-container).** The immediate `searchValue` echoes into the field, while the value
+ *   FED TO the query is debounced ({@link DISCOVERY_SEARCH_DEBOUNCE_MS}) so typing does not fire a request
+ *   per keystroke.
+ * - **Browsable default.** With no active query/filter, the screen shows curated rails (Trending/New/Quick +
+ *   cuisine shortcuts) instead of a bare relevance stream; a rail's "see all" reveals the full sorted list.
  */
 import {
+    RecipeBrowseRails,
     RecipeDiscoveryList,
     RecipeFilterBar,
+    DISCOVERY_SEARCH_DEBOUNCE_MS,
     addIngredientFilter,
     clearRecipeFilters,
     filtersToSearchParams,
@@ -22,13 +29,15 @@ import {
     toggleFacetValue,
     EMPTY_RECIPE_FILTERS,
     type FacetDimension,
+    type RecipeBrowseCuisineShortcut,
+    type RecipeBrowseRailView,
     type RecipeDiscoveryStatus,
     type RecipeFilterState,
 } from '@commise/features-recipes';
-import { useIngredientFilterSearch } from '@commise/features-recipes/hooks';
+import { useBrowseRails, useDebouncedValue, useIngredientFilterSearch } from '@commise/features-recipes/hooks';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import { useInfiniteSearchRecipes, useCloneRecipe } from '@kitchensink/recipe-service-client/hooks';
-import type { JSX } from 'react';
+import type { FC, JSX } from 'react';
 import { useState } from 'react';
 
 /** Props for {@link RecipeDiscoveryScreen}. */
@@ -37,11 +46,50 @@ export interface RecipeDiscoveryScreenProps {
     readonly onSelectRecipe: (id: string) => void;
     /**
      * Filters to pre-apply on first mount — e.g. a tag deep-link from a recipe detail (D6). Defaults to no
-     * filters. This still runs through the SAME visibility-scoped `useSearchRecipes`, so a deep-linked tag
-     * never surfaces a recipe the viewer couldn't otherwise see.
+     * filters. This still runs through the SAME visibility-scoped `useInfiniteSearchRecipes`, so a
+     * deep-linked tag never surfaces a recipe the viewer couldn't otherwise see.
      */
     readonly initialFilters?: RecipeFilterState;
 }
+
+/** Props for the mount-gated browse-rails section (only rendered while browsing — see the screen). */
+interface BrowseRailsSectionProps {
+    readonly cuisines: readonly RecipeBrowseCuisineShortcut[];
+    readonly cloningId?: string | null;
+    readonly onSelectRecipe: (id: string) => void;
+    readonly onClone: (id: string) => void;
+    readonly onSeeAll: (sortBy: RecipeSearchSortBy) => void;
+}
+
+/**
+ * The curated rails' data section — its `useBrowseRails` runs ONLY while mounted, and the screen mounts it
+ * solely when browsing, so the three rail queries are a browse-time cost, not an always-on one.
+ */
+const BrowseRailsSection: FC<BrowseRailsSectionProps> = ({
+    cuisines,
+    cloningId,
+    onSelectRecipe,
+    onClone,
+    onSeeAll,
+}) => {
+    const { rails } = useBrowseRails();
+    const railViews: readonly RecipeBrowseRailView[] = rails.map((rail) => ({
+        id: rail.id,
+        status: rail.status,
+        results: rail.results,
+        onSeeAll: () => onSeeAll(rail.sortBy),
+    }));
+
+    return (
+        <RecipeBrowseRails
+            rails={railViews}
+            cuisines={cuisines}
+            cloningId={cloningId}
+            onSelectRecipe={onSelectRecipe}
+            onClone={onClone}
+        />
+    );
+};
 
 /**
  * The public-discovery screen.
@@ -53,17 +101,29 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
     const [searchValue, setSearchValue] = useState('');
     const [filters, setFilters] = useState<RecipeFilterState>(initialFilters ?? EMPTY_RECIPE_FILTERS);
     const [sortBy, setSortBy] = useState<RecipeSearchSortBy>(RecipeSearchSortBy.RELEVANCE);
+    const [browseDismissed, setBrowseDismissed] = useState(false);
 
-    const search = useInfiniteSearchRecipes({ ...filtersToSearchParams(filters, searchValue), sortBy });
+    // The debounced value — not the immediate `searchValue` — feeds the fetch, so typing does not fire a
+    // request per keystroke; the field still echoes `searchValue` immediately.
+    const debouncedSearch = useDebouncedValue(searchValue, DISCOVERY_SEARCH_DEBOUNCE_MS);
+
+    const search = useInfiniteSearchRecipes({ ...filtersToSearchParams(filters, debouncedSearch), sortBy });
     const clone = useCloneRecipe();
     const ingredientSearch = useIngredientFilterSearch();
 
     const status: RecipeDiscoveryStatus = search.isError ? 'error' : search.isLoading ? 'loading' : 'ready';
     const cloningId = clone.isPending ? (clone.variables ?? null) : null;
 
-    // S4 — flatten the fetched pages; facets describe the whole set (read from the first page).
     const results = search.data?.pages.flatMap((page) => page.results) ?? [];
     const facets = search.data?.pages[0]?.facets ?? {};
+
+    const searching = searchValue.trim().length > 0 || hasActiveFilters(filters);
+    const browsing = !searching && !browseDismissed;
+
+    const cuisines: readonly RecipeBrowseCuisineShortcut[] = (facets.cuisine ?? []).map((facet) => ({
+        value: facet.value,
+        onSelect: () => setFilters((current) => setCuisine(current, facet.value)),
+    }));
 
     return (
         <RecipeDiscoveryList
@@ -82,6 +142,21 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
                 loading: search.isFetchingNextPage,
                 onLoadMore: () => void search.fetchNextPage(),
             }}
+            onExitToBrowse={browseDismissed && !searching ? () => setBrowseDismissed(false) : undefined}
+            browseSlot={
+                browsing ? (
+                    <BrowseRailsSection
+                        cuisines={cuisines}
+                        cloningId={cloningId}
+                        onSelectRecipe={onSelectRecipe}
+                        onClone={(id) => clone.mutate(id)}
+                        onSeeAll={(railSort) => {
+                            setSortBy(railSort);
+                            setBrowseDismissed(true);
+                        }}
+                    />
+                ) : undefined
+            }
             filterSlot={
                 <RecipeFilterBar
                     facets={facets}

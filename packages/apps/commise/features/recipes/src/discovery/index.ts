@@ -6,13 +6,24 @@
  */
 export { RecipeDiscoveryList } from './RecipeDiscoveryList.js';
 export { RecipeDiscoveryCard } from './RecipeDiscoveryCard.js';
+export { RecipeBrowseRails } from './RecipeBrowseRails.js';
 
-export { DISCOVERY_SORTS } from './model.js';
+export {
+    DISCOVERY_SORTS,
+    DISCOVERY_SEARCH_DEBOUNCE_MS,
+    RECIPE_BROWSE_RAILS,
+    RECIPE_BROWSE_RAIL_PAGE_SIZE,
+} from './model.js';
 export type {
     RecipeDiscoveryCardProps,
     RecipeDiscoveryListProps,
     RecipeDiscoveryStatus,
     RecipeDiscoverySortControl,
+    RecipeBrowseRailId,
+    RecipeBrowseRailDefinition,
+    RecipeBrowseRailView,
+    RecipeBrowseCuisineShortcut,
+    RecipeBrowseRailsProps,
 } from './model.js';
 
 export { discoveryMessages } from './messages.js';

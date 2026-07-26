@@ -9,8 +9,9 @@ import { CONFIG_ERROR_CODE, ConfigError, resetConfigCacheForTests } from '../../
  * E2E: identity-webhooks async Lambdas (deletion-worker + reconciliation).
  *
  * Covers:
- *   - deletion-worker: SQS event → DAO purge of private data (delete account + profile, retain
- *     soft-deleted user id/email/name for attribution); idempotent on missing user
+ *   - deletion-worker: the `user.deleted` webhook (KTD-2) full erasure — resolve the app ULID, erase the
+ *     identity row to `{id}` (status='erased', R10), then fan out the recipe + food legs; idempotent on a
+ *     missing/already-erased user
  *   - reconciliation: ScheduledEvent → IdP list → DAO upsert; returns drift counts
  *
  * @implements REQ-017 REQ-025 REQ-026 REQ-IF-005 REQ-IF-010 REQ-CN-001
@@ -21,6 +22,8 @@ const mockFindByIdentityId = vi.fn();
 const mockPurgePrivateData = vi.fn().mockResolvedValue(undefined);
 const mockUpsert = vi.fn().mockResolvedValue({ id: '01UPSERTED0000000000000000' });
 const mockListUsers = vi.fn();
+const mockEraseIdentityRow = vi.fn().mockResolvedValue(undefined);
+const mockRunErasureFanout = vi.fn();
 const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);
 
 vi.mock('../../../src/common/db.js', () => ({
@@ -31,7 +34,11 @@ vi.mock('../../../src/common/identityClient.js', () => ({
     getUser: vi.fn(),
     deleteUser: vi.fn(),
     setExternalId: vi.fn(),
+    banUser: vi.fn(),
+    unbanUser: vi.fn(),
 }));
+vi.mock('../../../src/common/erase-identity.js', () => ({ eraseIdentityRow: mockEraseIdentityRow }));
+vi.mock('../../../src/common/erasure-fanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
 vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn(function () {
         return {
@@ -67,6 +74,14 @@ beforeEach(() => {
     resetConfigCacheForTests();
     process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:000:secret:db';
     process.env.AUTH_SECRET_ARN = 'sk_test_dummy';
+    // The KTD-2 webhook fan-out config (the fan-out itself is mocked; getErasureFanoutConfig must resolve).
+    process.env.SERVICE_ERASURE_SIGNING_KEY = '-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----';
+    process.env.RECIPE_SERVICE_BASE_URL = 'https://recipe.example.test';
+    process.env.FOOD_SERVICE_BASE_URL = 'https://food.example.test';
+    mockRunErasureFanout.mockResolvedValue({
+        recipe: { service: 'recipe', ok: true, jobStatus: 'queued' },
+        food: { service: 'food', ok: true, deletedRequesterRows: 0 },
+    });
     mockProvisionCompleteUser.mockResolvedValue({
         kind: 'complete',
         user: { id: '01UPSERTED0000000000000000' },
@@ -87,35 +102,43 @@ const makeSqsRecord = (body: object, id = 'msg-1') => ({
     attributes: {} as Record<string, string>,
 });
 
-describe('e2e: deletion-worker Lambda', () => {
-    it('purges user private data when found in DB', async () => {
-        mockPurgePrivateData.mockResolvedValueOnce({
+describe('e2e: deletion-worker Lambda (user.deleted webhook = KTD-2 full erasure)', () => {
+    it('erases the resolved identity (status=erased) and fans out recipe + food when the user is found', async () => {
+        mockFindByIdentityId.mockResolvedValueOnce({
             id: '01USER000000000000000DELETE',
             identityId: 'user_delete_e2e',
+            status: 'active',
         });
         const { handler } = await import('../../../src/handlers/deletion-worker.js');
 
         const event: SQSEvent = { Records: [makeSqsRecord({ identityId: 'user_delete_e2e' })] };
         await handler(event, ctx);
 
-        expect(mockPurgePrivateData).toHaveBeenCalledWith('user_delete_e2e');
+        expect(mockEraseIdentityRow).toHaveBeenCalledTimes(1);
+        expect(mockEraseIdentityRow.mock.calls[0]![1]).toMatchObject({
+            userId: '01USER000000000000000DELETE',
+            triggerSource: 'admin',
+        });
+        expect(mockRunErasureFanout).toHaveBeenCalledTimes(1);
+        expect(mockRunErasureFanout.mock.calls[0]![0]).toMatchObject({ userId: '01USER000000000000000DELETE' });
     });
 
-    it('is idempotent when user is already absent (no error)', async () => {
-        mockPurgePrivateData.mockResolvedValueOnce(undefined);
+    it('is idempotent when the identity is unknown (no erase, no fan-out, no error)', async () => {
+        mockFindByIdentityId.mockResolvedValueOnce(undefined);
         const { handler } = await import('../../../src/handlers/deletion-worker.js');
 
         const event: SQSEvent = { Records: [makeSqsRecord({ identityId: 'user_missing_e2e' })] };
         await expect(handler(event, ctx)).resolves.toBeUndefined();
 
-        expect(mockPurgePrivateData).toHaveBeenCalledWith('user_missing_e2e');
+        expect(mockEraseIdentityRow).not.toHaveBeenCalled();
+        expect(mockRunErasureFanout).not.toHaveBeenCalled();
     });
 
-    it('processes multiple SQS records in one invocation', async () => {
-        mockPurgePrivateData
-            .mockResolvedValueOnce({ id: 'u1', identityId: 'user_a' })
-            .mockResolvedValueOnce({ id: 'u2', identityId: 'user_b' })
-            .mockResolvedValueOnce({ id: 'u3', identityId: 'user_c' });
+    it('processes multiple SQS records in one invocation, erasing + fanning out each', async () => {
+        mockFindByIdentityId
+            .mockResolvedValueOnce({ id: 'u1', identityId: 'user_a', status: 'active' })
+            .mockResolvedValueOnce({ id: 'u2', identityId: 'user_b', status: 'active' })
+            .mockResolvedValueOnce({ id: 'u3', identityId: 'user_c', status: 'active' });
         const { handler } = await import('../../../src/handlers/deletion-worker.js');
 
         const event: SQSEvent = {
@@ -127,9 +150,9 @@ describe('e2e: deletion-worker Lambda', () => {
         };
         await handler(event, ctx);
 
-        expect(mockPurgePrivateData).toHaveBeenCalledTimes(3);
-        expect(mockPurgePrivateData).toHaveBeenNthCalledWith(1, 'user_a');
-        expect(mockPurgePrivateData).toHaveBeenNthCalledWith(3, 'user_c');
+        expect(mockRunErasureFanout).toHaveBeenCalledTimes(3);
+        expect(mockRunErasureFanout.mock.calls[0]![0]).toMatchObject({ userId: 'u1' });
+        expect(mockRunErasureFanout.mock.calls[2]![0]).toMatchObject({ userId: 'u3' });
     });
 
     it('fails fast at cold start with a typed coded ConfigError when DB_SECRET_ARN is missing', async () => {
@@ -185,7 +208,7 @@ describe('e2e: reconciliation Lambda', () => {
         const { handler } = await import('../../../src/handlers/reconciliation.js');
         const result = await handler(makeScheduledEvent(), ctx);
 
-        expect(result).toEqual({ inserted: 1, updated: 1, failed: 0, total: 2 });
+        expect(result).toEqual({ inserted: 1, updated: 1, failed: 0, skipped: 0, total: 2 });
         expect(mockProvisionCompleteUser).toHaveBeenCalledTimes(2);
         expect(mockProvisionCompleteUser).toHaveBeenCalledWith(
             expect.anything(),
@@ -208,7 +231,7 @@ describe('e2e: reconciliation Lambda', () => {
         const { handler } = await import('../../../src/handlers/reconciliation.js');
         const result = await handler(makeScheduledEvent(), ctx);
 
-        expect(result).toEqual({ inserted: 0, updated: 0, failed: 0, total: 0 });
+        expect(result).toEqual({ inserted: 0, updated: 0, failed: 0, skipped: 0, total: 0 });
         expect(mockProvisionCompleteUser).not.toHaveBeenCalled();
     });
 
@@ -218,7 +241,7 @@ describe('e2e: reconciliation Lambda', () => {
 
         const result = await handler(makeScheduledEvent(), ctx);
 
-        expect(result).toEqual({ inserted: 0, updated: 0, failed: 0, total: 0 });
+        expect(result).toEqual({ inserted: 0, updated: 0, failed: 0, skipped: 0, total: 0 });
         expect(mockFindByIdentityId).not.toHaveBeenCalled();
     });
 

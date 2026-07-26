@@ -163,6 +163,57 @@ export function getWebhookConfig(): WebhookEnvironment {
 }
 
 /**
+ * The resolved cross-service erasure fan-out config (CR-002 / U4b): the EdDSA signing key + the recipe and
+ * food base URLs. Read from `process.env` DIRECTLY — deliberately NOT through the base {@link
+ * EnvironmentSchema} — so an absent/empty value (before ops provisions the keypair + URLs) affects ONLY the
+ * erasure fan-out, never the closure/reactivation paths that share the deletion-worker's `getConfig()`.
+ *
+ * Demanded ALL-OR-NOTHING at the point of use: a fan-out consumer missing any of the three fails LOUD (the
+ * SQS message DLQs and the erasure-reconciliation surfaces the gap) rather than silently skipping the
+ * recipe/food legs and leaving a half-erased account (R7).
+ *
+ * @returns The signing key + recipe/food base URLs.
+ * @throws {ConfigError} When any of the three fan-out vars is missing or empty.
+ */
+export function getErasureFanoutConfig(): {
+    signingKeyPem: string;
+    recipeBaseUrl: string;
+    foodBaseUrl: string;
+} {
+    const signingKeyPem = process.env['SERVICE_ERASURE_SIGNING_KEY'];
+    const recipeBaseUrl = process.env['RECIPE_SERVICE_BASE_URL'];
+    const foodBaseUrl = process.env['FOOD_SERVICE_BASE_URL'];
+
+    const missing: string[] = [];
+
+    if (!signingKeyPem) {
+        missing.push('SERVICE_ERASURE_SIGNING_KEY');
+    }
+
+    if (!recipeBaseUrl) {
+        missing.push('RECIPE_SERVICE_BASE_URL');
+    }
+
+    if (!foodBaseUrl) {
+        missing.push('FOOD_SERVICE_BASE_URL');
+    }
+
+    if (missing.length > 0) {
+        throw new ConfigError(
+            new z.ZodError(
+                missing.map((name) => ({
+                    code: 'custom' as const,
+                    path: [name],
+                    message: 'required for the CR-002 erasure fan-out but not set',
+                })),
+            ),
+        );
+    }
+
+    return { signingKeyPem: signingKeyPem!, recipeBaseUrl: recipeBaseUrl!, foodBaseUrl: foodBaseUrl! };
+}
+
+/**
  * Test-only: clears both memoized caches so the next {@link getConfig}/{@link getWebhookConfig} call
  * re-parses `process.env`. Production code MUST NOT call this — a real Lambda execution environment
  * never needs its config cache invalidated (env vars don't change without a fresh cold start, which

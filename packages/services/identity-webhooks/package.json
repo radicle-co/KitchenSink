@@ -45,6 +45,7 @@
         "@kitchensink/identity-db": "*",
         "@kitchensink/identity-service": "*",
         "@kitchensink/identity-utils": "*",
+        "@kitchensink/recipe-core": "*",
         "@sentry/aws-serverless": "^10.57.0",
         "aws-cdk-lib": "*",
         "constructs": "*",

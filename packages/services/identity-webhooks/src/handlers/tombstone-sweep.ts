@@ -1,13 +1,12 @@
 import type { Context, ScheduledEvent } from 'aws-lambda';
 import { and, eq, lte } from 'drizzle-orm';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 
-import { users, accounts, profiles, lifecycleEvents } from '@kitchensink/identity-db';
-import { computeProfileScrub } from '@kitchensink/identity-core';
+import { users } from '@kitchensink/identity-db';
 
 import { getConfig } from '../config/env.js';
 import { withDb, type DbContext } from '../common/handler-pipeline.js';
+import { eraseIdentityRow } from '../common/erase-identity.js';
 import { deleteUser } from '../common/identityClient.js';
 import { emitMetric, logger, withObservability } from '../common/observability.js';
 
@@ -65,41 +64,6 @@ async function enqueueErasureLegs(queueUrl: string, tombstone: ExpiredTombstone)
     );
 }
 
-/**
- * Erase one expired tombstone: apply the erased field-scrub (identity → {id}) and write the R8 audit row in
- * ONE transaction. Clerk deletion happens BEFORE this (in the caller) so a partial failure never leaves the
- * DB `erased` while the Clerk identity survives.
- *
- * @sideEffect scrubs the users row to {id}, deletes the companion rows, and appends an audit row.
- */
-async function eraseIdentity(
-    db: PostgresJsDatabase<Record<string, never>>,
-    tombstone: ExpiredTombstone,
-    now: Date,
-): Promise<void> {
-    const directive = computeProfileScrub('erasure', tombstone.id);
-
-    await db.transaction(async (tx) => {
-        await tx
-            .update(users)
-            .set({ ...directive.userColumns, updatedAt: now })
-            .where(eq(users.id, tombstone.id));
-
-        if (directive.purgeCompanionRows) {
-            await tx.delete(accounts).where(eq(accounts.userId, tombstone.id));
-            await tx.delete(profiles).where(eq(profiles.userId, tombstone.id));
-        }
-
-        await tx.insert(lifecycleEvents).values({
-            userId: tombstone.id,
-            event: 'erasure',
-            triggerSource: 'sweep',
-            actor: null,
-            occurredAt: now,
-        });
-    });
-}
-
 /** The sweep result — how many tombstones were scanned and how many were fully erased this run. */
 interface SweepResult {
     scanned: number;
@@ -148,7 +112,7 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: D
             }
         }
 
-        await eraseIdentity(db, tombstone, now);
+        await eraseIdentityRow(db, { userId: tombstone.id, triggerSource: 'sweep', actor: null }, now);
 
         // Enqueue the recipe/food erasure legs via the existing deletion path (U3/U4 seam). Best-effort: a
         // failed enqueue leaves the identity erased but the downstream legs unqueued — a gap the (unbuilt)

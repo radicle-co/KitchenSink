@@ -7,6 +7,7 @@ import {
     type StackProps,
     aws_apigateway as apigw,
     aws_certificatemanager as acm,
+    aws_cloudwatch as cloudwatch,
     aws_ec2 as ec2,
     aws_events as events,
     aws_events_targets as events_targets,
@@ -28,7 +29,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { getAuthSecretName, ssmParamPath } from './config.js';
+import { erasureSsmPath, getAuthSecretName, getErasureSigningSecretName, ssmParamPath } from './config.js';
 
 export interface WebhooksStackProps extends StackProps {
     readonly stage: string;
@@ -163,6 +164,27 @@ export class WebhooksStack extends Stack {
             }).unsafeUnwrap(),
         };
 
+        // CR-002 / U4b — the cross-service erasure fan-out config for the deletion-worker + the new
+        // erasure-reconciliation Lambda. The EdDSA PRIVATE signing key is embedded at deploy (CFN dynamic
+        // reference) from the per-stage erasure secret, so `service-erasure-token.ts` signs with no runtime
+        // GetSecretValue — exactly the IDP_SECRET_KEY embed pattern above. The recipe/food origins are
+        // non-secret, resolved from SSM at deploy. See the deferred key-provisioning seam on
+        // `getErasureSigningSecretName`: until ops provisions the keypair + URLs, the fan-out fails CLOSED
+        // (loud DLQ + the ErasureIncomplete alarm), never silently.
+        const erasureFanoutEnv: Record<string, string> = {
+            SERVICE_ERASURE_SIGNING_KEY: SecretValue.secretsManager(getErasureSigningSecretName(identityStage), {
+                jsonField: 'SIGNING_KEY',
+            }).unsafeUnwrap(),
+            RECIPE_SERVICE_BASE_URL: ssm.StringParameter.valueForStringParameter(
+                this,
+                erasureSsmPath(identityStage, 'recipe-base-url'),
+            ),
+            FOOD_SERVICE_BASE_URL: ssm.StringParameter.valueForStringParameter(
+                this,
+                erasureSsmPath(identityStage, 'food-base-url'),
+            ),
+        };
+
         const webhooksLogGroup = new logs.LogGroup(this, 'WebhooksLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
         });
@@ -241,6 +263,17 @@ export class WebhooksStack extends Stack {
         dbCredentialsSecret.grantRead(reconciliationRole);
         authSecretKey.grantRead(reconciliationRole);
 
+        // erasure-reconciliation (handlers/erasure-reconciliation.ts, CR-002 R7 completion contract): reads
+        // the DB creds (getDb) to scan `status='erased'` rows and RE-DRIVES the recipe + food erasure legs
+        // over HTTPS (egress via the VPC/NAT to the shared ALB). It does NOT call the Clerk SDK, drains no
+        // SQS, and touches no bucket — so no auth-secret read, no queue grant. The EdDSA signing key is
+        // deploy-embedded (erasureFanoutEnv), so no runtime GetSecretValue grant is needed for it either.
+        const erasureReconciliationRole = makeLambdaRole(
+            'ErasureReconciliationLambdaRole',
+            'Least-privilege role for the scheduled erasure-completion reconciliation Lambda (DB read only)',
+        );
+        dbCredentialsSecret.grantRead(erasureReconciliationRole);
+
         // migration (handlers/migrate.ts): SLIM. It only reads the DB creds (DB_SECRET_ARN) to apply the
         // bundled ordered SQL — no SQS, no bucket, no auth secret, and no migration-plan secret (that
         // prop is unused by this handler; the runner discovers .sql files, it does not read a plan).
@@ -295,7 +328,8 @@ export class WebhooksStack extends Stack {
             securityGroups: [lambdaSecurityGroup],
             timeout: Duration.seconds(30),
             memorySize: 512,
-            environment: clerkBackendEnv,
+            // clerkBackendEnv (ban/unban) + the CR-002 erasure fan-out config (recipe + food legs).
+            environment: { ...clerkBackendEnv, ...erasureFanoutEnv },
             logGroup: webhooksLogGroup,
         });
 
@@ -354,6 +388,54 @@ export class WebhooksStack extends Stack {
         new events.Rule(this, 'TombstoneSweepSchedule', {
             schedule: events.Schedule.cron({ minute: '0', hour: '3' }),
             targets: [new events_targets.LambdaFunction(tombstoneSweepFn)],
+        });
+
+        // CR-002 R7 — the erasure completion-contract reconciliation. DISTINCT from the provisioning
+        // reconciliation above: it scans `status='erased'` identities and re-drives the idempotent recipe +
+        // food erasure legs, emitting the `ErasureIncomplete` metric a lost/stuck leg trips. Runs daily at
+        // 05:00 UTC — offset from the tombstone-sweep (03:00) and the provisioning reconciliation (07:00) so
+        // the three scheduled jobs don't contend. Timeout is generous: it re-drives two HTTP legs per erased
+        // identity.
+        const erasureReconciliationFn = new lambda.Function(this, 'ErasureReconciliationFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/erasure-reconciliation.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: erasureReconciliationRole,
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(300),
+            memorySize: 512,
+            // commonEnv (DB creds) + the fan-out config (signing key + recipe/food origins). No Clerk secret.
+            environment: { ...commonEnv, ...erasureFanoutEnv },
+            logGroup: webhooksLogGroup,
+        });
+
+        new events.Rule(this, 'ErasureReconciliationSchedule', {
+            schedule: events.Schedule.cron({ minute: '0', hour: '5' }),
+            targets: [new events_targets.LambdaFunction(erasureReconciliationFn)],
+        });
+
+        // R7 detective control: alarm when ANY erased identity's recipe/food leg is still incomplete. The
+        // handler emits `ErasureIncomplete` (a count) every run — including 0, so a cleared backlog resets
+        // the alarm. A silently half-erased account is a GDPR Art. 17 failure, so a single incomplete owner
+        // for two consecutive daily runs pages.
+        new cloudwatch.Alarm(this, 'ErasureIncompleteAlarm', {
+            alarmName: `kitchensink-erasure-incomplete-${deployStage}`,
+            alarmDescription:
+                'CR-002 R7: one or more identities reached status=erased but their recipe/food erasure leg is not complete.',
+            metric: new cloudwatch.Metric({
+                namespace: 'KitchenSink/IdentityWebhooks',
+                metricName: 'ErasureIncomplete',
+                statistic: cloudwatch.Stats.MAXIMUM,
+                period: Duration.days(1),
+            }),
+            threshold: 0,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluationPeriods: 2,
+            datapointsToAlarm: 2,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
         });
 
         // In-VPC schema migration runner. The RDS instance lives in private-isolated subnets, so the

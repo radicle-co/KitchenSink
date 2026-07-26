@@ -71,3 +71,24 @@ describe('AccountContent (U3) — shell + composition', () => {
         expect(screen.getByRole('button', { name: 'Erase my data' })).toBeTruthy();
     });
 });
+
+describe('AccountContent — SSR identity-fetch resilience', () => {
+    it('degrades to a recoverable state (no throw) when the identity fetch rejects (ECONNREFUSED)', async () => {
+        get.mockRejectedValue(new Error('fetch failed'));
+
+        renderWithProviders(await AccountContent({ accessToken: 'tok', locale: 'en' }));
+
+        // The page still renders, inside the nav chrome, rather than throwing the whole route into the error
+        // boundary — matching the `/profile` route's shipped degradation contract (and B19's for /recipes).
+        expect(screen.getByRole('heading', { name: 'Account Settings' })).toBeTruthy();
+        expect(screen.getAllByRole('navigation').length).toBeGreaterThan(0);
+        expect(screen.getByRole('status')).toHaveTextContent(/couldn’t load your profile/i);
+        // The edit form needs the profile it could not load, so it is absent…
+        expect(screen.queryByText('edit-form-stub')).toBeNull();
+        // …but the danger zone needs NO profile: a user must still be able to close or erase their account
+        // when the identity read hiccups. Losing that is the failure mode a bare throw caused.
+        expect(screen.getByRole('heading', { name: 'Danger Zone' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Close account' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Erase my data' })).toBeTruthy();
+    });
+});

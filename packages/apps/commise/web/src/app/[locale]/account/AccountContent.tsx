@@ -18,6 +18,12 @@ import { pageContainer, pageHeading, sectionCard, sectionHeading } from '@/compo
  * bare, nav-less route was itself a defect) with the design-system card/field idiom, and all copy resolves
  * through {@link authMessages}. The danger-zone controls (close/erase) keep their own shared `ConfirmDialog`
  * flow (CR-002 U4b) — U3 only routes their triggers through the DS `Button` and gives them a card home.
+ *
+ * **SSR resilience.** The identity read is a server-side fetch, so an unreachable identity service (deploy
+ * window, cold start, or simply not booted in the web-e2e job) would otherwise reject inside rendering and
+ * throw the WHOLE route into its error boundary — taking the danger zone, which needs no profile at all,
+ * down with it. This route therefore degrades the same way `/profile` (and, per B19, the recipe pages) already
+ * do: the shell, heading, and danger zone still render, with a status notice standing in for the edit form.
  */
 async function getUserProfile(accessToken: string): Promise<UserProfile> {
     const api = buildApiClient(accessToken);
@@ -32,8 +38,16 @@ export async function AccountContent({
     accessToken: string;
     locale: string;
 }): Promise<React.ReactElement> {
-    const profile = await getUserProfile(accessToken);
     const { account } = resolveMessages(authMessages, locale);
+    let profile: UserProfile | undefined;
+
+    try {
+        profile = await getUserProfile(accessToken);
+    } catch {
+        // Degrade, never crash (see the module doc): `profile` stays undefined and the edit section renders a
+        // recoverable status instead. The danger zone below is unaffected — it needs no profile.
+        profile = undefined;
+    }
 
     return (
         <AppShell activeId="profile">
@@ -44,7 +58,13 @@ export async function AccountContent({
                         <h2 id="edit-heading" className={sectionHeading}>
                             {account.editHeading}
                         </h2>
-                        <AccountEditForm accessToken={accessToken} initialProfile={profile} />
+                        {profile === undefined ? (
+                            <p role="status" className="text-body-md text-slate">
+                                {account.loadError}
+                            </p>
+                        ) : (
+                            <AccountEditForm accessToken={accessToken} initialProfile={profile} />
+                        )}
                     </section>
                     <section aria-labelledby="danger-heading" className={sectionCard}>
                         <h2 id="danger-heading" className={sectionHeading}>

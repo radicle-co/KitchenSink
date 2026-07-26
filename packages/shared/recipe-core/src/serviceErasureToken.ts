@@ -37,11 +37,24 @@ import { z } from 'zod';
 export const SERVICE_ERASURE_TOKEN_ISSUER = 'urn:commise:identity:deletion-worker';
 
 /**
- * The JWT `aud` (audience) every service-erasure token MUST carry — recipe-service's account-erasure
- * capability. The verifier pins this exact value, so a token minted for any other audience (e.g. a food
- * or identity endpoint) cannot be replayed against recipe erasure.
+ * The JWT `aud` (audience) a service-erasure token minted for **recipe-service** MUST carry — recipe's
+ * account-erasure capability. The recipe verifier pins this exact value, so a token minted for any other
+ * audience (e.g. the food endpoint below, or an identity endpoint) cannot be replayed against recipe erasure.
  */
 export const SERVICE_ERASURE_TOKEN_AUDIENCE = 'urn:commise:recipe-service:account-erasure';
+
+/**
+ * The JWT `aud` (audience) a service-erasure token minted for **food-service** MUST carry — food's
+ * account-erasure capability (CR-002 / U4b / R11). The food verifier pins this exact value.
+ *
+ * **Why a SEPARATE audience, not a reuse of {@link SERVICE_ERASURE_TOKEN_AUDIENCE}.** The erasure fan-out
+ * signs BOTH legs with the same private key and the same {@link SERVICE_ERASURE_TOKEN_ISSUER}, so the
+ * audience is the ONLY claim binding a minted token to exactly one target service. Reusing recipe's
+ * audience would make a token captured on the recipe leg replayable against food (and vice versa); pinning
+ * a distinct audience per service keeps each token single-target. The signer sets it via `SignJWT`'s
+ * `.setAudience()`; the food verifier passes it to `jwtVerify({ audience })`.
+ */
+export const SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD = 'urn:commise:food-service:account-erasure';
 
 /**
  * The ONE JWS algorithm a service-erasure token may use. Asymmetric (EdDSA/Ed25519): the signer holds the

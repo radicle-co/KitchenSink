@@ -12,6 +12,7 @@ import { z } from 'zod';
 import {
     SERVICE_ERASURE_TOKEN_ISSUER,
     SERVICE_ERASURE_TOKEN_AUDIENCE,
+    SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD,
     SERVICE_ERASURE_TOKEN_ALG,
     SERVICE_ERASURE_TOKEN_MAX_TTL_SECONDS,
     ERASURE_TRIGGER_SOURCES,
@@ -36,6 +37,15 @@ describe('service-erasure token contract constants', () => {
         expect(SERVICE_ERASURE_TOKEN_ISSUER).toBe('urn:commise:identity:deletion-worker');
         expect(SERVICE_ERASURE_TOKEN_AUDIENCE).toBe('urn:commise:recipe-service:account-erasure');
         expect(SERVICE_ERASURE_TOKEN_ISSUER).not.toBe(SERVICE_ERASURE_TOKEN_AUDIENCE);
+    });
+
+    it('pins a SEPARATE food-service audience so a recipe token cannot be replayed against food (U4b/R11)', () => {
+        expect(SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD).toBe('urn:commise:food-service:account-erasure');
+        // The two target audiences MUST differ — the shared issuer + private key sign both legs, so the
+        // audience is the ONLY thing binding a minted token to exactly one target service. Equal audiences
+        // would let a token minted for one service be replayed against the other.
+        expect(SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD).not.toBe(SERVICE_ERASURE_TOKEN_AUDIENCE);
+        expect(SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD).not.toBe(SERVICE_ERASURE_TOKEN_ISSUER);
     });
 
     it('bounds the token lifetime to a short, single-request window', () => {

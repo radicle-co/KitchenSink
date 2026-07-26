@@ -72,4 +72,25 @@ describe('HomeTopBar', () => {
 
         expect(onOpenNav).toHaveBeenCalledOnce();
     });
+
+    it('floors every icon control and the avatar to a 44px touch target at base, reset at md (U5)', () => {
+        renderTopBar();
+
+        // A base `min-h-11 min-w-11` (44px) floor guarantees the mobile touch-target minimum regardless of
+        // future icon/padding tweaks, reset to `md:min-h-0 md:min-w-0` so desktop density is untouched. It is
+        // a floor below the controls' current computed size, so it changes no pixels at any breakpoint today.
+        const targets = [
+            screen.getByRole('button', { name: chrome.openNav }),
+            screen.getByRole('button', { name: chrome.search }),
+            screen.getByRole('button', { name: chrome.notifications }),
+            screen.getByRole('link', { name: chrome.account }),
+        ];
+
+        for (const target of targets) {
+            expect(target.className).toContain('min-h-11');
+            expect(target.className).toContain('min-w-11');
+            expect(target.className).toContain('md:min-h-0');
+            expect(target.className).toContain('md:min-w-0');
+        }
+    });
 });

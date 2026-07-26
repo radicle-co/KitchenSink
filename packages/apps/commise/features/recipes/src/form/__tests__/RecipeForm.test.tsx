@@ -847,4 +847,20 @@ describe('RecipeForm (web) — every action button carries an icon and a real su
         // The primary submit is a filled seafoam CTA.
         expect(screen.getByRole('button', { name: 'Create recipe' }).className).toContain('seafoam');
     });
+
+    it('collapses the cramped remove controls to icon-only at base, keeping the label from sm (U5)', () => {
+        renderForm();
+
+        // At 360px the ingredient/step rows are too tight for a text remove button, so its label is visually
+        // hidden at base (`sr-only`) and restored from `sm:` (`sm:not-sr-only`) — icon-only on phones. The
+        // label text stays in the accessibility tree, so the button's accessible name is unchanged (these very
+        // `getByRole({ name })` lookups still resolve) and desktop shows the full label as before.
+        for (const name of ['Remove ingredient 1', 'Remove step 1'] as const) {
+            const label = screen.getByText(name);
+            expect(label.className).toContain('sr-only');
+            expect(label.className).toContain('sm:not-sr-only');
+            // Still the accessible name of a real button — not lost to assistive tech.
+            expect(screen.getByRole('button', { name })).toBe(label.closest('button'));
+        }
+    });
 });

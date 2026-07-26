@@ -52,6 +52,17 @@ describe('SubscriptionNudge (web) — open', () => {
 
         expect(onDismiss).toHaveBeenCalledTimes(1);
     });
+
+    it('reserves the device safe-area inset below the bottom-sheet content, preserving its base padding (U5)', () => {
+        render(<SubscriptionNudge open onDismiss={() => undefined} />);
+
+        // This sheet is pinned to the bottom edge, so its foot must clear the device home indicator. The
+        // bottom padding is `2rem` (the sheet's existing `p-6` foot under the app's spacing scale) PLUS the
+        // safe-area inset — NOT the 1.5rem a standard scale would imply — so with `env(...)` = 0 the base
+        // padding is byte-identical to before and only real devices see the extra inset.
+        const dialog = screen.getByRole('dialog', { name: 'Unlock Commise Pro' });
+        expect(dialog.className).toContain('pb-[calc(2rem+env(safe-area-inset-bottom))]');
+    });
 });
 
 describe('SubscriptionNudge (web) — Radix a11y machinery (B6/CR-003)', () => {

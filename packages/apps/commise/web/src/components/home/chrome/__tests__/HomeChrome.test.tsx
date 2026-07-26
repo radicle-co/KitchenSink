@@ -118,4 +118,15 @@ describe('HomeChrome', () => {
         await user.click(screen.getByRole('button', { name: chrome.expandNav }));
         expect(screen.getByRole('button', { name: chrome.collapseNav })).toBeTruthy();
     });
+
+    it('clears the fixed tab bar AND the device safe-area inset below the main content (U5)', () => {
+        renderChrome();
+
+        // The main foot clears the 5rem-tall narrow-breakpoint tab bar PLUS the bottom safe-area inset, and
+        // collapses back to the base `lg:pb-6` once the bar becomes a desktop sidebar. `env(...)` is 0 in a
+        // normal viewport, so the base value stays 5rem and desktop is unchanged.
+        const main = screen.getByRole('main');
+        expect(main.className).toContain('pb-[calc(5rem+env(safe-area-inset-bottom))]');
+        expect(main.className).toContain('lg:pb-6');
+    });
 });

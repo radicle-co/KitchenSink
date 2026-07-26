@@ -307,7 +307,10 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                     icon={<TrashIcon />}
                     onPress={() => onChange(removeIngredientAt(values, index))}
                 >
-                    {fillTemplate(m.removeIngredient, { number })}
+                    {/* Icon-only on cramped phone rows (`sr-only`), full label from sm up (`sm:not-sr-only`).
+                        The label stays in the accessibility tree, so the button's accessible name is
+                        unchanged and desktop shows the text exactly as before. */}
+                    <span className="sr-only sm:not-sr-only">{fillTemplate(m.removeIngredient, { number })}</span>
                 </Button>
             </li>
         );
@@ -390,7 +393,9 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
                     icon={<TrashIcon />}
                     onPress={() => onChange(removeStepAt(values, index))}
                 >
-                    {fillTemplate(m.removeStep, { number })}
+                    {/* Icon-only on cramped phone rows (`sr-only`), full label from sm up — see the ingredient
+                        remove control above. */}
+                    <span className="sr-only sm:not-sr-only">{fillTemplate(m.removeStep, { number })}</span>
                 </Button>
             </li>
         );

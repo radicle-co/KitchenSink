@@ -127,7 +127,11 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
                         event.preventDefault();
                         triggerRef.current?.focus();
                     }}
-                    className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-2xl bg-white p-6 shadow-xl"
+                    // Bottom-pinned sheet: its foot must clear the device home indicator. The bottom padding is
+                    // the sheet's existing `p-6` foot (`2rem` under the app's spacing scale) PLUS the safe-area
+                    // inset. `env(...)` is 0 in a normal viewport, so the base padding is byte-identical to the
+                    // former `p-6` and only real devices see the extra inset.
+                    className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-2xl bg-white p-6 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-xl"
                 >
                     <Dialog.Title className="font-display text-lg font-semibold text-charcoal">
                         {home.nudge.title}

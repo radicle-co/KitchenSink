@@ -117,7 +117,7 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
                                 versionA !== undefined &&
                                 versionB !== undefined && (
                                     <div className="flex flex-col gap-3">
-                                        <div className="grid grid-cols-2 gap-3 text-caption font-medium uppercase tracking-wide text-slate">
+                                        <div className="grid grid-cols-1 gap-3 text-caption font-medium uppercase tracking-wide text-slate md:grid-cols-2">
                                             <span>
                                                 {fillTemplate(versionList.versionLabel, {
                                                     version: versionB.versionNumber,
@@ -138,7 +138,7 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
                                                     <span className="text-caption font-medium uppercase tracking-wide text-slate">
                                                         {row.label}
                                                     </span>
-                                                    <div className="grid grid-cols-2 gap-3 text-body-sm text-charcoal">
+                                                    <div className="grid grid-cols-1 gap-3 text-body-sm text-charcoal md:grid-cols-2">
                                                         <span>{row.valueB}</span>
                                                         <span>{row.valueA}</span>
                                                     </div>

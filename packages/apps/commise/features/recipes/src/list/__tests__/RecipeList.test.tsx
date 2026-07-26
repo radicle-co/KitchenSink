@@ -227,6 +227,23 @@ describe('RecipeList (web) — quick-filter chips (L4)', () => {
         expect(onToggle).toHaveBeenCalledWith('Vegetarian');
     });
 
+    it('gives the quick-filter chips a taller base tap target, reset to the desktop density at md (U5)', () => {
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            filters: { available: ['Vegetarian'], active: [], onToggle: noop, onClear: noop },
+        });
+
+        const chips = screen.getByRole('group', { name: 'Quick filters' });
+        // Base `py-1.5` grows the mobile tap target; `md:py-1` restores the original desktop chip density,
+        // so the 1280px surface is byte-identical.
+        for (const name of ['All', 'Vegetarian'] as const) {
+            const chip = within(chips).getByRole('button', { name });
+            expect(chip.className).toContain('py-1.5');
+            expect(chip.className).toContain('md:py-1');
+        }
+    });
+
     it('renders the QUICK_TIME_FACET sentinel as the localized "Quick (<30m)" label, not the raw token', async () => {
         const user = userEvent.setup();
         const onToggle = vi.fn();
@@ -252,6 +269,21 @@ describe('RecipeList (web) — loading state', () => {
 
         expect(screen.getByRole('status')).toBeTruthy();
         expect(screen.queryByRole('button', { name: /Grilled Lamb/ })).toBeNull();
+    });
+
+    it('renders real shimmer skeleton rows (not blank spans) inside the busy region (U5)', () => {
+        renderList({ status: 'loading' });
+
+        // The old loading body was three empty `<span>`s — visually nothing. U5 replaces them with real,
+        // card-shaped shimmer placeholders so the wait reads as loading content, not a broken page. They are
+        // decorative (aria-hidden) and animate with `animate-pulse`.
+        const status = screen.getByRole('status');
+        const shimmer = status.querySelectorAll('.animate-pulse');
+        expect(shimmer.length).toBeGreaterThanOrEqual(3);
+        // Every placeholder is hidden from assistive tech — the `role="status"` label already announces it.
+        for (const node of Array.from(shimmer)) {
+            expect(node.closest('[aria-hidden="true"]')).not.toBeNull();
+        }
     });
 });
 

@@ -73,9 +73,19 @@ describe('RecipePhotoManager (native) — populated', () => {
 });
 
 describe('RecipePhotoManager (native) — upload + error states', () => {
-    it('shows a busy status while an upload is in flight', () => {
+    it('shows a busy status while an upload is in flight, with its label as VISIBLE text', () => {
         renderManager({ uploading: true });
+
+        // A named-but-empty progressbar is a nameless spinning shape with nothing to look at: the label has to
+        // double as the visible caption (the `components/LoadingState` doctrine), so a sighted viewer can tell
+        // "uploading" from "wedged".
         expect(screen.getByRole('progressbar', { name: 'Uploading photo' })).toBeTruthy();
+        expect(screen.getByText('Uploading photo')).toBeTruthy();
+    });
+
+    it('renders no busy status when nothing is uploading', () => {
+        renderManager({ uploading: false });
+        expect(screen.queryByRole('progressbar', { name: 'Uploading photo' })).toBeNull();
     });
 
     it('shows an alert when an error message is present', () => {

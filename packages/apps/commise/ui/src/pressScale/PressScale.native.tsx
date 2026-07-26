@@ -5,44 +5,15 @@
  * `Pressable`'s `pressed` state, so a held control shrinks to {@link PRESS_SCALE} and springs back on
  * release. The scale is suppressed when the control is disabled and — crucially — when the OS "reduce
  * motion" setting is on (non-essential motion is gated), mirroring the web leaf's `motion-safe:` gate. The
- * branch itself lives in the pure {@link pressedScale} so it is provable without a renderer.
+ * branch itself lives in the pure {@link pressedScale} so it is provable without a renderer, and the
+ * preference is read through the design system's single {@link useReduceMotion} reader.
  */
-import { useEffect, useState, type FC } from 'react';
-import { AccessibilityInfo, Pressable, type StyleProp, type ViewStyle } from 'react-native';
+import type { FC } from 'react';
+import { Pressable, type StyleProp, type ViewStyle } from 'react-native';
 
+import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import { pressedScale } from './pressedScale.js';
 import type { PressScaleProps } from './props.js';
-
-/**
- * Track the OS reduce-motion preference. This is external-system synchronisation (an accessibility
- * setting that can change at runtime), which is exactly what `useEffect` is for.
- *
- * @sideEffect Subscribes to `AccessibilityInfo` reduce-motion changes for the component's lifetime.
- */
-function useReduceMotion(): boolean {
-    const [reduceMotion, setReduceMotion] = useState(false);
-
-    useEffect(() => {
-        let subscribed = true;
-        void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-            if (subscribed) {
-                setReduceMotion(enabled);
-            }
-        });
-        // `addEventListener` returns an `EmitterSubscription` on device; some hosts (e.g. the
-        // react-native-web test shim) return nothing, so unsubscribe defensively.
-        const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion) as
-            | { remove: () => void }
-            | undefined;
-
-        return () => {
-            subscribed = false;
-            subscription?.remove();
-        };
-    }, []);
-
-    return reduceMotion;
-}
 
 /** The Commise press-feedback wrapper — a `Pressable` that scales its content while held (motion-safe). */
 export const PressScale: FC<PressScaleProps> = ({
@@ -53,7 +24,9 @@ export const PressScale: FC<PressScaleProps> = ({
     accessibilityLabel,
     accessibilityRole = 'button',
 }) => {
-    const reduceMotion = useReduceMotion();
+    // A press gate has nothing to show before the first press, so the not-yet-known preference collapses to
+    // "motion allowed" here — unlike an enter transition, which must hold its from-state until it knows.
+    const reduceMotion = useReduceMotion() ?? false;
 
     return (
         <Pressable

@@ -37,3 +37,24 @@
         transform: none;
     }
 }
+
+/* U8 motion pass — the same rise + fade, generalized for any SECTION that enters (the discovery browse
+   rails). Owned by the `@commise/ui/motion` `EnterTransition` primitive, which emits it only behind
+   `motion-safe:`; `both` keeps the from-state through an `animation-delay` so a run of sections can stagger.
+   Pure CSS by design: the gesture must not depend on hydration, or a no-JS viewer would see nothing. Values
+   are single-sourced with the native leaf's `ENTER_DURATION_MS` / `ENTER_RISE_PX`. */
+@theme {
+    --animate-section-enter: section-enter 400ms ease-out both;
+}
+
+@keyframes section-enter {
+    from {
+        opacity: 0;
+        transform: translateY(0.5rem);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}

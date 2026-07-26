@@ -221,9 +221,11 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.lg,
         padding: nativeTokens.spacing[4],
     },
-    // U8 brand leaf: the display title threads the Playfair `display` family (was system-serif bold).
+    // U8 brand leaf: the display title threads the REGISTERED bold Playfair face. React Native resolves
+    // `fontFamily` to one registered face name — the web CSS stack would fall back to the system serif with
+    // no error at all, so the face token is the only value that actually renders the brand type.
     title: {
-        fontFamily: nativeTokens.fontFamily.display,
+        fontFamily: nativeTokens.fontFace.display.bold,
         fontSize: nativeTokens.fontSize.displayMd,
         fontWeight: '700',
         color: palette.charcoal,

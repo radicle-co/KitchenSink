@@ -8,9 +8,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
+import { HOME_NAV_ITEMS } from '@commise/features-core';
 import { renderWithProviders } from '@commise/test-utils';
 
 import { HomeTabBar } from '../../../src/components/home/chrome/HomeTabBar.js';
+import { NAV_ICONS } from '../../../src/components/home/chrome/icons.js';
 import { mobileMessages } from '../../../src/i18n/messages.js';
 
 afterEach(cleanup);
@@ -85,6 +87,32 @@ describe('HomeTabBar (mobile)', () => {
         for (const tab of screen.getAllByRole('tab')) {
             expect(window.getComputedStyle(tab).minHeight).toBe('44px');
         }
+    });
+
+    it('pairs every tab — reachable and gated — with its mapped glyph (mockup parity)', () => {
+        renderTabBar();
+
+        for (const item of HOME_NAV_ITEMS) {
+            const label = chrome.destinations[item.id];
+            const tab = screen.getByRole('tab', { name: new RegExp(`^${label}`, 'u') });
+            const glyph = tab.querySelector('[data-commise-stub="icon"]');
+
+            expect(glyph, `no glyph on the ${item.id} tab`).not.toBeNull();
+            expect(glyph?.getAttribute('data-icon-name')).toBe(NAV_ICONS[item.id]);
+        }
+    });
+
+    it('keeps the glyph decorative — the label alone owns each tab’s accessible name', () => {
+        renderTabBar();
+
+        // Every glyph sits inside an aria-hidden wrapper, so no tab announces its icon…
+        for (const glyph of screen.getAllByRole('tab').map((tab) => tab.querySelector('[data-commise-stub="icon"]'))) {
+            expect(glyph?.closest('[aria-hidden="true"]')).not.toBeNull();
+        }
+
+        // …and the names stay exactly the label (gated tabs keep their "coming soon" suffix).
+        expect(screen.getByRole('tab', { name: 'Recipes' })).toBeTruthy();
+        expect(screen.getByRole('tab', { name: `Grocery, ${chrome.comingSoonSuffix}` })).toBeTruthy();
     });
 
     it('renders the "coming soon" label in slate (AA), not the 1.9:1 mist (U4)', () => {

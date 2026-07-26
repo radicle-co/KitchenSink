@@ -6,8 +6,9 @@
  * real tabs (`accessibilityRole="tab"`, selected state); gated destinations are non-interactive and announced
  * as "…, coming soon" (never a tab that navigates nowhere). The active destination is the selected tab.
  *
- * There is no icon set installed in this app, so tabs are text-labelled — fully accessible, and honest about
- * what ships. The bottom safe-area inset is padded so the bar clears the home indicator.
+ * Each tab pairs the mockup's glyph (the shared {@link NAV_ICONS} registry, drawn from Feather) with its text
+ * label — icon AND label, as the mockup's bottom bar has it. The glyph is decorative: the label alone owns the
+ * accessible name. The bottom safe-area inset is padded so the bar clears the home indicator.
  */
 import { resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
 import { palette } from '@commise/ui';
@@ -15,10 +16,17 @@ import { nativeTokens } from '@commise/ui/native';
 import type { JSX } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ChromeIcon, NAV_ICONS } from './icons.js';
 import type { MobileMessages } from '../../../i18n/messages.js';
 
 /** The chrome copy slice this bar renders. */
 type ChromeMessages = MobileMessages['home']['chrome'];
+
+/**
+ * Tab glyph size. Smaller than the 24pt chrome default: a tab stacks a glyph AND its label inside the 44pt
+ * touch target, so the icon takes the compact end of the mockup's bottom-bar sizing.
+ */
+const TAB_ICON_SIZE = 20;
 
 /** Props for {@link HomeTabBar}. */
 export interface HomeTabBarProps {
@@ -67,6 +75,7 @@ export function HomeTabBar({
                             accessibilityLabel={`${label}, ${chrome.comingSoonSuffix}`}
                             style={styles.tab}
                         >
+                            <ChromeIcon name={NAV_ICONS[item.id]} color={palette.slate} size={TAB_ICON_SIZE} />
                             <Text style={styles.labelDisabled}>{label}</Text>
                         </View>
                     );
@@ -83,6 +92,11 @@ export function HomeTabBar({
                         onPress={() => onSelect(item.id)}
                         style={styles.tab}
                     >
+                        <ChromeIcon
+                            name={NAV_ICONS[item.id]}
+                            color={selected ? palette.seafoam : palette.slate}
+                            size={TAB_ICON_SIZE}
+                        />
                         <Text style={selected ? styles.labelActive : styles.label}>{label}</Text>
                     </Pressable>
                 );
@@ -103,8 +117,15 @@ const styles = StyleSheet.create({
         borderTopColor: nativeTokens.borderSubtle,
     },
     // Each tab is a 44pt touch target (RC-3) — reachable Pressables and the non-interactive "coming soon"
-    // Views share this style, so every destination clears the minimum.
-    tab: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingVertical: 6 },
+    // Views share this style, so every destination clears the minimum. `gap` sets the glyph-to-label rhythm.
+    tab: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 44,
+        paddingVertical: 6,
+        gap: nativeTokens.spacing[1],
+    },
     label: { fontSize: nativeTokens.fontSize.caption, color: palette.slate },
     labelActive: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600', color: palette.seafoam },
     // Contrast (U4 / WCAG AA): the "coming soon" label is real text — mist is 1.9:1, slate is 5:1. The

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { RecipeServiceClient, collectionQueries } from '@kitchensink/recipe-service-client';
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query';
 
+import { AppShell } from '@/components/app/AppShell';
 import { CollectionListContainer } from '@/components/recipes/CollectionListContainer';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
@@ -43,9 +44,13 @@ export default async function CollectionsPage({
 
     await queryClient.prefetchInfiniteQuery(collectionQueries(client).listInfinite());
 
+    // L9: collections render inside the shared app nav shell. Collections are a recipe-domain surface, so
+    // `recipes` is the active destination (the shared nav model has no separate collections entry).
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
-            <CollectionListContainer locale={locale} />
+            <AppShell activeId="recipes">
+                <CollectionListContainer locale={locale} />
+            </AppShell>
         </HydrationBoundary>
     );
 }

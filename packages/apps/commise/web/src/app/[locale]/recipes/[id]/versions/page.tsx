@@ -2,6 +2,7 @@ import type { Route } from 'next';
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 
+import { AppShell } from '@/components/app/AppShell';
 import { RecipeVersionsContainer } from '@/components/recipes/RecipeVersionsContainer';
 
 export const dynamic = 'force-dynamic';
@@ -11,6 +12,9 @@ export const dynamic = 'force-dynamic';
  * (these are the caller's private recipe versions) and hands the recipe id to the client
  * {@link RecipeVersionsContainer}, which fetches the version history + current version and renders the list
  * (or a localized loading / error affordance). Route protection is at the resource, per the middleware ADR.
+ *
+ * L9: renders inside the shared {@link AppShell} with `recipes` active, so version history keeps the app's nav
+ * chrome on both desktop and narrow viewports.
  */
 export default async function RecipeVersionsPage({
     params,
@@ -24,5 +28,9 @@ export default async function RecipeVersionsPage({
         redirect(`/${locale}/sign-in` as Route);
     }
 
-    return <RecipeVersionsContainer recipeId={id} />;
+    return (
+        <AppShell activeId="recipes">
+            <RecipeVersionsContainer recipeId={id} />
+        </AppShell>
+    );
 }

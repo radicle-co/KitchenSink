@@ -15,6 +15,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
+import { palette, semantic } from '@commise/ui';
+import { accountDangerMessages } from '@commise/features-account/danger';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
 import { useDeleteAccount } from '../../src/hooks/useUserProfile.js';
@@ -79,6 +81,65 @@ describe('AccountDangerZone (native) — closure vs erasure are distinct', () =>
 
         expect(screen.getByRole('button', { name: 'Close account' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Erase my data' })).toBeTruthy();
+    });
+});
+
+describe('AccountDangerZone (native) — design-system surfaces (U4b)', () => {
+    const { close, erase } = accountDangerMessages.en;
+
+    it('paints the close trigger as the bordered secondary tier, on palette', () => {
+        render(<AccountDangerZone />);
+
+        const trigger = screen.getByRole('button', { name: close.trigger });
+
+        // The label is charcoal — NOT the off-palette `#2C3E50` the hand-rolled Pressable used.
+        expect(window.getComputedStyle(screen.getByText(close.trigger)).color).toBe(rgb(palette.charcoal));
+        // …and its surface carries the design system's own border colour, not an inlined mist hex.
+        expect(borderColours(trigger)).toContain(semantic.border);
+    });
+
+    it('paints the erase trigger as the destructive tier, on palette', () => {
+        render(<AccountDangerZone />);
+
+        const trigger = screen.getByRole('button', { name: erase.trigger });
+
+        // `palette.error`, NOT the off-palette `#E74C3C`.
+        expect(window.getComputedStyle(screen.getByText(erase.trigger)).color).toBe(rgb(palette.error));
+        expect(borderColours(trigger)).toContain(rgb(palette.error));
+    });
+
+    it('clears the 44pt touch floor on both triggers (U4 / RC-3)', () => {
+        render(<AccountDangerZone />);
+
+        for (const name of [close.trigger, erase.trigger]) {
+            const trigger = screen.getByRole('button', { name });
+            const surface = [trigger, ...Array.from(trigger.querySelectorAll<HTMLElement>('*'))].find(
+                (node) => window.getComputedStyle(node).minHeight === '44px',
+            );
+
+            expect(surface, `${name} does not reach a 44pt target`).toBeDefined();
+        }
+    });
+
+    it('shows the design-system busy spinner while the closure is in flight', () => {
+        // Idle: no progress indicator anywhere. (The spinner lives in the Button's aria-hidden icon slot, so
+        // it is queried with `hidden` — busy is announced through accessibilityState.busy.)
+        const { unmount } = render(<AccountDangerZone />);
+        expect(screen.queryByRole('progressbar', { hidden: true })).toBeNull();
+        unmount();
+
+        useDeleteAccountMock.mockReturnValue({ mutate: deleteMutate, isPending: true } as unknown as ReturnType<
+            typeof useDeleteAccount
+        >);
+        render(<AccountDangerZone />);
+
+        // A real spinner, not merely a swapped label — and the control is out of action while in flight.
+        expect(screen.getByRole('progressbar', { hidden: true })).toBeTruthy();
+        const busyTrigger = screen.getByRole('button', { name: close.busyLabel });
+        expect(busyTrigger.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(busyTrigger);
+        expect(deleteMutate).not.toHaveBeenCalled();
     });
 });
 
@@ -158,3 +219,21 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
         expect(screen.getByText('We couldn’t start erasing your data. Please try again.')).toBeTruthy();
     });
 });
+
+/** A design-token hex (`#RRGGBB`) as the `rgb(r, g, b)` string a resolved computed style reports. */
+function rgb(hex: string): string {
+    const channels = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+
+    return `rgb(${channels.join(', ')})`;
+}
+
+/**
+ * Every border colour resolved anywhere in `root`'s subtree. react-native-web compiles a `StyleSheet`
+ * `borderColor` to an atomic class, so the honest read is the computed style of each candidate node — the
+ * button's visible surface is whichever descendant carries the tier's border.
+ */
+function borderColours(root: HTMLElement): readonly string[] {
+    return [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))].map(
+        (node) => window.getComputedStyle(node).borderTopColor,
+    );
+}

@@ -1,15 +1,17 @@
 /**
- * @module theme/fonts — the mobile display-font family names (Home chrome).
+ * @module theme/fonts — the mobile display-font face names.
  *
- * React Native's `fontFamily` takes a single REGISTERED family name, not the web's CSS font stack. The
+ * React Native's `fontFamily` takes a single REGISTERED face name, not the web's CSS font stack. The
  * Playfair Display faces are loaded once at app start (`App.tsx` → `useFonts`) from
- * `@expo-google-fonts/playfair-display`, and these constants name the loaded faces so the greeting and other
- * display headings reference them by a single source of truth rather than a scattered string literal. Until
- * the faces finish loading, RN falls back to the system serif — a brief, harmless degradation.
+ * `@expo-google-fonts/playfair-display`; these constants are the app-local aliases of the design system's
+ * `nativeTokens.fontFace.display` registry, so the face names live in exactly ONE place (the shared scale)
+ * and the screens keep referencing them by name rather than by a scattered string literal. Until the faces
+ * finish loading, RN falls back to the system serif — a brief, harmless degradation.
  */
+import { nativeTokens } from '@commise/ui/native';
 
 /** The semibold Playfair face — display headings that are not the marquee greeting. */
-export const DISPLAY_FONT_SEMIBOLD = 'PlayfairDisplay_600SemiBold';
+export const DISPLAY_FONT_SEMIBOLD = nativeTokens.fontFace.display.semibold;
 
-/** The bold Playfair face — the marquee Home greeting. */
-export const DISPLAY_FONT_BOLD = 'PlayfairDisplay_700Bold';
+/** The bold Playfair face — the marquee Home greeting and the welcome wordmark. */
+export const DISPLAY_FONT_BOLD = nativeTokens.fontFace.display.bold;

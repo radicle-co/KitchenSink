@@ -41,11 +41,30 @@ export const radius = {
     full: 9999,
 } as const;
 
-/** Font families as CSS font-stack strings (web `--font-*`) / native fallback stacks. */
+/**
+ * Font families as CSS font-stack strings — **web only** (`--font-*`). A stack is meaningless to React
+ * Native, whose `fontFamily` resolves exactly one REGISTERED face; native display type selects a face from
+ * {@link displayFontFace} instead (and `nativeTokens` deliberately exposes no stack at all).
+ */
 export const fontFamily = {
     display: '"Playfair Display", Georgia, serif',
     body: 'Inter, system-ui, sans-serif',
     mono: '"JetBrains Mono", monospace',
+} as const;
+
+/**
+ * The REGISTERED native faces of the display family, keyed by the {@link fontWeight} step each one paints.
+ *
+ * React Native resolves `fontFamily` to a single registered face name; handed the CSS stack above it falls
+ * back to the system face **silently** — brand type that never renders and never errors. These are the
+ * faces the apps load at start-up (`@expo-google-fonts/playfair-display`), and they are single-sourced here
+ * so no consumer re-types a face-name literal. Their shape is asserted against {@link fontFamily}.display
+ * and {@link fontWeight} in the token tests, so renaming the family or moving a weight step cannot leave a
+ * stale name pointing at a font nobody loads.
+ */
+export const displayFontFace = {
+    semibold: 'PlayfairDisplay_600SemiBold',
+    bold: 'PlayfairDisplay_700Bold',
 } as const;
 
 /** Numeric font weights (web stringifies them; native/Tamagui keep the `'400'`-style string form). */
@@ -104,6 +123,7 @@ export const borderSubtle = 'rgba(178, 190, 195, 0.3)';
 export type Spacing = typeof spacing;
 export type Radius = typeof radius;
 export type FontFamily = typeof fontFamily;
+export type DisplayFontFace = typeof displayFontFace;
 export type FontWeight = typeof fontWeight;
 export type LineHeightRatio = typeof lineHeightRatio;
 export type FontSize = typeof fontSize;

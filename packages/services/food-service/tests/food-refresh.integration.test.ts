@@ -143,7 +143,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService — change-refresh branch (i
 
     /** Enqueue a low-demand change-refresh row for an already-RESOLVED food. */
     async function enqueueRefresh(id: string): Promise<void> {
-        await requesters.add({ foodId: id, sub: 'svc_change_refresh' });
+        await requesters.add({ foodId: id, requesterId: 'svc_change_refresh' });
         await queue.enqueue(id);
     }
 

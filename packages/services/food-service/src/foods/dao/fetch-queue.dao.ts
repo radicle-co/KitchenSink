@@ -1,7 +1,7 @@
 /**
  * `FetchQueueDao` (T-109, MOD-003) — the demand-weighted Postgres-as-queue, one row per food `id`.
  * `enqueue` is idempotent (`INSERT … ON CONFLICT (food_id)`) and sets `request_count` to the live
- * distinct-`sub` count from `fetch_requesters` (never a raw `+1`, FR-044/DSN-3). `leaseNext` claims
+ * distinct-requester count from `fetch_requesters` (never a raw `+1`, FR-044/DSN-3). `leaseNext` claims
  * the highest-demand eligible row under a `leased_at` lease (`FOR UPDATE SKIP LOCKED`, with live
  * drain-time demotion), reclaiming a stale `in_flight` row WITHOUT touching `attempts` (DSN-5);
  * `reapExpiredLeases` reverts orphaned leases (FR-018). `resolve`/`tombstone` remove the row from the
@@ -17,7 +17,7 @@ import { fetchQueue, type FetchQueueRow } from '../../db/schema/index.js';
 /** Default worker lease window in seconds (REQ-017). */
 const DEFAULT_LEASE_SECONDS = 30;
 
-/** Per-`sub` pending-threshold above which a requester is over-demand (REQ-043, drain-time demotion). */
+/** Per-requester pending-threshold above which a requester is over-demand (REQ-043, drain-time demotion). */
 const DEMOTION_PENDING_THRESHOLD = 50;
 
 export class FetchQueueDao {
@@ -132,7 +132,7 @@ export class FetchQueueDao {
                         WHERE r.food_id = q.food_id
                           AND (
                               SELECT count(*) FROM fetch_queue fq JOIN fetch_requesters fr USING (food_id)
-                              WHERE fr.sub = r.sub AND fq.status IN ('pending', 'in_flight')
+                              WHERE fr.requester_id = r.requester_id AND fq.status IN ('pending', 'in_flight')
                           ) <= ${DEMOTION_PENDING_THRESHOLD}
                     ) THEN 1 ELSE 0 END) ASC,
                     q.request_count DESC, q.first_requested ASC
@@ -168,35 +168,36 @@ export class FetchQueueDao {
     }
 
     /**
-     * List the distinct requester `sub`s recorded for a food (FR-048 producer-provenance input). The
-     * consumer refuses to drain a row whose recorded requesters do not all name a real principal.
+     * List the distinct requester ids recorded for a food (FR-048 producer-provenance input). The
+     * consumer refuses to drain a row whose recorded requesters do not all name a real principal
+     * (CR-002/U1: an app-user ULID or an allowlisted `svc_*`).
      *
      * @param foodId - Internal food id.
-     * @returns The recorded requester subs (empty when none).
+     * @returns The recorded requester ids (empty when none).
      * @sideEffect Reads `fetch_requesters`.
      */
-    public async listRequesterSubs(foodId: string): Promise<string[]> {
-        const result = await this.db.execute<{ sub: string }>(
-            sql`SELECT sub FROM fetch_requesters WHERE food_id = ${foodId}`,
+    public async listRequesterIds(foodId: string): Promise<string[]> {
+        const result = await this.db.execute<{ requester_id: string }>(
+            sql`SELECT requester_id FROM fetch_requesters WHERE food_id = ${foodId}`,
         );
 
-        return result.rows.map((row) => row.sub);
+        return result.rows.map((row) => row.requester_id);
     }
 
     /**
-     * Count a requester's live pending demand: the `pending` queue rows the `sub` is attached to
+     * Count a requester's live pending demand: the `pending` queue rows the requester is attached to
      * (FR-043, fairness-by-demotion input).
      *
-     * @param sub - The requester sub.
-     * @returns The count of `pending` queue rows requested by that sub.
+     * @param requesterId - The requester key (app-user ULID or `svc_*`).
+     * @returns The count of `pending` queue rows requested by that requester.
      * @sideEffect Reads `fetch_queue` joined to `fetch_requesters`.
      */
-    public async pendingCountForSub(sub: string): Promise<number> {
+    public async pendingCountForRequester(requesterId: string): Promise<number> {
         const result = await this.db.execute<{ n: number }>(sql`
             SELECT count(*)::int AS n
               FROM fetch_queue q
               JOIN fetch_requesters r USING (food_id)
-             WHERE r.sub = ${sub} AND q.status = 'pending'
+             WHERE r.requester_id = ${requesterId} AND q.status = 'pending'
         `);
 
         return result.rows[0]?.n ?? 0;

@@ -54,10 +54,24 @@ const M2M_AZP = 'svc-import-client';
 
 // One throwaway keypair for the whole suite; its public PEM is set as CLERK_JWT_KEY before app boot.
 const keypair = generateClerkKeypair();
-const userToken = mintToken(keypair.privateKeyPem, { sub: 'user_e2e', azp: APP_AZP });
-const adminToken = mintToken(keypair.privateKeyPem, { sub: 'admin_e2e', azp: APP_AZP, scopes: ['food:admin'] });
+// CR-002/U1: a user token carries its app-user ULID as `external_id` — THE requester key. A service
+// (`svc_*`) token carries none.
+const USER_ULID = '01J9ZK8N7QF3B2X4M6T0V5C1AB';
+const ADMIN_ULID = '01J9ZK8N7QF3B2X4M6T0V5C1AD';
+const userToken = mintToken(keypair.privateKeyPem, { sub: 'user_e2e', externalId: USER_ULID, azp: APP_AZP });
+const adminToken = mintToken(keypair.privateKeyPem, {
+    sub: 'admin_e2e',
+    externalId: ADMIN_ULID,
+    azp: APP_AZP,
+    scopes: ['food:admin'],
+});
 const m2mToken = mintToken(keypair.privateKeyPem, { sub: 'svc_e2e', azp: M2M_AZP });
-const expiredToken = mintToken(keypair.privateKeyPem, { sub: 'user_e2e', azp: APP_AZP, expiresInSeconds: -30 });
+const expiredToken = mintToken(keypair.privateKeyPem, {
+    sub: 'user_e2e',
+    externalId: USER_ULID,
+    azp: APP_AZP,
+    expiresInSeconds: -30,
+});
 
 /** A no-op worker logger so the drain produces no console noise. */
 const silentLogger: WorkerLogger = { info(): void {}, warn(): void {}, error(): void {} };
@@ -249,13 +263,13 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             expect((await pool.query('SELECT count(*)::int AS n FROM fetch_queue')).rows[0].n).toBe(0);
         });
 
-        it('accepts an azp-allowlisted M2M token and uses its sub for provenance (FR-047)', async () => {
+        it('accepts an azp-allowlisted M2M token and keys provenance on its svc_* id (FR-047)', async () => {
             stub.programResolve('service add');
             const res = await call('POST', '/v1/foods', { token: m2mToken, body: { name: 'service add' } });
             expect(res.status).toBe(202);
 
-            const requesters = await pool.query('SELECT sub FROM fetch_requesters');
-            expect(requesters.rows.map((row) => row.sub)).toEqual(['svc_e2e']);
+            const requesters = await pool.query('SELECT requester_id FROM fetch_requesters');
+            expect(requesters.rows.map((row) => row.requester_id)).toEqual(['svc_e2e']);
         });
 
         it('rejects /refetch without the food:admin scope → 403, allows it with the scope → 202', async () => {

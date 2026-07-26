@@ -128,10 +128,11 @@ describe.skipIf(!DATABASE_URL)('ChangeRefreshConsumer (integration)', () => {
         expect(await pendingRows(unchanged)).toBe(0);
 
         // The enqueue is the ordinary low-demand path: one distinct service requester.
-        const requesters = await pool.query<{ sub: string }>('SELECT sub FROM fetch_requesters WHERE food_id = $1', [
-            changed,
-        ]);
-        expect(requesters.rows.map((r) => r.sub)).toEqual(['svc_change_refresh']);
+        const requesters = await pool.query<{ requester_id: string }>(
+            'SELECT requester_id FROM fetch_requesters WHERE food_id = $1',
+            [changed],
+        );
+        expect(requesters.rows.map((r) => r.requester_id)).toEqual(['svc_change_refresh']);
         const row = await pool.query<{ request_count: number }>(
             'SELECT request_count FROM fetch_queue WHERE food_id = $1',
             [changed],

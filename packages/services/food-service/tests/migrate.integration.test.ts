@@ -39,10 +39,10 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
     });
 
     describe('discoverMigrations', () => {
-        it('discovers the ordered .sql migrations from the source dir (0000 then 0001, no hardcoded list)', () => {
+        it('discovers the ordered .sql migrations from the source dir (0000, 0001, 0002 — no hardcoded list)', () => {
             const names = discoverMigrations(sourceMigrationsDir).map((migration) => migration.name);
 
-            expect(names).toEqual(['0000_food_schema', '0001_food_fts']);
+            expect(names).toEqual(['0000_food_schema', '0001_food_fts', '0002_fetch_requesters_rekey']);
         });
     });
 
@@ -50,14 +50,18 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
         it('applies every discovered migration in order and validates the expected tables exist', async () => {
             const result = await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
 
-            expect(result.applied).toEqual(['0000_food_schema', '0001_food_fts']);
+            expect(result.applied).toEqual(['0000_food_schema', '0001_food_fts', '0002_fetch_requesters_rekey']);
             expect(result.skipped).toEqual([]);
-            expect(result.validated.migrations).toBe(2);
+            expect(result.validated.migrations).toBe(3);
             expect(result.validated.tables).toBeGreaterThanOrEqual(13);
 
             const recorded = await pool.query<{ name: string }>('SELECT name FROM schema_migrations ORDER BY name');
 
-            expect(recorded.rows.map((row) => row.name)).toEqual(['0000_food_schema', '0001_food_fts']);
+            expect(recorded.rows.map((row) => row.name)).toEqual([
+                '0000_food_schema',
+                '0001_food_fts',
+                '0002_fetch_requesters_rekey',
+            ]);
         });
 
         it('is idempotent — a re-invocation skips already-recorded migrations and applies nothing', async () => {
@@ -65,7 +69,7 @@ describe.skipIf(!DATABASE_URL)('migrate runner (integration)', () => {
             const second = await runMigrations({ pool, migrationsDir: sourceMigrationsDir });
 
             expect(second.applied).toEqual([]);
-            expect(second.skipped).toEqual(['0000_food_schema', '0001_food_fts']);
+            expect(second.skipped).toEqual(['0000_food_schema', '0001_food_fts', '0002_fetch_requesters_rekey']);
         });
 
         it('throws when an expected Drizzle-schema table is missing after applying the discovered SQL', async () => {

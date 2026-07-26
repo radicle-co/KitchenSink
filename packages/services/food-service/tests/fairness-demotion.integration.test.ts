@@ -7,7 +7,7 @@
  *   food with an under-threshold requester drains first — and is auto re-promoted the moment ANY of its
  *   requesters drops below the threshold. No request is ever rejected with `429` (demotion, not a quota).
  * - One `sub`'s repeated adds CANNOT inflate priority: `request_count` is the distinct-`sub` count
- *   (structural `PRIORITY_CAP=1` via the `(food_id, sub)` PK), so genuine multi-requester demand wins.
+ *   (structural `PRIORITY_CAP=1` via the `(food_id, requester_id)` PK), so genuine multi-requester demand wins.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type pg from 'pg';
@@ -44,8 +44,8 @@ describe.skipIf(!DATABASE_URL)('fairness-by-demotion + distinct-requester demand
     async function seedPending(normalizedName: string, subs: string[]): Promise<string> {
         const { id } = await foodDao.createByName({ normalizedName, displayName: normalizedName });
 
-        for (const sub of subs) {
-            await requesters.add({ foodId: id, sub });
+        for (const requesterId of subs) {
+            await requesters.add({ foodId: id, requesterId });
         }
 
         await queue.enqueue(id);
@@ -87,7 +87,7 @@ describe.skipIf(!DATABASE_URL)('fairness-by-demotion + distinct-requester demand
         await pool.query(`UPDATE fetch_queue SET status='pending', leased_at=NULL`);
 
         // Add a SECOND, under-threshold requester to heavyA → not ALL its requesters exceed 50 → promoted.
-        await requesters.add({ foodId: heavyA, sub: 'fresh_light' });
+        await requesters.add({ foodId: heavyA, requesterId: 'fresh_light' });
         await queue.enqueue(heavyA); // recompute demand: heavyA now distinct-count = 2
 
         const leased = await queue.leaseNext(30);
@@ -98,9 +98,9 @@ describe.skipIf(!DATABASE_URL)('fairness-by-demotion + distinct-requester demand
     it('distinct-requester demand: one sub repeating cannot out-prioritize genuine multi-requester demand (FR-044)', async () => {
         const repeated = await foodDao.createByName({ normalizedName: 'repeated', displayName: 'repeated' });
 
-        // One sub "adds" the same food five times — the (food_id, sub) PK collapses to ONE row.
+        // One requester "adds" the same food five times — the (food_id, requester_id) PK collapses to ONE row.
         for (let i = 0; i < 5; i += 1) {
-            await requesters.add({ foodId: repeated.id, sub: 'repeater' });
+            await requesters.add({ foodId: repeated.id, requesterId: 'repeater' });
         }
         await queue.enqueue(repeated.id);
 

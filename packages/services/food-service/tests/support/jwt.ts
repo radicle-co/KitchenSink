@@ -26,6 +26,12 @@ export interface ClerkKeypair {
 export interface MintTokenOptions {
     /** The Clerk subject (the authenticated principal id) — required. */
     readonly sub: string;
+    /**
+     * The app-user ULID emitted as the `external_id` claim (CR-002/U1). The shared verifier surfaces it
+     * as `claims.userId`, and the food enqueue paths key `fetch_requesters` on it for user principals.
+     * Omit for a service (`svc_*`) token, or to simulate the first-token sync race (no `external_id` yet).
+     */
+    readonly externalId?: string;
     /** The authorized party the token is minted for (must be in `CLERK_AUTHORIZED_PARTIES`). */
     readonly azp?: string;
     /** Authorization scopes embedded in `public_metadata` (e.g. `['food:admin']`). */
@@ -72,6 +78,7 @@ export function mintToken(privateKeyPem: string, options: MintTokenOptions): str
     const header = { alg: 'RS256', typ: 'JWT', kid: 'local' };
     const payload = {
         sub: options.sub,
+        ...(options.externalId !== undefined ? { external_id: options.externalId } : {}),
         azp: options.azp,
         iat: nowSeconds,
         nbf: nowSeconds - 5,

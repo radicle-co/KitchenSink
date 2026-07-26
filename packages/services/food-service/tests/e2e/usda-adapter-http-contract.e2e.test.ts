@@ -54,7 +54,12 @@ const FOUNDATION_FDC_ID = 1750340;
 const GHOST_FDC_ID = 404404;
 
 const keypair = generateClerkKeypair();
-const userToken = mintToken(keypair.privateKeyPem, { sub: 'user_usda_e2e', azp: APP_AZP });
+// CR-002/U1: the user token carries its app-user ULID as `external_id` (THE requester key).
+const userToken = mintToken(keypair.privateKeyPem, {
+    sub: 'user_usda_e2e',
+    externalId: '01J9ZK8N7QF3B2X4M6T0V5C1AB',
+    azp: APP_AZP,
+});
 
 const silentLogger: WorkerLogger = { info(): void {}, warn(): void {}, error(): void {} };
 

@@ -51,7 +51,12 @@ const APP_AZP = 'https://app.example.com';
 const M2M_AZP = 'svc-import-client';
 
 const keypair = generateClerkKeypair();
-const userToken = mintToken(keypair.privateKeyPem, { sub: 'user_client_e2e', azp: APP_AZP });
+// CR-002/U1: the user token carries its app-user ULID as `external_id` (THE requester key).
+const userToken = mintToken(keypair.privateKeyPem, {
+    sub: 'user_client_e2e',
+    externalId: '01J9ZK8N7QF3B2X4M6T0V5C1AB',
+    azp: APP_AZP,
+});
 const m2mToken = mintToken(keypair.privateKeyPem, { sub: 'svc_client_e2e', azp: M2M_AZP });
 
 const silentLogger: WorkerLogger = { info(): void {}, warn(): void {}, error(): void {} };
@@ -197,8 +202,8 @@ describe.skipIf(!DATABASE_URL)('@kitchensink/food-service-client against the boo
         const add = await m2mClient.addByName('service-added food');
         expect(add.status).toBe('PENDING');
 
-        const requesters = await pool.query('SELECT sub FROM fetch_requesters');
-        expect(requesters.rows.map((row) => row.sub)).toEqual(['svc_client_e2e']);
+        const requesters = await pool.query('SELECT requester_id FROM fetch_requesters');
+        expect(requesters.rows.map((row) => row.requester_id)).toEqual(['svc_client_e2e']);
     });
 
     it('maps the queue-depth ceiling to a typed FetchUnavailableError (503), never a 429', async () => {

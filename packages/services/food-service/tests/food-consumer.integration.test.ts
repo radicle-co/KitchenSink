@@ -104,7 +104,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
     /** Enqueue a freshly created PENDING food with one requester. */
     async function enqueueFood(normalizedName: string, displayName?: string): Promise<string> {
         const { id } = await foodDao.createByName({ normalizedName, displayName: displayName ?? normalizedName });
-        await requesters.add({ foodId: id, sub: 'user_a' });
+        await requesters.add({ foodId: id, requesterId: '01J9ZK8N7QF3B2X4M6T0V5C1AB' });
         await queue.enqueue(id);
 
         return id;

@@ -80,8 +80,26 @@ describe('FoodAuthGuard', () => {
 
         await guard.use(req, {} as Response, next);
 
-        expect(req.user).toEqual({ sub: 'user_1', azp: undefined, scopes: ['food:admin'], permissions: [] });
+        expect(req.user).toEqual({
+            sub: 'user_1',
+            userId: undefined,
+            azp: undefined,
+            scopes: ['food:admin'],
+            permissions: [],
+        });
         expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('surfaces the app-user ULID (userId, from external_id) onto req.user (CR-002/U1)', async () => {
+        const ulid = '01J9ZK8N7QF3B2X4M6T0V5C1AB';
+        mockVerify.mockResolvedValue({ sub: 'user_1', userId: ulid, scopes: [], permissions: [] });
+        const guard = new FoodAuthGuard();
+        const req = makeReq({ authorization: 'Bearer good' });
+
+        await guard.use(req, {} as Response, vi.fn() as unknown as NextFunction);
+
+        expect(req.user?.userId).toBe(ulid);
+        expect(req.user?.sub).toBe('user_1');
     });
 
     it('ignores a forged x-debug-sub / x-authorizer-context and trusts only the verified token', async () => {

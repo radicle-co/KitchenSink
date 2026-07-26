@@ -144,8 +144,12 @@ export class FoodAuthGuard implements NestMiddleware {
         }
 
         // Identity from the verified token ONLY — a forged x-debug-sub / x-authorizer-context is ignored.
+        // `userId` (the app-user ULID from `external_id`) is THE user requester key (CR-002/U1/R5); it is
+        // surfaced here but NOT enforced-present in the guard — reads work without it, and only the enqueue
+        // paths defer on its absence (see FoodsController.requireRequesterId). A `svc_*` principal has none.
         req.user = {
             sub: claims.sub,
+            userId: claims.userId,
             azp: claims.azp,
             scopes: claims.scopes,
             permissions: claims.permissions,

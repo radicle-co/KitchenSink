@@ -41,7 +41,7 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
             const { id } = await foods.createByName({ normalizedName: 'banana' });
 
             for (let i = 0; i < 50; i += 1) {
-                await requesters.add({ foodId: id, sub: 'user_solo' });
+                await requesters.add({ foodId: id, requesterId: 'user_solo' });
             }
             const row = await queue.enqueue(id);
 
@@ -53,7 +53,7 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
             const { id } = await foods.createByName({ normalizedName: 'cucumber' });
 
             for (let i = 0; i < 7; i += 1) {
-                await requesters.add({ foodId: id, sub: `user_${i}` });
+                await requesters.add({ foodId: id, requesterId: `user_${i}` });
             }
             const row = await queue.enqueue(id);
 
@@ -62,9 +62,9 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
 
         it('enqueue is idempotent on food_id (one row) and reflects later distinct adds', async () => {
             const { id } = await foods.createByName({ normalizedName: 'tomato' });
-            await requesters.add({ foodId: id, sub: 'a' });
+            await requesters.add({ foodId: id, requesterId: 'a' });
             await queue.enqueue(id);
-            await requesters.add({ foodId: id, sub: 'b' });
+            await requesters.add({ foodId: id, requesterId: 'b' });
             const row = await queue.enqueue(id);
 
             expect(row.requestCount).toBe(2);
@@ -80,11 +80,11 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
         it('leaseNext claims highest request_count first and stamps leased_at + in_flight', async () => {
             const low = await foods.createByName({ normalizedName: 'low demand' });
             const high = await foods.createByName({ normalizedName: 'high demand' });
-            await requesters.add({ foodId: low.id, sub: 'a' });
+            await requesters.add({ foodId: low.id, requesterId: 'a' });
             await queue.enqueue(low.id);
-            await requesters.add({ foodId: high.id, sub: 'a' });
-            await requesters.add({ foodId: high.id, sub: 'b' });
-            await requesters.add({ foodId: high.id, sub: 'c' });
+            await requesters.add({ foodId: high.id, requesterId: 'a' });
+            await requesters.add({ foodId: high.id, requesterId: 'b' });
+            await requesters.add({ foodId: high.id, requesterId: 'c' });
             await queue.enqueue(high.id);
 
             const leased = await queue.leaseNext(30);
@@ -96,9 +96,9 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
         it('leaseNext skips an already in_flight (freshly leased) row (FOR UPDATE SKIP LOCKED)', async () => {
             const a = await foods.createByName({ normalizedName: 'a food' });
             const b = await foods.createByName({ normalizedName: 'b food' });
-            await requesters.add({ foodId: a.id, sub: 'x' });
+            await requesters.add({ foodId: a.id, requesterId: 'x' });
             await queue.enqueue(a.id);
-            await requesters.add({ foodId: b.id, sub: 'y' });
+            await requesters.add({ foodId: b.id, requesterId: 'y' });
             await queue.enqueue(b.id);
 
             const first = await queue.leaseNext(30);
@@ -112,7 +112,7 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
     describe('reaper reclaim of a stale in_flight lease (FR-018)', () => {
         it('reapExpiredLeases reverts an in_flight row whose leased_at is older than the timeout → pending', async () => {
             const { id } = await foods.createByName({ normalizedName: 'stale food' });
-            await requesters.add({ foodId: id, sub: 'a' });
+            await requesters.add({ foodId: id, requesterId: 'a' });
             await queue.enqueue(id);
             // Lease it, then backdate the lease so it appears expired.
             await queue.leaseNext(30);
@@ -128,7 +128,7 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
 
         it('leaseNext itself reclaims a stale in_flight row (reaper-on-claim) WITHOUT touching attempts', async () => {
             const { id } = await foods.createByName({ normalizedName: 'orphan food' });
-            await requesters.add({ foodId: id, sub: 'a' });
+            await requesters.add({ foodId: id, requesterId: 'a' });
             await queue.enqueue(id);
             await queue.leaseNext(30);
             await pool.query(`UPDATE fetch_queue SET leased_at = now() - interval '120 seconds' WHERE food_id = $1`, [
@@ -142,21 +142,21 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
     });
 
     describe('fairness + lifecycle', () => {
-        it("pendingCountForSub counts a sub's pending queue rows (FR-043)", async () => {
+        it("pendingCountForRequester counts a sub's pending queue rows (FR-043)", async () => {
             const f1 = await foods.createByName({ normalizedName: 'f1' });
             const f2 = await foods.createByName({ normalizedName: 'f2' });
-            await requesters.add({ foodId: f1.id, sub: 'heavy' });
+            await requesters.add({ foodId: f1.id, requesterId: 'heavy' });
             await queue.enqueue(f1.id);
-            await requesters.add({ foodId: f2.id, sub: 'heavy' });
+            await requesters.add({ foodId: f2.id, requesterId: 'heavy' });
             await queue.enqueue(f2.id);
 
-            expect(await queue.pendingCountForSub('heavy')).toBe(2);
+            expect(await queue.pendingCountForRequester('heavy')).toBe(2);
         });
 
         it('resolve prunes the queue row AND its requester rows (DSN-10)', async () => {
             const { id } = await foods.createByName({ normalizedName: 'resolved food' });
-            await requesters.add({ foodId: id, sub: 'a' });
-            await requesters.add({ foodId: id, sub: 'b' });
+            await requesters.add({ foodId: id, requesterId: 'a' });
+            await requesters.add({ foodId: id, requesterId: 'b' });
             await queue.enqueue(id);
 
             await queue.resolve(id);
@@ -166,7 +166,7 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
 
         it('tombstone marks the row and prunes requesters', async () => {
             const { id } = await foods.createByName({ normalizedName: 'gone food' });
-            await requesters.add({ foodId: id, sub: 'a' });
+            await requesters.add({ foodId: id, requesterId: 'a' });
             await queue.enqueue(id);
 
             await queue.tombstone(id, 'exhausted');
@@ -178,11 +178,11 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
 
         it('reactivate revives a tombstone row → pending, clearing failure/lease bookkeeping (FR-028a)', async () => {
             const { id } = await foods.createByName({ normalizedName: 'revived food' });
-            await requesters.add({ foodId: id, sub: 'a' });
+            await requesters.add({ foodId: id, requesterId: 'a' });
             await queue.enqueue(id);
             await queue.tombstone(id, 'exhausted');
 
-            await requesters.add({ foodId: id, sub: 'a' });
+            await requesters.add({ foodId: id, requesterId: 'a' });
             const row = await queue.reactivate(id);
             expect(row.status).toBe('pending');
             expect(row.attempts).toBe(0);
@@ -198,7 +198,7 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
 
         it('returns the age in seconds of the OLDEST pending row, ignoring in_flight/tombstone rows', async () => {
             const stale = await foods.createByName({ normalizedName: 'stale pending' });
-            await requesters.add({ foodId: stale.id, sub: 'a' });
+            await requesters.add({ foodId: stale.id, requesterId: 'a' });
             await queue.enqueue(stale.id);
             // Backdate first_requested by 10 minutes so the oldest-pending age is deterministic.
             await pool.query(
@@ -207,7 +207,7 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
             );
 
             const fresh = await foods.createByName({ normalizedName: 'fresh pending' });
-            await requesters.add({ foodId: fresh.id, sub: 'b' });
+            await requesters.add({ foodId: fresh.id, requesterId: 'b' });
             await queue.enqueue(fresh.id);
 
             const age = await queue.pendingAgeSeconds();

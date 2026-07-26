@@ -46,14 +46,15 @@ export class AdmissionService {
     }
 
     /**
-     * Admit a NEW enqueue for `sub`, or fail closed with `503` (FR-046/FR-043b).
+     * Admit a NEW enqueue for a requester, or fail closed with `503` (FR-046/FR-043b).
      *
-     * @param sub - The verified requester (for the near-ceiling flood-shed decision).
+     * @param requesterId - The requester key (CR-002/U1: app-user ULID or `svc_*`) for the near-ceiling
+     *   flood-shed decision.
      * @throws {FetchUnavailableError} (→ 503 + Retry-After) at the depth ceiling, or near the ceiling
-     *   when `sub` is a flooding requester.
+     *   when the requester is flooding.
      * @sideEffect Reads `fetch_queue` / `fetch_requesters`.
      */
-    public async admit(sub: string): Promise<void> {
+    public async admit(requesterId: string): Promise<void> {
         const depth = await this.activeDepth();
 
         if (depth >= this.maxQueueDepth) {
@@ -61,7 +62,7 @@ export class AdmissionService {
         }
 
         if (depth >= this.maxQueueDepth * NEAR_CEILING_FRACTION) {
-            const pending = await this.pendingCountForSub(sub);
+            const pending = await this.pendingCountForRequester(requesterId);
 
             if (pending > this.demoteThreshold) {
                 throw new FetchUnavailableError(this.retryAfter(), 'Fetch temporarily unavailable (flood-shed)');
@@ -78,12 +79,12 @@ export class AdmissionService {
         return result.rows[0]?.n ?? 0;
     }
 
-    /** A `sub`'s live pending demand (the flood-shed input). */
-    private async pendingCountForSub(sub: string): Promise<number> {
+    /** A requester's live pending demand (the flood-shed input). */
+    private async pendingCountForRequester(requesterId: string): Promise<number> {
         const result = await this.db.execute<{ n: number }>(sql`
             SELECT count(*)::int AS n
               FROM fetch_queue q JOIN fetch_requesters r USING (food_id)
-             WHERE r.sub = ${sub} AND q.status = 'pending'
+             WHERE r.requester_id = ${requesterId} AND q.status = 'pending'
         `);
 
         return result.rows[0]?.n ?? 0;

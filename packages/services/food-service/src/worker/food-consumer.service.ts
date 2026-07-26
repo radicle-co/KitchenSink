@@ -22,7 +22,7 @@
  * never clobbering a manual pick (FR-031/FR-032).
  *
  * Before any source call, each leased row is provenance-checked (FR-048, T-053): the recorded
- * `fetch_requesters` set must name at least one real principal (a verified user `sub` or an
+ * `fetch_requesters` set must name at least one real principal (an app-user ULID or an
  * allowlisted `svc_*` service principal) — a row with no valid recorded requester is refused
  * (tombstoned, no source call), so no unauthenticated producer can drive external consumption.
  *
@@ -247,11 +247,11 @@ export class FoodConsumerService {
         // does not name a real principal — no requester at all, or a forbidden `'system'` shortcut means
         // an unauthenticated/unauthorized producer enqueued it, so NO external source call may happen on
         // its behalf. Tombstone the row (it never should have existed) without touching the source.
-        const requesterSubs = await this.queue.listRequesterSubs(foodId);
+        const requesterIds = await this.queue.listRequesterIds(foodId);
 
-        if (!hasValidProvenance(requesterSubs)) {
+        if (!hasValidProvenance(requesterIds)) {
             await this.queue.tombstone(foodId, 'unauthenticated_producer');
-            this.logger.warn('provenance-refused', { foodId, requesters: requesterSubs.length });
+            this.logger.warn('provenance-refused', { foodId, requesters: requesterIds.length });
 
             return 'rejected_provenance';
         }

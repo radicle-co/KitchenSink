@@ -190,18 +190,18 @@ export class FoodsService {
      * current status WITHOUT enqueuing (no scarce source budget burned).
      *
      * @param name - The display name (already validated non-empty by the controller).
-     * @param sub - The verified requester.
+     * @param requesterId - The requester key (CR-002/U1: app-user ULID or `svc_*`).
      * @returns The id + resulting status.
      * @throws {FetchUnavailableError} (→ 503) when a fresh enqueue is shed by backpressure.
      */
-    public async addByName(name: string, sub: string): Promise<AddResponse> {
+    public async addByName(name: string, requesterId: string): Promise<AddResponse> {
         const result = await this.foodDao.createByName({ normalizedName: normalizeName(name), displayName: name });
 
         if (result.created || result.reactivated) {
-            await this.admission.admit(sub);
+            await this.admission.admit(requesterId);
             await this.enqueue.publishFoodRequested({
                 id: result.id,
-                requestedBy: sub,
+                requestedBy: requesterId,
                 reactivate: result.reactivated,
             });
 
@@ -216,8 +216,8 @@ export class FoodsService {
         // means the disambiguation choices have aged out; re-enqueue to re-run the fan-out. The food stays
         // UNRESOLVED until the worker re-resolves it — it is never swept to NOT_FOUND.
         if (status === 'UNRESOLVED' && (await this.candidates.getCandidates(result.id)).length === 0) {
-            await this.admission.admit(sub);
-            await this.enqueue.publishFoodRequested({ id: result.id, requestedBy: sub, reactivate: true });
+            await this.admission.admit(requesterId);
+            await this.enqueue.publishFoodRequested({ id: result.id, requestedBy: requesterId, reactivate: true });
 
             return { id: result.id, status, estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS };
         }
@@ -231,11 +231,11 @@ export class FoodsService {
      * enqueued and returned `PENDING`. The caller-side ≤100 cap is enforced in the controller.
      *
      * @param names - The names to add (post-cap).
-     * @param sub - The verified requester.
+     * @param requesterId - The requester key (CR-002/U1: app-user ULID or `svc_*`).
      * @returns Per-item results (inline hits + pending misses).
      * @throws {FetchUnavailableError} (→ 503) when the batch is shed by backpressure.
      */
-    public async batchAdd(names: string[], sub: string): Promise<BatchResponse> {
+    public async batchAdd(names: string[], requesterId: string): Promise<BatchResponse> {
         // Intra-batch dedup: collapse repeated names (by normalized key) to one item, first-wins.
         const unique = new Map<string, string>();
 
@@ -274,12 +274,12 @@ export class FoodsService {
         }
 
         if (willEnqueue.length > 0) {
-            await this.admission.admit(sub);
+            await this.admission.admit(requesterId);
             await this.enqueue.publishFoodBatchRequested({
                 foods: items
                     .filter((item) => willEnqueue.includes(item.id))
                     .map((item) => ({ id: item.id, reactivate: true })),
-                requestedBy: sub,
+                requestedBy: requesterId,
             });
         }
 
@@ -294,14 +294,14 @@ export class FoodsService {
      *
      * @param id - The internal food id.
      * @param candidateIds - The picked candidate row ids.
-     * @param sub - The verified requester (unused for budget; resolves draw from reserved headroom, DSN-6).
+     * @param _requesterId - The requester key (unused for budget; resolves draw from reserved headroom, DSN-6).
      * @returns The id + `RESOLVED` status.
      * @throws {FoodNotFoundError} (→ 404) when no row exists.
      * @throws {NotResolvableError} (→ 409) when the food is not `UNRESOLVED` (and not an idempotent `RESOLVED`).
      * @throws {CandidateMismatchError} (→ 409) when a pick is not in the food's candidate set.
      * @throws {FetchUnavailableError} (→ 503) when the re-fetch cannot draw from the rolling-window budget.
      */
-    public async patchResolve(id: string, candidateIds: string[], _sub: string): Promise<ResolveResponse> {
+    public async patchResolve(id: string, candidateIds: string[], _requesterId: string): Promise<ResolveResponse> {
         const food = await this.foodDao.getById(id);
 
         if (!food) {
@@ -366,18 +366,18 @@ export class FoodsService {
      * the controller, FR-039). Re-enqueues the food (reactivating its queue row).
      *
      * @param id - The internal food id.
-     * @param sub - The verified admin principal (FR-048 provenance).
+     * @param requesterId - The verified admin requester key (FR-048 provenance; app-user ULID or `svc_*`).
      * @returns The id + `PENDING`-ish accepted status.
      * @throws {FoodNotFoundError} (→ 404) when no row exists.
      */
-    public async refetch(id: string, sub: string): Promise<AddResponse> {
+    public async refetch(id: string, requesterId: string): Promise<AddResponse> {
         const food = await this.foodDao.getById(id);
 
         if (!food) {
             throw new FoodNotFoundError(id);
         }
 
-        await this.enqueue.publishFoodRequested({ id, requestedBy: sub, reactivate: true });
+        await this.enqueue.publishFoodRequested({ id, requestedBy: requesterId, reactivate: true });
 
         return { id, status: food.status, estimatedWaitSeconds: ESTIMATED_WAIT_SECONDS };
     }

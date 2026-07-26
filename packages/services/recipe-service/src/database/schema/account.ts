@@ -7,7 +7,18 @@
  * data is being erased directly as `VARCHAR(255) NOT NULL` — no FK, no user replication.
  */
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
-import { check, index, integer, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
+import {
+    check,
+    index,
+    integer,
+    jsonb,
+    pgTable,
+    text,
+    timestamp,
+    uniqueIndex,
+    uuid,
+    varchar,
+} from 'drizzle-orm/pg-core';
 
 /** Canonical erasure job status enum (authoritative source for every artifact). */
 export const ERASURE_JOB_STATUSES = ['queued', 'running', 'completed', 'failed'] as const;
@@ -41,6 +52,22 @@ export const accountErasureJobs = pgTable(
         status: text('status').notNull().default('queued'),
         attempts: integer('attempts').notNull().default(0),
         lastError: text('last_error'),
+
+        // The per-recipe DONATE election (CR-002 / U3b): the recipe ids the owner elected to PUBLISH
+        // (donate) rather than remove. The DURABLE SOURCE OF TRUTH for the election — the worker reads it
+        // from the claimed row, not from the SQS message (which is a derived carrier), so the sweeper can
+        // reconstruct a lost message from the row and a stale/forged message can never redirect the
+        // election. NULL / [] ⇒ donate nothing ⇒ every owner-only recipe is removed (the default).
+        publishRecipeIds: jsonb('publish_recipe_ids').$type<string[]>(),
+
+        // The captured REMOVED-recipe id set (CR-002 / U3a — crash-convergence). The owner-only (non
+        // truly-public) recipes this erasure removes, written INSIDE the same transaction that deletes
+        // them. The scoped S3 sweep is driven per-removed-recipe (not by the owner prefix, which would
+        // delete kept media), so the ids must survive the row delete: after the DELETE they are
+        // unrecoverable from `recipes`, and an SQS redelivery re-claims the still-`running` job and reads
+        // this column to finish the sweep. Written ONCE (guarded `IS NULL`), so a replay never clobbers it.
+        removedRecipeIds: jsonb('removed_recipe_ids').$type<string[]>(),
+
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     },

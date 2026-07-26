@@ -5,6 +5,8 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
 
+import { recipeMediaPrefix } from '@kitchensink/recipe-core';
+
 import { eraseRecipeObjects, ownerMediaPrefix } from '../../../src/handlers/account-erasure-worker.js';
 import { readRecentlyCompletedOwners } from '../../../src/handlers/erasure-orphan-sweeper.js';
 
@@ -58,6 +60,9 @@ const OWNER_BYSTANDER = '01JORPHAN000BYSTANDER0OWNER';
 
 const ALL_OWNERS = [OWNER_COMPLETED, OWNER_RUNNING, OWNER_STALE, OWNER_BYSTANDER];
 
+/** The single REMOVED recipe id each fixture owner's orphan lives under (CR-002 / U3a per-recipe scoping). */
+const ORPHAN_RECIPE = 'r-orphan-00000000000000000000001';
+
 describe.skipIf(!canRun)('erasure-orphan sweep — completed-owner reconciliation (integration)', () => {
     let pool: pg.Pool;
     let db: NodePgDatabase<Record<string, never>>;
@@ -79,9 +84,9 @@ describe.skipIf(!canRun)('erasure-orphan sweep — completed-owner reconciliatio
     afterEach(async () => {
         await db.execute(sql`DELETE FROM account_erasure_jobs WHERE owner_id IN (${sql.join(ALL_OWNERS, sql`, `)})`);
 
-        // S3 has no owner-scoped DB teardown — clear every prefix this suite may have planted.
+        // S3 has no owner-scoped DB teardown — clear every removed-recipe prefix this suite may have planted.
         for (const owner of ALL_OWNERS) {
-            await eraseRecipeObjects(s3, ARCHIVE_BUCKET, owner);
+            await eraseRecipeObjects(s3, ARCHIVE_BUCKET, owner, ORPHAN_RECIPE);
         }
     });
 
@@ -90,21 +95,29 @@ describe.skipIf(!canRun)('erasure-orphan sweep — completed-owner reconciliatio
         await pool.end();
     });
 
-    /** Insert an erasure job with an explicit status and completion age (how long ago it was last touched). */
-    async function seedJob(ownerId: string, status: string, updatedMinutesAgo: number): Promise<void> {
+    /**
+     * Insert an erasure job with an explicit status, completion age, and — for a `completed` job — the
+     * removed-recipe id set the sweeper reconciles (defaults to the one {@link ORPHAN_RECIPE}).
+     */
+    async function seedJob(
+        ownerId: string,
+        status: string,
+        updatedMinutesAgo: number,
+        removedRecipeIds: string[] = [ORPHAN_RECIPE],
+    ): Promise<void> {
         await db.execute(sql`
-            INSERT INTO account_erasure_jobs (owner_id, status, created_at, updated_at)
+            INSERT INTO account_erasure_jobs (owner_id, status, removed_recipe_ids, created_at, updated_at)
             VALUES (
-                ${ownerId}, ${status},
+                ${ownerId}, ${status}, ${JSON.stringify(removedRecipeIds)}::jsonb,
                 now() - ${sql.raw(`interval '${updatedMinutesAgo} minutes'`)},
                 now() - ${sql.raw(`interval '${updatedMinutesAgo} minutes'`)}
             )
         `);
     }
 
-    /** Plant one object under an owner's archive prefix — the shape a late archive PUT would orphan. */
+    /** Plant one object under an owner's REMOVED-recipe archive prefix — the shape a late archive PUT orphans. */
     async function plantArchiveObject(ownerId: string): Promise<string> {
-        const key = `${ownerMediaPrefix(ownerId)}r1/versions/1.json`;
+        const key = `${recipeMediaPrefix(ownerId, ORPHAN_RECIPE)}versions/1.json`;
         await s3.send(new PutObjectCommand({ Bucket: ARCHIVE_BUCKET, Key: key, Body: '{"orphan":true}' }));
 
         return key;
@@ -118,13 +131,15 @@ describe.skipIf(!canRun)('erasure-orphan sweep — completed-owner reconciliatio
         return (listed.Contents ?? []).flatMap((entry) => (entry.Key ? [entry.Key] : []));
     }
 
-    /** Reconstruct the handler: read the completed owners, then sweep each one's archive prefix. */
+    /** Reconstruct the handler: read the completed owners, then sweep each removed recipe's prefix. */
     async function runSweep(): Promise<number> {
         const owners = await readRecentlyCompletedOwners(db);
         let deleted = 0;
 
-        for (const owner of owners) {
-            deleted += await eraseRecipeObjects(s3, ARCHIVE_BUCKET, owner);
+        for (const { ownerId, removedRecipeIds } of owners) {
+            for (const recipeId of removedRecipeIds ?? []) {
+                deleted += await eraseRecipeObjects(s3, ARCHIVE_BUCKET, ownerId, recipeId);
+            }
         }
 
         return deleted;
@@ -157,7 +172,7 @@ describe.skipIf(!canRun)('erasure-orphan sweep — completed-owner reconciliatio
 
         const owners = await readRecentlyCompletedOwners(db);
 
-        expect(owners).not.toContain(OWNER_STALE);
+        expect(owners.map((o) => o.ownerId)).not.toContain(OWNER_STALE);
         // Because the sweep never selects it, an object under its prefix is left alone by this run.
         expect(await listPrefix(OWNER_STALE)).toEqual([survivor]);
     });

@@ -53,14 +53,19 @@ export class ErasureJobsDal {
      * cleanly — which is exactly the C-007 "after a `failed` job, a fresh job is enqueued" behaviour,
      * expressed by the schema rather than by a status check in application code.
      *
+     * The DONATE election (CR-002 / U3b) is persisted on THIS row as the durable source of truth: the
+     * worker reads it from the row it claims, not from the SQS message, so a lost/replayed message cannot
+     * change which recipes were donated. An empty election ⇒ every owner-only recipe is removed.
+     *
      * @param ownerId - The app-user ULID whose data is to be erased.
+     * @param publishRecipeIds - The recipe ids the owner elected to publish (donate); empty ⇒ donate none.
      * @returns The new job's id, or `undefined` when an in-flight job already exists (conflict).
      * @sideEffect Inserts into `account_erasure_jobs`.
      */
-    public async insertQueuedJob(ownerId: string): Promise<string | undefined> {
+    public async insertQueuedJob(ownerId: string, publishRecipeIds: readonly string[] = []): Promise<string | undefined> {
         const inserted = await this.db
             .insert(accountErasureJobs)
-            .values({ ownerId })
+            .values({ ownerId, publishRecipeIds: [...publishRecipeIds] })
             .onConflictDoNothing({ target: accountErasureJobs.ownerId, where: ACTIVE_OWNER_INDEX_PREDICATE })
             .returning({ id: accountErasureJobs.id });
 

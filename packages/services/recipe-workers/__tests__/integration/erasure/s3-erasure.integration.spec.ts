@@ -8,7 +8,7 @@ import {
     S3Client,
 } from '@aws-sdk/client-s3';
 
-import { recipePhotoThumbnailKey } from '@kitchensink/recipe-core';
+import { recipeMediaPrefix, recipePhotoThumbnailKey } from '@kitchensink/recipe-core';
 
 import { eraseRecipeObjects, ownerMediaPrefix } from '../../../src/handlers/account-erasure-worker.js';
 import { snapshotObjectKey } from '../../../src/handlers/version-archive-worker.js';
@@ -61,43 +61,43 @@ describe.skipIf(!hasS3Endpoint)('recipe-workers S3 integration', () => {
         client?.destroy();
     });
 
-    it('erases only the target owner’s media and reports the deleted count, idempotently', async () => {
-        await putObject(client, bucket, `${ownerMediaPrefix(OWNER_A)}r1/cover.jpg`, 'a1');
-        await putObject(client, bucket, `${ownerMediaPrefix(OWNER_A)}r1/step-1.jpg`, 'a2');
-        await putObject(client, bucket, `${ownerMediaPrefix(OWNER_B)}r9/cover.jpg`, 'b1');
+    it('erases only the target REMOVED recipe’s media and reports the deleted count, idempotently', async () => {
+        // Two objects of OWNER_A's removed recipe `r1`, plus an object of OWNER_B's recipe `r9`.
+        await putObject(client, bucket, `${recipeMediaPrefix(OWNER_A, 'r1')}cover.jpg`, 'a1');
+        await putObject(client, bucket, `${recipeMediaPrefix(OWNER_A, 'r1')}step-1.jpg`, 'a2');
+        await putObject(client, bucket, `${recipeMediaPrefix(OWNER_B, 'r9')}cover.jpg`, 'b1');
 
-        const deleted = await eraseRecipeObjects(client, bucket, OWNER_A);
+        const deleted = await eraseRecipeObjects(client, bucket, OWNER_A, 'r1');
 
         expect(deleted).toBe(2);
-        expect(await listKeys(client, bucket, ownerMediaPrefix(OWNER_A))).toEqual([]);
-        // Prefix scoping: the other owner's object is untouched.
+        expect(await listKeys(client, bucket, recipeMediaPrefix(OWNER_A, 'r1'))).toEqual([]);
+        // Per-recipe scoping: the other owner's recipe object is untouched.
         expect(await listKeys(client, bucket, ownerMediaPrefix(OWNER_B))).toEqual([
-            `${ownerMediaPrefix(OWNER_B)}r9/cover.jpg`,
+            `${recipeMediaPrefix(OWNER_B, 'r9')}cover.jpg`,
         ]);
 
-        // Idempotent replay over an already-erased owner deletes nothing.
-        expect(await eraseRecipeObjects(client, bucket, OWNER_A)).toBe(0);
+        // Idempotent replay over an already-swept recipe deletes nothing.
+        expect(await eraseRecipeObjects(client, bucket, OWNER_A, 'r1')).toBe(0);
     });
 
-    it('erases the cover-thumbnail rendition together with its owner (FOLLOW-UP-CR-001-A containment)', async () => {
-        // The thumbnail is a NEW owner-scoped object. Its right-to-erasure guarantee is structural: the
-        // key is derived by `recipePhotoThumbnailKey` (append), so it lives under the SAME owner prefix the
-        // sweep lists. This proves that through the REAL sweep — plant an original photo AND its thumbnail,
-        // erase the owner, and assert BOTH are gone. A variant scheme that relocated the thumbnail off the
-        // owner prefix (the verticals-8 defect) would leave the thumbnail object behind and fail here.
-        const originalKey = `${ownerMediaPrefix(OWNER_C)}r1/photos/00000000-0000-4000-8000-0000000000c1`;
+    it('erases the cover-thumbnail rendition together with its recipe (FOLLOW-UP-CR-001-A containment)', async () => {
+        // The thumbnail is a NEW recipe-scoped object. Its right-to-erasure guarantee is structural: the
+        // key is derived by `recipePhotoThumbnailKey` (append), so it lives under the SAME per-recipe prefix
+        // the scoped sweep lists. This proves that through the REAL sweep — plant an original photo AND its
+        // thumbnail, sweep the removed recipe, and assert BOTH are gone.
+        const originalKey = `${recipeMediaPrefix(OWNER_C, 'r1')}photos/00000000-0000-4000-8000-0000000000c1`;
         const thumbnailKey = recipePhotoThumbnailKey(originalKey);
 
-        expect(thumbnailKey.startsWith(ownerMediaPrefix(OWNER_C))).toBe(true);
+        expect(thumbnailKey.startsWith(recipeMediaPrefix(OWNER_C, 'r1'))).toBe(true);
 
         await putObject(client, bucket, originalKey, 'original-bytes');
         await putObject(client, bucket, thumbnailKey, 'thumbnail-bytes');
 
-        const deleted = await eraseRecipeObjects(client, bucket, OWNER_C);
+        const deleted = await eraseRecipeObjects(client, bucket, OWNER_C, 'r1');
 
         // Both the original and its derived thumbnail were swept.
         expect(deleted).toBe(2);
-        expect(await listKeys(client, bucket, ownerMediaPrefix(OWNER_C))).toEqual([]);
+        expect(await listKeys(client, bucket, recipeMediaPrefix(OWNER_C, 'r1'))).toEqual([]);
     });
 
     it('writes and reads back a version snapshot at the deterministic key', async () => {

@@ -283,6 +283,30 @@ describe('CollectionsService.pullFromSource', () => {
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.COLLECTION_NOT_CLONED);
         expect(dal.addRecipes).not.toHaveBeenCalled();
     });
+
+    it('degrades gracefully when the source owner was ERASED (source_collection_id SET NULL — CR-002 / U3c)', async () => {
+        // Erasure removes ALL of a user's collections; `source_collection_id` on any clone of one is ON
+        // DELETE SET NULL, so the clone SURVIVES with a null pointer. A cloner who then pulls must degrade
+        // gracefully — a controlled COLLECTION_NOT_CLONED (the clone reverts to a plain collection), NEVER a
+        // crash and NEVER losing the recipes the clone already holds.
+        const dal = makeDal();
+        const orphanedClone = makeCollectionRow({ id: CLONE_ID, ownerId: CLONER, sourceCollectionId: null });
+        dal.findById.mockImplementation(async (id: string) => (id === CLONE_ID ? orphanedClone : undefined));
+        const service = makeService(dal);
+
+        const error = await service.pullFromSource(CLONER, CLONE_ID).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(error).toBeInstanceOf(RecipeDomainError);
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.COLLECTION_NOT_CLONED);
+        // No data loss: the clone's own memberships are never touched (no seed, no delete).
+        expect(dal.addRecipes).not.toHaveBeenCalled();
+        expect(dal.removeRecipe).not.toHaveBeenCalled();
+        // And it never dereferenced the (gone) source — no source lookup was even attempted.
+        expect(dal.previewMembershipIds).not.toHaveBeenCalled();
+    });
 });
 
 describe('CollectionsService.previewPull (W8-a.8 — read-only preview)', () => {

@@ -9,7 +9,7 @@
  * sane length, optional), while its VALUE is a domain rule enforced by {@link ErasureService} — which is
  * where the "validate before queuing the job" requirement lives and where it is unit-tested.
  */
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 import type { ActiveErasureJobStatus } from '../../database/schema/account.js';
 
@@ -21,8 +21,28 @@ import type { ActiveErasureJobStatus } from '../../database/schema/account.js';
  */
 export const ACCOUNT_ERASURE_CONFIRMATION_PHRASE = 'ERASE MY DATA';
 
+/**
+ * The permanence warning the donate-election UI (U4b) MUST show beside every "publish instead of delete"
+ * choice (CR-002 / U3b). A donated recipe is flipped to public + published as part of an IRREVERSIBLE
+ * erasure and is thereafter attributed to a pseudonymous handle the erased owner no longer controls — so
+ * they can never edit or take it down. Exported (like {@link ACCOUNT_ERASURE_CONFIRMATION_PHRASE}) so the
+ * eventual UI renders ONE authoritative copy rather than drifting a second string.
+ *
+ * NOTE: this is the backend/DTO source of the copy (U3b scope). The real per-platform UI is U4b, where it
+ * is rendered through the localization path — this constant is the canonical English text it localizes.
+ */
+export const ACCOUNT_ERASURE_PUBLISH_WARNING =
+    'Recipes you choose to publish become public and are permanently unremovable by you once your account is erased.';
+
 /** Upper bound on the accepted phrase length — a confirmation, not a payload. */
 const MAX_CONFIRMATION_PHRASE_LENGTH = 100;
+
+/**
+ * Upper bound on how many recipes one request may elect to publish. A generous cap that a real corpus
+ * will not approach, present only so a single request cannot smuggle an unbounded array into the durable
+ * job row (a payload-size / DoS guard, not a product limit).
+ */
+const MAX_PUBLISH_ELECTION_SIZE = 1000;
 
 /**
  * Body of `POST /v1/account/erasure`. `confirmationPhrase` is REQUIRED (U7 — erasure is irreversible, so
@@ -37,6 +57,20 @@ export class ErasureRequestDto {
     @IsNotEmpty()
     @MaxLength(MAX_CONFIRMATION_PHRASE_LENGTH)
     confirmationPhrase!: string;
+
+    /**
+     * The per-recipe DONATE election (CR-002 / U3b): the recipe ids the caller elected to PUBLISH
+     * (donate) instead of remove. OPTIONAL — an absent/empty list means "donate nothing", so every
+     * owner-only recipe is removed (the default). Each entry is validated as a UUID (the `recipes.id`
+     * shape); the worker additionally scopes the publish-flip to `owner_id = caller`, so an id the caller
+     * does not own — or one already public — is a harmless no-op rather than a way to publish another
+     * user's recipe. Capped so a single request cannot persist an unbounded array on the job row.
+     */
+    @IsOptional()
+    @IsArray()
+    @ArrayMaxSize(MAX_PUBLISH_ELECTION_SIZE)
+    @IsUUID('all', { each: true })
+    publishRecipeIds?: string[];
 }
 
 /**

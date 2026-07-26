@@ -16,6 +16,8 @@ export function makeErasureJobRow(overrides: Partial<AccountErasureJobRow> = {})
         status: 'queued',
         attempts: 0,
         lastError: null,
+        publishRecipeIds: null,
+        removedRecipeIds: null,
         createdAt: FIXED_DATE,
         updatedAt: FIXED_DATE,
         ...overrides,

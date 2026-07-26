@@ -37,7 +37,20 @@ describe('ErasureJobsDal.insertQueuedJob', () => {
 
         await expect(dal.insertQueuedJob(OWNER)).resolves.toBe(JOB_ID);
         expect(fake.calls[0]).toMatchObject({ method: 'insert' });
-        expect(fake.calls[1]?.args[0]).toEqual({ ownerId: OWNER });
+        // Default election ⇒ donate nothing: an explicit empty array is persisted, never a NULL the worker
+        // has to interpret.
+        expect(fake.calls[1]?.args[0]).toEqual({ ownerId: OWNER, publishRecipeIds: [] });
+    });
+
+    it('persists the DONATE election on the job row as the durable source of truth (U3b)', async () => {
+        const fake = createFakeDb();
+        fake.enqueue([{ id: JOB_ID }]);
+        const dal = new ErasureJobsDal(fake.db);
+        const publishRecipeIds = ['00000000-0000-4000-8000-0000000000d1'];
+
+        await dal.insertQueuedJob(OWNER, publishRecipeIds);
+
+        expect(fake.calls[1]?.args[0]).toEqual({ ownerId: OWNER, publishRecipeIds });
     });
 
     it('defers to the partial unique index via ON CONFLICT DO NOTHING (no read-then-write TOCTOU)', async () => {

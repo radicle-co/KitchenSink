@@ -78,6 +78,10 @@ export class ErasureService {
     public async requestErasure(ownerId: string, request?: ErasureRequestDto): Promise<ErasureRequestAcceptedResponse> {
         assertConfirmationPhrase(request?.confirmationPhrase);
 
+        // The per-recipe DONATE election (U3b). Defaulted to [] ("donate nothing") when absent, so the
+        // durable row always records an explicit election rather than a NULL the worker has to interpret.
+        const publishRecipeIds = request?.publishRecipeIds ?? [];
+
         for (let attempt = 1; attempt <= MAX_ERASURE_REQUEST_ATTEMPTS; attempt += 1) {
             // Terminal state first: an account whose erasure already completed has nothing left to erase,
             // and the index would happily accept a new row for it (a `completed` row is outside the
@@ -89,10 +93,10 @@ export class ErasureService {
                 });
             }
 
-            const jobId = await this.jobs.insertQueuedJob(ownerId);
+            const jobId = await this.jobs.insertQueuedJob(ownerId, publishRecipeIds);
 
             if (jobId !== undefined) {
-                await this.enqueue(ownerId, jobId);
+                await this.enqueue(ownerId, jobId, publishRecipeIds);
 
                 return { jobId, status: 'queued' };
             }
@@ -120,10 +124,17 @@ export class ErasureService {
      * failure costs latency, not the request. It is logged at `error` because a queue that is down is a
      * real operational signal even though it is not a client-visible one.
      *
+     * The election rides the message as an eager carrier (U3b); the durable row remains the source of
+     * truth, so a message lost before the worker reads it is reconstructed from the row by the sweeper.
+     *
      * @sideEffect Sends an SQS message; logs on failure.
      */
-    private async enqueue(ownerId: string, jobId: string): Promise<void> {
-        const message: AccountErasureMessage = { ownerId, requestedAt: new Date().toISOString() };
+    private async enqueue(ownerId: string, jobId: string, publishRecipeIds: readonly string[]): Promise<void> {
+        const message: AccountErasureMessage = {
+            ownerId,
+            requestedAt: new Date().toISOString(),
+            publishRecipeIds: [...publishRecipeIds],
+        };
 
         try {
             await this.queue.enqueue(message);

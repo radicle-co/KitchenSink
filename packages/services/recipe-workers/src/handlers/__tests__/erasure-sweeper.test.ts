@@ -52,6 +52,9 @@ function makeStaleJob(overrides: Partial<StaleErasureJobRow> = {}): StaleErasure
     return {
         id: 'job-1',
         owner_id: '01J0000000000000000000OWN0',
+        // No donate election by default; a test that cares sets it. Reconstructed onto the wire (U3b) so a
+        // job recovered from the durable row does not lose the election its eager message carried.
+        publish_recipe_ids: null,
         attempts: 1,
         // Old by default (2h) so an attempts-exhausted fixture is past the give-up age floor unless a test
         // makes it young on purpose (the U5 cross-generation-counter guard).
@@ -100,17 +103,30 @@ afterEach(() => {
 });
 
 describe('toErasureMessage', () => {
-    it('produces the owner-scoped contract the worker parses', () => {
+    it('produces the owner-scoped contract the worker parses, defaulting a null election to donate-nothing', () => {
         const message = toErasureMessage(makeStaleJob(), '2026-07-16T00:00:00.000Z');
 
         // No jobId, deliberately: `idx_erasure_jobs_active_owner` makes "the active job for this owner"
         // unique, so the worker resolves the job FROM ownerId. A jobId on the wire would let a redelivered
         // message name a job that is no longer the active one — the exact index violation the worker's
-        // `claimErasureJob` avoids by resolving on owner.
+        // `claimErasureJob` avoids by resolving on owner. A `null` persisted election ⇒ `[]` (donate none).
         expect(message).toEqual({
             ownerId: '01J0000000000000000000OWN0',
             requestedAt: '2026-07-16T00:00:00.000Z',
+            publishRecipeIds: [],
         });
+    });
+
+    it('reconstructs the DONATE election from the durable row (U3b) so a re-drained job does not lose it', () => {
+        // THE reason this reads the row: the eager message this sweeper backstops was LOST, so re-sending an
+        // empty election would silently turn the owner's "publish these" into "delete everything". The row is
+        // the source of truth, so the election rides the reconstructed message.
+        const message = toErasureMessage(
+            makeStaleJob({ publish_recipe_ids: ['00000000-0000-4000-8000-0000000000d1'] }),
+            '2026-07-16T00:00:00.000Z',
+        );
+
+        expect(message.publishRecipeIds).toEqual(['00000000-0000-4000-8000-0000000000d1']);
     });
 });
 

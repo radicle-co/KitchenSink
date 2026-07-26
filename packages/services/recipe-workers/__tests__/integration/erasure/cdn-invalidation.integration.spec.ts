@@ -85,7 +85,7 @@ describe.skipIf(!hasS3Endpoint)('account-erasure worker — CDN invalidation aft
             }),
         );
 
-        const deleted = await eraseRecipeObjects(client, bucket, OWNER);
+        const deleted = await eraseRecipeObjects(client, bucket, OWNER, 'r1');
         expect(deleted).toBe(2);
 
         // Genuinely gone from S3 — not a mocked assertion.
@@ -114,7 +114,7 @@ describe.skipIf(!hasS3Endpoint)('account-erasure worker — CDN invalidation aft
         await client.send(
             new PutObjectCommand({ Bucket: bucket, Key: `${ownerMediaPrefix(OWNER)}r2/cover.jpg`, Body: 'a' }),
         );
-        await eraseRecipeObjects(client, bucket, OWNER);
+        await eraseRecipeObjects(client, bucket, OWNER, 'r2');
 
         const cdn = createCloudFrontInvalidation({});
         await expect(cdn.invalidate([cdnOwnerPrefixInvalidationPath(OWNER)])).resolves.toBeUndefined();

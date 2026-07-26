@@ -264,113 +264,225 @@ describe('parseErasureMessage', () => {
     });
 });
 
-describe('eraseRecipeRows', () => {
-    it('runs every delete inside ONE transaction so a crash cannot half-erase', async () => {
-        const control = createFakeDb();
+describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
+    // Real recipe ids (UUID-shaped) the removed-set SELECT resolves to. These drive the scoped detach,
+    // delete, and the caller's per-recipe S3 sweep.
+    const REMOVED_A = '00000000-0000-4000-8000-0000000000d1';
+    const REMOVED_B = '00000000-0000-4000-8000-0000000000d2';
+    const DONATE_1 = '00000000-0000-4000-8000-00000000cd01';
 
-        await eraseRecipeRows(control.db, OWNER);
+    /**
+     * Seed the fake DB so `eraseRecipeRows` reads a concrete removed set. Execute order inside the fn is:
+     * 0 flip, 1 removed-SELECT, 2 persist, 3 ratings, 4 detach, 5 delete, 6 collections, 7 scrub, 8
+     * author_handles — so the removed-SELECT (index 1) is the 2nd enqueued result.
+     */
+    const seedRemoved = (control: FakeDbControl, ...ids: string[]): void => {
+        control.enqueue({ rows: [] }); // 0: flip
+        control.enqueue({ rows: ids.map((id) => ({ id })) }); // 1: removed-SELECT
+    };
+
+    it('runs every statement inside ONE transaction so a crash cannot half-erase', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
 
         expect(control.transactionCount()).toBe(1);
-        // Every statement must be inside it: detaching clone pointers and then failing to delete the
+        // Every statement must be inside it: detaching a clone pointer and then failing to delete the
         // source would strip a NON-requesting user's provenance permanently, for nothing.
         expect(control.txStatements()).toHaveLength(control.statements().length);
         expect(control.statements().length).toBeGreaterThan(0);
     });
 
-    it('deletes the erasing user’s ratings on OTHER users’ recipes (the third owner-scoped root)', async () => {
+    it('flips DONATED recipes to BOTH public AND published, scoped to the owner (U3b)', async () => {
         const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
 
-        await eraseRecipeRows(control.db, OWNER);
+        await eraseRecipeRows(control.db, OWNER, [DONATE_1]);
+
+        const flip = control.statements().find((s) => /update recipes set visibility/i.test(s.text));
+
+        // BOTH columns — a visibility-only flip would leave a donated DRAFT owner-only (still removed), so
+        // this is the mutation that must fail if publish is dropped.
+        expect(flip?.text).toMatch(/visibility = 'public'/i);
+        expect(flip?.text).toMatch(/status = 'published'/i);
+        // Scoped to the owner's own recipes: an election id the caller does not own is a no-op, never a way
+        // to publish someone else's recipe. The election binds as one jsonb param (no array list-expansion).
+        expect(flip?.text).toMatch(/id in \(select jsonb_array_elements_text\(\$\d::jsonb\)::uuid\)/i);
+        expect(flip?.text).toMatch(/and owner_id = \$\d/i);
+        expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER]);
+    });
+
+    it('computes the removed set on BOTH axes — owner AND NOT (public AND published)', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const select = control.statements().find((s) => /select id from recipes/i.test(s.text));
+
+        // The two-axis rule: a recipe is community-visible ONLY when public AND published, so owner-only =
+        // the negation. Scoping by visibility alone (dropping the status axis) would wrongly SPARE a
+        // public-visibility DRAFT — leaving it orphaned under an erased owner. This pins both axes.
+        expect(select?.text).toMatch(/where owner_id = \$\d/i);
+        expect(select?.text).toMatch(/not \(visibility = 'public' and status = 'published'\)/i);
+        expect(select?.params).toEqual([OWNER]);
+    });
+
+    it('captures the removed id set on the job row, write-once (crash-convergence)', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A, REMOVED_B);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const persist = control.statements().find((s) => /update account_erasure_jobs set removed_recipe_ids/i.test(s.text));
+
+        expect(persist).toBeDefined();
+        // The captured ids — the exact set the S3 sweep will use after the rows are gone.
+        expect(persist?.params[0]).toBe(JSON.stringify([REMOVED_A, REMOVED_B]));
+        // Write-once: the `IS NULL` guard stops a replay (whose freshly-computed set is empty) from
+        // clobbering the real set captured by the first attempt. Scoped to an active job.
+        expect(persist?.text).toMatch(/status in \('queued', 'running'\)/i);
+        expect(persist?.text).toMatch(/removed_recipe_ids is null/i);
+    });
+
+    it('returns the removed id set for the caller’s scoped S3 sweep', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A, REMOVED_B);
+
+        const result = await eraseRecipeRows(control.db, OWNER, []);
+
+        expect(result.removedRecipeIds).toEqual([REMOVED_A, REMOVED_B]);
+    });
+
+    it('deletes the erasing user’s ratings on OTHER users’ recipes (CR-001 — unchanged)', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
 
         // recipe_ratings.recipe_id CASCADEs, so ratings on the owner's OWN recipes go with those recipes —
         // but the owner's ratings on everyone ELSE's (surviving) recipes cascade from nothing and would
-        // survive a right-to-erasure request. This scoped delete is the only thing that removes them, and
-        // the statement-level aggregate trigger re-derives each survivor's average/count off the back of
-        // it. Remove this statement and a user's ratings on others' recipes silently outlive their erasure.
+        // survive erasure. This scoped delete removes them; the statement-level aggregate trigger re-derives
+        // each survivor's average/count off the back of it. NO manual aggregate write (trigger-only columns).
         const del = control.statements().find((s) => /delete from recipe_ratings/i.test(s.text));
 
-        // Exactly one such statement — not zero (missing), not duplicated.
         expect(control.statements().filter((s) => /delete from recipe_ratings/i.test(s.text))).toHaveLength(1);
         expect(del?.text).toMatch(/delete from recipe_ratings where user_id = \$\d/i);
         expect(del?.params).toEqual([OWNER]);
+
+        // Re-verify the CR-001 invariant survives the rebuild: application code NEVER writes the aggregate.
+        for (const statement of control.statements()) {
+            expect(statement.text).not.toMatch(/update recipes set (average_rating|rating_count)/i);
+            expect(statement.text).not.toMatch(/(average_rating|rating_count) =/i);
+        }
     });
 
-    it('NULLs other owners’ cloned_from_id pointers BEFORE deleting the source recipes', async () => {
+    it('detaches SURVIVORS pointing at removed recipes BEFORE the delete (NO ACTION FK)', async () => {
         const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
 
-        await eraseRecipeRows(control.db, OWNER);
+        await eraseRecipeRows(control.db, OWNER, []);
 
         const statements = control.statements();
         const detachIndex = statements.findIndex((s) => /update recipes set cloned_from_id = null/i.test(s.text));
-        const deleteIndex = statements.findIndex((s) => /delete from recipes/i.test(s.text));
+        const deleteIndex = statements.findIndex((s) => /^delete from recipes where/i.test(s.text));
 
         expect(detachIndex).toBeGreaterThanOrEqual(0);
         expect(deleteIndex).toBeGreaterThanOrEqual(0);
-        // Ordering is the whole point: `recipes.cloned_from_id -> recipes.id` is ON DELETE NO ACTION and
-        // NOT deferrable (verified against the live catalog), so deleting first throws
-        // `recipes_cloned_from_id_fkey` the first time anyone has cloned this user's recipe.
+        // `recipes.cloned_from_id -> recipes.id` is ON DELETE NO ACTION and not deferrable — so a survivor
+        // still pointing at a removed recipe makes the delete throw `recipes_cloned_from_id_fkey`. Detach
+        // must run first.
         expect(detachIndex).toBeLessThan(deleteIndex);
     });
 
-    it('detaches only clones owned by OTHER users, scoped to this owner’s recipes', async () => {
+    it('scopes the clone-detach to the REMOVED set and guards SURVIVORS (id NOT IN removed), not owner_id', async () => {
         const control = createFakeDb();
+        seedRemoved(control, REMOVED_A, REMOVED_B);
 
-        await eraseRecipeRows(control.db, OWNER);
+        await eraseRecipeRows(control.db, OWNER, []);
 
         const detach = control.statements().find((s) => /cloned_from_id = null/i.test(s.text));
 
-        // Exactly one detach statement — not zero (missing), not duplicated.
         expect(control.statements().filter((s) => /cloned_from_id = null/i.test(s.text))).toHaveLength(1);
-        // Scoped to the erasing owner's recipes...
-        expect(detach?.text).toMatch(/cloned_from_id in \(select id from recipes where owner_id = \$\d\)/i);
-        // ...and explicitly NOT to the owner's own clones: those are deleted by the same statement that
-        // deletes their source, and a non-deferrable NO ACTION check runs at end-of-statement, so they
-        // need no detach (proven: a 3-row delete incl. a self-referencing clone succeeds).
-        expect(detach?.text).toMatch(/owner_id <> \$\d/i);
+        // Detach exactly the SURVIVORS whose source is being removed: `cloned_from_id IN removed` AND the
+        // referencing row is itself NOT removed (`id NOT IN removed`). This is the mutation-critical pin:
+        // the survivor guard MUST be `id NOT IN removed`, NOT `owner_id <> ownerId` — because a DONATED
+        // clone (kept) of the owner's OWN removed recipe would be missed by an owner-id guard and the delete
+        // would then FK-fail. Both sides key on the identical owner-only predicate.
+        expect(detach?.text).toMatch(/cloned_from_id in \(select id from recipes where owner_id = \$\d/i);
+        expect(detach?.text).toMatch(/id not in \(select id from recipes where owner_id = \$\d/i);
+        expect(detach?.text).toMatch(/not \(visibility = 'public' and status = 'published'\)/i);
+        expect(detach?.text).not.toMatch(/owner_id <>/i);
         expect(detach?.params).toEqual([OWNER, OWNER]);
     });
 
-    it('deletes recipes by owner with NO deleted_at filter so tombstones are erased too', async () => {
+    it('deletes the removed set by the two-axis owner-only predicate, NOT owner-wide, and with NO deleted_at filter', async () => {
         const control = createFakeDb();
+        seedRemoved(control, REMOVED_A, REMOVED_B);
 
-        await eraseRecipeRows(control.db, OWNER);
+        await eraseRecipeRows(control.db, OWNER, []);
 
-        const del = control.statements().find((s) => /delete from recipes/i.test(s.text));
+        const del = control.statements().find((s) => /^delete from recipes where/i.test(s.text));
 
-        // Exactly one such statement — not zero (missing), not duplicated.
-        expect(control.statements().filter((s) => /delete from recipes/i.test(s.text))).toHaveLength(1);
+        expect(control.statements().filter((s) => /^delete from recipes where/i.test(s.text))).toHaveLength(1);
+        // Scoped by the SAME owner-only predicate that defines the removed set (post-flip) — the mutation
+        // that preserves truly-public + donated recipes. A plain `DELETE ... WHERE owner_id` (the OLD
+        // behaviour) would drop the `NOT (public AND published)` guard and delete the KEPT recipes too.
         expect(del?.text).toMatch(/delete from recipes where owner_id = \$\d/i);
+        expect(del?.text).toMatch(/not \(visibility = 'public' and status = 'published'\)/i);
         expect(del?.params).toEqual([OWNER]);
-        // THE assertion that stops the read-path habit leaking in here. The erasure worker is an explicit
-        // exemption from the `activeRecipes()` / `no-raw-recipes-select` rule (data-model.md): a
-        // `deleted_at IS NULL` filter would leave every tombstoned recipe — and its cascaded versions,
-        // photos and steps — behind on a right-to-erasure request, while reporting success.
+        // Tombstones are erased too — a `deleted_at IS NULL` filter would leave a tombstoned owner-only
+        // recipe (and its cascade) behind while reporting success (data-model.md §Hard purge).
         expect(del?.text).not.toMatch(/deleted_at/i);
     });
 
-    it('deletes the owner’s collections', async () => {
+    it('deletes ALL the owner’s collections (U3c — unchanged)', async () => {
         const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
 
-        await eraseRecipeRows(control.db, OWNER);
+        await eraseRecipeRows(control.db, OWNER, []);
 
         const del = control.statements().find((s) => /delete from collections/i.test(s.text));
 
-        // Exactly one such statement — not zero (missing), not duplicated.
         expect(control.statements().filter((s) => /delete from collections/i.test(s.text))).toHaveLength(1);
         expect(del?.text).toMatch(/delete from collections where owner_id = \$\d/i);
         expect(del?.params).toEqual([OWNER]);
     });
 
-    it('deletes the author_handles read-model row (the FOURTH owner-scoped root — W8-a.2/.10)', async () => {
+    it('scrubs the author_handle on KEPT rows to the pseudonym AFTER the delete (U3b residue)', async () => {
         const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
 
-        await eraseRecipeRows(control.db, OWNER);
+        await eraseRecipeRows(control.db, OWNER, []);
 
-        // author_handles is keyed by user_id with NO FK to recipes/collections, so nothing cascades it —
-        // omit this and an erased user's display name survives right-to-erasure in the read model.
+        const statements = control.statements();
+        const scrub = statements.find((s) => /update recipes set author_handle/i.test(s.text));
+        const scrubIndex = statements.findIndex((s) => /update recipes set author_handle/i.test(s.text));
+        const deleteIndex = statements.findIndex((s) => /^delete from recipes where/i.test(s.text));
+
+        // Scrubbed to the deterministic ULID-derived pseudonym, on the owner's remaining (KEPT) rows that
+        // still carry a cleartext handle. Mutation: leaving cleartext, or fabricating a handle on a
+        // NULL-handle row, both fail here.
+        expect(scrub?.text).toMatch(/set author_handle = \$\d/i);
+        expect(scrub?.text).toMatch(/where owner_id = \$\d and author_handle is not null/i);
+        expect(scrub?.params[0]).toBe(`user_${OWNER}`);
+        expect(scrub?.params[1]).toBe(OWNER);
+        // AFTER the delete, so only KEPT rows remain when the scrub runs (removed rows are already gone).
+        expect(deleteIndex).toBeGreaterThanOrEqual(0);
+        expect(scrubIndex).toBeGreaterThan(deleteIndex);
+    });
+
+    it('deletes the author_handles read-model row (the user-keyed root — W8-a.2/.10)', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        // author_handles is keyed by user_id with NO FK, so nothing cascades it — the cleartext read-model
+        // row must be deleted explicitly or the display name survives erasure there.
         const del = control.statements().find((s) => /delete from author_handles/i.test(s.text));
 
-        // Exactly one such statement — not zero (missing), not duplicated.
         expect(control.statements().filter((s) => /delete from author_handles/i.test(s.text))).toHaveLength(1);
         expect(del?.text).toMatch(/delete from author_handles where user_id = \$\d/i);
         expect(del?.params).toEqual([OWNER]);
@@ -378,11 +490,10 @@ describe('eraseRecipeRows', () => {
 
     it('never deletes from the shared global ingredients table', async () => {
         const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
 
-        await eraseRecipeRows(control.db, OWNER);
+        await eraseRecipeRows(control.db, OWNER, []);
 
-        // `ingredients` is a global dedup table with no owner column; deleting from it would destroy
-        // rows every other user's recipes reference. `recipe_ingredients` is removed by cascade instead.
         for (const statement of control.statements()) {
             expect(statement.text).not.toMatch(/delete from ingredients/i);
         }
@@ -390,13 +501,10 @@ describe('eraseRecipeRows', () => {
 
     it('does not hand-delete rows the FK cascade already removes', async () => {
         const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
 
-        await eraseRecipeRows(control.db, OWNER);
+        await eraseRecipeRows(control.db, OWNER, []);
 
-        // Verified against the live pg_constraint catalog: recipe_steps, recipe_ingredients,
-        // recipe_photos, recipe_versions, recipe_collections and recipe_version_pending_archives all
-        // cascade from `recipes.id`. Re-deleting them by hand would be dead SQL that silently rots the
-        // day a cascade changes — the schema is the one authority for the cascade graph.
         const cascaded =
             /delete from (recipe_steps|recipe_ingredients|recipe_photos|recipe_versions|recipe_collections|recipe_version_pending_archives)/i;
 
@@ -407,21 +515,22 @@ describe('eraseRecipeRows', () => {
 
     it('propagates a failure so the transaction rolls back and SQS retries', async () => {
         const control = createFakeDb();
-        control.failExecuteAt(1, new Error('deadlock detected'));
+        // 0 flip, 1 removed-SELECT — fail the flip so the whole tx rolls back.
+        control.failExecuteAt(0, new Error('deadlock detected'));
 
-        await expect(eraseRecipeRows(control.db, OWNER)).rejects.toThrow('deadlock detected');
+        await expect(eraseRecipeRows(control.db, OWNER, [])).rejects.toThrow('deadlock detected');
     });
 });
 
 describe('erasure job lifecycle', () => {
     describe('claimErasureJob', () => {
-        it('claims the single active job for the owner and counts the attempt', async () => {
+        it('claims the single active job for the owner, counts the attempt, and reads back the election + captured removed set', async () => {
             const control = createFakeDb();
-            control.enqueue({ rows: [{ id: 'job-1' }] });
+            control.enqueue({ rows: [{ id: 'job-1', publishRecipeIds: ['rec-donate'], removedRecipeIds: null }] });
 
             const job = await claimErasureJob(control.db, OWNER);
 
-            expect(job).toEqual({ id: 'job-1' });
+            expect(job).toEqual({ id: 'job-1', publishRecipeIds: ['rec-donate'], removedRecipeIds: null });
 
             const [statement] = control.statements();
             expect(statement?.text).toMatch(/update account_erasure_jobs/i);
@@ -433,6 +542,11 @@ describe('erasure job lifecycle', () => {
             // no-op. The `idx_erasure_jobs_active_owner` unique partial index guarantees this predicate
             // matches at most ONE row, which is why the message needs no jobId.
             expect(statement?.text).toMatch(/where owner_id = \$\d and status in \('queued', 'running'\)/i);
+            // The claim reads the DURABLE election (source of truth, not the message) AND the removed set a
+            // prior attempt captured (for crash-convergence) — both back off the row it claims.
+            expect(statement?.text).toMatch(/returning id/i);
+            expect(statement?.text).toMatch(/publish_recipe_ids as "publishrecipeids"/i);
+            expect(statement?.text).toMatch(/removed_recipe_ids as "removedrecipeids"/i);
             expect(statement?.params).toEqual([OWNER]);
         });
 
@@ -500,7 +614,11 @@ describe('erasure job lifecycle', () => {
     });
 });
 
-describe('eraseRecipeObjects', () => {
+describe('eraseRecipeObjects (CR-002 / U3a — per-removed-recipe sweep)', () => {
+    /** The removed recipe whose object subtree is swept — the per-recipe prefix `recipes/{owner}/{recipe}/`. */
+    const REC = '00000000-0000-4000-8000-0000000000f1';
+    const PFX = `recipes/01JOWNER/${REC}/`;
+
     /**
      * A `DeleteObjects` response with no per-key failures.
      *
@@ -512,33 +630,36 @@ describe('eraseRecipeObjects', () => {
         Deleted: keys.map((Key) => ({ Key })),
     });
 
-    it('deletes every object under the owner prefix in one page and returns the count', async () => {
+    it('sweeps ONE recipe’s prefix (recipes/{owner}/{recipe}/), not the owner prefix, and returns the count', async () => {
         const send = vi
             .fn()
             .mockResolvedValueOnce({
-                Contents: [{ Key: 'recipes/01JOWNER/a.jpg' }, { Key: 'recipes/01JOWNER/b.jpg' }],
+                Contents: [{ Key: `${PFX}photos/a.jpg` }, { Key: `${PFX}versions/1.json` }],
                 IsTruncated: false,
             })
-            .mockResolvedValueOnce(deleteOk('recipes/01JOWNER/a.jpg', 'recipes/01JOWNER/b.jpg'));
+            .mockResolvedValueOnce(deleteOk(`${PFX}photos/a.jpg`, `${PFX}versions/1.json`));
 
-        const deleted = await eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER');
+        const deleted = await eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER', REC);
 
         expect(deleted).toBe(2);
         expect(send).toHaveBeenCalledTimes(2);
         expect(commandName(send.mock.calls[0][0])).toBe('ListObjectsV2');
+        // THE scoping assertion: the prefix is the per-RECIPE prefix, so a KEPT recipe's media (under a
+        // sibling `recipes/{owner}/{keptRecipe}/`) is never listed or deleted. Sweeping `recipes/{owner}/`
+        // would delete it — the mutation this pins.
         expect(listInput(send.mock.calls[0][0])).toMatchObject({
             Bucket: 'media-bucket',
-            Prefix: 'recipes/01JOWNER/',
+            Prefix: PFX,
             ContinuationToken: undefined,
         });
         expect(commandName(send.mock.calls[1][0])).toBe('DeleteObjects');
-        expect(deleteKeys(send.mock.calls[1][0])).toEqual(['recipes/01JOWNER/a.jpg', 'recipes/01JOWNER/b.jpg']);
+        expect(deleteKeys(send.mock.calls[1][0])).toEqual([`${PFX}photos/a.jpg`, `${PFX}versions/1.json`]);
     });
 
     it('returns 0 and issues no delete when the prefix is empty (Contents absent)', async () => {
         const send = vi.fn().mockResolvedValueOnce({ IsTruncated: false });
 
-        const deleted = await eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER');
+        const deleted = await eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER', REC);
 
         expect(deleted).toBe(0);
         expect(send).toHaveBeenCalledTimes(1);
@@ -548,40 +669,45 @@ describe('eraseRecipeObjects', () => {
     it('refuses a blank owner rather than sweeping an unscoped prefix', async () => {
         const send = vi.fn();
 
-        // Defence in depth behind `parseErasureMessage`: this function is what actually issues the
-        // deletes, so it enforces its own precondition rather than trusting every future caller.
-        await expect(eraseRecipeObjects(asClient(send), 'media-bucket', '')).rejects.toThrow(/ownerId/);
+        await expect(eraseRecipeObjects(asClient(send), 'media-bucket', '', REC)).rejects.toThrow(/ownerId/);
+        expect(send).not.toHaveBeenCalled();
+    });
+
+    it('refuses a blank recipe id rather than collapsing toward the owner-wide prefix (would delete KEPT media)', async () => {
+        const send = vi.fn();
+
+        // A blank recipeId would widen the sweep toward `recipes/{owner}/`, deleting a surviving public
+        // recipe's photos — the exact regression the scoped sweep prevents. Refuse it.
+        await expect(eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER', '')).rejects.toThrow(/recipeId/);
         expect(send).not.toHaveBeenCalled();
     });
 
     it('throws when S3 reports per-key delete errors — a 200 with Errors is NOT success', async () => {
-        // `DeleteObjects` is a batch API: S3 answers 200 and reports per-key failures in `Errors`, so the
-        // SDK does NOT throw. Trusting the absence of an exception would count an object that is still in
-        // the bucket as deleted, and the job would be marked `completed` — a false erasure with no signal.
         const send = vi
             .fn()
             .mockResolvedValueOnce({
-                Contents: [{ Key: 'recipes/01JOWNER/a.jpg' }, { Key: 'recipes/01JOWNER/locked.jpg' }],
+                Contents: [{ Key: `${PFX}photos/a.jpg` }, { Key: `${PFX}photos/locked.jpg` }],
                 IsTruncated: false,
             })
             .mockResolvedValueOnce({
-                Deleted: [{ Key: 'recipes/01JOWNER/a.jpg' }],
-                Errors: [{ Key: 'recipes/01JOWNER/locked.jpg', Code: 'AccessDenied', Message: 'Access Denied' }],
+                Deleted: [{ Key: `${PFX}photos/a.jpg` }],
+                Errors: [{ Key: `${PFX}photos/locked.jpg`, Code: 'AccessDenied', Message: 'Access Denied' }],
             });
 
-        await expect(eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER')).rejects.toThrow(/AccessDenied/);
+        await expect(eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER', REC)).rejects.toThrow(
+            /AccessDenied/,
+        );
     });
 
     it('names the bucket and a failed key when a batch delete partially fails', async () => {
         const send = vi
             .fn()
-            .mockResolvedValueOnce({ Contents: [{ Key: 'recipes/01JOWNER/locked.jpg' }], IsTruncated: false })
+            .mockResolvedValueOnce({ Contents: [{ Key: `${PFX}photos/locked.jpg` }], IsTruncated: false })
             .mockResolvedValueOnce({
-                Errors: [{ Key: 'recipes/01JOWNER/locked.jpg', Code: 'AccessDenied', Message: 'Access Denied' }],
+                Errors: [{ Key: `${PFX}photos/locked.jpg`, Code: 'AccessDenied', Message: 'Access Denied' }],
             });
 
-        // The retry lands in the DLQ eventually; whoever reads it needs the bucket and key, not a count.
-        await expect(eraseRecipeObjects(asClient(send), 'archive-bucket', '01JOWNER')).rejects.toThrow(
+        await expect(eraseRecipeObjects(asClient(send), 'archive-bucket', '01JOWNER', REC)).rejects.toThrow(
             /archive-bucket/,
         );
     });
@@ -589,31 +715,31 @@ describe('eraseRecipeObjects', () => {
     it('treats an empty Errors array as a clean success', async () => {
         const send = vi
             .fn()
-            .mockResolvedValueOnce({ Contents: [{ Key: 'recipes/01JOWNER/a.jpg' }], IsTruncated: false })
-            .mockResolvedValueOnce({ Deleted: [{ Key: 'recipes/01JOWNER/a.jpg' }], Errors: [] });
+            .mockResolvedValueOnce({ Contents: [{ Key: `${PFX}photos/a.jpg` }], IsTruncated: false })
+            .mockResolvedValueOnce({ Deleted: [{ Key: `${PFX}photos/a.jpg` }], Errors: [] });
 
-        await expect(eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER')).resolves.toBe(1);
+        await expect(eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER', REC)).resolves.toBe(1);
     });
 
     it('skips keyless list entries and never sends an empty delete batch', async () => {
         const send = vi
             .fn()
             .mockResolvedValueOnce({
-                Contents: [{ Key: undefined }, { Key: 'recipes/01JOWNER/only.jpg' }, {}],
+                Contents: [{ Key: undefined }, { Key: `${PFX}photos/only.jpg` }, {}],
                 IsTruncated: false,
             })
-            .mockResolvedValueOnce(deleteOk('recipes/01JOWNER/only.jpg'));
+            .mockResolvedValueOnce(deleteOk(`${PFX}photos/only.jpg`));
 
-        const deleted = await eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER');
+        const deleted = await eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER', REC);
 
         expect(deleted).toBe(1);
-        expect(deleteKeys(send.mock.calls[1][0])).toEqual(['recipes/01JOWNER/only.jpg']);
+        expect(deleteKeys(send.mock.calls[1][0])).toEqual([`${PFX}photos/only.jpg`]);
     });
 
     it('does not issue a delete for a page whose entries are all keyless', async () => {
         const send = vi.fn().mockResolvedValueOnce({ Contents: [{ Key: undefined }, {}], IsTruncated: false });
 
-        const deleted = await eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER');
+        const deleted = await eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER', REC);
 
         expect(deleted).toBe(0);
         expect(send).toHaveBeenCalledTimes(1);
@@ -621,41 +747,39 @@ describe('eraseRecipeObjects', () => {
     });
 
     it('follows the continuation token across pages and aggregates the total deleted', async () => {
-        // List and Delete share one `send`, so key the response on the command rather than call order.
         const pages = [
             {
-                Contents: [{ Key: 'recipes/01JOWNER/p1a' }, { Key: 'recipes/01JOWNER/p1b' }],
+                Contents: [{ Key: `${PFX}photos/p1a` }, { Key: `${PFX}photos/p1b` }],
                 IsTruncated: true,
                 NextContinuationToken: 'token-2',
             },
-            { Contents: [{ Key: 'recipes/01JOWNER/p2a' }], IsTruncated: false },
+            { Contents: [{ Key: `${PFX}photos/p2a` }], IsTruncated: false },
         ];
         let listCall = 0;
         const send = vi.fn((cmd: { command: string }) =>
             Promise.resolve(cmd.command === 'ListObjectsV2' ? pages[listCall++] : {}),
         );
 
-        const deleted = await eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER');
+        const deleted = await eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER', REC);
 
         expect(deleted).toBe(3);
-        // List(page1), Delete(page1), List(page2), Delete(page2)
         expect(send).toHaveBeenCalledTimes(4);
         expect(listInput(send.mock.calls[0][0]).ContinuationToken).toBeUndefined();
         expect(listInput(send.mock.calls[2][0]).ContinuationToken).toBe('token-2');
-        expect(deleteKeys(send.mock.calls[3][0])).toEqual(['recipes/01JOWNER/p2a']);
+        expect(deleteKeys(send.mock.calls[3][0])).toEqual([`${PFX}photos/p2a`]);
     });
 
     it('stops (no infinite loop) when a page is truncated but yields no next token', async () => {
         const send = vi
             .fn()
             .mockResolvedValueOnce({
-                Contents: [{ Key: 'recipes/01JOWNER/a' }],
+                Contents: [{ Key: `${PFX}photos/a` }],
                 IsTruncated: true,
                 NextContinuationToken: undefined,
             })
-            .mockResolvedValueOnce(deleteOk('recipes/01JOWNER/a'));
+            .mockResolvedValueOnce(deleteOk(`${PFX}photos/a`));
 
-        const deleted = await eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER');
+        const deleted = await eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER', REC);
 
         expect(deleted).toBe(1);
         expect(send).toHaveBeenCalledTimes(2);
@@ -664,12 +788,49 @@ describe('eraseRecipeObjects', () => {
     it('propagates a downstream S3 failure so the record is retried (no partial success swallowed)', async () => {
         const send = vi.fn().mockRejectedValueOnce(new Error('S3 unavailable'));
 
-        await expect(eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER')).rejects.toThrow('S3 unavailable');
+        await expect(eraseRecipeObjects(asClient(send), 'media-bucket', '01JOWNER', REC)).rejects.toThrow(
+            'S3 unavailable',
+        );
     });
 });
 
 describe('handler', () => {
     let control: FakeDbControl;
+
+    // A removed recipe the default happy-path seeds, so there is exactly one recipe to sweep per bucket.
+    const REMOVED_1 = '00000000-0000-4000-8000-0000000000e1';
+    const REMOVED_2 = '00000000-0000-4000-8000-0000000000e2';
+    const DONATE = '00000000-0000-4000-8000-00000000cd09';
+
+    /** The claim row shape (RETURNING id + the durable election + any captured removed set). */
+    const claimRow = (
+        overrides: Partial<{ id: string; publishRecipeIds: string[] | null; removedRecipeIds: string[] | null }> = {},
+    ): { rows: unknown[] } => ({
+        rows: [{ id: 'job-1', publishRecipeIds: null, removedRecipeIds: null, ...overrides }],
+    });
+
+    /**
+     * Seed one record's happy path onto the shared FIFO results queue. Execute order per record: claim,
+     * then eraseRecipeRows' [flip, removed-SELECT, persist, ratings, detach, delete, collections, scrub,
+     * author_handles], then mark-completed. Only the claim and the removed-SELECT need concrete rows; the
+     * rest fall back to `{ rows: [] }`. The removed-SELECT (2nd execute inside eraseRecipeRows) must be
+     * enqueued right after the flip filler.
+     */
+    const seedRecord = (
+        db: FakeDbControl,
+        claim: { rows: unknown[] },
+        removedIds: string[],
+        trailing = 0,
+    ): void => {
+        db.enqueue(claim); // claim
+        db.enqueue({ rows: [] }); // flip
+        db.enqueue({ rows: removedIds.map((id) => ({ id })) }); // removed-SELECT
+
+        // persist, ratings, detach, delete, collections, scrub, author_handles, completed, + caller trailing.
+        for (let i = 0; i < 8 + trailing; i += 1) {
+            db.enqueue({ rows: [] });
+        }
+    };
 
     beforeEach(() => {
         process.env['RECIPE_MEDIA_BUCKET'] = 'media-bucket';
@@ -677,8 +838,8 @@ describe('handler', () => {
         delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
         control = createFakeDb();
         vi.mocked(getRecipeDbMock).mockReturnValue(control.db as never);
-        // Every claim resolves to an active job unless a test says otherwise.
-        control.enqueue({ rows: [{ id: 'job-1' }] });
+        // Default happy path: one active job, one removed recipe to sweep.
+        seedRecord(control, claimRow(), [REMOVED_1]);
         s3Send.mockImplementation(() => {
             timeline.push('s3');
 
@@ -697,21 +858,35 @@ describe('handler', () => {
         delete process.env['CLOUDFRONT_DISTRIBUTION_ID'];
     });
 
-    it('sweeps the owner prefix in BOTH the media and the version-archive bucket', async () => {
+    it('sweeps EACH removed recipe’s prefix in BOTH the media and the version-archive bucket', async () => {
         await runHandler(makeErasureEvent({ ownerId: OWNER }));
 
         const listed = s3Send.mock.calls
             .map((call) => listInput(call[0]))
             .filter((input) => input.Prefix !== undefined);
 
-        // verticals-8: version archives live under the SAME owner prefix in a DIFFERENT bucket, by
-        // design, precisely so this sweep reaches them. Sweeping only the media bucket leaves every
-        // version snapshot — the full text of the user's recipes — in S3 after a "completed" erasure.
+        // verticals-8: version archives live under the SAME per-recipe prefix in a DIFFERENT bucket, so
+        // this sweep reaches them. Per REMOVED recipe, never the owner prefix — a KEPT public recipe's
+        // photos + version snapshots (under a sibling recipe prefix) must survive.
         expect(listed.map((input) => input.Bucket)).toEqual(['media-bucket', 'archive-bucket']);
 
         for (const input of listed) {
-            expect(input.Prefix).toBe(`recipes/${OWNER}/`);
+            expect(input.Prefix).toBe(`recipes/${OWNER}/${REMOVED_1}/`);
         }
+    });
+
+    it('flips DONATED recipes using the election from the ROW, not the message (durable row is source of truth)', async () => {
+        // The message carries an EMPTY election, but the claimed ROW carries [DONATE]. The flip must use the
+        // ROW — so a stale/forged/empty message can neither delete a donated recipe nor donate one the owner
+        // did not elect. Mutation: reading the election from the message would flip nothing here.
+        const rowControl = createFakeDb();
+        seedRecord(rowControl, claimRow({ publishRecipeIds: [DONATE] }), [REMOVED_1]);
+        vi.mocked(getRecipeDbMock).mockReturnValue(rowControl.db as never);
+
+        await runHandler(makeErasureEvent({ ownerId: OWNER, publishRecipeIds: [] }));
+
+        const flip = rowControl.statements().find((s) => /update recipes set visibility/i.test(s.text));
+        expect(flip?.params).toEqual([JSON.stringify([DONATE]), OWNER]);
     });
 
     describe('CDN invalidation (HAZ-051/067/039)', () => {
@@ -719,22 +894,20 @@ describe('handler', () => {
             await runHandler(makeErasureEvent({ ownerId: OWNER }));
 
             expect(cdnInvalidate).toHaveBeenCalledTimes(1);
-            // The SAME prefix the media bucket sweep lists+deletes — one wildcard path, not one per object,
-            // since a deleted owner's media space is invalidated wholesale rather than per key.
+            // ONE owner-prefix wildcard path (not one per removed recipe): it costs the same single path
+            // regardless of how many recipes were removed, and harmlessly over-purges a kept recipe's edge
+            // cache (which re-caches from origin). The archive bucket is never invalidated.
             expect(cdnInvalidate).toHaveBeenCalledWith([`/recipes/${OWNER}/*`]);
 
             const sweeps = timeline.filter((entry) => entry === 's3');
             const cdnIndex = timeline.indexOf('cdn');
             const lastSweepIndex = timeline.lastIndexOf('s3');
 
-            // Both real-data sweeps — media AND archive — ran.
+            // Both real-data sweeps — media AND archive (for the one removed recipe) — ran.
             expect(sweeps).toHaveLength(2);
             expect(cdnIndex).toBeGreaterThanOrEqual(0);
             // Finding 1 (HAZ-051/067): the CDN purge is a best-effort edge-cache hygiene step and must
-            // NEVER gate real data deletion, so it is ordered strictly after BOTH S3 sweeps rather than
-            // between them. Invalidating before either sweep completed risked (a) a stale edge re-caching
-            // an object a concurrent read still finds live at origin, and (b), the bug this fixes, an
-            // invalidation failure stopping the archive sweep from ever running.
+            // NEVER gate real data deletion, so it is ordered strictly after ALL S3 sweeps.
             expect(cdnIndex).toBeGreaterThan(lastSweepIndex);
         });
 
@@ -755,17 +928,10 @@ describe('handler', () => {
 
             const annotation = control.statements().find((s) => /last_error/i.test(s.text));
             expect(annotation?.params[0]).toContain('CloudFront throttled');
-            // Same non-terminal posture as an S3 sweep failure: never mark `completed` while the CDN purge
-            // request has not been successfully SUBMITTED — SQS redelivery retries the whole attempt.
             expect(control.statements().some((s) => /status = 'completed'/i.test(s.text))).toBe(false);
-            // THE invariant this fix restores: both S3 sweeps — media AND archive — already ran by the time
-            // the CDN call (issued LAST) can fail. A misconfigured/cross-account distribution id throws
-            // identically on every retry; if that failure gated the archive sweep (the prior, incorrect
-            // order), the archive bucket's PII — full recipe-version snapshots — would NEVER be swept, and
-            // would survive every erasure attempt up to the DLQ. Here it is already gone: only the
-            // (idempotent) invalidation attempt itself needs to be retried.
+            // Both S3 sweeps already ran by the time the CDN call (issued LAST) can fail — so a CDN
+            // misconfiguration never orphans the archive bucket's PII.
             expect(timeline.filter((entry) => entry === 's3')).toHaveLength(2);
-            // The invalidation was actually attempted (and is what threw) — not skipped.
             expect(cdnInvalidate).toHaveBeenCalledTimes(1);
         });
 
@@ -798,10 +964,10 @@ describe('handler', () => {
         expect(firstSweep).toBeGreaterThanOrEqual(0);
         expect(deleteRecipes).toBeGreaterThanOrEqual(0);
         expect(deleteCollections).toBeGreaterThanOrEqual(0);
-        // Rows first, then objects. The DB rows are the reachable copy of the personal data, so they go
-        // first; and because the S3 sweep is prefix-based rather than driven by `recipe_photos.s3_key`
-        // rows, a crash in between still converges — a retry re-lists the prefix with no rows to read.
-        // The reverse order would leave live rows pointing at objects that no longer exist.
+        // Rows first, then objects: the reachable DB copy of the personal data goes first, and the removed
+        // id set is captured on the row inside the delete transaction, so a crash before the sweep still
+        // converges (the redelivery reads the captured ids back). The reverse order would leave live rows
+        // pointing at objects that no longer exist.
         expect(deleteRecipes).toBeLessThan(firstSweep);
         expect(deleteCollections).toBeLessThan(firstSweep);
     });
@@ -814,13 +980,8 @@ describe('handler', () => {
 
         expect(completed).toBeGreaterThanOrEqual(0);
         expect(control.statements().find((s) => /status = 'completed'/i.test(s.text))?.params).toEqual(['job-1']);
-        // Both buckets swept, and the row only claims success afterwards. Completing after the DB delete
-        // but before the sweeps would report "erased" while the user's photos and version snapshots were
-        // still sitting in the buckets — and a crash there would leave a permanent false `completed`.
         expect(sweeps).toHaveLength(2);
         expect(timeline.lastIndexOf('s3')).toBeLessThan(completed);
-        // The CDN purge request must also have been submitted before the row claims success — the same
-        // "never complete before every step ran" rule the S3 sweeps already get (HAZ-051/067/039).
         expect(timeline.lastIndexOf('cdn')).toBeLessThan(completed);
     });
 
@@ -833,9 +994,26 @@ describe('handler', () => {
         expect(statements[0]?.text).toMatch(/status = 'running'/i);
     });
 
-    it('is a clean no-op over an already-erased owner (at-least-once replay)', async () => {
-        // No ACTIVE job (the previous delivery already completed it), but the `completed` row still exists
-        // for this owner in THIS DB — so the interlock authorizes the idempotent replay.
+    it('converges on a crash replay: sweeps the CAPTURED removed set even after the rows are gone (U3a)', async () => {
+        // A redelivery of a still-`running` job AFTER the erase transaction committed: the rows are already
+        // deleted, so the removed-SELECT returns EMPTY — but the claim reads back the removed set captured
+        // on the row by the first attempt, and the sweep uses THAT. Without the capture, the removed
+        // recipes' S3 objects would be orphaned forever. This is the mutation that proves convergence.
+        const replay = createFakeDb();
+        seedRecord(replay, claimRow({ removedRecipeIds: [REMOVED_1] }), []); // removed-SELECT empty; row carries the set
+        vi.mocked(getRecipeDbMock).mockReturnValue(replay.db as never);
+
+        await runHandler(makeErasureEvent({ ownerId: OWNER }));
+
+        const prefixes = s3Send.mock.calls.map((call) => listInput(call[0]).Prefix);
+        expect(prefixes).toEqual([`recipes/${OWNER}/${REMOVED_1}/`, `recipes/${OWNER}/${REMOVED_1}/`]);
+    });
+
+    it('is a clean no-op over an already-erased owner (completed replay: no re-sweep, no second completion)', async () => {
+        // No ACTIVE job (the previous delivery completed it) but a `completed` row exists for this owner —
+        // the interlock authorizes the idempotent replay. The removed recipes were already swept on the
+        // original completion, so a completed replay sweeps NOTHING (there is no active row to read the
+        // captured set from) and marks nothing completed a second time.
         const replayControl = createFakeDb();
         replayControl.enqueue({ rows: [] }); // claim: no active row
         replayControl.enqueue({ rows: [{ exists: 1 }] }); // interlock: a (completed) row exists for the owner
@@ -843,9 +1021,8 @@ describe('handler', () => {
 
         await expect(runHandler(makeErasureEvent({ ownerId: OWNER }))).resolves.toBeUndefined();
 
-        // The erasure still runs (it is idempotent — a completed owner's prefixes are already empty) but
-        // nothing is marked completed a second time.
-        expect(s3Send).toHaveBeenCalled();
+        // No active job → no captured set to read → the fresh removed-SELECT is empty → nothing to sweep.
+        expect(s3Send).not.toHaveBeenCalled();
 
         for (const statement of replayControl.statements()) {
             expect(statement.text).not.toMatch(/status = 'completed'/i);
@@ -854,9 +1031,7 @@ describe('handler', () => {
 
     it('refuses to erase and issues NO destructive work when no job row exists for the owner in THIS DB', async () => {
         // The interlock: a claim returns nothing AND no row of any status exists for the owner in this
-        // database. That is a MISROUTED message (e.g. a sandbox erasure drained by a pr-{N} worker), not a
-        // replay. Running the unconditional deletes here would hard-delete a non-requesting user's recipes
-        // and photos out of the wrong DB. The worker must refuse: no DELETE, no S3 sweep.
+        // database. That is a MISROUTED message, not a replay. The worker must refuse: no DELETE, no S3 sweep.
         const misrouted = createFakeDb();
         misrouted.enqueue({ rows: [] }); // claim: no active row
         misrouted.enqueue({ rows: [] }); // interlock: NO row of any status for this owner in this DB
@@ -878,15 +1053,13 @@ describe('handler', () => {
         const annotation = control.statements().find((s) => /last_error/i.test(s.text));
         expect(annotation?.params[0]).toContain('S3 down');
         expect(annotation?.params[1]).toBe('job-1');
-        // Rethrowing is what gets the record retried and, eventually, DLQ'd. Swallowing the error to
-        // mark the row `failed` would ACK the message and abandon a right-to-erasure request.
         expect(control.statements().some((s) => /status = 'completed'/i.test(s.text))).toBe(false);
     });
 
     it('surfaces the ORIGINAL failure even when recording last_error also fails', async () => {
         const failing = createFakeDb();
-        failing.enqueue({ rows: [{ id: 'job-1' }] });
-        // 0 = claim, 1 = first erase statement, 2 = the last_error annotation.
+        failing.enqueue(claimRow()); // 0 = claim
+        // 1 = flip (first erase statement) fails → whole erase tx rolls back; 2 = the last_error annotation.
         failing.failExecuteAt(1, new Error('deadlock detected'));
         failing.failExecuteAt(2, new Error('connection terminated'));
         vi.mocked(getRecipeDbMock).mockReturnValue(failing.db as never);
@@ -907,8 +1080,6 @@ describe('handler', () => {
     it('fails fast when RECIPE_ARCHIVE_BUCKET is unset — before touching the DB or S3', async () => {
         delete process.env['RECIPE_ARCHIVE_BUCKET'];
 
-        // Resolved up-front, not lazily at the second sweep: discovering the missing archive bucket only
-        // after the rows and media are gone would leave the version archives unreachable AND unswept.
         await expect(runHandler(makeErasureEvent({ ownerId: OWNER }))).rejects.toThrow(/RECIPE_ARCHIVE_BUCKET/);
         expect(getRecipeDbMock).not.toHaveBeenCalled();
         expect(s3Send).not.toHaveBeenCalled();
@@ -936,33 +1107,23 @@ describe('handler', () => {
         expect(getRecipeDbMock).toHaveBeenCalledTimes(1);
     });
 
-    it('processes every record in a multi-record batch', async () => {
+    it('processes every record in a multi-record batch, sweeping each owner’s removed recipe', async () => {
         const multi = createFakeDb();
-        // The FakeDb serves ONE global results queue, so every statement between the two records' claims
-        // (record 1's four erase statements + its completed update) consumes a slot. Pad so BOTH records'
-        // claims land a job — otherwise record 2's claim reads empty and the U2 interlock (correctly)
-        // treats it as a misrouted message and skips it. In production each record's claim is independent.
-        const filler = { rows: [] };
-        multi.enqueue(
-            { rows: [{ id: 'job-1' }] }, // record 1 claim
-            filler, // erase: ratings
-            filler, // erase: clone-detach
-            filler, // erase: recipes
-            filler, // erase: collections
-            filler, // erase: author_handles (W8-a.10)
-            filler, // mark completed
-            { rows: [{ id: 'job-2' }] }, // record 2 claim
-        );
+        // The FakeDb serves ONE global results queue, so seed both records in order. Each record consumes:
+        // claim + eraseRecipeRows' 9 statements + mark-completed = 11 executes; the removed-SELECT (execute
+        // 2 within the record) must return that record's removed recipe.
+        seedRecord(multi, claimRow({ id: 'job-1' }), [REMOVED_1]); // record 1 (11 executes)
+        seedRecord(multi, claimRow({ id: 'job-2' }), [REMOVED_2]); // record 2 (11 executes)
         vi.mocked(getRecipeDbMock).mockReturnValue(multi.db as never);
 
         await runHandler(makeErasureEvent({ ownerId: OWNER }, { ownerId: OWNER_2 }));
 
         const prefixes = s3Send.mock.calls.map((call) => listInput(call[0]).Prefix);
         expect(prefixes).toEqual([
-            `recipes/${OWNER}/`,
-            `recipes/${OWNER}/`,
-            `recipes/${OWNER_2}/`,
-            `recipes/${OWNER_2}/`,
+            `recipes/${OWNER}/${REMOVED_1}/`,
+            `recipes/${OWNER}/${REMOVED_1}/`,
+            `recipes/${OWNER_2}/${REMOVED_2}/`,
+            `recipes/${OWNER_2}/${REMOVED_2}/`,
         ]);
     });
 });

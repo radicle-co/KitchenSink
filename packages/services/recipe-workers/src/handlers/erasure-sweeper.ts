@@ -36,6 +36,12 @@ export type StaleErasureJobRow = {
     readonly id: string;
     /** The app-user ULID being erased — the entire message contract. */
     readonly owner_id: string;
+    /**
+     * The DONATE election (CR-002 / U3b) persisted on the row — the recipe ids the owner elected to
+     * publish. Re-drained INTO the reconstructed message so a job recovered from the durable row (after
+     * its eager message was lost) still carries the election. `null` on a pre-election row ⇒ donate none.
+     */
+    readonly publish_recipe_ids: string[] | null;
     /** Claims so far. The worker increments this on every claim, including the ones that then died. */
     readonly attempts: number;
     /**
@@ -109,7 +115,13 @@ export function toErasureMessage(row: StaleErasureJobRow, requestedAt: string): 
     // Owner-scoped, no `jobId` — `idx_erasure_jobs_active_owner` makes the active job for an owner unique,
     // so the worker resolves the job FROM the owner id. A jobId on the wire would let a redelivered
     // message name a job that is no longer the active one.
-    return { ownerId: row.owner_id, requestedAt };
+    //
+    // The DONATE election is reconstructed from the durable row (CR-002 / U3b): the eager message this
+    // sweeper is BACKSTOPPING was lost, so its election would be lost too if we re-sent an empty one —
+    // silently converting the owner's "publish these" into "delete everything". The row is the source of
+    // truth, so it is carried back onto the wire. (The worker also reads the election from the row it
+    // claims, so this is belt-and-braces; but a message that lies about the election must never exist.)
+    return { ownerId: row.owner_id, requestedAt, publishRecipeIds: row.publish_recipe_ids ?? [] };
 }
 
 /**
@@ -125,7 +137,8 @@ export function toErasureMessage(row: StaleErasureJobRow, requestedAt: string): 
  */
 export async function claimStaleErasureJobs(db: NodePgDatabase<Record<string, never>>): Promise<StaleErasureJobRow[]> {
     const result = await db.execute<StaleErasureJobRow>(sql`
-        SELECT id, owner_id, attempts, EXTRACT(EPOCH FROM (now() - created_at))::int AS age_seconds
+        SELECT id, owner_id, publish_recipe_ids, attempts,
+               EXTRACT(EPOCH FROM (now() - created_at))::int AS age_seconds
         FROM account_erasure_jobs
         WHERE status IN ('queued', 'running')
           AND updated_at <= now() - interval '${sql.raw(STALE_AFTER)}'

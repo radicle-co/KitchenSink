@@ -53,6 +53,31 @@ export function ownerMediaPrefix(ownerId: string): string {
 }
 
 /**
+ * The S3 key prefix under which ALL of ONE recipe's media lives, for a given owner —
+ * `recipes/{ownerId}/{recipeId}/`. This is the per-recipe erasure prefix: it covers BOTH the recipe's
+ * photo objects ({@link recipePhotoKeyPrefix} = `…/{recipeId}/photos/`) AND its version-archive snapshots
+ * ({@link recipeVersionArchiveKey} = `…/{recipeId}/versions/…`), because both live under `{recipeId}/`.
+ *
+ * **Why this exists (CR-002 / U3a).** GDPR erasure no longer sweeps the whole owner prefix: an owner may
+ * keep truly-public + donated recipes, whose media MUST survive. So the sweep is scoped to exactly the
+ * REMOVED recipes' prefixes — one call to this per removed recipe — rather than `ownerMediaPrefix` (which
+ * would also delete a surviving public recipe's photos). Derived from {@link ownerMediaPrefix} by
+ * appending, so containment under the owner prefix stays STRUCTURAL (a per-recipe key is still under the
+ * owner prefix), pinned by `__tests__/recipeObjectKeys.test.ts`.
+ *
+ * The trailing slash is load-bearing for the same reason it is on {@link recipePhotoKeyPrefix}: it makes
+ * `{recipeId}` a delimiter-terminated segment, so a prefix scan for recipe `r1` cannot also match recipe
+ * `r10` (which shares the leading substring) and reach into a recipe that must be KEPT.
+ *
+ * @param ownerId - The app-user ULID that owns the recipe.
+ * @param recipeId - The recipe whose entire media subtree (photos + version archives) is addressed.
+ * @returns The owner+recipe-scoped, slash-terminated media prefix. Pure.
+ */
+export function recipeMediaPrefix(ownerId: string, recipeId: string): string {
+    return `${ownerMediaPrefix(ownerId)}${recipeId}/`;
+}
+
+/**
  * The deterministic key for one immutable version-snapshot archive object.
  *
  * Guaranteed to start with {@link ownerMediaPrefix}`(parts.ownerId)` so the object is reachable by the

@@ -2569,6 +2569,21 @@ components:
                         REQUIRED exact-match confirmation phrase ("ERASE MY DATA"). Erasure is
                         irreversible, so the server rejects a missing, empty, or non-matching phrase
                         with 400 before queuing the job (surrounding whitespace tolerated, case is not).
+                publishRecipeIds:
+                    type: array
+                    maxItems: 1000
+                    items:
+                        type: string
+                        format: uuid
+                    description: |
+                        OPTIONAL per-recipe DONATE election (CR-002). The ids of the caller's OWNER-ONLY
+                        recipes (private, or public-visibility drafts) to PUBLISH — flip to public +
+                        published and KEEP, attributed to a pseudonymous handle — instead of removing them.
+                        An absent or empty list means "donate nothing": every owner-only recipe is removed.
+                        Recipes that are already truly public (public AND published) are kept regardless of
+                        this list. The server scopes the publish-flip to the caller's own recipes, so an id
+                        the caller does not own is ignored. WARNING: a donated recipe becomes permanently
+                        unremovable by the (erased) owner.
 
         ErasureRequestAcceptedResponse:
             type: object

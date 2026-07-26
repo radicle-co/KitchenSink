@@ -89,14 +89,25 @@ describe('a first erasure request', () => {
     it('inserts a queued job for the caller and returns 202 with the new job id', async () => {
         const result = await service.requestErasure(OWNER, CONFIRMED);
 
-        expect(dal.insertQueuedJob).toHaveBeenCalledExactlyOnceWith(OWNER);
+        expect(dal.insertQueuedJob).toHaveBeenCalledExactlyOnceWith(OWNER, []);
         expect(result).toEqual({ jobId: NEW_JOB_ID, status: 'queued' });
     });
 
     it('enqueues exactly one message carrying the owner and the request time', async () => {
         await service.requestErasure(OWNER, CONFIRMED);
 
-        expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith({ ownerId: OWNER, requestedAt: NOW });
+        expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith({ ownerId: OWNER, requestedAt: NOW, publishRecipeIds: [] });
+    });
+
+    it('persists the DONATE election on the durable row AND carries it on the message (U3b)', async () => {
+        const publishRecipeIds = ['00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-0000000000d2'];
+
+        await service.requestErasure(OWNER, { ...CONFIRMED, publishRecipeIds });
+
+        // The row is the source of truth: the election is persisted there (the worker reads it back).
+        expect(dal.insertQueuedJob).toHaveBeenCalledExactlyOnceWith(OWNER, publishRecipeIds);
+        // The message carries it too, as an eager carrier — the sweeper reconstructs it from the row.
+        expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith({ ownerId: OWNER, requestedAt: NOW, publishRecipeIds });
     });
 
     it('writes the durable row BEFORE enqueuing, so a lost message is always recoverable by the sweeper', async () => {
@@ -192,7 +203,7 @@ describe('a request after a failed job', () => {
         const result = await service.requestErasure(OWNER, CONFIRMED);
 
         expect(result).toEqual({ jobId: NEW_JOB_ID, status: 'queued' });
-        expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith({ ownerId: OWNER, requestedAt: NOW });
+        expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith({ ownerId: OWNER, requestedAt: NOW, publishRecipeIds: [] });
     });
 });
 
@@ -232,7 +243,7 @@ describe('the insert race on idx_erasure_jobs_active_owner', () => {
 
         expect(result).toEqual({ jobId: NEW_JOB_ID, status: 'queued' });
         expect(dal.insertQueuedJob).toHaveBeenCalledTimes(2);
-        expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith({ ownerId: OWNER, requestedAt: NOW });
+        expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith({ ownerId: OWNER, requestedAt: NOW, publishRecipeIds: [] });
     });
 
     it('gives up with a retryable 503 rather than looping forever when the race never settles', async () => {
@@ -335,7 +346,7 @@ describe('a failed enqueue', () => {
     it('keeps the queued row written (it is never rolled back on an enqueue failure)', async () => {
         await service.requestErasure(OWNER, CONFIRMED);
 
-        expect(dal.insertQueuedJob).toHaveBeenCalledExactlyOnceWith(OWNER);
+        expect(dal.insertQueuedJob).toHaveBeenCalledExactlyOnceWith(OWNER, []);
     });
 
     it('reports the failure to the operator, naming the job left for the sweeper', async () => {

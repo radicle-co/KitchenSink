@@ -18,6 +18,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
     ownerMediaPrefix,
+    recipeMediaPrefix,
     recipePhotoKeyPrefix,
     recipePhotoOriginalKey,
     recipePhotoThumbnailKey,
@@ -105,6 +106,49 @@ describe('recipePhotoKeyPrefix / recipePhotoOriginalKey', () => {
     it('separates recipes within one owner and owners from each other', () => {
         expect(recipePhotoKeyPrefix(OWNER, 'rec-a')).not.toBe(recipePhotoKeyPrefix(OWNER, 'rec-b'));
         expect(recipePhotoKeyPrefix('owner-a', RECIPE)).not.toBe(recipePhotoKeyPrefix('owner-b', RECIPE));
+    });
+});
+
+describe('recipeMediaPrefix (CR-002 / U3a — the per-removed-recipe erasure prefix)', () => {
+    it('derives ONE recipe’s media prefix from the owner erasure prefix by appending {recipeId}/', () => {
+        // The per-recipe sweep must stay UNDER the owner prefix (containment), so it is built on top of
+        // ownerMediaPrefix, never re-spelled. Asserting the exact composition fails if it stops deriving.
+        expect(recipeMediaPrefix(OWNER, RECIPE)).toBe(`${ownerMediaPrefix(OWNER)}${RECIPE}/`);
+        expect(recipeMediaPrefix(OWNER, RECIPE)).toBe(`recipes/${OWNER}/${RECIPE}/`);
+    });
+
+    it('covers BOTH the recipe’s photos AND its version archives (the whole {recipeId}/ subtree)', () => {
+        // The scoped erasure sweeps this prefix per removed recipe, so it must contain the photo prefix
+        // (…/{recipeId}/photos/) and the version-archive keys (…/{recipeId}/versions/…). If it didn't, a
+        // removed recipe's version snapshots — full recipe PII — would survive the scoped sweep.
+        expect(recipePhotoKeyPrefix(OWNER, RECIPE).startsWith(recipeMediaPrefix(OWNER, RECIPE))).toBe(true);
+        expect(
+            recipeVersionArchiveKey({ ownerId: OWNER, recipeId: RECIPE, versionNumber: 3 }).startsWith(
+                recipeMediaPrefix(OWNER, RECIPE),
+            ),
+        ).toBe(true);
+    });
+
+    it('ends with a slash so sweeping recipe r1 can never reach kept recipe r10’s media', () => {
+        // THE safety property of the scoped sweep: recipe `r1` must not be a prefix of recipe `r10`, or
+        // erasing a removed r1 would also delete a KEPT r10's objects (a truly-public recipe losing its
+        // photos to another recipe's erasure).
+        expect(recipeMediaPrefix(OWNER, RECIPE).endsWith('/')).toBe(true);
+        expect(recipeMediaPrefix(OWNER, 'r1').startsWith(recipeMediaPrefix(OWNER, 'r10'))).toBe(false);
+        expect(recipeMediaPrefix(OWNER, 'r10').startsWith(recipeMediaPrefix(OWNER, 'r1'))).toBe(false);
+    });
+
+    it('stays strictly UNDER the owner prefix but is NOT the owner prefix itself (never sweeps owner-wide)', () => {
+        // If a per-recipe prefix ever collapsed to the owner-wide `recipes/{owner}/`, the scoped sweep
+        // would delete every KEPT recipe's media too — the exact regression U3a prevents.
+        expect(recipeMediaPrefix(OWNER, RECIPE).startsWith(ownerMediaPrefix(OWNER))).toBe(true);
+        expect(recipeMediaPrefix(OWNER, RECIPE)).not.toBe(ownerMediaPrefix(OWNER));
+        expect(recipeMediaPrefix(OWNER, RECIPE).length).toBeGreaterThan(ownerMediaPrefix(OWNER).length);
+    });
+
+    it('separates recipes within one owner and owners from each other', () => {
+        expect(recipeMediaPrefix(OWNER, 'rec-a')).not.toBe(recipeMediaPrefix(OWNER, 'rec-b'));
+        expect(recipeMediaPrefix('owner-a', RECIPE)).not.toBe(recipeMediaPrefix('owner-b', RECIPE));
     });
 });
 

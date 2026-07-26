@@ -43,4 +43,41 @@ export interface AccountErasureMessage {
     readonly ownerId: string;
     /** ISO 8601 timestamp of when erasure was requested. */
     readonly requestedAt: string;
+    /**
+     * The per-recipe DONATE election (CR-002 / U3b): the recipe ids the owner elected to **publish**
+     * (donate) instead of remove. Every owner-only recipe defaults to `delete`; a recipe listed here is
+     * flipped to `visibility='public' AND status='published'` and KEPT, pseudonymized.
+     *
+     * **Optional, deliberately.** The durable `account_erasure_jobs.publish_recipe_ids` row is the source
+     * of truth — the worker reads the election from the row it claims, NOT from this field — so this is a
+     * carrier for the eager send + the sweeper's reconstruction, and the rollout is consumer-tolerant:
+     * a message that predates this field (or omits it) is honoured as "donate nothing" rather than
+     * rejected. Absent / empty ⇒ every owner-only recipe is removed.
+     */
+    readonly publishRecipeIds?: readonly string[];
+}
+
+/**
+ * Render the stable, pseudonymous author handle a KEPT (truly-public / donated) recipe carries after its
+ * owner is erased (CR-002 / U3b — author-handle residue).
+ *
+ * On erasure the owner's cleartext display handle is destroyed everywhere: the `author_handles` read
+ * model row is deleted, and every KEPT recipe's denormalized `recipes.author_handle` (a name-ish string)
+ * is scrubbed to THIS token. The recipe's author is thereafter rendered from that denormalized column, so
+ * the token must be:
+ *
+ *  - **deterministic** — the same owner always maps to the same handle, so every one of their kept recipes
+ *    renders a CONSISTENT author;
+ *  - **injective** — two distinct erased owners never collapse to the same handle (which would
+ *    misattribute one user's recipes to another). It embeds the whole ULID rather than a truncation, so
+ *    distinctness is guaranteed, not probabilistic;
+ *  - **free of cleartext PII** — it is derived only from the app-user ULID, which is itself the
+ *    pseudonymous identifier GDPR-legitimately survives on `recipes.owner_id` (pseudonymized, not
+ *    anonymized — Recital 26). No name, email, or Clerk handle is used.
+ *
+ * @param ownerId - The erased owner's app-user ULID.
+ * @returns The pseudonymous author handle for the owner's kept recipes. Pure.
+ */
+export function pseudonymizedAuthorHandle(ownerId: string): string {
+    return `user_${ownerId}`;
 }

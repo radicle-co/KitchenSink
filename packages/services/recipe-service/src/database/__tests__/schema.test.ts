@@ -293,6 +293,9 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             status: { type: 'text', notNull: true },
             attempts: { type: 'integer', notNull: true },
             last_error: { type: 'text', notNull: false },
+            // CR-002 / U3b+U3a: the durable DONATE election + the captured removed-recipe set (crash-convergence).
+            publish_recipe_ids: { type: 'jsonb', notNull: false },
+            removed_recipe_ids: { type: 'jsonb', notNull: false },
             created_at: { type: 'timestamp with time zone', notNull: true },
             updated_at: { type: 'timestamp with time zone', notNull: true },
         });

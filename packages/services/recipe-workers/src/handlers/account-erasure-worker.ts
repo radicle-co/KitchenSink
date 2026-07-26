@@ -5,6 +5,8 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
     cdnOwnerPrefixInvalidationPath,
     ownerMediaPrefix,
+    pseudonymizedAuthorHandle,
+    recipeMediaPrefix,
     type AccountErasureMessage,
     type CdnInvalidationPort,
 } from '@kitchensink/recipe-core';
@@ -17,9 +19,17 @@ import { getRecipeDb } from '../common/db.js';
 import { logger } from '../common/logger.js';
 
 /**
- * SQS-triggered account-erasure worker (GDPR right-to-erasure, C-007 / D7). Hard-deletes every row a
- * user owns from the shared RDS `kitchensink_recipes` database and every object they own from BOTH S3
- * buckets, then marks their `account_erasure_jobs` row `completed`. VPC-attached DB consumer.
+ * SQS-triggered account-erasure worker (GDPR right-to-erasure, C-007 / D7 / CR-002). VPC-attached DB
+ * consumer.
+ *
+ * **This is a SCOPED erasure, not a whole-owner wipe (CR-002 / U3).** A user may keep community content:
+ * a recipe is removed only when it is OWNER-ONLY — `visibility='private'` **OR** `status='draft'` (a
+ * draft is owner-only regardless of visibility; both columns are a security boundary). A **truly-public**
+ * recipe (`visibility='public' AND status='published'`) SURVIVES, pseudonymized. The owner may also
+ * **donate** specific owner-only recipes via a per-recipe election (`account_erasure_jobs.publish_recipe_ids`):
+ * those are flipped to public+published FIRST and then survive too. So this path removes only the owner's
+ * owner-only, non-donated recipes (+ their media), all their collections, and their ratings on others'
+ * recipes — and pseudonymizes what it keeps. See {@link eraseRecipeRows} + Specification B.
  *
  * This is the ONLY code path permitted to issue `DELETE FROM recipes` — every other "delete" in the
  * system sets `deleted_at` instead — and correspondingly the only path exempt from the
@@ -32,20 +42,26 @@ import { logger } from '../common/logger.js';
  * leaves work still owed rather than work falsely reported:
  *
  *   1. Claim the job (`queued`/`running` → `running`) BEFORE any destructive work, so an attempt that
- *      dies mid-erasure is still counted.
- *   2. Delete the DB rows in ONE transaction — the reachable copy of the personal data goes first.
- *   3. Sweep the owner's prefix in the media bucket, then the archive bucket — ALL real data deletion,
- *      across both systems the owner's PII lives in, completes before anything CDN-related runs.
+ *      dies mid-erasure is still counted. The claim reads back the durable election + the previously
+ *      captured removed-recipe id set (see below).
+ *   2. Delete the DB rows in ONE transaction — the reachable copy of the personal data goes first — after
+ *      flipping donated recipes to public+published, so what remains owner-only is exactly what to remove.
+ *   3. Sweep the removed recipes' media, per removed recipe, in the media bucket then the archive bucket —
+ *      NOT the whole owner prefix, which would delete a surviving public recipe's photos. ALL real data
+ *      deletion, across both systems the owner's PII lives in, completes before anything CDN-related runs.
  *   4. Only THEN purge the CloudFront edge cache (best-effort hygiene, never a deletion step — see the
  *      ordering note on the `cdn.invalidate` call in {@link processRecord}).
  *   5. Only then mark the job `completed`.
  *
- * Crash between (2) and (3) and the objects are briefly orphaned, but nothing is lost and nothing is
- * falsely reported: the job is still `running`, SQS redelivers, and the sweep converges because it is
- * driven by the owner's S3 *prefix*, never by `recipe_photos.s3_key` rows. That prefix-independence is
- * what frees the rows to go first. (data-model.md prescribes the opposite order, but that text predates
- * the ARCH-BE-3 key scheme: when keys were `photos/{recipe_id}/` they had to be enumerated FROM the
- * rows, which forced S3 first. Owner-prefixed keys removed the constraint.)
+ * **Crash-convergence with a SCOPED sweep.** The old sweep was driven by the owner *prefix*, independent
+ * of any row, so a crash between the row delete (2) and the object sweep (3) still converged. A scoped,
+ * per-removed-recipe sweep loses that: the recipe ids come from `recipes`, and after (2) those rows are
+ * gone, so a replay could no longer learn which recipes' objects to sweep. So the removed-recipe id set
+ * is CAPTURED durably — written to `account_erasure_jobs.removed_recipe_ids` inside the very transaction
+ * that deletes the rows (2), write-once. A redelivery re-claims the still-`running` job, reads the
+ * captured ids back off the row, and finishes the sweep — convergence restored, rows-first preserved.
+ * (data-model.md's original S3-first order was forced by exactly this row-enumerated-keys constraint; we
+ * keep rows-first by persisting the ids instead of inverting the order.)
  *
  * **Failure is never terminal here.** See {@link recordErasureJobError} — the single most consequential
  * decision in this file.
@@ -90,6 +106,20 @@ export const isInvalidErasureMessageError = (error: unknown): error is InvalidEr
  */
 export type ErasureJobClaim = {
     readonly id: string;
+    /**
+     * The DONATE election read back off the claimed row (CR-002 / U3b) — the recipe ids the owner elected
+     * to publish. The DURABLE row is the source of truth for the election, NOT the SQS message, so the
+     * worker flips exactly these regardless of what the (derived, possibly-stale) message carried. `null`
+     * on a pre-election row ⇒ donate nothing.
+     */
+    readonly publishRecipeIds: string[] | null;
+    /**
+     * The removed-recipe id set captured on a PRIOR attempt (CR-002 / U3a) — `null` until the first
+     * attempt's erase transaction writes it. On a redelivery after the rows were already deleted, this is
+     * the ONLY way to recover which recipes' S3 objects still need sweeping (the rows are gone), so the
+     * scoped sweep converges. Write-once, so a replay reads a stable set.
+     */
+    readonly removedRecipeIds: string[] | null;
 };
 
 /** Max characters persisted to `account_erasure_jobs.last_error` (the column is unbounded TEXT). */
@@ -128,6 +158,13 @@ const isAppUserUlid = (value: unknown): value is string => typeof value === 'str
  * `requestedAt` is deliberately NOT validated: it is observational — logged, never acted on — so a guard
  * would buy no safety while rejecting messages this worker could otherwise honour.
  *
+ * The DONATE election (`publishRecipeIds`, CR-002 / U3b) is parsed TOLERANTLY — a valid string array is
+ * carried through, anything else (absent, null, non-array, wrong element types) collapses to `undefined`
+ * rather than throwing. This is deliberate on two counts: the rollout is consumer-tolerant (a message
+ * that predates the field must be honoured), and the field is not safety-critical HERE because the worker
+ * reads the authoritative election from the durable job ROW it claims, not from the message. So a
+ * malformed election on the wire degrades to "no message election" and the row still governs.
+ *
  * @param record - The raw SQS record.
  * @returns The typed message.
  * @throws {SyntaxError} When the body is not JSON — a poison message must surface, not be acked.
@@ -140,7 +177,15 @@ export const parseErasureMessage = (record: SQSRecord): AccountErasureMessage =>
         throw new InvalidErasureMessageError(`ownerId must be a valid ULID, received ${JSON.stringify(body.ownerId)}`);
     }
 
-    return { ownerId: body.ownerId, requestedAt: String(body.requestedAt) };
+    const publishRecipeIds = Array.isArray(body.publishRecipeIds)
+        ? body.publishRecipeIds.filter((id): id is string => typeof id === 'string')
+        : undefined;
+
+    return {
+        ownerId: body.ownerId,
+        requestedAt: String(body.requestedAt),
+        ...(publishRecipeIds !== undefined ? { publishRecipeIds } : {}),
+    };
 };
 
 /**
@@ -182,7 +227,9 @@ export const claimErasureJob = async (
         UPDATE account_erasure_jobs
         SET status = 'running', attempts = attempts + 1, updated_at = now()
         WHERE owner_id = ${ownerId} AND status IN ('queued', 'running')
-        RETURNING id
+        RETURNING id,
+                  publish_recipe_ids AS "publishRecipeIds",
+                  removed_recipe_ids AS "removedRecipeIds"
     `);
 
     return result.rows[0];
@@ -277,116 +324,202 @@ export const recordErasureJobError = async (
     `);
 };
 
+/** The scoped erasure's DB effect: which recipe ids were removed (their objects still need sweeping). */
+export interface EraseRecipeRowsResult {
+    /**
+     * The recipe ids removed by THIS transaction — the owner's owner-only, non-donated recipes. Drives
+     * the per-removed-recipe S3 sweep. Empty on a replay after the rows were already deleted (the caller
+     * then falls back to the captured {@link ErasureJobClaim.removedRecipeIds}).
+     */
+    readonly removedRecipeIds: string[];
+}
+
 /**
- * Hard-delete every `kitchensink_recipes` row the owner owns, atomically.
+ * Perform the SCOPED (CR-002 / U3a+b+c) database side of erasure, atomically: donate the elected recipes,
+ * remove the owner's owner-only content + collections + cross-recipe ratings, and pseudonymize what is
+ * KEPT. Returns the removed-recipe id set for the caller's scoped S3 sweep.
  *
- * **No `deleted_at` filter, deliberately.** Tombstoned recipes are erased too: retention is not
- * reachability, and a soft-deleted recipe still holds the user's data. Adding the read path's habitual
- * `deleted_at IS NULL` here would silently leave every tombstoned recipe — and, by cascade, its
- * versions, photos, steps and ingredients — behind on a right-to-erasure request, while reporting
- * success. This function is the explicit exemption data-model.md carves out of the read-path rule.
+ * The statements run in ONE transaction, in this order — the order is load-bearing:
  *
- * **Why the clone detach comes first.** `recipes.cloned_from_id → recipes.id` has no `ON DELETE` clause,
- * so it is `NO ACTION` and not deferrable (confirmed against the live `pg_constraint` catalog). Another
- * user's clone pointing at this owner's recipe therefore makes the delete throw
- * `recipes_cloned_from_id_fkey` — erasure would fail in production the first time anyone had cloned the
- * user's recipe. So other owners' pointers are NULLed first: their recipes survive, their provenance
- * link does not (data-model.md §Hard purge — descendants unaffected, without leaking the source).
- * `idx_recipes_cloned_from` exists to make that scan cheap.
+ *  1. **Donate-flip (U3b), FIRST.** Elected recipes are set BOTH `visibility='public'` AND
+ *     `status='published'` — a visibility-only flip would leave a donated *draft* owner-only (still
+ *     removed). Scoped `AND owner_id = ownerId`, so an election id the owner does not own is a harmless
+ *     no-op, never a way to publish someone else's recipe. Running first means what remains owner-only
+ *     afterwards is exactly the to-be-removed set.
+ *  2. **Compute the removed set.** `owner_id = ownerId AND NOT (visibility='public' AND status='published')`
+ *     — owner-only = private OR draft (both a security boundary; a public *draft* is still owner-only).
+ *     Captured as concrete ids because (a) the scoped S3 sweep needs them and (b) after the delete they
+ *     are unrecoverable — see step 3.
+ *  3. **Capture the removed ids on the job row (crash-convergence), write-once.** Persisted in THIS
+ *     transaction, atomic with the delete, so a redelivery after a crash reads them back off the still-
+ *     `running` row and finishes the sweep. `WHERE … removed_recipe_ids IS NULL` makes it write-once, so
+ *     a replay (whose freshly-computed set is empty — the rows are gone) never clobbers the real set.
+ *  4. **Ratings root (CR-001 / FR-013b), before the recipe delete.** The owner's ratings on OTHER users'
+ *     (surviving) recipes: `DELETE FROM recipe_ratings WHERE user_id = ownerId`. `recipe_id` CASCADEs so
+ *     ratings on the owner's OWN recipes go with those recipes, but their ratings on everyone else's would
+ *     otherwise survive. This bulk delete fires the STATEMENT-LEVEL aggregate trigger ONCE, re-deriving
+ *     every affected survivor's `average_rating`/`rating_count` — NEVER written by hand (trigger-only). The
+ *     erased user's stars leave the public average: anonymized, not merely detached.
+ *  5. **Scoped clone-detach, before the delete.** `recipes.cloned_from_id → recipes.id` is `NO ACTION`
+ *     and not deferrable (live `pg_constraint`), so any SURVIVING recipe pointing at a removed recipe makes
+ *     the delete throw `recipes_cloned_from_id_fkey`. So every survivor whose `cloned_from_id` is in the
+ *     removed set is detached first: `cloned_from_id = ANY(removed) AND id <> ALL(removed)`. Scoped to the
+ *     removed set (NOT owner-wide) so a surviving public recipe's clone pointer is NOT corrupted; and the
+ *     survivor guard is `id NOT IN removed`, **not** `owner_id <> ownerId` — because the donate-flip and
+ *     self-clone make the owner's OWN kept recipe able to point at their OWN removed recipe (donate a clone
+ *     P of a private source Q → P kept, Q removed, P→Q dangles), which `owner_id <> ownerId` would miss and
+ *     the delete would then FK-fail. Rows in the removed set are NOT detached: they are deleted by the same
+ *     statement as their source, and the NO ACTION check at end-of-statement sees both already gone.
+ *  6. **Scoped recipe delete.** `DELETE FROM recipes WHERE id = ANY(removed)` — NOT `WHERE owner_id`, so
+ *     truly-public + donated recipes survive. No `deleted_at` filter: a tombstoned owner-only recipe is
+ *     erased too (retention is not reachability). Cascades to `recipe_steps`, `recipe_ingredients`,
+ *     `recipe_photos`, `recipe_versions`, `recipe_collections`, `recipe_version_pending_archives`, and the
+ *     ratings on the removed recipes — the schema owns that graph; re-deleting by hand would be dead SQL
+ *     that rots when a cascade changes. `ingredients` (shared, owner-less) is deliberately untouched.
+ *  7. **Collections (U3c).** `DELETE FROM collections WHERE owner_id = ownerId` — ALL of them, public and
+ *     private, cascading to their memberships. Other users' cloned collections have `source_collection_id`
+ *     SET NULL by the FK (clones survive; the "pull from source" path degrades to `COLLECTION_NOT_CLONED`).
+ *  8. **Author-handle residue (U3b), AFTER the delete.** By now only KEPT rows remain for the owner, and
+ *     each still carries a denormalized cleartext `recipes.author_handle`. Scrub every non-null one to the
+ *     ULID-derived {@link pseudonymizedAuthorHandle}, so a kept recipe renders a consistent PSEUDONYMOUS
+ *     author and no cleartext handle survives. (A row that had no handle keeps none — we do not fabricate
+ *     authorship.)
+ *  9. **`author_handles` read-model root (W8-a.2 / .10).** `DELETE FROM author_handles WHERE user_id =
+ *     ownerId` — user-keyed, no FK, nothing cascades it. Deleting it removes the cleartext read-model row
+ *     entirely; kept recipes no longer need it because their author renders from the scrubbed denormalized
+ *     column (verified: no read path joins `author_handles`).
  *
- * The detach is scoped `owner_id <> ownerId` so it touches ONLY other users' rows. This owner's own
- * clones of their own recipes need no detach: they are removed by the same statement that removes their
- * source, and a non-deferrable NO ACTION check runs at end-of-statement, by which point the referencing
- * row is already gone. (Verified against Postgres 16: one delete covering an active recipe, a tombstone,
- * and a self-referencing clone succeeds.)
- *
- * **The ratings root is swept explicitly — the schema CANNOT cover it (CR-001 / FR-013b).** A rating is
- * authored by its RATER, so `recipe_ratings.user_id` is a third owner-scoped erasure root, and the only
- * one that routinely lives on OTHER users' (surviving) recipes. `recipe_id` CASCADEs, so the ratings on
- * the erased owner's OWN recipes go with those recipes — but the owner's ratings on everyone ELSE's
- * recipes cascade from nothing and would silently survive a right-to-erasure request. So this sweeps them
- * explicitly, `DELETE FROM recipe_ratings WHERE user_id = ownerId` (using `idx_recipe_ratings_user_id`),
- * FIRST in the transaction. That bulk delete fires the STATEMENT-LEVEL aggregate trigger exactly ONCE,
- * which re-derives `average_rating` / `rating_count` on every affected surviving recipe. The trigger MUST
- * NOT be disabled for speed: doing so would leave other users' recipes holding permanently wrong
- * aggregates with nothing to repair them — and it is not needed, since one firing covers the whole delete.
- *
- * **Everything else is the schema's job.** `recipe_steps`, `recipe_ingredients`, `recipe_photos`,
- * `recipe_versions`, `recipe_collections`, `recipe_version_pending_archives`, and the ratings on the
- * owner's OWN recipes all cascade from `recipes.id`; `recipe_collections` also cascades from
- * `collections.id`; and other users' cloned collections have their `source_collection_id` SET NULL by the
- * FK itself. Re-deleting any of those by hand would be dead SQL duplicating the cascade graph, and would
- * rot the day the schema changed — the schema is the one authority for it. The table deliberately left
- * untouched is `ingredients`: a shared global dedup table with no owner column, referenced by every other
- * user's recipes.
- *
- * `recipe_versions.created_by` is likewise not swept independently. Mutations are owner-only
- * (`VersionsService` rejects a non-owner) and `createdBy` is always the authenticated caller, so
- * `created_by` cannot diverge from its recipe's `owner_id`, and the cascade already covers it. A
- * "defensive" `DELETE FROM recipe_versions WHERE created_by = $1` would not be defensive: if that
- * invariant ever DID break, it would destroy version history belonging to a user who never asked to be
- * erased. Leaving a row is recoverable; deleting someone else's is not.
- *
- * One transaction, because a detach that committed without its delete would strip a non-requesting
- * user's provenance permanently, for nothing.
+ * `recipe_versions.created_by` is not swept independently: mutations are owner-only and `created_by`
+ * cannot diverge from its recipe's `owner_id`, so the cascade covers it, and a "defensive" delete would
+ * destroy version history of a user who never asked to be erased if that invariant ever broke.
  *
  * @param db - The recipe database handle.
  * @param ownerId - The owner being erased.
- * @sideEffect Deletes rows from RDS, cascading to every child table above.
+ * @param publishRecipeIds - The recipe ids the owner elected to publish (donate); empty ⇒ donate nothing.
+ * @returns The removed-recipe id set for the scoped S3 sweep.
+ * @sideEffect Deletes/updates rows in RDS (cascading), and captures the removed set on the job row.
  */
-export const eraseRecipeRows = async (db: NodePgDatabase<Record<string, never>>, ownerId: string): Promise<void> => {
-    await db.transaction(async (tx) => {
-        // The third owner-scoped root (CR-001 / FR-013b): the owner's ratings on OTHER users' recipes,
-        // which survive. FIRST, so the statement-level aggregate trigger re-derives every affected
-        // survivor's average/count in one firing while those recipes still exist. Ratings on the owner's
-        // OWN recipes are handled by the recipes cascade below (their recipe ceases to exist).
+export const eraseRecipeRows = async (
+    db: NodePgDatabase<Record<string, never>>,
+    ownerId: string,
+    publishRecipeIds: readonly string[],
+): Promise<EraseRecipeRowsResult> => {
+    const pseudonym = pseudonymizedAuthorHandle(ownerId);
+    // The election is bound as a single jsonb parameter (NOT `= ANY($1::uuid[])` over a JS array, which
+    // drizzle list-EXPANDS into `ANY($1, $2, …)` — invalid for ANY). `jsonb_array_elements_text` turns the
+    // one bound json string back into a set of ids the flip matches with `id IN (…)`; an empty election
+    // yields no rows, so the flip safely matches nothing. Parameterized throughout — no SQL built from the
+    // (client-originated) ids.
+    const publishElectionJson = JSON.stringify([...publishRecipeIds]);
+
+    // The owner-only (removed) predicate — the exact negation of "truly public". Named once so the removed-set
+    // SELECT, the clone-detach subqueries, and the DELETE all key on the IDENTICAL two-axis rule; a drift
+    // between any two of them would sweep a different set than it deleted.
+    const ownerOnly = sql`owner_id = ${ownerId} AND NOT (visibility = 'public' AND status = 'published')`;
+
+    return db.transaction(async (tx) => {
+        // 1. Donate-flip (U3b): elected recipes → community-visible. BOTH columns; scoped to the owner.
+        await tx.execute(sql`
+            UPDATE recipes
+            SET visibility = 'public', status = 'published', updated_at = now()
+            WHERE id IN (SELECT jsonb_array_elements_text(${publishElectionJson}::jsonb)::uuid)
+              AND owner_id = ${ownerId}
+        `);
+
+        // 2. The removed set = the owner's rows that are NOT truly-public (owner-only, non-donated). Captured
+        //    as concrete ids for the scoped S3 sweep (and persisted below); the DELETE re-uses the identical
+        //    predicate rather than binding this array back, so the two can never disagree.
+        const removed = await tx.execute<{ id: string }>(sql`SELECT id FROM recipes WHERE ${ownerOnly}`);
+        const removedRecipeIds = removed.rows.map((row) => row.id);
+
+        // 3. Capture the removed ids on the job row, atomic with the delete, WRITE-ONCE (crash-convergence).
+        await tx.execute(sql`
+            UPDATE account_erasure_jobs
+            SET removed_recipe_ids = ${JSON.stringify(removedRecipeIds)}::jsonb, updated_at = now()
+            WHERE owner_id = ${ownerId}
+              AND status IN ('queued', 'running')
+              AND removed_recipe_ids IS NULL
+        `);
+
+        // 4. Ratings root (CR-001) — before the recipe delete; the statement trigger re-derives survivors.
         await tx.execute(sql`DELETE FROM recipe_ratings WHERE user_id = ${ownerId}`);
 
+        // 5. Scoped clone-detach — every SURVIVOR (`id NOT IN removed`) pointing at a removed recipe
+        //    (`cloned_from_id IN removed`). NOT `owner_id <> ownerId` (which would miss a donated/self-clone
+        //    the owner KEEPS that points at their own removed recipe, then FK-fail the delete), and NOT
+        //    owner-wide (which would null a pointer to a SURVIVING public recipe — provenance corruption).
         await tx.execute(sql`
             UPDATE recipes
             SET cloned_from_id = NULL, updated_at = now()
-            WHERE cloned_from_id IN (SELECT id FROM recipes WHERE owner_id = ${ownerId})
-              AND owner_id <> ${ownerId}
+            WHERE cloned_from_id IN (SELECT id FROM recipes WHERE ${ownerOnly})
+              AND id NOT IN (SELECT id FROM recipes WHERE ${ownerOnly})
         `);
 
-        await tx.execute(sql`DELETE FROM recipes WHERE owner_id = ${ownerId}`);
+        // 6. Scoped recipe delete — the removed set (owner-only, post-flip), NOT owner-wide, so truly-public +
+        //    donated survive. No `deleted_at` filter: a tombstoned owner-only recipe is erased too.
+        await tx.execute(sql`DELETE FROM recipes WHERE ${ownerOnly}`);
 
+        // 7. Collections (U3c) — all of the owner's, cascading to memberships. Clones survive (SET NULL FK).
         await tx.execute(sql`DELETE FROM collections WHERE owner_id = ${ownerId}`);
 
-        // The FOURTH owner-scoped root (W8-a.2 / W8-a.10): the author_handles read model is keyed by
-        // user_id and has NO FK to recipes/collections, so nothing cascades it — it must be swept
-        // explicitly, or an erased user's display name would survive right-to-erasure in this table.
+        // 8. Author-handle residue (U3b) — scrub the cleartext handle on KEPT rows to the pseudonym. Only
+        //    kept rows remain now, so this scopes by owner_id + a non-null handle.
+        await tx.execute(sql`
+            UPDATE recipes
+            SET author_handle = ${pseudonym}, updated_at = now()
+            WHERE owner_id = ${ownerId} AND author_handle IS NOT NULL
+        `);
+
+        // 9. author_handles read-model root (W8-a.10) — user-keyed, no cascade; delete removes the cleartext.
         await tx.execute(sql`DELETE FROM author_handles WHERE user_id = ${ownerId}`);
+
+        return { removedRecipeIds };
     });
 };
 
 /**
- * Delete every object under the owner's prefix from one bucket. Idempotent — an empty prefix yields
- * nothing to delete, which is exactly what a replay over an already-erased owner should cost.
+ * Delete every object of ONE removed recipe from one bucket (CR-002 / U3a). Idempotent — an empty prefix
+ * yields nothing to delete, which is exactly what a replay over an already-swept recipe should cost.
  *
- * Called once per bucket (media, then version-archive) rather than being made bucket-aware, because the
- * sweep IS the same operation: both buckets key an owner's objects under the same
- * {@link ownerMediaPrefix} (ARCH-BE-3), by design, precisely so one prefix scan reaches everything.
+ * **Scoped per recipe, NOT per owner.** The sweep prefix is {@link recipeMediaPrefix}
+ * (`recipes/{ownerId}/{recipeId}/`), not {@link ownerMediaPrefix} — because erasure now KEEPS the owner's
+ * truly-public + donated recipes, and sweeping the whole owner prefix would delete a surviving recipe's
+ * photos and version archives. The caller invokes this once per removed recipe, per bucket (media, then
+ * version-archive), because both buckets key that recipe's objects under the same per-recipe prefix
+ * (ARCH-BE-3), by design, so one per-recipe prefix scan reaches everything the recipe owns in that bucket.
+ *
+ * The `recipeId` guard is safety-critical: a blank `recipeId` would collapse the prefix toward the
+ * owner-wide `recipes/{ownerId}/` and sweep KEPT recipes' media, so a blank owner OR recipe is refused.
  *
  * A page is always a safe batch: `ListObjectsV2` returns at most 1000 keys and `DeleteObjects` accepts
  * at most 1000, so the batch can never overflow the API limit.
  *
  * @param client - The S3 client.
  * @param bucket - The bucket to sweep.
- * @param ownerId - The owner whose prefix is swept.
+ * @param ownerId - The owner whose (removed) recipe is swept.
+ * @param recipeId - The removed recipe whose object subtree is swept.
  * @returns The number of objects deleted.
- * @throws {InvalidErasureMessageError} When `ownerId` is blank — defence in depth behind
- *   {@link parseErasureMessage}. This function is what actually issues the deletes, so it enforces its
- *   own precondition rather than trusting every future caller to have parsed first.
+ * @throws {InvalidErasureMessageError} When `ownerId` or `recipeId` is blank — defence in depth. This
+ *   function is what actually issues the deletes, so it enforces its own precondition, and a blank
+ *   `recipeId` must never widen the sweep into a kept recipe's (or the whole owner's) media.
  * @throws When S3 reports a per-key delete failure — see the `Errors` check below.
  * @sideEffect Deletes objects from S3.
  */
-export const eraseRecipeObjects = async (client: S3Client, bucket: string, ownerId: string): Promise<number> => {
+export const eraseRecipeObjects = async (
+    client: S3Client,
+    bucket: string,
+    ownerId: string,
+    recipeId: string,
+): Promise<number> => {
     if (!isValidOwnerId(ownerId)) {
         throw new InvalidErasureMessageError(`ownerId must be a non-empty string to sweep ${bucket}`);
     }
 
-    const prefix = ownerMediaPrefix(ownerId);
+    if (!isValidOwnerId(recipeId)) {
+        throw new InvalidErasureMessageError(`recipeId must be a non-empty string to sweep ${bucket}`);
+    }
+
+    const prefix = recipeMediaPrefix(ownerId, recipeId);
     let deleted = 0;
     let continuationToken: string | undefined;
 
@@ -455,19 +588,42 @@ const processRecord = async (record: SQSRecord, buckets: ErasureBuckets, cdn: Cd
     try {
         // The data work past this interlock is deliberately NOT gated on having CLAIMED a job (only on a row
         // existing): erasure is owner-scoped and idempotent, so a completed replay costs only a few zero-row
-        // statements and two empty prefix listings — and it guarantees no anomaly in the bookkeeping can let
-        // an authorized message be acked without the erasure having been attempted.
-        await eraseRecipeRows(db, ownerId);
+        // statements and (now) an empty removed-set with nothing to sweep — and it guarantees no anomaly in
+        // the bookkeeping can let an authorized message be acked without the erasure having been attempted.
+        //
+        // The DONATE election comes from the durable ROW the claim read back (U3b), never the SQS message:
+        // the row is the source of truth, so a stale/forged/empty message can neither delete a donated
+        // recipe nor donate one the owner did not elect. A completed replay has no active row to claim, and
+        // by then the flip is moot (donated recipes are already public+published), so [] is correct there.
+        const election = job?.publishRecipeIds ?? [];
 
-        const deletedMedia = await eraseRecipeObjects(s3, buckets.media, ownerId);
-        const deletedArchives = await eraseRecipeObjects(s3, buckets.archive, ownerId);
+        const { removedRecipeIds } = await eraseRecipeRows(db, ownerId, election);
 
-        // HAZ-051/067/039: purge the CloudFront edge cache for the owner's ENTIRE media prefix so a stale
-        // edge object cannot keep serving an erased user's photos after the S3 origin copies are gone —
-        // photos are served UNSIGNED/public via CDN (photos.module.ts), so without this the erased user's
-        // media stays reachable until the cached object's TTL expires. A single wildcard path over the
-        // SAME prefix `eraseRecipeObjects` just swept, not one path per object (cheaper and no less
-        // correct). The archive bucket is NOT invalidated — version snapshots are never served via CDN.
+        // Crash-convergence (U3a): on a FRESH attempt the erase transaction returned the real removed set;
+        // on a REDELIVERY after the rows were already deleted it returns empty, so fall back to the set
+        // captured on the still-`running` row by the first attempt. Either way this is the exact set of
+        // recipes whose media must be swept — never the owner-wide prefix, which would delete kept media.
+        const sweepRecipeIds = removedRecipeIds.length > 0 ? removedRecipeIds : (job?.removedRecipeIds ?? []);
+
+        // Scoped, per-removed-recipe sweep (U3a): both buckets, per recipe, so truly-public + donated media
+        // survive. Both buckets resolved up-front (see handler), so a per-recipe media sweep never runs
+        // without knowing the archive bucket it must also sweep.
+        let deletedMedia = 0;
+        let deletedArchives = 0;
+
+        for (const recipeId of sweepRecipeIds) {
+            deletedMedia += await eraseRecipeObjects(s3, buckets.media, ownerId, recipeId);
+            deletedArchives += await eraseRecipeObjects(s3, buckets.archive, ownerId, recipeId);
+        }
+
+        // HAZ-051/067/039: purge the CloudFront edge cache for the owner's media prefix so a stale edge
+        // object cannot keep serving a REMOVED recipe's photos after the S3 origin copies are gone — photos
+        // are served UNSIGNED/public via CDN (photos.module.ts), so without this a removed recipe's media
+        // stays reachable until the cached object's TTL expires. ONE owner-prefix wildcard path, not one per
+        // removed recipe: it costs the same single path regardless of how many recipes were removed, and
+        // over-purging a KEPT recipe's edge cache is harmless — the object still lives at the S3 origin, so
+        // the next request simply re-fetches and re-caches it (no data loss, no exposure). The archive
+        // bucket is NOT invalidated — version snapshots are never served via CDN.
         //
         // Issued LAST, strictly AFTER both S3 sweeps — a CDN purge is a best-effort edge-cache hygiene
         // step, not data deletion, and it must never GATE data deletion. The archive bucket holds full

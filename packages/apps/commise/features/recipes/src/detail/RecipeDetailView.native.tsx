@@ -8,6 +8,7 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
 import { hasUserEnteredIngredients, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -97,14 +98,18 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
 
                     return (
                         <View key={ingredient.ingredientId} style={styles.ingredientRow}>
+                            {/* The tap target is a 44pt wrapper (RC-3); the visible checkbox stays a compact
+                                18px box centered inside it, so the checklist reads tight but taps large. */}
                             <Pressable
                                 accessibilityRole="checkbox"
                                 accessibilityState={{ checked }}
                                 accessibilityLabel={`${qty} ${ingredient.name}`.trim()}
                                 onPress={() => onToggleIngredient?.(ingredient.ingredientId)}
-                                style={[styles.checkbox, checked && styles.checkboxChecked]}
+                                style={styles.checkboxTouch}
                             >
-                                {checked && <Text style={styles.checkMark}>✓</Text>}
+                                <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+                                    {checked && <Text style={styles.checkMark}>✓</Text>}
+                                </View>
                             </Pressable>
                             <Text style={styles.ingredientQty}>{qty}</Text>
                             <Text style={styles.ingredientName}>{ingredient.name}</Text>
@@ -128,14 +133,17 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
 
                     return (
                         <View key={step.stepNumber} style={styles.stepRow}>
+                            {/* 44pt tap target (RC-3) wrapping the compact 32px numbered marker circle. */}
                             <Pressable
                                 accessibilityRole="checkbox"
                                 accessibilityState={{ checked: done }}
                                 accessibilityLabel={fillTemplate(detail.stepToggleLabel, { step: step.stepNumber })}
                                 onPress={() => onToggleStep?.(step.stepNumber)}
-                                style={[styles.stepMarker, done && styles.stepMarkerDone]}
+                                style={styles.stepMarkerTouch}
                             >
-                                <Text style={styles.stepMarkerLabel}>{done ? '✓' : step.stepNumber}</Text>
+                                <View style={[styles.stepMarker, done && styles.stepMarkerDone]}>
+                                    <Text style={styles.stepMarkerLabel}>{done ? '✓' : step.stepNumber}</Text>
+                                </View>
                             </Pressable>
                             <View style={styles.stepBody}>
                                 <Text style={[styles.stepText, done && styles.stepTextDone]}>{step.instruction}</Text>
@@ -193,60 +201,65 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
     );
 };
 
-const cardBorder = 'rgba(178, 190, 195, 0.3)';
-
 const styles = StyleSheet.create({
-    container: { gap: 16, paddingHorizontal: 16, paddingVertical: 16 },
-    title: { fontSize: 30, fontWeight: '700', color: palette.charcoal },
-    badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    container: { gap: nativeTokens.spacing[4], paddingHorizontal: nativeTokens.spacing[4], paddingVertical: nativeTokens.spacing[4] },
+    title: { fontSize: nativeTokens.fontSize.displayMd, fontWeight: '700', color: palette.charcoal },
+    badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
     badge: {
-        borderRadius: 999,
-        paddingHorizontal: 12,
-        paddingVertical: 4,
+        borderRadius: nativeTokens.radius.full,
+        paddingHorizontal: nativeTokens.spacing[3],
+        paddingVertical: nativeTokens.spacing[1],
         fontSize: 13,
         fontWeight: '500',
         overflow: 'hidden',
     },
     badgeSeafoam: { backgroundColor: 'rgba(61, 139, 133, 0.1)', color: palette.seafoam },
-    badgeCoral: { backgroundColor: 'rgba(232, 145, 122, 0.15)', color: palette.coral },
+    // Contrast (U4 / WCAG AA): coral-as-text on the coral tint is 2.2:1 — demote the tag text to slate (5:1)
+    // while keeping the warm tint background. The brand coral-on-darker-coral treatment is U8's.
+    badgeCoral: { backgroundColor: 'rgba(232, 145, 122, 0.15)', color: palette.slate },
     badgeNeutral: { backgroundColor: palette.pearl, color: palette.slate },
-    description: { fontSize: 16, lineHeight: 24, color: palette.slate },
-    sourceNote: { fontSize: 11, lineHeight: 16, color: palette.slate },
+    description: { fontSize: nativeTokens.fontSize.bodyMd, lineHeight: 24, color: palette.slate },
+    sourceNote: { fontSize: nativeTokens.fontSize.overline, lineHeight: 16, color: palette.slate },
     statStrip: {
         flexDirection: 'row',
         backgroundColor: palette.white,
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
-        borderColor: cardBorder,
-        paddingVertical: 16,
+        borderColor: nativeTokens.borderSubtle,
+        paddingVertical: nativeTokens.spacing[4],
     },
-    statCell: { flex: 1, alignItems: 'center', gap: 4 },
-    statValue: { fontSize: 18, fontWeight: '700', color: palette.charcoal },
-    statLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: palette.slate },
-    sectionHeading: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
-    card: { backgroundColor: palette.white, borderRadius: 16, borderWidth: 1, borderColor: cardBorder, padding: 8 },
-    ingredientRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 8 },
+    statCell: { flex: 1, alignItems: 'center', gap: nativeTokens.spacing[1] },
+    statValue: { fontSize: nativeTokens.fontSize.bodyLg, fontWeight: '700', color: palette.charcoal },
+    statLabel: { fontSize: nativeTokens.fontSize.overline, textTransform: 'uppercase', letterSpacing: 0.5, color: palette.slate },
+    sectionHeading: { fontSize: nativeTokens.fontSize.headingMd, fontWeight: '600', color: palette.charcoal },
+    card: { backgroundColor: palette.white, borderRadius: nativeTokens.radius.lg, borderWidth: 1, borderColor: nativeTokens.borderSubtle, padding: nativeTokens.spacing[2] },
+    ingredientRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: nativeTokens.spacing[1], paddingHorizontal: nativeTokens.spacing[2] },
+    // 44pt tap target (RC-3) around the compact visible checkbox.
+    checkboxTouch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     checkbox: {
         width: 18,
         height: 18,
         borderRadius: 4,
         borderWidth: 2,
-        borderColor: palette.mist,
+        // Contrast (U4): mist border on white is 1.9:1 — a checkbox is a UI component (3:1 minimum); slate is 5:1.
+        borderColor: palette.slate,
         alignItems: 'center',
         justifyContent: 'center',
     },
     checkboxChecked: { backgroundColor: palette.seafoam, borderColor: palette.seafoam },
-    checkMark: { fontSize: 12, color: palette.white },
+    checkMark: { fontSize: nativeTokens.fontSize.caption, color: palette.white },
     ingredientQty: { fontWeight: '600', color: palette.charcoal },
     ingredientName: { color: palette.charcoal },
     ingredientNotes: { fontSize: 13, color: palette.slate },
-    userBadge: { marginLeft: 'auto', fontSize: 11, color: palette.slate },
+    userBadge: { marginLeft: 'auto', fontSize: nativeTokens.fontSize.overline, color: palette.slate },
     stepList: { gap: 14 },
-    stepRow: { flexDirection: 'row', gap: 12 },
+    stepRow: { flexDirection: 'row', gap: nativeTokens.spacing[3], alignItems: 'flex-start' },
+    // 44pt tap target (RC-3) around the compact 32px numbered marker circle.
+    stepMarkerTouch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     stepMarker: {
         width: 32,
         height: 32,
-        borderRadius: 999,
+        borderRadius: nativeTokens.radius.full,
         backgroundColor: palette.seafoam,
         alignItems: 'center',
         justifyContent: 'center',
@@ -254,7 +267,7 @@ const styles = StyleSheet.create({
     },
     stepMarkerDone: { backgroundColor: palette.seafoam },
     stepMarkerLabel: { color: palette.white, fontWeight: '600' },
-    stepBody: { flex: 1, gap: 2 },
+    stepBody: { flex: 1, gap: 2, paddingTop: nativeTokens.spacing[1] },
     stepText: { fontSize: 15, lineHeight: 22, color: palette.charcoal },
     stepTextDone: { textDecorationLine: 'line-through', opacity: 0.6 },
     stepTimer: { fontSize: 13, fontWeight: '500', color: palette.seafoam },

@@ -231,6 +231,44 @@ describe('RecipeDetailView (native) — interactivity (D4/D5/D6)', () => {
     });
 });
 
+describe('RecipeDetailView (native) — touch targets (U4 / RC-3)', () => {
+    it('gives the ingredient checkbox a 44pt tap target', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil' })] })}
+                onToggleIngredient={vi.fn()}
+            />,
+        );
+
+        const box = window.getComputedStyle(screen.getByLabelText(/Olive oil/));
+        expect(box.width).toBe('44px');
+        expect(box.height).toBe('44px');
+    });
+
+    it('gives the step marker a 44pt tap target', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ steps: [makeStepView({ stepNumber: 1, instruction: 'Rub the lamb.' })] })}
+                onToggleStep={vi.fn()}
+            />,
+        );
+
+        const marker = window.getComputedStyle(screen.getByLabelText('Mark step 1 complete'));
+        expect(marker.width).toBe('44px');
+        expect(marker.height).toBe('44px');
+    });
+});
+
+describe('RecipeDetailView (native) — contrast (U4 / WCAG AA)', () => {
+    it('renders tag chips with a slate (AA-legible) text colour, not the 2.2:1 coral', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ tags: ['grill'] })} onFilterByTag={vi.fn()} />);
+
+        // The coral tint background stays; the tag TEXT is demoted to slate (rgb(99,110,114) ≈ 5:1). The old
+        // coral-as-text (#E8917A) was 2.2:1.
+        expect(window.getComputedStyle(screen.getByText('grill')).color).toBe('rgb(99, 110, 114)');
+    });
+});
+
 describe('RecipeDetailView (native) — version + visibility badges (D3)', () => {
     it('shows the current-version badge when past v1', () => {
         render(<RecipeDetailView recipe={makeRecipeDetail({ currentVersion: 3 })} />);

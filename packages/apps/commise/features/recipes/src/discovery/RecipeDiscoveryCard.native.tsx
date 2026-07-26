@@ -8,6 +8,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -70,21 +71,24 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
 };
 
 const styles = StyleSheet.create({
-    titleWrap: { paddingHorizontal: 16, paddingTop: 16 },
-    body: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8, gap: 8 },
+    titleWrap: { paddingHorizontal: nativeTokens.spacing[4], paddingTop: nativeTokens.spacing[4] },
+    body: { paddingHorizontal: nativeTokens.spacing[4], paddingBottom: nativeTokens.spacing[4], paddingTop: nativeTokens.spacing[2], gap: nativeTokens.spacing[2] },
     attribution: { fontSize: 13, color: palette.slate },
     // Demoted to a ghost/outline (U7): the card should read "tap to open" first, so Clone is a quiet
-    // secondary action (coral outline) rather than a filled-coral CTA competing with the cover/title.
+    // secondary action (coral outline) rather than a filled-coral CTA competing with the cover/title. The
+    // coral accent is U7's deliberate choice (the brand re-tone is U8's); U4 only adds a 44pt tap target.
     cloneButton: {
         alignSelf: 'flex-start',
         backgroundColor: 'transparent',
         borderWidth: 1,
         borderColor: palette.coral,
-        borderRadius: 999,
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        marginTop: 4,
+        borderRadius: nativeTokens.radius.full,
+        paddingVertical: nativeTokens.spacing[2],
+        paddingHorizontal: nativeTokens.spacing[4],
+        marginTop: nativeTokens.spacing[1],
+        minHeight: 44,
+        justifyContent: 'center',
     },
     cloneButtonBusy: { opacity: 0.6 },
-    cloneLabel: { color: palette.coral, fontWeight: '600', fontSize: 14 },
+    cloneLabel: { color: palette.coral, fontWeight: '600', fontSize: nativeTokens.fontSize.bodySm },
 });

@@ -70,13 +70,60 @@ function versionConflictBody(currentVersion: number, conflictingVersion: number)
 }
 
 /**
+ * Resolve whether a recipe line's referenced catalog ingredient is user-entered (freeform). The wire input
+ * carries NO `isUserEntered` — the service re-resolves it from the catalog row the `ingredientId` points at
+ * (`CreateRecipeIngredientInput`'s own contract: "the server re-resolves the CANONICAL name from the
+ * catalog") — so the mock has to resolve it the same way, from the ingredients it has minted.
+ */
+type ResolveUserEntered = (ingredientId: string) => boolean;
+
+/**
+ * Project a create/update body's `ingredients` array onto the read projection's ingredient lines, resolving
+ * each line's `isUserEntered` through the catalog rather than assuming it. Pure.
+ *
+ * @param lines - The raw `ingredients` array from the request body.
+ * @param resolveUserEntered - Catalog lookup for the referenced ingredient's `isUserEntered` flag.
+ * @returns The projected `RecipeDetail['ingredients']`.
+ */
+function toIngredientProjection(
+    lines: readonly Record<string, unknown>[],
+    resolveUserEntered: ResolveUserEntered,
+): RecipeDetail['ingredients'] {
+    return lines.map((line) => {
+        const ingredientId = String(line['ingredientId']);
+
+        return {
+            ingredientId,
+            name: String(line['name']),
+            quantity: Number(line['quantity']),
+            ...(line['unit'] === undefined ? {} : { unit: String(line['unit']) }),
+            ...(line['notes'] === undefined ? {} : { notes: String(line['notes']) }),
+            isUserEntered: resolveUserEntered(ingredientId),
+        };
+    });
+}
+
+/** Project a create/update body's `steps` array onto the read projection's steps (server assigns order). Pure. */
+function toStepProjection(lines: readonly Record<string, unknown>[]): RecipeDetail['steps'] {
+    return lines.map((step, index) => ({
+        stepNumber: index + 1,
+        instruction: String(step['instruction']),
+        ...(step['timerSeconds'] === undefined ? {} : { timerSeconds: Number(step['timerSeconds']) }),
+    }));
+}
+
+/**
  * Apply an `UpdateRecipeInput` body onto a stored recipe, exactly as the service's update path does: overlay
  * each PROVIDED field (title/description/cuisine/times/servings/visibility/flags/tags and the ingredient +
  * step sets, mapped to their read-projection shapes), leave absent fields untouched, and bump
  * `currentVersion`. Faithful enough that a merged write's per-field composition is observable on the next
  * read — a mock that ignored the merged fields would stay green while the real service persisted them.
  */
-function applyUpdate(current: RecipeDetail, input: Record<string, unknown>): RecipeDetail {
+function applyUpdate(
+    current: RecipeDetail,
+    input: Record<string, unknown>,
+    resolveUserEntered: ResolveUserEntered,
+): RecipeDetail {
     const next: RecipeDetail = { ...current, currentVersion: current.currentVersion + 1 };
     const scalars = [
         'title',
@@ -119,22 +166,14 @@ function applyUpdate(current: RecipeDetail, input: Record<string, unknown>): Rec
     }
 
     if (Array.isArray(input['ingredients'])) {
-        next.ingredients = (input['ingredients'] as Record<string, unknown>[]).map((line) => ({
-            ingredientId: String(line['ingredientId']),
-            name: String(line['name']),
-            quantity: Number(line['quantity']),
-            ...(line['unit'] === undefined ? {} : { unit: String(line['unit']) }),
-            ...(line['notes'] === undefined ? {} : { notes: String(line['notes']) }),
-            isUserEntered: false,
-        }));
+        next.ingredients = toIngredientProjection(
+            input['ingredients'] as Record<string, unknown>[],
+            resolveUserEntered,
+        );
     }
 
     if (Array.isArray(input['steps'])) {
-        next.steps = (input['steps'] as Record<string, unknown>[]).map((step, index) => ({
-            stepNumber: index + 1,
-            instruction: String(step['instruction']),
-            ...(step['timerSeconds'] === undefined ? {} : { timerSeconds: Number(step['timerSeconds']) }),
-        }));
+        next.steps = toStepProjection(input['steps'] as Record<string, unknown>[]);
     }
 
     return next;
@@ -692,6 +731,11 @@ export async function mockRecipeApi(
     // Freeform (user-entered) ingredient create — REQ-032b requires every freeform line to come back
     // flagged `isUserEntered: true`, distinct from the fixed catalog-resolved `catalogIngredient` double.
     let nextFreeformIngredientId = 1;
+    // The ingredient CATALOG this mock has handed out (id → `isUserEntered`), so a recipe write can resolve
+    // each line's flag from the catalog exactly as the service does — the wire input never carries it. Seeded
+    // with the food-backed typeahead double; every freeform `POST /v1/ingredients` registers its own row.
+    const ingredientCatalog = new Map<string, boolean>([[catalogIngredient.id, catalogIngredient.isUserEntered]]);
+    const resolveUserEntered: ResolveUserEntered = (ingredientId) => ingredientCatalog.get(ingredientId) ?? false;
     // Photos (T067/CP-6/P3): a recipe id → its confirmed photos, in display order. Seeded from each
     // recipe's embedded `photos` so a spec that pre-seeds a cover photo sees it on both the detail's
     // embedded list AND `GET /v1/recipes/{id}/photos`, exactly as the two stay in sync in production.
@@ -741,6 +785,19 @@ export async function mockRecipeApi(
         store.set(id, next);
     };
 
+    /**
+     * Project a stored recipe to the DETAIL read response: the stored aggregate plus the VIEWER's own rating
+     * (`viewerRating`, FR-013). The real service attaches this on the detail read ONLY — a per-(recipe,viewer)
+     * lookup that the list/search projections deliberately omit — and the rating INPUT pre-selects its stars
+     * (and offers "Remove my rating") from it. Keeping it out of the store is what makes that split hold:
+     * `toRecipeListRow` cannot leak a viewer-scoped field it never sees.
+     */
+    const toRecipeDetailResponse = (detail: RecipeDetail): RecipeDetail => {
+        const mine = viewerRatings.get(detail.id);
+
+        return mine === undefined ? detail : { ...detail, viewerRating: mine };
+    };
+
     for (const collection of options.collections ?? []) {
         collections.set(collection.id, collection);
     }
@@ -776,6 +833,9 @@ export async function mockRecipeApi(
                 isUserEntered: true,
                 createdAt: ISO,
             };
+            // Register it so a recipe line referencing it projects `isUserEntered: true` on the next read —
+            // the gate REQ-034's partial-nutrition disclosure turns on.
+            ingredientCatalog.set(freeform.id, freeform.isUserEntered);
 
             return route.fulfill({ status: 201, json: freeform });
         }
@@ -1015,7 +1075,10 @@ export async function mockRecipeApi(
                 viewerRatings.set(id, stars);
                 applyRating(id);
 
-                return route.fulfill({ json: store.get(id) });
+                // The service returns the same DETAIL read `GET` does (`ratings.service.setRating` →
+                // `recipesService.getById`), so the response carries the viewer's own `viewerRating` too — the
+                // field the rating control pre-selects its stars and its "Remove my rating" affordance from.
+                return route.fulfill({ json: toRecipeDetailResponse(store.get(id) ?? current) });
             }
 
             // DELETE — idempotent: removing a rating that is not present still succeeds (Sc10).
@@ -1034,7 +1097,7 @@ export async function mockRecipeApi(
 
             if (method === 'GET') {
                 return current
-                    ? route.fulfill({ json: current })
+                    ? route.fulfill({ json: toRecipeDetailResponse(current) })
                     : route.fulfill({ status: 404, json: NOT_FOUND_BODY });
             }
 
@@ -1120,7 +1183,7 @@ export async function mockRecipeApi(
                     });
                 }
 
-                const updated = applyUpdate(current, input);
+                const updated = applyUpdate(current, input, resolveUserEntered);
                 store.set(id, updated);
 
                 return route.fulfill({ json: updated });
@@ -1146,6 +1209,22 @@ export async function mockRecipeApi(
                     ownerId: viewerId,
                     title: typeof input['title'] === 'string' ? input['title'] : 'New Recipe',
                     servings: typeof input['servings'] === 'number' ? input['servings'] : 4,
+                    // The AUTHORED content, not a canned fixture: the service persists what was posted, so the
+                    // created recipe's read projection must carry the caller's own ingredient + step sets (each
+                    // line's `isUserEntered` resolved through the catalog, as the service resolves it). A mock
+                    // that fell back to the fixture's food-backed "Salt" would silently erase a freeform line —
+                    // and with it every downstream projection gated on one (REQ-034's disclosure notice).
+                    ...(Array.isArray(input['ingredients'])
+                        ? {
+                              ingredients: toIngredientProjection(
+                                  input['ingredients'] as Record<string, unknown>[],
+                                  resolveUserEntered,
+                              ),
+                          }
+                        : {}),
+                    ...(Array.isArray(input['steps'])
+                        ? { steps: toStepProjection(input['steps'] as Record<string, unknown>[]) }
+                        : {}),
                     // Carry a stated difficulty (FR-001b); create has no clear sentinel, so absence = not stated.
                     ...(typeof input['difficulty'] === 'string'
                         ? { difficulty: input['difficulty'] as RecipeDifficulty }

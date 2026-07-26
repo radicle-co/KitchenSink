@@ -1,6 +1,13 @@
 import { Throttle } from '@nestjs/throttler';
 
-import { DEFAULT_THROTTLER_NAME, THROTTLE_WINDOW_MS, photoLimit, searchLimit, writeLimit } from './throttle.config.js';
+import {
+    DEFAULT_THROTTLER_NAME,
+    THROTTLE_WINDOW_MS,
+    exportLimit,
+    photoLimit,
+    searchLimit,
+    writeLimit,
+} from './throttle.config.js';
 
 /**
  * Per-category rate-limit overrides for controllers/handlers.
@@ -26,3 +33,7 @@ export const PhotoRateLimit = (): MethodDecorator & ClassDecorator =>
 /** Cap a full-text/autocomplete search route at the search limit. */
 export const SearchRateLimit = (): MethodDecorator & ClassDecorator =>
     Throttle({ [DEFAULT_THROTTLER_NAME]: { limit: searchLimit, ttl: THROTTLE_WINDOW_MS } });
+
+/** Cap the GDPR account-export route at the (tightest) export limit. */
+export const ExportRateLimit = (): MethodDecorator & ClassDecorator =>
+    Throttle({ [DEFAULT_THROTTLER_NAME]: { limit: exportLimit, ttl: THROTTLE_WINDOW_MS } });

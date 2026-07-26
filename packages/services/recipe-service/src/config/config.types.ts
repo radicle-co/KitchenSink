@@ -337,6 +337,14 @@ export const rateLimitConfigSchema = z.object({
 
     /** Search endpoint limit (req/min per user). Defaults to 60. */
     RATE_LIMIT_SEARCH: z.coerce.number().int().positive().default(60),
+
+    /**
+     * GDPR account-export limit (req/min per user). Defaults to 10 — the tightest category. The export
+     * assembles six owner-scoped tables into one document, so it is the heaviest single read and a
+     * data-egress surface; a portability download is issued rarely, so a low cap curbs abuse/exfiltration
+     * without impeding a genuine "download my data" request.
+     */
+    RATE_LIMIT_EXPORT: z.coerce.number().int().positive().default(10),
 });
 
 /** Typed rate limiting configuration. */

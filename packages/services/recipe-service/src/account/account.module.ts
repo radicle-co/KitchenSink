@@ -24,6 +24,8 @@ import { DEFAULT_AWS_REGION } from '../config/config.types.js';
 import { AccountController } from './account.controller.js';
 import { ErasureJobsDal } from './dal/erasure-jobs.dal.js';
 import { ErasureService } from './erasure.service.js';
+import { AccountExportDal } from './dal/export.dal.js';
+import { AccountExportService, ACCOUNT_EXPORT_CONFIG, type AccountExportConfig } from './export.service.js';
 import { createSqsErasureQueue, ERASURE_QUEUE, type ErasureQueuePort } from './erasure.queue.js';
 
 @Module({
@@ -43,6 +45,18 @@ import { createSqsErasureQueue, ERASURE_QUEUE, type ErasureQueuePort } from './e
         },
         ErasureJobsDal,
         ErasureService,
+        AccountExportDal,
+        {
+            provide: ACCOUNT_EXPORT_CONFIG,
+            inject: [ConfigService],
+            // The CDN base URL photo/thumbnail keys are resolved against. `getOrThrow` mirrors PhotosModule:
+            // the boot-time Zod schema already requires CLOUDFRONT_URL, so a misconfigured stage fails at
+            // startup rather than at a user's export request.
+            useFactory: (config: ConfigService): AccountExportConfig => ({
+                cloudfrontUrl: config.getOrThrow<string>('CLOUDFRONT_URL'),
+            }),
+        },
+        AccountExportService,
     ],
     exports: [ErasureService, ErasureJobsDal],
 })

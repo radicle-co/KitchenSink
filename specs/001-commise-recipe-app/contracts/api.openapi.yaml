@@ -1088,6 +1088,35 @@ paths:
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
+    /v1/account/export:
+        get:
+            tags: [Account]
+            summary: Export my account data (GDPR access + portability)
+            description: |
+                Returns the authenticated caller's OWN recipe-domain personal data as a
+                single structured, machine-readable JSON document (GDPR Art. 15 access +
+                Art. 20 portability). This is the read-only mirror of the erasure endpoint:
+                it returns the same owner-scoped roots erasure removes/keeps — the user's
+                recipes (ALL: public, private, drafts, AND soft-deleted/tombstoned), their
+                collections + memberships, their ratings on ANY recipe, their author
+                handle(s), and the METADATA (keys/URLs, never the bytes) of the photos and
+                version snapshots attached to their recipes.
+
+                The owner is taken from the verified session token and can never be
+                redirected by a request parameter — a caller can only export their own data.
+                Scope: recipe-domain only. A full Art. 15 export additionally composes the
+                identity profile (`GET /v1/users/me`) and food-service data.
+            operationId: exportAccountData
+            responses:
+                '200':
+                    description: The caller's recipe-domain personal-data export.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AccountExport'
+                '401':
+                    $ref: '#/components/responses/Unauthorized'
+
     /v1/account/erasure:
         post:
             tags: [Account]
@@ -2342,6 +2371,191 @@ components:
             properties:
                 previewedDiff:
                     $ref: '#/components/schemas/PullDiff'
+
+        AccountExport:
+            type: object
+            description: |
+                The complete GDPR export document: every recipe-domain personal-data root the
+                caller owns. Absent values are explicit `null` (a stable, fully-declared shape),
+                and all timestamps are ISO-8601 strings.
+            required:
+                - exportedAt
+                - ownerId
+                - recipes
+                - collections
+                - ratings
+                - photos
+                - versions
+                - authorHandles
+            properties:
+                exportedAt:
+                    type: string
+                    format: date-time
+                    description: When this export was generated.
+                ownerId:
+                    type: string
+                    description: The verified owner (app-user ULID) whose data this document contains.
+                recipes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AccountExportRecipe'
+                collections:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AccountExportCollection'
+                ratings:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AccountExportRating'
+                photos:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AccountExportPhoto'
+                versions:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AccountExportVersion'
+                authorHandles:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AccountExportAuthorHandle'
+
+        AccountExportRecipe:
+            type: object
+            description: |
+                One owner-scoped recipe (the golden row), INCLUDING private, draft, and
+                soft-deleted/tombstoned rows — so the export mirrors what erasure removes.
+            required:
+                - id
+                - ownerId
+                - title
+                - prepTimeMinutes
+                - cookTimeMinutes
+                - totalTimeMinutes
+                - servings
+                - ratingCount
+                - visibility
+                - status
+                - sourceType
+                - hasSubstantiveEdit
+                - dietaryFlags
+                - tags
+                - hasPartialNutrition
+                - currentVersion
+                - createdAt
+                - updatedAt
+            properties:
+                id: { type: string, format: uuid }
+                ownerId: { type: string }
+                title: { type: string }
+                description: { type: string, nullable: true }
+                prepTimeMinutes: { type: integer }
+                cookTimeMinutes: { type: integer }
+                totalTimeMinutes: { type: integer }
+                servings: { type: integer }
+                difficulty: { type: string, nullable: true, enum: [easy, medium, hard, null] }
+                averageRating: { type: string, nullable: true }
+                ratingCount: { type: integer }
+                visibility: { type: string, enum: [public, private] }
+                status: { type: string, enum: [draft, published] }
+                sourceType: { type: string }
+                sourceUrl: { type: string, nullable: true }
+                sourceAttribution: { type: string, nullable: true }
+                clonedFromId: { type: string, format: uuid, nullable: true }
+                hasSubstantiveEdit: { type: boolean }
+                cuisine: { type: string, nullable: true }
+                dietaryFlags: { type: array, items: { type: string } }
+                tags: { type: array, items: { type: string } }
+                hasPartialNutrition: { type: boolean }
+                leadCaloriesPerServing: { type: string, nullable: true }
+                authorHandle: { type: string, nullable: true }
+                currentVersion: { type: integer }
+                deletedAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: Soft-delete tombstone, or null when active.
+                createdAt: { type: string, format: date-time }
+                updatedAt: { type: string, format: date-time }
+
+        AccountExportCollection:
+            type: object
+            required: [id, ownerId, name, visibility, createdAt, updatedAt, recipes]
+            properties:
+                id: { type: string, format: uuid }
+                ownerId: { type: string }
+                name: { type: string }
+                description: { type: string, nullable: true }
+                visibility: { type: string, enum: [public, private] }
+                sourceCollectionId: { type: string, format: uuid, nullable: true }
+                lastPulledAt: { type: string, format: date-time, nullable: true }
+                sourceOwnerHandle: { type: string, nullable: true }
+                sourceCollectionName: { type: string, nullable: true }
+                createdAt: { type: string, format: date-time }
+                updatedAt: { type: string, format: date-time }
+                recipes:
+                    type: array
+                    description: The recipes in this collection (its membership rows).
+                    items:
+                        type: object
+                        required: [recipeId, addedAt, addedVia]
+                        properties:
+                            recipeId: { type: string, format: uuid }
+                            addedAt: { type: string, format: date-time }
+                            addedVia: { type: string, enum: [manual, clone_seed, pull] }
+
+        AccountExportRating:
+            type: object
+            description: A rating the owner authored on ANY recipe (theirs or another user's).
+            required: [id, recipeId, userId, stars, createdAt, updatedAt]
+            properties:
+                id: { type: string, format: uuid }
+                recipeId: { type: string, format: uuid }
+                userId: { type: string }
+                stars: { type: integer, minimum: 1, maximum: 5 }
+                createdAt: { type: string, format: date-time }
+                updatedAt: { type: string, format: date-time }
+
+        AccountExportPhoto:
+            type: object
+            description: Photo METADATA (keys + resolved CDN URLs). The bytes are never included.
+            required: [id, recipeId, key, url, contentType, sortOrder, createdAt, updatedAt]
+            properties:
+                id: { type: string, format: uuid }
+                recipeId: { type: string, format: uuid }
+                key: { type: string, description: Full-size object key in S3. }
+                url: { type: string, format: uri, description: Resolved CDN URL of the full-size object. }
+                thumbnailKey: { type: string, nullable: true }
+                thumbnailUrl: { type: string, format: uri, nullable: true }
+                contentType: { type: string, example: image/jpeg }
+                sizeBytes: { type: integer, nullable: true }
+                sortOrder: { type: integer, description: 0-based stored display order. }
+                createdAt: { type: string, format: date-time }
+                updatedAt: { type: string, format: date-time }
+
+        AccountExportVersion:
+            type: object
+            description: Version METADATA for the owner's recipes. The snapshot blob is not included.
+            required: [id, recipeId, versionNumber, createdBy, createdAt]
+            properties:
+                id: { type: string, format: uuid }
+                recipeId: { type: string, format: uuid }
+                versionNumber: { type: integer, minimum: 1 }
+                baseVersion: { type: integer, nullable: true }
+                s3Key: { type: string, nullable: true }
+                createdBy: { type: string }
+                changeSummary: { type: string, nullable: true }
+                deviceLabel: { type: string, nullable: true }
+                editorHandle: { type: string, nullable: true }
+                createdAt: { type: string, format: date-time }
+
+        AccountExportAuthorHandle:
+            type: object
+            required: [userId, displayName, sourceTimestamp]
+            properties:
+                userId: { type: string }
+                displayName: { type: string }
+                sourceTimestamp: { type: string, format: date-time }
 
         ErasureRequest:
             type: object

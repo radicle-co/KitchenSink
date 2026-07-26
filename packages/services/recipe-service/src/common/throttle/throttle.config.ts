@@ -63,6 +63,13 @@ export const photoLimit = throttleLimitFromEnv('RATE_LIMIT_PHOTO_UPLOAD', 10);
 export const searchLimit = throttleLimitFromEnv('RATE_LIMIT_SEARCH', 60);
 
 /**
+ * GDPR account-export endpoint (`GET /v1/account/export`). The tightest limit: the export assembles six
+ * owner-scoped tables into one document, so it is the heaviest single read AND a data-egress surface,
+ * while a genuine "download my data" request is rare. `RATE_LIMIT_EXPORT` req/min (default 10).
+ */
+export const exportLimit = throttleLimitFromEnv('RATE_LIMIT_EXPORT', 10);
+
+/**
  * The `ThrottlerModule.forRoot(...)` registration: a single throttler whose limit is the generous read
  * default. Category-specific tighter limits are applied per route via the `@Throttle` overrides in
  * `throttle.decorators.ts`. See {@link DEFAULT_THROTTLER_NAME} for why this is one throttler, not many.

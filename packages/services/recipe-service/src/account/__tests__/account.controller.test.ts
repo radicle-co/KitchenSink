@@ -21,19 +21,37 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { AccountController } from '../account.controller.js';
 import type { ErasureService } from '../erasure.service.js';
+import type { AccountExportService } from '../export.service.js';
+import type { AccountExport } from '../dto/export.dto.js';
 import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE, type ErasureRequestDto } from '../dto/erasure.dto.js';
 
 type ServiceMock = { [K in keyof ErasureService]: ReturnType<typeof vi.fn> };
+type ExportMock = { [K in keyof AccountExportService]: ReturnType<typeof vi.fn> };
 
 const OWNER = 'owner-1';
 const ACCEPTED = { jobId: '00000000-0000-4000-8000-0000000000e1', status: 'queued' } as const;
+const EXPORT_DOC: AccountExport = {
+    exportedAt: '2026-07-24T00:00:00.000Z',
+    ownerId: OWNER,
+    recipes: [],
+    collections: [],
+    ratings: [],
+    photos: [],
+    versions: [],
+    authorHandles: [],
+};
 
 let erasure: ServiceMock;
+let exporter: ExportMock;
 let controller: AccountController;
 
 beforeEach(() => {
     erasure = { requestErasure: vi.fn().mockResolvedValue(ACCEPTED) };
-    controller = new AccountController(erasure as unknown as ErasureService);
+    exporter = { exportForOwner: vi.fn().mockResolvedValue(EXPORT_DOC) };
+    controller = new AccountController(
+        erasure as unknown as ErasureService,
+        exporter as unknown as AccountExportService,
+    );
 });
 
 describe('the owner key', () => {
@@ -71,6 +89,27 @@ describe('the request body', () => {
         await controller.requestErasure(OWNER, body);
 
         expect(erasure.requestErasure).toHaveBeenCalledExactlyOnceWith(OWNER, body);
+    });
+});
+
+describe('GET /v1/account/export', () => {
+    it('scopes the export to the authenticated owner id — never a client-supplied value', async () => {
+        await controller.exportAccount(OWNER);
+
+        expect(exporter.exportForOwner).toHaveBeenCalledExactlyOnceWith(OWNER);
+    });
+
+    it('returns the assembled export document verbatim', async () => {
+        const result = await controller.exportAccount(OWNER);
+
+        expect(result).toBe(EXPORT_DOC);
+    });
+
+    it('propagates a service rejection untouched for the exception filter to map', async () => {
+        const failure = new Error('boom');
+        exporter.exportForOwner.mockRejectedValue(failure);
+
+        await expect(controller.exportAccount(OWNER)).rejects.toBe(failure);
     });
 });
 

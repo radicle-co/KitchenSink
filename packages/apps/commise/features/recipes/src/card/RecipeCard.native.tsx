@@ -243,11 +243,28 @@ const DefaultCardContent: FC = () => (
 );
 
 /**
+ * The card's two-layer surface: the elevated, NON-clipping `shell` wrapping the clipping `card` content.
+ *
+ * This split is load-bearing, not decoration. iOS renders a layer's drop shadow OUTSIDE its bounds but
+ * masks it the moment that same layer sets `overflow: 'hidden'` — so the single-node card (shadow + clip
+ * together, needed to round the cover photo) rendered completely flat on iOS while Android's `elevation`
+ * (drawn independent of child clipping) looked correct, which is why it went unnoticed. Keeping the shadow
+ * on an outer view that clips nothing, and the clip on the inner content view, gives both platforms the
+ * elevation AND the rounded cover. The shell also carries the opaque surface colour: iOS derives the shadow
+ * from the layer's painted content, so a transparent shell would cast no shadow at all.
+ */
+const CardSurface: FC<{ readonly children: ReactNode }> = ({ children }) => (
+    <View style={styles.shell}>
+        <View style={styles.card}>{children}</View>
+    </View>
+);
+
+/**
  * The shared recipe card (native, compound-component Root). `onSelect` present → a Pressable button named by
  * the title (list); absent → a plain View (the Home widget). The view-model reaches the parts via context.
  *
  * U8: the actionable form delegates its press to {@link PressScale} (which OWNS the `Pressable`, its button
- * role/label, and the reduce-motion-safe scale), keeping the visual card style on the inner View.
+ * role/label, and the reduce-motion-safe scale), keeping the visual card style on the inner {@link CardSurface}.
  */
 const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => {
     const content = children ?? <DefaultCardContent />;
@@ -255,14 +272,14 @@ const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => 
     return (
         <RecipeCardContext.Provider value={recipe}>
             {onSelect === undefined ? (
-                <View style={styles.card}>{content}</View>
+                <CardSurface>{content}</CardSurface>
             ) : (
                 <PressScale
                     accessibilityRole="button"
                     accessibilityLabel={recipe.title}
                     onPress={() => onSelect(recipe.id)}
                 >
-                    <View style={styles.card}>{content}</View>
+                    <CardSurface>{content}</CardSurface>
                 </PressScale>
             )}
         </RecipeCardContext.Provider>
@@ -280,15 +297,20 @@ export const RecipeCard = Object.assign(RecipeCardRoot, {
 });
 
 const styles = StyleSheet.create({
+    // The elevated OUTER layer: the tokenized `md` shadow over an opaque, rounded surface — and deliberately
+    // NO `overflow`, so neither platform masks the drop shadow (see {@link CardSurface}).
+    shell: {
+        backgroundColor: palette.white,
+        borderRadius: nativeTokens.radius.lg,
+        ...nativeTokens.elevation.md,
+    },
+    // The clipping INNER layer: the border + the `overflow: 'hidden'` that rounds the cover photo's corners.
     card: {
         backgroundColor: palette.white,
         borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         borderColor: nativeTokens.borderSubtle,
         overflow: 'hidden',
-        // U8 brand elevation: the tokenized `md` shadow (Android elevation renders unconditionally; on iOS
-        // the co-located `overflow: 'hidden'` masks the layer, so the drop shadow is a Maestro/device check).
-        ...nativeTokens.elevation.md,
     },
     cover: { position: 'relative', width: '100%', aspectRatio: 4 / 3, backgroundColor: palette.pearl },
     coverImage: { width: '100%', height: '100%' },

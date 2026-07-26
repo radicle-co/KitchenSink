@@ -17,6 +17,7 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { IngredientsController } from '../ingredients.controller.js';
 import type { IngredientsService } from '../ingredients.service.js';
+import type { AddIngredientByFoodDto } from '../dto/add-ingredient-by-food.dto.js';
 import type { CreateIngredientDto } from '../dto/create-ingredient.dto.js';
 import type { ResolveIngredientDto } from '../dto/resolve-ingredient.dto.js';
 import { makeCandidateView, makeIngredient } from '../__fixtures__/ingredients.fixtures.js';
@@ -28,8 +29,10 @@ describe('IngredientsController', () => {
     let controller: IngredientsController;
     let mocks: {
         search: ReturnType<typeof vi.fn>;
+        suggest: ReturnType<typeof vi.fn>;
         createFreeform: ReturnType<typeof vi.fn>;
         addByName: ReturnType<typeof vi.fn>;
+        addByFoodId: ReturnType<typeof vi.fn>;
         refreshStatus: ReturnType<typeof vi.fn>;
         getCandidates: ReturnType<typeof vi.fn>;
         resolve: ReturnType<typeof vi.fn>;
@@ -41,8 +44,10 @@ describe('IngredientsController', () => {
     beforeEach(() => {
         mocks = {
             search: vi.fn(),
+            suggest: vi.fn(),
             createFreeform: vi.fn(),
             addByName: vi.fn(),
+            addByFoodId: vi.fn(),
             refreshStatus: vi.fn(),
             getCandidates: vi.fn(),
             resolve: vi.fn(),
@@ -77,6 +82,58 @@ describe('IngredientsController', () => {
 
         it('rejects a non-numeric limit with 400', async () => {
             await expect(controller.search(CALLER, 'flour', 'abc')).rejects.toBeInstanceOf(BadRequestException);
+        });
+    });
+
+    describe('GET /v1/ingredients/suggest (Stage 2 — the blended typeahead)', () => {
+        it('trims q, parses limit, and delegates to suggest — NOT to the local-only search', async () => {
+            const envelope = { suggestions: [], catalogAvailability: 'ok' as const };
+            mocks.suggest.mockResolvedValue(envelope);
+
+            const result = await controller.suggest(CALLER, '  chicken  ', '5');
+
+            expect(mocks.suggest).toHaveBeenCalledWith('chicken', 5);
+            // Mutation guard: routing /suggest at the local-only search would silently un-blend the typeahead.
+            expect(mocks.search).not.toHaveBeenCalled();
+            expect(result).toBe(envelope);
+        });
+
+        it('defaults the limit to undefined (service default) when omitted', async () => {
+            mocks.suggest.mockResolvedValue({ suggestions: [], catalogAvailability: 'ok' });
+
+            await controller.suggest(CALLER, 'chicken');
+
+            expect(mocks.suggest).toHaveBeenCalledWith('chicken', undefined);
+        });
+
+        it('rejects a missing/blank q with 400', async () => {
+            await expect(controller.suggest(CALLER, '   ')).rejects.toBeInstanceOf(BadRequestException);
+            await expect(controller.suggest(CALLER, undefined)).rejects.toBeInstanceOf(BadRequestException);
+            expect(mocks.suggest).not.toHaveBeenCalled();
+        });
+
+        it('rejects a non-numeric limit with 400', async () => {
+            await expect(controller.suggest(CALLER, 'chicken', 'abc')).rejects.toBeInstanceOf(BadRequestException);
+        });
+    });
+
+    describe('POST /v1/ingredients/by-food (Stage 2 — the catalog pick)', () => {
+        it('forwards the (DTO-validated) foodId to addByFoodId and returns the nourished ingredient', async () => {
+            const admitted = makeIngredient({
+                id: 'i9',
+                foodId: '01J0FOOD',
+                foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                caloriesPer100g: 165,
+            });
+            mocks.addByFoodId.mockResolvedValue(admitted);
+
+            const result = await controller.addByFood(CALLER, { foodId: '01J0FOOD' } as AddIngredientByFoodDto);
+
+            expect(mocks.addByFoodId).toHaveBeenCalledWith('01J0FOOD');
+            // Mutation guards: the pick must not fall through to the by-name or freeform paths.
+            expect(mocks.addByName).not.toHaveBeenCalled();
+            expect(mocks.createFreeform).not.toHaveBeenCalled();
+            expect(result).toBe(admitted);
         });
     });
 

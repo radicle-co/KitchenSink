@@ -3,6 +3,7 @@ import { FoodResolutionStatus, RecipeErrorCode, isRecipeError } from '@kitchensi
 import { NotFoundError } from '@kitchensink/food-service-client';
 import type { FoodServiceClient } from '@kitchensink/food-service-client';
 
+import type { FoodCatalogGateway } from '../food-catalog.gateway.js';
 import type { IngredientsDal } from '../dal/ingredients.dal.js';
 import { IngredientsService, extractNutrition, extractPortions, parsePortion } from '../ingredients.service.js';
 import {
@@ -10,7 +11,6 @@ import {
     makeCandidateView,
     makeFoodView,
     makeIngredient,
-    makeSearchResultView,
     makeStatusResult,
 } from '../__fixtures__/ingredients.fixtures.js';
 
@@ -42,6 +42,11 @@ function makeFoodClient(): { client: FoodServiceClient; mocks: Record<string, Re
     };
 
     return { client: mocks as unknown as FoodServiceClient, mocks };
+}
+
+/** A no-op catalog gateway — these suites cover the paths that never blend (see the Stage-2 suite for those). */
+function makeCatalogGateway(): FoodCatalogGateway {
+    return { search: vi.fn().mockResolvedValue({ hits: [], availability: 'ok' }) } as unknown as FoodCatalogGateway;
 }
 
 describe('extractNutrition', () => {
@@ -119,7 +124,7 @@ describe('IngredientsService', () => {
     beforeEach(() => {
         ({ dal, mocks: dalMocks } = makeDal());
         ({ client, mocks: clientMocks } = makeFoodClient());
-        service = new IngredientsService(dal, client);
+        service = new IngredientsService(dal, client, makeCatalogGateway());
     });
 
     describe('search (local catalog)', () => {
@@ -134,17 +139,8 @@ describe('IngredientsService', () => {
         });
     });
 
-    describe('suggestFoods (typeahead over the food service)', () => {
-        it('proxies foodClient.search and returns the ranked hits', async () => {
-            const hit = makeSearchResultView();
-            clientMocks['search']!.mockResolvedValue({ results: [hit] });
-
-            const results = await service.suggestFoods('  flou  ');
-
-            expect(clientMocks['search']).toHaveBeenCalledWith('flou');
-            expect(results).toEqual([hit]);
-        });
-    });
+    // Stage 2 replaced the dead `suggestFoods` proxy with `suggest` (the blended typeahead) + `addByFoodId`
+    // (the pick). Both are covered in `ingredients-suggest.service.test.ts`.
 
     describe('addByName', () => {
         it('adds an unknown food (202 PENDING) and persists a new food-backed ingredient', async () => {

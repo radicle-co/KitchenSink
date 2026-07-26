@@ -9,6 +9,7 @@
 import { ValidationPipe, type ArgumentMetadata } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 
+import { AddIngredientByFoodDto } from '../add-ingredient-by-food.dto.js';
 import { CreateIngredientDto } from '../create-ingredient.dto.js';
 import { ResolveIngredientDto } from '../resolve-ingredient.dto.js';
 
@@ -17,6 +18,37 @@ const pipe = new ValidationPipe({ transform: true, whitelist: true, forbidNonWhi
 
 const createMeta: ArgumentMetadata = { type: 'body', metatype: CreateIngredientDto };
 const resolveMeta: ArgumentMetadata = { type: 'body', metatype: ResolveIngredientDto };
+const byFoodMeta: ArgumentMetadata = { type: 'body', metatype: AddIngredientByFoodDto };
+
+describe('AddIngredientByFoodDto (POST /v1/ingredients/by-food — Stage 2 pick)', () => {
+    it('trims a valid food id and exposes the trimmed value on the instance', async () => {
+        const dto = (await pipe.transform(
+            { foodId: '  01J0000000000000000000FOOD  ' },
+            byFoodMeta,
+        )) as AddIngredientByFoodDto;
+
+        expect(dto.foodId).toBe('01J0000000000000000000FOOD');
+    });
+
+    it('STRIPS a caller-supplied name — the display name comes from food-service, never the client', async () => {
+        const dto = (await pipe.transform(
+            { foodId: '01J0FOOD', name: 'Definitely not chicken' },
+            byFoodMeta,
+        )) as AddIngredientByFoodDto & Record<string, unknown>;
+
+        expect(dto.foodId).toBe('01J0FOOD');
+        expect(dto['name']).toBeUndefined();
+    });
+
+    it.each([
+        ['a missing food id', {}],
+        ['a blank (whitespace-only) food id', { foodId: '   ' }],
+        ['a non-string food id', { foodId: 42 }],
+        ['an over-long food id (65 after trim)', { foodId: 'x'.repeat(65) }],
+    ])('rejects %s with 400', async (_label, body) => {
+        await expect(pipe.transform(body, byFoodMeta)).rejects.toThrow();
+    });
+});
 
 describe('CreateIngredientDto (POST /v1/ingredients and /by-name)', () => {
     it('trims a valid name and exposes the trimmed value on the instance', async () => {

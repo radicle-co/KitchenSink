@@ -154,6 +154,34 @@ describe('IngredientsDal', () => {
         });
     });
 
+    // Stage 2 — the batch crosswalk the blended typeahead deduplicates on.
+    describe('findByFoodIds', () => {
+        it('short-circuits an empty id list without touching the database', async () => {
+            expect(await dal.findByFoodIds([])).toEqual([]);
+            expect(execute).not.toHaveBeenCalled();
+        });
+
+        it('returns the mapped rows for the requested food ids in ONE read', async () => {
+            execute.mockResolvedValue({
+                rows: [
+                    makeRawIngredientRow({ id: 'ing-1', food_id: 'F1' }),
+                    makeRawIngredientRow({ id: 'ing-2', food_id: 'F2' }),
+                ],
+            });
+
+            const found = await dal.findByFoodIds(['F1', 'F2', 'F3']);
+
+            expect(execute).toHaveBeenCalledTimes(1);
+            expect(found.map((ingredient) => ingredient.foodId)).toEqual(['F1', 'F2']);
+        });
+
+        it('returns an empty array when no requested food has a catalog row', async () => {
+            execute.mockResolvedValue({ rows: [] });
+
+            expect(await dal.findByFoodIds(['F9'])).toEqual([]);
+        });
+    });
+
     describe('createFreeform', () => {
         it('dedups: returns the existing freeform row without inserting', async () => {
             execute.mockResolvedValueOnce({ rows: [makeRawIngredientRow({ id: 'dup', is_user_entered: true })] });

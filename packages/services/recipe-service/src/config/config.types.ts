@@ -398,6 +398,22 @@ export const foodServiceConfigSchema = z.object({
 
     /** Optional service/M2M bearer token for the food service. */
     FOOD_SERVICE_TOKEN: z.string().min(1).optional(),
+
+    /**
+     * Stage-2 rollout switch for the blended ingredient typeahead. Absent (or anything but `false`) means the
+     * blend is ON; `false` makes the typeahead recipe-local-only WITHOUT any cross-service call, reported to
+     * the client as `catalogAvailability: 'disabled'` (distinct from the transient `'unavailable'`, so a
+     * deliberate switch-off never renders as an error). The operator escape hatch for a food-service incident
+     * that the per-request timeout + fallback alone do not make cheap enough.
+     */
+    FOOD_CATALOG_BLEND_ENABLED: z.stringbool().optional(),
+
+    /**
+     * Per-keystroke bound (ms) on the catalog-blend request to food-service. Tunable because the right value
+     * depends on observed inter-service latency, and the blast radius of a wrong one is bounded by design (too
+     * low simply means the catalog section degrades to empty). `IngredientsModule` applies a default.
+     */
+    FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: z.coerce.number().int().min(50).max(5_000).optional(),
 });
 
 /** Typed food-service integration configuration. */
@@ -407,6 +423,14 @@ export type FoodServiceConfig = z.infer<typeof foodServiceConfigSchema>;
 export const foodServiceConfigMeta: Record<keyof FoodServiceConfig, ConfigFieldMeta> = {
     FOOD_SERVICE_URL: { secret: false, description: 'Food service (003) origin' },
     FOOD_SERVICE_TOKEN: { secret: true, description: 'Food service M2M bearer token' },
+    FOOD_CATALOG_BLEND_ENABLED: {
+        secret: false,
+        description: 'Stage-2 blended ingredient typeahead switch (default on)',
+    },
+    FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: {
+        secret: false,
+        description: 'Per-keystroke food-catalog search timeout (ms)',
+    },
 };
 
 // ---------------------------------------------------------------------------

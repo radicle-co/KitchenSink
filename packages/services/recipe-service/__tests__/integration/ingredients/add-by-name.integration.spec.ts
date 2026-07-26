@@ -19,6 +19,7 @@ import { FoodServiceClient } from '@kitchensink/food-service-client';
 
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
+import type { FoodCatalogGateway } from '../../../src/ingredients/food-catalog.gateway.js';
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
 import { makeAddResult } from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
 
@@ -32,6 +33,11 @@ const UNRESOLVED_FOOD_ID = '01JINGADDBYNAME000UNRESOLV0';
 /** A minimally-stubbed food client: only the `addByName` this vertical's entry point calls. */
 function makeFoodClientStub(): FoodServiceClient {
     return { addByName: vi.fn() } as unknown as FoodServiceClient;
+}
+
+/** A no-op catalog gateway — the by-name path never blends (see `blended-suggest.integration.spec.ts`). */
+function makeCatalogStub(): FoodCatalogGateway {
+    return { search: vi.fn().mockResolvedValue({ hits: [], availability: 'ok' }) } as unknown as FoodCatalogGateway;
 }
 
 describe.skipIf(!hasDatabaseUrl)('ingredient addByName (integration: service + real DAL + stubbed food client)', () => {
@@ -55,7 +61,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient addByName (integration: service + r
     beforeEach(async () => {
         await pool.query('DELETE FROM ingredients WHERE food_id = ANY($1)', [[PENDING_FOOD_ID, UNRESOLVED_FOOD_ID]]);
         food = makeFoodClientStub();
-        service = new IngredientsService(dal, food);
+        service = new IngredientsService(dal, food, makeCatalogStub());
     });
 
     /** Re-read the persisted row's status + food link straight from the DB (not the service's return value). */

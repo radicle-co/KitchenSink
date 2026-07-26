@@ -8,6 +8,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { EnterTransition } from '@commise/ui/motion';
 import { nativeTokens } from '@commise/ui/native';
 import { GradientSurface } from '@commise/ui/surface';
 import type { FC, ReactElement } from 'react';
@@ -31,6 +32,13 @@ const SectionHeading: FC<{ readonly title: string }> = ({ title }) => (
         <GradientSurface gradient="brand" style={styles.railAccent} />
     </View>
 );
+
+/**
+ * Milliseconds each successive browse section is held back, so the surface assembles itself rather than
+ * flashing four sections in at once (U8 motion pass). Applied by {@link EnterTransition}, which owns the
+ * reduce-motion gate. Single-sourced with the web leaf's identical constant.
+ */
+const SECTION_STAGGER_MS = 80;
 
 /** Visible title for each rail (S). */
 const railTitle = (id: RecipeBrowseRailId, m: DiscoveryMessages): string => {
@@ -120,34 +128,34 @@ export const RecipeBrowseRails: FC<RecipeBrowseRailsProps> = ({
 
     return (
         <View aria-label={discovery.browseLabel} style={styles.container}>
-            {rails.map((rail) => (
-                <Rail
-                    key={rail.id}
-                    rail={rail}
-                    cloningId={cloningId}
-                    onSelectRecipe={onSelectRecipe}
-                    onClone={onClone}
-                />
+            {/* U8 motion pass: each section rises + fades in, staggered, via the DS `EnterTransition` — which
+                owns the reduce-motion gate, so a reduce-motion viewer simply gets the settled surface. */}
+            {rails.map((rail, index) => (
+                <EnterTransition key={rail.id} delayMs={index * SECTION_STAGGER_MS}>
+                    <Rail rail={rail} cloningId={cloningId} onSelectRecipe={onSelectRecipe} onClone={onClone} />
+                </EnterTransition>
             ))}
             {cuisines.length > 0 && (
-                <View style={styles.rail}>
-                    <SectionHeading title={discovery.cuisinesTitle} />
-                    <View style={styles.cuisineRow}>
-                        {cuisines.map((cuisine) => (
-                            <Pressable
-                                key={cuisine.value}
-                                accessibilityRole="button"
-                                accessibilityLabel={fillTemplate(discovery.cuisineShortcutLabel, {
-                                    cuisine: cuisine.value,
-                                })}
-                                onPress={cuisine.onSelect}
-                                style={styles.cuisineChip}
-                            >
-                                <Text style={styles.cuisineText}>{cuisine.value}</Text>
-                            </Pressable>
-                        ))}
+                <EnterTransition delayMs={rails.length * SECTION_STAGGER_MS}>
+                    <View style={styles.rail}>
+                        <SectionHeading title={discovery.cuisinesTitle} />
+                        <View style={styles.cuisineRow}>
+                            {cuisines.map((cuisine) => (
+                                <Pressable
+                                    key={cuisine.value}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={fillTemplate(discovery.cuisineShortcutLabel, {
+                                        cuisine: cuisine.value,
+                                    })}
+                                    onPress={cuisine.onSelect}
+                                    style={styles.cuisineChip}
+                                >
+                                    <Text style={styles.cuisineText}>{cuisine.value}</Text>
+                                </Pressable>
+                            ))}
+                        </View>
                     </View>
-                </View>
+                </EnterTransition>
             )}
         </View>
     );

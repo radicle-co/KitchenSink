@@ -336,3 +336,35 @@ describe('RecipeDetailView (native) — grouped footer (C3 wireframe parity)', (
         expect(screen.queryByRole('button', { name: 'Clone' })).toBeNull();
     });
 });
+
+describe('RecipeDetailView (native) — iOS shadow-clipping guard', () => {
+    /**
+     * The stat strip and the ingredient/step cards carry a tokenized `elevation.sm`. On iOS a layer masks
+     * its OWN drop shadow the moment it also sets `overflow: 'hidden'` (Android's `elevation` does not), so
+     * an elevated card must never clip. This guards that invariant across the whole detail surface — the
+     * same structural rule `RecipeCard.native` enforces with its shell/content split.
+     */
+    it('never puts a card shadow and an overflow clip on the same node', () => {
+        const { container } = render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ name: 'Lamb' })],
+                    steps: [makeStepView({ instruction: 'Grill it.' })],
+                    nutrition: makeNutrition(),
+                    photos: [makePhoto()],
+                })}
+            />,
+        );
+
+        const elevated = [...container.querySelectorAll<HTMLElement>('*')].filter(
+            (node) => window.getComputedStyle(node).boxShadow !== '',
+        );
+
+        // The elevation is present (the guard would be vacuous if the shadows had simply been dropped)…
+        expect(elevated.length).toBeGreaterThan(0);
+        // …and no elevated node clips.
+        for (const node of elevated) {
+            expect(window.getComputedStyle(node).overflowX).not.toBe('hidden');
+        }
+    });
+});

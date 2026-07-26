@@ -17,10 +17,11 @@ import { useMessages } from '@commise/i18n/react';
 import { Feather } from '@expo/vector-icons';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AvatarField } from '../components/account/AvatarField.js';
+import { LoadingState } from '../components/LoadingState.js';
 import { SuspensionBanner } from '../components/SuspensionBanner.js';
 import { useUpdateProfile, useUserProfile } from '../hooks/useUserProfile.js';
 import { mobileMessages } from '../i18n/messages.js';
@@ -41,9 +42,7 @@ export function ProfileScreen({ onOpenAccountSettings }: ProfileScreenProps = {}
     if (isLoading) {
         return (
             <SafeAreaView style={styles.safe}>
-                <View style={styles.center} accessibilityRole="progressbar" accessibilityLabel={t.loading}>
-                    <ActivityIndicator color={palette.seafoam} />
-                </View>
+                <LoadingState label={t.loading} />
             </SafeAreaView>
         );
     }

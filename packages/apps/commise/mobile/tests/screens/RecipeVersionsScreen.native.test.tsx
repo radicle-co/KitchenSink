@@ -15,6 +15,7 @@ import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 import { VersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useRecipeVersions, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
 
+import { mobileMessages } from '../../src/i18n/messages.js';
 import { RecipeVersionsScreen } from '../../src/screens/RecipeVersionsScreen.js';
 import { makeRecipeDetail, makeRecipeVersion } from '../__fixtures__/recipes.js';
 
@@ -92,6 +93,17 @@ describe('RecipeVersionsScreen — loading and error', () => {
         render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
 
         expect(screen.getByLabelText('Loading version history…')).toBeTruthy();
+    });
+
+    it('announces WHAT is loading and captions it visibly (no bare spinner)', () => {
+        useRecipeMock.mockReturnValue(recipeResult({ isLoading: true }));
+        useRecipeVersionsMock.mockReturnValue(versionsResult({ isLoading: true }));
+
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        const label = mobileMessages.en.recipes.versionsLoading;
+        expect(screen.getByRole('progressbar', { name: label })).toBeTruthy();
+        expect(screen.getByText(label)).toBeTruthy();
     });
 
     it('shows an alert when the versions fail to load', () => {

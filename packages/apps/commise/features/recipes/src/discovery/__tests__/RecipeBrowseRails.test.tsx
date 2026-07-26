@@ -144,3 +144,47 @@ describe('RecipeBrowseRails (web) — cuisine shortcuts', () => {
         expect(screen.queryByRole('heading', { name: 'Browse by cuisine' })).toBeNull();
     });
 });
+
+describe('RecipeBrowseRails (web) — section enter motion (U8 motion pass)', () => {
+    /** The `EnterTransition` wrappers each section is composed inside. */
+    const enterWrappers = (): readonly HTMLElement[] => [
+        ...document.querySelectorAll<HTMLElement>('[class*="animate-section-enter"]'),
+    ];
+
+    it('wraps every rail section in the design-system enter transition', () => {
+        renderRails({ cuisines: [{ value: 'Thai', onSelect: noop }] });
+
+        // Three rails + the cuisine section.
+        expect(enterWrappers()).toHaveLength(4);
+        for (const wrapper of enterWrappers()) {
+            // Each wrapper actually contains a section heading — it wraps the section, not a stray node.
+            expect(wrapper.querySelector('h2')).not.toBeNull();
+        }
+    });
+
+    it('gates the enter motion on motion-safe (reduce-motion viewers get the settled sections)', () => {
+        renderRails();
+
+        for (const wrapper of enterWrappers()) {
+            expect(wrapper.className).toContain('motion-safe:animate-section-enter');
+            expect(wrapper.className).not.toMatch(/(?<!safe:)\banimate-section-enter/);
+        }
+    });
+
+    it('staggers the sections so they do not all flash in at once', () => {
+        renderRails();
+
+        const delays = enterWrappers().map((wrapper) => wrapper.style.animationDelay);
+        // The first section enters immediately; each subsequent one is held slightly longer.
+        expect(delays[0]).toBe('');
+        expect(delays.slice(1).every((delay) => delay !== '')).toBe(true);
+        expect(new Set(delays).size).toBe(delays.length);
+    });
+
+    it('keeps the rail content reachable regardless of the motion wrapper', () => {
+        renderRails();
+
+        // The gesture is decorative; the cards must still be present and named.
+        expect(screen.getByRole('button', { name: 'Viral Pad Thai' })).toBeTruthy();
+    });
+});

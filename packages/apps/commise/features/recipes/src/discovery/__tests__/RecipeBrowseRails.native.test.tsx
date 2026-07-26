@@ -4,9 +4,10 @@
  * loading/error/empty/populated state, the cuisine shortcuts, and the selection contract — so the two
  * platform renders of the net-new browse surface cannot drift.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { AccessibilityInfo, Animated } from 'react-native';
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
@@ -38,9 +39,9 @@ function renderRails(overrides: Partial<RecipeBrowseRailsProps> = {}) {
         onClone: noop,
         ...overrides,
     };
-    render(<RecipeBrowseRails {...props} />);
+    const view = render(<RecipeBrowseRails {...props} />);
 
-    return props;
+    return { ...props, container: view.container };
 }
 
 describe('RecipeBrowseRails (native) — rails', () => {
@@ -137,5 +138,69 @@ describe('RecipeBrowseRails (native) — cuisine shortcuts', () => {
         renderRails({ cuisines: [] });
 
         expect(screen.queryByRole('heading', { name: 'Browse by cuisine' })).toBeNull();
+    });
+});
+
+describe('RecipeBrowseRails (native) — section enter motion (U8 motion pass)', () => {
+    beforeEach(() => {
+        // react-native-web's shim returns no subscription object; keep that shape.
+        vi.spyOn(AccessibilityInfo, 'addEventListener').mockReturnValue(undefined as never);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    /** Flush the pending `isReduceMotionEnabled()` promise so the resolved preference reaches state. */
+    const settlePreference = async (): Promise<void> => {
+        await act(async () => {
+            await Promise.resolve();
+        });
+    };
+
+    /** The nodes an `EnterTransition` drives — the ones carrying an animated opacity + translateY. */
+    const enterWrappers = (container: HTMLElement): readonly HTMLElement[] =>
+        [...container.querySelectorAll<HTMLElement>('*')].filter((node) =>
+            node.style.transform.startsWith('translateY'),
+        );
+
+    it('composes each section inside the design-system enter transition, staggered', async () => {
+        vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+        const timing = vi.spyOn(Animated, 'timing');
+
+        renderRails({ cuisines: [{ value: 'Thai', onSelect: noop }] });
+        await settlePreference();
+
+        // Three rails + the cuisine section, each with its OWN timing, and each held a little longer.
+        expect(timing).toHaveBeenCalledTimes(4);
+        const delays = timing.mock.calls.map((call) => (call[1] as { delay?: number }).delay);
+        expect(delays[0]).toBe(0);
+        expect(new Set(delays).size).toBe(4);
+    });
+
+    it('suppresses the enter motion entirely under reduce-motion', async () => {
+        vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+        const timing = vi.spyOn(Animated, 'timing');
+
+        const { container } = renderRails({ cuisines: [{ value: 'Thai', onSelect: noop }] });
+        await settlePreference();
+
+        // No animation is created at all, and the sections are settled (fully opaque, no offset).
+        expect(timing).not.toHaveBeenCalled();
+        const wrappers = enterWrappers(container);
+        expect(wrappers.length).toBeGreaterThan(0);
+        for (const wrapper of wrappers) {
+            expect(wrapper.style.opacity).toBe('1');
+            expect(wrapper.style.transform).toBe('translateY(0px)');
+        }
+    });
+
+    it('keeps the rail content reachable regardless of the motion wrapper', async () => {
+        vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+
+        renderRails();
+        await settlePreference();
+
+        expect(screen.getByRole('button', { name: 'Viral Pad Thai' })).toBeTruthy();
     });
 });

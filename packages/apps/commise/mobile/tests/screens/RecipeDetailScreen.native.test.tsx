@@ -21,6 +21,7 @@ import {
 } from '@kitchensink/recipe-service-client/hooks';
 
 import { RecipeDetailScreen } from '../../src/screens/RecipeDetailScreen.js';
+import { mobileMessages } from '../../src/i18n/messages.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 
@@ -89,6 +90,17 @@ describe('RecipeDetailScreen — loading state', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         expect(screen.getByLabelText('Loading recipe…')).toBeTruthy();
+    });
+
+    it('announces WHAT is loading and captions it visibly (no bare spinner)', () => {
+        useRecipeMock.mockReturnValue(detailResult({ isLoading: true }));
+
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        const label = mobileMessages.en.recipes.detailLoading;
+        // A named `progressbar`, not an anonymous spinning shape — and the same context shown on screen.
+        expect(screen.getByRole('progressbar', { name: label })).toBeTruthy();
+        expect(screen.getByText(label)).toBeTruthy();
     });
 
     it('keeps loading while the recipe is ready but the viewer profile is still in flight', () => {
@@ -276,6 +288,72 @@ describe('RecipeDetailScreen — owner actions', () => {
         fireEvent.click(screen.getByRole('button', { name: 'More' }));
 
         expect(screen.getByText('We couldn’t change who can see this recipe. Please try again.')).toBeTruthy();
+    });
+});
+
+describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', () => {
+    beforeEach(() => {
+        useRecipeMock.mockReturnValue(
+            detailResult({ data: makeRecipeDetail({ ownerId: 'usr_1', visibility: 'private' }) }),
+        );
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'premium'));
+    });
+
+    /** The DS `Button`'s visible pill — the element inside the accessible button that paints the surface. */
+    const pillOf = (name: string): HTMLElement => {
+        const button = screen.getByRole('button', { name });
+        const pill = button.firstElementChild;
+        expect(pill).not.toBeNull();
+
+        return pill as HTMLElement;
+    };
+
+    it('labels every owner action from the localized dictionary (no literals)', () => {
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        // Resolved from `mobileMessages.en.recipes`, so a dropped key fails here rather than shipping a blank
+        // or English-only control.
+        const t = mobileMessages.en.recipes;
+        expect(screen.getByRole('button', { name: t.editAction })).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+        expect(screen.getByRole('button', { name: t.versionsAction })).toBeTruthy();
+        expect(screen.getByRole('button', { name: t.deleteAction })).toBeTruthy();
+    });
+
+    it('paints the primary Edit action with the brand CTA gradient (the DS primary tier)', () => {
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+
+        // The DS native `Button` primary surface IS the brand `LinearGradient` — a hand-rolled solid
+        // `Pressable` has no gradient node, so this fails against the pre-U8 markup.
+        const edit = screen.getByRole('button', { name: mobileMessages.en.recipes.editAction });
+        expect(edit.querySelector('[data-commise-stub="linear-gradient"]')).not.toBeNull();
+    });
+
+    it('paints the destructive Delete action as the DS destructive tier (error-toned, not a bare label)', () => {
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+
+        const pill = pillOf(mobileMessages.en.recipes.deleteAction);
+        const style = window.getComputedStyle(pill);
+        // `palette.error` (#E17055) border on a real white surface — the destructive tier's flat pill.
+        expect(style.borderTopColor).toBe('rgb(225, 112, 85)');
+        expect(style.backgroundColor).toBe('rgb(255, 255, 255)');
+        // Not the gradient tier.
+        expect(
+            screen
+                .getByRole('button', { name: mobileMessages.en.recipes.deleteAction })
+                .querySelector('[data-commise-stub="linear-gradient"]'),
+        ).toBeNull();
+    });
+
+    it('gives every owner action a 44pt touch target', () => {
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: 'More' }));
+
+        const t = mobileMessages.en.recipes;
+        for (const name of [t.editAction, t.versionsAction, t.deleteAction]) {
+            expect(window.getComputedStyle(pillOf(name)).minHeight).toBe('44px');
+        }
     });
 });
 

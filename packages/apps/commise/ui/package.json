@@ -28,6 +28,7 @@
         },
         "./button": "./src/button/index.ts",
         "./confirm-dialog": "./src/confirmDialog/index.ts",
+        "./motion": "./src/motion/index.ts",
         "./press-scale": "./src/pressScale/index.ts",
         "./surface": "./src/surface/index.ts",
         "./input": "./src/input/index.ts"

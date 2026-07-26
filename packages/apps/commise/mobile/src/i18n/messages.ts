@@ -107,6 +107,20 @@ export interface MobileMessages {
         readonly sendCodeFailed: string;
         /** Shown when the sign-in needs a factor this custom form does not implement. */
         readonly additionalVerification: string;
+        /** Contextual caption + accessible name of the spinner shown while the session is being resolved. */
+        readonly sessionLoading: string;
+    };
+    /**
+     * Copy for the mobile impersonation notice. Administrator impersonation is deliberately unavailable in
+     * the app, and the viewer is told so rather than shown a dead end.
+     */
+    readonly impersonation: {
+        /** Heading of the notice. */
+        readonly title: string;
+        /** Body explaining why impersonation is unavailable on mobile. */
+        readonly message: string;
+        /** Appended when a session id is known, for support to correlate. Contains `{sessionId}`. */
+        readonly sessionLabel: string;
     };
     /**
      * Copy for the branded auth-entry / welcome screen (U8) — the hero the app opens on when signed out,
@@ -361,6 +375,12 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             verifyFailed: 'We couldn’t verify that code. Please try again.',
             sendCodeFailed: 'We couldn’t send a verification code. Please try again.',
             additionalVerification: 'Additional verification is required to finish signing in.',
+            sessionLoading: 'Checking your session…',
+        },
+        impersonation: {
+            title: 'Impersonation blocked on mobile',
+            message: 'For account safety, administrator impersonation is not available in the mobile app.',
+            sessionLabel: 'Session: {sessionId}',
         },
         welcome: {
             regionLabel: 'Welcome to Commise',

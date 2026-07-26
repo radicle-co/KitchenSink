@@ -8,6 +8,7 @@
  * these props. Same contract as the native leaf so the two cannot drift.
  */
 import { useMessages } from '@commise/i18n/react';
+import { EnterTransition } from '@commise/ui/motion';
 import { GradientSurface } from '@commise/ui/surface';
 import type { FC, ReactElement } from 'react';
 
@@ -39,6 +40,13 @@ const railTitle = (id: RecipeBrowseRailId, m: DiscoveryMessages): string => {
             return m.railQuick;
     }
 };
+
+/**
+ * Milliseconds each successive browse section is held back, so the surface assembles itself rather than
+ * flashing four sections in at once (U8 motion pass). Applied by {@link EnterTransition}, which gates the
+ * whole gesture on `motion-safe:`.
+ */
+const SECTION_STAGGER_MS = 80;
 
 /** One curated rail: header (title + see-all) over its own loading/error/empty/populated body. */
 const Rail: FC<{
@@ -121,32 +129,34 @@ export const RecipeBrowseRails: FC<RecipeBrowseRailsProps> = ({
 
     return (
         <div aria-label={discovery.browseLabel} className="flex flex-col gap-8">
-            {rails.map((rail) => (
-                <Rail
-                    key={rail.id}
-                    rail={rail}
-                    cloningId={cloningId}
-                    onSelectRecipe={onSelectRecipe}
-                    onClone={onClone}
-                />
+            {/* U8 motion pass: each section rises + fades in, staggered, via the DS `EnterTransition` — which
+                owns the `motion-safe:` gate, so a reduce-motion viewer simply gets the settled surface. */}
+            {rails.map((rail, index) => (
+                <EnterTransition key={rail.id} delayMs={index * SECTION_STAGGER_MS}>
+                    <Rail rail={rail} cloningId={cloningId} onSelectRecipe={onSelectRecipe} onClone={onClone} />
+                </EnterTransition>
             ))}
             {cuisines.length > 0 && (
-                <section className="flex flex-col gap-3">
-                    <SectionHeading title={discovery.cuisinesTitle} />
-                    <div className="flex flex-wrap gap-2">
-                        {cuisines.map((cuisine) => (
-                            <button
-                                key={cuisine.value}
-                                type="button"
-                                aria-label={fillTemplate(discovery.cuisineShortcutLabel, { cuisine: cuisine.value })}
-                                onClick={cuisine.onSelect}
-                                className="rounded-full bg-pearl px-4 py-2 text-body-sm font-medium text-charcoal transition hover:bg-mist/40"
-                            >
-                                {cuisine.value}
-                            </button>
-                        ))}
-                    </div>
-                </section>
+                <EnterTransition delayMs={rails.length * SECTION_STAGGER_MS}>
+                    <section className="flex flex-col gap-3">
+                        <SectionHeading title={discovery.cuisinesTitle} />
+                        <div className="flex flex-wrap gap-2">
+                            {cuisines.map((cuisine) => (
+                                <button
+                                    key={cuisine.value}
+                                    type="button"
+                                    aria-label={fillTemplate(discovery.cuisineShortcutLabel, {
+                                        cuisine: cuisine.value,
+                                    })}
+                                    onClick={cuisine.onSelect}
+                                    className="rounded-full bg-pearl px-4 py-2 text-body-sm font-medium text-charcoal transition hover:bg-mist/40"
+                                >
+                                    {cuisine.value}
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+                </EnterTransition>
             )}
         </div>
     );

@@ -23,6 +23,7 @@ import {
 
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { CollectionDetailScreen } from '../../src/screens/CollectionDetailScreen.js';
+import { mobileMessages } from '../../src/i18n/messages.js';
 import { makeCollection, makeCollectionWithRecipes, makeRecipe } from '../__fixtures__/recipes.js';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
@@ -107,6 +108,16 @@ describe('CollectionDetailScreen — loading and error', () => {
         render(<CollectionDetailScreen {...props} />);
 
         expect(screen.getByLabelText('Loading collection…')).toBeTruthy();
+    });
+
+    it('announces WHAT is loading and captions it visibly (no bare spinner)', () => {
+        useCollectionMock.mockReturnValue(collectionResult({ isLoading: true }));
+
+        render(<CollectionDetailScreen {...props} />);
+
+        const label = mobileMessages.en.collections.detailLoading;
+        expect(screen.getByRole('progressbar', { name: label })).toBeTruthy();
+        expect(screen.getByText(label)).toBeTruthy();
     });
 
     it('shows an alert when the collection fails to load', () => {

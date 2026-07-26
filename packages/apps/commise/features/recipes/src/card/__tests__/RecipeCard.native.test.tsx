@@ -109,11 +109,75 @@ describe('RecipeCard (native)', () => {
     });
 });
 
+/**
+ * iOS clips a layer's drop shadow when the SAME layer sets `overflow: 'hidden'` — so a card that both
+ * elevates and clips its cover image renders flat on iOS (Android's `elevation` is unaffected, which is
+ * exactly why this regressed silently). The fix is structural: the shadow lives on a NON-clipping outer
+ * shell, the clip on the inner content view. These assertions read the real computed style, so they fail if
+ * the two ever collapse back onto one node.
+ */
+const domNodes = (container: HTMLElement): readonly HTMLElement[] => [...container.querySelectorAll<HTMLElement>('*')];
+/** Nodes painting a drop shadow (react-native-web compiles RN `shadow*` props to a `box-shadow` rule). */
+const shadowed = (container: HTMLElement): readonly HTMLElement[] =>
+    domNodes(container).filter((node) => window.getComputedStyle(node).boxShadow !== '');
+/** Nodes that clip their overflow — the layers that would mask a co-located shadow on iOS. */
+const clipping = (container: HTMLElement): readonly HTMLElement[] =>
+    domNodes(container).filter((node) => window.getComputedStyle(node).overflowX === 'hidden');
+
+describe.each([
+    ['non-interactive widget card', undefined],
+    ['actionable list card', () => undefined],
+] as const)('RecipeCard (native) — iOS shadow clipping (%s)', (_name, onSelect) => {
+    const renderVariant = () =>
+        renderCard(
+            <RecipeCard
+                recipe={model({ id: 'rec_9', title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg' })}
+                {...(onSelect === undefined ? {} : { onSelect })}
+            />,
+        );
+
+    it('paints the card elevation on exactly ONE node', () => {
+        const { container } = renderVariant();
+
+        const elevated = shadowed(container);
+        expect(elevated).toHaveLength(1);
+        // The tokenized `md` elevation, not an ad-hoc shadow.
+        expect(window.getComputedStyle(elevated[0]!).boxShadow).toBe('0px 4px 6px rgba(45,52,54,0.07)');
+    });
+
+    it('keeps the elevated node NON-clipping (iOS would otherwise mask its own shadow)', () => {
+        const { container } = renderVariant();
+
+        expect(window.getComputedStyle(shadowed(container)[0]!).overflowX).not.toBe('hidden');
+    });
+
+    it('never puts a shadow and a clip on the same node', () => {
+        const { container } = renderVariant();
+
+        for (const node of clipping(container)) {
+            expect(window.getComputedStyle(node).boxShadow).toBe('');
+        }
+    });
+
+    it('clips the cover INSIDE the elevated shell (the clip moved in, it was not dropped)', () => {
+        const { container } = renderVariant();
+
+        const shell = shadowed(container)[0]!;
+        // The cover image is still clipped to the rounded corners — by a content view NESTED in the shell,
+        // never by the shell itself.
+        const coverClip = clipping(container).find((node) => node !== shell && node.querySelector('img') !== null);
+        expect(coverClip).toBeDefined();
+        expect(shell.contains(coverClip!)).toBe(true);
+    });
+
+    it('gives the elevated shell an opaque surface (iOS casts no shadow from a transparent layer)', () => {
+        const { container } = renderVariant();
+
+        expect(window.getComputedStyle(shadowed(container)[0]!).backgroundColor).toBe('rgb(255, 255, 255)');
+    });
+});
+
 describe('RecipeCard (native) — U8 brand treatment', () => {
-    // NOTE: the card's `nativeTokens.elevation.md` shadow is a react-native-web class-compiled boxShadow
-    // that jsdom's getComputedStyle does not surface reliably; the token itself is covered by the
-    // single-source scale tests, and its on-device rendering by the Maestro suite. Here we guard the
-    // STRUCTURE the U8 change touches: the actionable card is wrapped by the PressScale press primitive.
     it('wraps the actionable card in a single press-feedback button (no nested pressables)', () => {
         const onSelect = vi.fn();
         renderCard(<RecipeCard recipe={model({ id: 'rec_7', title: 'Herb Risotto' })} onSelect={onSelect} />);

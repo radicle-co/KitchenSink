@@ -26,6 +26,7 @@ import {
 
 import type { UseRecipeEditorResult } from '@commise/features-recipes/hooks';
 
+import { mobileMessages } from '../../src/i18n/messages.js';
 import { RecipeEditScreen } from '../../src/screens/RecipeEditScreen.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 
@@ -227,6 +228,16 @@ describe('RecipeEditScreen — loading and error', () => {
         render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
 
         expect(screen.getByLabelText('Loading recipe…')).toBeTruthy();
+    });
+
+    it('announces WHAT is loading and captions it visibly (no bare spinner)', () => {
+        useRecipeMock.mockReturnValue(recipeResult({ isLoading: true }));
+
+        render(<RecipeEditScreen recipeId="rec_1" onSaved={vi.fn()} onCancel={vi.fn()} />);
+
+        const label = mobileMessages.en.recipes.detailLoading;
+        expect(screen.getByRole('progressbar', { name: label })).toBeTruthy();
+        expect(screen.getByText(label)).toBeTruthy();
     });
 
     it('shows an alert when the recipe fails to load', () => {

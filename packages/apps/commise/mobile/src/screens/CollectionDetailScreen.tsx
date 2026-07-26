@@ -40,8 +40,9 @@ import {
 } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { LoadingState } from '../components/LoadingState.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 import { mobileMessages } from '../i18n/messages.js';
 
@@ -124,11 +125,7 @@ export function CollectionDetailScreen({
     );
 
     if (query.isLoading) {
-        return (
-            <View accessibilityLabel={t.detailLoading} style={styles.center}>
-                <ActivityIndicator />
-            </View>
-        );
+        return <LoadingState label={t.detailLoading} />;
     }
 
     if (query.isError || query.data === undefined) {

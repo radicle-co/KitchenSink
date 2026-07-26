@@ -842,6 +842,24 @@ export async function mockRecipeApi(
             return route.fulfill({ status: 201, json: photo });
         }
 
+        // Delete one confirmed photo (the per-photo Remove control, and the commit step of U6's
+        // upload-first Replace). Re-derives `order` so the surviving photos stay 1..N with no gap — the same
+        // renumbering the service does, and what makes "the cover is the lowest-order photo" keep holding.
+        // Matched BEFORE the bare `/photos` list route so the longer path wins.
+        const deletePhotoPath = path.match(/\/v1\/recipes\/([^/]+)\/photos\/([^/]+)$/);
+
+        if (deletePhotoPath && method === 'DELETE') {
+            const id = deletePhotoPath[1] as string;
+            const photoId = deletePhotoPath[2] as string;
+            const remaining = (photoStore.get(id) ?? []).filter((photo) => photo.id !== photoId);
+            photoStore.set(
+                id,
+                remaining.map((photo, index) => ({ ...photo, order: index + 1 })),
+            );
+
+            return route.fulfill({ status: 204, body: '' });
+        }
+
         // List (edit surface mounts the uploader): the recipe's confirmed photos, in order.
         const photosListPath = path.match(/\/v1\/recipes\/([^/]+)\/photos$/);
 

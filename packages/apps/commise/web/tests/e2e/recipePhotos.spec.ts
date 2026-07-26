@@ -121,3 +121,66 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         await expect(photosRegion.getByText('No photos yet.')).toBeVisible();
     });
 });
+
+/**
+ * U6 "Replace", in a real browser: the control is upload-FIRST, so the photo being replaced survives until
+ * its replacement has been confirmed. The two cases here are the pair that only an E2E can prove — that the
+ * dedicated hidden replacement input is genuinely reachable from the Replace button, and that a Replace the
+ * user does not follow through on leaves the original photo untouched (the old remove-then-add wiring
+ * deleted it the moment Replace was pressed, so a cancelled picker destroyed it).
+ *
+ * The mobile equivalent lives in `.maestro/recipes/photos.yaml` (emulator/CI only).
+ */
+test.describe('recipe photo replace (U6)', () => {
+    /** Open the wizard's Photos step for the seeded recipe and add one photo, returning its region. */
+    async function openPhotosStepWithOnePhoto(page: import('@playwright/test').Page) {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, tier: 'premium' });
+
+        await page.goto(route('/recipes/rec_seed/edit'));
+        await page.getByRole('button', { name: /Photos:/ }).click();
+        await expect(page.getByText('Step 4 of 4')).toBeVisible();
+
+        await page.getByLabel('Add photo').setInputFiles({
+            name: 'original.png',
+            mimeType: 'image/png',
+            buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
+        });
+        await expect(page.getByRole('img', { name: 'Recipe photo 1' })).toBeVisible();
+
+        return page.getByRole('region', { name: 'Photos' });
+    }
+
+    test('pressing Replace opens the picker but deletes nothing on its own', async ({ page }) => {
+        const photosRegion = await openPhotosStepWithOnePhoto(page);
+
+        await photosRegion.getByRole('button', { name: 'Replace photo 1' }).click();
+
+        // No file was chosen (the cancel case): the original photo is still the recipe's only photo, and the
+        // replacement picker is present and empty rather than having consumed anything.
+        await expect(page.getByLabel('Choose a replacement photo')).toBeAttached();
+        await expect(photosRegion.getByRole('img', { name: /^Recipe photo/ })).toHaveCount(1);
+        await expect(page.getByRole('img', { name: 'Recipe photo 1' })).toBeVisible();
+    });
+
+    test('picking a replacement swaps exactly one photo, once the new one is confirmed', async ({ page }) => {
+        const photosRegion = await openPhotosStepWithOnePhoto(page);
+        const originalSrc = await page.getByRole('img', { name: 'Recipe photo 1' }).getAttribute('src');
+
+        await photosRegion.getByRole('button', { name: 'Replace photo 1' }).click();
+        await page.getByLabel('Choose a replacement photo').setInputFiles({
+            name: 'replacement.png',
+            mimeType: 'image/png',
+            buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
+        });
+
+        // The recipe still holds exactly ONE photo — but a different one: the replacement was confirmed
+        // first, and only then was the original deleted.
+        await expect(photosRegion.getByRole('img', { name: /^Recipe photo/ })).toHaveCount(1);
+        await expect(page.getByRole('img', { name: 'Recipe photo 1' })).not.toHaveAttribute(
+            'src',
+            originalSrc as string,
+        );
+    });
+});

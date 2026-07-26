@@ -13,12 +13,16 @@ const { mockRunErasureFanout } = vi.hoisted(() => ({ mockRunErasureFanout: vi.fn
 
 vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
 
-vi.mock('@kitchensink/identity-db', () => ({ UserDAO: vi.fn(), users: { id: 'id', identityId: 'identity_id', status: 'status', updatedAt: 'updated_at' } }));
+vi.mock('@kitchensink/identity-db', () => ({
+    UserDAO: vi.fn(),
+    users: { id: 'id', identityId: 'identity_id', status: 'status', updatedAt: 'updated_at', reconciledAt: 'reconciled_at' },
+}));
 
 vi.mock('drizzle-orm', () => ({
     and: (...a: unknown[]) => ({ and: a }),
     eq: (c: unknown, v: unknown) => ({ eq: [c, v] }),
     lte: (c: unknown, v: unknown) => ({ lte: [c, v] }),
+    isNull: (c: unknown) => ({ isNull: c }),
 }));
 
 vi.mock('../../common/erasure-fanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
@@ -43,10 +47,47 @@ const mockGetDb = vi.mocked(getDb);
 const makeContext = (): Context => ({ awsRequestId: 'req' }) as unknown as Context;
 const makeEvent = (): ScheduledEvent => ({ id: 's', source: 'aws.events' }) as unknown as ScheduledEvent;
 
-/** A db whose `select…from…where` resolves the given erased rows. */
-const mockDbWith = (rows: Array<{ id: string; identityId: string }>) => ({
-    select: () => ({ from: () => ({ where: () => Promise.resolve(rows) }) }),
-});
+/**
+ * A db whose `select…from…where` resolves the given erased rows AND records `update…set…where` stamps,
+ * so a test can assert both the scan predicate (`selectWhere`) and the reconciled_at stamping
+ * (`stampedWhere`/`stampedValues`) of the bound.
+ */
+interface MockDb {
+    select: () => { from: () => { where: (cond: unknown) => Promise<unknown> } };
+    update: () => { set: (vals: unknown) => { where: (cond: unknown) => Promise<unknown> } };
+    selectWhere: unknown;
+    stampedWhere: unknown[];
+    stampedValues: unknown[];
+}
+
+const mockDbWith = (rows: Array<{ id: string; identityId: string }>): MockDb => {
+    const db: MockDb = {
+        selectWhere: undefined,
+        stampedWhere: [],
+        stampedValues: [],
+        select: () => ({
+            from: () => ({
+                where: (cond: unknown) => {
+                    db.selectWhere = cond;
+
+                    return Promise.resolve(rows);
+                },
+            }),
+        }),
+        update: () => ({
+            set: (vals: unknown) => ({
+                where: (cond: unknown) => {
+                    db.stampedValues.push(vals);
+                    db.stampedWhere.push(cond);
+
+                    return Promise.resolve(undefined);
+                },
+            }),
+        }),
+    };
+
+    return db;
+};
 
 const complete = { recipe: { service: 'recipe', ok: true, jobStatus: 'completed' }, food: { service: 'food', ok: true, deletedRequesterRows: 0 } };
 
@@ -117,6 +158,64 @@ describe('erasure-reconciliation handler', () => {
 
         expect(mockRunErasureFanout).not.toHaveBeenCalled();
         expect(result).toMatchObject({ scanned: 0, incomplete: 0 });
+        expect(emitMetric).toHaveBeenCalledWith('ErasureIncomplete', 0);
+    });
+
+    // --- The scan BOUND (CR-002 R7): a fully-reconciled erasure is stamped once and dropped from the
+    // nightly sweep, so the re-drive set stays proportional to the still-pending working set — not the
+    // ever-growing total erased population — WITHOUT hiding a genuinely stuck leg.
+    it('bounds the scan to not-yet-reconciled identities (reconciled_at IS NULL in the query WHERE)', async () => {
+        const db = mockDbWith([]);
+        mockGetDb.mockResolvedValue(db as never);
+
+        await handler(makeEvent(), makeContext());
+
+        // The unbounded re-drive is bounded by a `reconciled_at IS NULL` predicate, so a fully-reconciled
+        // identity is excluded from the sweep rather than re-driven every night forever.
+        expect(JSON.stringify(db.selectWhere)).toContain('reconciled_at');
+        expect(JSON.stringify(db.selectWhere)).toContain('isNull');
+    });
+
+    it('stamps reconciled_at once a jointly-complete erasure is verified, so it is not re-driven forever', async () => {
+        const db = mockDbWith([{ id: 'usr_01', identityId: 'user_a' }]);
+        mockGetDb.mockResolvedValue(db as never);
+
+        await handler(makeEvent(), makeContext());
+
+        // Exactly one stamp, scoped to that owner, setting reconciled_at, guarded on reconciled_at IS NULL
+        // (so a concurrent/duplicate run cannot double-stamp or clobber an earlier reconcile time).
+        expect(db.stampedWhere).toHaveLength(1);
+        expect(JSON.stringify(db.stampedWhere[0])).toContain('usr_01');
+        expect(JSON.stringify(db.stampedWhere[0])).toContain('reconciled_at');
+        expect(JSON.stringify(db.stampedValues[0])).toContain('reconciledAt');
+    });
+
+    it('does NOT stamp reconciled_at while a leg is still incomplete (the identity stays in the nightly scan)', async () => {
+        const db = mockDbWith([{ id: 'usr_01', identityId: 'user_a' }]);
+        mockGetDb.mockResolvedValue(db as never);
+        mockRunErasureFanout.mockResolvedValue({
+            recipe: { service: 'recipe', ok: true, jobStatus: 'running' },
+            food: { service: 'food', ok: true, deletedRequesterRows: 0 },
+        });
+
+        const result = await handler(makeEvent(), makeContext());
+
+        // Never stamped ⇒ it re-enters tomorrow's scan; the incompleteness signal is preserved.
+        expect(db.stampedWhere).toHaveLength(0);
+        expect(result).toMatchObject({ incomplete: 1 });
+        expect(emitMetric).toHaveBeenCalledWith('ErasureIncomplete', 1);
+    });
+
+    it('a failed reconciled_at stamp does NOT count the (genuinely complete) erasure as incomplete', async () => {
+        const db = mockDbWith([{ id: 'usr_01', identityId: 'user_a' }]);
+        // The stamp write throws, but both legs completed — the bookkeeping failure must not masquerade as
+        // a stuck leg (it self-heals: next run re-drives idempotently and re-stamps).
+        db.update = () => ({ set: () => ({ where: () => Promise.reject(new Error('stamp write failed')) }) });
+        mockGetDb.mockResolvedValue(db as never);
+
+        const result = await handler(makeEvent(), makeContext());
+
+        expect(result).toMatchObject({ scanned: 1, incomplete: 0 });
         expect(emitMetric).toHaveBeenCalledWith('ErasureIncomplete', 0);
     });
 

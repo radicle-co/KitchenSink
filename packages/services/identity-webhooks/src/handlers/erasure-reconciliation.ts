@@ -1,5 +1,5 @@
 import type { Context, ScheduledEvent } from 'aws-lambda';
-import { and, eq, lte } from 'drizzle-orm';
+import { and, eq, isNull, lte } from 'drizzle-orm';
 
 import { users } from '@kitchensink/identity-db';
 
@@ -23,6 +23,18 @@ import { emitMetric, logger, withObservability } from '../common/observability.j
  *
  * A grace window ({@link RECONCILE_GRACE_MS}) excludes freshly-erased rows whose legs are legitimately
  * still draining, so a normal in-flight erasure is not false-flagged.
+ *
+ * **Bounding the sweep (the working set, not the whole population).** The grace window only trims the
+ * *front* of the queue; without a completion marker the sweep would re-drive EVERY `erased` identity every
+ * night forever, so the nightly cost grows without bound as the erased population accumulates. The bound is
+ * a durable **`users.reconciled_at`** stamp, written the first night BOTH legs verify jointly complete
+ * ({@link isErasureComplete}); the scan then filters `reconciled_at IS NULL`, so a fully-reconciled identity
+ * is swept exactly once and dropped thereafter. This is deliberately NOT a time window on the erasure
+ * timestamp: a window would stop re-driving a genuinely STUCK leg once it aged out — silently dropping it
+ * from the `ErasureIncomplete` signal, the exact half-erased-forever failure this control exists to catch.
+ * A stuck identity is never stamped, so it stays in the scan every night and keeps feeding the alarm; only
+ * a proven-complete one leaves. The bound shrinks the sweep to the still-pending working set WITHOUT hiding
+ * an incomplete erasure.
  *
  * @implements CR-002 R7
  */
@@ -58,6 +70,31 @@ export function isErasureComplete(result: ErasureFanoutResult): boolean {
 }
 
 /**
+ * Stamp `users.reconciled_at` for a jointly-complete erasure so it drops out of the nightly scan. Guarded
+ * on `reconciled_at IS NULL` (idempotent — a concurrent run can never double-stamp or clobber an earlier
+ * reconcile time). A stamp-write failure is logged and SWALLOWED, never re-thrown: the erasure genuinely
+ * completed, so a bookkeeping failure must not masquerade as a stuck leg (it self-heals — the next run
+ * re-drives idempotently and re-stamps).
+ *
+ * @param db - The identity db handle.
+ * @param userId - The erased identity's durable ULID.
+ * @sideEffect Writes `users.reconciled_at`; catches and logs its own errors.
+ */
+async function stampReconciled(db: DbContext['db'], userId: string): Promise<void> {
+    try {
+        await db
+            .update(users)
+            .set({ reconciledAt: new Date() })
+            .where(and(eq(users.id, userId), isNull(users.reconciledAt)));
+    } catch (err) {
+        logger.warn('erasure-reconciliation: reconciled_at stamp failed (legs complete; will re-stamp next run)', {
+            userId,
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
+}
+
+/**
  * The scheduled erasure-completion reconciliation. Selects `erased` identities past the grace window and
  * re-drives each one's legs, counting the incomplete. One user's failure never aborts the batch — it is
  * itself an incompleteness signal and the rest are still reconciled.
@@ -72,10 +109,15 @@ const innerHandler = async (
     const config = getErasureFanoutConfig();
     const cutoff = new Date(Date.now() - RECONCILE_GRACE_MS);
 
+    // The BOUND: only erased identities not yet proven jointly complete (`reconciled_at IS NULL`) and past
+    // the grace window. A fully-reconciled identity has been stamped and is excluded — the sweep scans the
+    // still-pending working set, not the entire (ever-growing) erased population.
     const erased = (await db
         .select({ id: users.id, identityId: users.identityId })
         .from(users)
-        .where(and(eq(users.status, 'erased'), lte(users.updatedAt, cutoff)))) as ErasedIdentity[];
+        .where(
+            and(eq(users.status, 'erased'), lte(users.updatedAt, cutoff), isNull(users.reconciledAt)),
+        )) as ErasedIdentity[];
 
     let incomplete = 0;
 
@@ -86,7 +128,10 @@ const innerHandler = async (
                 config,
             );
 
-            if (!isErasureComplete(result)) {
+            if (isErasureComplete(result)) {
+                // Both legs verified complete — stamp reconciled_at so this identity leaves the nightly scan.
+                await stampReconciled(db, identity.id);
+            } else {
                 incomplete += 1;
                 emitMetric('ErasureIncompleteOwner', 1, { userId: identity.id });
                 logger.warn('erasure-reconciliation: erasure incomplete for erased identity', {

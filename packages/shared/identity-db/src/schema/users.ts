@@ -28,6 +28,12 @@ export const users = pgTable(
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
         deletedAt: timestamp('deleted_at', { withTimezone: true }),
         externalIdSyncedAt: timestamp('external_id_synced_at', { withTimezone: true }),
+        // CR-002 R7: set the night the erasure-completion sweep first verifies BOTH legs (recipe + food)
+        // jointly complete. NULL = not yet proven complete (or not erased). The sweep scans only
+        // `status='erased' AND reconciled_at IS NULL`, so a fully-reconciled identity is re-driven exactly
+        // once and then bounded out — while a genuinely stuck leg is never stamped and keeps being re-driven
+        // (and keeps feeding the ErasureIncomplete alarm). See migration 0012.
+        reconciledAt: timestamp('reconciled_at', { withTimezone: true }),
     },
     (table) => [
         // Partial: email is unique only among ACTIVE users. A soft-deleted user (deleted_at set)
@@ -40,6 +46,13 @@ export const users = pgTable(
         uniqueIndex('users_identity_id_unique').on(table.identityId),
         index('users_email_idx').on(table.email),
         index('users_identity_id_idx').on(table.identityId),
+        // CR-002 R7: the erasure-completion sweep scans `status='erased' AND reconciled_at IS NULL` ordered
+        // by updated_at (grace window). This PARTIAL index contains ONLY still-pending erasures, so the
+        // nightly scan stays proportional to the unreconciled working set — not the total erased population
+        // — which is the whole point of the reconciled_at bound. See migration 0012.
+        index('users_erasure_pending_idx')
+            .on(table.updatedAt)
+            .where(sql`${table.status} = 'erased' and ${table.reconciledAt} is null`),
     ],
 );
 

@@ -38,6 +38,24 @@ afterEach(() => {
     vi.clearAllMocks();
 });
 
+/**
+ * Reach the wizard's final step (Photos) via the rail. U6 chrome made `Publish` the footer's FINAL-step
+ * primary only — no longer live on steps 1–3 — so any publish flow must first land on Photos. The rail
+ * permits UNGATED forward navigation regardless of a step's validity, which lets the invalid-form
+ * submission-gate test reach the button even from the invalid Basic step.
+ */
+async function goToPhotos(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(screen.getByRole('button', { name: /Photos:/ }));
+}
+
+/**
+ * Open the header's overflow ("More actions") menu (U6 chrome): Save Draft and Cancel were demoted off the
+ * top-level header into this `role="menu"` disclosure, so reaching either now goes through this trigger first.
+ */
+async function openActionsMenu(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+}
+
 describe('RecipeCreateContainer', () => {
     it('renders the create wizard, seeded at step 1', () => {
         const client = createFakeRecipeServiceClient();
@@ -46,7 +64,9 @@ describe('RecipeCreateContainer', () => {
 
         expect(screen.getByRole('textbox', { name: 'Title' })).toBeInTheDocument();
         expect(screen.getByText('Step 1 of 4')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument();
+        // U6 chrome: step 1's contextual footer primary is `Next: Ingredients >`, not `Publish` (which is now
+        // only the FINAL step's primary). Its presence confirms the wizard chrome rendered at step 1.
+        expect(screen.getByRole('button', { name: /Next: Ingredients/ })).toBeInTheDocument();
     });
 
     it('blocks submission and surfaces validation on the current step when the form is invalid', async () => {
@@ -56,11 +76,18 @@ describe('RecipeCreateContainer', () => {
 
         renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
 
+        // Publish is the final step's footer primary (U6: no longer on steps 1–3). Reach it via the rail —
+        // FORWARD navigation is ungated even from the invalid Basic step — then attempt to submit.
+        await goToPhotos(user);
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
+        // Submission is blocked (no create) and the rail flags the invalid Basic step …
         expect(createSpy).not.toHaveBeenCalled();
-        expect(screen.getByText('A title is required.')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Basic: needs attention/ })).toBeInTheDocument();
+        // … and returning to Basic surfaces the field-level validation on the current step. The form is not
+        // dirty (no edits), so this backward rail navigation does not trip the discard guard.
+        await user.click(screen.getByRole('button', { name: /Basic:/ }));
+        expect(screen.getByText('A title is required.')).toBeInTheDocument();
     });
 
     it('maps a valid form (filled across steps) to the wire input and navigates to the new recipe on success', async () => {
@@ -86,7 +113,9 @@ describe('RecipeCreateContainer', () => {
         await user.click(screen.getByRole('button', { name: 'Add step' }));
         await user.type(screen.getByRole('textbox', { name: 'Step 1 instruction' }), 'Combine everything.');
 
-        // Publish is reachable from any step (the top bar renders it throughout).
+        // Advance to the final step (Photos), whose footer primary is `Publish` (U6: Publish is the final
+        // step's contextual primary, no longer live on the earlier steps).
+        await user.click(screen.getByRole('button', { name: /Next: Photos/ }));
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         const createSpy = vi.mocked(client.createRecipe);
@@ -108,7 +137,8 @@ describe('RecipeCreateContainer', () => {
 
         // No ingredients/steps filled at all — Save Draft's floor is step 1 only (title/servings/times).
         await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Draft Recipe');
-        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+        await openActionsMenu(user);
+        await user.click(screen.getByRole('menuitem', { name: 'Save Draft' }));
 
         const createSpy = vi.mocked(client.createRecipe);
         await vi.waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
@@ -164,6 +194,7 @@ describe('RecipeCreateContainer', () => {
         await user.click(screen.getByRole('button', { name: /Next: Instructions/ }));
         await user.click(screen.getByRole('button', { name: 'Add step' }));
         await user.type(screen.getByRole('textbox', { name: 'Step 1 instruction' }), 'Combine everything.');
+        await user.click(screen.getByRole('button', { name: /Next: Photos/ }));
         await user.click(screen.getByRole('button', { name: 'Publish' }));
 
         expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t save this recipe. Please try again.');
@@ -176,7 +207,8 @@ describe('RecipeCreateContainer', () => {
         renderWithRecipeClient(<RecipeCreateContainer locale="en" />, client);
 
         await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Test Recipe');
-        await user.click(screen.getByRole('button', { name: 'Cancel' }));
+        await openActionsMenu(user);
+        await user.click(screen.getByRole('menuitem', { name: 'Cancel' }));
 
         expect(await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeInTheDocument();
         expect(pushMock).not.toHaveBeenCalled();

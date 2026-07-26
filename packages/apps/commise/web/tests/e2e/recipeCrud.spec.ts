@@ -16,9 +16,9 @@ import { signInWithTicket } from './utils/auth';
  * (minutes)`/`Cook time (minutes)`/`Difficulty`) → `Next: Ingredients` → Ingredients (`Search ingredients` +
  * pick a result) → `Next: Instructions` → Instructions (`Add step` + `Step 1 instruction`) → `Next: Photos` →
  * Photos → `Publish` (w3/e7: the wizard's final CTA is named for what it DOES — sets `status: 'published'` —
- * in both create and edit mode, replacing the old mode-named `Create recipe`/`Save changes` labels). `Publish`
- * is also reachable from the top bar on any earlier step (it is not step-4-gated), used below on the edit
- * path since the edit form seeds fully valid and needs no ingredient/step changes.
+ * in both create and edit mode, replacing the old mode-named `Create recipe`/`Save changes` labels). U6 chrome:
+ * `Publish` is the footer's FINAL-step primary only (no longer live on steps 1–3), so both the create and the
+ * edit path advance to Photos (step 4) before publishing — the edit path via a rail jump (its seed is valid).
  */
 test.describe('recipe CRUD (T079)', () => {
     test('create → view → edit → delete a recipe', async ({ page }) => {
@@ -97,14 +97,18 @@ test.describe('recipe CRUD (T079)', () => {
 
         // EDIT — reach the editor through the RESTORED Edit entry point (W2/D1), not a raw URL. The wizard
         // seeds at step 1 (already valid); the difficulty stated at create round-tripped, so Hard is
-        // pre-selected. Change the title and CLEAR the difficulty ("Not stated"), then Publish from step 1
-        // (reachable from any step) — the three-state update sends an explicit clear, not an omit.
+        // pre-selected. Change the title and CLEAR the difficulty ("Not stated") on step 1, then advance to
+        // Photos (step 4) and Publish — the footer's final-step primary (U6). The three-state update sends an
+        // explicit clear, not an omit.
         await page.getByRole('link', { name: 'Edit recipe' }).click();
         await expect(page).toHaveURL(new RegExp(`/recipes/${createdId}/edit`));
         await expect(page.getByText('Step 1 of 4')).toBeVisible();
         await expect(page.getByRole('radio', { name: 'Hard' })).toBeChecked();
         await page.getByLabel('Title').fill('E2E Ratatouille (edited)');
         await page.getByRole('radio', { name: 'Not stated' }).click();
+        // The edited recipe is fully valid, so the rail can jump straight to the final step; forward navigation
+        // is ungated even with the unsaved title/difficulty edits (only backward navigation is guarded).
+        await page.getByRole('button', { name: /Photos:/ }).click();
         await page.getByRole('button', { name: 'Publish' }).click();
         await expect(page.getByRole('heading', { name: 'E2E Ratatouille (edited)' })).toBeVisible();
 

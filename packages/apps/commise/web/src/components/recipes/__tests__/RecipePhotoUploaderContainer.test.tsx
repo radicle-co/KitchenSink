@@ -347,5 +347,12 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         );
         expect(deleteMutate).not.toHaveBeenCalled();
         expect(clickSpy).not.toHaveBeenCalled();
+
+        // Following the advice retires it: the message must not keep claiming there is no room once the user
+        // has made some.
+        await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+
+        expect(deleteMutate).toHaveBeenCalledWith({ id: 'rec_1', photoId: 'ph_1' });
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 });

@@ -133,6 +133,13 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
 
     const removingPhotoId = deletePhoto.isPending ? (deletePhoto.variables?.photoId ?? null) : null;
 
+    // Removing a photo is exactly the advice the at-cap replace refusal gives, so it must not linger once
+    // followed — the message would otherwise still claim there is no room after the user has made some.
+    const handleRemovePhoto = (photoId: string): void => {
+        setReplaceErrorMessage(undefined);
+        deletePhoto.mutate({ id: recipeId, photoId });
+    };
+
     // U6 "Set as cover": the cover is the LOWEST-sort-order photo, so choosing a cover is a REORDER that moves
     // the chosen id to index 0 (rest keep their current relative order). The existing `reorder` endpoint
     // persists it and `invalidateRecipeProjections` (inside the hook's `onSuccess`) reprojects the new
@@ -222,7 +229,7 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
         <>
             <RecipePhotoManager
                 photos={photos}
-                onRemovePhoto={(photoId) => deletePhoto.mutate({ id: recipeId, photoId })}
+                onRemovePhoto={handleRemovePhoto}
                 removingPhotoId={removingPhotoId}
                 uploading={uploader.uploading}
                 errorMessage={replaceErrorMessage}

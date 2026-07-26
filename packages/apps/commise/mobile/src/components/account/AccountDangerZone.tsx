@@ -11,18 +11,30 @@
  *
  * The mobile counterpart of the web `AccountCloseForm` + `AccountEraseForm`. All copy is localized
  * (`accountDangerMessages`), never hard-coded.
+ *
+ * Both triggers are the design-system {@link Button}: `secondary` for the recoverable closure, `destructive`
+ * for the irreversible erasure — so they inherit the DS palette, the 44pt touch floor, and the real busy
+ * spinner instead of the hand-rolled `Pressable`s (off-palette hex, ~38pt targets, label-swap-only "busy")
+ * this surface used to carry as the app's last un-migrated native control.
  */
 import { useAuth } from '@clerk/expo';
 import { useMessages } from '@commise/i18n/react';
 import { selectDonatableRecipes } from '@commise/features-account';
 import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
+import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
+import { nativeTokens } from '@commise/ui/native';
+import { Feather } from '@expo/vector-icons';
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useDeleteAccount } from '../../hooks/useUserProfile.js';
+
+/** Trigger glyph size — the DS Button pairs every label with an icon. */
+const TRIGGER_ICON_SIZE = 16;
 
 /** The mounted-while-open erasure flow: owns the recipe fetch, the mutation, and the form state. */
 function AccountEraseFlow({ onClose }: { readonly onClose: () => void }): JSX.Element {
@@ -77,25 +89,27 @@ export function AccountDangerZone(): JSX.Element {
 
     return (
         <View style={styles.container}>
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={close.trigger}
-                accessibilityState={{ busy: deleteAccount.isPending, disabled: deleteAccount.isPending }}
-                disabled={deleteAccount.isPending}
+            {/* Recoverable closure — the calmer bordered tier, so it never competes with the erasure. Its
+                `busy` state is the DS spinner (the control is disabled while in flight, so an in-progress
+                closure cannot be double-fired) AND the localized busy label. */}
+            <Button
+                variant="secondary"
+                icon={<Feather name="user-x" size={TRIGGER_ICON_SIZE} color={palette.charcoal} />}
+                busy={deleteAccount.isPending}
                 onPress={() => setCloseOpen(true)}
-                style={styles.closeButton}
             >
-                <Text style={styles.closeLabel}>{deleteAccount.isPending ? close.busyLabel : close.trigger}</Text>
-            </Pressable>
+                {deleteAccount.isPending ? close.busyLabel : close.trigger}
+            </Button>
 
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={erase.trigger}
+            {/* Irreversible erasure — the destructive tier. It opens the phrase-gated dialog; the erasure's
+                own in-flight state belongs to that dialog's confirm control, not to this trigger. */}
+            <Button
+                variant="destructive"
+                icon={<Feather name="trash-2" size={TRIGGER_ICON_SIZE} color={palette.error} />}
                 onPress={() => setEraseOpen(true)}
-                style={styles.eraseButton}
             >
-                <Text style={styles.eraseLabel}>{erase.trigger}</Text>
-            </Pressable>
+                {erase.trigger}
+            </Button>
 
             <ConfirmDialog
                 open={closeOpen}
@@ -117,15 +131,6 @@ export function AccountDangerZone(): JSX.Element {
 }
 
 const styles = StyleSheet.create({
-    container: { gap: 12, marginTop: 24 },
-    closeButton: {
-        borderWidth: 1,
-        borderColor: '#B2BEC3',
-        borderRadius: 999,
-        paddingVertical: 10,
-        alignItems: 'center',
-    },
-    closeLabel: { color: '#2C3E50', fontWeight: '600', fontSize: 15 },
-    eraseButton: { backgroundColor: '#E74C3C', borderRadius: 999, paddingVertical: 10, alignItems: 'center' },
-    eraseLabel: { color: '#FFFFFF', fontWeight: '600', fontSize: 15 },
+    // Spacing from the shared scale — the buttons own their own surface, padding, and touch floor.
+    container: { gap: nativeTokens.spacing[3], marginTop: nativeTokens.spacing[5] },
 });

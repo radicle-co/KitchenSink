@@ -345,6 +345,15 @@ export class FoodServiceStack extends Stack {
                 this,
                 `/kitchensink/${baseStage}/clerk/jwt-public-key`,
             ),
+            // CR-002 / U4b / R11 — the PUBLIC EdDSA verification key for the internal service-principal
+            // erasure route (`FoodServiceErasureAuthService`). Non-secret, resolved from SSM at deploy (same
+            // wiring as CLERK_JWT_KEY). The matching PRIVATE key is held only by the identity deletion-worker
+            // / erasure-reconciliation Lambdas. Absent → the internal route fails closed (401). Per-stage
+            // keypair (pr-{N} shares the sandbox key via baseStage), matching the shared-service model.
+            FOOD_SERVICE_PRINCIPAL_JWT_KEY: ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/${baseStage}/food/service-principal-jwt-public-key`,
+            ),
         };
 
         // Stage-gated azp enforcement (ADR-0001), mirroring the identity service. Prod: exact-match list.

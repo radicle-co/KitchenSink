@@ -94,6 +94,10 @@ const FoodOperationalConfigSchema = z.object({
 const AuthConfigSchema = z.object({
     CLERK_JWT_KEY: z.string().min(1).optional(),
     CLERK_AUTHORIZED_PARTIES: z.string().optional(),
+    // CR-002 / U4b / R11 — the PUBLIC EdDSA verification key (SPKI PEM) for the service-principal internal
+    // erasure route. NON-secret and OPTIONAL at the schema level: FoodServiceErasureAuthService reads it
+    // from process.env and FAILS CLOSED (401 on every service token) when absent, exactly like CLERK_JWT_KEY.
+    FOOD_SERVICE_PRINCIPAL_JWT_KEY: z.string().min(1).optional(),
     // Preview-subdomain base domain (pattern mode). Mutually exclusive with the list; forbidden on prod.
     // Like the list, optional at the schema level — the guard fails closed at runtime when the key is absent.
     CLERK_AZP_PATTERN: z.string().optional(),

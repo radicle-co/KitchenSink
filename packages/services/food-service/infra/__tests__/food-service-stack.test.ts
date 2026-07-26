@@ -231,6 +231,16 @@ describe('Food worker + service wiring', () => {
             .flatMap((resource: any) => resource.Properties.ContainerDefinitions as any[])
             .map((container) => (container.Environment ?? []).map((entry: any) => entry.Name as string));
 
+    it('injects FOOD_SERVICE_PRINCIPAL_JWT_KEY so the internal erasure route can verify service tokens (CR-002/U4b/R11)', () => {
+        // The API container (which serves /v1/internal/account/erasure) carries the PUBLIC verification key.
+        // Without it the FoodServiceErasureAuthService fail-closes and every service-principal erase is 401.
+        const withErasureKey = containerEnvSets(synthFoodTemplate('test', 'sandbox')).filter((envNames) =>
+            envNames.includes('FOOD_SERVICE_PRINCIPAL_JWT_KEY'),
+        );
+
+        expect(withErasureKey.length).toBeGreaterThanOrEqual(1);
+    });
+
     it('non-prod wires Clerk auth env with the azp PATTERN + preview mode (not the exact-match list)', () => {
         // Without CLERK_JWT_KEY the FoodAuthGuard fail-closes and every /v1/foods/* request is 401.
         // Non-prod (sandbox / pr-{N}) runs the self-owned preview pattern in transition mode (ADR-0001).

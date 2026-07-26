@@ -2,14 +2,20 @@
 
 import { useState } from 'react';
 import { useClerk } from '@clerk/nextjs';
+import { Button } from '@commise/ui/button';
+import { useMessages } from '@commise/i18n/react';
 
 import { withBasePath } from '@/lib/basePath';
+import { authMessages } from '@/components/auth/messages';
+import { LogOutIcon } from '@/components/auth/icons';
 
 interface LogoutButtonProps {
+    /** Overrides the default localized "Sign out" label (e.g. a page-specific phrasing). */
     children?: React.ReactNode;
 }
 
 export function LogoutButton({ children }: LogoutButtonProps) {
+    const { session } = useMessages(authMessages);
     const [isLoading, setIsLoading] = useState(false);
     const { signOut } = useClerk();
 
@@ -20,8 +26,8 @@ export function LogoutButton({ children }: LogoutButtonProps) {
     };
 
     return (
-        <button type="button" onClick={handleLogout} disabled={isLoading} aria-busy={isLoading}>
-            {children ?? 'Sign out of your account'}
-        </button>
+        <Button variant="secondary" icon={<LogOutIcon />} onPress={handleLogout} busy={isLoading}>
+            {isLoading ? session.signingOut : (children ?? session.signOut)}
+        </Button>
     );
 }

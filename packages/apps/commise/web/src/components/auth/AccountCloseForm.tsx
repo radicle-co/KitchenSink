@@ -17,8 +17,11 @@ import { useClerk } from '@clerk/nextjs';
 import { useMessages } from '@commise/i18n/react';
 import { accountDangerMessages } from '@commise/features-account/danger';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
+import { Button } from '@commise/ui/button';
 
 import { createProfileServiceClient } from '@/lib/identityServiceClient';
+import { AlertTriangleIcon } from '@/components/auth/icons';
+import { errorText } from '@/components/auth/authChrome';
 
 interface AccountCloseFormProps {
     /** The signed-in viewer's Clerk session token, used to authenticate the closure request. */
@@ -56,10 +59,14 @@ export function AccountCloseForm({ accessToken }: AccountCloseFormProps) {
 
     return (
         <>
-            <button type="button" onClick={() => setOpen(true)} disabled={isPending} aria-busy={isPending || undefined}>
+            <Button variant="destructive" icon={<AlertTriangleIcon />} onPress={() => setOpen(true)} busy={isPending}>
                 {isPending ? close.busyLabel : close.trigger}
-            </button>
-            {error && <p role="alert">{error}</p>}
+            </Button>
+            {error && (
+                <p role="alert" className={errorText}>
+                    {error}
+                </p>
+            )}
             <ConfirmDialog
                 open={open}
                 title={close.title}

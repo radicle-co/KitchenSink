@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Button } from '../Button.native.js';
+import { gradient, toNativeGradient } from '../../tokens/gradients.js';
 
 /**
  * Button (native) — rendered via react-native-web under jsdom. Mirrors the web leaf's behavioural coverage
@@ -91,6 +92,28 @@ describe('Button (native)', () => {
             expect(screen.getByRole('button', { name: `Variant ${variant}` })).toBeTruthy();
             unmount();
         }
+    });
+
+    it('paints the primary tier with the brand gradient (converges with the web CTA)', () => {
+        const { container } = render(
+            <Button icon={markerIcon} variant="primary" onPress={vi.fn()}>
+                Get started
+            </Button>,
+        );
+
+        const node = container.querySelector('[data-commise-stub="linear-gradient"]');
+        expect(node).not.toBeNull();
+        expect(node?.getAttribute('data-colors')).toBe(toNativeGradient(gradient.brand).colors.join('|'));
+    });
+
+    it('does NOT paint a gradient on the flat secondary tier', () => {
+        const { container } = render(
+            <Button icon={markerIcon} variant="secondary" onPress={vi.fn()}>
+                Cancel
+            </Button>,
+        );
+
+        expect(container.querySelector('[data-commise-stub="linear-gradient"]')).toBeNull();
     });
 
     it('gives the pill a 44px minimum touch height', () => {

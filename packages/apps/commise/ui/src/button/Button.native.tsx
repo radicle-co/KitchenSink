@@ -13,14 +13,24 @@
  *    `nativeTokens`, so short labels still hit a 44pt target.
  *  - **Busy** — the `busy` prop swaps the icon slot for a real `ActivityIndicator` in place (no layout
  *    shift) and disables the control (so an in-flight action cannot be double-fired).
+ *
+ * The `primary` tier paints the SAME `gradient.brand` (seafoam → ocean-dark) the web leaf carries as the
+ * Tailwind `from-seafoam to-ocean-dark` utility — projected through `toNativeGradient` into
+ * `expo-linear-gradient` — so the two platforms' primary CTA converge on one single-sourced gradient
+ * (round-2 R7). Secondary/destructive stay flat surfaces.
  */
-import type { FC } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import type { FC, ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { gradient, toNativeGradient } from '../tokens/gradients.js';
 import { nativeTokens } from '../tokens/native.js';
 import { palette, semantic } from '../tokens/colors.js';
 import { PressScale } from '../pressScale/index.js';
 import type { ButtonProps, ButtonVariant } from './props.js';
+
+/** The native projection of the brand CTA gradient (seafoam → ocean-dark) — computed once, module-level. */
+const brandGradient = toNativeGradient(gradient.brand);
 
 /** Resolve the accessible name: an explicit override, else the string label, else undefined. */
 const resolveAccessibilityLabel = (
@@ -41,6 +51,31 @@ export const Button: FC<ButtonProps> = ({
     // A busy control is also disabled so an in-flight action cannot be double-fired.
     const inactive = disabled || busy;
 
+    const content: ReactNode = (
+        <>
+            <View style={styles.icon} aria-hidden>
+                {busy ? <ActivityIndicator color={labelColor[variant]} /> : icon}
+            </View>
+            <Text style={[styles.label, { color: labelColor[variant] }]}>{children}</Text>
+        </>
+    );
+
+    // The primary tier's surface IS the brand gradient; the flat tiers paint a solid/bordered View.
+    const pill =
+        variant === 'primary' ? (
+            <LinearGradient
+                colors={brandGradient.colors}
+                locations={brandGradient.locations}
+                start={brandGradient.start}
+                end={brandGradient.end}
+                style={[styles.base, inactive ? styles.inactive : null]}
+            >
+                {content}
+            </LinearGradient>
+        ) : (
+            <View style={[styles.base, flatSurface[variant], inactive ? styles.inactive : null]}>{content}</View>
+        );
+
     return (
         <PressScale
             onPress={onPress}
@@ -49,12 +84,7 @@ export const Button: FC<ButtonProps> = ({
             accessibilityRole="button"
             accessibilityLabel={resolveAccessibilityLabel(accessibilityLabel, children)}
         >
-            <View style={[styles.base, variantStyle[variant], inactive ? styles.inactive : null]}>
-                <View style={styles.icon} aria-hidden>
-                    {busy ? <ActivityIndicator color={labelColor[variant]} /> : icon}
-                </View>
-                <Text style={[styles.label, { color: labelColor[variant] }]}>{children}</Text>
-            </View>
+            {pill}
         </PressScale>
     );
 };
@@ -76,9 +106,11 @@ const styles = StyleSheet.create({
     inactive: { opacity: 0.6 },
 });
 
-/** Per-tier surface — the native idiom of the shared {@link ButtonVariant} set (see the web leaf's map). */
-const variantStyle: Record<ButtonVariant, object> = {
-    primary: { backgroundColor: palette.seafoam },
+/**
+ * Per-tier FLAT surface — the native idiom of the shared {@link ButtonVariant} set (see the web leaf's
+ * map). `primary` is intentionally absent: its surface is the brand `LinearGradient`, not a flat colour.
+ */
+const flatSurface: Record<Exclude<ButtonVariant, 'primary'>, object> = {
     secondary: { backgroundColor: palette.white, borderWidth: 1, borderColor: semantic.border },
     destructive: { backgroundColor: palette.white, borderWidth: 1, borderColor: palette.error },
 };

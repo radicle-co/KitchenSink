@@ -25,6 +25,7 @@ import { cleanup, waitFor } from '@testing-library/react';
 
 import { NotFoundError, UnauthorizedError } from '../errors.js';
 import {
+    useAllOwnerRecipes,
     useCollection,
     useCollections,
     useCollectionsInfinite,
@@ -764,5 +765,56 @@ describe('useSearchIngredients', () => {
 
         await waitFor(() => expect(result.current.isError).toBe(true));
         expect(result.current.error).toBe(error);
+    });
+});
+
+describe('useAllOwnerRecipes', () => {
+    // The erasure donate-election (CR-002 / U4b) is the input to an IRREVERSIBLE action: any owner-only
+    // recipe the user never sees is silently destroyed. So this hook MUST page the owner list to exhaustion,
+    // and MUST NOT report the list as ready until the final page is in.
+    it('pages the owner list to completion and flattens every page', async () => {
+        const client = makeGuardedClient();
+        const page1 = [makeRecipe({ id: 'r1' }), makeRecipe({ id: 'r2' })];
+        const page2 = [makeRecipe({ id: 'r3' })];
+        const listRecipes = vi
+            .spyOn(client, 'listRecipes')
+            .mockResolvedValueOnce(makePaginatedResponse(page1, { hasMore: true, page: 1 }))
+            .mockResolvedValueOnce(makePaginatedResponse(page2, { hasMore: false, page: 2 }));
+
+        const { result } = renderRecipeHook(() => useAllOwnerRecipes(), { client });
+
+        await waitFor(() => expect(result.current.isComplete).toBe(true));
+        expect(result.current.isLoading).toBe(false);
+        expect(result.current.recipes.map((recipe) => recipe.id)).toEqual(['r1', 'r2', 'r3']);
+        expect(listRecipes).toHaveBeenNthCalledWith(1, { pageSize: 100, page: 1 });
+        expect(listRecipes).toHaveBeenNthCalledWith(2, { pageSize: 100, page: 2 });
+    });
+
+    it('stays loading (never reports complete) until the last page lands', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'listRecipes')
+            .mockResolvedValueOnce(makePaginatedResponse([makeRecipe({ id: 'r1' })], { hasMore: true, page: 1 }))
+            .mockResolvedValueOnce(makePaginatedResponse([makeRecipe({ id: 'r2' })], { hasMore: false, page: 2 }));
+
+        const { result } = renderRecipeHook(() => useAllOwnerRecipes(), { client });
+
+        // After the first page resolves there is still a page owed → not complete, still loading.
+        await waitFor(() => expect(result.current.recipes.length).toBeGreaterThan(0));
+        if (!result.current.isComplete) {
+            expect(result.current.isLoading).toBe(true);
+        }
+        await waitFor(() => expect(result.current.isComplete).toBe(true));
+        expect(result.current.recipes).toHaveLength(2);
+    });
+
+    it('surfaces an error without a partial-complete claim', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'listRecipes').mockRejectedValue(new Error('boom'));
+
+        const { result } = renderRecipeHook(() => useAllOwnerRecipes(), { client });
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+        expect(result.current.isComplete).toBe(false);
+        expect(result.current.recipes).toEqual([]);
     });
 });

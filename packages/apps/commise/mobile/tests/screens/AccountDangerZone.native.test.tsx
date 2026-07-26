@@ -14,7 +14,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-import { useRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
+import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
 import { useDeleteAccount } from '../../src/hooks/useUserProfile.js';
@@ -23,13 +23,13 @@ const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }));
 vi.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut }) }));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useRecipes: vi.fn(),
+    useAllOwnerRecipes: vi.fn(),
     useRequestAccountErasure: vi.fn(),
 }));
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({ useDeleteAccount: vi.fn() }));
 
-const useRecipesMock = vi.mocked(useRecipes);
+const useRecipesMock = vi.mocked(useAllOwnerRecipes);
 const useRequestAccountErasureMock = vi.mocked(useRequestAccountErasure);
 const useDeleteAccountMock = vi.mocked(useDeleteAccount);
 
@@ -45,10 +45,11 @@ const makeRecipe = (
 
 function setRecipes(data: unknown[], state: { isLoading?: boolean; isError?: boolean } = {}): void {
     useRecipesMock.mockReturnValue({
-        data: { data },
+        recipes: data,
         isLoading: state.isLoading ?? false,
         isError: state.isError ?? false,
-    } as unknown as ReturnType<typeof useRecipes>);
+        isComplete: !(state.isLoading ?? false) && !(state.isError ?? false),
+    } as unknown as ReturnType<typeof useAllOwnerRecipes>);
 }
 
 function setErasure(state: { isPending?: boolean; isError?: boolean } = {}): void {

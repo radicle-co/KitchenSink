@@ -14,13 +14,15 @@ const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }));
 vi.mock('@clerk/nextjs', () => ({ useClerk: () => ({ signOut }) }));
 
 const recipesState = vi.hoisted(() => ({
-    current: { data: { data: [] as unknown[] }, isLoading: false, isError: false },
+    current: { recipes: [] as unknown[], isLoading: false, isError: false },
 }));
 const { erasureMutate } = vi.hoisted(() => ({ erasureMutate: vi.fn() }));
 const erasureState = vi.hoisted(() => ({ current: { isPending: false, isError: false } }));
 
+// The election consumes the FULL owner list (paged to completion) — see useAllOwnerRecipes. A capped
+// single-page hook would silently omit (and then erasure would destroy) owner-only recipes past the cap.
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
-    useRecipes: () => recipesState.current,
+    useAllOwnerRecipes: () => recipesState.current,
     useRequestAccountErasure: () => ({ mutate: erasureMutate, ...erasureState.current }),
 }));
 
@@ -34,7 +36,7 @@ const makeRecipe = (
 beforeEach(() => {
     signOut.mockReset().mockResolvedValue(undefined);
     erasureMutate.mockReset();
-    recipesState.current = { data: { data: [] }, isLoading: false, isError: false };
+    recipesState.current = { recipes: [], isLoading: false, isError: false };
     erasureState.current = { isPending: false, isError: false };
 });
 
@@ -67,7 +69,7 @@ describe('AccountEraseForm (web) — deferral', () => {
 
 describe('AccountEraseForm (web) — donate election wiring', () => {
     it('shows loading while the recipe list loads', async () => {
-        recipesState.current = { data: { data: [] }, isLoading: true, isError: false };
+        recipesState.current = { recipes: [], isLoading: true, isError: false };
         await openFlow();
 
         expect(screen.getByText('Loading your recipes')).toBeTruthy();
@@ -75,12 +77,10 @@ describe('AccountEraseForm (web) — donate election wiring', () => {
 
     it('offers only owner-only recipes for donation (public+published are excluded)', async () => {
         recipesState.current = {
-            data: {
-                data: [
-                    makeRecipe('pub', 'Public Published', 'public', 'published'),
-                    makeRecipe('priv', 'Private Published', 'private', 'published'),
-                ],
-            },
+            recipes: [
+                makeRecipe('pub', 'Public Published', 'public', 'published'),
+                makeRecipe('priv', 'Private Published', 'private', 'published'),
+            ],
             isLoading: false,
             isError: false,
         };
@@ -97,7 +97,7 @@ describe('AccountEraseForm (web) — confirm', () => {
             options?.onSuccess?.(),
         );
         recipesState.current = {
-            data: { data: [makeRecipe('priv', 'Private Published', 'private', 'published')] },
+            recipes: [makeRecipe('priv', 'Private Published', 'private', 'published')],
             isLoading: false,
             isError: false,
         };

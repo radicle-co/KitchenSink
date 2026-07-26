@@ -19,7 +19,7 @@ import { useClerk } from '@clerk/nextjs';
 import { useMessages } from '@commise/i18n/react';
 import { selectDonatableRecipes } from '@commise/features-account';
 import { AccountEraseDialog, accountDangerMessages } from '@commise/features-account/danger';
-import { useRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
+import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 
 /**
  * The mounted-while-open erasure flow: owns the recipe fetch, the mutation, and the form state. Mounted only
@@ -29,12 +29,12 @@ import { useRecipes, useRequestAccountErasure } from '@kitchensink/recipe-servic
  */
 function AccountEraseFlow({ onClose }: { readonly onClose: () => void }) {
     const { signOut } = useClerk();
-    const recipes = useRecipes({ pageSize: 100 });
+    const recipes = useAllOwnerRecipes();
     const erasure = useRequestAccountErasure();
     const [phrase, setPhrase] = useState('');
     const [selectedRecipeIds, setSelectedRecipeIds] = useState<readonly string[]>([]);
 
-    const donatableRecipes = selectDonatableRecipes(recipes.data?.data ?? []).map((recipe) => ({
+    const donatableRecipes = selectDonatableRecipes(recipes.recipes).map((recipe) => ({
         id: recipe.id,
         title: recipe.title,
     }));

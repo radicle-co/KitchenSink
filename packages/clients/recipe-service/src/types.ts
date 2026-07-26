@@ -157,10 +157,30 @@ export interface PullFromSourceResponse {
     readonly addedRecipeIds: readonly string[];
 }
 
-/** Optional request body for `requestAccountErasure` (`POST /v1/account/erasure`). */
+/**
+ * Request body for `requestAccountErasure` (`POST /v1/account/erasure`) — mirrors the recipe service's
+ * `ErasureRequestDto` EXACTLY (CR-002 / U3b). Historically this carried only an OPTIONAL `confirmationPhrase`
+ * and no election, which no longer matches the shipped contract: the phrase is REQUIRED (U7 — an irreversible
+ * action must never proceed without a deliberate intent gate; a missing/empty/mismatched phrase is a `400`),
+ * and the per-recipe donate election travels alongside it.
+ */
 export interface ErasureRequest {
-    /** Optional confirmation phrase the server validates before queuing the job. */
-    readonly confirmationPhrase?: string;
+    /**
+     * The exact confirmation phrase gating the irreversible erasure (U7). REQUIRED. The canonical literal and
+     * the client-side match predicate live in `@commise/features-account`
+     * (`ACCOUNT_ERASURE_CONFIRMATION_PHRASE` / `confirmsErasurePhrase`) so the UI renders ONE authoritative
+     * copy; this type only carries the value the caller collected. The server re-validates it.
+     */
+    readonly confirmationPhrase: string;
+    /**
+     * The per-recipe DONATE election (CR-002 / U3b): ids of the caller's OWNER-ONLY recipes elected to be
+     * PUBLISHED (donated — flipped to `public` + `published`, surviving the erasure attributed to a pseudonym
+     * the erased owner no longer controls) instead of removed. Absent/empty ⇒ donate nothing, so every
+     * owner-only recipe is removed (the default). The server scopes the publish-flip to `owner_id = caller`,
+     * so an id the caller does not own — or one already public — is a harmless no-op, and it is bounded
+     * server-side (a payload-size guard).
+     */
+    readonly publishRecipeIds?: readonly string[];
 }
 
 /** Response from `requestAccountErasure`: the (possibly pre-existing, idempotent) erasure job. */

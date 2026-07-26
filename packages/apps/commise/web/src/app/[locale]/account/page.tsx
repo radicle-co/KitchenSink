@@ -6,7 +6,8 @@ import { buildApiClient } from '@/lib/apiClient';
 import type { UserProfile } from '@kitchensink/identity-service';
 import { AccountStateGate } from '@/components/auth/AccountStateGate';
 import { AccountEditForm } from '@/components/auth/AccountEditForm';
-import { AccountDeleteForm } from '@/components/auth/AccountDeleteForm';
+import { AccountCloseForm } from '@/components/auth/AccountCloseForm';
+import { AccountEraseForm } from '@/components/auth/AccountEraseForm';
 
 export const metadata: Metadata = {
     title: 'Account Settings | Commise',
@@ -19,7 +20,7 @@ async function getUserProfile(accessToken: string): Promise<UserProfile> {
     return api.get<UserProfile>('/v1/users/me');
 }
 
-async function AccountContent({ accessToken, userId }: { accessToken: string; userId: string }) {
+async function AccountContent({ accessToken }: { accessToken: string }) {
     const profile = await getUserProfile(accessToken);
 
     return (
@@ -30,9 +31,11 @@ async function AccountContent({ accessToken, userId }: { accessToken: string; us
                     <h2 id="edit-heading">Edit Profile</h2>
                     <AccountEditForm accessToken={accessToken} initialProfile={profile} />
                 </section>
-                <section aria-labelledby="delete-heading">
-                    <h2 id="delete-heading">Danger Zone</h2>
-                    <AccountDeleteForm accessToken={accessToken} userId={userId} />
+                <section aria-labelledby="danger-heading">
+                    <h2 id="danger-heading">Danger Zone</h2>
+                    {/* Two DISTINCT, non-conflatable actions: recoverable closure vs irreversible erasure. */}
+                    <AccountCloseForm accessToken={accessToken} />
+                    <AccountEraseForm />
                 </section>
             </main>
         </AccountStateGate>
@@ -49,5 +52,5 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
 
     const token = (await getToken()) ?? '';
 
-    return <AccountContent accessToken={token} userId={userId} />;
+    return <AccountContent accessToken={token} />;
 }

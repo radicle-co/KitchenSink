@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useUserProfile, useUpdateProfile } from '../hooks/useUserProfile';
 import { SuspensionBanner } from '../components/SuspensionBanner';
+import { AccountDangerZone } from '../components/account/AccountDangerZone';
 import { mobileMessages } from '../i18n/messages';
 
 /** The loaded profile query data (non-undefined). */
@@ -54,6 +55,7 @@ function ProfileEditForm({ profile }: { readonly profile: ProfileData }): JSX.El
                 disabled={updateProfile.isPending}
                 onPress={() => updateProfile.mutate({ displayName, avatarUrl })}
             />
+            <AccountDangerZone />
         </View>
     );
 }

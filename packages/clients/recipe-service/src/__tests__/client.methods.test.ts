@@ -582,6 +582,19 @@ describe('RecipeServiceClient — search & account', () => {
         expect(jsonBody(fetchMock)).toEqual(request);
     });
 
+    it('requestAccountErasure forwards the per-recipe donate election (publishRecipeIds) in the body', async () => {
+        const accepted = makeErasureAccepted({ status: 'queued' });
+        const fetchMock = stubFetch(202, accepted);
+        const request = { confirmationPhrase: 'ERASE MY DATA', publishRecipeIds: ['rec-1', 'rec-2'] } as const;
+
+        const result = await makeClient(fetchMock).requestAccountErasure(request);
+
+        expect(result).toEqual(accepted);
+        // The election must reach the wire unchanged — a dropped `publishRecipeIds` silently deletes recipes
+        // the owner elected to keep (the exact conflation U4b guards against), so this pins the whole body.
+        expect(jsonBody(fetchMock)).toEqual(request);
+    });
+
     it('requestAccountErasure POSTs with NO body when no request is supplied', async () => {
         const fetchMock = stubFetch(202, makeErasureAccepted());
 

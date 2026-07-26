@@ -1,23 +1,20 @@
+/**
+ * @module screens/AccountSettings — the mobile account-settings surface (security + danger zone).
+ *
+ * The destructive controls come from the shared {@link AccountDangerZone}, which presents CLOSE (recoverable)
+ * and ERASE (irreversible) as two DISTINCT actions — replacing this screen's earlier single "Delete account"
+ * button whose copy wrongly claimed the recoverable closure "permanently deletes your account and data" (the
+ * exact conflation CR-002 / U4b fixes).
+ */
 import { useAuth, useUser } from '@clerk/expo';
 import type { JSX } from 'react';
-import { Alert, Button, StyleSheet, Text, View } from 'react-native';
-import { useDeleteAccount } from '../hooks/useUserProfile';
+import { Button, StyleSheet, Text, View } from 'react-native';
+
+import { AccountDangerZone } from '../components/account/AccountDangerZone';
 
 export function AccountSettingsScreen(): JSX.Element {
     const { signOut } = useAuth();
     const { user } = useUser();
-    const deleteAccount = useDeleteAccount();
-
-    function confirmDelete() {
-        Alert.alert('Delete account', 'This permanently deletes your account and data.', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Delete',
-                style: 'destructive',
-                onPress: () => deleteAccount.mutate(),
-            },
-        ]);
-    }
 
     return (
         <View style={styles.container}>
@@ -34,13 +31,9 @@ export function AccountSettingsScreen(): JSX.Element {
             <View style={styles.section}>
                 <Button title="Sign out" onPress={() => signOut()} />
             </View>
+
             <View style={styles.section}>
-                <Button
-                    title={deleteAccount.isPending ? 'Deleting…' : 'Delete account'}
-                    color="#c00"
-                    disabled={deleteAccount.isPending}
-                    onPress={confirmDelete}
-                />
+                <AccountDangerZone />
             </View>
         </View>
     );

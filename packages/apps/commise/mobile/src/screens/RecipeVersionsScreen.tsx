@@ -27,8 +27,9 @@ import type { RecipeVersion } from '@kitchensink/recipe-core';
 import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useRecipeVersions, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
 import { useState, type JSX } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { LoadingState } from '../components/LoadingState.js';
 import { mobileMessages } from '../i18n/messages.js';
 
 /** Props for {@link RecipeVersionsScreen}. */
@@ -65,11 +66,7 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
     );
 
     if (recipe.isLoading || versions.isLoading) {
-        return (
-            <View accessibilityLabel={t.versionsLoading} style={styles.center}>
-                <ActivityIndicator />
-            </View>
-        );
+        return <LoadingState label={t.versionsLoading} />;
     }
 
     if (recipe.isError || recipe.data === undefined || versions.isError || versions.data === undefined) {

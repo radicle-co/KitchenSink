@@ -30,8 +30,9 @@ import { useRecipeEditor } from '@commise/features-recipes/hooks';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
 import { useEffect } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { LoadingState } from '../components/LoadingState.js';
 import { RecipePhotoUploader } from '../components/RecipePhotoUploader.js';
 import { mobileMessages } from '../i18n/messages.js';
 import { RecipeEditor } from './RecipeEditor.js';
@@ -97,11 +98,7 @@ export function RecipeEditScreen({ recipeId, onSaved, onCancel }: RecipeEditScre
     // already false, `values` not yet seeded). Both are loading, NOT error — routing the seed-gap into the
     // alert branch above would announce a false load-failure to screen readers on every successful edit-open.
     if (editor.query.isLoading || editor.state.status === 'loading') {
-        return (
-            <View accessibilityLabel={t.detailLoading} style={styles.center}>
-                <ActivityIndicator />
-            </View>
-        );
+        return <LoadingState label={t.detailLoading} />;
     }
 
     if (editor.state.status === 'conflict') {

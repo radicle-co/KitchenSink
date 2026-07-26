@@ -71,6 +71,8 @@ describe('ProfileScreen — query states', () => {
         render(<ProfileScreen />);
 
         expect(screen.getByRole('progressbar', { name: t.loading })).toBeTruthy();
+        // …and the same context is VISIBLE, so a sighted viewer can also tell what is happening.
+        expect(screen.getByText(t.loading)).toBeTruthy();
     });
 
     it('shows the localized load error when the query fails', () => {

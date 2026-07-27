@@ -315,9 +315,20 @@ const DefaultCardContent: FC = () => (
 // "Recent Recipes" grid and the recipe-list grid) paint it as glass over the page's beach-glow background:
 // `bg-gradient-to-br from-white/70 to-white/50 backdrop-blur-[16px] saturate-[140%] border border-white/30 …
 // hover:border-white/40`. So the opaque `bg-card` fill is gone (it would paint OVER the translucency and
-// cancel the treatment) and the `ring-1 ring-border` hairline is now the mockup's translucent-white border.
+// cancel the treatment) and the `ring-1 ring-border` hairline is now the tier's translucent-white border.
+//
+// The hairline is `border-glass-card-edge` — the `--color-glass-card-edge` custom property emitted from the
+// SAME `glass.card.border` token the native leaf consumes as `cardGlass.border`. It was previously the literal
+// `border-white/30`: one value, two spellings, free to drift (and elsewhere it already had, to `/20`). It stays
+// in CLASS position rather than joining the inline `CARD_GLASS` declarations precisely so the `hover:` variant
+// below still applies — an inline `borderColor` out-specifies every class and would kill it silently.
+//
+// `hover:border-white/40` is deliberately NOT tokenized. It is a web-only hover EMPHASIS with no native
+// counterpart (there is no hover on a touch device), so carrying it in the shared cross-platform `GlassSpec`
+// would add a field one platform structurally cannot consume. Its coupling to the resting edge is noted as a
+// residual, not papered over with an abstraction that fits only one leg.
 const CARD_SHELL =
-    'block overflow-hidden rounded-2xl border border-white/30 text-left shadow-md transition ' +
+    'block overflow-hidden rounded-2xl border border-glass-card-edge text-left shadow-md transition ' +
     'hover:-translate-y-0.5 hover:border-white/40 hover:shadow-lg';
 
 /**

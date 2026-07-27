@@ -6,10 +6,12 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { palette, semantic } from '../colors.js';
+import { semantic } from '../colors.js';
+import { glass } from '../gradients.js';
 import { radius } from '../radius.js';
 import { shadows } from '../shadows.js';
 import { size, space } from '../spacing.js';
+import { themeCss } from '../themeCss.js';
 import { fonts, fontSizes, fontWeights, lineHeights } from '../typography.js';
 
 /** Value + insertion-order assertion (Tailwind emission is order-sensitive via `Object.entries`). */
@@ -98,58 +100,56 @@ describe('web tokens — byte-identical values and order', () => {
 });
 
 /**
- * Reproduces `scripts/generate-theme.mjs` exactly against the (post-refactor) token objects and
- * snapshots the result. This is the strongest byte-identity proof: it captures the actual Tailwind
- * `theme.css` artifact the web app ships, keys + values + order together.
+ * The frosted-glass HAIRLINE must reach the web as a token-derived Tailwind utility.
+ *
+ * `glass.{tier}.border` is the translucent-white edge that gives a glass pane its lit rim. Native already
+ * consumes it through `toNativeGlass(...).border`; the web had no path to it at all, because the theme
+ * generator never read `gradients.ts` — so every web glass surface re-spelled the value as a literal
+ * (`border-white/30`). Same knowledge, two representations, and it had already drifted (one surface says
+ * `/20`). Emitting it as a `--color-*` custom property gives Tailwind a real `border-glass-*-edge` utility,
+ * which — unlike an inline style — composes with `hover:` variants and cannot silently out-specify them.
+ *
+ * The assertions below are derived from the token, never from a literal: re-tone the glass and they follow.
  */
-function renderThemeCss(): string {
-    const kebab = (s: string): string => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
-    const lines: string[] = ['@import "tailwindcss";', '', '@theme {'];
+describe('web tokens — the glass hairline is emitted, not re-spelled', () => {
+    it('emits a border utility for every glass tier, valued from the token', () => {
+        const css = themeCss();
 
-    for (const [k, v] of Object.entries(palette)) {
-        lines.push(`    --color-${kebab(k)}: ${v};`);
-    }
+        for (const [tier, spec] of Object.entries(glass)) {
+            expect(css).toContain(`--color-glass-${tier}-edge: ${spec.border};`);
+        }
+    });
 
-    for (const [k, v] of Object.entries(semantic)) {
-        lines.push(`    --color-${kebab(k)}: ${v};`);
-    }
+    it('emits one edge per tier and no others (no hand-added glass colours)', () => {
+        const emitted = themeCss().match(/--color-glass-[\w-]+/g) ?? [];
 
-    for (const [k, v] of Object.entries(fonts)) {
-        lines.push(`    --font-${kebab(k)}: ${v};`);
-    }
+        expect(emitted).toEqual(Object.keys(glass).map((tier) => `--color-glass-${tier}-edge`));
+    });
 
-    for (const [k, v] of Object.entries(fontSizes)) {
-        lines.push(`    --font-size-${kebab(k)}: ${v};`);
-    }
+    it('does NOT emit the glass fill/blur/saturate as custom properties', () => {
+        const css = themeCss();
 
-    for (const [k, v] of Object.entries(lineHeights)) {
-        lines.push(`    --line-height-${kebab(k)}: ${v};`);
-    }
+        // Those three already reach the web through `toWebGlass` as inline declarations. Emitting them here
+        // as well would create a SECOND web path for the same knowledge — the opposite of the fix. Only the
+        // edge is emitted, because only the edge needs to live in class position (border-width composition
+        // and `hover:` variants).
+        expect(css).not.toContain('--color-glass-card-surface');
+        expect(css).not.toContain('--blur-glass-card');
+        expect(css).not.toContain('--color-glass-card-fallback');
+    });
+});
 
-    for (const [k, v] of Object.entries(fontWeights)) {
-        lines.push(`    --font-weight-${kebab(k)}: ${v};`);
-    }
-
-    for (const [k, v] of Object.entries(space)) {
-        lines.push(`    --spacing-${k}: ${v};`);
-    }
-
-    for (const [k, v] of Object.entries(radius)) {
-        lines.push(`    --radius-${k}: ${v};`);
-    }
-
-    for (const [k, v] of Object.entries(shadows)) {
-        lines.push(`    --shadow-${k}: ${v};`);
-    }
-
-    lines.push('}');
-
-    return lines.join('\n') + '\n';
-}
-
+/**
+ * Snapshots the REAL generator output. `themeCss` is the single authoritative composition that
+ * `scripts/generate-theme.mjs` writes to `dist/theme.css`, so this is the strongest byte-identity proof
+ * available without a build step: keys + values + order together, from the same code that ships.
+ *
+ * This test used to RE-IMPLEMENT the generator's emission loops, which meant it could not fail when the
+ * generator drifted — the duplication is now gone and the assertion is honest.
+ */
 describe('web tokens — generated theme.css artifact', () => {
     it('renders byte-identical Tailwind theme.css', () => {
-        expect(renderThemeCss()).toMatchInlineSnapshot(`
+        expect(themeCss()).toMatchInlineSnapshot(`
           "@import "tailwindcss";
 
           @theme {
@@ -219,6 +219,8 @@ describe('web tokens — generated theme.css artifact', () => {
               --shadow-lg: 0 10px 15px -3px rgba(45,52,54,0.08);
               --shadow-xl: 0 20px 25px -5px rgba(45,52,54,0.09);
               --shadow-glow: 0 0 32px rgba(61,139,133,0.25);
+              --color-glass-card-edge: rgba(255, 255, 255, 0.3);
+              --color-glass-subtle-edge: rgba(255, 255, 255, 0.3);
           }
           "
         `);

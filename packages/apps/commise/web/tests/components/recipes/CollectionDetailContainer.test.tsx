@@ -94,6 +94,18 @@ describe('CollectionDetailContainer', () => {
         expect(screen.getByRole('status', { name: 'Loading collection' })).toBeInTheDocument();
     });
 
+    it('announces the loading label as the live region CONTENT, not only its aria-label', () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
+
+        renderWithRecipeClient(<CollectionDetailContainer id="col_1" locale="en" />, client);
+
+        // A `role="status"` node rendered EMPTY is doubly broken: zero-height (nothing for a sighted viewer,
+        // and Playwright resolves it as `hidden`) AND silent, because a live region announces its CONTENT, not
+        // its label. The localized label must be the visible caption.
+        expect(screen.getByRole('status', { name: 'Loading collection' })).toHaveTextContent('Loading collection');
+    });
+
     it('renders the collection with its member recipes when it loads', async () => {
         const client = clientSeededWith(makeCollectionWithRecipes({ name: 'Weeknight dinners' }));
 

@@ -60,7 +60,11 @@ export const CollectionFormContainer: FC<CollectionFormContainerProps> = ({ mode
     const error = validationError ?? submitError;
 
     if (isRename && collectionQuery.isLoading) {
-        return <div role="status" aria-label={collections.form.loadingLabel} />;
+        return (
+            <p role="status" aria-label={collections.form.loadingLabel} className="px-4 py-8 text-body-md text-slate">
+                {collections.form.loadingLabel}
+            </p>
+        );
     }
 
     const handleSubmit = (): void => {

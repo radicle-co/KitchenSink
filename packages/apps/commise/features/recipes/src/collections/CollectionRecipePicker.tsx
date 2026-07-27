@@ -44,7 +44,14 @@ export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
     let body: ReactElement;
 
     if (status === 'loading') {
-        body = <div role="status" aria-label={picker.loadingLabel} />;
+        // The label is the region's CONTENT, not only its `aria-label`: an empty `role="status"` node is
+        // zero-height (nothing for a sighted viewer, and Playwright resolves it as `hidden`) AND silent,
+        // because a live region announces its CONTENT, not its label.
+        body = (
+            <p role="status" aria-label={picker.loadingLabel} className="text-body-md text-slate">
+                {picker.loadingLabel}
+            </p>
+        );
     } else if (status === 'error') {
         body = (
             <div role="alert" className="rounded-2xl bg-card p-6 text-body-md text-slate shadow-sm">

@@ -13,12 +13,22 @@ import type { FC, ReactElement } from 'react';
 import { collectionMessages } from './messages.js';
 import type { CollectionListViewProps } from './model.js';
 
-/** The loading placeholder — a busy status region with inert skeleton rows (hidden from assistive tech). */
+/**
+ * The loading placeholder — a busy status region captioned with its localized label, over inert skeleton rows
+ * (hidden from assistive tech).
+ *
+ * The caption is not decoration: an empty `role="status"` node is zero-height (nothing for a sighted viewer,
+ * and Playwright resolves it as `hidden`) AND silent, because a live region announces its CONTENT, not its
+ * `aria-label`. The rows below it are `aria-hidden`, so the caption alone announces the wait.
+ */
 const LoadingBody: FC<{ label: string }> = ({ label }) => (
-    <div role="status" aria-label={label}>
-        {[0, 1, 2].map((row) => (
-            <span key={row} aria-hidden="true" />
-        ))}
+    <div role="status" aria-label={label} className="flex flex-col gap-3">
+        <p className="text-body-sm font-medium text-slate">{label}</p>
+        <div aria-hidden="true" className="flex flex-col gap-3">
+            {[0, 1, 2].map((row) => (
+                <span key={row} className="h-16 animate-pulse rounded-2xl bg-pearl motion-reduce:animate-none" />
+            ))}
+        </div>
     </div>
 );
 

@@ -121,7 +121,11 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
     }
 
     if (query.isLoading) {
-        return <div role="status" aria-label={recipes.detail.loadingLabel} />;
+        return (
+            <p role="status" aria-label={recipes.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
+                {recipes.detail.loadingLabel}
+            </p>
+        );
     }
 
     if (query.isError) {
@@ -142,7 +146,11 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
     if (query.data === undefined) {
         // An enabled query that is neither loading nor errored should have data; guard defensively so a
         // transient undefined never crashes the view.
-        return <div role="status" aria-label={recipes.detail.loadingLabel} />;
+        return (
+            <p role="status" aria-label={recipes.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
+                {recipes.detail.loadingLabel}
+            </p>
+        );
     }
 
     const recipe = query.data;

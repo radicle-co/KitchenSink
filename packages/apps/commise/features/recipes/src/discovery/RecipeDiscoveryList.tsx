@@ -8,6 +8,11 @@
  * shown is public; each row offers a Clone action that copies it into the viewer's collection. It fetches
  * nothing; the composing app wires the search query + clone mutation to these props.
  *
+ * The loading body is the shared {@link import('../card/RecipeCardGridSkeleton.js').RecipeCardGridSkeleton} —
+ * ONE authoritative card-skeleton grid, also used by `RecipeList`, so the two card-grid surfaces cannot drift
+ * (it previously rendered a blank body while the query was in flight). The error body is a styled card
+ * surface, matching how `CollectionRecipePicker` renders a settled failure.
+ *
  * The one piece of local state it owns is `searchFocused` — pure UI, no data and no side effect — because the
  * recent-search panel (U7) is an IDLE-state affordance: it appears only while focus is inside the search area
  * AND the query is blank, and the history behind it (recording, de-duplication, cap, persistence) belongs to
@@ -20,6 +25,7 @@ import type { FC, ReactElement } from 'react';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 
 import { toRecipeCardModel } from '../card/model.js';
+import { RecipeCardGridSkeleton } from '../card/RecipeCardGridSkeleton.js';
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.js';
@@ -40,15 +46,6 @@ const sortLabel = (sort: RecipeSearchSortBy, m: DiscoveryMessages): string => {
             return m.sortRelevance;
     }
 };
-
-/** The loading placeholder — a busy status region with inert skeleton rows (hidden from assistive tech). */
-const LoadingBody: FC<{ label: string }> = ({ label }) => (
-    <div role="status" aria-label={label}>
-        {[0, 1, 2].map((row) => (
-            <span key={row} aria-hidden="true" />
-        ))}
-    </div>
-);
 
 export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     status,
@@ -92,12 +89,21 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     if (browsing) {
         body = <>{browseSlot}</>;
     } else if (status === 'loading') {
-        body = <LoadingBody label={discovery.loadingLabel} />;
+        // A card skeleton grid, NOT a blank body (the previous bug): the ONE authoritative web recipe-grid
+        // skeleton, shared with `RecipeList`, so discovery and the personal list cannot drift. It also carries
+        // the localized label as its visible caption — an empty `role="status"` announces nothing.
+        body = <RecipeCardGridSkeleton label={discovery.loadingLabel} />;
     } else if (status === 'error') {
+        // A styled card surface, not bare text on a blank page — the same settled-failure treatment
+        // `CollectionRecipePicker` uses, so a failure reads as a deliberate state.
         body = (
-            <div role="alert">
-                <p>{discovery.errorTitle}</p>
-                <button type="button" onClick={onRetry}>
+            <div role="alert" className="rounded-2xl bg-card p-6 text-body-md text-slate shadow-sm">
+                <p className="font-medium text-charcoal">{discovery.errorTitle}</p>
+                <button
+                    type="button"
+                    onClick={onRetry}
+                    className="mt-3 rounded-full px-4 py-2 text-body-sm font-semibold text-seafoam transition hover:bg-seafoam/10"
+                >
                     {discovery.retry}
                 </button>
             </div>

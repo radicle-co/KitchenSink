@@ -61,15 +61,20 @@ const Rail: FC<{
     let body: ReactElement;
 
     if (rail.status === 'loading') {
+        // The label is the region's CONTENT, not only its `aria-label`: the shimmer cards are all
+        // `aria-hidden`, so without a visible caption this live region has NO content — and a live region
+        // announces its CONTENT, not its label, so a screen reader would hear nothing at all.
         body = (
-            <div role="status" aria-label={discovery.loadingLabel} className="flex gap-4">
-                {[0, 1, 2].map((card) => (
-                    <span
-                        key={card}
-                        aria-hidden="true"
-                        className="h-56 w-64 shrink-0 animate-pulse rounded-xl bg-mist/20 motion-reduce:animate-none"
-                    />
-                ))}
+            <div role="status" aria-label={discovery.loadingLabel} className="flex flex-col gap-2">
+                <p className="text-body-sm text-slate">{discovery.loadingLabel}</p>
+                <div aria-hidden="true" className="flex gap-4">
+                    {[0, 1, 2].map((card) => (
+                        <span
+                            key={card}
+                            className="h-56 w-64 shrink-0 animate-pulse rounded-xl bg-mist/20 motion-reduce:animate-none"
+                        />
+                    ))}
+                </div>
             </div>
         );
     } else if (rail.status === 'error') {

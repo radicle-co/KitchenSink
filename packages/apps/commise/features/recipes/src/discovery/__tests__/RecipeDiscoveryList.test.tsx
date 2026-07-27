@@ -87,6 +87,41 @@ describe('RecipeDiscoveryList (web) — loading state', () => {
         expect(screen.getByRole('status')).toBeTruthy();
         expect(screen.queryByRole('button', { name: /Grilled Lamb/ })).toBeNull();
     });
+
+    it('announces the localized loading label as the live region CONTENT, not only its aria-label', () => {
+        renderDiscovery({ status: 'loading' });
+
+        // A `role="status"` node rendered EMPTY is doubly broken: it is zero-height (nothing for a sighted
+        // viewer, and Playwright resolves it as `hidden`) AND it is silent, because a live region announces
+        // its CONTENT, not its label. The label must therefore be the visible caption.
+        expect(screen.getByRole('status').textContent).toContain('Loading recipes');
+    });
+
+    it('renders real shimmer skeleton cards (not blank spans) inside the busy region', () => {
+        renderDiscovery({ status: 'loading' });
+
+        // The old loading body was three EMPTY `<span>`s — a blank page while the query was in flight, where
+        // the mockup shows a card skeleton grid (and native already paints one).
+        const status = screen.getByRole('status');
+        const shimmer = status.querySelectorAll('.animate-pulse');
+        expect(shimmer.length).toBeGreaterThanOrEqual(3);
+        // Every placeholder is decorative — the region's caption alone announces the wait.
+        for (const node of Array.from(shimmer)) {
+            expect(node.closest('[aria-hidden="true"]')).not.toBeNull();
+        }
+    });
+
+    it('mirrors the populated grid column rhythm so the layout does not jump when results land', () => {
+        renderDiscovery({ status: 'loading' });
+
+        // Same 1 / sm:2 / lg:3 / xl:4 rhythm the populated `<ul>` uses — a skeleton on a different grid
+        // reflows the whole page the moment the first page arrives.
+        const skeletonGrid = screen.getByRole('status').querySelector('.grid');
+        expect(skeletonGrid).not.toBeNull();
+        for (const columnClass of ['grid-cols-1', 'sm:grid-cols-2', 'lg:grid-cols-3', 'xl:grid-cols-4']) {
+            expect(skeletonGrid?.classList.contains(columnClass)).toBe(true);
+        }
+    });
 });
 
 describe('RecipeDiscoveryList (web) — error state', () => {
@@ -99,6 +134,27 @@ describe('RecipeDiscoveryList (web) — error state', () => {
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
         expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders the failure as a styled card surface, not bare unstyled text', () => {
+        renderDiscovery({ status: 'error' });
+
+        // Same card treatment every sibling web surface uses for a settled failure (see
+        // `CollectionRecipePicker`): a rounded card on the `card` surface with a shadow, so the error reads as
+        // a deliberate state rather than a stray line of text on a blank page.
+        const alert = screen.getByRole('alert');
+        expect(alert.textContent).toContain('We couldn’t load recipes.');
+        for (const surfaceClass of ['rounded-2xl', 'bg-card', 'shadow-sm']) {
+            expect(alert.classList.contains(surfaceClass)).toBe(true);
+        }
+    });
+
+    it('gives the retry action real control styling (a pill, not a bare button)', () => {
+        renderDiscovery({ status: 'error' });
+
+        const retry = screen.getByRole('button', { name: 'Try again' });
+        expect(retry.classList.contains('rounded-full')).toBe(true);
+        expect(retry.classList.contains('font-semibold')).toBe(true);
     });
 
     it('does not render recipe rows in the error state', () => {

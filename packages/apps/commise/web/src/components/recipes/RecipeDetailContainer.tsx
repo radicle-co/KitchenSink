@@ -43,6 +43,7 @@ import {
     type RecipeRatingError,
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
+import { buttonSurfaceClass } from '@commise/ui/button';
 import { canClone, canGoPrivate, isOwner, makeViewer } from '@kitchensink/recipe-core';
 import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import {
@@ -183,10 +184,7 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
         <>
             {/* C1 wireframe parity: an explicit in-app back control on the detail header — mirrors mobile's
                 `onBack` (RecipeDetailScreen), which the web detail never had (it relied on browser back). */}
-            <Link
-                href={`/${locale}/recipes` as Route}
-                className="self-start rounded-full px-3 py-1.5 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10"
-            >
+            <Link href={`/${locale}/recipes` as Route} className={buttonSurfaceClass('secondary')}>
                 {recipes.actions.backAction}
             </Link>
             <RecipeDetailView
@@ -244,10 +242,20 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
                         delete trigger — the SECONDARY actions — move behind the "More" overflow menu. The
                         delete CONFIRMATION dialog stays a sibling, not menu content, so it survives the menu
                         closing (e.g. its own outside-click) while it is open. */}
+                    {/* DS surfaces (design-system migration): every owner control below now draws its palette,
+                        pill geometry, focus ring, and 44px touch floor from ONE source — `buttonSurfaceClass`,
+                        the same recipe the `Button` component itself renders — instead of the bare, surface-less
+                        elements these used to be. The two NAVIGATIONS stay real links on purpose: a
+                        `<button onClick={router.push}>` would lose the link role, ⌘-click, and open-in-new-tab. */}
                     <div className="flex items-center gap-2">
-                        <Link href={`/${locale}/recipes/${id}/edit` as Route}>{recipes.actions.editAction}</Link>
+                        <Link href={`/${locale}/recipes/${id}/edit` as Route} className={buttonSurfaceClass('primary')}>
+                            {recipes.actions.editAction}
+                        </Link>
                         <MoreActionsMenu>
-                            <Link href={`/${locale}/recipes/${id}/versions` as Route}>
+                            <Link
+                                href={`/${locale}/recipes/${id}/versions` as Route}
+                                className={buttonSurfaceClass('secondary')}
+                            >
                                 {recipes.actions.versionHistory}
                             </Link>
                             <RecipeVisibilityToggle
@@ -260,7 +268,17 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
                                 error={setVisibility.error !== null && setVisibility.error !== undefined}
                                 onChange={(visibility) => setVisibility.mutate({ id, visibility })}
                             />
-                            <button type="button" aria-haspopup="dialog" onClick={() => setDeleteDialogOpen(true)}>
+                            {/* The DS destructive surface on a plain `<button>` rather than the `Button`
+                                component, because this trigger MUST keep `aria-haspopup="dialog"` (it announces
+                                that activating it opens the confirmation) and the DS Button's contract carries no
+                                popup hint. It has no in-flight state of its own — the delete's busy spinner
+                                belongs to the dialog's confirm control, which IS a real DS `Button`. */}
+                            <button
+                                type="button"
+                                aria-haspopup="dialog"
+                                onClick={() => setDeleteDialogOpen(true)}
+                                className={buttonSurfaceClass('destructive')}
+                            >
                                 {recipes.actions.deleteAction}
                             </button>
                         </MoreActionsMenu>

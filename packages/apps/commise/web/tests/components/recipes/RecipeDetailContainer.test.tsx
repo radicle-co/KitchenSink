@@ -25,6 +25,8 @@ import { useDeleteRecipeRating, useSetRecipeRating } from '@kitchensink/recipe-s
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { buttonSurfaceClass } from '@commise/ui/button';
+
 import { renderWithRecipeClient } from '@commise/test-utils';
 
 import { RecipeDetailContainer } from '@/components/recipes/RecipeDetailContainer';
@@ -419,6 +421,78 @@ describe('RecipeDetailContainer', () => {
             expect(await screen.findByRole('button', { name: 'Clone' })).toBeInTheDocument();
             expect(screen.queryByRole('link', { name: 'Edit recipe' })).not.toBeInTheDocument();
             expect(screen.queryByRole('link', { name: 'Version history' })).not.toBeInTheDocument();
+        });
+    });
+
+    describe('owner action controls wear the design system (no hand-rolled surfaces)', () => {
+        /** Renders the detail for the OWNER of a public recipe — the state that shows every owner control. */
+        const renderOwnerDetail = () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+            );
+            renderWithRecipeClient(<RecipeDetailContainer id="rec_1" />, client);
+        };
+
+        it('gives Edit the DS PRIMARY surface while keeping it a real link (role, href, touch floor)', async () => {
+            renderOwnerDetail();
+            const edit = await screen.findByRole('link', { name: 'Edit recipe' });
+
+            // Still a LINK — the DS migration must not downgrade a navigation to a <button> (that would lose
+            // the link role, ⌘-click, and open-in-new-tab).
+            expect(edit).toHaveAttribute('href', '/en/recipes/rec_1/edit');
+            expect(edit.className).toBe(buttonSurfaceClass('primary'));
+        });
+
+        it('gives Version history the DS SECONDARY surface, still as a link', async () => {
+            const user = userEvent.setup();
+            renderOwnerDetail();
+
+            await user.click(await screen.findByRole('button', { name: 'More' }));
+            const history = screen.getByRole('link', { name: 'Version history' });
+
+            expect(history).toHaveAttribute('href', '/en/recipes/rec_1/versions');
+            expect(history.className).toBe(buttonSurfaceClass('secondary'));
+        });
+
+        it('gives Back the DS SECONDARY surface, still as a link to the recipe list', async () => {
+            renderOwnerDetail();
+            const back = await screen.findByRole('link', { name: 'Back' });
+
+            expect(back).toHaveAttribute('href', '/en/recipes');
+            expect(back.className).toBe(buttonSurfaceClass('secondary'));
+        });
+
+        it('renders the delete trigger as the DS DESTRUCTIVE Button (error tone + touch floor)', async () => {
+            const user = userEvent.setup();
+            renderOwnerDetail();
+
+            await user.click(await screen.findByRole('button', { name: 'More' }));
+            const trigger = screen.getByRole('button', { name: 'Delete recipe' });
+
+            expect(trigger.className).toContain('min-h-11');
+            expect(trigger.className).toContain('error');
+            // The dialog contract is preserved: the trigger still announces that it opens one.
+            expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+        });
+
+        it('leaves NO owner control on a bare, surface-less element', async () => {
+            const user = userEvent.setup();
+            renderOwnerDetail();
+
+            await user.click(await screen.findByRole('button', { name: 'More' }));
+
+            // Every owner control carries the DS pill geometry. A control with an empty/near-empty className is
+            // exactly the "reads as plain text" failure the design system exists to prevent.
+            for (const control of [
+                screen.getByRole('link', { name: 'Edit recipe' }),
+                screen.getByRole('link', { name: 'Version history' }),
+                screen.getByRole('link', { name: 'Back' }),
+                screen.getByRole('button', { name: 'Delete recipe' }),
+            ]) {
+                expect(control.className).toContain('rounded-full');
+                expect(control.className).toContain('min-h-11');
+            }
         });
     });
 

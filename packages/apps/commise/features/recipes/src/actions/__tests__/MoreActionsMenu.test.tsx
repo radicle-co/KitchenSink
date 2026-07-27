@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { buttonSurfaceClass } from '@commise/ui/button';
+
 import { MoreActionsMenu } from '../MoreActionsMenu.js';
 
 afterEach(cleanup);
@@ -114,5 +116,17 @@ describe('MoreActionsMenu (web)', () => {
         await user.click(trigger);
 
         expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('wears the design-system secondary surface (palette + 44px touch floor), not a hand-rolled pill', () => {
+        render(
+            <MoreActionsMenu>
+                <button type="button">Version history</button>
+            </MoreActionsMenu>,
+        );
+
+        // The trigger must own its own `ref` (focus return on Escape), so it cannot be the `Button` COMPONENT —
+        // it applies the shared DS surface recipe instead, which is what keeps it from drifting.
+        expect(screen.getByRole('button', { name: 'More' }).className).toBe(buttonSurfaceClass('secondary'));
     });
 });

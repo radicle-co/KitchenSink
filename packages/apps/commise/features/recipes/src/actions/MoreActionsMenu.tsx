@@ -19,6 +19,7 @@
  * mutation of its own, it only discloses whatever `children` the caller supplies (Composite/slot pattern).
  */
 import { useMessages } from '@commise/i18n/react';
+import { buttonSurfaceClass } from '@commise/ui/button';
 import { useEffect, useRef, useState, type FC, type KeyboardEvent } from 'react';
 
 import { recipeActionMessages } from './messages.js';
@@ -62,7 +63,10 @@ export const MoreActionsMenu: FC<MoreActionsMenuProps> = ({ children }) => {
                 aria-haspopup="menu"
                 aria-expanded={open}
                 onClick={() => setOpen((prev) => !prev)}
-                className="rounded-full border border-mist px-4 py-1.5 text-body-sm font-medium text-charcoal transition hover:bg-pearl"
+                // The DS secondary surface (palette, radius, focus ring, 44px touch floor) via the shared
+                // recipe rather than the `Button` COMPONENT: this trigger must own its own `ref` to restore
+                // focus on Escape and to scope the outside-click check, and `Button` forwards no ref.
+                className={buttonSurfaceClass('secondary')}
             >
                 {moreMenu.trigger}
             </button>

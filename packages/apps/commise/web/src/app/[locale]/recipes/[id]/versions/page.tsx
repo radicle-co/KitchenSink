@@ -29,7 +29,7 @@ export default async function RecipeVersionsPage({
     }
 
     return (
-        <AppShell activeId="recipes">
+        <AppShell activeId="recipes" titleId="recipeVersions">
             <RecipeVersionsContainer recipeId={id} />
         </AppShell>
     );

@@ -28,7 +28,7 @@ export default async function CollectionDetailPage({
     }
 
     return (
-        <AppShell activeId="recipes">
+        <AppShell activeId="recipes" titleId="collectionDetail">
             <CollectionDetailContainer id={id} locale={locale} />
         </AppShell>
     );

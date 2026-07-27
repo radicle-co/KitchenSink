@@ -1,10 +1,24 @@
 'use client';
 
 /**
- * @module home/chrome/HomeTopBar — the sticky Home top bar (web; US-000 / FR-046).
+ * @module home/chrome/HomeTopBar — the sticky app top bar (web; US-000 / FR-046).
  *
  * The `h-14` glass bar from the mockup: a mobile nav trigger (hamburger, hidden at `md`+ where the sidebar is
- * visible), the page title, a search affordance, a notifications affordance, and the account avatar.
+ * visible), the current surface's title, a search affordance, a notifications affordance, and the account
+ * avatar.
+ *
+ * ## The title is CALLER-supplied, and is NOT a heading
+ *
+ * It used to read `chrome.pageTitle` — one hard-coded 'Home' rendered on every shell-hosted route — so the
+ * recipe list, an editor, and the account page all announced themselves as "Home". It is now a `pageTitle`
+ * prop the shell resolves per surface.
+ *
+ * It is also deliberately plain text rather than a heading. Every shell-hosted page's own `<main>` content
+ * already renders the authoritative `<h1>`, so exposing this bar's title as an `h1` too gave each page TWO —
+ * and once the title became per-route it would additionally be a SECOND heading carrying the SAME accessible
+ * name as the page's own `h1` on most routes ("Recipes", "Profile", "Settings", …), which is ambiguous to
+ * anyone navigating by heading. The `<header>` banner landmark is the structural anchor; the text inside it is
+ * orientational chrome that stays visible while the page scrolls.
  *
  * ## Two deliberate departures from the mockup
  *
@@ -31,8 +45,13 @@ type ChromeMessages = WebMessages['home']['chrome'];
 
 /** Props for {@link HomeTopBar}. */
 export interface HomeTopBarProps {
-    /** The chrome copy (title + accessible names), resolved for the active locale. */
+    /** The chrome copy (accessible names + nav labels), resolved for the active locale. */
     readonly chrome: ChromeMessages;
+    /**
+     * The localized title of the surface currently in the shell (e.g. "Version history"). Rendered as plain
+     * banner text, never a heading — the page content owns the `<h1>` (see the module doc).
+     */
+    readonly pageTitle: string;
     /** The active locale segment, for the account link route. */
     readonly locale: string;
     /** The viewer's display name, if known — the source of the avatar initials. */
@@ -42,12 +61,13 @@ export interface HomeTopBarProps {
 }
 
 /**
- * The sticky Home top bar.
+ * The sticky app top bar.
  *
- * @param props - The chrome copy, locale, viewer display name, and the mobile-nav open handler.
+ * @param props - The chrome copy, the current surface's title, the locale, the viewer display name, and the
+ *   mobile-nav open handler.
  * @returns The sticky glass header.
  */
-export function HomeTopBar({ chrome, locale, displayName, onOpenNav }: HomeTopBarProps): JSX.Element {
+export function HomeTopBar({ chrome, pageTitle, locale, displayName, onOpenNav }: HomeTopBarProps): JSX.Element {
     const initials = initialsFor(displayName);
 
     return (
@@ -64,7 +84,8 @@ export function HomeTopBar({ chrome, locale, displayName, onOpenNav }: HomeTopBa
                 >
                     <HomeIcon name="menu" className="size-6" />
                 </button>
-                <h1 className="text-lg font-semibold text-charcoal">{chrome.pageTitle}</h1>
+                {/* Plain text, NOT a heading — the page's own content owns the single `<h1>` (module doc). */}
+                <p className="text-lg font-semibold text-charcoal">{pageTitle}</p>
             </div>
 
             <div className="flex items-center gap-1">

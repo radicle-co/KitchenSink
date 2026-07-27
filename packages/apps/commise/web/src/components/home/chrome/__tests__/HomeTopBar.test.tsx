@@ -8,7 +8,7 @@
  * nav. Selectors are role/label only.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { webMessages } from '@/i18n/messages';
@@ -20,15 +20,41 @@ afterEach(cleanup);
 const chrome = webMessages.en.home.chrome;
 
 const renderTopBar = (overrides: Partial<Parameters<typeof HomeTopBar>[0]> = {}): void => {
-    render(<HomeTopBar chrome={chrome} locale="en" displayName="Jane Doe" onOpenNav={vi.fn()} {...overrides} />);
+    render(
+        <HomeTopBar
+            chrome={chrome}
+            pageTitle={chrome.pageTitles.home}
+            locale="en"
+            displayName="Jane Doe"
+            onOpenNav={vi.fn()}
+            {...overrides}
+        />,
+    );
 };
 
 describe('HomeTopBar', () => {
-    it('renders the page title in a banner landmark', () => {
-        renderTopBar();
+    it('renders the CALLER-supplied page title in a banner landmark', () => {
+        renderTopBar({ pageTitle: chrome.pageTitles.recipes });
 
-        expect(screen.getByRole('banner')).toBeTruthy();
-        expect(screen.getByRole('heading', { name: chrome.pageTitle })).toBeTruthy();
+        const banner = screen.getByRole('banner');
+        expect(banner).toBeTruthy();
+        expect(within(banner).getByText(chrome.pageTitles.recipes)).toBeTruthy();
+        // The bar no longer hard-codes Home's title for every shell route.
+        expect(within(banner).queryByText(chrome.pageTitles.home)).toBeNull();
+    });
+
+    /**
+     * The bar's title is orientational CHROME that repeats on every route — the page's own `<main>` content
+     * owns the authoritative `<h1>`. Exposing the chrome title as a heading too gave every shell route TWO
+     * `h1`s, and once the title became per-route it would additionally be a SECOND heading with the SAME
+     * accessible name as the page's `h1` — ambiguous for heading navigation (and for `getByRole('heading')`).
+     * The `<header>` banner landmark is the structural anchor; the title inside it is plain text.
+     */
+    it('exposes the title as plain text, NOT as a heading (the page content owns the h1)', () => {
+        renderTopBar({ pageTitle: chrome.pageTitles.recipes });
+
+        expect(screen.queryByRole('heading')).toBeNull();
+        expect(screen.queryByRole('heading', { name: chrome.pageTitles.recipes })).toBeNull();
     });
 
     it('exposes the search and notifications affordances by accessible name', () => {

@@ -6,7 +6,7 @@
  * controls. The viewer-profile hook is mocked (AppShell's avatar source); the leaf forms are stubbed.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 
 import { renderWithProviders } from '@commise/test-utils';
@@ -69,6 +69,16 @@ describe('AccountContent (U3) — shell + composition', () => {
         expect(screen.getByText('edit-form-stub')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Close account' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Erase my data' })).toBeTruthy();
+    });
+
+    it('names ITSELF in the top bar (not the hard-coded "Home") and owns the page’s only h1', async () => {
+        await renderContent();
+
+        expect(within(screen.getByRole('banner')).getByText('Account')).toBeTruthy();
+        expect(within(screen.getByRole('banner')).queryByText('Home')).toBeNull();
+        const level1 = screen.getAllByRole('heading', { level: 1 });
+        expect(level1).toHaveLength(1);
+        expect(level1[0]?.textContent).toBe('Account Settings');
     });
 });
 

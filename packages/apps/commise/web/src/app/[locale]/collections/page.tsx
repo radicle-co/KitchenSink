@@ -48,7 +48,7 @@ export default async function CollectionsPage({
     // `recipes` is the active destination (the shared nav model has no separate collections entry).
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
-            <AppShell activeId="recipes">
+            <AppShell activeId="recipes" titleId="collections">
                 <CollectionListContainer locale={locale} />
             </AppShell>
         </HydrationBoundary>

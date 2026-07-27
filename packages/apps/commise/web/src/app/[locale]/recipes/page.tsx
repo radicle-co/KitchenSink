@@ -49,7 +49,7 @@ export default async function RecipesPage({
     // its own active destination — the same chrome Home uses, so navigation is consistent across the app.
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
-            <AppShell activeId="recipes">
+            <AppShell activeId="recipes" titleId="recipes">
                 <RecipeListContainer locale={locale} />
             </AppShell>
         </HydrationBoundary>

@@ -26,6 +26,8 @@ import { HomeTopBar } from './HomeTopBar';
 export interface HomeChromeProps {
     /** The chrome copy, resolved for the active locale. */
     readonly chrome: WebMessages['home']['chrome'];
+    /** The localized title of the surface in the shell, shown in the top bar (plain text, never a heading). */
+    readonly pageTitle: string;
     /** The active locale segment. */
     readonly locale: string;
     /** Capabilities whose backing service is live — the single fact that drives nav reachability. */
@@ -41,12 +43,13 @@ export interface HomeChromeProps {
 /**
  * The Home application shell.
  *
- * @param props - The chrome copy, locale, live capabilities, active id, viewer display name, and the main
- * surface content.
+ * @param props - The chrome copy, the surface title, locale, live capabilities, active id, viewer display
+ * name, and the main surface content.
  * @returns The full Home chrome with `children` in the main landmark.
  */
 export function HomeChrome({
     chrome,
+    pageTitle,
     locale,
     liveCapabilities,
     activeId,
@@ -70,6 +73,7 @@ export function HomeChrome({
             <div className="flex min-w-0 flex-1 flex-col">
                 <HomeTopBar
                     chrome={chrome}
+                    pageTitle={pageTitle}
                     locale={locale}
                     displayName={displayName}
                     onOpenNav={() => setMobileNavOpen(true)}

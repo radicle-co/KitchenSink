@@ -28,7 +28,7 @@ export default async function AddRecipeToCollectionPage({
     }
 
     return (
-        <AppShell activeId="recipes">
+        <AppShell activeId="recipes" titleId="collectionAddRecipes">
             <CollectionRecipePickerContainer id={id} locale={locale} />
         </AppShell>
     );

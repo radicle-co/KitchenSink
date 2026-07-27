@@ -16,7 +16,7 @@ export function SettingsContent({ locale }: { locale: string }): React.ReactElem
     const { settings } = resolveMessages(authMessages, locale);
 
     return (
-        <AppShell activeId="profile">
+        <AppShell activeId="profile" titleId="settings">
             <div className={pageContainer}>
                 <h1 className={pageHeading}>{settings.title}</h1>
                 <section aria-labelledby="session-heading" className={sectionCard}>

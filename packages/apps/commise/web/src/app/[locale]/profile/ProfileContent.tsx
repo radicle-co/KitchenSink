@@ -46,7 +46,7 @@ export async function ProfileContent({
         // the web-e2e job) must not crash this server-rendered page with an unhandled fetch rejection. Degrade
         // to a recoverable state instead — the client-side `useUserProfile` hook re-fetches and fills it in.
         return (
-            <AppShell activeId="profile">
+            <AppShell activeId="profile" titleId="profile">
                 <AccountStateGate>
                     <div className={pageContainer}>
                         <h1 className={pageHeading}>{copy.title}</h1>
@@ -63,7 +63,7 @@ export async function ProfileContent({
     }
 
     return (
-        <AppShell activeId="profile">
+        <AppShell activeId="profile" titleId="profile">
             <AccountStateGate>
                 <div className={pageContainer}>
                     <h1 className={pageHeading}>{copy.title}</h1>

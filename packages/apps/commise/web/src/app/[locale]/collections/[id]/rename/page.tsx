@@ -28,7 +28,7 @@ export default async function RenameCollectionPage({
     }
 
     return (
-        <AppShell activeId="recipes">
+        <AppShell activeId="recipes" titleId="collectionRename">
             <CollectionFormContainer mode="rename" collectionId={id} locale={locale} />
         </AppShell>
     );

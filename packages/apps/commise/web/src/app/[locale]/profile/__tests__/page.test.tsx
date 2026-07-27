@@ -6,7 +6,7 @@
  * profile content and its degrade path.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, screen } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 
 import { renderWithProviders } from '@commise/test-utils';
@@ -59,5 +59,26 @@ describe('ProfileContent — SSR identity fetch resilience + U3 shell', () => {
         expect(screen.getByRole('heading', { name: 'Profile' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
         expect(screen.getAllByRole('navigation').length).toBeGreaterThan(0);
+    });
+
+    /**
+     * `/profile` is the sharpest case for the two defects being fixed together: the top bar's title used to be
+     * the hard-coded 'Home', and the page's own `<h1>` is 'Profile'. Now the bar says 'Profile' too — so if it
+     * were still a heading, `getByRole('heading', { name: 'Profile' })` would be ambiguous AND the page would
+     * carry two `h1`s. It is plain banner text, so exactly one level-1 heading survives.
+     */
+    it('names ITSELF in the top bar and leaves the page content as the only h1', async () => {
+        get.mockResolvedValue({
+            user: { displayName: 'Ada', email: 'ada@example.com', status: 'active' },
+            account: { subscriptionTier: 'free' },
+        });
+
+        renderWithProviders(await ProfileContent({ accessToken: 'tok', locale: 'en' }));
+
+        expect(within(screen.getByRole('banner')).getByText('Profile')).toBeInTheDocument();
+        expect(within(screen.getByRole('banner')).queryByText('Home')).not.toBeInTheDocument();
+        const level1 = screen.getAllByRole('heading', { level: 1 });
+        expect(level1).toHaveLength(1);
+        expect(level1[0]?.textContent).toBe('Profile');
     });
 });

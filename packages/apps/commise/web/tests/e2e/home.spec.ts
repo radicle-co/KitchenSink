@@ -30,8 +30,10 @@ test.describe('Home widget surface (T104)', () => {
         // The Home widget surface and its region render.
         await expect(page.getByRole('region', { name: 'Home' })).toBeVisible();
 
-        // The chrome renders: the sticky top bar (page title) and the primary nav landmark.
-        await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+        // The chrome renders: the sticky top bar (which NAMES this surface) and the primary nav landmark.
+        // The bar's title is plain banner text, not a heading — the page's own sr-only <h1> is the document's
+        // single level-1 heading, and a chrome heading duplicating a page title would be ambiguous.
+        await expect(page.getByRole('banner').getByText('Home')).toBeVisible();
         await expect(page.getByRole('navigation', { name: 'Main' }).first()).toBeVisible();
 
         // The time-of-day greeting renders (any of the four buckets — the clock decides which).
@@ -59,5 +61,7 @@ test.describe('Home widget surface (T104)', () => {
         await page.getByRole('link', { name: 'See all recipes' }).click();
         await expect(page).toHaveURL(/\/recipes(?:\?|$)/);
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
+        // …and the shell's top bar re-titles itself for the new surface (it used to say 'Home' everywhere).
+        await expect(page.getByRole('banner').getByText('Recipes')).toBeVisible();
     });
 });

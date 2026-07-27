@@ -950,9 +950,6 @@ describe('IngredientPicker — every live region carries its label as VISIBLE co
         await user.click(await screen.findByRole('button', { name: 'Chicken thigh' }));
         await user.click(await screen.findByRole('button', { name: /Chicken thigh, cooked/ }));
 
-        expectSpokenStatus(
-            await screen.findByRole('status', { name: 'Resolving ingredient' }),
-            'Resolving ingredient',
-        );
+        expectSpokenStatus(await screen.findByRole('status', { name: 'Resolving ingredient' }), 'Resolving ingredient');
     });
 });

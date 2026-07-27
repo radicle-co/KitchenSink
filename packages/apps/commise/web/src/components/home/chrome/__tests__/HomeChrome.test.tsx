@@ -25,6 +25,7 @@ const renderChrome = (): void => {
     render(
         <HomeChrome
             chrome={chrome}
+            pageTitle={chrome.pageTitles.home}
             locale="en"
             liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
             activeId="home"

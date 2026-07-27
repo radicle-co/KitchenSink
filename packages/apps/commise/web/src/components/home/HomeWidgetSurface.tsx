@@ -103,7 +103,7 @@ export function HomeWidgetSurface({
     }, [container, tier]);
 
     return (
-        <AppShell activeId="home">
+        <AppShell activeId="home" titleId="home">
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
                 {/*
                  * The authenticated Home's accessible page title (US-000 / FR-046). Visually hidden — the

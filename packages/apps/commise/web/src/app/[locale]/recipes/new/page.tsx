@@ -30,7 +30,7 @@ export default async function NewRecipePage({
     }
 
     return (
-        <AppShell activeId="recipes">
+        <AppShell activeId="recipes" titleId="recipeNew">
             <RecipeCreateContainer locale={locale} />
         </AppShell>
     );

@@ -327,6 +327,109 @@ describe('useRecipePhotoUploadQueue — client-side pre-validation (REQ-011/REQ-
     });
 });
 
+/**
+ * `retryable` — the discriminator the grid leaves gate their Retry control on. Retry re-validates BY DESIGN
+ * (see the hook's admission-control note), so re-attempting a file the CLIENT rejected can never succeed: it
+ * re-runs the identical pure check against the identical file and re-fails. Offering Retry there is a dead
+ * affordance — the only meaningful action is Remove. A transport/server failure, by contrast, is exactly what
+ * Retry exists for.
+ *
+ * Mutation lens: hard-coding `retryable: true` (or deriving it from `status === 'failed'`) fails the
+ * validation cases; hard-coding `false` fails the transport case.
+ */
+describe('useRecipePhotoUploadQueue — retryable', () => {
+    it('marks a TRANSPORT failure retryable', async () => {
+        const presign = vi.fn().mockResolvedValue({ uploadUrl: 'https://s3.example.com/put', key: 'k1' });
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
+        fetchMock.mockResolvedValue({ ok: false, status: 500 });
+
+        const { result } = renderHook(() => useHarness(0));
+
+        act(() => {
+            result.current.queue.enqueue([makeQueueFile({ fileName: 'fails.png' })]);
+        });
+        await waitFor(() => expect(result.current.queue.items[0]?.status).toBe('failed'));
+
+        expect(result.current.queue.items[0]?.retryable).toBe(true);
+    });
+
+    it.each([
+        ['oversized', { fileName: 'huge.png', fileSize: MAX_RECIPE_PHOTO_UPLOAD_BYTES + 1 }],
+        ['disallowed-type', { fileName: 'clip.gif', contentType: 'image/gif' }],
+    ] as const)('marks a client-VALIDATION rejection (%s) NOT retryable', (_label, overrides) => {
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: vi.fn() });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
+
+        const { result } = renderHook(() => useHarness(0));
+
+        act(() => {
+            result.current.queue.enqueue([makeQueueFile(overrides)]);
+        });
+
+        expect(result.current.queue.items[0]?.status).toBe('failed');
+        expect(result.current.queue.items[0]?.retryable).toBe(false);
+    });
+
+    it('keeps a validation rejection NOT retryable across a retry (it re-validates and re-fails)', () => {
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: vi.fn() });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
+
+        const { result } = renderHook(() => useHarness(0));
+
+        act(() => {
+            result.current.queue.enqueue([
+                makeQueueFile({ fileName: 'huge.png', fileSize: MAX_RECIPE_PHOTO_UPLOAD_BYTES + 1 }),
+            ]);
+        });
+        const fileId = result.current.queue.items[0]?.fileId as number;
+
+        act(() => {
+            result.current.queue.retry(fileId);
+        });
+
+        expect(result.current.queue.items[0]?.retryable).toBe(false);
+    });
+
+    it('marks a still-pending (queued/uploading) item NOT retryable — there is nothing to retry', () => {
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: vi.fn(() => new Promise(() => undefined)) });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn() });
+
+        const { result } = renderHook(() => useHarness(0));
+
+        act(() => {
+            result.current.queue.enqueue([makeQueueFile({ fileName: 'a.png' }), makeQueueFile({ fileName: 'b.png' })]);
+        });
+
+        expect(result.current.queue.items[0]?.status).toBe('uploading');
+        expect(result.current.queue.items[0]?.retryable).toBe(false);
+        expect(result.current.queue.items[1]?.status).toBe('queued');
+        expect(result.current.queue.items[1]?.retryable).toBe(false);
+    });
+
+    it('clears retryable once a previously-failed file finally succeeds', async () => {
+        const presign = vi.fn().mockResolvedValue({ uploadUrl: 'https://s3.example.com/put', key: 'k1' });
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn().mockResolvedValue(undefined) });
+        fetchMock.mockResolvedValueOnce({ ok: false, status: 500 }).mockResolvedValue({ ok: true, status: 200 });
+
+        const { result } = renderHook(() => useHarness(0));
+
+        act(() => {
+            result.current.queue.enqueue([makeQueueFile({ fileName: 'flaky.png' })]);
+        });
+        await waitFor(() => expect(result.current.queue.items[0]?.status).toBe('failed'));
+        const fileId = result.current.queue.items[0]?.fileId as number;
+
+        act(() => {
+            result.current.queue.retry(fileId);
+        });
+        await waitFor(() => expect(result.current.queue.items[0]?.status).toBe('ok'));
+
+        expect(result.current.queue.items[0]?.retryable).toBe(false);
+    });
+});
+
 describe('useRecipePhotoUploadQueue — remove', () => {
     it('drops the item with the given fileId, leaving the rest untouched', () => {
         useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: vi.fn(() => new Promise(() => undefined)) });

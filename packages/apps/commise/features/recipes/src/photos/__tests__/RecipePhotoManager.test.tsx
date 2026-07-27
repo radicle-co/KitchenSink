@@ -257,14 +257,45 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
         expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
     });
 
-    it('renders a FAILED file with a Retry and a Remove control, and no other status text confusable with it', () => {
+    it('renders a RETRYABLE failed file with a Retry and a Remove control, and no other status text confusable with it', () => {
         renderManager({
-            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed', errorMessage: 'oops' })],
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'burnt.png',
+                    status: 'failed',
+                    retryable: true,
+                    errorMessage: 'oops',
+                }),
+            ],
         });
 
         expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Retry upload of burnt.png' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Remove burnt.png' })).toBeTruthy();
+    });
+
+    // The queue re-validates on retry BY DESIGN, so re-attempting a file the CLIENT rejected (too large /
+    // wrong type) re-runs the same pure check against the same file and re-fails — Retry there is a dead
+    // affordance that only invites a pointless click. Remove is the one meaningful action, and it must stay.
+    it('offers Remove but NOT Retry for a client-validation rejection (`retryable: false`)', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'huge.png',
+                    status: 'failed',
+                    retryable: false,
+                    errorMessage: 'That photo is larger than 5 MB.',
+                }),
+            ],
+        });
+
+        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        // The reason still shows — the viewer is told WHY, they are just not offered a doomed retry.
+        expect(screen.getByText('That photo is larger than 5 MB.')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Retry upload of huge.png' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Remove huge.png' })).toBeTruthy();
     });
 
     it('renders the failed item’s own errorMessage as a distinct line naming WHY it failed (REQ-014)', () => {
@@ -285,7 +316,9 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
     });
 
     it('renders no error line for a failed item with no errorMessage', () => {
-        renderManager({ queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed' })] });
+        renderManager({
+            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed', retryable: true })],
+        });
 
         expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
         expect(document.querySelector('p.text-error')).toBeNull();
@@ -295,7 +328,7 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
         const user = userEvent.setup();
         const onRetryQueueItem = vi.fn();
         renderManager({
-            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed' })],
+            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed', retryable: true })],
             onRetryQueueItem,
         });
 
@@ -308,7 +341,7 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
         const user = userEvent.setup();
         const onRemoveQueueItem = vi.fn();
         renderManager({
-            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed' })],
+            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed', retryable: true })],
             onRemoveQueueItem,
         });
 

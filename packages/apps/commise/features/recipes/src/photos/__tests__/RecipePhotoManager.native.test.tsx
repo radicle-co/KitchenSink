@@ -220,14 +220,43 @@ describe('RecipePhotoManager (native) — per-file queue grid (w3/e4)', () => {
         expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
     });
 
-    it('renders a FAILED file with a Retry and a Remove control', () => {
+    it('renders a RETRYABLE failed file with a Retry and a Remove control', () => {
         renderManager({
-            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed', errorMessage: 'oops' })],
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'burnt.png',
+                    status: 'failed',
+                    retryable: true,
+                    errorMessage: 'oops',
+                }),
+            ],
         });
 
         expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Retry upload of burnt.png' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Remove burnt.png' })).toBeTruthy();
+    });
+
+    // Same reasoning as the web leaf: retry re-validates, so a client-rejected file can never succeed on a
+    // re-attempt. Remove is the only meaningful action.
+    it('offers Remove but NOT Retry for a client-validation rejection (`retryable: false`)', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'huge.png',
+                    status: 'failed',
+                    retryable: false,
+                    errorMessage: 'That photo is larger than 5 MB.',
+                }),
+            ],
+        });
+
+        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        expect(screen.getByText('That photo is larger than 5 MB.')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Retry upload of huge.png' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Remove huge.png' })).toBeTruthy();
     });
 
     it('renders the failed item’s own errorMessage as a distinct line naming WHY it failed (REQ-014)', () => {
@@ -249,7 +278,7 @@ describe('RecipePhotoManager (native) — per-file queue grid (w3/e4)', () => {
     it('invokes onRetryQueueItem with the fileId when Retry is pressed', () => {
         const onRetryQueueItem = vi.fn();
         renderManager({
-            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed' })],
+            queueItems: [makeQueueItem({ fileId: 7, fileName: 'burnt.png', status: 'failed', retryable: true })],
             onRetryQueueItem,
         });
 

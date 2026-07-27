@@ -37,7 +37,12 @@ export const CollectionForm: FC<CollectionFormProps> = ({
             onSubmit={handleSubmit}
             className="mx-auto flex max-w-md flex-col gap-4 rounded-2xl bg-card p-6 shadow-sm"
         >
-            <h2 className="font-display text-heading-lg font-semibold text-charcoal">{title}</h2>
+            {/* An `h1`: this form's title IS the page title of `/collections/new` and
+                `/collections/[id]/rename`. It was an `h2` only because the app shell's top bar used to render
+                a (hard-coded "Home") `h1` above every route; now that the shell's title is plain banner text,
+                the page owns its single `h1`. Tailwind's preflight resets heading font-size/weight/margin, so
+                with the same utility classes this is purely semantic — zero pixels change. */}
+            <h1 className="font-display text-heading-lg font-semibold text-charcoal">{title}</h1>
             <label className="flex flex-col gap-1">
                 <span className="text-body-sm font-medium text-slate">{form.nameLabel}</span>
                 <input

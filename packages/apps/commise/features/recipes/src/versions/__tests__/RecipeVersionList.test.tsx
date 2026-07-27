@@ -37,10 +37,22 @@ const threeVersions = [
 ];
 
 describe('RecipeVersionList (web) — chrome', () => {
-    it('always renders the version-history heading', () => {
+    /**
+     * This surface's own title IS the page title of `/recipes/[id]/versions`, so it must be the `h1`. It used
+     * to be an `h2` under the app shell's hard-coded "Home" `h1`; now that the shell's top-bar title is plain
+     * banner text (one `h1` per page, owned by the page), an `h2` here would leave the route with no `h1` at
+     * all. Level is asserted, not just the name — a silent demotion would otherwise pass.
+     */
+    it('renders the version-history title as the page’s h1', () => {
         renderList();
 
-        expect(screen.getByRole('heading', { name: 'Version history' })).toBeTruthy();
+        expect(screen.getByRole('heading', { level: 1, name: 'Version history' })).toBeTruthy();
+    });
+
+    it('renders the h1 in the empty state too — the title is never conditional', () => {
+        renderList({ versions: [] });
+
+        expect(screen.getByRole('heading', { level: 1, name: 'Version history' })).toBeTruthy();
     });
 });
 

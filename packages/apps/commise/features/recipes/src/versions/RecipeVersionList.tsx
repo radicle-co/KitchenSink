@@ -25,14 +25,21 @@ import {
     type RecipeVersionListProps,
 } from './model.js';
 
-/** The heading + optional "Back to Recipe" affordance shared by the empty and populated states. */
+/**
+ * The heading + optional "Back to Recipe" affordance shared by the empty and populated states.
+ *
+ * The heading is an `h1`: this surface's title IS the page title of `/recipes/[id]/versions`. It was an `h2`
+ * only because the app shell's top bar used to render a (hard-coded "Home") `h1` above every route; now that
+ * the shell's title is plain banner text, the page owns its single `h1`. Tailwind's preflight resets heading
+ * font-size/weight/margin, so with the same utility classes the tag change is purely semantic — zero pixels.
+ */
 const VersionListHeader: FC<{
     readonly heading: string;
     readonly backLabel: string;
     readonly onBack?: () => void;
 }> = ({ heading, backLabel, onBack }) => (
     <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display text-heading-lg font-semibold text-charcoal">{heading}</h2>
+        <h1 className="font-display text-heading-lg font-semibold text-charcoal">{heading}</h1>
         {onBack !== undefined && (
             <button
                 type="button"

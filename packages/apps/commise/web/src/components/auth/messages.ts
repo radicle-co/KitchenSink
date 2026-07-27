@@ -81,6 +81,15 @@ export interface SessionMessages {
     readonly signOut: string;
     /** Busy label shown while signing out is in flight. */
     readonly signingOut: string;
+    /** Alert shown when the sign-out itself fails, so the control is retryable rather than stuck (B17). */
+    readonly signOutFailed: string;
+    /**
+     * Alert shown when an account ERASURE was accepted (202) but the follow-up sign-out / navigation failed.
+     * Deliberately distinct from {@link signOutFailed} and from the erasure dialog's own submit error: the
+     * erasure DID succeed, so telling the viewer to retry it would be a lie — the outstanding action is only
+     * to leave the (now-destroyed) account's session.
+     */
+    readonly eraseSignOutFailed: string;
 }
 
 /** Copy for the {@link import('./AccountStateGate.js').AccountStateGate} load gap. */
@@ -141,6 +150,9 @@ export const authMessages: LocalizedMessages<AuthMessages> = {
         session: {
             signOut: 'Sign out of your account',
             signingOut: 'Signing out…',
+            signOutFailed: 'We couldn’t sign you out. Please try again.',
+            eraseSignOutFailed:
+                'Your data is being erased, but we couldn’t sign you out. Sign out to finish leaving this account.',
         },
         state: {
             loading: 'Loading your account…',

@@ -317,12 +317,16 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
         expect(screen.queryByRole('list')).toBeNull();
     });
 
-    it('shows a loading state while searching', () => {
+    it('shows a loading state while searching, with its label as VISIBLE text', () => {
         renderBar({
             ingredientSearch: { query: 'chi', onQueryChange: noop, viewState: { kind: 'searching' } },
         });
 
-        expect(screen.getByRole('status')).toBeTruthy();
+        // Same doctrine as the web leaf and the mobile `LoadingState`: the contextual label doubles as the
+        // visible caption. An empty live region is both invisible and silent.
+        const status = screen.getByRole('status', { name: 'Searching ingredients…' });
+
+        expect(status.textContent).toBe('Searching ingredients…');
     });
 
     it('shows a no-matches message for an empty settled result set', () => {

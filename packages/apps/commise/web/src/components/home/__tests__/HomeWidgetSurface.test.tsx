@@ -99,6 +99,8 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         expect(screen.getByRole('heading', { level: 1, name: 'Welcome to Commise' })).toBeTruthy();
         expect(screen.getByRole('heading', { level: 2, name: 'Good afternoon, Chef!' })).toBeTruthy();
         expect(screen.getByRole('region', { name: 'Home' })).toBeTruthy();
+        // And it is the page's ONLY h1 — the shell's top-bar title is plain banner text, not a second one.
+        expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     });
 
     it('sits the greeting on the brand beach-glow gradient hero (U8), not a plain header', () => {

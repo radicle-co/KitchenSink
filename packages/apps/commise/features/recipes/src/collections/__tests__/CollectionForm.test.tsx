@@ -30,18 +30,24 @@ function renderForm(overrides: Partial<CollectionFormProps> = {}) {
     return props;
 }
 
+/**
+ * This form's title IS the page title of `/collections/new` and `/collections/[id]/rename`, so it must be the
+ * `h1` (levels asserted, not just names). It used to be an `h2` beneath the app shell's hard-coded "Home"
+ * `h1`; now that the shell's top-bar title is plain banner text, an `h2` here would leave both routes with no
+ * `h1` at all.
+ */
 describe('CollectionForm (web) — mode labels', () => {
-    it('renders the create title and submit label in create mode', () => {
+    it('renders the create title as the page’s h1, with the create submit label', () => {
         renderForm({ mode: 'create' });
 
-        expect(screen.getByRole('heading', { name: 'New collection' })).toBeTruthy();
+        expect(screen.getByRole('heading', { level: 1, name: 'New collection' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Create' })).toBeTruthy();
     });
 
-    it('renders the rename title and submit label in rename mode', () => {
+    it('renders the rename title as the page’s h1, with the save submit label', () => {
         renderForm({ mode: 'rename' });
 
-        expect(screen.getByRole('heading', { name: 'Rename collection' })).toBeTruthy();
+        expect(screen.getByRole('heading', { level: 1, name: 'Rename collection' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
     });
 });

@@ -28,7 +28,7 @@ export default async function EditRecipePage({
     }
 
     return (
-        <AppShell activeId="recipes">
+        <AppShell activeId="recipes" titleId="recipeEdit">
             <RecipeEditContainer locale={locale} recipeId={id} />
         </AppShell>
     );

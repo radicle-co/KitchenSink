@@ -11,7 +11,9 @@
  * precedent — no framework runtime needed) and the returned ELEMENT TREE is inspected, so no client container
  * is mounted and no provider stack is required. Two things are asserted per route:
  *
- *  1. It renders its content inside `AppShell`, with the `activeId` that highlights the right destination.
+ *  1. It renders its content inside `AppShell`, with the `activeId` that highlights the right destination AND
+ *     the `titleId` that names the surface in the top bar. The bar's title used to be hard-coded 'Home' for
+ *     every shell route; this table is the invariant that a new route names ITSELF.
  *  2. It is `dynamic = 'force-dynamic'`. The shell's Clerk-backed hooks need a live session, so a
  *     statically-prerendered shell route fails `next build` — the trap already hit on `/account`,
  *     `/settings`, and `/profile`. Asserting the flag here catches it before the build does.
@@ -22,6 +24,8 @@ import { isValidElement } from 'react';
 
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import type { HomeNavItemId } from '@commise/features-core';
+
+import { SHELL_SURFACE_IDS, type ShellSurfaceId } from '@/components/app/shellSurfaces';
 
 vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -36,7 +40,7 @@ const mockedAuth = vi.mocked(auth);
 
 const { AppShell } = await import('@/components/app/AppShell');
 
-/** One authenticated route: how to invoke it, and which destination its shell must mark active. */
+/** One authenticated route: how to invoke it, which destination it marks active, and how it titles itself. */
 interface ShellRoute {
     /** The route path, for test names. */
     readonly path: string;
@@ -46,6 +50,8 @@ interface ShellRoute {
     readonly props: () => unknown;
     /** The destination the shell must highlight. */
     readonly activeId: HomeNavItemId;
+    /** The surface the top bar must name (never the hard-coded 'Home' this replaced). */
+    readonly titleId: ShellSurfaceId;
 }
 
 const localeParams = () => ({ params: Promise.resolve({ locale: 'en' }) });
@@ -62,66 +68,77 @@ const shellRoutes: readonly ShellRoute[] = [
         load: () => import('../[locale]/recipes/page'),
         props: localeParams,
         activeId: 'recipes',
+        titleId: 'recipes',
     },
     {
         path: '/[locale]/recipes/new',
         load: () => import('../[locale]/recipes/new/page'),
         props: localeParams,
         activeId: 'recipes',
+        titleId: 'recipeNew',
     },
     {
         path: '/[locale]/recipes/[id]',
         load: () => import('../[locale]/recipes/[id]/page'),
         props: idParams,
         activeId: 'recipes',
+        titleId: 'recipeDetail',
     },
     {
         path: '/[locale]/recipes/[id]/edit',
         load: () => import('../[locale]/recipes/[id]/edit/page'),
         props: idParams,
         activeId: 'recipes',
+        titleId: 'recipeEdit',
     },
     {
         path: '/[locale]/recipes/[id]/versions',
         load: () => import('../[locale]/recipes/[id]/versions/page'),
         props: idParams,
         activeId: 'recipes',
+        titleId: 'recipeVersions',
     },
     {
         path: '/[locale]/discover',
         load: () => import('../[locale]/discover/page'),
         props: () => ({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) }),
         activeId: 'recipes',
+        titleId: 'discover',
     },
     {
         path: '/[locale]/collections',
         load: () => import('../[locale]/collections/page'),
         props: localeParams,
         activeId: 'recipes',
+        titleId: 'collections',
     },
     {
         path: '/[locale]/collections/new',
         load: () => import('../[locale]/collections/new/page'),
         props: localeParams,
         activeId: 'recipes',
+        titleId: 'collectionNew',
     },
     {
         path: '/[locale]/collections/[id]',
         load: () => import('../[locale]/collections/[id]/page'),
         props: idParams,
         activeId: 'recipes',
+        titleId: 'collectionDetail',
     },
     {
         path: '/[locale]/collections/[id]/add',
         load: () => import('../[locale]/collections/[id]/add/page'),
         props: idParams,
         activeId: 'recipes',
+        titleId: 'collectionAddRecipes',
     },
     {
         path: '/[locale]/collections/[id]/rename',
         load: () => import('../[locale]/collections/[id]/rename/page'),
         props: idParams,
         activeId: 'recipes',
+        titleId: 'collectionRename',
     },
 ];
 
@@ -200,6 +217,43 @@ describe('every authenticated route renders inside the app navigation shell', ()
             expect((shell?.props as { children?: ReactNode }).children).toBeDefined();
         });
     }
+});
+
+describe('every authenticated route names ITSELF in the top bar', () => {
+    // The bar's title was hard-coded 'Home' on all 15 shell routes. A route that forgets its own `titleId`
+    // silently falls back to Home again, which is exactly the defect — so each row asserts the real value.
+    for (const route of shellRoutes) {
+        it(`${route.path} passes titleId "${route.titleId}"`, async () => {
+            mockAuthed();
+            stubDataMethods();
+
+            const { default: Page } = await route.load();
+            const element = await Page(route.props() as never);
+            const shell = findElementByType(element, AppShell);
+
+            expect((shell?.props as { titleId?: string }).titleId).toBe(route.titleId);
+        });
+    }
+
+    it('assigns a DISTINCT surface id to every shell route (no two routes share a title)', () => {
+        const assigned = shellRoutes.map((route) => route.titleId);
+
+        expect(new Set(assigned).size).toBe(assigned.length);
+    });
+
+    it('leaves no declared surface id unused — every one is reachable from a route', () => {
+        // `/[locale]` (home) plus the three content-split routes wrap the shell inside their own `*Content`
+        // component, so they are covered by those suites rather than the element-tree table above.
+        const covered = new Set<ShellSurfaceId>([
+            ...shellRoutes.map((route) => route.titleId),
+            'home',
+            'profile',
+            'account',
+            'settings',
+        ]);
+
+        expect([...SHELL_SURFACE_IDS].filter((id) => !covered.has(id))).toEqual([]);
+    });
 });
 
 describe('every shell-hosted route is per-request dynamic', () => {

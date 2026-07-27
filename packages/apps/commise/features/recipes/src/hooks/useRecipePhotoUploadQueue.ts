@@ -63,6 +63,12 @@
  * re-attempt of an already-rejected file, so "validate before transmission" holds on every path a file can
  * reach the underlying single-flight hook — including the one arm ("start next"/"settle") this hook shares
  * with genuine (network/server) upload failures, which never needs to know validation exists at all.
+ *
+ * Because retry re-validates, a client-rejected file can NEVER succeed on a re-attempt — so every public item
+ * carries a {@link RecipePhotoQueueItem.retryable} discriminator saying whether Retry is a real affordance at
+ * all. Only a settled TRANSPORT failure is retryable; a validation rejection offers Remove and nothing else,
+ * which is what the grid leaves render. That keeps "which failures can a retry fix?" a single fact owned here,
+ * beside the admission gate that creates the distinction, rather than re-derived in each platform's leaf.
  */
 import { useEffect, useReducer, useState } from 'react';
 
@@ -115,6 +121,21 @@ export interface RecipePhotoQueueItem {
     readonly status: RecipePhotoQueueStatus;
     /** The localized error from the most recent failed attempt; present only when `status` is `failed`. */
     readonly errorMessage?: string;
+    /**
+     * Whether a {@link UseRecipePhotoUploadQueueResult.retry} on this item could plausibly SUCCEED — the
+     * discriminator a grid leaf gates its Retry control on (so Retry is never a dead affordance).
+     *
+     * `true` only for a TRANSPORT/server failure: the bytes reached (or tried to reach) the wire and the
+     * attempt lost, so re-driving the same file is a genuinely different roll of the dice.
+     *
+     * `false` for everything else, and deliberately so in two distinct cases:
+     *  - **Nothing to retry** — `queued` / `uploading` / `ok`.
+     *  - **A CLIENT-VALIDATION rejection** (REQ-011 too large / REQ-012 wrong type). `retry` re-runs
+     *    {@link validatePhotoFile} by design (see the module doc's admission-control note), and the file has
+     *    not changed, so the identical pure check re-fails identically — the attempt can never succeed. The
+     *    only meaningful action there is Remove, and the leaf must offer exactly that.
+     */
+    readonly retryable: boolean;
 }
 
 /**
@@ -158,6 +179,12 @@ interface StoredItem {
     readonly file: RecipePhotoQueueFile;
     readonly status: StoredStatus;
     readonly errorMessage?: string;
+    /**
+     * Set ONLY on the transport-failure transition (`fail`) — the sole failure mode a re-attempt can change.
+     * Every other transition (`admit`, i.e. `enqueue`/`retry`, and `succeed`) leaves it absent, which is
+     * projected as `retryable: false`. See {@link RecipePhotoQueueItem.retryable}.
+     */
+    readonly retryable?: true;
 }
 
 interface QueueState {
@@ -232,7 +259,14 @@ function queueReducer(state: QueueState, action: QueueAction): QueueState {
                 ...state,
                 items: state.items.map((item) =>
                     item.fileId === action.fileId
-                        ? { fileId: item.fileId, file: item.file, status: 'failed', errorMessage: action.errorMessage }
+                        ? {
+                              fileId: item.fileId,
+                              file: item.file,
+                              status: 'failed',
+                              errorMessage: action.errorMessage,
+                              // A transport/server loss — the ONE failure a re-attempt can genuinely change.
+                              retryable: true,
+                          }
                         : item,
                 ),
             };
@@ -261,7 +295,8 @@ function queueReducer(state: QueueState, action: QueueAction): QueueState {
 /** Project the reducer's stored items to the public shape, overriding the active file's status to `uploading`. */
 function toPublicItems(items: readonly StoredItem[], activeFileId: number | null): readonly RecipePhotoQueueItem[] {
     return items.map((item) => {
-        const status: RecipePhotoQueueStatus = item.fileId === activeFileId ? 'uploading' : item.status;
+        const active = item.fileId === activeFileId;
+        const status: RecipePhotoQueueStatus = active ? 'uploading' : item.status;
         const previewUri = item.file.previewUri;
         const errorMessage = item.errorMessage;
 
@@ -269,6 +304,10 @@ function toPublicItems(items: readonly StoredItem[], activeFileId: number | null
             fileId: item.fileId,
             fileName: item.file.fileName,
             status,
+            // Only a settled TRANSPORT failure is retryable. `active` is guarded explicitly so an item
+            // re-driven by "start next" before its stored `retryable` flag clears cannot leak a Retry
+            // control onto a row the grid is already showing as `uploading`.
+            retryable: !active && item.status === 'failed' && item.retryable === true,
             ...(previewUri === undefined ? {} : { previewUri }),
             ...(errorMessage === undefined ? {} : { errorMessage }),
         };

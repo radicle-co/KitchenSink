@@ -50,7 +50,7 @@ export async function AccountContent({
     }
 
     return (
-        <AppShell activeId="profile">
+        <AppShell activeId="profile" titleId="account">
             <AccountStateGate>
                 <div className={pageContainer}>
                     <h1 className={pageHeading}>{account.title}</h1>

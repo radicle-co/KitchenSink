@@ -5,8 +5,13 @@
  * The React Native leaf of {@link import('./RecipePhotoManager.js').RecipePhotoManager} — same contract, RN
  * primitives. Renders the confirmed photos MERGED with any in-flight queue items across a fixed 3-column
  * grid, each queue cell carrying its own status badge (Queued / Uploading… / Upload failed, via
- * `accessibilityRole` + visible text — never colour alone) plus Retry (failed only) and Remove, and the
- * caller-supplied `addControl` (the native picker button), hidden at the photo cap. Presentational only.
+ * `accessibilityRole` + visible text — never colour alone) plus Retry (only where the queue reports the
+ * failure as `retryable`) and Remove, and the caller-supplied `addControl` (the native picker button), hidden
+ * at the photo cap. Presentational only.
+ *
+ * A failed cell's ACTIONS follow the queue's `retryable` discriminator, never `status === 'failed'`: retry
+ * re-validates by design, so a client-rejected file (too large / wrong type) can never succeed on a
+ * re-attempt — that cell offers Remove only, while a transport/server failure keeps both.
  *
  * REQ-014 (per-file "which photo failed and why"): the generic status badge already names WHICH photo
  * (its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage` (client
@@ -167,16 +172,21 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                 ) : null}
                                 {item.status === 'failed' ? (
                                     <View style={styles.queueControls}>
-                                        <Pressable
-                                            accessibilityRole="button"
-                                            accessibilityLabel={fillTemplate(m.queueRetryLabel, {
-                                                fileName: item.fileName,
-                                            })}
-                                            onPress={() => onRetryQueueItem?.(item.fileId)}
-                                            style={styles.queueControlButton}
-                                        >
-                                            <Text style={styles.queueControlLabel}>{m.queueRetry}</Text>
-                                        </Pressable>
+                                        {/* Retry only where it can plausibly succeed — the queue
+                                            re-validates on retry, so a client-rejected file (too large /
+                                            wrong type) would re-fail identically. See `retryable`. */}
+                                        {item.retryable ? (
+                                            <Pressable
+                                                accessibilityRole="button"
+                                                accessibilityLabel={fillTemplate(m.queueRetryLabel, {
+                                                    fileName: item.fileName,
+                                                })}
+                                                onPress={() => onRetryQueueItem?.(item.fileId)}
+                                                style={styles.queueControlButton}
+                                            >
+                                                <Text style={styles.queueControlLabel}>{m.queueRetry}</Text>
+                                            </Pressable>
+                                        ) : null}
                                         <Pressable
                                             accessibilityRole="button"
                                             accessibilityLabel={fillTemplate(m.queueRemoveLabel, {

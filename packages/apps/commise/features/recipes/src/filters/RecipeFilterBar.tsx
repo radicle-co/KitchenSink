@@ -190,8 +190,14 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                         className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
                     />
 
+                    {/* The label is the region's CONTENT, not only its `aria-label`: an empty `role="status"`
+                        node is zero-height (invisible to a sighted viewer) and silent (a live region
+                        announces content CHANGES, and there is none). Same doctrine as `RecipePhotoManager`
+                        and the mobile `LoadingState` — the contextual label doubles as the visible caption. */}
                     {viewState.kind === 'searching' && (
-                        <p role="status" aria-label={m.ingredientSearching} className="text-body-sm text-slate" />
+                        <p role="status" aria-label={m.ingredientSearching} className="text-body-sm text-slate">
+                            {m.ingredientSearching}
+                        </p>
                     )}
 
                     {viewState.kind === 'results' && viewState.isError && (

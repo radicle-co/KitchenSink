@@ -7,6 +7,8 @@
 import type { GreetingBucket, HomeNavItemId, RoadmapWidgetId } from '@commise/features-core';
 import type { LocalizedMessages } from '@commise/i18n';
 
+import type { ShellSurfaceId } from '@/components/app/shellSurfaces';
+
 /** The shape of the web app's own copy. */
 export interface WebMessages {
     /**
@@ -64,8 +66,17 @@ export interface WebMessages {
             readonly primaryNavLabel: string;
             /** Accessible name of the mobile tab-bar navigation landmark. */
             readonly tabNavLabel: string;
-            /** Title shown in the sticky top bar on the Home route. */
-            readonly pageTitle: string;
+            /**
+             * Title shown in the sticky top bar, one per shell-hosted SURFACE — keyed by the closed
+             * {@link ShellSurfaceId} union, so a surface added without copy is a compile error rather than a
+             * blank bar. This replaced a single `pageTitle` that was hard-coded 'Home' on all 15 shell routes.
+             *
+             * Deliberately NOT shared with {@link destinations} (nav labels) or with a page's own `<h1>` copy:
+             * the three slots happen to read alike on some routes today, but they change for different reasons
+             * (a nav label may shorten to fit a collapsed rail; a page heading may carry context a 56px bar
+             * cannot), so they are separate knowledge, not duplication.
+             */
+            readonly pageTitles: Readonly<Record<ShellSurfaceId, string>>;
             /** Accessible name of the control that opens navigation on small screens. */
             readonly openNav: string;
             /** Accessible name of the control that closes navigation on small screens. */
@@ -343,7 +354,23 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 logoAlt: 'Commise',
                 primaryNavLabel: 'Main',
                 tabNavLabel: 'Main',
-                pageTitle: 'Home',
+                pageTitles: {
+                    home: 'Home',
+                    recipes: 'Recipes',
+                    recipeNew: 'New recipe',
+                    recipeDetail: 'Recipe',
+                    recipeEdit: 'Edit recipe',
+                    recipeVersions: 'Version history',
+                    discover: 'Discover',
+                    collections: 'Collections',
+                    collectionNew: 'New collection',
+                    collectionDetail: 'Collection',
+                    collectionAddRecipes: 'Add recipes',
+                    collectionRename: 'Rename collection',
+                    profile: 'Profile',
+                    account: 'Account',
+                    settings: 'Settings',
+                },
                 openNav: 'Open navigation',
                 closeNav: 'Close navigation',
                 collapseNav: 'Collapse navigation',

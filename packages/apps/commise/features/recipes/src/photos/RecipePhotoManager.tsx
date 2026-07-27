@@ -4,7 +4,8 @@
  *
  * Presentational: renders the recipe's confirmed photos MERGED with any in-flight queue items in the
  * wireframed 3-column grid, each queue cell carrying its own status badge (Queued / Uploading… / Upload
- * failed, via role + text — never colour alone, WCAG 1.4.1) plus Retry (failed only) and Remove controls,
+ * failed, via role + text — never colour alone, WCAG 1.4.1) plus Retry (only where the queue reports the
+ * failure as `retryable`) and Remove controls,
  * and renders the caller-supplied `addControl` (the web file input) below the grid — hidden once the recipe
  * is at the photo cap. The container owns image acquisition + the presign → PUT → confirm upload (via the
  * `useRecipePhotoUploadQueue` layer over the single-flight `useRecipePhotoUpload`).
@@ -17,6 +18,11 @@
  * WHICH photo (its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage`
  * (client validation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same
  * field) renders as a second, distinct line naming WHY, whenever the caller supplies one.
+ *
+ * A failed cell's ACTIONS follow the queue's `retryable` discriminator, never `status === 'failed'`: the queue
+ * re-validates on retry by design, so retrying a file the CLIENT rejected (too large / wrong type) re-runs the
+ * same pure check on the same file and re-fails — Retry there is a dead affordance. Such a cell offers Remove
+ * only (and still says WHY it failed); a transport/server failure keeps both.
  */
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
@@ -179,14 +185,22 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                 ) : null}
                                 {item.status === 'failed' ? (
                                     <div className="relative flex items-center gap-2">
-                                        <button
-                                            type="button"
-                                            aria-label={fillTemplate(m.queueRetryLabel, { fileName: item.fileName })}
-                                            onClick={() => onRetryQueueItem?.(item.fileId)}
-                                            className="rounded-full bg-white px-3 py-1 text-caption font-medium text-charcoal shadow-sm transition hover:bg-pearl"
-                                        >
-                                            {m.queueRetry}
-                                        </button>
+                                        {/* Retry is offered ONLY where it can plausibly succeed. The queue
+                                            re-validates on retry by design, so a client-rejected file (too
+                                            large / wrong type) would re-fail identically — a dead affordance.
+                                            `retryable` is the queue's own discriminator for that. */}
+                                        {item.retryable ? (
+                                            <button
+                                                type="button"
+                                                aria-label={fillTemplate(m.queueRetryLabel, {
+                                                    fileName: item.fileName,
+                                                })}
+                                                onClick={() => onRetryQueueItem?.(item.fileId)}
+                                                className="rounded-full bg-white px-3 py-1 text-caption font-medium text-charcoal shadow-sm transition hover:bg-pearl"
+                                            >
+                                                {m.queueRetry}
+                                            </button>
+                                        ) : null}
                                         <button
                                             type="button"
                                             aria-label={fillTemplate(m.queueRemoveLabel, { fileName: item.fileName })}

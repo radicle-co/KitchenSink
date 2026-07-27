@@ -28,7 +28,7 @@ export default async function NewCollectionPage({
     }
 
     return (
-        <AppShell activeId="recipes">
+        <AppShell activeId="recipes" titleId="collectionNew">
             <CollectionFormContainer mode="create" locale={locale} />
         </AppShell>
     );

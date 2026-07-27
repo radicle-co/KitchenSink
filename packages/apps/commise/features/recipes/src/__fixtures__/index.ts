@@ -127,6 +127,9 @@ export function makeQueueItem(overrides: Partial<RecipePhotoQueueItem> = {}): Re
         fileId: 1,
         fileName: 'dinner.png',
         status: 'queued',
+        // Matches the hook: nothing is retryable until a TRANSPORT attempt has actually failed. A test that
+        // wants the Retry affordance must say so (`retryable: true`) — the default never hands it out.
+        retryable: false,
         ...overrides,
     };
 }

@@ -19,6 +19,13 @@
  * is why they disable while `addByFoodStatus.isPending`). When the food catalog is unreachable, a quiet
  * `role="status"` notice says so and the local section still renders in full (F2) — nothing failed for the
  * user, so it is deliberately not an `alert`.
+ *
+ * **Every progress region carries its label as CONTENT, not only as `aria-label`.** A `role="status"` node
+ * rendered EMPTY is doubly broken: it is zero-height (nothing for a sighted viewer to see, and Playwright
+ * resolves it as `hidden`) and it is silent — a live region announces content CHANGES, and a region with no
+ * content has no change to announce. So each of the six affordances below (searching, find-nutrition,
+ * freeform-create, catalog-admit, disambiguation-loading, resolving) renders its contextual, localized label
+ * as its visible caption. Same doctrine as `RecipePhotoManager`'s upload status and the mobile `LoadingState`.
  */
 import { fillTemplate, recipeFormMessages, resolutionStatusLabel } from '@commise/features-recipes';
 import type { RecipeFormIngredient } from '@commise/features-recipes';
@@ -163,13 +170,19 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
     const actionRow = (
         <>
             {addByNameStatus.isPending && (
-                <p role="status" aria-label={picker.addingByName} className="px-2 py-1 text-body-sm text-slate" />
+                <p role="status" aria-label={picker.addingByName} className="px-2 py-1 text-body-sm text-slate">
+                    {picker.addingByName}
+                </p>
             )}
             {createStatus.isPending && (
-                <p role="status" aria-label={picker.creating} className="px-2 py-1 text-body-sm text-slate" />
+                <p role="status" aria-label={picker.creating} className="px-2 py-1 text-body-sm text-slate">
+                    {picker.creating}
+                </p>
             )}
             {addByFoodStatus.isPending && (
-                <p role="status" aria-label={picker.addingFromCatalog} className="px-2 py-1 text-body-sm text-slate" />
+                <p role="status" aria-label={picker.addingFromCatalog} className="px-2 py-1 text-body-sm text-slate">
+                    {picker.addingFromCatalog}
+                </p>
             )}
 
             <div className="flex flex-wrap items-center gap-2">
@@ -247,7 +260,9 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                             role="status"
                             aria-label={picker.disambiguateLoading}
                             className="px-2 py-1 text-body-sm text-slate"
-                        />
+                        >
+                            {picker.disambiguateLoading}
+                        </p>
                     )}
 
                     {viewState.kind === 'disambiguating' && viewState.isError && (
@@ -284,7 +299,9 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                     )}
 
                     {viewState.kind === 'resolving' && (
-                        <p role="status" aria-label={picker.resolving} className="px-2 py-1 text-body-sm text-slate" />
+                        <p role="status" aria-label={picker.resolving} className="px-2 py-1 text-body-sm text-slate">
+                            {picker.resolving}
+                        </p>
                     )}
 
                     {viewState.kind === 'disambiguating' && resolveError && (
@@ -316,7 +333,9 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
 
             {viewState.kind === 'searching' && (
                 <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-2 shadow-sm">
-                    <p role="status" aria-label={picker.searching} className="px-2 py-1 text-body-sm text-slate" />
+                    <p role="status" aria-label={picker.searching} className="px-2 py-1 text-body-sm text-slate">
+                        {picker.searching}
+                    </p>
                     {actionRow}
                 </div>
             )}

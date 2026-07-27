@@ -90,7 +90,7 @@ export default async function DiscoverPage({
     // Suspense boundary, so the chrome is present while the search results stream in — never a bare fallback.
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
-            <AppShell activeId="recipes">
+            <AppShell activeId="recipes" titleId="discover">
                 <Suspense>
                     <RecipeDiscoveryContainer locale={locale} />
                 </Suspense>

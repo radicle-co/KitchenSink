@@ -46,7 +46,7 @@ export default async function RecipeDetailPage({
     // opening a recipe previously removed the bottom tab bar entirely.
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
-            <AppShell activeId="recipes">
+            <AppShell activeId="recipes" titleId="recipeDetail">
                 <RecipeDetailContainer id={id} />
             </AppShell>
         </HydrationBoundary>

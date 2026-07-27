@@ -14,6 +14,8 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
+import { buttonSurfaceClass } from '@commise/ui/button';
+
 import { RecipeDeleteDialog } from '../RecipeDeleteDialog.js';
 import type { RecipeDeleteDialogProps } from '../model.js';
 
@@ -125,6 +127,41 @@ describe('RecipeDeleteDialog (web) — delete error (B17: no silent stop)', () =
         renderDialog({ error: false });
 
         expect(screen.queryByText(/couldn\u2019t delete/)).toBeNull();
+    });
+});
+
+describe('RecipeDeleteDialog (web) \u2014 design-system controls', () => {
+    it('renders the confirm as the DS destructive Button (idle: caller icon, no spinner)', () => {
+        renderDialog({ deleting: false });
+        const confirm = screen.getByRole('button', { name: 'Delete' });
+
+        // Error-toned DS surface (not a hand-rolled `bg-error` pill) with the touch floor.
+        expect(confirm.className).toContain('min-h-11');
+        expect(confirm.className).toContain('error');
+        // Idle \u21d2 no in-flight spinner.
+        expect(screen.getByRole('alertdialog').querySelector('.animate-spin')).toBeNull();
+    });
+
+    it('swaps the confirm icon for the DS busy spinner while deleting (in place, label unchanged)', () => {
+        renderDialog({ deleting: true });
+
+        expect(screen.getByRole('alertdialog').querySelector('.animate-spin')).not.toBeNull();
+        // The label \u2014 and therefore the accessible name \u2014 is unchanged, so name-based selection is stable.
+        expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
+    });
+
+    it('drops the busy spinner again once the delete is no longer in flight', () => {
+        renderDialog({ deleting: false, error: true });
+
+        expect(screen.getByRole('alertdialog').querySelector('.animate-spin')).toBeNull();
+    });
+
+    it('gives the cancel control the DS secondary surface and the 44px touch floor', () => {
+        renderDialog();
+        const cancel = screen.getByRole('button', { name: 'Cancel' });
+
+        // `AlertDialog.Cancel` owns its own element (Radix slot), so it applies the shared surface recipe.
+        expect(cancel.className).toBe(buttonSurfaceClass('secondary'));
     });
 });
 

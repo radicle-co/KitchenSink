@@ -111,7 +111,9 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                                 role="tab"
                                 aria-selected={selected}
                                 onClick={() => tab.onChange(value)}
-                                className={`-mb-px border-b-2 px-4 py-2 text-body-sm font-semibold transition ${
+                                // Touch floor: `min-h-11` at base, reset at `md:` so the desktop tab density
+                                // (py-2) is unchanged.
+                                className={`-mb-px inline-flex min-h-11 items-center border-b-2 px-4 py-2 text-body-sm font-semibold transition md:min-h-0 ${
                                     selected
                                         ? 'border-seafoam text-seafoam'
                                         : 'border-transparent text-slate hover:text-charcoal'
@@ -140,8 +142,9 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                         type="button"
                         aria-pressed={filters.active.length === 0}
                         onClick={filters.onClear}
-                        // Base `py-1.5` grows the mobile tap target; `md:py-1` restores the desktop chip density.
-                        className={`rounded-full px-3 py-1.5 text-body-sm font-medium transition md:py-1 ${
+                        // Base `py-1.5` + the `min-h-11` (44px) floor make the mobile tap target clear the
+                        // minimum; `md:py-1 md:min-h-0` restores the desktop chip density exactly.
+                        className={`inline-flex min-h-11 items-center rounded-full px-3 py-1.5 text-body-sm font-medium transition md:min-h-0 md:py-1 ${
                             filters.active.length === 0
                                 ? 'bg-seafoam text-white'
                                 : 'bg-pearl text-slate hover:bg-mist/40'
@@ -158,7 +161,7 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                                 type="button"
                                 aria-pressed={active}
                                 onClick={() => filters.onToggle(value)}
-                                className={`rounded-full px-3 py-1.5 text-body-sm font-medium transition md:py-1 ${
+                                className={`inline-flex min-h-11 items-center rounded-full px-3 py-1.5 text-body-sm font-medium transition md:min-h-0 md:py-1 ${
                                     active ? 'bg-seafoam text-white' : 'bg-pearl text-slate hover:bg-mist/40'
                                 }`}
                             >

@@ -10,6 +10,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { LocaleProvider } from '@commise/i18n/react';
+import { glass, glassBackdropCss, toWebGlass } from '@commise/ui';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { toRecipeCardModel } from '../model.js';
@@ -154,6 +155,42 @@ describe('RecipeCard (web) — U8 brand treatment', () => {
         const { container } = renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
 
         expect(container.querySelector('[class*="motion-safe:active:scale-[0.98]"]')).toBeNull();
+    });
+
+    it('paints the NON-INTERACTIVE card shell with the brand frosted-glass surface (mockup home/recipes grid)', () => {
+        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
+        const article = screen.getByRole('article', { name: 'Herb Risotto' });
+
+        // The surface comes from the SAME `glass.card` token the `GlassCard` primitive paints — asserted
+        // against the token projection, not a hardcoded rgba, so a token change moves both together.
+        expect(article.style.backgroundColor).toBe(toWebGlass(glass.card, true).backgroundColor);
+        expect(article.style.backdropFilter).toBe(glassBackdropCss(glass.card));
+    });
+
+    it('paints the ACTIONABLE card shell with the same glass surface (the interactive element, not a wrapper)', () => {
+        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} onSelect={() => undefined} />);
+        const button = screen.getByRole('button', { name: 'Herb Risotto' });
+
+        // On the actionable form the glass must land on the <button> itself — painting the outer wrapper
+        // instead would leave the interactive surface transparent and its hover states glass-less.
+        expect(button.style.backgroundColor).toBe(toWebGlass(glass.card, true).backgroundColor);
+        expect(button.style.backdropFilter).toBe(glassBackdropCss(glass.card));
+    });
+
+    it('drops the opaque bg-card fill that the frosted surface replaces', () => {
+        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
+
+        // `bg-card` (solid white) would paint OVER the translucent surface and cancel the whole treatment.
+        expect(screen.getByRole('article', { name: 'Herb Risotto' }).className.split(/\s+/)).not.toContain('bg-card');
+    });
+
+    it('carries the mockup’s translucent-white hairline border on the glass shell', () => {
+        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
+        const className = screen.getByRole('article', { name: 'Herb Risotto' }).className;
+
+        // mockup: `border border-white/30 … hover:border-white/40`
+        expect(className).toContain('border-white/30');
+        expect(className).toContain('hover:border-white/40');
     });
 });
 

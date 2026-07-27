@@ -7,11 +7,13 @@
 
 export { RecipeWidgetCard } from './RecipeWidgetCard.js';
 export { RecentRecipeItem } from './RecentRecipeItem.js';
+export { RecentRecipeGrid } from './RecentRecipeGrid.js';
 export { RecipeWidgetSkeleton } from './RecipeWidgetSkeleton.js';
 export { RecipeWidgetEmptyState } from './RecipeWidgetEmptyState.js';
 
 export { MAX_RECENT_RECIPES, toRecipeSummary } from './props.js';
 export type {
+    RecentRecipeGridProps,
     RecentRecipeItemProps,
     RecipeSummary,
     RecipeWidgetCardProps,

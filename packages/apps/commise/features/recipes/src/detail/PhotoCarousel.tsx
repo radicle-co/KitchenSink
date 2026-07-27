@@ -71,11 +71,19 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                 <ol aria-label={detail.photoDotsLabel} className="flex items-center justify-center gap-2">
                     {photos.map((photo, index) => (
                         <li key={photo.id}>
+                            {/* Touch floor: a 10px dot is far below the 44px minimum, so the HIT AREA grows to
+                                `size-11` at base (collapsing to `sm:size-4` for the mouse) while the visible
+                                dot stays 10px — the strip still reads as dots, but every one is tappable. */}
                             <a
                                 href={`#recipe-photo-${photo.id}`}
                                 aria-label={fillTemplate(detail.photoDot, { title, index: index + 1 })}
-                                className="block size-2.5 rounded-full bg-mist transition hover:bg-seafoam"
-                            />
+                                className="flex size-11 items-center justify-center sm:size-4"
+                            >
+                                <span
+                                    aria-hidden
+                                    className="block size-2.5 rounded-full bg-mist transition hover:bg-seafoam"
+                                />
+                            </a>
                         </li>
                     ))}
                 </ol>
@@ -97,7 +105,9 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                         )}
                         <Dialog.Close
                             aria-label={detail.lightboxClose}
-                            className="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-card/90 text-charcoal shadow-lg transition hover:bg-card"
+                            // Touch floor: `size-11` (44px) everywhere — this is overlay chrome on a
+                            // full-screen image, so there is no desktop-density reason to shrink it.
+                            className="absolute right-4 top-4 flex size-11 items-center justify-center rounded-full bg-card/90 text-charcoal shadow-lg transition hover:bg-card"
                         >
                             <span aria-hidden>×</span>
                         </Dialog.Close>

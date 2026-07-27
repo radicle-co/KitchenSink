@@ -22,11 +22,18 @@
  *     real widget, its data Suspense, and the slot's promise wiring all stay under test — only the bundler
  *     chunk-load seam is removed (real browsers exercise it; the Playwright suite covers it).
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, screen, type RenderResult } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ComponentType, ReactElement } from 'react';
 
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
+
+// The slot owns the widget's navigation, so it reads the App Router. There is no router context under jsdom,
+// so `useRouter` is stubbed to a spy we can assert the pushed route against.
+const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: pushMock }) }));
 
 // Render the real recipe widget synchronously in place of the `next/dynamic` code-split (see DETERMINISM #2).
 // The mock resolves the SAME module the descriptor's loader imports — nothing about the widget is stubbed.
@@ -45,6 +52,7 @@ import { renderWithProviders } from '@commise/test-utils';
 import { RecipeWidgetSlot } from '../RecipeWidgetSlot';
 
 afterEach(cleanup);
+beforeEach(() => pushMock.mockReset());
 
 const makeRecipe = (overrides: Partial<Recipe> = {}): Recipe => ({
     id: 'rec_1',
@@ -101,11 +109,23 @@ const slot = (client: RecipeServiceClient): ReactElement => (
     </RecipeServiceProvider>
 );
 
+/**
+ * Render the slot and flush the recipes-promise resolution + Suspense retry, returning RTL's result so a
+ * caller that needs the DOM root (e.g. a layout assertion) can reach it.
+ */
+const renderResolvedResult = async (client: RecipeServiceClient): Promise<RenderResult> => {
+    let result!: RenderResult;
+
+    await act(async () => {
+        result = renderWithProviders(slot(client));
+    });
+
+    return result;
+};
+
 /** Render the slot and flush the recipes-promise resolution + Suspense retry, so `getBy*` sees the content. */
 const renderResolved = async (client: RecipeServiceClient): Promise<void> => {
-    await act(async () => {
-        renderWithProviders(slot(client));
-    });
+    await renderResolvedResult(client);
 };
 
 describe('RecipeWidgetSlot (web)', () => {
@@ -135,5 +155,39 @@ describe('RecipeWidgetSlot (web)', () => {
 
         const link = screen.getByRole('link', { name: 'See all recipes' });
         expect(link.getAttribute('href')).toContain('/recipes');
+    });
+
+    it('lays the recent recipes out as the mockup card grid (2-up, 4-up from md)', async () => {
+        const { container } = await renderResolvedResult(
+            clientReturning(() => Promise.resolve([makeRecipe({ id: 'rec_1' })])),
+        );
+
+        const className = container.querySelector('ul')?.className ?? '';
+        expect(className).toContain('grid-cols-2');
+        expect(className).toContain('md:grid-cols-4');
+    });
+
+    it('navigates to the activated recipe’s locale-prefixed detail route (the slot owns routing)', async () => {
+        const user = userEvent.setup();
+        await renderResolved(
+            clientReturning(() =>
+                Promise.resolve([
+                    makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }),
+                    makeRecipe({ id: 'rec_2', title: 'Chana Masala' }),
+                ]),
+            ),
+        );
+
+        await user.click(screen.getByRole('button', { name: 'Chana Masala' }));
+
+        // The SECOND recipe's id, under the active locale prefix — a bare `/recipes/rec_2` or the first
+        // recipe's id would both fail here.
+        expect(pushMock).toHaveBeenCalledExactlyOnceWith('/en/recipes/rec_2');
+    });
+
+    it('does not navigate merely from rendering the grid (routing happens only on activation)', async () => {
+        await renderResolved(clientReturning(() => Promise.resolve([makeRecipe({ id: 'rec_1' })])));
+
+        expect(pushMock).not.toHaveBeenCalled();
     });
 });

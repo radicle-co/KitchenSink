@@ -92,6 +92,42 @@ export function glassBackdropCss(spec: GlassSpec): string {
     return `blur(${spec.blur}px) saturate(${spec.saturate})`;
 }
 
+/**
+ * The CSS declarations that paint a frosted-glass surface on the web — structurally assignable to React's
+ * `CSSProperties` without this token module having to import a React type. The blur properties are ABSENT
+ * (not empty strings) on the no-blur path, so an unsupported host carries no `backdrop-filter` declaration
+ * at all.
+ */
+export interface WebGlass {
+    readonly backgroundColor: string;
+    readonly backdropFilter?: string;
+    readonly WebkitBackdropFilter?: string;
+}
+
+/**
+ * Project a neutral {@link GlassSpec} to the CSS declarations the web paints (web leg) — the mirror of
+ * {@link toNativeGlass}. This is the ONE place a glass tier becomes a web surface, so every consumer converges
+ * on it: the {@link import('../surface/GlassCard.js').GlassCard} primitive (whose own element IS the glass) and
+ * any component whose shell must stay a specific element — an `<article>`, a `<button>` — and therefore cannot
+ * be wrapped in the primitive without changing its DOM semantics.
+ *
+ * When `blurSupported` is false the more-opaque solid `fallback` is used and no blur is emitted, so content
+ * stays readable where `backdrop-filter` is unavailable or too expensive. Pure.
+ *
+ * @param spec - The glass tier spec to paint.
+ * @param blurSupported - Whether the host supports `backdrop-filter`.
+ * @returns The CSS declarations for the surface.
+ */
+export function toWebGlass(spec: GlassSpec, blurSupported: boolean): WebGlass {
+    if (!blurSupported) {
+        return { backgroundColor: spec.fallback };
+    }
+
+    const backdrop = glassBackdropCss(spec);
+
+    return { backgroundColor: spec.surface, backdropFilter: backdrop, WebkitBackdropFilter: backdrop };
+}
+
 /** The `expo-linear-gradient` projection of a {@link GradientSpec} — colours, 0..1 locations, and a vector. */
 export interface NativeGradient {
     readonly colors: readonly [string, string, ...string[]];

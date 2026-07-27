@@ -4,8 +4,9 @@
  * while the recipes promise is pending, the recent-recipes list once it resolves, and the empty state
  * when the viewer has none. (Loading is a `<Suspense>` boundary, not an `isLoading` flag.)
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import type { Recipe } from '@kitchensink/recipe-core';
 
@@ -60,5 +61,45 @@ describe('RecipeHomeWidget (web)', () => {
 
         expect(screen.getByText(/No recipes yet/i)).toBeTruthy();
         expect(screen.queryByRole('article')).toBeNull();
+    });
+
+    it('lays the resolved recipes out as the mockup card GRID, not a vertical stack', async () => {
+        let container!: HTMLElement;
+
+        await act(async () => {
+            ({ container } = render(
+                <RecipeHomeWidget recipesPromise={Promise.resolve([makeRecipe({ id: 'r1', title: 'Ragu' })])} />,
+            ));
+        });
+
+        const className = container.querySelector('ul')?.className ?? '';
+        expect(className).toContain('grid-cols-2');
+        expect(className).toContain('md:grid-cols-4');
+    });
+
+    it('reports the activated recipe’s id to onSelectRecipe (the navigation seam the host owns)', async () => {
+        const user = userEvent.setup();
+        const onSelectRecipe = vi.fn();
+        const recipes = [
+            makeRecipe({ id: 'r1', title: 'Weeknight Pasta' }),
+            makeRecipe({ id: 'r2', title: 'Chana Masala' }),
+        ];
+
+        await act(async () => {
+            render(<RecipeHomeWidget recipesPromise={Promise.resolve(recipes)} onSelectRecipe={onSelectRecipe} />);
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Chana Masala' }));
+
+        expect(onSelectRecipe).toHaveBeenCalledExactlyOnceWith('r2');
+    });
+
+    it('renders inert cards when the host supplies no onSelectRecipe (no dead buttons)', async () => {
+        await act(async () => {
+            render(<RecipeHomeWidget recipesPromise={Promise.resolve([makeRecipe({ id: 'r1', title: 'Ragu' })])} />);
+        });
+
+        expect(screen.getByRole('article', { name: 'Ragu' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Ragu' })).toBeNull();
     });
 });

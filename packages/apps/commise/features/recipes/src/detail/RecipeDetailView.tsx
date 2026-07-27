@@ -17,6 +17,7 @@ import type { FC } from 'react';
 import { recipeMessages } from '../messages.js';
 import { fillTemplate, formatDurationMinutes } from '../list/model.js';
 import { PhotoCarousel } from './PhotoCarousel.js';
+import { RecipeHero } from './RecipeHero.js';
 import { formatQuantity, type RecipeDetailViewProps } from './model.js';
 
 const statCards = 'grid grid-cols-2 gap-4 rounded-2xl bg-card p-6 shadow-sm sm:grid-cols-4';
@@ -39,6 +40,10 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
 
     return (
         <article aria-label={recipe.title} className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8">
+            {/* The mockup LEADS the detail with the cover hero, before any type. A recipe with no cover gets the
+                hero's deliberate branded placeholder rather than nothing — see `RecipeHero`. */}
+            <RecipeHero title={recipe.title} coverPhotoUrl={recipe.coverPhotoUrl} />
+
             {/* U8: the header rides a beach-glow gradient title band (mockup recipe-detail), mirroring the
                 native leaf so both platforms present the same branded hero. */}
             <header>
@@ -64,7 +69,9 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                                         type="button"
                                         aria-label={fillTemplate(detail.tagFilterLabel, { tag })}
                                         onClick={() => onFilterByTag?.(tag)}
-                                        className="rounded-full bg-coral/15 px-3 py-1 text-body-sm font-medium text-coral transition hover:bg-coral/25"
+                                        // Touch floor: the chip is an interactive filter, so it clears 44px at
+                                        // base; `md:min-h-0` restores the original desktop chip density.
+                                        className="inline-flex min-h-11 items-center rounded-full bg-coral/15 px-3 py-1 text-body-sm font-medium text-coral transition hover:bg-coral/25 md:min-h-0"
                                     >
                                         {tag}
                                     </button>
@@ -161,17 +168,27 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
 
                         return (
                             <li key={step.stepNumber} className="flex items-start gap-4">
+                                {/* Same idiom as the ingredient checkbox above: the interactive control is the
+                                    44px tap target (`size-11`) at base and collapses to the original 32px
+                                    marker box (`sm:size-8`) from sm up, while the VISIBLE numbered circle is a
+                                    nested `size-8` element — so the mobile tap area grows without enlarging the
+                                    desktop marker (desktop renders a 32px circle in a 32px control, unchanged). */}
                                 <button
                                     type="button"
                                     role="checkbox"
                                     aria-checked={done}
                                     aria-label={fillTemplate(detail.stepToggleLabel, { step: step.stepNumber })}
                                     onClick={() => onToggleStep?.(step.stepNumber)}
-                                    className={`flex size-8 shrink-0 items-center justify-center rounded-full text-body-sm font-semibold transition ${
-                                        done ? 'bg-seafoam text-white' : 'border-2 border-seafoam text-seafoam'
-                                    }`}
+                                    className="flex size-11 shrink-0 items-center justify-center sm:size-8"
                                 >
-                                    {done ? <span aria-hidden>✓</span> : step.stepNumber}
+                                    <span
+                                        aria-hidden
+                                        className={`flex size-8 items-center justify-center rounded-full text-body-sm font-semibold transition ${
+                                            done ? 'bg-seafoam text-white' : 'border-2 border-seafoam text-seafoam'
+                                        }`}
+                                    >
+                                        {done ? '✓' : step.stepNumber}
+                                    </span>
                                 </button>
                                 <div className="flex flex-col gap-1 pt-1">
                                     <span

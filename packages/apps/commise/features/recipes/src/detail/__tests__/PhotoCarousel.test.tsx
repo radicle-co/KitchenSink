@@ -89,3 +89,34 @@ describe('PhotoCarousel (web)', () => {
         expect(screen.queryByRole('dialog')).toBeNull();
     });
 });
+
+describe('PhotoCarousel (web) — touch targets (44px floor)', () => {
+    it('gives the lightbox close control the full 44px target', async () => {
+        const user = userEvent.setup();
+        render(<PhotoCarousel title="Grilled Lamb" photos={[makePhoto({ id: 'pho_1', order: 1 })]} />);
+
+        await user.click(screen.getByRole('button', { name: 'Open Grilled Lamb photo 1 full screen' }));
+        const close = within(screen.getByRole('dialog')).getByRole('button', { name: 'Close photo' });
+
+        // `size-10` (40px) misses the floor; the overlay control is touch-only chrome so it stays 44px
+        // everywhere (there is no desktop-density reason to shrink it).
+        expect(close.className).toContain('size-11');
+        expect(close.className).not.toContain('size-10');
+    });
+
+    it('wraps each 10px navigation dot in a 44px touch target, reset for the mouse at sm', () => {
+        render(
+            <PhotoCarousel
+                title="Grilled Lamb"
+                photos={[makePhoto({ id: 'pho_1', order: 1 }), makePhoto({ id: 'pho_2', order: 2 })]}
+            />,
+        );
+        const dot = screen.getByRole('link', { name: 'Go to Grilled Lamb photo 1' });
+
+        // The DOT stays visually 10px; the hit area around it is what grows — so the strip still reads as
+        // dots while being tappable.
+        expect(dot.className).toContain('size-11');
+        expect(dot.className).toContain('sm:size-4');
+        expect(dot.querySelector('[class*="size-2.5"]')).not.toBeNull();
+    });
+});

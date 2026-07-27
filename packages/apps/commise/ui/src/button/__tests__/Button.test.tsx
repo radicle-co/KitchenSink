@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 
 import { Button } from '../Button.js';
+import { buttonSurfaceClass } from '../surfaceClass.js';
 
 /**
  * Button (web) — the design-system labelled action control.
@@ -180,5 +181,20 @@ describe('Button (web)', () => {
     it('defaults to the primary variant when none is given', () => {
         const { container } = render(<Button icon={markerIcon}>Default</Button>);
         expect(container.querySelector('button')?.className).toContain('seafoam');
+    });
+
+    it('renders EXACTLY the shared buttonSurfaceClass recipe, so a DS-styled link cannot drift from it', () => {
+        // The helper is what non-<button> controls (navigation links, Radix slots, ref-owning triggers) apply.
+        // Pinning equality here means a change to the Button surface is impossible to make in one place only.
+        for (const variant of (['primary', 'secondary', 'destructive'] as const).values()) {
+            const { container, unmount } = render(
+                <Button icon={markerIcon} variant={variant}>
+                    Tier
+                </Button>,
+            );
+
+            expect(container.querySelector('button')?.className).toBe(buttonSurfaceClass(variant));
+            unmount();
+        }
     });
 });

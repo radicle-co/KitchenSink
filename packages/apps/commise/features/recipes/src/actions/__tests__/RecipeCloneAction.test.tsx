@@ -8,6 +8,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { buttonSurfaceClass } from '@commise/ui/button';
+
 import { RecipeCloneAction } from '../RecipeCloneAction.js';
 import type { RecipeCloneActionProps } from '../model.js';
 
@@ -76,5 +78,72 @@ describe('RecipeCloneAction (web)', () => {
 
         expect(className).toContain('min-h-11');
         expect(className).toContain('md:min-h-0');
+    });
+});
+
+/**
+ * Clone IS the design-system Button — it does not paint its own surface.
+ *
+ * The control used to hand-roll a solid-coral pill, justified by "the mockup paints the clone action coral".
+ * That premise is false: NO mockup contains a clone action at all (zero occurrences of clone/duplicate/fork
+ * across all nine screens), and the mockups' only coral BUTTON form is a bordered outline
+ * (`border-2 border-coral text-coral`) — a solid coral fill appears nowhere except a selected allergy chip.
+ * Coral's documented role is "destructive/secondary actions, highlights, warm accents", so a filled-coral
+ * pill put a safe, additive, reversible action into the danger register. Clone is a quiet SECONDARY action
+ * (the discovery card's own leaf already says exactly that), so it wears the DS `secondary` tier.
+ *
+ * These assertions pin the surface to the shared recipe by EQUALITY, not by fragment: any re-hand-rolling —
+ * a stray colour utility, a re-typed radius, a dropped touch floor — breaks them.
+ */
+describe('RecipeCloneAction (web) — design-system surface', () => {
+    it('wears the DS secondary Button surface verbatim (no hand-rolled pill)', () => {
+        renderClone();
+
+        expect(screen.getByRole('button', { name: 'Clone' }).className).toBe(buttonSurfaceClass('secondary'));
+    });
+
+    it('paints no bespoke coral fill — the hue that made this a hand-rolled control is gone', () => {
+        renderClone();
+        const className = screen.getByRole('button', { name: 'Clone' }).className;
+
+        expect(className).not.toContain('coral');
+        // `bg-coral`'s replacement must be a real DS surface, not "no surface at all".
+        expect(className).toContain('bg-white');
+    });
+
+    it('pairs the label with a decorative icon that never joins the accessible name', () => {
+        renderClone();
+        const button = screen.getByRole('button', { name: 'Clone' });
+
+        // The DS Button requires an icon and hides it; the label alone owns the name (Playwright/RTL depend
+        // on that). An icon leaking into the name would read as "Clone Clone" or similar.
+        expect(button.querySelector('svg')).not.toBeNull();
+        expect(button.querySelector('[aria-hidden="true"]')).not.toBeNull();
+        expect(button.getAttribute('aria-label')).toBeNull();
+    });
+
+    it('swaps the icon slot for the DS spinner while cloning, keeping the surface and label stable', () => {
+        renderClone({ cloning: true });
+        const button = screen.getByRole('button', { name: 'Clone' });
+
+        // Busy must not restyle the pill (that would shift layout mid-flight) — same class string as idle.
+        expect(button.className).toBe(buttonSurfaceClass('secondary'));
+        expect(button.querySelector('svg.animate-spin')).not.toBeNull();
+    });
+
+    it('keeps the idle control spinner-free', () => {
+        renderClone();
+
+        expect(screen.getByRole('button', { name: 'Clone' }).querySelector('svg.animate-spin')).toBeNull();
+    });
+
+    it('keeps the gated control on the same surface, disabled rather than restyled', () => {
+        renderClone({ canClone: false });
+        const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Clone' });
+
+        expect(button.disabled).toBe(true);
+        expect(button.className).toBe(buttonSurfaceClass('secondary'));
+        // The dim comes from the shared recipe's `disabled:` utility, not a per-call-site opacity tweak.
+        expect(button.className).toContain('disabled:opacity-60');
     });
 });

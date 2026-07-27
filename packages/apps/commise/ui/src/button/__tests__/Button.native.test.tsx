@@ -152,6 +152,68 @@ describe('Button (native)', () => {
         expect(screen.getByRole('button', { name: 'Create recipe' })).toBeTruthy();
     });
 
+    it('announces the busy state on the accessible button, for every tier', () => {
+        // Busy is a REQUIRED-coverage UI state, so it must be observable on the control itself and not only
+        // implied by the spinner glyph (which lives in an aria-hidden slot a screen reader never reaches).
+        for (const variant of ['primary', 'secondary', 'destructive'] as const) {
+            const { unmount } = render(
+                <Button icon={markerIcon} variant={variant} onPress={vi.fn()} busy>
+                    {`Variant ${variant}`}
+                </Button>,
+            );
+
+            expect(screen.getByRole('button', { name: `Variant ${variant}` }).getAttribute('aria-busy')).toBe('true');
+            unmount();
+        }
+    });
+
+    it('does not announce busy on an idle button, for every tier', () => {
+        for (const variant of ['primary', 'secondary', 'destructive'] as const) {
+            const { unmount } = render(
+                <Button icon={markerIcon} variant={variant} onPress={vi.fn()}>
+                    {`Variant ${variant}`}
+                </Button>,
+            );
+
+            expect(screen.getByRole('button', { name: `Variant ${variant}` }).getAttribute('aria-busy')).not.toBe(
+                'true',
+            );
+            unmount();
+        }
+    });
+
+    it('marks a disabled button disabled in the accessibility tree, for every tier', () => {
+        for (const variant of ['primary', 'secondary', 'destructive'] as const) {
+            const { unmount } = render(
+                <Button icon={markerIcon} variant={variant} onPress={vi.fn()} disabled>
+                    {`Variant ${variant}`}
+                </Button>,
+            );
+
+            expect(screen.getByRole('button', { name: `Variant ${variant}` }).getAttribute('aria-disabled')).toBe(
+                'true',
+            );
+            unmount();
+        }
+    });
+
+    it('gives every tier the SAME pill geometry, so only the fill distinguishes them', () => {
+        // The touch floor is a tier-independent promise; a tier that lost it would be a silently smaller
+        // target. (The per-tier FILLS are asserted where the token→computed-colour helper already lives:
+        // `features/recipes/.../RecipeCloneAction.native.test.tsx` for `secondary`, and the gradient stub
+        // assertions above for `primary`.)
+        for (const variant of ['primary', 'secondary', 'destructive'] as const) {
+            const { unmount } = render(
+                <Button icon={markerIcon} variant={variant} onPress={vi.fn()}>
+                    {`Variant ${variant}`}
+                </Button>,
+            );
+
+            expect(withMinHeight(screen.getByRole('button', { name: `Variant ${variant}` }), '44px')).not.toBeNull();
+            unmount();
+        }
+    });
+
     it('adopts PressScale so the pill carries a press-scale transform (resting = neutral)', () => {
         render(
             <Button icon={markerIcon} onPress={vi.fn()}>

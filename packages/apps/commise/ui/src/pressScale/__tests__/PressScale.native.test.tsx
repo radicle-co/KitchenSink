@@ -64,3 +64,41 @@ describe('PressScale (native)', () => {
         expect(screen.getByRole('button', { name: 'Tap me' }).style.transform).toBe('scale(1)');
     });
 });
+
+/**
+ * The in-flight (`busy`) state must be OBSERVABLE, not merely passed.
+ *
+ * `accessibilityState.busy` is the device-correct channel, but react-native-web consumes `accessibilityState`
+ * for `disabled` ONLY (`modules/AccessibilityUtil/isDisabled.js` is its sole reader) and otherwise forwards
+ * just the literal `aria-*` props (`modules/forwardedProps` lists `'aria-busy'`). So a Pressable that sets
+ * `accessibilityState={{ busy }}` alone announces correctly on a real device while emitting NOTHING in the DOM
+ * — which silently makes the busy state of EVERY native design-system control untestable, and the repo's test
+ * mandate requires each UI state to be covered rather than taken on faith.
+ *
+ * React Native declares `aria-busy` as a first-class ALIAS for `accessibilityState.busy` (`ViewAccessibility.d.ts`),
+ * so emitting both is device-correct AND assertable. These tests pin that: `busy` is not merely accepted, it
+ * reaches the accessibility tree.
+ */
+describe('PressScale (native) — busy is announced, not just accepted', () => {
+    it('projects busy onto the pressable so assistive tech can read the in-flight state', () => {
+        render(
+            <PressScale onPress={vi.fn()} busy accessibilityLabel="Saving">
+                <Text>Saving</Text>
+            </PressScale>,
+        );
+
+        expect(screen.getByRole('button', { name: 'Saving' }).getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('announces NOT busy when idle (no stale busy attribute)', () => {
+        render(
+            <PressScale onPress={vi.fn()} accessibilityLabel="Save">
+                <Text>Save</Text>
+            </PressScale>,
+        );
+
+        // Absent or "false" both read as not-busy; a literal "true" here would be a stuck spinner to a
+        // screen-reader user long after the action completed.
+        expect(screen.getByRole('button', { name: 'Save' }).getAttribute('aria-busy')).not.toBe('true');
+    });
+});

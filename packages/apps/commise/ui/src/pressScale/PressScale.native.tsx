@@ -35,6 +35,15 @@ export const PressScale: FC<PressScaleProps> = ({
             accessibilityRole={accessibilityRole}
             accessibilityLabel={accessibilityLabel}
             accessibilityState={{ disabled, busy }}
+            // `aria-busy` is React Native's own first-class ALIAS for `accessibilityState.busy` (declared in
+            // `ViewAccessibility.d.ts`), NOT a web-only attribute — so it is device-correct on
+            // VoiceOver/TalkBack. Both forms are emitted deliberately: react-native-web reads
+            // `accessibilityState` for `disabled` ONLY (`AccessibilityUtil/isDisabled` is its sole consumer)
+            // and otherwise forwards just the literal `aria-*` props, so `accessibilityState.busy` alone
+            // reaches the device but emits NOTHING in the DOM — leaving the in-flight state of every native
+            // DS control unobservable, and therefore untestable. Carrying the alias too makes `busy` both
+            // announced and assertable. Do not "simplify" by dropping either one.
+            aria-busy={busy || undefined}
             style={({ pressed }): StyleProp<ViewStyle> => ({
                 transform: [{ scale: pressedScale({ pressed, disabled, reduceMotion }) }],
             })}

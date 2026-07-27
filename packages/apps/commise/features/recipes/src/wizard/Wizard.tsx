@@ -471,8 +471,8 @@ const WizardTopBar: FC = () => {
 };
 
 /**
- * The footer — the ONE contextual primary (U6). Left: a secondary `< Prev: {name}` once past step 1. Right: a
- * single FILLED primary that is `Next: {name} >` on steps 1–3 (advances via `requestGoNext`) and swaps to
+ * The footer — the ONE contextual primary (U6). Left: a secondary `Prev: {name}` once past step 1. Right: a
+ * single FILLED primary that is `Next: {name}` on steps 1–3 (advances via `requestGoNext`) and swaps to
  * `Publish` on step 4 (submits via `requestPublish`, busies while submitting). Never more than two buttons.
  */
 const WizardControls: FC = () => {

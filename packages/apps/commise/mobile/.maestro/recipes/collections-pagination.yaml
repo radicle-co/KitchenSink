@@ -26,11 +26,24 @@ appId: io.commise.mobile
       timeout: 40000
 
 # SEED the eventual PAGE-2 row FIRST, while it is still the caller's only collection.
+#
+# WAITING ON THE FORM TO CLOSE (`notVisible: 'Collection name'`) BEFORE asserting the row is not belt-and-
+# braces — it is what makes these waits mean anything. The name was just TYPED INTO the form's own name input,
+# so `visible: 'Maestro pagination …'` is already satisfied BY THE FORM ITSELF, whether or not the collection
+# was ever created: a self-fulfilling assertion that proves nothing. Worse, it let the loop race the form's
+# dismissal — the next iteration's `tapOn: 'New collection'` then matched the still-open FORM's own region
+# label (accessibility label "New collection") and tapped inert space inside it, and by the time the following
+# `assertVisible: 'Collection name'` ran the create had landed and the form had closed, so it failed. That is
+# exactly how this flow died on filler #6 of 20. Gating on the form being GONE first makes each iteration
+# observe the real post-create state, and keeps the row assertion a genuine assertion about the LIST.
 - tapOn: 'New collection'
 - assertVisible: 'Collection name'
 - tapOn: 'Collection name'
 - inputText: 'Maestro pagination target'
 - tapOn: 'Create'
+- extendedWaitUntil:
+      notVisible: 'Collection name'
+      timeout: 40000
 - extendedWaitUntil:
       visible: 'Maestro pagination target'
       timeout: 40000
@@ -44,6 +57,9 @@ appId: io.commise.mobile
           - tapOn: 'Collection name'
           - inputText: 'Maestro pagination filler'
           - tapOn: 'Create'
+          - extendedWaitUntil:
+                notVisible: 'Collection name'
+                timeout: 40000
           - extendedWaitUntil:
                 visible: 'Maestro pagination filler'
                 timeout: 40000

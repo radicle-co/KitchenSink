@@ -9,8 +9,10 @@
  * `isLoading`), since the native widget is prop-driven (unlike the web entry, which takes a promise).
  *
  * It also owns the widget's navigation entry point ("see all recipes" → the recipes surface), since the
- * presentational widget building blocks carry no navigation. An inner `Suspense` covers only the lazily
- * loaded widget chunk, so the "see all" affordance stays mounted while that chunk resolves.
+ * presentational widget building blocks carry no navigation. That entry is the viewer's route off Home, so it
+ * is deliberately insulated from the widget body: an inner `Suspense` keeps it mounted while the chunk
+ * resolves, and an inner `ErrorBoundary` keeps it mounted when the chunk (or the widget) FAILS — see the
+ * boundary's own comment for why the host's per-widget boundary is not sufficient on its own.
  */
 import { recipeHomeWidgetDescriptor } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
@@ -18,6 +20,7 @@ import { palette } from '@commise/ui';
 import type { Recipe } from '@kitchensink/recipe-core';
 import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
 import { Suspense, lazy, type ComponentType, type JSX } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../../i18n/messages.js';
@@ -53,6 +56,14 @@ export interface RecipeWidgetSlotProps {
      * seam here is exactly how the cards silently shipped dead — nothing failed, they just did nothing.
      */
     readonly onSelectRecipe: (id: string) => void;
+    /**
+     * Invoked when the WIDGET BODY fails to render (see the boundary in the component). Optional only so the
+     * happy-path tests need not supply it; the host always does, so a failure is never swallowed (B23/DA9).
+     *
+     * Takes `unknown`, matching the appShell `ErrorReporter` seam the host wires this to — a throw is not
+     * guaranteed to be an `Error`, and narrowing here would force the host to lie about that.
+     */
+    readonly onWidgetError?: (error: unknown) => void;
 }
 
 /**
@@ -62,7 +73,11 @@ export interface RecipeWidgetSlotProps {
  * @param props - The `onSeeAllRecipes` and `onSelectRecipe` navigation callbacks.
  * @returns The recipe widget with its navigation affordances.
  */
-export function RecipeWidgetSlot({ onSeeAllRecipes, onSelectRecipe }: RecipeWidgetSlotProps): JSX.Element {
+export function RecipeWidgetSlot({
+    onSeeAllRecipes,
+    onSelectRecipe,
+    onWidgetError,
+}: RecipeWidgetSlotProps): JSX.Element {
     const { home } = useMessages(mobileMessages);
     const query = useRecipes({ pageSize: RECENT_RECIPE_LIMIT });
 
@@ -71,12 +86,25 @@ export function RecipeWidgetSlot({ onSeeAllRecipes, onSelectRecipe }: RecipeWidg
 
     return (
         <View style={styles.slot}>
-            <Suspense fallback={null}>
-                {/* The slot owns navigation, not the widget: the presentational card grid reports WHICH recipe
-                    was activated, and this layer — the only one with the navigation intent — routes. Mirrors
-                    the web slot exactly, so the two platforms expose the same affordance. */}
-                <RecipeHomeWidget recipes={recipes} isLoading={isLoading} onSelectRecipe={onSelectRecipe} />
-            </Suspense>
+            {/* Scoped to the WIDGET BODY, and deliberately INSIDE this slot rather than left to the host's
+                per-widget boundary. The host wraps the whole slot in `<ErrorBoundary fallback={null}>`, so
+                without this inner boundary a widget-body throw erases the "see all recipes" entry too — the
+                viewer's route out of Home vanishes along with the content that failed. Observed in CI: Home
+                rendered its roadmap placeholders and then blank space, and Maestro's shared `signin.yaml`
+                could never leave Home.
+
+                `Suspense` cannot cover this: it handles a PENDING lazy chunk, never a REJECTED one, and
+                `React.lazy` CACHES a rejection — so once the chunk fails it re-throws on every later render
+                and the slot never recovers on its own. Losing the widget's content to a failed chunk is
+                acceptable; losing the navigation is not. */}
+            <ErrorBoundary fallback={null} onError={(error) => onWidgetError?.(error)}>
+                <Suspense fallback={null}>
+                    {/* The slot owns navigation, not the widget: the presentational card grid reports WHICH
+                        recipe was activated, and this layer — the only one with the navigation intent —
+                        routes. Mirrors the web slot exactly, so the two platforms expose the same affordance. */}
+                    <RecipeHomeWidget recipes={recipes} isLoading={isLoading} onSelectRecipe={onSelectRecipe} />
+                </Suspense>
+            </ErrorBoundary>
             <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={home.seeAllRecipes}

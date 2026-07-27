@@ -30,8 +30,17 @@ appId: io.commise.mobile
       commands:
           # Open the detail. Anchored (`^…$`) so it selects the row's title, NOT the per-row
           # "Clone Herb Risotto" quick-clone button whose label also contains the title.
+          #
+          # `above: 'New'` disambiguates WHICH rail's card is tapped, and it is load-bearing. Since U7,
+          # Discover renders curated rails and the same seeded recipe appears in BOTH "Trending" and "New";
+          # `^Herb Risotto$` therefore matches two elements. Maestro picked the "New" rail's card, which on the
+          # emulator straddles the screen edge underneath the system navigation bar — so the tap landed on the
+          # nav bar instead of the card, the detail never opened, and the following `scrollUntilVisible`
+          # swipe-ups (swipe-up-from-centre being Android's Home gesture) backgrounded the app to the launcher.
+          # Anchoring above the "New" heading selects the fully-visible Trending card.
           - tapOn:
                 text: '^Herb Risotto$'
+                above: 'New'
 
           # The community aggregate (read-only social proof) and the rate call-to-action render. The presence
           # of the rate radiogroup proves the recipe is RATEABLE — the own-recipe gate (Sc8) would replace it

@@ -49,11 +49,18 @@ export interface WizardMessages {
      */
     readonly publish: string;
 
-    /** Footer Prev-nav label template (contains `{name}`, the PRECEDING step's name). */
+    /**
+     * Footer Prev-nav label template (contains `{name}`, the PRECEDING step's name).
+     *
+     * Carries NO decorative `<` — direction is conveyed by the button's own `chevron-left` icon on BOTH
+     * platforms. A glyph here duplicates that icon visually and, because the label is also the button's
+     * accessible name, makes a screen reader announce the punctuation ("less-than Prev: Basic").
+     */
     readonly prevLabel: string;
-    /** Footer Next-nav label template (contains `{name}`, the FOLLOWING step's name). */
+    /** Footer Next-nav label template (contains `{name}`, the FOLLOWING step's name). See {@link prevLabel}
+     *  for why it carries no decorative `>`. */
     readonly nextLabel: string;
-    /** Accessible label for the footer step-navigation (`< Prev` / `Next >`) region. */
+    /** Accessible label for the footer step-navigation (Prev / Next) region. */
     readonly controlsLabel: string;
 
     /** Heading of the minimal read-only preview panel. */
@@ -105,8 +112,8 @@ export const wizardMessages: LocalizedMessages<WizardMessages> = {
         cancel: 'Cancel',
         publish: 'Publish',
 
-        prevLabel: '< Prev: {name}',
-        nextLabel: 'Next: {name} >',
+        prevLabel: 'Prev: {name}',
+        nextLabel: 'Next: {name}',
         controlsLabel: 'Wizard step navigation',
 
         previewHeading: 'Preview',

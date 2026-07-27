@@ -160,6 +160,28 @@ describe('Wizard (native) — Next gating + rail invalidity', () => {
     });
 });
 
+describe('Wizard (native) — the footer nav labels carry NO decorative chevron', () => {
+    // The footer buttons already render a `chevron-left`/`chevron-right` ICON, so a `<`/`>` inside the
+    // LOCALIZED label duplicates it: the button paints a doubled chevron and a screen reader announces
+    // "Next: Ingredients greater-than". These assertions are EXACT (not the loose `/Next: …/` used
+    // elsewhere in this file) precisely because an unanchored regex still matches `Next: Ingredients >` —
+    // which is how the stray glyphs shipped unnoticed.
+    it('names the Next primary exactly, with no chevron glyph in the accessible name', () => {
+        render(<Harness initialValues={validValues()} initialStep={1} />);
+
+        expect(screen.getByLabelText('Next: Ingredients')).toBeTruthy();
+        expect(screen.queryByLabelText(/[<>]/)).toBeFalsy();
+    });
+
+    it('names the Prev secondary exactly, with no chevron glyph in the accessible name', () => {
+        render(<Harness initialValues={validValues()} initialStep={3} />);
+
+        expect(screen.getByLabelText('Prev: Ingredients')).toBeTruthy();
+        expect(screen.getByLabelText('Next: Photos')).toBeTruthy();
+        expect(screen.queryByLabelText(/[<>]/)).toBeFalsy();
+    });
+});
+
 describe('Wizard (native) — footer is the ONE contextual primary (U6)', () => {
     it('shows Next — and NO Publish, NO Prev — on step 1', () => {
         render(<Harness initialValues={validValues()} initialStep={1} />);

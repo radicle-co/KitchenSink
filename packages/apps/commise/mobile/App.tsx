@@ -18,13 +18,23 @@ import { LogBox } from 'react-native';
 // blanket filter; fix the rejection instead.
 LogBox.ignoreLogs([/Clerk has been loaded with development keys/]);
 
-// Hermes (React Native's engine) lacks `Intl.PluralRules`, which the shared recipe formatters use (browsers
-// have it, so web works, but the native app crashes without this). Polyfill it FIRST, before any module
-// that touches Intl loads. The @formatjs polyfills self-check and no-op when a native impl already exists.
+// Hermes (React Native's engine) ships only a SUBSET of `Intl` — on Android its platform-ICU binding gives
+// `Collator`, `DateTimeFormat` and `NumberFormat` and nothing else. Every other constructor is `undefined`, so
+// `new Intl.X(...)` throws `TypeError: undefined cannot be used as a constructor` on device while web (which
+// has the full set) works fine. Polyfill the missing ones FIRST, before any module that touches Intl loads.
+// The @formatjs polyfills self-check and no-op when a native impl already exists.
+//
+// `RelativeTimeFormat` is load-bearing, not belt-and-braces: `formatRelativeTime` (recipe card footer) and
+// `formatRelativeTimeAgo` (version-conflict banner) both construct it, and without it EVERY recipe card older
+// than 60 seconds crashed its screen into the root error boundary (a fresher card returns the "just now" label
+// before reaching `Intl`, which is why the crash looked intermittent). `tests/intlPolyfills.test.ts` pins this
+// list against the `new Intl.*` calls in the shared sources so the next addition cannot be missed the same way.
 import '@formatjs/intl-getcanonicallocales/polyfill';
 import '@formatjs/intl-locale/polyfill';
 import '@formatjs/intl-pluralrules/polyfill';
 import '@formatjs/intl-pluralrules/locale-data/en';
+import '@formatjs/intl-relativetimeformat/polyfill';
+import '@formatjs/intl-relativetimeformat/locale-data/en';
 
 import { PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold, useFonts } from '@expo-google-fonts/playfair-display';
 import { registerRootComponent } from 'expo';

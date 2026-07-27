@@ -17,10 +17,26 @@ appId: io.commise.mobile
       timeout: 40000
 
 # 1. Browsable default: the curated rails render (their headings are static, so this is seed-drift-immune).
+#
+# `Trending` and `New` are above the fold; `Quick` is the THIRD rail and sits below it on a phone viewport
+# (each rail is a heading plus a row of tall recipe cards — on the CI emulator the "New" heading lands at
+# ~88% of the screen height, so the Quick heading is off-screen entirely). `assertVisible` only sees the
+# CURRENT viewport, so it must be scrolled into view rather than asserted blind. Scrolling — not deleting the
+# assertion — is the point: the third rail existing is a U7 requirement.
 - assertVisible: 'Trending'
 - assertVisible: 'New'
-- assertVisible: 'Quick'
 - assertVisible: 'See all'
+- scrollUntilVisible:
+      element: 'Quick'
+      direction: DOWN
+      timeout: 20000
+
+# Back to the top so the steps below act on the search field and the Filters button, not on wherever the
+# scroll left the surface.
+- scrollUntilVisible:
+      element: 'Discover recipes'
+      direction: UP
+      timeout: 20000
 
 # 2. Filters are a bottom sheet: the facet ladders are hidden until the "Filters" button opens the sheet,
 # and "Done" closes it again.

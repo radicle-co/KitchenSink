@@ -173,6 +173,27 @@ describe('Wizard (web) — Next gating + rail invalidity', () => {
     });
 });
 
+describe('Wizard (web) — the footer nav labels carry NO decorative chevron', () => {
+    // Mirrors the native spec: the footer buttons already render a chevron ICON, so a `<`/`>` inside the
+    // SHARED localized label (`wizard/messages.ts`, no `.native` variant) duplicates it visually and makes a
+    // screen reader announce "Next: Ingredients greater-than". Asserted as an EXACT accessible name — the
+    // loose `/Next: …/` regexes used elsewhere in this file still match `Next: Ingredients >`.
+    it('names the Next primary exactly, with no chevron glyph in the accessible name', () => {
+        render(<Harness initialValues={validValues()} initialStep={1} />);
+
+        expect(screen.getByRole('button', { name: 'Next: Ingredients' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /[<>]/ })).toBeFalsy();
+    });
+
+    it('names the Prev secondary exactly, with no chevron glyph in the accessible name', () => {
+        render(<Harness initialValues={validValues()} initialStep={3} />);
+
+        expect(screen.getByRole('button', { name: 'Prev: Ingredients' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Next: Photos' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /[<>]/ })).toBeFalsy();
+    });
+});
+
 describe('Wizard (web) — footer is the ONE contextual primary (U6)', () => {
     it('shows a FILLED Next primary — and NO Publish — on step 1', () => {
         render(<Harness initialValues={validValues()} initialStep={1} />);
@@ -200,11 +221,11 @@ describe('Wizard (web) — footer is the ONE contextual primary (U6)', () => {
 
     it('hides Prev on step 1 and shows it (secondary) once past the first step', () => {
         const { unmount } = render(<Harness initialValues={validValues()} initialStep={1} />);
-        expect(screen.queryByRole('button', { name: /^< Prev:/ })).toBeFalsy();
+        expect(screen.queryByRole('button', { name: /^Prev:/ })).toBeFalsy();
         unmount();
 
         render(<Harness initialValues={validValues()} initialStep={2} />);
-        const prev = screen.getByRole('button', { name: /< Prev: Basic/ });
+        const prev = screen.getByRole('button', { name: 'Prev: Basic' });
         // Secondary tier == bordered surface, never the filled primary (only ONE filled primary in the footer).
         expect(prev.className).toContain('border-border');
     });

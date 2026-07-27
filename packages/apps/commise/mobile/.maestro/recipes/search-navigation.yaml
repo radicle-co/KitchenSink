@@ -68,9 +68,20 @@ appId: io.commise.mobile
 
 # With no query/filter, discovery shows the curated browse rails (U7), not a bare stream — the rail headings
 # render regardless of what the feed contains, so this is seed-drift-immune.
+#
+# `Quick` is the THIRD rail and lands below the fold on a phone viewport (see the same note in
+# `discover-browse.yaml`), so it is scrolled into view instead of asserted blind — `assertVisible` only sees
+# the current viewport. Then scroll back up, since the steps that follow drive the search field.
 - assertVisible: 'Trending'
 - assertVisible: 'New'
-- assertVisible: 'Quick'
+- scrollUntilVisible:
+      element: 'Quick'
+      direction: DOWN
+      timeout: 20000
+- scrollUntilVisible:
+      element: 'Discover recipes'
+      direction: UP
+      timeout: 20000
 
 # A query the server cannot match must yield discovery's empty state. This is the strongest assertion
 # available here that the query REACHES the service: if `query` were dropped from the request the endpoint

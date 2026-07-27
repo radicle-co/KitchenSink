@@ -22,6 +22,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, type ComponentType, type JSX } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 
 import { webMessages } from '@/i18n/messages';
 
@@ -81,13 +82,21 @@ export function RecipeWidgetSlot(): JSX.Element {
 
     return (
         <div className="flex flex-col gap-2">
-            {/* The slot owns navigation, not the widget: the presentational card grid reports which recipe was
-                activated, and this layer — the only one that knows the App Router and the locale prefix —
-                routes to the recipe detail. */}
-            <RecipeHomeWidget
-                recipesPromise={recipesPromise}
-                onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
-            />
+            {/* Scoped to the WIDGET BODY, and deliberately INSIDE this slot rather than left to the host's
+                per-widget boundary. The host wraps the whole slot, so without this inner boundary a
+                widget-body throw (failed chunk, bad recipe record) replaced the "see all recipes" LINK with
+                the widget-error text — the viewer's route out of Home disappeared along with the content that
+                failed. Losing the widget's content is acceptable; losing the navigation is not. The mobile
+                slot carries the same inner boundary, so both platforms degrade identically (FR-044). */}
+            <ErrorBoundary fallback={<p className="text-body-sm text-slate">{home.surface.widgetError}</p>}>
+                {/* The slot owns navigation, not the widget: the presentational card grid reports which recipe
+                    was activated, and this layer — the only one that knows the App Router and the locale
+                    prefix — routes to the recipe detail. */}
+                <RecipeHomeWidget
+                    recipesPromise={recipesPromise}
+                    onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
+                />
+            </ErrorBoundary>
             <Link
                 href={`/${locale}/recipes` as Route}
                 aria-label={home.surface.seeAllRecipes}

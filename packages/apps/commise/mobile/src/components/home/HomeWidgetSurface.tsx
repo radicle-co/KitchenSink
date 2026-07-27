@@ -106,22 +106,31 @@ export function HomeWidgetSurface({
     const tier = makeViewer({ subscriptionTier: profile.data?.account.subscriptionTier }).tier;
     const displayName = profile.data?.user.displayName;
 
-    // The v1 bespoke render map: only the recipe widget has a slot (it needs the navigation intents threaded
-    // in). Built here (not a module const) because the slot closes over those intents.
-    const defaultRenderers = useMemo<Readonly<Record<HomeWidgetId, ComponentType>>>(
-        () => ({
-            [RECIPE_HOME_WIDGET_ID]: () => (
-                <RecipeWidgetSlot onSeeAllRecipes={onSeeAllRecipes} onSelectRecipe={onSelectRecipe} />
-            ),
-        }),
-        [onSeeAllRecipes, onSelectRecipe],
-    );
-
-    const activeRenderers = renderers ?? defaultRenderers;
-
     // B23/DA9 — a widget render throw must never be silent. Resolved from the injected `errorReporterToken`
     // (never a hard-coded Sentry import), mirroring the web host so both platforms share ONE reporting seam.
     const reportWidgetError = resolveErrorReporter(container);
+
+    // The v1 bespoke render map: only the recipe widget has a slot (it needs the navigation intents threaded
+    // in). Built here (not a module const) because the slot closes over those intents.
+    //
+    // `onWidgetError` routes the recipe slot's OWN inner boundary through this same reporting seam: that
+    // boundary exists so a failed widget body cannot take the "see all recipes" navigation entry with it, and
+    // because it catches the throw before the per-widget boundary below ever sees it, the report has to be
+    // threaded in explicitly or the failure would go unobserved.
+    const defaultRenderers = useMemo<Readonly<Record<HomeWidgetId, ComponentType>>>(
+        () => ({
+            [RECIPE_HOME_WIDGET_ID]: () => (
+                <RecipeWidgetSlot
+                    onSeeAllRecipes={onSeeAllRecipes}
+                    onSelectRecipe={onSelectRecipe}
+                    onWidgetError={(error) => reportWidgetError(error, { widget: RECIPE_HOME_WIDGET_ID })}
+                />
+            ),
+        }),
+        [onSeeAllRecipes, onSelectRecipe, reportWidgetError],
+    );
+
+    const activeRenderers = renderers ?? defaultRenderers;
 
     const curated = useMemo(() => {
         const ctx: HomeWidgetCurationContext = {

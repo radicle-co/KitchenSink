@@ -582,6 +582,26 @@ jobs:
         name: E2E (web — Playwright)
         runs-on: ubuntu-latest
         needs: build
+        # Pin BOTH API origins the web app resolves from env, so CI and a developer machine run the suite
+        # against the SAME resolved origins instead of both happening to land on the in-code fallbacks.
+        # Locally these come from the gitignored `.env.local` that `scripts/fetch-secrets.mjs` writes (it
+        # emits exactly these two values); CI has no `.env.local`, so until now the job depended on
+        # `recipeServiceConfig.ts`'s `?? 'http://localhost:3000'` and `identityServiceClient.ts`'s
+        # `?? 'http://localhost:4000'` silently continuing to match that file. Stating them here makes the
+        # baseline explicit and drift-proof (see also packages/apps/commise/web/.env.template).
+        #
+        # These localhost values are the CORRECT ones for this suite, not a placeholder: every spec mocks the
+        # API with the ORIGIN-AGNOSTIC glob `page.route('**/v1/**')` (tests/e2e/utils/recipeApi.ts, plus the
+        # two narrower `**/v1/...` routes in accountDangerZone/ingredientCatalogPick), and no spec ever builds
+        # a URL out of these vars — so the browser-side origin only has to be a valid absolute URL. Port 3000
+        # is the Playwright dev server itself and nothing listens on 4000, which means the SERVER-side SSR
+        # prefetch (which `page.route` cannot intercept) fails and each page degrades to its client fetch —
+        # exactly the behavior `tests/e2e/ssrPrefetch.spec.ts` asserts. Pointing these at a live backend would
+        # make the suite non-hermetic, not more correct (that path is the opt-in `recipeLive.spec.ts`, gated on
+        # E2E_LIVE_BACKEND=1, which stays skipped here).
+        env:
+            NEXT_PUBLIC_API_URL: http://localhost:3000
+            NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -922,7 +942,7 @@ jobs:
         # T081/SC-009 performance gate. Gated behind `run_load_test` (default false) so the heavy k6 run
         # never fires on ordinary PR / push pipelines; a caller opts in with `run_load_test: true`
         # (`heavy-e2e.yml` — nightly schedule, manual dispatch, or the `heavy-e2e` PR label). Boots the
-        # recipe-service against a Postgres + LocalStack service pair and runs ALL SIX tests/load k6
+        # recipe-service against a Postgres + LocalStack service pair and runs ALL SEVEN tests/load k6
         # scripts; a threshold breach exits k6 non-zero and fails the job.
         if: ${{ inputs.run_load_test }}
         services:
@@ -939,7 +959,7 @@ jobs:
                     --health-interval 10s
                     --health-timeout 5s
                     --health-retries 5
-            # Three of the six scripts need REAL AWS-side state that a placeholder endpoint cannot provide:
+            # Three of the seven scripts need REAL AWS-side state that a placeholder endpoint cannot provide:
             # `service-erasure` enqueues to SQS on its accept path (a dead endpoint would 500 the 202),
             # `version-archive-read` reads a snapshot the fixture PUTs to S3, and `save-under-archive`
             # measures save latency *while the archive is queued*. LocalStack Community covers S3 + SQS.
@@ -1088,6 +1108,15 @@ jobs:
                   RECIPE_LOAD_HOLD: 25s
                   RECIPE_LOAD_RAMP_DOWN: 10s
               run: k6 run --summary-export=k6-erasure-summary.json tests/load/service-erasure.load.js
+            # `ingredient-suggest-latency` (search Stage 2 / F2) needs NO prepare step of its own: the catalog
+            # ingredients `prepare-db.mjs` already seeded are the local half of the blend, and the food-catalog
+            # half is deliberately left UNREACHABLE here — no food service is booted, so `FOOD_SERVICE_URL`
+            # keeps its local-dev default (http://localhost:3002) with nothing listening. That is the exact
+            # worst case the script exists to defend: the blend must bound the failing catalog read and degrade
+            # to local-only (`catalogAvailability: 'unavailable'`) while still answering 200, so its strict
+            # `http_req_failed` threshold is what proves the F2 fallback never leaks the dependency's failure to
+            # the caller. Do NOT set FOOD_CATALOG_BLEND_ENABLED=false here — that reports 'disabled' and skips
+            # the cross-service call entirely, silently retiring the very behavior under test.
             - name: Run k6 load scripts
               working-directory: packages/services/recipe-service
               env:
@@ -1095,6 +1124,7 @@ jobs:
               run: |
                   k6 run --summary-export=k6-sc009-summary.json tests/load/sc009-read-write.load.js
                   k6 run --summary-export=k6-search-summary.json tests/load/search-latency.load.js
+                  k6 run --summary-export=k6-suggest-summary.json tests/load/ingredient-suggest-latency.load.js
                   k6 run --summary-export=k6-save-summary.json tests/load/save-under-archive.load.js
                   k6 run --summary-export=k6-pull-summary.json tests/load/pull-from-source.load.js
                   k6 run --summary-export=k6-version-archive-summary.json tests/load/version-archive-read.load.js

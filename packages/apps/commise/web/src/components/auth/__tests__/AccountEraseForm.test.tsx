@@ -4,14 +4,37 @@
  * matrix is covered in `@commise/features-account`; here we verify the WIRING: the flow is deferred until
  * opened, the recipe fetch feeds the donate election (filtered to owner-only), the confirm sends the typed
  * phrase + the donate election to the erasure mutation, a success signs the viewer out, and the mutation's
- * pending/error state reaches the dialog.
+ * pending/error state reaches the dialog. Plus the FAKE-EXIT path (B23: a sign-out issued before clerk-js loads
+ * resolves without revoking anything, so the exit must report a failure rather than look like success).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }));
-vi.mock('@clerk/nextjs', () => ({ useClerk: () => ({ signOut }) }));
+const { signOut, clerkState } = vi.hoisted(() => ({
+    signOut: vi.fn(),
+    clerkState: {
+        loaded: true,
+        status: 'ready' as 'degraded' | 'error' | 'loading' | 'ready',
+        session: null as { id: string } | null | undefined,
+    },
+}));
+// `useAuth().signOut` is Clerk's LOAD-SAFE wrapper — the one the sign-out command must use (B23). `useClerk()`
+// only supplies the load/session state the command's fail-closed post-condition reads.
+vi.mock('@clerk/nextjs', () => ({
+    useClerk: () => ({
+        get loaded() {
+            return clerkState.loaded;
+        },
+        get status() {
+            return clerkState.status;
+        },
+        get session() {
+            return clerkState.session;
+        },
+    }),
+    useAuth: () => ({ signOut }),
+}));
 
 const { navigateTo } = vi.hoisted(() => ({ navigateTo: vi.fn() }));
 vi.mock('@/lib/navigation', () => ({ navigateTo }));
@@ -37,11 +60,17 @@ const makeRecipe = (
 ): unknown => ({ id, title, visibility, status });
 
 beforeEach(() => {
-    signOut.mockReset().mockResolvedValue(undefined);
+    signOut.mockReset().mockImplementation(async () => {
+        clerkState.loaded = true;
+        clerkState.session = null;
+    });
     navigateTo.mockReset();
     erasureMutate.mockReset();
     recipesState.current = { recipes: [], isLoading: false, isError: false };
     erasureState.current = { isPending: false, isError: false };
+    clerkState.loaded = true;
+    clerkState.status = 'ready';
+    clerkState.session = { id: 'sess_live' };
 });
 
 afterEach(cleanup);
@@ -68,6 +97,26 @@ describe('AccountEraseForm (web) — deferral', () => {
         await openFlow();
 
         expect(screen.getByRole('dialog', { name: 'Erase my data' })).toBeTruthy();
+    });
+});
+
+describe('AccountEraseForm (web) — the exit RESOLVED without ending the session (B23)', () => {
+    it('takes the failed-exit path instead of dropping a still-authenticated viewer on the public page', async () => {
+        // Exactly the premount no-op: the sign-out resolves, nothing is revoked, the session stays live.
+        signOut.mockResolvedValueOnce(undefined);
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+        const user = await openFlow();
+
+        await user.type(screen.getByLabelText('Confirmation phrase'), 'ERASE MY DATA');
+        await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Erase my data' }));
+
+        expect(await screen.findByRole('alert')).toHaveProperty(
+            'textContent',
+            'Your data is being erased, but we couldn’t sign you out. Sign out to finish leaving this account.',
+        );
+        expect(navigateTo).not.toHaveBeenCalled();
     });
 });
 

@@ -3,14 +3,38 @@
  * Component tests for the account CLOSURE control (web; CR-002 / U4b). Closure is RECOVERABLE — the copy must
  * say so and must NOT claim permanent deletion (the conflation this unit fixes). Covers: closed (trigger
  * only), open (recoverable copy, not "permanently deleted"), confirm → closure request + sign-out, cancel,
- * the failed-request alert (B17), and the pending/busy trigger state.
+ * the failed-request alert (B17), the pending/busy trigger state, and the FAKE-EXIT path (B23: a sign-out
+ * issued before clerk-js loads resolves without revoking anything, so the exit must report a failure instead
+ * of dropping a still-authenticated viewer on the public page).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }));
-vi.mock('@clerk/nextjs', () => ({ useClerk: () => ({ signOut }) }));
+const { signOut, clerkState } = vi.hoisted(() => ({
+    signOut: vi.fn(),
+    clerkState: {
+        loaded: true,
+        status: 'ready' as 'degraded' | 'error' | 'loading' | 'ready',
+        session: null as { id: string } | null | undefined,
+    },
+}));
+// `useAuth().signOut` is Clerk's LOAD-SAFE wrapper — the one the sign-out command must use (B23). `useClerk()`
+// only supplies the load/session state the command's fail-closed post-condition reads.
+vi.mock('@clerk/nextjs', () => ({
+    useClerk: () => ({
+        get loaded() {
+            return clerkState.loaded;
+        },
+        get status() {
+            return clerkState.status;
+        },
+        get session() {
+            return clerkState.session;
+        },
+    }),
+    useAuth: () => ({ signOut }),
+}));
 
 const { navigateTo } = vi.hoisted(() => ({ navigateTo: vi.fn() }));
 vi.mock('@/lib/navigation', () => ({ navigateTo }));
@@ -21,9 +45,15 @@ vi.mock('@/lib/identityServiceClient', () => ({
 }));
 
 beforeEach(() => {
-    signOut.mockReset().mockResolvedValue(undefined);
+    signOut.mockReset().mockImplementation(async () => {
+        clerkState.loaded = true;
+        clerkState.session = null;
+    });
     navigateTo.mockReset();
     deleteMe.mockReset().mockResolvedValue(undefined);
+    clerkState.loaded = true;
+    clerkState.status = 'ready';
+    clerkState.session = { id: 'sess_live' };
 });
 
 afterEach(cleanup);
@@ -87,6 +117,26 @@ describe('AccountCloseForm (web) — confirm', () => {
         );
         expect(signOut).not.toHaveBeenCalled();
         // …and the viewer is left exactly where they are: no sign-out, no navigation away from the error.
+        expect(navigateTo).not.toHaveBeenCalled();
+    });
+});
+
+describe('AccountCloseForm (web) — the exit RESOLVED without ending the session (B23)', () => {
+    it('surfaces the alert and does NOT navigate away on a session that is still live', async () => {
+        const user = userEvent.setup();
+        // Exactly the premount no-op: the sign-out resolves, nothing is revoked, the session stays live.
+        signOut.mockResolvedValueOnce(undefined);
+        renderForm();
+
+        await user.click(screen.getByRole('button', { name: 'Close account' }));
+        await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Close account' }));
+
+        // The closure DID land server-side, so the copy is the generic closure error — but the viewer is not
+        // told they left, and is not dropped on the public page while still authenticated.
+        expect(await screen.findByRole('alert')).toHaveProperty(
+            'textContent',
+            'We couldn’t close your account. Please try again.',
+        );
         expect(navigateTo).not.toHaveBeenCalled();
     });
 });

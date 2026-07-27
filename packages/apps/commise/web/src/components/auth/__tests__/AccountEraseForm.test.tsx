@@ -133,6 +133,66 @@ describe('AccountEraseForm (web) — confirm', () => {
     });
 });
 
+/**
+ * The post-202 exit was fire-and-forget: `onSuccess: () => void leaveSignedOut()`. If `signOut` (or the
+ * navigation) failed AFTER the erasure had already been accepted, the rejection was swallowed and the viewer
+ * was stranded on an authenticated account page for an account that no longer exists — with no feedback and
+ * no way to tell whether the erasure had happened.
+ *
+ * The copy here is deliberately NOT the dialog's `submitError` ("we couldn't START erasing…") — the erasure
+ * DID succeed, so inviting a retry of it would be a lie. The one outstanding action is to leave the session,
+ * so the recovery IS a sign-out control.
+ */
+describe('AccountEraseForm (web) — a failed exit AFTER the erasure was accepted', () => {
+    beforeEach(() => {
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+    });
+
+    /** Accept the erasure (mutation succeeds), with the sign-out rejecting. */
+    async function eraseWithFailedSignOut(): Promise<void> {
+        const user = await openFlow();
+
+        await user.type(screen.getByLabelText('Confirmation phrase'), 'ERASE MY DATA');
+        await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Erase my data' }));
+    }
+
+    it('surfaces a distinct alert (and a sign-out escape) when the sign-out rejects', async () => {
+        signOut.mockReset().mockRejectedValue(new Error('clerk unreachable'));
+
+        await eraseWithFailedSignOut();
+
+        const alert = await screen.findByRole('alert');
+        expect(alert.textContent).toBe(
+            'Your data is being erased, but we couldn’t sign you out. Sign out to finish leaving this account.',
+        );
+        // The viewer is not left with a dead page: the recovery is the ordinary sign-out control.
+        expect(screen.getByRole('button', { name: 'Sign out of your account' })).toBeTruthy();
+        // And the dead dialog is dismissed — it would otherwise trap focus away from the alert.
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('surfaces the same alert when the sign-out resolves but the navigation throws', async () => {
+        navigateTo.mockImplementation(() => {
+            throw new Error('navigation blocked');
+        });
+
+        await eraseWithFailedSignOut();
+
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            'Your data is being erased, but we couldn’t sign you out. Sign out to finish leaving this account.',
+        );
+    });
+
+    it('shows no such alert on the happy path', async () => {
+        await eraseWithFailedSignOut();
+
+        await vi.waitFor(() => expect(navigateTo).toHaveBeenCalledWith('/'));
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+});
+
 describe('AccountEraseForm (web) — mutation state', () => {
     it('reflects the mutation pending state as busy', async () => {
         erasureState.current = { isPending: true, isError: false };

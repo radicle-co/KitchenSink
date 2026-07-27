@@ -20,6 +20,14 @@
  * sitting on the authenticated Home route after erasing. So this flow awaits `signOut()` (session cookies
  * gone) and then hard-navigates to the app's public entry, where the root route's own auth gate sends a
  * signed-out caller to the branded welcome hero. Nothing authenticated survives an irreversible erasure.
+ *
+ * **That exit has its own failure path (B17).** It used to be fire-and-forget, so a `signOut`/navigate failure
+ * AFTER the server had already accepted the erasure was swallowed: the viewer sat on an authenticated account
+ * page for an account that no longer exists, with no feedback and no idea whether the erasure had happened.
+ * Now the flow reports that failure upward, the (dead) dialog is dismissed so it cannot trap focus away from
+ * the message, and the surface renders a distinct alert plus the ordinary {@link LogoutButton} as the recovery.
+ * The copy is deliberately NOT the dialog's `submitError` — the erasure DID succeed, so inviting a retry of it
+ * would be a lie; the only outstanding action is leaving the session.
  */
 import { useState } from 'react';
 import { useClerk } from '@clerk/nextjs';
@@ -30,6 +38,9 @@ import { AccountEraseDialog, accountDangerMessages } from '@commise/features-acc
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 
 import { TrashIcon } from '@/components/auth/icons';
+import { authMessages } from '@/components/auth/messages';
+import { errorText } from '@/components/auth/authChrome';
+import { LogoutButton } from '@/components/auth/LogoutButton';
 import { withBasePath } from '@/lib/basePath';
 import { navigateTo } from '@/lib/navigation';
 
@@ -37,9 +48,16 @@ import { navigateTo } from '@/lib/navigation';
  * The mounted-while-open erasure flow: owns the recipe fetch, the mutation, and the form state. Mounted only
  * when the flow is open (so the recipe fetch fires on demand), and always renders the dialog as `open`.
  *
- * @param props - `onClose`, invoked on any dismissal (Cancel / Escape / backdrop).
+ * @param props - `onClose`, invoked on any dismissal (Cancel / Escape / backdrop), and `onExitFailed`,
+ *   invoked when the erasure was ACCEPTED but the follow-up sign-out / navigation failed.
  */
-function AccountEraseFlow({ onClose }: { readonly onClose: () => void }) {
+function AccountEraseFlow({
+    onClose,
+    onExitFailed,
+}: {
+    readonly onClose: () => void;
+    readonly onExitFailed: () => void;
+}) {
     const { signOut } = useClerk();
     const recipes = useAllOwnerRecipes();
     const erasure = useRequestAccountErasure();
@@ -58,13 +76,19 @@ function AccountEraseFlow({ onClose }: { readonly onClose: () => void }) {
     };
 
     /**
-     * End the session, then leave the app with a full document load (see the module doc).
+     * End the session, then leave the app with a full document load (see the module doc). Reports a failure
+     * upward instead of swallowing it — by this point the erasure has already been accepted, so a silent
+     * failure strands the viewer on a dead account page.
      *
      * @sideEffect Destroys the Clerk session and replaces the current document.
      */
     const leaveSignedOut = async (): Promise<void> => {
-        await signOut();
-        navigateTo(withBasePath('/'));
+        try {
+            await signOut();
+            navigateTo(withBasePath('/'));
+        } catch {
+            onExitFailed();
+        }
     };
 
     const handleConfirm = () => {
@@ -94,14 +118,33 @@ function AccountEraseFlow({ onClose }: { readonly onClose: () => void }) {
 
 export function AccountEraseForm() {
     const { erase } = useMessages(accountDangerMessages);
+    const { session } = useMessages(authMessages);
     const [open, setOpen] = useState(false);
+    const [exitFailed, setExitFailed] = useState(false);
+
+    /**
+     * The erasure was accepted but the exit failed: dismiss the now-dead dialog (Radix would otherwise trap
+     * focus inside it, away from the message) and surface the alert + its recovery on the page itself.
+     */
+    const handleExitFailed = (): void => {
+        setOpen(false);
+        setExitFailed(true);
+    };
 
     return (
         <>
             <Button variant="destructive" icon={<TrashIcon />} onPress={() => setOpen(true)}>
                 {erase.trigger}
             </Button>
-            {open && <AccountEraseFlow onClose={() => setOpen(false)} />}
+            {open && <AccountEraseFlow onClose={() => setOpen(false)} onExitFailed={handleExitFailed} />}
+            {exitFailed && (
+                <>
+                    <p role="alert" className={errorText}>
+                        {session.eraseSignOutFailed}
+                    </p>
+                    <LogoutButton />
+                </>
+            )}
         </>
     );
 }

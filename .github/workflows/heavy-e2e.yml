@@ -74,6 +74,15 @@ jobs:
             # short-circuit makes both tiers ON for schedule/PR runs and per-toggle for a manual dispatch.
             run_load_test: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.run_load_test == 'true' }}
             run_mobile_maestro: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.run_mobile_maestro == 'true' }}
+            # HEAVY TIERS ONLY. This workflow exists to switch the two heavy jobs ON; it has no business
+            # re-running lint/typecheck/test/build/integration/e2e. On a labelled PR ci-pr.yml has already
+            # run them on the SAME commit, and re-running them here started a second concurrent `e2e-web`
+            # — two Playwright suites against the shared sandbox Clerk instance, each tearing down the
+            # other's sign-in fixture (proof: commit bbf7ea7c, where ci-pr's e2e-web passed 78/1 while
+            # this workflow's identical job failed). Skipping the base tier removes that collision at the
+            # source AND the duplicated runner-minutes. `install` still runs (the heavy jobs restore its
+            # cache). For the FULL pipeline plus both heavy tiers, use ci-full.yml.
+            run_base_jobs: false
         # Same as ci-pr.yml / ci-main.yml: the composite load-secrets action needs AWS_ACCESS_KEY_ID /
         # AWS_SECRET_ACCESS_KEY to read kitchensink/sandbox/identity/keys. Fork PRs get no secrets, so
         # load-secrets' `continue-on-error` skips the Clerk-dependent steps rather than failing.

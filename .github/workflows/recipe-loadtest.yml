@@ -33,4 +33,9 @@ jobs:
         with:
             stage: sandbox
             run_load_test: true
+            # Load tier only — this caller exists to switch the k6 job on, not to re-run
+            # lint/typecheck/test/build/integration/e2e (ci-pr.yml / ci-main.yml own those). Skipping them
+            # keeps the weekly run's cost to the load test itself and keeps this workflow from starting a
+            # second `e2e-web` against the shared sandbox Clerk instance. Use ci-full.yml for everything.
+            run_base_jobs: false
         secrets: inherit

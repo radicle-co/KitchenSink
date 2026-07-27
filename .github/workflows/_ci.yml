@@ -5,6 +5,12 @@ name: CI (reusable)
 # action, which reads kitchensink/<stage>/identity/keys — so PR pipelines use sandbox secrets and the
 # main pipeline uses prod secrets, with no duplicated secret-fetch logic.
 #
+# TIERS. `install` always runs; the BASE tier (lint/format/typecheck/test/integration/build/e2e) runs
+# unless a caller passes `run_base_jobs: false`; the HEAVY tier (Maestro, k6) runs only when a caller
+# opts in. Heavy-only callers (heavy-e2e.yml, recipe-loadtest.yml) therefore no longer re-run the base
+# tier a same-commit ci-pr.yml already ran — which also removes the DOUBLE concurrent `e2e-web` that
+# made two Playwright runs fight over the shared sandbox Clerk fixtures.
+#
 # Hardening path (requires repo/IAM setup, see docs/CI_ARCHITECTURE.md): move AWS auth to OIDC with
 # two stage-scoped roles and adopt GitHub Environments so prod secrets are unreachable from PR runs.
 
@@ -30,6 +36,20 @@ on:
                 required: false
                 type: boolean
                 default: false
+            run_base_jobs:
+                description: >-
+                    Run the BASE tiers (lint/format/typecheck/test/integration/build/e2e). On by default,
+                    so ci-pr.yml, ci-main.yml and ci-full.yml are unchanged. A HEAVY-ONLY caller
+                    (heavy-e2e.yml, recipe-loadtest.yml) passes `false`: those callers exist purely to
+                    switch on `run_mobile_maestro` / `run_load_test`, and on a PR the base tiers have
+                    ALREADY run on the same commit via ci-pr.yml. Re-running them was not just duplicated
+                    compute — it started a SECOND concurrent `e2e-web` on the same commit against the
+                    shared sandbox Clerk instance, which is what made the two runs delete each other's
+                    sign-in fixture (see packages/apps/commise/web/tests/e2e/utils/runFixtureIdentity.ts).
+                    `install` is NEVER gated: it seeds the dependency cache the heavy jobs restore.
+                required: false
+                type: boolean
+                default: true
 
 permissions:
     contents: read
@@ -41,6 +61,8 @@ jobs:
     install:
         name: Install dependencies
         runs-on: ubuntu-latest
+        # Deliberately NOT gated on `run_base_jobs`: every heavy job restores the dependency cache this
+        # job saves, so a heavy-only caller still needs it.
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -63,6 +85,8 @@ jobs:
         name: Build @commise/ui
         runs-on: ubuntu-latest
         needs: [install]
+        # Base tier — skipped for a heavy-only caller (see the `run_base_jobs` input).
+        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -90,6 +114,7 @@ jobs:
         name: Lint
         runs-on: ubuntu-latest
         needs: [install]
+        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -112,6 +137,7 @@ jobs:
         name: Format check
         runs-on: ubuntu-latest
         needs: [install]
+        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -134,6 +160,7 @@ jobs:
         name: Typecheck
         runs-on: ubuntu-latest
         needs: [install]
+        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -156,6 +183,7 @@ jobs:
         name: Test
         runs-on: ubuntu-latest
         needs: [install]
+        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -178,6 +206,7 @@ jobs:
         name: Integration (identity — Postgres)
         runs-on: ubuntu-latest
         needs: [install]
+        if: ${{ inputs.run_base_jobs }}
         services:
             postgres:
                 image: postgres:16
@@ -219,6 +248,7 @@ jobs:
         name: Integration (food — Postgres)
         runs-on: ubuntu-latest
         needs: [install]
+        if: ${{ inputs.run_base_jobs }}
         services:
             postgres:
                 image: postgres:16
@@ -261,6 +291,7 @@ jobs:
         name: Integration (recipe — Postgres + LocalStack)
         runs-on: ubuntu-latest
         needs: [install]
+        if: ${{ inputs.run_base_jobs }}
         # Feature 001 recipe-service. Postgres backs the relational data; LocalStack provides the AWS
         # services recipe-service uses (S3 photo/version archive, SQS archive queue) so the integration
         # suite can exercise them without real AWS. recipe-service is still a skeleton (only /health is
@@ -332,6 +363,7 @@ jobs:
         name: Integration (recipe-workers — Postgres + LocalStack)
         runs-on: ubuntu-latest
         needs: [install]
+        if: ${{ inputs.run_base_jobs }}
         # Feature 001 recipe-workers. The GDPR account-erasure worker and the version-archive drain make
         # DESTRUCTIVE, compliance-critical guarantees (FK/cascade behaviour, the `cloned_from_id` NO-ACTION
         # detach, "no deleted_at filter", the dual-bucket owner-prefix S3 sweep, the archive-resurrection
@@ -428,6 +460,7 @@ jobs:
         name: E2E (food — booted app + Postgres + LocalStack)
         runs-on: ubuntu-latest
         needs: [install]
+        if: ${{ inputs.run_base_jobs }}
         # Two service containers mirror infra/localstack/docker-compose.yml: a plain Postgres (the DB,
         # NOT LocalStack RDS) and a LocalStack container for the AWS services food-service will use from
         # Phase 3 (EventBridge=`events`, SQS, Secrets Manager). The CURRENT E2E only boots the Nest app
@@ -491,6 +524,7 @@ jobs:
         name: Build ${{ matrix.workspace }}
         runs-on: ubuntu-latest
         needs: [install, build-ui]
+        if: ${{ inputs.run_base_jobs }}
         strategy:
             fail-fast: false
             matrix:
@@ -547,6 +581,7 @@ jobs:
         name: E2E (backend services)
         runs-on: ubuntu-latest
         needs: build
+        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -582,6 +617,9 @@ jobs:
         name: E2E (web — Playwright)
         runs-on: ubuntu-latest
         needs: build
+        # Base tier. Gating this is what stops a labelled PR from running TWO concurrent Playwright suites
+        # on the same commit (ci-pr.yml + heavy-e2e.yml) against the shared sandbox Clerk instance.
+        if: ${{ inputs.run_base_jobs }}
         # Pin BOTH API origins the web app resolves from env, so CI and a developer machine run the suite
         # against the SAME resolved origins instead of both happening to land on the in-code fallbacks.
         # Locally these come from the gitignored `.env.local` that `scripts/fetch-secrets.mjs` writes (it
@@ -680,6 +718,7 @@ jobs:
         name: E2E (mobile — Vitest)
         runs-on: ubuntu-latest
         needs: build
+        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6

@@ -38,10 +38,27 @@ export interface RecipeWidgetCardProps {
 }
 
 /**
- * Props for a single recent-recipe row.
+ * Props for a single recent-recipe card.
+ *
+ * `onSelect` is the NAVIGATION seam: the card itself performs no routing (a presentational leaf owns no
+ * navigation), it only reports which recipe was activated. The composing host — the app's Home widget slot,
+ * which is the only layer that knows the platform's router — turns that id into a route. ABSENT `onSelect`
+ * renders an inert card rather than a dead button, so a surface that has no destination never presents a
+ * control that does nothing.
  */
 export interface RecentRecipeItemProps {
     recipe: RecipeSummary;
+    readonly onSelect?: (id: string) => void;
+}
+
+/**
+ * Props for the recent-recipes card grid — the mockup's `screen-home` "Recent Recipes" layout (2-up on
+ * phones, 4-up from `md`). Carries the same `onSelectRecipe` navigation seam as {@link RecentRecipeItemProps},
+ * threaded to every cell.
+ */
+export interface RecentRecipeGridProps {
+    readonly recipes: readonly RecipeSummary[];
+    readonly onSelectRecipe?: (id: string) => void;
 }
 
 /**

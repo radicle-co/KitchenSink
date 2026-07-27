@@ -1,11 +1,13 @@
 /**
- * Native component tests for the recent-recipe card (rendered via react-native-web under jsdom). It renders
- * the shared mockup-parity card in its NON-interactive form (the widget shows the viewer's own recipes, so
- * no in-widget rating/selection). The full card-state matrix lives in the RecipeCard suite; this asserts the
- * widget wires the card non-interactively.
+ * Native component tests for the recent-recipe card (rendered via react-native-web under jsdom). The STARS
+ * stay display-only (the widget shows the viewer's own recipes, so no in-widget rating), while the CARD is
+ * tappable through to the recipe when the host supplies `onSelect` — the same seam the web leaf honours, so
+ * the two platforms cannot drift on the affordance. The full card-state matrix lives in the RecipeCard suite;
+ * this pins BOTH of this leaf's branches.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { toRecipeSummary } from '../props.js';
@@ -30,9 +32,19 @@ describe('RecentRecipeItem (native)', () => {
         expect(screen.getByLabelText('Serves 4')).toBeTruthy();
     });
 
-    it('is non-interactive in the widget (display-only — no rating/selection button)', () => {
+    it('is inert when the host supplies no onSelect (no dead control, no in-widget rating)', () => {
         render(<RecentRecipeItem recipe={summary({ title: 'Chana Masala' })} />);
 
         expect(screen.queryByRole('button')).toBeNull();
+    });
+
+    it('is an actionable card reporting ITS recipe id when the host supplies onSelect', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        render(<RecentRecipeItem recipe={summary({ id: 'rec_7', title: 'Chana Masala' })} onSelect={onSelect} />);
+
+        await user.click(screen.getByRole('button', { name: 'Chana Masala' }));
+
+        expect(onSelect).toHaveBeenCalledExactlyOnceWith('rec_7');
     });
 });

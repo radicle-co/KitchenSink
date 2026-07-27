@@ -23,7 +23,7 @@ import type { Recipe } from '@kitchensink/recipe-core';
 import { recipeMessages } from '../messages.js';
 import {
     MAX_RECENT_RECIPES,
-    RecentRecipeItem,
+    RecentRecipeGrid,
     RecipeWidgetCard,
     RecipeWidgetEmptyState,
     RecipeWidgetSkeleton,
@@ -37,6 +37,12 @@ import {
  */
 export interface RecipeHomeWidgetProps {
     recipesPromise: Promise<readonly Recipe[]>;
+    /**
+     * Navigation seam for a card activation (mockup `screen-home`: the recent-recipe cards are tappable
+     * through to the recipe). The widget reports the activated recipe's id; the HOST routes, because only the
+     * host knows the platform's router and its locale-prefixed paths. Absent ⇒ the cards render inert.
+     */
+    readonly onSelectRecipe?: (id: string) => void;
 }
 
 /** The card shown while the recipes promise is still pending — the Suspense fallback. */
@@ -50,8 +56,12 @@ const RecipeHomeWidgetFallback: FC = () => {
     );
 };
 
-/** Suspends on the recipes promise via `use`, then renders the empty state or the recent-recipes list. */
-const RecipeHomeWidgetContent: FC<RecipeHomeWidgetProps> = ({ recipesPromise }) => {
+/**
+ * Suspends on the recipes promise via `use`, then — as the orchestration step — SELECTS the render component:
+ * the dedicated empty state when the viewer has none, else the mockup's recent-recipes card grid. The choice
+ * lives here rather than as a mode prop on one component.
+ */
+const RecipeHomeWidgetContent: FC<RecipeHomeWidgetProps> = ({ recipesPromise, onSelectRecipe }) => {
     const { widgetTitle } = useMessages(recipeMessages);
     const recent = use(recipesPromise).slice(0, MAX_RECENT_RECIPES).map(toRecipeSummary);
 
@@ -65,9 +75,7 @@ const RecipeHomeWidgetContent: FC<RecipeHomeWidgetProps> = ({ recipesPromise }) 
 
     return (
         <RecipeWidgetCard title={widgetTitle}>
-            {recent.map((recipe) => (
-                <RecentRecipeItem key={recipe.id} recipe={recipe} />
-            ))}
+            <RecentRecipeGrid recipes={recent} onSelectRecipe={onSelectRecipe} />
         </RecipeWidgetCard>
     );
 };
@@ -76,9 +84,9 @@ const RecipeHomeWidgetContent: FC<RecipeHomeWidgetProps> = ({ recipesPromise }) 
  * The recipe Home widget (web): a `<Suspense>` boundary whose fallback is the skeleton card and whose
  * content suspends on the recipes promise — the loading state is declarative, not an `isLoading` branch.
  */
-const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipesPromise }) => (
+const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipesPromise, onSelectRecipe }) => (
     <Suspense fallback={<RecipeHomeWidgetFallback />}>
-        <RecipeHomeWidgetContent recipesPromise={recipesPromise} />
+        <RecipeHomeWidgetContent recipesPromise={recipesPromise} onSelectRecipe={onSelectRecipe} />
     </Suspense>
 );
 

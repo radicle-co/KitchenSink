@@ -15,7 +15,7 @@ import type { Recipe } from '@kitchensink/recipe-core';
 import { recipeMessages } from '../messages.js';
 import {
     MAX_RECENT_RECIPES,
-    RecentRecipeItem,
+    RecentRecipeGrid,
     RecipeWidgetCard,
     RecipeWidgetEmptyState,
     RecipeWidgetSkeleton,
@@ -23,14 +23,21 @@ import {
 } from '../components/index.js';
 
 /**
- * Props for the recipe Home widget (native). Identical contract to the web entry.
+ * Props for the recipe Home widget (native). The data contract is prop-driven rather than promise-driven
+ * (React Native has no Suspense-for-data streaming), but the NAVIGATION contract is identical to the web
+ * entry's: the widget reports the activated recipe's id and the host routes.
  */
 export interface RecipeHomeWidgetProps {
     recipes?: readonly Recipe[];
     isLoading?: boolean;
+    /**
+     * Navigation seam for a card activation — the mirror of the web entry's prop, so the two platforms expose
+     * the same capability. Absent ⇒ the cards render inert.
+     */
+    readonly onSelectRecipe?: (id: string) => void;
 }
 
-const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipes = [], isLoading = false }) => {
+const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipes = [], isLoading = false, onSelectRecipe }) => {
     const { widgetTitle } = useMessages(recipeMessages);
 
     if (isLoading) {
@@ -53,9 +60,7 @@ const RecipeHomeWidget: FC<RecipeHomeWidgetProps> = ({ recipes = [], isLoading =
 
     return (
         <RecipeWidgetCard title={widgetTitle}>
-            {recent.map((recipe) => (
-                <RecentRecipeItem key={recipe.id} recipe={recipe} />
-            ))}
+            <RecentRecipeGrid recipes={recent} onSelectRecipe={onSelectRecipe} />
         </RecipeWidgetCard>
     );
 };

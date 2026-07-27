@@ -20,13 +20,18 @@ import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks
 import type { Route } from 'next';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMemo, type ComponentType, type JSX } from 'react';
 
 import { webMessages } from '@/i18n/messages';
 
-/** The recipe widget's data prop — its recent recipes as a promise (see the module doc). */
+/**
+ * The recipe widget's props at this boundary — its recent recipes as a promise (see the module doc) plus the
+ * card-activation navigation seam this slot fulfils.
+ */
 interface RecipeHomeWidgetProps {
     recipesPromise: Promise<readonly Recipe[]>;
+    onSelectRecipe?: (id: string) => void;
 }
 
 /** How many recent recipes the widget shows (the widget itself also caps to its own max). */
@@ -55,6 +60,7 @@ const RecipeHomeWidget = dynamic<RecipeHomeWidgetProps>(
 export function RecipeWidgetSlot(): JSX.Element {
     const client = useRecipeServiceClient();
     const locale = useLocale();
+    const router = useRouter();
     const { home } = useMessages(webMessages);
 
     // One stable promise per client instance, so the widget's `<Suspense>` does not re-suspend on every
@@ -75,7 +81,13 @@ export function RecipeWidgetSlot(): JSX.Element {
 
     return (
         <div className="flex flex-col gap-2">
-            <RecipeHomeWidget recipesPromise={recipesPromise} />
+            {/* The slot owns navigation, not the widget: the presentational card grid reports which recipe was
+                activated, and this layer — the only one that knows the App Router and the locale prefix —
+                routes to the recipe detail. */}
+            <RecipeHomeWidget
+                recipesPromise={recipesPromise}
+                onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
+            />
             <Link
                 href={`/${locale}/recipes` as Route}
                 aria-label={home.surface.seeAllRecipes}

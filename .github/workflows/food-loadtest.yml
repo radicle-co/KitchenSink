@@ -17,10 +17,6 @@ on:
                 description: 'Clerk instance / secret stage (sandbox or prod)'
                 required: true
                 default: 'sandbox'
-            pool_size:
-                description: 'Distinct-user pool size (MUST be >= max_vus)'
-                required: true
-                default: '100'
             baseline_rate:
                 description: 'Baseline arrival rate (req/s)'
                 required: true
@@ -41,8 +37,13 @@ on:
                 description: 'Ramp phase duration'
                 required: true
                 default: '1m'
+            # Also sizes the distinct-user pool. GitHub allows a workflow AT MOST 10 workflow_dispatch
+            # inputs, and this workflow had 11 — so "Run workflow" could be rejected outright. `pool_size`
+            # was the one to fold in: its only documented constraint was `pool_size >= max_vus`, so
+            # deriving it AS max_vus satisfies that by construction and removes a real footgun (a dispatch
+            # with pool_size < max_vus would have reused users across VUs and skewed the run).
             max_vus:
-                description: 'Max VUs — must cover ramp_rate x max-iteration-duration (poll_timeout + think)'
+                description: 'Max VUs (also the distinct-user pool size) — must cover ramp_rate x max-iteration-duration'
                 required: true
                 default: '100'
             poll_timeout_s:
@@ -114,7 +115,10 @@ jobs:
                   FAPI: ${{ steps.clerk.outputs.fapi }}
                   ORIGIN: ${{ steps.clerk.outputs.origin }}
                   FOOD_BASE_URL: ${{ inputs.target_url }}
-                  POOL_SIZE: ${{ inputs.pool_size }}
+                  # One distinct user per VU — see the max_vus input note (pool_size was folded in to stay
+                  # inside GitHub's 10-input workflow_dispatch limit). This is exactly the harness's own
+                  # default: run.mjs resolves `POOL_SIZE ?? MAX_VUS ?? 100`.
+                  POOL_SIZE: ${{ inputs.max_vus }}
                   MAX_VUS: ${{ inputs.max_vus }}
                   BASELINE_RATE: ${{ inputs.baseline_rate }}
                   HOLD_RATE: ${{ inputs.hold_rate }}

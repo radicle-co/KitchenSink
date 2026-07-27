@@ -22,6 +22,7 @@
  * - The cover is the FULL-SIZE original (up to 5 MB) painted into a small tile (FOLLOW-UP-CR-001-A).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { glass, toWebGlass } from '@commise/ui';
 import { PressScale } from '@commise/ui/press-scale';
 import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { createContext, useContext, type FC, type ReactNode } from 'react';
@@ -309,8 +310,30 @@ const DefaultCardContent: FC = () => (
 
 // U8 brand elevation: the shell RESTS at the `shadow-md` token (was `shadow-sm`) and lifts to `shadow-lg`
 // on hover, giving the card real depth across the list + Home widget.
+//
+// The FILL is not here — it is the frosted-glass surface below. Both mockups that draw this card (the Home
+// "Recent Recipes" grid and the recipe-list grid) paint it as glass over the page's beach-glow background:
+// `bg-gradient-to-br from-white/70 to-white/50 backdrop-blur-[16px] saturate-[140%] border border-white/30 …
+// hover:border-white/40`. So the opaque `bg-card` fill is gone (it would paint OVER the translucency and
+// cancel the treatment) and the `ring-1 ring-border` hairline is now the mockup's translucent-white border.
 const CARD_SHELL =
-    'block overflow-hidden rounded-2xl bg-card text-left shadow-md ring-1 ring-border transition hover:-translate-y-0.5 hover:shadow-lg';
+    'block overflow-hidden rounded-2xl border border-white/30 text-left shadow-md transition ' +
+    'hover:-translate-y-0.5 hover:border-white/40 hover:shadow-lg';
+
+/**
+ * The card's frosted surface, projected from the shared `glass.card` token by the SAME `toWebGlass` the
+ * `GlassCard` primitive uses — so the card and the primitive can never drift on the treatment.
+ *
+ * The `GlassCard` COMPONENT is deliberately not used here: it renders its own `<div>`, and this shell must
+ * remain the `<article>` (widget) or the `<button>` (list) that carries the card's semantics and, in the
+ * actionable form, its hover/focus states. Wrapping would either change those semantics or leave the
+ * interactive element itself unpainted. Computed once at module scope — it is a constant, not per-render work.
+ *
+ * `blurSupported` is `true` (the primitive's own default). The app-level no-blur fallback is a deliberate gap,
+ * not an oversight: no Commise surface detects blur support today, so threading a detection flag through the
+ * card's props would widen the API for a capability nothing supplies. See the report's residual risks.
+ */
+const CARD_GLASS = toWebGlass(glass.card, true);
 
 /**
  * The shared recipe card (compound-component Root). `onSelect` present → an actionable button (list); absent
@@ -328,7 +351,7 @@ const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => 
     return (
         <RecipeCardContext.Provider value={recipe}>
             {onSelect === undefined ? (
-                <article aria-label={recipe.title} className={CARD_SHELL}>
+                <article aria-label={recipe.title} className={CARD_SHELL} style={CARD_GLASS}>
                     {content}
                 </article>
             ) : (
@@ -339,6 +362,9 @@ const RecipeCardRoot: FC<RecipeCardProps> = ({ recipe, onSelect, children }) => 
                             aria-label={recipe.title}
                             onClick={() => onSelect(recipe.id)}
                             className={`${CARD_SHELL} w-full`}
+                            // The glass lands on the INTERACTIVE element, not the wrapper, so the surface and
+                            // its hover states belong to the same box.
+                            style={CARD_GLASS}
                         >
                             {content}
                         </button>

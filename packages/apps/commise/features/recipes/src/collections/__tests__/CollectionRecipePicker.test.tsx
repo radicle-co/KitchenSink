@@ -92,6 +92,17 @@ describe('CollectionRecipePicker (web) — fetch states', () => {
         expect(screen.queryByRole('list')).toBeNull();
     });
 
+    it('announces the localized loading label as the live region CONTENT, not only its aria-label', () => {
+        renderPicker({ status: 'loading', recipes: [] });
+
+        // A `role="status"` node rendered EMPTY is doubly broken: it is zero-height (nothing for a sighted
+        // viewer, and Playwright resolves it as `hidden`) AND it is silent, because a live region announces
+        // its CONTENT, not its label. The label must therefore be the visible caption.
+        expect(screen.getByRole('status', { name: 'Loading your recipes' }).textContent).toContain(
+            'Loading your recipes',
+        );
+    });
+
     it('shows an alert and retries on request when the load fails', async () => {
         const user = userEvent.setup();
         const onRetry = vi.fn();

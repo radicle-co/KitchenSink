@@ -127,7 +127,11 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
     }
 
     if (query.isLoading) {
-        return <div role="status" aria-label={collections.detail.loadingLabel} />;
+        return (
+            <p role="status" aria-label={collections.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
+                {collections.detail.loadingLabel}
+            </p>
+        );
     }
 
     if (query.isError) {
@@ -148,7 +152,11 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
     if (query.data === undefined) {
         // An enabled query that is neither loading nor errored should have data; guard defensively so a
         // transient undefined never crashes the view.
-        return <div role="status" aria-label={collections.detail.loadingLabel} />;
+        return (
+            <p role="status" aria-label={collections.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
+                {collections.detail.loadingLabel}
+            </p>
+        );
     }
 
     const collection = query.data;

@@ -11,9 +11,23 @@ import type { FC } from 'react';
 
 import { webMessages } from '@/i18n/messages';
 
-/** Localized loading status, shared by every route's `loading.tsx`. */
+/**
+ * Localized loading status, shared by every route's `loading.tsx`.
+ *
+ * The label is the region's CONTENT, not only its `aria-label`: an empty `role="status"` node is zero-height
+ * (nothing for a sighted viewer, and Playwright resolves it as `hidden`) AND silent, because a live region
+ * announces its CONTENT, not its label. So the localized label doubles as the visible caption.
+ */
 export const RouteLoadingState: FC = () => {
     const { boundary } = useMessages(webMessages);
 
-    return <div role="status" aria-label={boundary.loading.label} />;
+    return (
+        <p
+            role="status"
+            aria-label={boundary.loading.label}
+            className="mx-auto w-full max-w-4xl py-12 text-body-md text-slate"
+        >
+            {boundary.loading.label}
+        </p>
+    );
 };

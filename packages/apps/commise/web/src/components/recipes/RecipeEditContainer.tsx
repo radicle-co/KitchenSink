@@ -127,7 +127,11 @@ export const RecipeEditContainer: FC<RecipeEditContainerProps> = ({ locale, reci
     }
 
     if (editor.state.status === 'loading') {
-        return <div role="status" aria-label={recipes.detail.loadingLabel} />;
+        return (
+            <p role="status" aria-label={recipes.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
+                {recipes.detail.loadingLabel}
+            </p>
+        );
     }
 
     const addIngredient = (line: RecipeFormIngredient): void => {

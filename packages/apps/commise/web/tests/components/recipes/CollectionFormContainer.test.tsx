@@ -42,6 +42,40 @@ function clientSeededWith(collection: ReturnType<typeof makeCollection>): Recipe
 }
 
 describe('CollectionFormContainer', () => {
+    describe('rename seed-loading state', () => {
+        it('shows a busy status (and no form yet) while the collection seed loads', () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
+
+            renderWithRecipeClient(<CollectionFormContainer mode="rename" locale="en" collectionId="col_1" />, client);
+
+            expect(screen.getByRole('status', { name: 'Loading collection' })).toBeInTheDocument();
+            expect(screen.queryByRole('form')).not.toBeInTheDocument();
+        });
+
+        it('announces the loading label as the live region CONTENT, not only its aria-label', () => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getCollectionById').mockReturnValue(new Promise(() => {}));
+
+            renderWithRecipeClient(<CollectionFormContainer mode="rename" locale="en" collectionId="col_1" />, client);
+
+            // A `role="status"` node rendered EMPTY is doubly broken: zero-height (nothing for a sighted
+            // viewer, and Playwright resolves it as `hidden`) AND silent, because a live region announces its
+            // CONTENT, not its label. The localized label must be the visible caption.
+            expect(screen.getByRole('status', { name: 'Loading collection' })).toHaveTextContent('Loading collection');
+        });
+
+        it('never shows the seed-loading status in create mode (it fetches nothing)', () => {
+            renderWithRecipeClient(
+                <CollectionFormContainer mode="create" locale="en" />,
+                createFakeRecipeServiceClient(),
+            );
+
+            expect(screen.queryByRole('status')).not.toBeInTheDocument();
+            expect(screen.getByRole('form', { name: 'New collection' })).toBeInTheDocument();
+        });
+    });
+
     describe('create mode', () => {
         it('renders the create form', () => {
             renderWithRecipeClient(

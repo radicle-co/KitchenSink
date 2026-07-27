@@ -64,6 +64,15 @@ describe('CollectionList (web) — loading state', () => {
         expect(screen.getByRole('status')).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Weeknight Dinners' })).toBeNull();
     });
+
+    it('announces the localized loading label as the live region CONTENT, not only its aria-label', () => {
+        renderList({ status: 'loading' });
+
+        // A `role="status"` node rendered EMPTY is doubly broken: it is zero-height (nothing for a sighted
+        // viewer, and Playwright resolves it as `hidden`) AND it is silent, because a live region announces
+        // its CONTENT, not its label. The label must therefore be the visible caption.
+        expect(screen.getByRole('status').textContent).toContain('Loading collections');
+    });
 });
 
 describe('CollectionList (web) — error state', () => {

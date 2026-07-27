@@ -20,4 +20,13 @@ describe('RouteLoadingState', () => {
 
         expect(screen.getByRole('status')).toHaveAccessibleName(/loading/i);
     });
+
+    it('announces the localized label as the live region CONTENT, not only its aria-label', () => {
+        renderWithProviders(<RouteLoadingState />);
+
+        // An accessible NAME is not an announcement. A `role="status"` node rendered EMPTY is doubly broken:
+        // it is zero-height (nothing for a sighted viewer, and Playwright resolves it as `hidden`) AND it is
+        // silent, because a live region announces its CONTENT, not its label. The label is the caption.
+        expect(screen.getByRole('status')).toHaveTextContent('Loading');
+    });
 });

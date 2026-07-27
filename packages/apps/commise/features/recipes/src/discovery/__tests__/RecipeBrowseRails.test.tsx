@@ -114,6 +114,14 @@ describe('RecipeBrowseRails (web) — rail states', () => {
         expect(screen.getByRole('status')).toBeTruthy();
     });
 
+    it('announces the localized loading label as the live region CONTENT, not only its aria-label', () => {
+        renderRails({ rails: [rail({ id: 'trending', status: 'loading' })] });
+
+        // The rail's shimmer cards are all `aria-hidden`, so without a visible caption the live region has NO
+        // content — and a live region announces its CONTENT, not its label. Screen readers hear nothing.
+        expect(screen.getByRole('status').textContent).toContain('Loading recipes');
+    });
+
     it('shows an error message for a failed rail', () => {
         renderRails({ rails: [rail({ id: 'trending', status: 'error' })] });
 

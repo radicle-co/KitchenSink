@@ -91,6 +91,21 @@ describe('RecipeVersionsContainer', () => {
         expect(screen.getByRole('status', { name: 'Loading version history' })).toBeInTheDocument();
     });
 
+    it('announces the loading label as the live region CONTENT, not only its aria-label', () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipeVersions').mockReturnValue(new Promise(() => {}));
+        vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => {}));
+
+        renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+
+        // A `role="status"` node rendered EMPTY is doubly broken: zero-height (nothing for a sighted viewer,
+        // and Playwright resolves it as `hidden`) AND silent, because a live region announces its CONTENT, not
+        // its label. The localized label must be the visible caption.
+        expect(screen.getByRole('status', { name: 'Loading version history' })).toHaveTextContent(
+            'Loading version history',
+        );
+    });
+
     it('renders a generic error with retry that refetches both queries', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();

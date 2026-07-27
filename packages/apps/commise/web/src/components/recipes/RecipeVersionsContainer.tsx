@@ -113,7 +113,9 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
         return (
             <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
                 <BackToRecipeLink onBack={goToRecipe} />
-                <div role="status" aria-label={recipes.versions.loadingLabel} />
+                <p role="status" aria-label={recipes.versions.loadingLabel} className="text-body-md text-slate">
+                    {recipes.versions.loadingLabel}
+                </p>
             </div>
         );
     }
@@ -144,7 +146,9 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
         return (
             <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
                 <BackToRecipeLink onBack={goToRecipe} />
-                <div role="status" aria-label={recipes.versions.loadingLabel} />
+                <p role="status" aria-label={recipes.versions.loadingLabel} className="text-body-md text-slate">
+                    {recipes.versions.loadingLabel}
+                </p>
             </div>
         );
     }

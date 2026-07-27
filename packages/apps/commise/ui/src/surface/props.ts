@@ -39,10 +39,13 @@ export interface GlassCardProps {
     /** Which glass tier to render. Defaults to `card` (the standard frosted card). */
     readonly tier?: GlassName;
     /**
-     * Whether the host supports backdrop blur. Defaults to `true`. When `false`, the card renders the
-     * tier's opaque solid `fallback` instead of the translucent-surface-over-blur treatment, so the
-     * content stays readable where blur is unsupported or too expensive (the composing app detects
-     * support and passes it — detection is a side effect that does not belong in a pure render leaf).
+     * Whether the host supports backdrop blur. Defaults to the platform capability probe
+     * (`isBlurSupported()` — a static `Platform.OS` / baseline-CSS read, not a runtime measurement), so the
+     * honest treatment is the DEFAULT rather than something each caller must remember to detect. When
+     * `false`, the card renders the tier's more-opaque solid `fallback` instead of the
+     * translucent-surface-over-blur treatment, so content stays readable where blur is unavailable
+     * (notably Android, where `expo-blur` renders a translucent UNBLURRED view) or too expensive. Pass it
+     * explicitly only to override that default.
      */
     readonly blurSupported?: boolean;
     /** The card content. */

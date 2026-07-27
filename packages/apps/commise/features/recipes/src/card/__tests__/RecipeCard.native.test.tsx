@@ -170,10 +170,17 @@ describe.each([
         expect(shell.contains(coverClip!)).toBe(true);
     });
 
-    it('gives the elevated shell an opaque surface (iOS casts no shadow from a transparent layer)', () => {
+    it('gives the elevated shell a PAINTED surface (iOS casts no shadow from a fully transparent layer)', () => {
         const { container } = renderVariant();
+        const background = window.getComputedStyle(shadowed(container)[0]!).backgroundColor;
 
-        expect(window.getComputedStyle(shadowed(container)[0]!).backgroundColor).toBe('rgb(255, 255, 255)');
+        // The invariant is that the elevated layer is PAINTED, not that it is opaque white: since U8's glass
+        // treatment the fill is the tier's translucent `surface` (an opaque fill would paint over the
+        // translucency and cancel the frost). What must never happen is a fully transparent shell, which iOS
+        // would cast no shadow from at all.
+        expect(background).not.toBe('');
+        expect(background).not.toBe('rgba(0, 0, 0, 0)');
+        expect(background).not.toBe('transparent');
     });
 });
 

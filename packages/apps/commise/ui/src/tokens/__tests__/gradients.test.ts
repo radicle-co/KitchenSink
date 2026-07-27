@@ -12,6 +12,7 @@ import {
     glassBackdropCss,
     gradient,
     gradientCss,
+    supportsNativeBlur,
     toNativeGlass,
     toNativeGradient,
     toWebGlass,
@@ -37,6 +38,27 @@ describe('gradient specs', () => {
                 { color: '#E8F4F8', position: 100 },
             ],
         });
+    });
+
+    it('carries the bottom-up cover scrim (charcoal 60% → charcoal 0%, "to top")', () => {
+        expect(gradient.scrim).toEqual({
+            angle: 0,
+            stops: [
+                { color: 'rgba(45, 52, 54, 0.6)', position: 0 },
+                { color: 'rgba(45, 52, 54, 0)', position: 100 },
+            ],
+        });
+    });
+
+    it('fades the scrim through a CONSTANT rgb, never the keyword transparent (which is transparent BLACK)', () => {
+        const rgb = (rgba: string): string => rgba.slice(0, rgba.lastIndexOf(','));
+
+        // Both CSS and expo-linear-gradient interpolate premultiplied RGB, so charcoal→`transparent` would
+        // pass through a muddy grey. Holding the rgb fixed and moving only alpha is what keeps the fade clean.
+        expect(rgb(gradient.scrim.stops[1].color)).toBe(rgb(gradient.scrim.stops[0].color));
+        for (const stop of gradient.scrim.stops) {
+            expect(stop.color).not.toBe('transparent');
+        }
     });
 
     it('every stop position is a percentage in 0..100, monotonically non-decreasing', () => {
@@ -89,12 +111,13 @@ describe('toNativeGradient (expo-linear-gradient projection)', () => {
 });
 
 describe('glass specs', () => {
-    it('defines a frosted card surface with a translucent tint, a solid fallback, blur and saturation', () => {
+    it('defines a frosted card surface with a translucent tint, a solid fallback, blur, saturation and edge', () => {
         expect(glass.card).toEqual({
             surface: 'rgba(255, 255, 255, 0.85)',
             fallback: 'rgba(255, 255, 255, 0.96)',
             blur: 16,
             saturate: 1.6,
+            border: 'rgba(255, 255, 255, 0.3)',
         });
     });
 
@@ -103,6 +126,37 @@ describe('glass specs', () => {
         for (const spec of Object.values(glass)) {
             expect(alpha(spec.fallback)).toBeGreaterThan(alpha(spec.surface));
         }
+    });
+
+    it('gives every tier a TRANSLUCENT edge — an opaque border frames the glass instead of edging it', () => {
+        const alpha = (rgba: string): number => Number(rgba.slice(rgba.lastIndexOf(',') + 1, -1));
+        for (const spec of Object.values(glass)) {
+            expect(alpha(spec.border)).toBeGreaterThan(0);
+            expect(alpha(spec.border)).toBeLessThan(1);
+        }
+    });
+});
+
+describe('supportsNativeBlur (host capability)', () => {
+    it('reports blur on iOS, where expo-blur has a real native blur view', () => {
+        expect(supportsNativeBlur('ios')).toBe(true);
+    });
+
+    it('reports NO blur on Android — expo-blur defaults blurMethod to "none" there', () => {
+        // Evidence, not guesswork: expo-blur 57's own README says "This package only supports iOS. On
+        // Android, a plain View with a translucent background will be rendered", and `_getBlurMethod()`
+        // returns `'none'` unless the caller opts into `dimezisBlurView*` AND wires a `blurTarget`. A
+        // surface that trusted `true` here would ship a translucent, UNBLURRED panel — the exact
+        // dishonest degradation the solid fallback exists to prevent.
+        expect(supportsNativeBlur('android')).toBe(false);
+    });
+
+    it('reports blur on web, where expo-blur maps to a real backdrop-filter', () => {
+        expect(supportsNativeBlur('web')).toBe(true);
+    });
+
+    it('fails CLOSED for an unrecognized host rather than assuming blur', () => {
+        expect(supportsNativeBlur('windows')).toBe(false);
     });
 });
 
@@ -124,6 +178,10 @@ describe('toNativeGlass (expo-blur projection)', () => {
 
     it('uses a light tint for the white frosted surface', () => {
         expect(toNativeGlass(glass.card).tint).toBe('light');
+    });
+
+    it('carries the translucent edge through, so native and web paint the same hairline', () => {
+        expect(toNativeGlass(glass.card).border).toBe(glass.card.border);
     });
 });
 

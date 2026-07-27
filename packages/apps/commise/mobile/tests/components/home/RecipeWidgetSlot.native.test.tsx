@@ -25,8 +25,8 @@ function listResult(overrides: Partial<ReturnType<typeof useRecipes>> = {}): Ret
 
 const noop = (): void => undefined;
 
-const renderSlot = (onSeeAllRecipes: () => void = noop): void => {
-    renderWithProviders(<RecipeWidgetSlot onSeeAllRecipes={onSeeAllRecipes} />);
+const renderSlot = (onSeeAllRecipes: () => void = noop, onSelectRecipe: (id: string) => void = noop): void => {
+    renderWithProviders(<RecipeWidgetSlot onSeeAllRecipes={onSeeAllRecipes} onSelectRecipe={onSelectRecipe} />);
 };
 
 afterEach(cleanup);
@@ -74,5 +74,62 @@ describe('RecipeWidgetSlot (mobile)', () => {
         fireEvent.click(entry);
 
         expect(onSeeAllRecipes).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * The recent-recipe CARDS must be actionable, not decorative. The shared widget leaves already thread an
+ * `onSelectRecipe` seam all the way down (widget → `RecentRecipeGrid` → `RecentRecipeItem` → `RecipeCard`);
+ * this slot is the layer that fulfils it, since the presentational leaves carry no navigation.
+ */
+describe('RecipeWidgetSlot (mobile) — recipe card activation', () => {
+    it('reports the activated recipe id upward', async () => {
+        useRecipesMock.mockReturnValue(
+            listResult({ data: makeRecipePage([makeRecipe({ id: 'r1', title: 'Weeknight Pasta' })]) }),
+        );
+        const onSelectRecipe = vi.fn();
+
+        renderSlot(noop, onSelectRecipe);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Weeknight Pasta' }));
+
+        expect(onSelectRecipe).toHaveBeenCalledWith('r1');
+    });
+
+    it('reports the id of the card that was actually tapped, not merely the first', async () => {
+        useRecipesMock.mockReturnValue(
+            listResult({
+                data: makeRecipePage([
+                    makeRecipe({ id: 'r1', title: 'Weeknight Pasta' }),
+                    makeRecipe({ id: 'r2', title: 'Herb Risotto' }),
+                    makeRecipe({ id: 'r3', title: 'Fish Tacos' }),
+                ]),
+            }),
+        );
+        const onSelectRecipe = vi.fn();
+
+        renderSlot(noop, onSelectRecipe);
+
+        // The mutation that matters: a slot that hardcoded the first id, or dropped the argument, passes the
+        // single-card test above and fails here.
+        fireEvent.click(await screen.findByRole('button', { name: 'Herb Risotto' }));
+
+        expect(onSelectRecipe).toHaveBeenCalledTimes(1);
+        expect(onSelectRecipe).toHaveBeenCalledWith('r2');
+    });
+
+    it('does not confuse a card activation with the "see all recipes" entry', async () => {
+        useRecipesMock.mockReturnValue(
+            listResult({ data: makeRecipePage([makeRecipe({ id: 'r1', title: 'Weeknight Pasta' })]) }),
+        );
+        const onSeeAllRecipes = vi.fn();
+        const onSelectRecipe = vi.fn();
+
+        renderSlot(onSeeAllRecipes, onSelectRecipe);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Weeknight Pasta' }));
+
+        expect(onSelectRecipe).toHaveBeenCalledWith('r1');
+        expect(onSeeAllRecipes).not.toHaveBeenCalled();
     });
 });

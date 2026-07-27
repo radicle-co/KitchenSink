@@ -43,11 +43,15 @@ describe('RecipeDetailView (native)', () => {
 
     it('sits the header in a brand gradient title band (U8)', () => {
         const { container } = render(<RecipeDetailView recipe={makeRecipeDetail({ title: 'Lamb' })} />);
-        const band = container.querySelector('[data-commise-stub="linear-gradient"]');
+        // The detail now paints MORE than one brand gradient (the hero's no-cover placeholder leads the
+        // screen on this fixture), so identify the title band by what makes it the title band — it is the
+        // gradient surface CONTAINING the heading — rather than by being the first gradient in the tree.
+        const band = [...container.querySelectorAll('[data-commise-stub="linear-gradient"]')].find(
+            (node) => node.querySelector('[role="heading"]') !== null,
+        );
 
-        expect(band).not.toBeNull();
-        // The heading is inside the gradient band.
-        expect(band?.querySelector('[role="heading"]')).not.toBeNull();
+        expect(band).toBeDefined();
+        expect(band?.querySelector('[role="heading"]')?.textContent).toBe('Lamb');
     });
 
     it('renders the description and badges', () => {
@@ -375,6 +379,53 @@ describe('RecipeDetailView (native) — iOS shadow-clipping guard', () => {
         for (const node of elevated) {
             expect(window.getComputedStyle(node).overflowX).not.toBe('hidden');
         }
+    });
+});
+
+describe('RecipeDetailView (native) — hero cover (mockup screen-recipe-detail)', () => {
+    /**
+     * The hero cover, addressed by the `<img alt>` react-native-web renders for it. Deliberately NOT
+     * `getByLabelText(title)`: the detail's own root View is labelled with the recipe title too, so a
+     * label query would match the container and PASS even with no hero rendered at all.
+     */
+    const heroCover = (container: HTMLElement, title: string): HTMLImageElement | null =>
+        container.querySelector<HTMLImageElement>(`img[alt="${title}"]`);
+
+    it('LEADS the screen with the cover hero — it precedes the title heading in document order', () => {
+        const { container } = render(
+            <RecipeDetailView recipe={makeRecipeDetail({ title: 'Lamb', coverPhotoUrl: 'https://cdn/hero.jpg' })} />,
+        );
+        const hero = heroCover(container, 'Lamb');
+        const heading = screen.getByRole('heading', { name: 'Lamb' });
+
+        expect(hero).not.toBeNull();
+        // DOCUMENT_POSITION_FOLLOWING (4) — the heading comes AFTER the hero, i.e. the hero leads the screen.
+        const relation = hero === null ? 0 : hero.compareDocumentPosition(heading);
+        expect(relation & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('sources the hero from coverPhotoUrl, NOT from photos[0]', () => {
+        const { container } = render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    title: 'Lamb',
+                    coverPhotoUrl: 'https://cdn/cover.jpg',
+                    photos: [makePhoto({ url: 'https://cdn/gallery-first.jpg' })],
+                })}
+            />,
+        );
+
+        // The hero and the card must never disagree about which image represents the recipe, so the hero reads
+        // the canonical cover. A `photos[0]` hero would silently diverge the moment a gallery is reordered.
+        expect(container.innerHTML).toContain('https://cdn/cover.jpg');
+    });
+
+    it('renders the deliberate no-photo hero fallback for a recipe with no cover', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ title: 'Lamb', coverPhotoUrl: undefined, photos: [] })} />);
+
+        expect(screen.getByLabelText('No photo yet')).toBeTruthy();
+        // And the title still renders — a missing cover degrades the hero, never the screen.
+        expect(screen.getByRole('heading', { name: 'Lamb' })).toBeTruthy();
     });
 });
 

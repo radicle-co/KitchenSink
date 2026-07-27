@@ -11,6 +11,7 @@ import {
     fontSize,
     fontWeight,
     lineHeightRatio,
+    mediaHeight,
     radius,
     spacing,
 } from './scale.js';
@@ -59,6 +60,7 @@ const nativeElevation = {
 export const nativeTokens = {
     spacing,
     radius,
+    mediaHeight,
     fontFace: { display: displayFontFace },
     fontWeight,
     lineHeight: lineHeightRatio,

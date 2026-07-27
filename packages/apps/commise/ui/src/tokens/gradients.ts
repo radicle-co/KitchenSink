@@ -50,6 +50,23 @@ export const gradient = {
             { color: '#E8F4F8', position: 100 },
         ],
     },
+    /**
+     * The bottom-up cover SCRIM the recipe-detail hero lays over its photo — the mockup's
+     * `bg-gradient-to-t from-charcoal/60 to-transparent`. Angle `0` is CSS "to top", so the opaque end sits
+     * at the BOTTOM of the box and fades upward.
+     *
+     * The terminal stop is charcoal at ZERO alpha, deliberately NOT the keyword `transparent`: `transparent`
+     * is transparent BLACK, and both CSS and `expo-linear-gradient` interpolate through premultiplied RGB, so
+     * a charcoal→transparent ramp passes through a muddy grey haze. Holding the RGB constant and moving only
+     * alpha is what makes the fade clean — and it must stay identical on both platforms, hence a token.
+     */
+    scrim: {
+        angle: 0,
+        stops: [
+            { color: 'rgba(45, 52, 54, 0.6)', position: 0 },
+            { color: 'rgba(45, 52, 54, 0)', position: 100 },
+        ],
+    },
 } as const satisfies Record<string, GradientSpec>;
 
 /** The name of a brand gradient (`brand` | `hero`). */
@@ -58,13 +75,16 @@ export type GradientName = keyof typeof gradient;
 /**
  * A frosted-glass surface spec. `surface` is the translucent tint painted OVER the blur; `fallback` is the
  * more-opaque solid colour used where backdrop blur is unsupported or too expensive; `blur` is the blur
- * radius in px; `saturate` is the backdrop saturation multiplier (a subtle vibrancy boost).
+ * radius in px; `saturate` is the backdrop saturation multiplier (a subtle vibrancy boost); `border` is the
+ * translucent-white hairline that gives the pane its lit edge (the mockup's `border-white/30`) — an opaque
+ * border would read as a frame drawn AROUND the glass rather than the edge OF it.
  */
 export interface GlassSpec {
     readonly surface: string;
     readonly fallback: string;
     readonly blur: number;
     readonly saturate: number;
+    readonly border: string;
 }
 
 /**
@@ -73,8 +93,20 @@ export interface GlassSpec {
  * when blur is unavailable.
  */
 export const glass = {
-    card: { surface: 'rgba(255, 255, 255, 0.85)', fallback: 'rgba(255, 255, 255, 0.96)', blur: 16, saturate: 1.6 },
-    subtle: { surface: 'rgba(255, 255, 255, 0.6)', fallback: 'rgba(255, 255, 255, 0.9)', blur: 10, saturate: 1.4 },
+    card: {
+        surface: 'rgba(255, 255, 255, 0.85)',
+        fallback: 'rgba(255, 255, 255, 0.96)',
+        blur: 16,
+        saturate: 1.6,
+        border: 'rgba(255, 255, 255, 0.3)',
+    },
+    subtle: {
+        surface: 'rgba(255, 255, 255, 0.6)',
+        fallback: 'rgba(255, 255, 255, 0.9)',
+        blur: 10,
+        saturate: 1.4,
+        border: 'rgba(255, 255, 255, 0.3)',
+    },
 } as const satisfies Record<string, GlassSpec>;
 
 /** The name of a frosted-glass tier (`card` | `subtle`). */
@@ -165,6 +197,38 @@ export function toNativeGradient(spec: GradientSpec): NativeGradient {
     return { colors, locations, ...angleToVector(spec.angle) };
 }
 
+/**
+ * The hosts on which a backdrop blur is REAL, as opposed to silently degraded to a translucent-but-unblurred
+ * panel. This is a capability fact about `expo-blur`, verified against the installed package (57.x) rather
+ * than assumed:
+ *
+ *  - **ios** — a genuine `UIVisualEffectView`-backed blur.
+ *  - **web** — `BlurView.web.tsx` maps to a real CSS `backdrop-filter`.
+ *  - **android** — NOT supported by default. The package README states "This package only supports iOS. On
+ *    Android, a plain `View` with a translucent background will be rendered", and `BlurView._getBlurMethod()`
+ *    returns `'none'` unless the caller opts into `dimezisBlurView` / `dimezisBlurViewSdk31Plus` AND supplies
+ *    a `blurTarget` ancestor (without which it warns and falls back to `'none'` anyway). No Commise surface
+ *    configures that today, so Android must take the solid fallback.
+ */
+const BLUR_CAPABLE_HOSTS: readonly string[] = ['ios', 'web'];
+
+/**
+ * Whether `expo-blur` can actually BLUR a backdrop on the given host — the pure predicate behind the
+ * per-platform `isBlurSupported` probes in `../surface/blurSupport{,.native}.ts`.
+ *
+ * The branch logic lives here, platform-neutrally, for two reasons: it is exhaustively testable for every
+ * host (a probe that inlined `Platform.OS === 'ios'` could only ever be observed on the one host the test
+ * runner happens to be), and it keeps ONE authoritative answer that both the `GlassCard` primitive and any
+ * component painting its own glass converge on. Unknown hosts fail CLOSED — a surface that guessed "blur
+ * works" would ship the washed-out unblurred panel the solid fallback exists to prevent. Pure.
+ *
+ * @param os - The host platform identifier (React Native's `Platform.OS`).
+ * @returns `true` when the host renders a real backdrop blur.
+ */
+export function supportsNativeBlur(os: string): boolean {
+    return BLUR_CAPABLE_HOSTS.includes(os);
+}
+
 /** The blur intensity (0..100) `expo-blur` accepts per blur px — clamped so heavy blur saturates at 100. */
 const BLUR_PX_TO_INTENSITY = 4;
 
@@ -174,12 +238,16 @@ export interface NativeGlass {
     readonly tint: 'light' | 'default' | 'dark';
     readonly surface: string;
     readonly fallback: string;
+    readonly border: string;
 }
 
 /**
  * Project a neutral {@link GlassSpec} to the props `expo-blur`'s `BlurView` consumes (native leg): the blur
  * px maps to a clamped 0..100 `intensity`, the white frosted surface uses the `light` tint, and the solid
- * `fallback`/translucent `surface` colours are carried through for the no-blur path. Pure.
+ * `fallback`/translucent `surface`/`border` colours are carried through for the no-blur path. Pure.
+ *
+ * `saturate` has no `expo-blur` analogue (the native blur carries its own vibrancy), so it is intentionally
+ * dropped rather than approximated — mirroring how {@link toNativeGradient} drops CSS `spread`.
  */
 export function toNativeGlass(spec: GlassSpec): NativeGlass {
     return {
@@ -187,5 +255,6 @@ export function toNativeGlass(spec: GlassSpec): NativeGlass {
         tint: 'light',
         surface: spec.surface,
         fallback: spec.fallback,
+        border: spec.border,
     };
 }

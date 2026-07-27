@@ -5,5 +5,6 @@
  */
 export { GradientSurface } from './GradientSurface.js';
 export { GlassCard } from './GlassCard.js';
+export { isBlurSupported } from './blurSupport.js';
 export type { GradientSurfaceProps, GlassCardProps, SurfaceStyle } from './props.js';
 export type { GradientName, GlassName } from '../tokens/gradients.js';

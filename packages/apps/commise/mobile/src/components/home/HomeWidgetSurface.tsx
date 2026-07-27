@@ -14,8 +14,8 @@
  *    no bespoke renderer is **skipped** (graceful version skew).
  *
  * The host also renders the chrome (top bar + bottom tab bar) and the time-of-day greeting, and threads the
- * navigation intents (`onSeeAllRecipes`, `onOpenAccount`) down to the recipe slot and the tab bar.
- * `container` and `renderers` are injectable seams for tests.
+ * navigation intents (`onSeeAllRecipes`, `onSelectRecipe`, `onOpenAccount`) down to the recipe slot and the tab
+ * bar. `container` and `renderers` are injectable seams for tests.
  */
 import {
     curateHomeWidgets,
@@ -74,6 +74,8 @@ function toWidgetTier(tier: Tier): string {
 export interface HomeWidgetSurfaceProps {
     /** Invoked when the recipe widget's "see all recipes" entry (or the Recipes tab) is activated. */
     readonly onSeeAllRecipes: () => void;
+    /** Invoked with the activated recipe's id when a "Recent recipes" card is tapped. */
+    readonly onSelectRecipe: (id: string) => void;
     /** Invoked when the account avatar or the Profile tab is activated. */
     readonly onOpenAccount: () => void;
     /** The appShell container to resolve widget descriptors from. Defaults to the app singleton. */
@@ -90,6 +92,7 @@ export interface HomeWidgetSurfaceProps {
  */
 export function HomeWidgetSurface({
     onSeeAllRecipes,
+    onSelectRecipe,
     onOpenAccount,
     container = homeContainer,
     renderers,
@@ -103,11 +106,15 @@ export function HomeWidgetSurface({
     const tier = makeViewer({ subscriptionTier: profile.data?.account.subscriptionTier }).tier;
     const displayName = profile.data?.user.displayName;
 
-    // The v1 bespoke render map: only the recipe widget has a slot (it needs `onSeeAllRecipes` threaded in).
-    // Built here (not a module const) because the slot closes over the navigation intent.
+    // The v1 bespoke render map: only the recipe widget has a slot (it needs the navigation intents threaded
+    // in). Built here (not a module const) because the slot closes over those intents.
     const defaultRenderers = useMemo<Readonly<Record<HomeWidgetId, ComponentType>>>(
-        () => ({ [RECIPE_HOME_WIDGET_ID]: () => <RecipeWidgetSlot onSeeAllRecipes={onSeeAllRecipes} /> }),
-        [onSeeAllRecipes],
+        () => ({
+            [RECIPE_HOME_WIDGET_ID]: () => (
+                <RecipeWidgetSlot onSeeAllRecipes={onSeeAllRecipes} onSelectRecipe={onSelectRecipe} />
+            ),
+        }),
+        [onSeeAllRecipes, onSelectRecipe],
     );
 
     const activeRenderers = renderers ?? defaultRenderers;

@@ -47,7 +47,9 @@ const noop = (): void => undefined;
 
 describe('HomeScreen (mobile) — U8 brand adoption', () => {
     it('renders the greeting on the brand gradient hero and the widget cards on frosted glass', async () => {
-        const { container } = renderWithProviders(<HomeScreen onOpenRecipes={noop} onOpenProfile={noop} />);
+        const { container } = renderWithProviders(
+            <HomeScreen onOpenRecipes={noop} onOpenRecipe={noop} onOpenProfile={noop} />,
+        );
 
         // The greeting (any time-of-day bucket says "Chef") sits inside the hero gradient surface — the
         // `expo-linear-gradient` stub, projecting the hero beach-glow ramp (terminal cool tint `#E8F4F8`).

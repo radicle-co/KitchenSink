@@ -10,9 +10,10 @@
  * "not yet rated"; the cover is the full-size original (FOLLOW-UP-CR-001-A).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { glass, palette, toNativeGlass } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { PressScale } from '@commise/ui/press-scale';
+import { GlassCard, isBlurSupported } from '@commise/ui/surface';
 import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { createContext, useContext, type FC, type ReactNode } from 'react';
 import { Image } from 'expo-image';
@@ -42,6 +43,13 @@ export interface RecipeCardProps {
 }
 
 const RecipeCardContext = createContext<RecipeCardModel | null>(null);
+
+/**
+ * The card tier's native glass projection — computed once at module scope (it is a constant, not per-render
+ * work). Sourced from the SAME `glass.card` token + `toNativeGlass` projection the `GlassCard` primitive uses,
+ * so the card's hairline can never drift from the surface the primitive paints beneath it.
+ */
+const cardGlass = toNativeGlass(glass.card);
 
 /** Read the card view-model from the nearest {@link RecipeCard}. Throws if a part is rendered outside one. */
 function useCardModel(): RecipeCardModel {
@@ -243,20 +251,38 @@ const DefaultCardContent: FC = () => (
 );
 
 /**
- * The card's two-layer surface: the elevated, NON-clipping `shell` wrapping the clipping `card` content.
+ * The card's two-layer surface: the elevated, NON-clipping frosted `shell` wrapping the clipping `card`
+ * content.
  *
- * This split is load-bearing, not decoration. iOS renders a layer's drop shadow OUTSIDE its bounds but
- * masks it the moment that same layer sets `overflow: 'hidden'` — so the single-node card (shadow + clip
- * together, needed to round the cover photo) rendered completely flat on iOS while Android's `elevation`
- * (drawn independent of child clipping) looked correct, which is why it went unnoticed. Keeping the shadow
- * on an outer view that clips nothing, and the clip on the inner content view, gives both platforms the
- * elevation AND the rounded cover. The shell also carries the opaque surface colour: iOS derives the shadow
- * from the layer's painted content, so a transparent shell would cast no shadow at all.
+ * **Why two layers.** iOS renders a layer's drop shadow OUTSIDE its bounds but masks it the moment that same
+ * layer sets `overflow: 'hidden'` — so the single-node card (shadow + clip together, needed to round the cover
+ * photo) rendered completely flat on iOS while Android's `elevation` (drawn independent of child clipping)
+ * looked correct, which is why it went unnoticed. Keeping the shadow on an outer view that clips nothing, and
+ * the clip on the inner content view, gives both platforms the elevation AND the rounded cover. The shell also
+ * stays PAINTED — iOS derives the shadow from the layer's painted content, so a fully transparent shell would
+ * cast no shadow at all.
+ *
+ * **U8 glass.** The shell IS the {@link GlassCard} design-system primitive, so the card cannot drift from the
+ * frosted treatment: the tier's translucent tint over a real `expo-blur` pass, or the tier's more-opaque solid
+ * `fallback` where blur is unavailable. Note the web leaf deliberately does NOT use the `GlassCard` COMPONENT
+ * (its shell must remain the `<article>`/`<button>` carrying the card's semantics, so it projects the same
+ * token through `toWebGlass` instead). That constraint does not exist here: on native the shell is a plain view
+ * either way, and `PressScale` owns the `Pressable` and the button role separately — so the native leaf can
+ * and should compose the primitive itself.
+ *
+ * **Honest degradation.** `blurSupported` comes from the platform probe, NOT a hardcoded `true`. `expo-blur`
+ * blurs for real on iOS/web; on Android its `blurMethod` defaults to `'none'` and it renders a plain
+ * translucent view. Passing `true` there would ship a washed-out, unblurred panel — a surface designed to sit
+ * over a blur, sitting over nothing — so Android takes the solid fallback instead. The probe is a static
+ * `Platform.OS` read, so this is not per-render work.
+ *
+ * The inner layer carries the tier's TRANSLUCENT hairline (the mockup's `border-white/30`): an opaque border
+ * would read as a frame drawn around the glass rather than the lit edge of it.
  */
 const CardSurface: FC<{ readonly children: ReactNode }> = ({ children }) => (
-    <View style={styles.shell}>
+    <GlassCard tier="card" blurSupported={isBlurSupported()} style={styles.shell}>
         <View style={styles.card}>{children}</View>
-    </View>
+    </GlassCard>
 );
 
 /**
@@ -297,19 +323,20 @@ export const RecipeCard = Object.assign(RecipeCardRoot, {
 });
 
 const styles = StyleSheet.create({
-    // The elevated OUTER layer: the tokenized `md` shadow over an opaque, rounded surface — and deliberately
-    // NO `overflow`, so neither platform masks the drop shadow (see {@link CardSurface}).
+    // The elevated OUTER layer: the tokenized `md` shadow over the rounded frosted surface — and deliberately
+    // NO `overflow`, so neither platform masks the drop shadow (see {@link CardSurface}). The FILL is not here:
+    // `GlassCard` paints it from the tier token (translucent over blur, or the solid fallback), and an opaque
+    // colour at this level would paint over the translucency and cancel the treatment.
     shell: {
-        backgroundColor: palette.white,
         borderRadius: nativeTokens.radius.lg,
         ...nativeTokens.elevation.md,
     },
-    // The clipping INNER layer: the border + the `overflow: 'hidden'` that rounds the cover photo's corners.
+    // The clipping INNER layer: the translucent glass hairline + the `overflow: 'hidden'` that rounds the cover
+    // photo's corners. No background — the frosted shell below must show through.
     card: {
-        backgroundColor: palette.white,
         borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
-        borderColor: nativeTokens.borderSubtle,
+        borderColor: cardGlass.border,
         overflow: 'hidden',
     },
     cover: { position: 'relative', width: '100%', aspectRatio: 4 / 3, backgroundColor: palette.pearl },

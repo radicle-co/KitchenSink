@@ -87,14 +87,33 @@ function TabBar({
     );
 }
 
+/** Props for {@link RecipesScreen}. */
+export interface RecipesScreenProps {
+    /**
+     * Enter the surface DIRECTLY at this recipe's detail instead of the list — how a Home "Recent recipes"
+     * card tap arrives here. The list is kept BENEATH the detail on the seeded stack (rather than the detail
+     * being the root) so Back lands on the recipe list instead of dead-ending, matching what
+     * `RecipeCreateScreen`'s `onCreated` already does.
+     *
+     * Read at mount only, which is correct because the surface is unmounted whenever the root navigator is
+     * showing Home; `AppRoot` additionally keys this screen by the id so a different recipe always remounts.
+     */
+    readonly initialRecipeId?: string;
+}
+
 /**
  * The recipes surface — a stack of screens starting at the "my recipes" list.
  *
+ * @param props - Optional `initialRecipeId` to open straight into a recipe's detail.
  * @returns The current screen, under the tab bar when it is a top-level destination.
  */
-export function RecipesScreen(): JSX.Element {
+export function RecipesScreen({ initialRecipeId }: RecipesScreenProps = {}): JSX.Element {
     const insets = useSafeAreaInsets();
-    const [stack, setStack] = useState<readonly Surface[]>([{ id: 'list' }]);
+    const [stack, setStack] = useState<readonly Surface[]>(
+        initialRecipeId === undefined
+            ? [{ id: 'list' }]
+            : [{ id: 'list' }, { id: 'detail', recipeId: initialRecipeId }],
+    );
 
     const nav = useMemo(
         () => ({

@@ -29,6 +29,22 @@ export const formatQuantity = (quantity: number, locale: Locale, unit?: string):
 };
 
 /**
+ * Props for the recipe-detail HERO cover, shared by the web (`RecipeHero.tsx`) and native
+ * (`RecipeHero.native.tsx`) leaves so the two cannot drift on the contract (§14.4).
+ */
+export interface RecipeHeroProps {
+    /** The recipe title — the cover image's alt text / accessible name. */
+    readonly title: string;
+    /**
+     * Absolute CDN URL of the cover photo. ABSENT → the deliberate no-photo fallback (never an empty source).
+     *
+     * This is the recipe's canonical cover (the same field the card tile paints), NOT `photos[0]`, so the hero
+     * and the card can never disagree about which image represents the recipe.
+     */
+    readonly coverPhotoUrl?: string;
+}
+
+/**
  * Props for the recipe-detail view — a presentational render of an already-loaded {@link RecipeDetail}.
  *
  * The cooking-progress sets + toggle callbacks and the tag-filter callback are OPTIONAL: the view is a pure

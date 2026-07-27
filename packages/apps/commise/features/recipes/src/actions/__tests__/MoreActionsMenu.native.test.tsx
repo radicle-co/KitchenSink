@@ -9,6 +9,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { palette, semantic } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
+
+import { cssColor } from './cssColor.js';
+
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { MoreActionsMenu } from '../MoreActionsMenu.native.js';
 
@@ -75,5 +80,55 @@ describe('MoreActionsMenu (native)', () => {
         await user.click(trigger);
 
         expect(screen.queryByRole('menu')).toBeNull();
+    });
+});
+
+/**
+ * The trigger's control quality, which the DS `Button` would normally supply. This trigger deliberately is
+ * NOT that component (it must announce disclosure `expanded` state, which `ButtonProps` does not model — see
+ * the leaf's own comment), so the properties the DS would have guaranteed are asserted directly here. Without
+ * these, "we kept the Pressable for a good reason" quietly becomes "we kept an off-palette 36pt control".
+ */
+describe('MoreActionsMenu (native) — trigger control quality', () => {
+    const renderMenu = () =>
+        render(
+            <MoreActionsMenu>
+                <button type="button">Version history</button>
+            </MoreActionsMenu>,
+        );
+
+    it('announces its disclosure state, collapsed then expanded', async () => {
+        const user = userEvent.setup();
+        renderMenu();
+        const trigger = screen.getByRole('button', { name: 'More' });
+
+        // This is the whole reason the control is not a DS Button — so it must actually be true.
+        expect(trigger.getAttribute('aria-expanded')).toBe('false');
+
+        await user.click(trigger);
+
+        expect(screen.getByRole('button', { name: 'More' }).getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('meets the 44pt touch floor the DS Button would have guaranteed', () => {
+        renderMenu();
+
+        expect(window.getComputedStyle(screen.getByRole('button', { name: 'More' })).minHeight).toBe('44px');
+    });
+
+    it('wears the DS secondary surface — the shared border token, not an ad-hoc mist hairline', () => {
+        renderMenu();
+        const style = window.getComputedStyle(screen.getByRole('button', { name: 'More' }));
+
+        expect(style.borderTopColor).toBe(semantic.border);
+        expect(style.backgroundColor).toBe(cssColor(palette.white));
+    });
+
+    it('rounds the trigger from the radius scale, not a magic 999', () => {
+        renderMenu();
+
+        expect(window.getComputedStyle(screen.getByRole('button', { name: 'More' })).borderTopLeftRadius).toBe(
+            `${nativeTokens.radius.full}px`,
+        );
     });
 });

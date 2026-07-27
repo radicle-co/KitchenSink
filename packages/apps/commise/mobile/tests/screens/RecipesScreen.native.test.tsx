@@ -142,6 +142,35 @@ describe('RecipesScreen — navigation', () => {
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
     });
 
+    /**
+     * Entering the recipes surface DIRECTLY at a recipe detail — what a Home "Recent recipes" card tap does.
+     * The stack is seeded `[list, detail]` rather than `[detail]` so Back lands on the recipe list instead of
+     * dead-ending, matching what `RecipeCreateScreen`'s `onCreated` already does.
+     */
+    it('opens straight into the detail for initialRecipeId', () => {
+        render(<RecipesScreen initialRecipeId="rec_2" />);
+
+        expect(useRecipeMock).toHaveBeenCalledWith('rec_2');
+        expect(screen.getByText('Bright and zesty.')).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Recipes' })).toBeNull();
+    });
+
+    it('leaves the recipe list beneath the seeded detail, so Back does not dead-end', () => {
+        render(<RecipesScreen initialRecipeId="rec_2" />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+        expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
+    });
+
+    it('still starts on the list when no initialRecipeId is given', () => {
+        render(<RecipesScreen />);
+
+        // Guards the default: seeding unconditionally would send every recipes-tab entry to a detail.
+        expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
+        expect(screen.queryByText('Bright and zesty.')).toBeNull();
+    });
+
     it('opens the create screen from the list create action', () => {
         render(<RecipesScreen />);
 

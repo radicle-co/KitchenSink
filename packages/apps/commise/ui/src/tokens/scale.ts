@@ -30,6 +30,21 @@ export const spacing = {
 } as const;
 
 /**
+ * Named MEDIA-BOX heights in pixels — the geometry of a lead image surface, which is a design decision
+ * (how much of a screen the cover claims) rather than a spacing step, so it is named rather than derived
+ * from the 4px ramp.
+ *
+ * `hero` is the recipe-detail cover box: the mockup's `h-64` phone value (`screen-recipe-detail`).
+ * `heroPlaceholder` is the deliberately COMPACT band the no-cover fallback paints on a phone — a full-height
+ * empty gradient would claim most of a phone's first screen and push the title below the fold. Web keeps the
+ * full box on both states because a desktop hero has the room; see `RecipeHero.native.tsx` for the rationale.
+ */
+export const mediaHeight = {
+    hero: 256,
+    heroPlaceholder: 96,
+} as const;
+
+/**
  * Corner radii in pixels. `full` is a pill sentinel — web emits it as `px` (not `rem`); Tamagui maps
  * it to its highest numeric radius step.
  */

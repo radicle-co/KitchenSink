@@ -27,19 +27,9 @@ import { GradientSurface } from '@commise/ui/surface';
 import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
+import type { RecipeHeroProps } from './model.js';
 
-/** Props for {@link RecipeHero}. */
-export interface RecipeHeroProps {
-    /** The recipe title — the cover image's alt text. */
-    readonly title: string;
-    /**
-     * Absolute CDN URL of the cover photo. ABSENT → the deliberate no-photo fallback (never an empty `src`).
-     *
-     * This is the recipe's canonical cover (the same field the card tile paints), NOT `photos[0]`, so the hero
-     * and the card can never disagree about which image represents the recipe.
-     */
-    readonly coverPhotoUrl?: string;
-}
+export type { RecipeHeroProps };
 
 /** Shared hero geometry — the mockup's `h-64` on phones, `md:h-96` from tablet up. */
 const HERO_BOX = 'h-64 w-full md:h-96';

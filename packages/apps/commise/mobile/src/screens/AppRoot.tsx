@@ -1,7 +1,8 @@
 /**
  * Root navigator (mobile). The post-login landing is **Home**; from the Home chrome the caller crosses into
- * the full recipes surface (the recipe widget's "see all" entry or the Recipes tab) or the account/profile
- * surface (the avatar or the Profile tab). A lightweight `useState` state machine (no navigation library)
+ * the full recipes surface — at the LIST (the recipe widget's "see all" entry or the Recipes tab) or straight
+ * at one recipe's DETAIL (a "Recent recipes" card tap, which carries the recipe id through the destination) —
+ * or into the account/profile surface (the avatar or the Profile tab). A lightweight `useState` state machine
  * mirrors the style already used INSIDE {@link RecipesScreen} — the top-level destinations are a single piece
  * of local state, so this drops straight into a real stack navigator when one is introduced app-wide. It is
  * deliberately thin: each destination screen owns its own internal navigation.
@@ -35,8 +36,16 @@ import { RecipesScreen } from './RecipesScreen.js';
  * The top-level destinations reachable from the post-login landing. `account` is the account hub
  * (security + sign-out + danger zone); it is entered from the profile surface's "Account settings" action —
  * WITHOUT it, `AccountSettingsScreen` (and the only sign-out control) would be unreachable (audit L2).
+ *
+ * A discriminated union rather than a bare string union, because `recipes` carries a PARAMETER: a Home
+ * "Recent recipes" card tap enters the recipes surface aimed at one recipe's detail, while the Recipes tab
+ * enters it at the list. Mirrors the `Surface` union `RecipesScreen` uses internally for the same reason.
  */
-type RootDestination = 'home' | 'recipes' | 'profile' | 'account';
+type RootDestination =
+    | { readonly id: 'home' }
+    | { readonly id: 'recipes'; readonly recipeId?: string }
+    | { readonly id: 'profile' }
+    | { readonly id: 'account' };
 
 /** The DA9 reporter resolved once from the shared appShell container (bound to Sentry in production). */
 const reportRootError = resolveErrorReporter(homeContainer);
@@ -48,21 +57,25 @@ const reportRootError = resolveErrorReporter(homeContainer);
  * @returns The current top-level destination, or the recoverable crash fallback.
  */
 export function AppRoot(): JSX.Element {
-    const [destination, setDestination] = useState<RootDestination>('home');
+    const [destination, setDestination] = useState<RootDestination>({ id: 'home' });
 
     let content: JSX.Element;
 
-    if (destination === 'recipes') {
-        content = <RecipesScreen />;
-    } else if (destination === 'profile') {
-        content = <ProfileScreen onOpenAccountSettings={() => setDestination('account')} />;
-    } else if (destination === 'account') {
-        content = <AccountSettingsScreen onBack={() => setDestination('profile')} />;
+    if (destination.id === 'recipes') {
+        // Keyed by the target recipe so entering the surface aimed at a DIFFERENT recipe remounts it: the
+        // seeded stack is mount-time state, so without the key a second Home tap would re-render the surface
+        // with a stale stack and appear to do nothing.
+        content = <RecipesScreen key={destination.recipeId ?? 'list'} initialRecipeId={destination.recipeId} />;
+    } else if (destination.id === 'profile') {
+        content = <ProfileScreen onOpenAccountSettings={() => setDestination({ id: 'account' })} />;
+    } else if (destination.id === 'account') {
+        content = <AccountSettingsScreen onBack={() => setDestination({ id: 'profile' })} />;
     } else {
         content = (
             <HomeScreen
-                onOpenRecipes={() => setDestination('recipes')}
-                onOpenProfile={() => setDestination('profile')}
+                onOpenRecipes={() => setDestination({ id: 'recipes' })}
+                onOpenRecipe={(recipeId) => setDestination({ id: 'recipes', recipeId })}
+                onOpenProfile={() => setDestination({ id: 'profile' })}
             />
         );
     }

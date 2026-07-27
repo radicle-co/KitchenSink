@@ -3,19 +3,20 @@
  *
  * A frosted-glass card: a translucent white surface over a `backdrop-filter` blur (both from the
  * single-source `glass` tokens), with an opaque solid `fallback` when the host cannot blur. The blur is
- * NOT a hardcoded assumption — the composing app passes `blurSupported` (detection is a side effect that
- * belongs in the app, not this pure render leaf); when it is `false` the card renders the readable solid
- * surface with no blur. Layout is the consumer's via `className`.
+ * NOT a hardcoded assumption — `blurSupported` defaults to the host capability probe ({@link isBlurSupported})
+ * and a caller may override it; when it is `false` the card renders the readable solid surface with no blur.
+ * Layout is the consumer's via `className`.
  */
 import type { CSSProperties, FC } from 'react';
 
 import { glass as glassTokens, toWebGlass } from '../tokens/gradients.js';
+import { isBlurSupported } from './blurSupport.js';
 import type { GlassCardProps } from './props.js';
 
 /** The Commise frosted-glass card — translucent-over-blur when supported, opaque solid fallback when not. */
 export const GlassCard: FC<GlassCardProps> = ({
     tier = 'card',
-    blurSupported = true,
+    blurSupported = isBlurSupported(),
     children,
     className,
     accessibilityLabel,

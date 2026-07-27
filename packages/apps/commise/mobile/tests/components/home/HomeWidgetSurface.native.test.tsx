@@ -87,7 +87,9 @@ const containerWith = (...descriptors: readonly HomeWidgetDescriptor[]): Contain
 };
 
 const renderSurface = (props: Partial<Parameters<typeof HomeWidgetSurface>[0]> = {}): void => {
-    renderWithProviders(<HomeWidgetSurface onSeeAllRecipes={noop} onOpenAccount={noop} {...props} />);
+    renderWithProviders(
+        <HomeWidgetSurface onSeeAllRecipes={noop} onSelectRecipe={noop} onOpenAccount={noop} {...props} />,
+    );
 };
 
 const FakeRecipeWidget: FC = () => <Text>fake-recipe-widget</Text>;
@@ -115,6 +117,7 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
         renderWithProviders(
             <HomeWidgetSurface
                 onSeeAllRecipes={noop}
+                onSelectRecipe={noop}
                 onOpenAccount={noop}
                 container={containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID))}
                 renderers={{ [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget }}
@@ -227,6 +230,15 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
     });
 });
 
+/*
+ * NOTE on where the recipe widget NAVIGATION binding is covered. The host default renderer map is where the
+ * inert-cards defect lived (it built the slot with only `onSeeAllRecipes`, so `onSelectRecipe` was `undefined`
+ * all the way down and every "Recent recipes" card rendered non-interactive). It is deliberately NOT re-tested
+ * here: this file method is to inject `renderers`/`container` FAKES so the composition root can be asserted
+ * without loading real widget chunks or a recipe query client. The real binding is covered where it is actually
+ * observable end to end — `tests/screens/AppRoot.recipeTap.native.test.tsx` renders the real Home, host, slot,
+ * widget and card leaves and taps a card — plus the slot own `RecipeWidgetSlot.native.test.tsx` activation cases.
+ */
 describe('homeContainer (mobile) — v1 registration', () => {
     it('registers the live recipe widget AND the roadmap placeholders (005–009 are skeletons, not absent)', () => {
         const ids = resolveHomeWidgets(homeContainer).map((descriptor) => descriptor.id);

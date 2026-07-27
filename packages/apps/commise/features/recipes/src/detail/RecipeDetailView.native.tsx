@@ -21,6 +21,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { recipeMessages } from '../messages.js';
 import { fillTemplate, formatDurationMinutes } from '../list/model.js';
 import { PhotoCarousel } from './PhotoCarousel.native.js';
+import { RecipeHero } from './RecipeHero.native.js';
 import { formatQuantity, type RecipeDetailViewProps } from './model.js';
 
 /** One label/value cell in the stats or nutrition strip. */
@@ -47,6 +48,11 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
 
     return (
         <View accessibilityLabel={recipe.title} style={styles.container}>
+            {/* The mockup LEADS the detail with the cover hero, before any type. A recipe with no cover gets the
+                hero's deliberate branded placeholder rather than nothing — see `RecipeHero.native`, which paints
+                that placeholder COMPACT on a phone (its module doc carries the PLATFORM-FORK rationale). */}
+            <RecipeHero title={recipe.title} coverPhotoUrl={recipe.coverPhotoUrl} />
+
             {/* U8: the header rides a beach-glow gradient title band (mockup recipe-detail). */}
             <GradientSurface gradient="hero" style={styles.titleBand}>
                 <Text accessibilityRole="header" style={styles.title}>

@@ -26,6 +26,7 @@ import { mobileMessages } from '../../i18n/messages.js';
 interface RecipeHomeWidgetProps {
     recipes?: readonly Recipe[];
     isLoading?: boolean;
+    onSelectRecipe?: (id: string) => void;
 }
 
 /** How many recent recipes the widget shows (the widget itself also caps to its own max). */
@@ -46,16 +47,22 @@ const RecipeHomeWidget = lazy<ComponentType<RecipeHomeWidgetProps>>(() =>
 export interface RecipeWidgetSlotProps {
     /** Invoked when the "see all recipes" entry point is activated (the host wires it to navigation). */
     readonly onSeeAllRecipes: () => void;
+    /**
+     * Invoked with the activated recipe's id when a "Recent recipes" CARD is tapped (the host wires it to
+     * navigation). Required, not optional: the shared card leaves render inert without it, and an optional
+     * seam here is exactly how the cards silently shipped dead — nothing failed, they just did nothing.
+     */
+    readonly onSelectRecipe: (id: string) => void;
 }
 
 /**
  * The recipe Home-widget slot: reads the viewer's recent recipes and renders the widget plus its "see all"
  * entry into the recipes surface.
  *
- * @param props - The `onSeeAllRecipes` navigation callback.
- * @returns The recipe widget with its navigation affordance.
+ * @param props - The `onSeeAllRecipes` and `onSelectRecipe` navigation callbacks.
+ * @returns The recipe widget with its navigation affordances.
  */
-export function RecipeWidgetSlot({ onSeeAllRecipes }: RecipeWidgetSlotProps): JSX.Element {
+export function RecipeWidgetSlot({ onSeeAllRecipes, onSelectRecipe }: RecipeWidgetSlotProps): JSX.Element {
     const { home } = useMessages(mobileMessages);
     const query = useRecipes({ pageSize: RECENT_RECIPE_LIMIT });
 
@@ -65,7 +72,10 @@ export function RecipeWidgetSlot({ onSeeAllRecipes }: RecipeWidgetSlotProps): JS
     return (
         <View style={styles.slot}>
             <Suspense fallback={null}>
-                <RecipeHomeWidget recipes={recipes} isLoading={isLoading} />
+                {/* The slot owns navigation, not the widget: the presentational card grid reports WHICH recipe
+                    was activated, and this layer — the only one with the navigation intent — routes. Mirrors
+                    the web slot exactly, so the two platforms expose the same affordance. */}
+                <RecipeHomeWidget recipes={recipes} isLoading={isLoading} onSelectRecipe={onSelectRecipe} />
             </Suspense>
             <Pressable
                 accessibilityRole="button"

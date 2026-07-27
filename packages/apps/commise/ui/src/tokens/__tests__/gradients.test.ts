@@ -7,7 +7,15 @@
 import { describe, expect, it } from 'vitest';
 
 import { palette } from '../colors.js';
-import { glass, glassBackdropCss, gradient, gradientCss, toNativeGlass, toNativeGradient } from '../gradients.js';
+import {
+    glass,
+    glassBackdropCss,
+    gradient,
+    gradientCss,
+    toNativeGlass,
+    toNativeGradient,
+    toWebGlass,
+} from '../gradients.js';
 
 describe('gradient specs', () => {
     it('threads the SAME brand CTA gradient the web Button carries (seafoam → ocean-dark, 135°)', () => {
@@ -116,5 +124,46 @@ describe('toNativeGlass (expo-blur projection)', () => {
 
     it('uses a light tint for the white frosted surface', () => {
         expect(toNativeGlass(glass.card).tint).toBe('light');
+    });
+});
+
+describe('toWebGlass (CSS surface projection)', () => {
+    it('projects the translucent-surface-over-blur treatment when the host supports blur', () => {
+        expect(toWebGlass(glass.card, true)).toEqual({
+            backgroundColor: glass.card.surface,
+            backdropFilter: 'blur(16px) saturate(1.6)',
+            WebkitBackdropFilter: 'blur(16px) saturate(1.6)',
+        });
+    });
+
+    it('projects the OPAQUE solid fallback with NO blur property when the host cannot blur', () => {
+        const style = toWebGlass(glass.card, false);
+
+        expect(style.backgroundColor).toBe(glass.card.fallback);
+        // Absent, not an empty string — an unsupported host must not carry a backdrop-filter declaration.
+        expect(style.backdropFilter).toBeUndefined();
+        expect(style.WebkitBackdropFilter).toBeUndefined();
+    });
+
+    it('is tier-aware — the subtle tier projects its OWN surface, blur and saturation', () => {
+        expect(toWebGlass(glass.subtle, true)).toEqual({
+            backgroundColor: glass.subtle.surface,
+            backdropFilter: 'blur(10px) saturate(1.4)',
+            WebkitBackdropFilter: 'blur(10px) saturate(1.4)',
+        });
+    });
+
+    it('composes its blur through the SAME glassBackdropCss the primitive uses (one source, no drift)', () => {
+        for (const spec of Object.values(glass)) {
+            expect(toWebGlass(spec, true).backdropFilter).toBe(glassBackdropCss(spec));
+        }
+    });
+
+    it('is pure — projecting twice yields equal values and never mutates the spec', () => {
+        const spec = { ...glass.card };
+        const before = JSON.stringify(spec);
+
+        expect(toWebGlass(spec, true)).toEqual(toWebGlass(spec, true));
+        expect(JSON.stringify(spec)).toBe(before);
     });
 });

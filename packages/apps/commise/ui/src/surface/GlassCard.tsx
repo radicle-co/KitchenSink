@@ -9,7 +9,7 @@
  */
 import type { CSSProperties, FC } from 'react';
 
-import { glass as glassTokens, glassBackdropCss } from '../tokens/gradients.js';
+import { glass as glassTokens, toWebGlass } from '../tokens/gradients.js';
 import type { GlassCardProps } from './props.js';
 
 /** The Commise frosted-glass card — translucent-over-blur when supported, opaque solid fallback when not. */
@@ -20,14 +20,10 @@ export const GlassCard: FC<GlassCardProps> = ({
     className,
     accessibilityLabel,
 }) => {
-    const spec = glassTokens[tier];
-    const style: CSSProperties = blurSupported
-        ? {
-              backgroundColor: spec.surface,
-              backdropFilter: glassBackdropCss(spec),
-              WebkitBackdropFilter: glassBackdropCss(spec),
-          }
-        : { backgroundColor: spec.fallback };
+    // The tier → CSS projection lives in the tokens (`toWebGlass`), NOT here, so a component whose shell must
+    // stay a particular element (an `<article>`/`<button>` card that cannot be wrapped in this primitive
+    // without changing its DOM semantics) paints the identical surface from the identical source.
+    const style: CSSProperties = toWebGlass(glassTokens[tier], blurSupported);
 
     return (
         <div

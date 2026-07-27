@@ -4,4 +4,5 @@
  * prop/variant contract is platform-agnostic. Consumed as `@commise/ui/button`.
  */
 export { Button } from './Button.js';
+export { buttonSurfaceClass } from './surfaceClass.js';
 export type { ButtonProps, ButtonVariant } from './props.js';

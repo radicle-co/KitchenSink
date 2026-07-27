@@ -21,23 +21,8 @@
 import type { FC } from 'react';
 
 import { PressScale } from '../pressScale/index.js';
-import type { ButtonProps, ButtonVariant } from './props.js';
-
-const base =
-    'inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-body-sm ' +
-    'font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light ' +
-    'disabled:cursor-not-allowed disabled:opacity-60 md:min-h-0';
-
-/**
- * Per-tier surface. Each tier renders a distinct, visible affordance — the whole point of the primitive is
- * that no button reads as plain text. (This map is the web idiom of the shared {@link ButtonVariant} set;
- * the native leaf carries the equivalent StyleSheet mapping — the two change for different reasons.)
- */
-const variantClass: Record<ButtonVariant, string> = {
-    primary: 'bg-gradient-to-br from-seafoam to-ocean-dark text-white shadow-sm hover:opacity-95',
-    secondary: 'border border-border bg-white text-charcoal shadow-sm hover:bg-pearl',
-    destructive: 'border border-error/40 bg-white text-error shadow-sm hover:bg-error/10',
-};
+import type { ButtonProps } from './props.js';
+import { buttonSurfaceClass } from './surfaceClass.js';
 
 /**
  * The in-flight spinner. `currentColor` so it inherits the tier's text colour; `animate-spin` for the
@@ -78,7 +63,7 @@ export const Button: FC<ButtonProps> = ({
             disabled={disabled || busy}
             aria-busy={busy || undefined}
             aria-label={accessibilityLabel}
-            className={`${base} ${variantClass[variant]}`}
+            className={buttonSurfaceClass(variant)}
         >
             <span aria-hidden="true" className="inline-flex shrink-0 items-center">
                 {busy ? <Spinner /> : icon}

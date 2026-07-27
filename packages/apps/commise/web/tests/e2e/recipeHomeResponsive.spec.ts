@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import { route } from './utils/basePath';
@@ -20,6 +20,12 @@ import { signInWithTicket } from './utils/auth';
  *     two-column, and the bottom tab bar is not rendered at all. A screenshot of the static detail article
  *     backs this as a future-drift guard. Every U5 change is a base/`sm:` addition restored at `md:`+ (or on
  *     `lg:hidden` chrome), so desktop is byte-identical by construction; these assertions hold that line.
+ *
+ * A third block covers the recipe LIST's own touch floors at 390×844 with a real touchscreen (`hasTouch`, so
+ * the controls are `tap()`ped, not mouse-clicked). Those chips and tabs grew `min-h-11` (reset at `md:`), and a
+ * touch floor is only worth anything if the enlarged control still WORKS: each assertion pairs the ≥44px box
+ * with the effect of tapping it, so a control that is merely tall enough — or one whose growth pushed the real
+ * hit area under another element — fails.
  *
  * Selectors are role/label/text only (repo policy); no `data-testid`, no `waitForTimeout`.
  */
@@ -225,5 +231,91 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         await openCompare(page);
 
         expect(await compareColumnCount(page)).toBe(2);
+    });
+});
+
+/** The measured height of a control, in CSS px. */
+async function heightOf(locator: Locator): Promise<number> {
+    const box = await locator.boundingBox();
+
+    expect(box).not.toBeNull();
+
+    return box?.height ?? 0;
+}
+
+/**
+ * Seed the recipe LIST with one recipe inside the Quick (<30m) bucket and one outside it, so the quick-filter
+ * chip both APPEARS (it is data-driven — no qualifying recipe, no chip) and has something to narrow away.
+ */
+async function seedQuickAndSlow(page: Page): Promise<void> {
+    await signInWithTicket(page);
+    const viewerId = await readViewerAppId(page);
+    await mockRecipeApi(page, {
+        viewerId,
+        tier: 'premium',
+        recipes: [
+            makeRecipeDetail({ id: 'rec_quick', ownerId: viewerId, title: 'Overnight Oats', totalTimeMinutes: 5 }),
+            makeRecipeDetail({ id: 'rec_slow', ownerId: viewerId, title: 'Sunday Ragu', totalTimeMinutes: 240 }),
+        ],
+    });
+}
+
+test.describe('recipe list touch targets — 390×844 phone with a touchscreen', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+    test('tapping the Quick (<30m) chip clears the 44px floor AND applies the filter', async ({ page }) => {
+        await seedQuickAndSlow(page);
+        await page.goto(route('/recipes'));
+        await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
+
+        const chips = page.getByRole('group', { name: 'Quick filters' });
+        const allChip = chips.getByRole('button', { name: 'All' });
+        const quickChip = chips.getByRole('button', { name: 'Quick (<30m)' });
+
+        // Both chips are ≥44px tall at phone width (`min-h-11`, reset at `md:` for the desktop density).
+        expect(await heightOf(allChip)).toBeGreaterThanOrEqual(44);
+        expect(await heightOf(quickChip)).toBeGreaterThanOrEqual(44);
+
+        // Nothing is filtered yet: "All" is the pressed chip and both recipes are listed.
+        await expect(allChip).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.getByRole('button', { name: 'Overnight Oats' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Sunday Ragu' })).toBeVisible();
+
+        // A real TAP (touchstart/touchend, not a mouse click) must apply the filter.
+        await quickChip.tap();
+
+        await expect(quickChip).toHaveAttribute('aria-pressed', 'true');
+        await expect(allChip).toHaveAttribute('aria-pressed', 'false');
+        // The 240-minute recipe leaving the list is the assertion that matters — it can only happen if the
+        // tap actually reached the chip's handler.
+        await expect(page.getByRole('button', { name: 'Sunday Ragu' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Overnight Oats' })).toBeVisible();
+
+        // Tapping "All" restores the full list.
+        await allChip.tap();
+        await expect(page.getByRole('button', { name: 'Sunday Ragu' })).toBeVisible();
+    });
+
+    test('tapping the Community source tab clears the 44px floor AND switches source', async ({ page }) => {
+        await seedQuickAndSlow(page);
+        await page.goto(route('/recipes'));
+        await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
+
+        const tabs = page.getByRole('tablist', { name: 'Recipe source' });
+        const mine = tabs.getByRole('tab', { name: 'My Recipes' });
+        const community = tabs.getByRole('tab', { name: 'Community' });
+
+        expect(await heightOf(mine)).toBeGreaterThanOrEqual(44);
+        expect(await heightOf(community)).toBeGreaterThanOrEqual(44);
+
+        // This list IS "My Recipes", and the tab says so.
+        await expect(mine).toHaveAttribute('aria-selected', 'true');
+        await expect(community).toHaveAttribute('aria-selected', 'false');
+
+        await community.tap();
+
+        // L5: "Community" browses public recipes on the discovery surface — the tap has to actually get there.
+        await expect(page).toHaveURL(/\/discover(?:\?|$)/);
+        await expect(page.getByRole('heading', { name: 'Discover recipes' })).toBeVisible();
     });
 });

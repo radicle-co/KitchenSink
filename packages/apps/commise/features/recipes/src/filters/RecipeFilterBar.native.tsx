@@ -185,7 +185,14 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                         style={styles.ingredientInput}
                     />
 
-                    {viewState.kind === 'searching' && <View role="status" aria-label={m.ingredientSearching} />}
+                    {/* The label is the region's CONTENT, not only its `aria-label`: an empty live region has
+                        nothing to render and nothing to announce (a live region announces content CHANGES).
+                        Same doctrine as the web leaf and the mobile `LoadingState`. */}
+                    {viewState.kind === 'searching' && (
+                        <View role="status" aria-label={m.ingredientSearching}>
+                            <Text style={styles.groupLabel}>{m.ingredientSearching}</Text>
+                        </View>
+                    )}
 
                     {viewState.kind === 'results' && viewState.isError && (
                         <View role="alert">

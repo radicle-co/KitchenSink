@@ -813,3 +813,146 @@ describe('IngredientPicker — search Stage 2 (blended food-catalog suggestions)
         });
     });
 });
+
+/**
+ * EVERY progress affordance this picker renders is a live region, and a live region that renders an EMPTY node
+ * is doubly broken: it is a zero-height element (invisible to a sighted viewer, and Playwright resolves it as
+ * `hidden`) AND it is silent — `aria-live` announces content CHANGES, so a region with no content has nothing
+ * to announce. The fix (already made once in `RecipePhotoManager`, and the doctrine the mobile `LoadingState`
+ * established) is that the contextual, localized label doubles as the region's VISIBLE caption.
+ *
+ * These tests assert BOTH halves per region: it has the accessible name, AND its text content is non-empty and
+ * equal to that name. An `aria-label`-only region passes the first and fails the second.
+ */
+describe('IngredientPicker — every live region carries its label as VISIBLE content', () => {
+    /** The trimmed query every test below types — long enough to cross the REQ-057 2-character trigger. */
+    const QUERY = 'chick';
+
+    /** Type the query and hand back the search box for further interaction. */
+    async function typeQuery(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+        await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), QUERY);
+    }
+
+    /** Assert the named live region exists AND renders that name as text. */
+    function expectSpokenStatus(status: HTMLElement, name: string): void {
+        expect(status).toBeInTheDocument();
+        expect(status.textContent).toBe(name);
+    }
+
+    it('the SEARCHING region announces and shows "Searching ingredients"', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockReturnValue(new Promise(() => {}));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await typeQuery(user);
+
+        expectSpokenStatus(
+            await screen.findByRole('status', { name: 'Searching ingredients' }),
+            'Searching ingredients',
+        );
+    });
+
+    it('the FIND-NUTRITION (addByName) region announces and shows "Finding nutrition"', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
+        vi.spyOn(client, 'addIngredientByName').mockReturnValue(new Promise(() => {}));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await typeQuery(user);
+        await user.click(await screen.findByRole('button', { name: `Find nutrition for “${QUERY}”` }));
+
+        expectSpokenStatus(await screen.findByRole('status', { name: 'Finding nutrition' }), 'Finding nutrition');
+    });
+
+    it('the FREEFORM-CREATE region announces and shows "Adding ingredient"', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
+        vi.spyOn(client, 'createIngredient').mockReturnValue(new Promise(() => {}));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await typeQuery(user);
+        await user.click(await screen.findByRole('button', { name: `Add “${QUERY}” as a custom ingredient` }));
+
+        expectSpokenStatus(await screen.findByRole('status', { name: 'Adding ingredient' }), 'Adding ingredient');
+    });
+
+    it('the CATALOG-ADMIT region announces and shows "Adding from the food catalog"', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended([fromCatalog('01J0FOOD', 'Chicken breast, raw')]),
+        );
+        vi.spyOn(client, 'addIngredientByFood').mockReturnValue(new Promise(() => {}));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await typeQuery(user);
+        await user.click(await screen.findByRole('button', { name: 'Chicken breast, raw' }));
+
+        expectSpokenStatus(
+            await screen.findByRole('status', { name: 'Adding from the food catalog' }),
+            'Adding from the food catalog',
+        );
+    });
+
+    it('the DISAMBIGUATION-LOADING region announces and shows "Loading options"', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended(
+                own([
+                    makeIngredient({
+                        id: 'ing_u',
+                        name: 'Chicken thigh',
+                        foodResolutionStatus: FoodResolutionStatus.UNRESOLVED,
+                    }),
+                ]),
+            ),
+        );
+        vi.spyOn(client, 'getIngredientCandidates').mockReturnValue(new Promise(() => {}));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await typeQuery(user);
+        await user.click(await screen.findByRole('button', { name: 'Chicken thigh' }));
+
+        expectSpokenStatus(await screen.findByRole('status', { name: 'Loading options' }), 'Loading options');
+    });
+
+    it('the RESOLVING region announces and shows "Resolving ingredient"', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended(
+                own([
+                    makeIngredient({
+                        id: 'ing_u',
+                        name: 'Chicken thigh',
+                        foodResolutionStatus: FoodResolutionStatus.UNRESOLVED,
+                    }),
+                ]),
+            ),
+        );
+        vi.spyOn(client, 'getIngredientCandidates').mockResolvedValue([
+            {
+                candidateId: 'cand-a',
+                source: 'usda',
+                externalKey: 'k1',
+                name: 'Chicken thigh, cooked',
+                summary: 'Roasted',
+            },
+        ]);
+        vi.spyOn(client, 'resolveIngredient').mockReturnValue(new Promise(() => {}));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await typeQuery(user);
+        await user.click(await screen.findByRole('button', { name: 'Chicken thigh' }));
+        await user.click(await screen.findByRole('button', { name: /Chicken thigh, cooked/ }));
+
+        expectSpokenStatus(
+            await screen.findByRole('status', { name: 'Resolving ingredient' }),
+            'Resolving ingredient',
+        );
+    });
+});

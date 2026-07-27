@@ -582,6 +582,26 @@ jobs:
         name: E2E (web — Playwright)
         runs-on: ubuntu-latest
         needs: build
+        # Pin BOTH API origins the web app resolves from env, so CI and a developer machine run the suite
+        # against the SAME resolved origins instead of both happening to land on the in-code fallbacks.
+        # Locally these come from the gitignored `.env.local` that `scripts/fetch-secrets.mjs` writes (it
+        # emits exactly these two values); CI has no `.env.local`, so until now the job depended on
+        # `recipeServiceConfig.ts`'s `?? 'http://localhost:3000'` and `identityServiceClient.ts`'s
+        # `?? 'http://localhost:4000'` silently continuing to match that file. Stating them here makes the
+        # baseline explicit and drift-proof (see also packages/apps/commise/web/.env.template).
+        #
+        # These localhost values are the CORRECT ones for this suite, not a placeholder: every spec mocks the
+        # API with the ORIGIN-AGNOSTIC glob `page.route('**/v1/**')` (tests/e2e/utils/recipeApi.ts, plus the
+        # two narrower `**/v1/...` routes in accountDangerZone/ingredientCatalogPick), and no spec ever builds
+        # a URL out of these vars — so the browser-side origin only has to be a valid absolute URL. Port 3000
+        # is the Playwright dev server itself and nothing listens on 4000, which means the SERVER-side SSR
+        # prefetch (which `page.route` cannot intercept) fails and each page degrades to its client fetch —
+        # exactly the behavior `tests/e2e/ssrPrefetch.spec.ts` asserts. Pointing these at a live backend would
+        # make the suite non-hermetic, not more correct (that path is the opt-in `recipeLive.spec.ts`, gated on
+        # E2E_LIVE_BACKEND=1, which stays skipped here).
+        env:
+            NEXT_PUBLIC_API_URL: http://localhost:3000
+            NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6

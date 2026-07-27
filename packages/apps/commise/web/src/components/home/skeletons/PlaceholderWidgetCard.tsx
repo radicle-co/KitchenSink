@@ -56,10 +56,14 @@ export function PlaceholderWidgetCard({ title, children }: PlaceholderWidgetCard
     // the translucent-over-blur surface can never drift from the design system. The box (radius/border/pad/
     // shadow) stays on the card via `className`; the deliberate `<section aria-labelledby>` semantics — the
     // labelled roadmap region every placeholder relies on — live INSIDE it, unchanged.
+    //
+    // The hairline is `border-glass-card-edge`, the custom property emitted from `glass.card.border`. It was
+    // hardcoded as `border-white/20` — this surface declares `tier="card"`, whose edge token is 0.3, so the
+    // duplicated value had already drifted to the wrong alpha. Deriving it removes the drift and its cause.
     return (
         <GlassCard
             tier="card"
-            className="rounded-[var(--radius-lg)] border border-white/20 p-5 shadow-[var(--shadow-md)]"
+            className="rounded-[var(--radius-lg)] border border-glass-card-edge p-5 shadow-[var(--shadow-md)]"
         >
             <section aria-labelledby={headingId} className="flex flex-col gap-4">
                 <div className="flex items-center justify-between gap-3">

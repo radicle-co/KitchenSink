@@ -5,29 +5,45 @@
  * contract: a clone button disabled when cloning is not allowed (`!canClone`) or in flight (`cloning`) and
  * marked busy while cloning, plus a source-attribution line rendered only when `sourceAttribution` is set.
  *
- * ## Why this is NOT the design-system `Button`
+ * ## Why this IS the design-system `Button` now
  *
- * The clone action is painted CORAL in the product's visual language, and the DS variant set has exactly three
- * tiers — `primary` (the seafoam→ocean-dark brand gradient), `secondary` (bordered white), `destructive`
- * (bordered error). None is coral, so routing this control through `Button` would silently RECOLOUR it to the
- * brand gradient. It would also diverge from the web leaf, which stays hand-rolled for this same reason and
- * records it as an open DS-variant question rather than papering over it — so migrating only native would break
- * cross-platform parity in the other direction. The correct fix is a DS accent/coral tier adopted by BOTH
- * leaves in one change; that is a design-system decision, not something to smuggle in from the native side.
+ * This leaf used to hand-roll a solid-coral pill, on the stated grounds that "the clone action is painted CORAL
+ * in the product's visual language, and the DS variant set has exactly three tiers … none is coral". The
+ * premise was never true, and the web leaf carried the identical claim, so the two reinforced each other:
  *
- * What the DS Button WOULD have supplied is supplied here instead — the 44pt touch floor, the shared
- * radius/spacing scale, and a real busy announcement — and each is pinned by a test, so "kept hand-rolled for
- * a good reason" cannot decay into "kept the defects".
+ *  - **No mockup contains a clone action at all** (zero occurrences of clone/duplicate/fork across all nine
+ *    screens), so no design ever specified this control's colour — the coral was invented here.
+ *  - **The mockups never fill a button coral**: their coral button form is a bordered outline that fills only on
+ *    hover; the one solid `bg-coral` in any mockup is a selected allergy chip.
+ *  - **Coral's documented role is "Destructive/secondary actions, highlights, warm accents"** and the mockups
+ *    spend it on the Danger Zone and the allergy warning — so a filled-coral pill placed a safe, additive,
+ *    reversible action in the danger register.
+ *
+ * Clone is a quiet SECONDARY action (the discovery-card leaf's own styles say precisely that), so both platform
+ * leaves now wear the DS `secondary` tier in ONE change and cannot drift apart again. Everything the previous
+ * comment promised the hand-rolled version preserved — the 44pt touch floor, the shared radius/spacing scale,
+ * a real busy announcement — now comes from the Button itself, and the tests that used to guard the hand-rolled
+ * copy are kept, pointed at the DS surface, so the migration cannot quietly lose any of it.
+ *
+ * A coral/accent tier was deliberately NOT added: a new public `ButtonVariant` for one call site is a YAGNI
+ * violation. The real question this surfaced is app-wide — `semantic.secondary` IS `palette.coral`, yet the
+ * Button's `secondary` tier paints a grey-bordered white pill while every non-primary mockup button is
+ * coral-outlined. Fixing that one tier recolours this control for free.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
+import { Feather } from '@expo/vector-icons';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { recipeActionMessages } from './messages.js';
 import type { RecipeCloneActionProps } from './model.js';
+
+/** Action glyph size — the DS Button pairs every label with an icon (matches the sibling action leaves). */
+const ACTION_ICON_SIZE = 16;
 
 export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({
     canClone,
@@ -42,40 +58,25 @@ export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({
             {sourceAttribution !== undefined && sourceAttribution.length > 0 && (
                 <Text style={styles.attribution}>{fillTemplate(clone.attribution, { source: sourceAttribution })}</Text>
             )}
-            {/* `aria-busy` is React Native's own first-class ALIAS for `accessibilityState.busy` (declared in
-                `ViewAccessibility.d.ts`), not a web-only attribute — so it announces the in-flight state to
-                VoiceOver/TalkBack on device. It is preferred over the `accessibilityState` object form here
-                because react-native-web surfaces the alias in the DOM while it does NOT map
-                `accessibilityState.busy`, so this form is the one that is both device-correct AND assertable. */}
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={clone.clone}
-                aria-busy={cloning || undefined}
-                disabled={cloning || !canClone}
+            {/* `busy` supplies the in-place `ActivityIndicator`, the disabled in-flight guard (so the clone
+                cannot be double-fired), and the `accessibilityState.busy` announcement VoiceOver/TalkBack read. */}
+            <Button
+                variant="secondary"
+                icon={<Feather name="copy" size={ACTION_ICON_SIZE} color={palette.charcoal} />}
+                disabled={!canClone}
+                busy={cloning}
                 onPress={onClone}
-                style={[styles.button, (cloning || !canClone) && styles.buttonDisabled]}
             >
-                <Text style={styles.label}>{clone.clone}</Text>
-            </Pressable>
+                {clone.clone}
+            </Button>
             {cloning && <Text style={styles.attribution}>{clone.cloningLabel}</Text>}
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    wrap: { gap: nativeTokens.spacing[2] },
+    // `alignItems: 'flex-start'` keeps the pill hugging its label rather than stretching to the footer width —
+    // the job the removed `alignSelf: 'flex-start'` did on the hand-rolled surface.
+    wrap: { gap: nativeTokens.spacing[2], alignItems: 'flex-start' },
     attribution: { fontSize: 13, color: palette.slate },
-    // Geometry matched to the DS Button pill (44pt floor, `radius.full`, tokenized padding); only the FILL
-    // differs, and that difference is the documented reason this is not the Button (see the module doc).
-    button: {
-        alignSelf: 'flex-start',
-        minHeight: 44,
-        justifyContent: 'center',
-        backgroundColor: palette.coral,
-        borderRadius: nativeTokens.radius.full,
-        paddingVertical: nativeTokens.spacing[3],
-        paddingHorizontal: nativeTokens.spacing[5],
-    },
-    buttonDisabled: { opacity: 0.6 },
-    label: { color: palette.white, fontWeight: '600', fontSize: nativeTokens.fontSize.bodySm },
 });

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import { palette } from '@commise/ui';
+import { palette, semantic } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 
 import { cssColor } from './cssColor.js';
@@ -73,35 +73,66 @@ describe('RecipeCloneAction (native)', () => {
 });
 
 /**
- * Control quality for a control that deliberately is NOT the design-system {@link Button}.
+ * Clone IS the design-system {@link Button} on native too — it does not paint its own surface.
  *
- * The mockup language paints the clone action CORAL, and the DS variant set has no coral tier — adopting
- * `primary` would silently recolour it to the seafoam brand gradient AND diverge from the web leaf, which
- * stays hand-rolled for this exact reason (see its own comment: "tracked as a DS-variant question, not papered
- * over"). So the component stays hand-rolled, and the properties the DS Button would otherwise have
- * guaranteed are asserted here instead — otherwise "kept for a good reason" silently means "kept the defects".
+ * The leaf used to hand-roll a solid-coral pill and justify it with "the mockup paints the clone action CORAL,
+ * and the DS variant set has no coral tier". That premise is false: NO mockup contains a clone action at all
+ * (zero occurrences of clone/duplicate/fork across all nine screens), and the mockups' only coral BUTTON form
+ * is a bordered outline — a solid coral fill appears nowhere except a selected allergy chip. Coral's documented
+ * role is "destructive/secondary actions, highlights, warm accents", so the filled pill put a safe, additive,
+ * reversible action into the danger register. Clone is a quiet SECONDARY action (the discovery-card leaf says
+ * so in as many words), so both platforms now wear the DS `secondary` tier and cannot drift again.
+ *
+ * The 44pt floor / radius / busy assertions are KEPT: they used to guard a hand-rolled control, and they now
+ * prove the DS Button actually delivers what the hand-rolled version was justified by.
  */
-describe('RecipeCloneAction (native) — control quality', () => {
-    it('meets the 44pt touch floor the DS Button would have guaranteed', () => {
+/**
+ * The DS Button composes `PressScale` (which renders the accessible `Pressable`) around the styled pill `View`,
+ * so the geometry/fill live on a DESCENDANT of the `role="button"` element rather than on it. Locate that pill
+ * the same way the design system's own native tests do — by the resolved computed style, because
+ * react-native-web compiles `StyleSheet` metrics to atomic CSS classes instead of inline styles.
+ */
+function pillOf(button: HTMLElement): HTMLElement {
+    const candidates = [button, ...Array.from(button.querySelectorAll<HTMLElement>('*'))];
+    const pill = candidates.find((element) => window.getComputedStyle(element).minHeight === '44px');
+
+    if (pill === undefined) {
+        throw new Error('No 44pt DS pill found inside the clone control — the touch floor is gone.');
+    }
+
+    return pill;
+}
+
+describe('RecipeCloneAction (native) — design-system surface', () => {
+    it('meets the 44pt touch floor the DS Button guarantees', () => {
         renderClone();
 
-        expect(window.getComputedStyle(screen.getByRole('button', { name: 'Clone' })).minHeight).toBe('44px');
+        // `pillOf` throws when no 44pt surface exists, so reaching this line IS the assertion.
+        expect(pillOf(screen.getByRole('button', { name: 'Clone' }))).toBeTruthy();
     });
 
-    it('keeps the mockup coral fill — the reason it is not a DS Button in the first place', () => {
+    it('paints the DS secondary surface — a bordered white pill, NOT the old coral fill', () => {
+        renderClone();
+        const style = window.getComputedStyle(pillOf(screen.getByRole('button', { name: 'Clone' })));
+
+        expect(style.backgroundColor).toBe(cssColor(palette.white));
+        // The hairline comes from the shared semantic border token, so a re-theme moves it with the DS.
+        expect(style.borderTopColor).toBe(cssColor(semantic.border));
+        // The regression this replaces: a bespoke coral fill.
+        expect(style.backgroundColor).not.toBe(cssColor(palette.coral));
+    });
+
+    it('labels in the tier foreground colour, not white-on-coral', () => {
         renderClone();
 
-        // If this ever becomes the brand gradient, the "no coral tier" justification has silently expired and
-        // the control should move to the DS variant that replaced it.
-        expect(window.getComputedStyle(screen.getByRole('button', { name: 'Clone' })).backgroundColor).toBe(
-            cssColor(palette.coral),
-        );
+        // A leftover white label on the now-white surface would be invisible — assert the tier's charcoal.
+        expect(window.getComputedStyle(screen.getByText('Clone')).color).toBe(cssColor(palette.charcoal));
     });
 
     it('rounds from the radius scale, not a magic 999', () => {
         renderClone();
 
-        expect(window.getComputedStyle(screen.getByRole('button', { name: 'Clone' })).borderTopLeftRadius).toBe(
+        expect(window.getComputedStyle(pillOf(screen.getByRole('button', { name: 'Clone' }))).borderTopLeftRadius).toBe(
             `${nativeTokens.radius.full}px`,
         );
     });
@@ -109,8 +140,8 @@ describe('RecipeCloneAction (native) — control quality', () => {
     it('announces the in-flight state through NATIVE busy semantics, not a web-only aria-busy prop', () => {
         renderClone({ cloning: true });
 
-        // `aria-busy` as a literal RN prop is a web-ism that react-native-web happens to pass through and a
-        // real device ignores; `accessibilityState.busy` is what an on-device screen reader reads.
+        // `accessibilityState.busy` is what an on-device screen reader reads; react-native-web projects it to
+        // `aria-busy`, which is what makes it assertable here. The DS Button/PressScale must not drop it.
         expect(screen.getByRole('button', { name: 'Clone' }).getAttribute('aria-busy')).toBe('true');
     });
 
@@ -118,5 +149,12 @@ describe('RecipeCloneAction (native) — control quality', () => {
         renderClone();
 
         expect(screen.getByRole('button', { name: 'Clone' }).getAttribute('aria-busy')).not.toBe('true');
+    });
+
+    it('pairs the label with an icon the accessibility tree never sees', () => {
+        renderClone();
+
+        // The DS Button requires an icon and hides it, so the label alone is the name (Maestro depends on it).
+        expect(screen.getByRole('button', { name: 'Clone' }).getAttribute('aria-label')).toBe('Clone');
     });
 });

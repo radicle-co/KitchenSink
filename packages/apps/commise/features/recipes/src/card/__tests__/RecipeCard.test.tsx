@@ -184,13 +184,30 @@ describe('RecipeCard (web) — U8 brand treatment', () => {
         expect(screen.getByRole('article', { name: 'Herb Risotto' }).className.split(/\s+/)).not.toContain('bg-card');
     });
 
-    it('carries the mockup’s translucent-white hairline border on the glass shell', () => {
+    it('carries the glass hairline from the TOKEN, not a re-spelled Tailwind literal', () => {
         renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
         const className = screen.getByRole('article', { name: 'Herb Risotto' }).className;
 
-        // mockup: `border border-white/30 … hover:border-white/40`
-        expect(className).toContain('border-white/30');
+        // The edge is the SAME `glass.card.border` the native leaf already consumes as `cardGlass.border`,
+        // reaching web as the emitted `--color-glass-card-edge` utility. `border-white/30` was that identical
+        // value spelled a second way — the drift this converges.
+        expect(className).toContain('border-glass-card-edge');
+        expect(className).not.toContain('border-white/30');
+        // Still a 1px edge, not just a colour with no border-width.
+        expect(className.split(/\s+/)).toContain('border');
+        // The hover EMPHASIS deliberately stays a literal — see the component's note. It must survive, since a
+        // colour applied by inline style (the other way to reach the token) would silently out-specify it.
         expect(className).toContain('hover:border-white/40');
+    });
+
+    it('keeps the hairline in CLASS position so the hover variant can still win', () => {
+        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto' })} />);
+        const article = screen.getByRole('article', { name: 'Herb Risotto' });
+
+        // Inline styles beat every class, so painting the edge via `style` would kill `hover:border-*`
+        // outright. The glass FILL is inline (it has no hover variant); the edge must not be.
+        expect(article.style.borderColor).toBe('');
+        expect(article.style.borderTopColor).toBe('');
     });
 });
 

@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { ROADMAP_WIDGET_IDS, type RoadmapWidgetId } from '@commise/features-core';
 import { renderWithProviders } from '@commise/test-utils';
+import { glass, glassBackdropCss, toWebGlass } from '@commise/ui';
 
 import { MealPlanWidgetSkeleton } from '../MealPlanWidgetSkeleton';
 import { NutritionWidgetSkeleton } from '../NutritionWidgetSkeleton';
@@ -98,12 +99,27 @@ describe.each(Object.entries(SKELETONS))('%s skeleton', (_id, { Component, title
         renderIn(<Component />);
 
         // The GlassCard primitive is the labelled region's nearest ancestor <div>: it carries the translucent
-        // surface + backdrop blur inline (the mockup's `--glass-surface-medium` + `--glass-blur-light`). A
-        // regression that dropped the primitive back to hand-rolled utility classes fails these assertions.
+        // surface + backdrop blur inline. A regression that dropped the primitive back to hand-rolled utility
+        // classes fails these assertions.
+        //
+        // Asserted against the TOKEN projection rather than the literal rgba/px it happens to produce today:
+        // the previous literals meant a deliberate re-tone of the glass BROKE this test instead of moving with
+        // it, which is the same duplication the card's border carried.
         const card = screen.getByRole('region', { name: title }).parentElement as HTMLElement;
 
-        expect(card.style.backgroundColor).toBe('rgba(255, 255, 255, 0.85)');
-        expect(card.style.backdropFilter).toContain('blur(16px)');
+        expect(card.style.backgroundColor).toBe(toWebGlass(glass.card, true).backgroundColor);
+        expect(card.style.backdropFilter).toBe(glassBackdropCss(glass.card));
+    });
+
+    it('draws the card hairline from the glass token, not a drifted literal', () => {
+        renderIn(<Component />);
+        const className = (screen.getByRole('region', { name: title }).parentElement as HTMLElement).className;
+
+        // This surface declares `tier="card"`, so its edge IS `glass.card.border`. It previously hardcoded
+        // `border-white/20` — the card tier's edge at the WRONG alpha (the token is 0.3), i.e. the duplication
+        // had already drifted. Route it through the emitted token utility so it cannot drift again.
+        expect(className).toContain('border-glass-card-edge');
+        expect(className).not.toContain('border-white/20');
     });
 });
 

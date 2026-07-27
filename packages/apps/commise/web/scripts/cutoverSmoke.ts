@@ -4,9 +4,16 @@
 // Given a PR number, probes BOTH addressing forms the router serves and classifies what a browser would
 // get: NXDOMAIN (DNS/router gone), Vercel SSO (bypass key missing), 404 (route not registered / app
 // miss), or the app itself. Use it to de-risk each cutover step with a repeatable check instead of
-// ad-hoc curls. Path form is the current posture (must reach the app); subdomain form is expected to
-// reach the app too once the router serves it — until the build flips to SANDBOX_PREVIEW_MODE=subdomain
-// it still carries the /pr-{N} basePath, which the report notes rather than fails on.
+// ad-hoc curls.
+//
+// POST-CUTOVER (2026-07-13) the SUBDOMAIN form is the pass criterion: `pr-{N}.sandbox.commise.app` must
+// reach the app, and the path form is expected to MISS (it redirects into `/en/pr-{N}` and 404s), so this
+// reports it as INFO rather than failing on it. That is already how the exit code behaves; only this
+// comment still described the pre-cutover posture ("path form must reach the app").
+//
+// It probes REACHABILITY only. It cannot tell you whether a human can actually sign in: the Clerk
+// handshake currently redirects previews to the bare, SSO-protected Vercel deployment host, so an
+// `app` verdict here does NOT mean the preview is usable while that is open.
 //
 // Run: npx tsx packages/apps/commise/web/scripts/cutoverSmoke.ts <pr-number> [--base sandbox.commise.app]
 

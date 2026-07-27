@@ -15,7 +15,7 @@
         "format:check": "prettier --check ."
     },
     "dependencies": {
-        "@clerk/expo": "^2.4.0",
+        "@clerk/expo": "^4.0.4",
         "@commise/features-account": "*",
         "@commise/features-recipes": "*",
         "@commise/i18n": "*",

@@ -44,7 +44,13 @@
                     "url": "https://sentry.io/"
                 }
             ],
-            "expo-image"
+            "expo-image",
+            [
+                "@clerk/expo",
+                {
+                    "appleSignIn": false
+                }
+            ]
         ],
         "experiments": {
             "typedRoutes": true

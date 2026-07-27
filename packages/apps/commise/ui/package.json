@@ -37,8 +37,8 @@
         "@radix-ui/react-alert-dialog": "^1.1.15"
     },
     "optionalDependencies": {
-        "expo-blur": "~14.1.5",
-        "expo-linear-gradient": "~14.1.5"
+        "expo-blur": "~57.0.2",
+        "expo-linear-gradient": "~57.0.1"
     },
     "peerDependencies": {
         "react": "^19.0.0",

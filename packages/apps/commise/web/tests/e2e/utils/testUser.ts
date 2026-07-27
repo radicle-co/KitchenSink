@@ -1,4 +1,5 @@
 import { createClerkClient } from '@clerk/backend';
+import { decodeJwt } from '@clerk/backend/jwt';
 
 // A fixed, reusable identity for sign-IN tests. The `+clerk_test` local-part marks it a Clerk test
 // account (no real email is sent; it verifies with the fixed dev code), and the password clears
@@ -81,6 +82,42 @@ export async function waitForTestUserExternalId(
 
         await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
+}
+
+/**
+ * Read the status Clerk itself holds for a session, straight from the Backend API.
+ *
+ * This is the ONLY way a test can assert that a sign-out actually ENDED the session rather than merely
+ * navigated somewhere plausible. `useClerk().signOut` resolves without revoking anything when clerk-js has
+ * not loaded (B23 — `IsomorphicClerk` queues the call in `premountMethodCalls`), so an assertion on the
+ * landing URL alone can go green while the session stays live and keeps minting fresh JWTs.
+ *
+ * @param sessionId - the Clerk session id, e.g. from {@link sessionIdFromCookies}.
+ * @returns Clerk's own session status — `'removed'` (or `'ended'`/`'revoked'`) once a sign-out really landed.
+ * @sideEffect Calls the Clerk Backend API.
+ */
+export async function clerkSessionStatus(sessionId: string): Promise<string> {
+    const session = await client().sessions.getSession(sessionId);
+
+    return session.status;
+}
+
+/**
+ * The session id (`sid`) carried by the browser's `__session` cookie — i.e. the session THIS browser context
+ * is actually authenticated with, as opposed to any other session the shared test user may still hold from an
+ * earlier spec (the suite runs serially against one fixture user and specs do not sign out).
+ *
+ * @param cookies - `page.context().cookies()` output.
+ * @returns the `sid` claim, or `null` when no `__session` cookie is present (i.e. already signed out).
+ */
+export function sessionIdFromCookies(cookies: readonly { name: string; value: string }[]): string | null {
+    const session = cookies.find((cookie) => cookie.name === '__session');
+
+    if (session === undefined) {
+        return null;
+    }
+
+    return decodeJwt(session.value).payload.sid;
 }
 
 /** Delete every Clerk user with this primary email — cleans up accounts a sign-up test created. */

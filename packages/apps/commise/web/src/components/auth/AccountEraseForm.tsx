@@ -14,12 +14,15 @@
  * The confirmation phrase sent is the viewer's typed input (guaranteed by the dialog's gate to satisfy
  * `confirmsErasurePhrase`); the server re-validates it. `publishRecipeIds` carries the donate election.
  *
- * **Leaving the app after erasure is a FULL-DOCUMENT navigation, deliberately.** `signOut({ redirectUrl })`
- * leaves via the Next router, which re-renders the authenticated shell from a client-side payload that was
- * resolved for a session — and an account — that no longer exists; observed end-to-end, the viewer was left
- * sitting on the authenticated Home route after erasing. So this flow awaits `signOut()` (session cookies
- * gone) and then hard-navigates to the app's public entry, where the root route's own auth gate sends a
- * signed-out caller to the branded welcome hero. Nothing authenticated survives an irreversible erasure.
+ * Leaving the app after erasure goes through the app's one sign-out command,
+ * {@link import('./useSignOutAndLeave.js').useSignOutAndLeave}. `signOut({ redirectUrl })` leaves via the
+ * Next router, which re-renders the authenticated shell from a client-side payload that was resolved for a
+ * session — and an account — that no longer exists; observed end-to-end, the viewer was left sitting on the
+ * authenticated Home route after erasing. So the command awaits the revoke (session cookies gone) and then
+ * hard-navigates to the app's public entry, where the root route's own auth gate sends a signed-out caller to
+ * the branded welcome hero. Nothing authenticated survives an irreversible erasure. The command also VERIFIES
+ * the session actually ended before navigating (B23: a sign-out issued before clerk-js has loaded resolves
+ * without revoking anything), so a fake exit lands in the failure path below instead of looking like success.
  *
  * **That exit has its own failure path (B17).** It used to be fire-and-forget, so a `signOut`/navigate failure
  * AFTER the server had already accepted the erasure was swallowed: the viewer sat on an authenticated account
@@ -30,7 +33,6 @@
  * would be a lie; the only outstanding action is leaving the session.
  */
 import { useState } from 'react';
-import { useClerk } from '@clerk/nextjs';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { selectDonatableRecipes } from '@commise/features-account';
@@ -41,8 +43,7 @@ import { TrashIcon } from '@/components/auth/icons';
 import { authMessages } from '@/components/auth/messages';
 import { errorText } from '@/components/auth/authChrome';
 import { LogoutButton } from '@/components/auth/LogoutButton';
-import { withBasePath } from '@/lib/basePath';
-import { navigateTo } from '@/lib/navigation';
+import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
 
 /**
  * The mounted-while-open erasure flow: owns the recipe fetch, the mutation, and the form state. Mounted only
@@ -58,7 +59,7 @@ function AccountEraseFlow({
     readonly onClose: () => void;
     readonly onExitFailed: () => void;
 }) {
-    const { signOut } = useClerk();
+    const { signOutAndLeave } = useSignOutAndLeave();
     const recipes = useAllOwnerRecipes();
     const erasure = useRequestAccountErasure();
     const [phrase, setPhrase] = useState('');
@@ -84,8 +85,7 @@ function AccountEraseFlow({
      */
     const leaveSignedOut = async (): Promise<void> => {
         try {
-            await signOut();
-            navigateTo(withBasePath('/'));
+            await signOutAndLeave();
         } catch {
             onExitFailed();
         }

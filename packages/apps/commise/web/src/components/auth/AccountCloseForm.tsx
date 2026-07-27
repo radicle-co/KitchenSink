@@ -12,14 +12,14 @@
  * Escape/backdrop dismiss, and `role="alertdialog"` wiring. All copy is localized (`accountDangerMessages`),
  * never hard-coded.
  *
- * **Leaving the app after closure is a FULL-DOCUMENT navigation, deliberately** — same reasoning as
- * {@link import('./AccountEraseForm.js').AccountEraseForm}: a router-level redirect re-renders the
- * authenticated shell from a payload resolved for the session that was just destroyed, so the viewer is
- * left on an account surface they can no longer use. Await the sign-out, then hard-navigate to the public
- * entry and let the root route's auth gate route them to the branded welcome hero.
+ * Leaving the app after closure goes through the app's one sign-out command,
+ * {@link import('./useSignOutAndLeave.js').useSignOutAndLeave} — which awaits the revoke and only then
+ * replaces the document (a router-level redirect re-renders the authenticated shell from a payload resolved
+ * for the session that was just destroyed), and VERIFIES the session actually ended before doing so (B23: a
+ * sign-out issued before clerk-js has loaded resolves without revoking anything). A failure to leave surfaces
+ * in the same alert as a failure to close — by then the closure has been accepted, so it is never silent.
  */
 import { useState, useTransition } from 'react';
-import { useClerk } from '@clerk/nextjs';
 import { useMessages } from '@commise/i18n/react';
 import { accountDangerMessages } from '@commise/features-account/danger';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
@@ -28,8 +28,7 @@ import { Button } from '@commise/ui/button';
 import { createProfileServiceClient } from '@/lib/identityServiceClient';
 import { AlertTriangleIcon } from '@/components/auth/icons';
 import { errorText } from '@/components/auth/authChrome';
-import { withBasePath } from '@/lib/basePath';
-import { navigateTo } from '@/lib/navigation';
+import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
 
 interface AccountCloseFormProps {
     /** The signed-in viewer's Clerk session token, used to authenticate the closure request. */
@@ -41,7 +40,7 @@ export function AccountCloseForm({ accessToken }: AccountCloseFormProps) {
     const [open, setOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
-    const { signOut } = useClerk();
+    const { signOutAndLeave } = useSignOutAndLeave();
 
     const handleConfirm = () => {
         setOpen(false);
@@ -56,8 +55,7 @@ export function AccountCloseForm({ accessToken }: AccountCloseFormProps) {
         startTransition(async () => {
             try {
                 await createProfileServiceClient(accessToken).deleteMe();
-                await signOut();
-                navigateTo(withBasePath('/'));
+                await signOutAndLeave();
             } catch {
                 // B17 — never fail silently: surface the failure instead of leaving the viewer signed in with
                 // no feedback. The message is intentionally generic (never echoes the raw error to the UI).

@@ -3,27 +3,24 @@
 /**
  * @module auth/LogoutButton — the web sign-out control (U3).
  *
- * **Leaving the app on sign-out is a FULL-DOCUMENT navigation, deliberately** — the same conclusion the
- * account CLOSE and ERASE flows were fixed to (see `AccountCloseForm` / `AccountEraseForm`). Clerk's
- * `signOut({ redirectUrl })` leaves via the Next router, which re-renders the authenticated shell from a
- * client-side payload that was resolved for a session that no longer exists; observed end-to-end on those
- * flows, the viewer was left sitting on an authenticated route for a dead session. So this control awaits
- * `signOut()` (session cookies gone) and only then hard-navigates to the app's public entry, where the root
- * route's own auth gate sends a signed-out caller to the branded welcome hero.
+ * The orchestration half of the sign-out surface: it owns only the control's own state (busy, error) and
+ * issues the app's one sign-out command, {@link import('./useSignOutAndLeave.js').useSignOutAndLeave} —
+ * which owns the mechanism (Clerk's load-safe `signOut`), the ordering (await the revoke, THEN replace the
+ * document), and the post-condition that the session really ended. Read that module before changing anything
+ * here; the post-condition guards a real, observed security defect (B23), not a hypothetical one.
  *
- * B17 — a rejected sign-out is surfaced, never swallowed: the busy state is released and a localized alert
- * appears, so the control is retryable instead of spinning forever on a session that may still be live.
+ * B17/B23 — a sign-out that fails, OR that resolves without actually ending the session, is surfaced and never
+ * swallowed: the busy state is released and a localized alert appears, so the control is retryable instead of
+ * marching the viewer to the public page on a session that is still live.
  */
 import { useState } from 'react';
-import { useClerk } from '@clerk/nextjs';
 import { Button } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
 
-import { withBasePath } from '@/lib/basePath';
-import { navigateTo } from '@/lib/navigation';
 import { authMessages } from '@/components/auth/messages';
 import { errorText } from '@/components/auth/authChrome';
 import { LogOutIcon } from '@/components/auth/icons';
+import { useSignOutAndLeave } from '@/components/auth/useSignOutAndLeave';
 
 interface LogoutButtonProps {
     /** Overrides the default localized "Sign out" label (e.g. a page-specific phrasing). */
@@ -34,10 +31,10 @@ export function LogoutButton({ children }: LogoutButtonProps) {
     const { session } = useMessages(authMessages);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const { signOut } = useClerk();
+    const { signOutAndLeave } = useSignOutAndLeave();
 
     /**
-     * End the session, then leave the app with a full document load (see the module doc).
+     * Issue the sign-out command, surfacing a rejection instead of stranding the viewer (see the module doc).
      *
      * @sideEffect Destroys the Clerk session and replaces the current document.
      */
@@ -46,9 +43,7 @@ export function LogoutButton({ children }: LogoutButtonProps) {
         setError(null);
 
         try {
-            await signOut();
-            // Clerk's own redirect is not basePath-aware (ADR-0001 / U2); prefix it. No-op in production.
-            navigateTo(withBasePath('/'));
+            await signOutAndLeave();
         } catch {
             // Generic on purpose — never echoes the raw error to the viewer.
             setError(session.signOutFailed);

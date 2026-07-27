@@ -24,16 +24,21 @@ export default defineConfig({
     // `*.test.ts`, which would wrongly try to run co-located VITEST unit tests (e.g. the e2e utils'
     // readViewerAppId.test.ts) as Playwright specs and crash the run on their `vitest` imports.
     testMatch: '**/*.spec.ts',
-    // Serial (single worker), not parallel: these auth flows share ONE Clerk test user and ONE Next
-    // dev server, and concurrent sign-ins / on-demand route compilation under load flake intermittently.
-    // Reliability matters more than wall-clock for a red-alert auth suite (~40s serially).
+    // Serial (single worker), not parallel: this run's specs share ONE Clerk test user (run-scoped — see
+    // tests/e2e/utils/runFixtureIdentity.ts) and ONE Next dev server, and concurrent sign-ins / on-demand
+    // route compilation under load flake intermittently. Reliability matters more than wall-clock for a
+    // red-alert auth suite. NOTE: this says nothing about two SEPARATE runs — those are isolated by the
+    // per-run fixture identity, not by the worker count.
     fullyParallel: false,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 1,
     workers: 1,
     reporter: 'html',
+    // globalSetup resolves this run's fixture identity, PINS it into process.env (the workers inherit it),
+    // and provisions the run's Clerk user.
     globalSetup: './tests/e2e/global.setup.ts',
-    // Delete the e2e users from Clerk after the run (cascades to a DB purge via the user.deleted webhook).
+    // Deletes THIS RUN's Clerk users (cascades to a DB purge via the user.deleted webhook) plus an
+    // age-gated sweep of leaks from crashed runs — never a concurrent run's live fixture.
     globalTeardown: './tests/e2e/global.teardown.ts',
     use: {
         baseURL: ORIGIN,

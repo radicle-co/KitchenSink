@@ -1,22 +1,22 @@
 import { LogBox } from 'react-native';
 
-// Silence two KNOWN-INERT dev-only LogBox notifications (console logging is unaffected; production has no
-// LogBox). Suppressing them keeps the dev screen clean AND unblocks Maestro, whose Android view-hierarchy
+// Silence ONE known-inert dev-only LogBox notification (console logging is unaffected; production has no
+// LogBox). Suppressing it keeps the dev screen clean AND unblocks Maestro, whose Android view-hierarchy
 // driver is occluded by LogBox's overlay window (adb's uiautomator sees through it; Maestro's driver reads
-// the top window). Scoped to exact signatures — any OTHER warning/error still surfaces normally.
+// the top window). Scoped to an exact signature — any OTHER warning/error still surfaces normally.
 //
-//  1. The Clerk browser-UI script loader. `@clerk/expo@2.19.0` is an internally inconsistent published
-//     release: its `@clerk/react@5.54.0` imports `loadClerkUiScript`, a symbol that exists only in
-//     `@clerk/shared@4.x`, while its bundled `@clerk/clerk-js@5.125` pins `@clerk/shared@3.x` — so the
-//     import resolves to `undefined` and calling it rejects with "undefined is not a function". The call
-//     loads Clerk's HOSTED browser sign-in UI, which this app never uses (it ships a custom login screen),
-//     so the rejection is functionally inert. The next `@clerk/expo` (3.x) is a clerk-js-6 major bump that
-//     would risk the working custom-token sign-in flow; revisit this suppression when taking that upgrade.
-//  2. Clerk's standard "loaded with development keys" notice — expected on the sandbox dev instance.
-LogBox.ignoreLogs([
-    /Uncaught \(in promise.*undefined is not a function/,
-    /Clerk has been loaded with development keys/,
-]);
+// Clerk's standard "loaded with development keys" notice — expected on the sandbox dev instance.
+//
+// A second entry used to sit here, suppressing `Uncaught (in promise) ... undefined is not a function`: a
+// defect in the internally inconsistent `@clerk/expo@2.19.0`, whose `@clerk/react@5.54.0` imported
+// `loadClerkUiScript` from `@clerk/shared@4.x` while its bundled `@clerk/clerk-js@5.125` pinned
+// `@clerk/shared@3.x`, so the symbol resolved to `undefined`. The `@clerk/expo@4` upgrade removed it at the
+// root: the subtree is now a single consistent `@clerk/shared@4.x` + `@clerk/clerk-js@6.x`, and the symbol
+// no longer exists anywhere in the dependency. That suppression is deliberately NOT carried forward — its
+// regex was broad enough to hide ANY genuine "undefined is not a function" rejection, including one caused
+// by a bad SDK upgrade, which is exactly the class of failure this app most needs to see. Do not re-add a
+// blanket filter; fix the rejection instead.
+LogBox.ignoreLogs([/Clerk has been loaded with development keys/]);
 
 // Hermes (React Native's engine) lacks `Intl.PluralRules`, which the shared recipe formatters use (browsers
 // have it, so web works, but the native app crashes without this). Polyfill it FIRST, before any module

@@ -30,13 +30,14 @@ describe('RecipeDetailView (web) — header', () => {
 
     it('sits the header in a brand gradient title band (U8)', () => {
         const { container } = render(<RecipeDetailView recipe={makeRecipeDetail({ title: 'Lamb' })} />);
-        // The GradientSurface paints an inline linear-gradient background behind the header.
-        const band = Array.from(container.querySelectorAll<HTMLElement>('*')).find((el) =>
-            el.style.backgroundImage.startsWith('linear-gradient'),
+        // The GradientSurface paints an inline linear-gradient background behind the header. Selected by the
+        // band that CONTAINS the h1 — not merely "the first gradient on the screen", so another gradient
+        // surface elsewhere on the detail (e.g. the hero's no-cover placeholder) cannot satisfy this by accident.
+        const band = Array.from(container.querySelectorAll<HTMLElement>('*')).find(
+            (el) => el.style.backgroundImage.startsWith('linear-gradient') && el.querySelector('h1') !== null,
         );
 
         expect(band).toBeDefined();
-        expect(band?.querySelector('h1')).not.toBeNull();
     });
 
     it('renders the description', () => {
@@ -254,7 +255,19 @@ describe('RecipeDetailView (web) — photos', () => {
     it('renders no photo gallery when the recipe has no photos', () => {
         render(<RecipeDetailView recipe={makeRecipeDetail({ photos: [] })} />);
 
-        expect(screen.queryByRole('img')).toBeNull();
+        // The GALLERY is absent — asserted on the carousel's own region and its slide controls, not on "no
+        // image anywhere on the screen": the detail now also leads with the cover hero, which is a different
+        // element driven by `coverPhotoUrl` rather than by `photos`.
+        expect(screen.queryByRole('region', { name: 'Recipe photos' })).toBeNull();
+        expect(screen.queryByRole('button', { name: /full screen$/ })).toBeNull();
+    });
+
+    it('renders no photo gallery even when a cover hero IS present (they are independent)', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ photos: [], coverPhotoUrl: 'https://cdn/hero.jpg' })} />);
+
+        expect(screen.queryByRole('region', { name: 'Recipe photos' })).toBeNull();
+        // …while the hero still paints the cover (alt text = the recipe title).
+        expect(screen.getByRole('img', { name: 'Weeknight Pasta' })).toBeTruthy();
     });
 });
 
@@ -408,5 +421,49 @@ describe('RecipeDetailView (web) — grouped footer (C3 wireframe parity)', () =
         render(<RecipeDetailView recipe={makeRecipeDetail({ currentVersion: 1 })} />);
 
         expect(screen.queryByRole('button', { name: 'Clone' })).toBeNull();
+    });
+});
+
+describe('RecipeDetailView (web) — hero cover (mockup screen-recipe-detail)', () => {
+    it('LEADS the screen with the cover hero — it precedes the title heading in document order', () => {
+        const { container } = render(
+            <RecipeDetailView recipe={makeRecipeDetail({ title: 'Lamb', coverPhotoUrl: 'https://cdn/hero.jpg' })} />,
+        );
+        const hero = screen.getByRole('img', { name: 'Lamb' });
+        const heading = screen.getByRole('heading', { level: 1, name: 'Lamb' });
+
+        expect(container.contains(hero)).toBe(true);
+        // DOCUMENT_POSITION_FOLLOWING (4) — the heading comes AFTER the hero, i.e. the hero leads the screen.
+        expect(hero.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('renders the deliberate no-photo hero fallback for a recipe with no cover', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ title: 'Lamb', coverPhotoUrl: undefined, photos: [] })} />);
+
+        expect(screen.getByRole('img', { name: 'No photo yet' })).toBeTruthy();
+        // And the title still renders — a missing cover degrades the hero, never the screen.
+        expect(screen.getByRole('heading', { level: 1, name: 'Lamb' })).toBeTruthy();
+    });
+});
+
+describe('RecipeDetailView (web) — touch targets (44px floor)', () => {
+    it('gives the step toggle a 44px base touch target around its smaller visual marker, reset at sm', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ steps: [makeStepView({ stepNumber: 1 })] })} />);
+        const control = screen.getByRole('checkbox', { name: 'Mark step 1 complete' });
+
+        // The tap target is the interactive control: 44px (`size-11`) on touch, collapsing to the original
+        // 32px marker density (`sm:size-8`) from sm up so the desktop step list is unchanged.
+        expect(control.className).toContain('size-11');
+        expect(control.className).toContain('sm:size-8');
+        // The visible marker stays the compact circle, nested inside the larger target.
+        expect(control.querySelector('[class*="size-8"]')).not.toBeNull();
+    });
+
+    it('gives each tag-filter chip the 44px touch floor, reset for the mouse at md', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ tags: ['grill'] })} />);
+        const chip = screen.getByRole('button', { name: 'Find recipes tagged grill' });
+
+        expect(chip.className).toContain('min-h-11');
+        expect(chip.className).toContain('md:min-h-0');
     });
 });

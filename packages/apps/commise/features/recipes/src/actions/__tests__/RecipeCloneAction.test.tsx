@@ -69,4 +69,12 @@ describe('RecipeCloneAction (web)', () => {
 
         expect(screen.queryByText(/Cloned from/)).toBeNull();
     });
+
+    it('gives the clone control the 44px touch floor, reset for the mouse at md', () => {
+        renderClone();
+        const className = screen.getByRole('button', { name: 'Clone' }).className;
+
+        expect(className).toContain('min-h-11');
+        expect(className).toContain('md:min-h-0');
+    });
 });

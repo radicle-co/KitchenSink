@@ -33,7 +33,11 @@ export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({
                 onClick={onClone}
                 disabled={cloning || !canClone}
                 aria-busy={cloning || undefined}
-                className="self-start rounded-full bg-coral px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
+                // Touch floor: `min-h-11` (44px) at base, reset at `md:` so the desktop button density is
+                // unchanged. NOTE: this stays a hand-rolled surface rather than the DS `Button` because the
+                // mockup paints the clone action `coral`, and the DS variant set has no coral tier — adopting
+                // `primary` would silently recolour it. Tracked as a DS-variant question, not papered over.
+                className="inline-flex min-h-11 items-center justify-center self-start rounded-full bg-coral px-5 py-2 text-body-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-60 md:min-h-0"
             >
                 {clone.clone}
             </button>

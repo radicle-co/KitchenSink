@@ -402,3 +402,30 @@ describe('RecipeList (web) — populated state', () => {
         expect(within(list).getAllByRole('listitem')).toHaveLength(3);
     });
 });
+
+describe('RecipeList (web) — touch targets (44px floor)', () => {
+    it('gives every source tab the 44px touch floor, reset for the mouse at md', () => {
+        renderList({ status: 'ready', recipes: threeRecipes, tab: { active: 'mine', onChange: noop } });
+
+        for (const name of ['My Recipes', 'Community']) {
+            const tab = screen.getByRole('tab', { name });
+            expect(tab.className).toContain('min-h-11');
+            expect(tab.className).toContain('md:min-h-0');
+        }
+    });
+
+    it('gives the "All" chip and every facet chip the 44px touch floor, reset for the mouse at md', () => {
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            filters: { available: ['Vegetarian', 'Italian'], active: ['Italian'], onToggle: noop, onClear: noop },
+        });
+
+        const chips = screen.getByRole('group', { name: 'Quick filters' });
+        for (const name of ['All', 'Vegetarian', 'Italian']) {
+            const chip = within(chips).getByRole('button', { name });
+            expect(chip.className).toContain('min-h-11');
+            expect(chip.className).toContain('md:min-h-0');
+        }
+    });
+});

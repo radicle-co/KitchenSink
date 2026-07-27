@@ -302,6 +302,14 @@ describe('RecipeList (web) — loading state', () => {
         expect(screen.queryByRole('button', { name: /Grilled Lamb/ })).toBeNull();
     });
 
+    it('announces the localized loading label as the live region CONTENT, not only its aria-label', () => {
+        renderList({ status: 'loading' });
+
+        // The shimmer placeholders are all `aria-hidden`, so without a visible caption the live region has NO
+        // content — and a live region announces its CONTENT, not its label. Screen readers hear nothing.
+        expect(screen.getByRole('status').textContent).toContain('Loading recipes');
+    });
+
     it('renders real shimmer skeleton rows (not blank spans) inside the busy region (U5)', () => {
         renderList({ status: 'loading' });
 

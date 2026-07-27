@@ -24,6 +24,22 @@ describe('RecipeWidgetCard (web)', () => {
         expect(screen.getByRole('region', { name: 'Recent recipes' })).toBeTruthy();
     });
 
+    it('does NOT paint an opaque surface over its body, so the glass cards inside stay translucent', () => {
+        // The mockup's section-level Home widgets (Recent Recipes, This Week's Meals) are a heading row
+        // plus their grid ON THE PAGE BACKGROUND — the frosted-glass treatment lives on each CARD inside.
+        // An opaque `bg-card` (#FFFFFF) shell here sits between the page and `glass.card`'s
+        // rgba(255,255,255,0.85), making the translucency and saturate() render as plain white-on-white:
+        // the brand surface would be present in the DOM and invisible on screen.
+        render(<RecipeWidgetCard title="Recent recipes" />);
+
+        const region = screen.getByRole('region', { name: 'Recent recipes' });
+        const surface = region.className;
+
+        expect(surface).not.toContain('bg-card');
+        expect(surface).not.toContain('shadow-sm');
+        expect(surface).not.toContain('ring-1');
+    });
+
     it('renders its children inside the card body', () => {
         render(
             <RecipeWidgetCard title="Recent recipes">

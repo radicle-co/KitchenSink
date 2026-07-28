@@ -596,7 +596,12 @@ export const recipeIngredientSchema = z.object({
     recipeId: idSchema,
     ingredientId: idSchema,
     quantity: positiveNumberSchema,
-    unit: z.string().min(1),
+    // NOT `.min(1)`: `recipe_ingredients.unit` is a NOT NULL column whose "unitless" value is the EMPTY
+    // STRING ("2 eggs", "1 lemon" — the create/update DTO's `unit` is optional and the service persists
+    // `line.unit ?? ''`), and the version snapshot copies the column verbatim. A non-empty constraint here
+    // rejected the service's own output, so the ENTIRE version-history list failed client-side parsing for
+    // any recipe carrying a unitless line — see `recipe.types.test.ts`'s version-contract suite.
+    unit: z.string(),
     displayText: z.string().min(1).optional(),
     sortOrder: nonNegativeIntSchema,
     ingredientName: z.string().min(1),

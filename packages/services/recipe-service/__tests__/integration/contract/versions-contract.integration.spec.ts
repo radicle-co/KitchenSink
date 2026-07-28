@@ -75,4 +75,33 @@ describe.skipIf(!hasDatabaseUrl)('versions vertical — client ↔ server contra
         expect(restored.recipe.id).toBe(recipeId);
         expect(restored.recipe.title).toBe('Original Title'); // content reverted to v1
     });
+
+    it('lists versions of a recipe whose ingredient line carries NO unit', async () => {
+        // `unit` is OPTIONAL on the wire and the service persists the absent case as `''` (a NOT NULL
+        // column), which `aggregateToSnapshot` then copies into the version snapshot verbatim. The client
+        // parses every listed version against `recipeVersionSchema`, so a non-empty `unit` constraint there
+        // rejected the service's own output and the whole list threw — with NOTHING logged server-side,
+        // because the server had answered 200. Every existing case in this suite passes a unit ('cup'), so
+        // the unitless line — the overwhelmingly common "2 eggs" shape — went uncovered until Maestro's
+        // `recipes/versions` flow hit the version-history error state on-device.
+        const unitless = await client.createRecipe({
+            title: 'Unitless Line',
+            servings: 2,
+            prepTimeMinutes: 5,
+            cookTimeMinutes: 10,
+            totalTimeMinutes: 15,
+            tags: [],
+            dietaryFlags: [],
+            ingredients: [{ ingredientId: FLOUR_ID, name: 'Flour', quantity: 2 }],
+            steps: [{ instruction: 'Mix.' }],
+        });
+
+        await client.updateRecipe(unitless.id, { expectedVersion: 1, title: 'Unitless Line, edited' });
+
+        const versions = await client.listRecipeVersions(unitless.id);
+
+        expect(versions.map((version) => version.versionNumber)).toEqual([2, 1]);
+        expect(versions.every((version) => recipeVersionSchema.safeParse(version).success)).toBe(true);
+        expect(versions[1]?.snapshot.ingredients[0]?.unit).toBe('');
+    });
 });

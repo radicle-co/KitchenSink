@@ -173,6 +173,97 @@ describe('Wizard (web) — Next gating + rail invalidity', () => {
     });
 });
 
+describe('Wizard (web) — a refused Next says WHY (the footer blocked-advance notice)', () => {
+    // Mirrors the native spec exactly. `Next` is always enabled and `goNext` no-ops on an invalid step, so
+    // before this notice the ONLY feedback was the rail marker turning `invalid` — on a step whose body is
+    // one empty list, the primary control did nothing and said nothing.
+    const noIngredients = (): RecipeFormValues => ({ ...validValues(), ingredients: [] });
+
+    it('says nothing before the author has tried to advance', () => {
+        render(<Harness initialValues={noIngredients()} initialStep={2} />);
+
+        expect(screen.queryByText('Add at least one ingredient.')).toBeFalsy();
+    });
+
+    it('names the blocking rule once Next is refused', async () => {
+        const user = userEvent.setup();
+        render(<Harness initialValues={noIngredients()} initialStep={2} />);
+
+        await user.click(screen.getByRole('button', { name: /Next: Instructions/ }));
+
+        expect(screen.getByText('Add at least one ingredient.')).toBeTruthy();
+    });
+
+    it('announces it as an alert, so a screen reader hears the refusal it cannot see', async () => {
+        const user = userEvent.setup();
+        render(<Harness initialValues={noIngredients()} initialStep={2} />);
+
+        await user.click(screen.getByRole('button', { name: /Next: Instructions/ }));
+
+        expect(within(screen.getByRole('alert')).getByText('Add at least one ingredient.')).toBeTruthy();
+    });
+
+    it('lists every distinct blocking rule of a step with several invalid fields', async () => {
+        const user = userEvent.setup();
+        render(<Harness initialValues={{ ...defaultRecipeFormValues(), servings: 0 }} initialStep={1} />);
+
+        await user.click(screen.getByRole('button', { name: /Next: Ingredients/ }));
+
+        expect(screen.getByText('A title is required.')).toBeTruthy();
+        expect(screen.getByText('Servings must be greater than zero.')).toBeTruthy();
+    });
+
+    it('clears once the step is satisfied and Next actually advances', async () => {
+        const user = userEvent.setup();
+        render(<Harness initialValues={defaultRecipeFormValues()} initialStep={1} />);
+
+        await user.click(screen.getByRole('button', { name: /Next: Ingredients/ }));
+        expect(screen.getByText('A title is required.')).toBeTruthy();
+
+        await user.type(screen.getByLabelText('Title'), 'Herb Risotto');
+
+        expect(screen.queryByText('A title is required.')).toBeFalsy();
+    });
+
+    it('says nothing on a valid step that was attempted and advanced through', async () => {
+        const user = userEvent.setup();
+        render(<Harness initialValues={validValues()} initialStep={1} />);
+
+        await user.click(screen.getByRole('button', { name: /Next: Ingredients/ }));
+
+        expect(screen.queryByRole('alert')).toBeFalsy();
+    });
+
+    it('stays silent for a refused PUBLISH — the container renders those errors inline, and one refusal must not be voiced twice', async () => {
+        const user = userEvent.setup();
+        render(<Harness initialValues={noIngredients()} initialStep={4} />);
+
+        await user.click(screen.getByRole('button', { name: /Publish/ }));
+
+        // The rail still flags the offending step (whole-form validation ran)…
+        expect(screen.getByRole('button', { name: /Ingredients: needs attention/ })).toBeTruthy();
+        // …but the footer says nothing: `errors` is the container's channel for a failed Publish.
+        expect(screen.queryByRole('alert')).toBeFalsy();
+    });
+
+    it('drops a pending refusal once the author presses Publish instead', async () => {
+        const user = userEvent.setup();
+        render(<Harness initialValues={noIngredients()} initialStep={2} />);
+
+        await user.click(screen.getByRole('button', { name: /Next: Instructions/ }));
+        expect(screen.getByText('Add at least one ingredient.')).toBeTruthy();
+
+        // Jump to step 4 via the rail (free navigation) and publish from its footer.
+        await user.click(screen.getByRole('button', { name: /Photos: not yet started/ }));
+        await user.click(screen.getByRole('button', { name: /Publish/ }));
+
+        // Back on the blocked step, the stale refusal is gone — Publish owns the feedback now.
+        await user.click(screen.getByRole('button', { name: /Ingredients: needs attention/ }));
+
+        expect(screen.queryByRole('alert')).toBeFalsy();
+    });
+});
+
 describe('Wizard (web) — the footer nav labels carry NO decorative chevron', () => {
     // Mirrors the native spec: the footer buttons already render a chevron ICON, so a `<`/`>` inside the
     // SHARED localized label (`wizard/messages.ts`, no `.native` variant) duplicates it visually and makes a

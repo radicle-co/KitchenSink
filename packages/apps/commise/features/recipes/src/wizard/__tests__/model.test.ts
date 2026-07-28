@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { defaultRecipeFormValues } from '../../form/model.js';
-import { deriveRailStepState, recipeFormValuesEqual, WIZARD_STEPS, WIZARD_TOTAL_STEPS } from '../model.js';
+import {
+    blockedAdvanceErrors,
+    deriveRailStepState,
+    recipeFormValuesEqual,
+    WIZARD_STEPS,
+    WIZARD_TOTAL_STEPS,
+} from '../model.js';
 
 describe('WIZARD_STEPS', () => {
     it('is the 4 steps in order', () => {
@@ -54,5 +60,35 @@ describe('recipeFormValuesEqual', () => {
     it('is true for two values that are the same reference', () => {
         const base = defaultRecipeFormValues();
         expect(recipeFormValuesEqual(base, base)).toBe(true);
+    });
+});
+
+describe('blockedAdvanceErrors', () => {
+    it('is empty while the step has not been attempted, even when it has errors', () => {
+        expect(blockedAdvanceErrors(false, { ingredients: 'ingredientsEmpty' })).toEqual([]);
+    });
+
+    it('is empty for an attempted step that is valid', () => {
+        expect(blockedAdvanceErrors(true, {})).toEqual([]);
+    });
+
+    it('reports the attempted step’s blocking code — the reason `Next` refused to advance', () => {
+        expect(blockedAdvanceErrors(true, { ingredients: 'ingredientsEmpty' })).toEqual(['ingredientsEmpty']);
+    });
+
+    it('reports every distinct code when one step has several invalid fields', () => {
+        expect(
+            blockedAdvanceErrors(true, {
+                title: 'titleRequired',
+                servings: 'servingsPositive',
+                times: 'timesNonNegative',
+            }),
+        ).toEqual(['titleRequired', 'servingsPositive', 'timesNonNegative']);
+    });
+
+    it('never repeats a sentence when two fields carry the SAME code', () => {
+        expect(blockedAdvanceErrors(true, { servings: 'servingsPositive', times: 'servingsPositive' })).toEqual([
+            'servingsPositive',
+        ]);
     });
 });

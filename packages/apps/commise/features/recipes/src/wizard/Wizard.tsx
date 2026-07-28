@@ -50,9 +50,10 @@ import { useMessages } from '@commise/i18n/react';
 import { createContext, useContext, useEffect, useState, type FC, type ReactNode } from 'react';
 
 import { fillTemplate } from '../list/model.js';
+import { recipeFormMessages } from '../form/messages.js';
 import type { RecipeFormErrors, RecipeFormValues, RecipeWizardStep } from '../form/model.js';
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, EyeIcon, MoreVerticalIcon, SaveIcon, XIcon } from './icons.js';
-import { deriveRailStepState, WIZARD_STEPS, WIZARD_TOTAL_STEPS } from './model.js';
+import { blockedAdvanceErrors, deriveRailStepState, WIZARD_STEPS, WIZARD_TOTAL_STEPS } from './model.js';
 import { wizardMessages } from './messages.js';
 
 /** Props for {@link Wizard} (Root). */
@@ -96,6 +97,13 @@ export interface WizardProps {
 interface WizardModel extends Omit<WizardProps, 'children'> {
     /** Steps the user has tried to leave (via Next) or tried to Publish through — gates the rail's invalid flag. */
     readonly attempted: ReadonlySet<RecipeWizardStep>;
+    /**
+     * The step whose `Next` was just REFUSED, or `null` — gates the footer's blocked-advance notice (see
+     * `model.ts`'s `blockedAdvanceErrors`). Deliberately NOT `attempted`: Publish marks every step attempted
+     * and the container answers a failed Publish by populating its own `errors`, which the step bodies render
+     * inline, so reusing `attempted` here made the wizard say the same sentence twice.
+     */
+    readonly blockedStep: RecipeWizardStep | null;
     /** Whether the read-only preview panel is open. */
     readonly previewOpen: boolean;
     /** Advance, marking the CURRENT step attempted (so an invalid Next click flags it in the rail). */
@@ -126,9 +134,10 @@ function useWizardModel(): WizardModel {
 }
 
 const WizardRoot: FC<WizardProps> = (props) => {
-    const { step, isDirty, onCancel, goNext, goPrev, goToStep, publish, children } = props;
+    const { step, canAdvanceFrom, isDirty, onCancel, goNext, goPrev, goToStep, publish, children } = props;
     const m = useMessages(wizardMessages);
     const [attempted, setAttempted] = useState<ReadonlySet<RecipeWizardStep>>(new Set());
+    const [blockedStep, setBlockedStep] = useState<RecipeWizardStep | null>(null);
     const [previewOpen, setPreviewOpen] = useState(false);
     const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
@@ -137,6 +146,9 @@ const WizardRoot: FC<WizardProps> = (props) => {
 
     const requestGoNext = (): void => {
         markAttempted(step);
+        // Record a REFUSED advance so the footer can say why (`Next` is enabled but `goNext` no-ops on an
+        // invalid step). Cleared on a successful advance so it never trails the author forward.
+        setBlockedStep(canAdvanceFrom(step) ? null : step);
         goNext();
     };
 
@@ -169,6 +181,9 @@ const WizardRoot: FC<WizardProps> = (props) => {
 
     const requestPublish = (): void => {
         setAttempted(new Set(WIZARD_STEPS));
+        // A refused Publish is answered by the container's own whole-form `errors`, which the step bodies
+        // render inline — the footer must not repeat those sentences.
+        setBlockedStep(null);
         publish();
     };
 
@@ -198,6 +213,7 @@ const WizardRoot: FC<WizardProps> = (props) => {
     const model: WizardModel = {
         ...props,
         attempted,
+        blockedStep,
         previewOpen,
         requestGoNext,
         requestGoPrev,
@@ -478,28 +494,42 @@ const WizardTopBar: FC = () => {
 const WizardControls: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
+    const f = useMessages(recipeFormMessages);
     const index = model.step - 1;
     const prevName = index > 0 ? m.stepNames[index - 1] : undefined;
     const nextName = index < WIZARD_TOTAL_STEPS - 1 ? m.stepNames[index + 1] : undefined;
+    // Why the refusal is voiced HERE, next to the control that refused: see `blockedAdvanceErrors`.
+    const blocking = blockedAdvanceErrors(model.blockedStep === model.step, model.stepErrors(model.step));
 
     return (
-        <div aria-label={m.controlsLabel} className="flex items-center justify-between gap-3">
-            {prevName !== undefined ? (
-                <Button variant="secondary" icon={<ChevronLeftIcon />} onPress={model.requestGoPrev}>
-                    {fillTemplate(m.prevLabel, { name: prevName })}
-                </Button>
-            ) : (
-                <span />
+        <div className="flex flex-col gap-2">
+            {blocking.length > 0 && (
+                <div role="alert" className="flex flex-col gap-1">
+                    {blocking.map((code) => (
+                        <p key={code} className="text-body-sm text-error">
+                            {f.errors[code]}
+                        </p>
+                    ))}
+                </div>
             )}
-            {nextName !== undefined ? (
-                <Button icon={<ChevronRightIcon />} onPress={model.requestGoNext}>
-                    {fillTemplate(m.nextLabel, { name: nextName })}
-                </Button>
-            ) : (
-                <Button icon={<CheckIcon />} busy={model.submitting} onPress={model.requestPublish}>
-                    {m.publish}
-                </Button>
-            )}
+            <div aria-label={m.controlsLabel} className="flex items-center justify-between gap-3">
+                {prevName !== undefined ? (
+                    <Button variant="secondary" icon={<ChevronLeftIcon />} onPress={model.requestGoPrev}>
+                        {fillTemplate(m.prevLabel, { name: prevName })}
+                    </Button>
+                ) : (
+                    <span />
+                )}
+                {nextName !== undefined ? (
+                    <Button icon={<ChevronRightIcon />} onPress={model.requestGoNext}>
+                        {fillTemplate(m.nextLabel, { name: nextName })}
+                    </Button>
+                ) : (
+                    <Button icon={<CheckIcon />} busy={model.submitting} onPress={model.requestPublish}>
+                        {m.publish}
+                    </Button>
+                )}
+            </div>
         </div>
     );
 };

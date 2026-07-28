@@ -160,6 +160,92 @@ describe('Wizard (native) — Next gating + rail invalidity', () => {
     });
 });
 
+describe('Wizard (native) — a refused Next says WHY (the footer blocked-advance notice)', () => {
+    // `Next` is always enabled and `goNext` no-ops on an invalid step. Before this notice the only feedback
+    // was the rail marker turning `invalid`, so on step 2 — whose whole body is an empty ingredient list —
+    // the primary control did nothing and said nothing. Maestro's `recipes/photos` flow burned a round on
+    // exactly that: it tapped `Next: Instructions` on a seeded recipe with no ingredients and the screen
+    // simply did not move.
+    const noIngredients = (): RecipeFormValues => ({ ...validValues(), ingredients: [] });
+
+    it('says nothing before the author has tried to advance', () => {
+        render(<Harness initialValues={noIngredients()} initialStep={2} />);
+
+        expect(screen.queryByText('Add at least one ingredient.')).toBeFalsy();
+    });
+
+    it('names the blocking rule once Next is refused', () => {
+        render(<Harness initialValues={noIngredients()} initialStep={2} />);
+
+        fireEvent.click(screen.getByLabelText(/Next: Instructions/));
+
+        expect(screen.getByText('Add at least one ingredient.')).toBeTruthy();
+    });
+
+    it('announces it as an alert, so a screen reader hears the refusal it cannot see', () => {
+        render(<Harness initialValues={noIngredients()} initialStep={2} />);
+
+        fireEvent.click(screen.getByLabelText(/Next: Instructions/));
+
+        expect(within(screen.getByRole('alert')).getByText('Add at least one ingredient.')).toBeTruthy();
+    });
+
+    it('lists every distinct blocking rule of a step with several invalid fields', () => {
+        render(<Harness initialValues={{ ...defaultRecipeFormValues(), servings: 0 }} initialStep={1} />);
+
+        fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
+
+        expect(screen.getByText('A title is required.')).toBeTruthy();
+        expect(screen.getByText('Servings must be greater than zero.')).toBeTruthy();
+    });
+
+    it('clears once the step is satisfied and Next actually advances', () => {
+        render(<Harness initialValues={defaultRecipeFormValues()} initialStep={1} />);
+
+        fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
+        expect(screen.getByText('A title is required.')).toBeTruthy();
+
+        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Herb Risotto' } });
+
+        expect(screen.queryByText('A title is required.')).toBeFalsy();
+    });
+
+    it('says nothing on a valid step that was attempted and advanced through', () => {
+        render(<Harness initialValues={validValues()} initialStep={1} />);
+
+        fireEvent.click(screen.getByLabelText(/Next: Ingredients/));
+
+        expect(screen.queryByRole('alert')).toBeFalsy();
+    });
+
+    it('stays silent for a refused PUBLISH — the container renders those errors inline, and one refusal must not be voiced twice', () => {
+        render(<Harness initialValues={noIngredients()} initialStep={4} />);
+
+        fireEvent.click(screen.getByLabelText(/Publish/));
+
+        // The rail still flags the offending step (whole-form validation ran)…
+        expect(screen.getByLabelText(/Ingredients: needs attention/)).toBeTruthy();
+        // …but the footer says nothing: `errors` is the container's channel for a failed Publish.
+        expect(screen.queryByRole('alert')).toBeFalsy();
+    });
+
+    it('drops a pending refusal once the author presses Publish instead', () => {
+        render(<Harness initialValues={noIngredients()} initialStep={2} />);
+
+        fireEvent.click(screen.getByLabelText(/Next: Instructions/));
+        expect(screen.getByText('Add at least one ingredient.')).toBeTruthy();
+
+        // Jump to step 4 via the rail (free navigation) and publish from its footer.
+        fireEvent.click(screen.getByLabelText(/Photos: not yet started/));
+        fireEvent.click(screen.getByLabelText(/Publish/));
+
+        // Back on the blocked step, the stale refusal is gone — Publish owns the feedback now.
+        fireEvent.click(screen.getByLabelText(/Ingredients: needs attention/));
+
+        expect(screen.queryByRole('alert')).toBeFalsy();
+    });
+});
+
 describe('Wizard (native) — the footer nav labels carry NO decorative chevron', () => {
     // The footer buttons already render a `chevron-left`/`chevron-right` ICON, so a `<`/`>` inside the
     // LOCALIZED label duplicates it: the button paints a doubled chevron and a screen reader announces

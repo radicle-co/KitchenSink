@@ -45,9 +45,18 @@ appId: io.commise.mobile
           # The community aggregate (read-only social proof) and the rate call-to-action render. The presence
           # of the rate radiogroup proves the recipe is RATEABLE — the own-recipe gate (Sc8) would replace it
           # with "You can’t rate your own recipe." instead.
+          #
+          # Scroll to the STAR CONTROL, not to the "Community rating" heading above it. The heading sits high
+          # enough in the rating block to already be on screen when the detail opens, so `scrollUntilVisible`
+          # settled on try 0 without scrolling at all — leaving the star radiogroup ~150px below the fold,
+          # behind the system navigation bar, and the very next assertion failed on an element that was merely
+          # unscrolled-to. The detail is a `ScrollView` with 120dp of bottom padding, so the stars DO come into
+          # view; the flow just has to ask for them. Anchor the scroll on the thing about to be tapped.
           - scrollUntilVisible:
-                element: 'Community rating'
+                element: 'Rate 4 stars'
                 direction: DOWN
+                timeout: 20000
+          - assertVisible: 'Community rating'
           - assertVisible: 'Rate this recipe'
           - assertVisible: 'Rate 4 stars'
 

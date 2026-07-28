@@ -1,12 +1,18 @@
 /**
  * @module @commise/features-recipes — native Pull-Updates preview dialog (W5 Task 10, C2 / FR-011).
  *
- * The React Native leaf of {@link import('./PullUpdatesDialog.js').PullUpdatesDialog}: a full-screen RN
- * `Modal` sheet (`presentationStyle="fullScreen"`, `animationType="slide"`) rendering the SAME controlled,
- * presentational contract as the web leaf — same state precedence, same localized copy, so the two
- * platforms can't drift. `onRequestClose` (the Android hardware-back / web-Escape path RN provides) is
- * wired straight to `onCancel`, the same callback the explicit Cancel control uses — one exit path, not
- * two, mirroring the web leaf's `onOpenChange`→`onCancel` wiring.
+ * The React Native leaf of {@link import('./PullUpdatesDialog.js').PullUpdatesDialog}: a
+ * {@link FullScreenSheet} rendering the SAME controlled, presentational contract as the web leaf — same
+ * state precedence, same localized copy, so the two platforms can't drift. `onRequestClose` (the Android
+ * hardware-back / web-Escape path RN provides) is wired straight to `onCancel`, the same callback the
+ * explicit Cancel control uses — one exit path, not two, mirroring the web leaf's `onOpenChange`→`onCancel`
+ * wiring.
+ *
+ * The modal window and its safe-area padding belong to `FullScreenSheet`, not here. This leaf previously
+ * hand-rolled `<Modal presentationStyle="fullScreen">` over a flat `padding: 20` surface, which on an
+ * edge-to-edge Android device drew the heading UNDER the status bar — fully occluded, and therefore absent
+ * from the accessibility hierarchy, which is how Maestro's `collections-pull` flow caught it — and put the
+ * Cancel/Pull row UNDER the navigation bar's own tap targets.
  *
  * A discriminated three-way state (mutually exclusive, matching {@link PullUpdatesDialogProps}'s JSDoc):
  * (1) a `progressbar` affordance while `isLoadingPreview`, or before any `diff` has arrived; (2) an `alert`
@@ -19,8 +25,9 @@
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import type { FC } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { FullScreenSheet } from '../components/FullScreenSheet.native.js';
 import { fillTemplate } from '../list/model.js';
 import { collectionMessages } from './messages.js';
 import type { PullUpdatesDialogProps } from './model.js';
@@ -56,8 +63,8 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     const canConfirm = diff !== undefined && diff.added.length > 0 && !isCommitting;
 
     return (
-        <Modal visible={open} onRequestClose={onCancel} animationType="slide" presentationStyle="fullScreen">
-            <View style={styles.container}>
+        <FullScreenSheet label={pull.title} onRequestClose={onCancel}>
+            <>
                 <View style={styles.header}>
                     <Text accessibilityRole="header" style={styles.title}>
                         {pull.title}
@@ -115,13 +122,12 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
                         </Pressable>
                     )}
                 </View>
-            </View>
-        </Modal>
+            </>
+        </FullScreenSheet>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: palette.white, padding: 20, gap: 16 },
     header: { gap: 4 },
     title: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
     attribution: { fontSize: 14, color: palette.slate },

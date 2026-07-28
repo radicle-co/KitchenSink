@@ -207,6 +207,52 @@ describe('IngredientPicker — search field controls (U6 styling)', () => {
     });
 });
 
+/**
+ * REQ-057 gates the ingredient search at {@link MIN_INGREDIENT_QUERY_LENGTH} (2) characters, and the shared
+ * resolver model encodes that as the `idle` view state. The web leaf renders its action row ONLY inside the
+ * non-idle kinds (`searching`/`results`/`terminal`), so a single character offers nothing. Mobile gated the
+ * same row on `trimmed.length > 0` instead — a platform divergence that offered all three query-keyed
+ * affordances at ONE character (caught on-device by Maestro `create`, which asserts the negative).
+ *
+ * It is not merely cosmetic: "Find nutrition for “T”" fires the very food-service search REQ-057 gates, and
+ * "Create “T”" POSTs a real catalog ingredient named "T" — one stray keystroke away from junk catalog data.
+ */
+describe('IngredientPicker — REQ-057 2-character search threshold', () => {
+    it('offers no query-keyed affordance for a single character', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'T' } });
+        settleDebounce();
+
+        expect(screen.queryByRole('button', { name: 'Find nutrition for “T”' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Create “T”' })).toBeNull();
+        expect(screen.queryByText('Search USDA for “T”')).toBeNull();
+    });
+
+    it('offers them as soon as the query reaches two characters', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'To' } });
+        settleDebounce();
+
+        expect(screen.getByRole('button', { name: 'Find nutrition for “To”' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Create “To”' })).toBeTruthy();
+        expect(screen.getByText('Search USDA for “To”')).toBeTruthy();
+    });
+
+    it('offers nothing at all while the field is still empty', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult());
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        settleDebounce();
+
+        expect(screen.queryByRole('button', { name: /^Find nutrition for/ })).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Create/ })).toBeNull();
+    });
+});
+
 describe('IngredientPicker — empty state', () => {
     it('shows the empty message when a non-empty query returns no matches', () => {
         useSuggestIngredientsMock.mockReturnValue(searchResult());

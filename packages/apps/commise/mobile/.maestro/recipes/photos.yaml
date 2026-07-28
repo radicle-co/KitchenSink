@@ -52,10 +52,37 @@ appId: io.commise.mobile
       direction: DOWN
       timeout: 20000
 - tapOn: 'Edit recipe'
-- assertVisible: 'Edit recipe'
 
-# RecipePhotoUploader sits at the FOOT of the scrolling edit form, below the recipe fields. A freshly-seeded
-# recipe carries no photos, so the manager renders its empty state + the add control.
+# The wizard opens on step 1 and has NO page heading of its own — that "Edit recipe" copy belonged to the
+# retired flat `RecipeForm`, and this flow's old `assertVisible: 'Edit recipe'` here was asserting the detail
+# screen's own button label from inside the editor that replaced it. The step-progress label is the entry
+# checkpoint instead (the same checkpoint `create.yaml`, `edit.yaml` and `versions.yaml` already use).
+- assertVisible: 'Step 1 of 4'
+
+# The photo manager is STEP 4's body (`RecipeEditScreen` passes `RecipePhotoUploader` as `photosSlot`), not a
+# block at the foot of one long scrolling form — w3 replaced that flat form with the screen-per-step wizard.
+# Walk forward through the footer `Next: …` primaries to reach it. Steps 2 and 3 are passed through untouched:
+# this flow asserts the photo surface, and the seeded recipe's own validity is `edit.yaml`'s concern.
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+- scrollUntilVisible:
+      element: 'Next: Photos'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Photos'
+- assertVisible: 'Step 4 of 4'
+
+# A freshly-seeded recipe carries no photos, so the manager renders its empty state + the add control. This
+# recipe IS persisted (an edit, not a create), so step 4 is the real manager rather than the "save first"
+# guidance notice a create shows.
 - scrollUntilVisible:
       element: 'Photos'
       direction: DOWN

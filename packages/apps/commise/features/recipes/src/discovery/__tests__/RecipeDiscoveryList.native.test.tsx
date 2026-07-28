@@ -218,6 +218,51 @@ describe('RecipeDiscoveryList (native) — loading skeleton (U7)', () => {
     });
 });
 
+/**
+ * Resolve the value react-native-web actually APPLIED for a CSS property, by walking the element's atomic
+ * `r-*` classes back to their compiled rules. `getComputedStyle` does not resolve these, and a `style`
+ * attribute check would miss `StyleSheet.create` styles entirely — so this is the only honest read of the
+ * geometry that ships. Mirrors the `appliedStyle` helper in `RecipeHero.native.test.tsx`.
+ */
+function appliedStyle(element: Element, property: string): string | undefined {
+    const classNames = element.className.split(' ').filter((name) => name.startsWith('r-'));
+    const sheets = document.styleSheets;
+    let resolved: string | undefined;
+
+    for (const className of classNames) {
+        for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
+            const rules = sheets[sheetIndex]?.cssRules;
+
+            for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
+                const rule = rules?.[ruleIndex];
+
+                if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
+                    const value = rule.style.getPropertyValue(property);
+
+                    if (value !== '') {
+                        resolved = value;
+                    }
+                }
+            }
+        }
+    }
+
+    return resolved;
+}
+
+/** Whether `element` or any ancestor is a scroll container react-native-web actually made scrollable. */
+function hasScrollableAncestor(element: Element): boolean {
+    for (let node: Element | null = element; node !== null; node = node.parentElement) {
+        const overflowY = appliedStyle(node, 'overflow-y');
+
+        if (overflowY === 'auto' || overflowY === 'scroll') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 describe('RecipeDiscoveryList (native) — browse slot (U7)', () => {
     it('renders the browse slot (not a bare search) when no query/filter is active', () => {
         renderDiscovery({ status: 'ready', results: [], searchValue: '', browseSlot: <>{'CURATED RAILS'}</> });
@@ -236,6 +281,33 @@ describe('RecipeDiscoveryList (native) — browse slot (U7)', () => {
 
         expect(screen.queryByText('CURATED RAILS')).toBeNull();
         expect(screen.getByRole('button', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
+    });
+
+    // Regression (Maestro `discover-browse`/`search-navigation`): the browse surface — the DEFAULT state of
+    // the Discover tab — is three curated rails plus cuisine shortcuts, which is far taller than a phone
+    // viewport. It used to render as a bare fragment inside the screen's `flex: 1` container, so NOTHING
+    // scrolled: Maestro swiped up 13 times without the surface moving, and the third rail ("Quick") plus the
+    // cuisine shortcuts were unreachable on a device. The result state was always virtualized (FlashList) and
+    // therefore fine; only browse was stranded.
+    it('puts the browse slot in a scrollable container so content below the fold is reachable', () => {
+        renderDiscovery({ status: 'ready', results: [], searchValue: '', browseSlot: <>{'CURATED RAILS'}</> });
+
+        expect(hasScrollableAncestor(screen.getByText('CURATED RAILS'))).toBe(true);
+    });
+
+    it('keeps the browse surface rendered and scrollable when a refresh control is wired', () => {
+        // `RefreshControl` itself is inert under jsdom (same limitation the result-state and `RecipeList`
+        // pull-to-refresh tests document), so what is assertable here is that wiring it neither drops the
+        // browse content nor costs it its scroll container. The gesture itself is a device/Maestro concern.
+        renderDiscovery({
+            status: 'ready',
+            results: [],
+            searchValue: '',
+            browseSlot: <>{'CURATED RAILS'}</>,
+            refresh: { refreshing: true, onRefresh: noop },
+        });
+
+        expect(hasScrollableAncestor(screen.getByText('CURATED RAILS'))).toBe(true);
     });
 });
 

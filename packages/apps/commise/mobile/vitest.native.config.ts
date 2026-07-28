@@ -81,6 +81,12 @@ export default defineConfig({
             // bridge to native views with no jsdom runtime — stub them; real gradient/blur is emulator-only.
             'expo-linear-gradient': path.resolve(import.meta.dirname, 'tests/stubs/expoLinearGradient.tsx'),
             'expo-blur': path.resolve(import.meta.dirname, 'tests/stubs/expoBlur.tsx'),
+            // `react-native-safe-area-context` ships Flow-typed source that Vitest cannot parse at all
+            // (`Unexpected token 'typeof'`), and bridges to a native module for the device's window insets.
+            // The shared `FullScreenSheet` recipe primitive reads `useSafeAreaInsets`, so every screen that
+            // composes a recipe feature leaf pulls it into the graph — stub it here rather than requiring
+            // each such test to remember a `vi.mock` (tests that DO mock it still win over this alias).
+            'react-native-safe-area-context': path.resolve(import.meta.dirname, 'tests/stubs/safeAreaContext.tsx'),
         },
     },
 });

@@ -61,8 +61,12 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
                 </button>
             )}
             <div className="flex items-center justify-between gap-4">
-                <h1 className="font-display text-display-md font-bold text-charcoal">{name}</h1>
-                <div className="flex items-center gap-3">
+                {/* `min-w-0 break-words` + the actions' `shrink-0`: a flex item's default `min-width: auto`
+                    lets a long, unbroken collection name overflow the row and crowd the actions out. The
+                    native leaf carries the same contract via `flexShrink` (where RN's 0 default made this a
+                    hard on-device failure — Rename clipped, Delete off-screen entirely). */}
+                <h1 className="min-w-0 break-words font-display text-display-md font-bold text-charcoal">{name}</h1>
+                <div className="flex shrink-0 items-center gap-3">
                     <button
                         type="button"
                         onClick={onEdit}

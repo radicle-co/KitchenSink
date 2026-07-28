@@ -102,8 +102,13 @@ const styles = StyleSheet.create({
     textButton: { paddingVertical: 6, paddingHorizontal: 10 },
     backLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
     titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-    heading: { fontSize: 28, fontWeight: '700', color: palette.charcoal },
-    actions: { flexDirection: 'row', gap: 8 },
+    // `flexShrink: 1` is load-bearing, not cosmetic. RN defaults `flexShrink` to 0, so without it a long
+    // collection name claims its full intrinsic width in this row and pushes `actions` past the screen edge:
+    // on-device (Maestro `collections`, `collections-pagination`) "Rename" was clipped to a 33px slither and
+    // "Delete" fell out of the view hierarchy entirely — deleting a collection was unreachable on mobile.
+    // Shrinking lets the name wrap instead, which is what the web leaf's `min-w-0` + `break-words` already do.
+    heading: { flexShrink: 1, fontSize: 28, fontWeight: '700', color: palette.charcoal },
+    actions: { flexDirection: 'row', flexShrink: 0, gap: 8 },
     editLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
     deleteLabel: { color: palette.error, fontWeight: '500', fontSize: 14 },
     description: { fontSize: 15, color: palette.slate },

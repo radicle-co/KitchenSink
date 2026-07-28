@@ -104,3 +104,32 @@ describe('CollectionHeader (web) — Edit/Delete affordances (C4)', () => {
         expect(onDelete).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * Cross-platform parity for the native leaf's `flexShrink` fix (Maestro `collections` /
+ * `collections-pagination`, where a long name pushed Rename/Delete off the screen edge on Android). CSS
+ * flex items default to `flex-shrink: 1`, so web degraded more gracefully than RN — but the `h1`'s
+ * `min-width: auto` still lets a single long token overflow, and the action group could itself be squeezed.
+ * Pinning both here keeps the two leaves' overflow behaviour from drifting again.
+ */
+describe('CollectionHeader (web) — title row cannot squeeze its actions off-screen', () => {
+    it('lets a long name shrink and wrap rather than overflow the row', () => {
+        renderHeader({ name: 'Maestro renamed collection with a deliberately very long name' });
+
+        const heading = screen.getByRole('heading', {
+            name: 'Maestro renamed collection with a deliberately very long name',
+        });
+
+        expect(heading.className).toContain('min-w-0');
+        expect(heading.className).toContain('break-words');
+    });
+
+    it('never shrinks the action group itself, so neither control is clipped', () => {
+        renderHeader({ name: 'Maestro renamed collection with a deliberately very long name' });
+
+        const actions = screen.getByRole('button', { name: 'Delete' }).parentElement;
+
+        expect(actions).not.toBeNull();
+        expect(actions?.className).toContain('shrink-0');
+    });
+});

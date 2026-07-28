@@ -459,6 +459,27 @@ describe('IngredientPicker — REQ-057 typeahead trigger, debounce, and ranking'
         expect(searchSpy).not.toHaveBeenCalled();
     });
 
+    // Cross-platform parity guard for the native leaf's REQ-057 fix. Web has always been correct here (the
+    // action row renders only inside the non-idle view-state kinds), but the mobile leaf gated the same row
+    // on `trimmed.length > 0` and so offered both affordances at ONE character. Pinning the affordance-level
+    // contract — not just the absent network call — keeps the two leaves from drifting on it again.
+    it('offers neither query-keyed affordance below the 2-character trigger', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+
+        fireEvent.change(screen.getByRole('searchbox', { name: 'Search ingredients' }), {
+            target: { value: 's' },
+        });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(INGREDIENT_SEARCH_DEBOUNCE_MS);
+        });
+
+        expect(screen.queryByRole('button', { name: 'Find nutrition for “s”' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Create “s”' })).toBeNull();
+    });
+
     // Regression (final-review Finding 1): the debounce split the live gating query from the query that
     // enables the search fetch. The instant the input crosses the 2-char threshold, the debounced value
     // hasn't caught up, so the search is still `enabled: false` — that window must render the "Searching

@@ -1,5 +1,19 @@
 {
     "$schema": "https://json.schemastore.org/tsconfig",
     "extends": "./tsconfig.json",
-    "exclude": ["node_modules", "dist", "src/**/__tests__", "src/**/*.test.ts", "tests"]
+    // The EMIT project. `include` is overridden as well as `exclude` because the base (typecheck) project
+    // deliberately includes `tests/**` and the package-root `__tests__/**`, and an `exclude` list is easy to
+    // leave one glob behind — it already was: `__tests__/integration/**` and `src/**/__fixtures__` were
+    // emitted into `dist`, which the Dockerfile copies wholesale into the service image. Production code only.
+    "include": ["src/**/*.ts"],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "tests",
+        "__tests__",
+        "src/**/__tests__",
+        "src/**/*.test.ts",
+        "src/**/__fixtures__",
+        "src/__testing__"
+    ]
 }

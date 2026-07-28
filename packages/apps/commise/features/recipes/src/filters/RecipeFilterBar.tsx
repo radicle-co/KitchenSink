@@ -214,8 +214,13 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                         <ul className="flex flex-col">
                             {visibleResults.map((ingredient) => (
                                 <li key={ingredient.id}>
+                                    {/* Named by its ACTION ("Filter by Flour"), not the bare ingredient name:
+                                        the sibling search box already carries that exact string as its value,
+                                        so a bare name is not uniquely addressable — see the
+                                        `addIngredientFilter` message's doc for the failure that closes. */}
                                     <button
                                         type="button"
+                                        aria-label={fillTemplate(m.addIngredientFilter, { name: ingredient.name })}
                                         onClick={() =>
                                             onAddIngredientFilter({ id: ingredient.id, name: ingredient.name })
                                         }

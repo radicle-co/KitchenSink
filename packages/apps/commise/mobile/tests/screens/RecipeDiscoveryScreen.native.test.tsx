@@ -168,6 +168,72 @@ describe('RecipeDiscoveryScreen — browse rails (U7)', () => {
     });
 });
 
+/**
+ * The ingredient facet (FR-006 gap #3) end to end THROUGH the screen — the story `search-navigation.yaml`
+ * walks on-device, which nothing below the screen could catch: the filter bar's own tests stub every
+ * callback, and the pure model's tests never render. It failed in CI at exactly this seam (round 5): the
+ * option was named by the bare ingredient name, so the harness's name-addressed tap resolved to the search
+ * FIELD (which holds the same string) instead of the option, and the pick was silently dropped — the sheet
+ * closed with no chip, no count badge, `hasActiveFilters` false, and the browse rails still on screen.
+ */
+describe('RecipeDiscoveryScreen — ingredient facet (FR-006 gap #3)', () => {
+    /** A catalog match whose name is EXACTLY what the test types — the collision the defect turned on. */
+    const flour = { id: 'ing_flour', name: 'Flour', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' };
+
+    /** Open the filter bottom sheet (U7) — every facet, the ingredient typeahead included, lives inside it. */
+    function openFilters(): void {
+        fireEvent.click(screen.getByRole('button', { name: /^Filters/ }));
+    }
+
+    beforeEach(() => {
+        // An empty result set, so an APPLIED ingredient filter lands on the no-match state and a DROPPED one
+        // leaves the curated browse rails up — the two are distinguishable, which is the whole point.
+        useSearchRecipesMock.mockReturnValue(searchResult({ data: makeSearchResponse([]) }));
+        useSearchIngredientsMock.mockReturnValue({
+            isLoading: false,
+            isError: false,
+            isSuccess: true,
+            data: [flour],
+        } as unknown as ReturnType<typeof useSearchIngredients>);
+    });
+
+    it('applies a picked ingredient to the search, leaving browse for the no-match state', async () => {
+        render(<RecipeDiscoveryScreen onSelectRecipe={vi.fn()} />);
+
+        // Browse is the default surface: no query, no filter.
+        expect(screen.getByRole('heading', { name: 'Trending' })).toBeTruthy();
+
+        openFilters();
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'Flour' } });
+
+        // The option is addressable by its ACTION even though the field now holds the same word.
+        const option = await screen.findByRole('button', { name: 'Filter by Flour' });
+        expect((screen.getByLabelText('Search ingredients') as HTMLInputElement).value).toBe('Flour');
+        fireEvent.click(option);
+
+        // The id reached the wire params — the falsifiable core (a dropped facet sends no `ingredientIds`).
+        expect(useSearchRecipesMock).toHaveBeenCalledWith(expect.objectContaining({ ingredientIds: ['ing_flour'] }));
+        // …and the surface really left browse for the no-match state, with the trigger badging one filter.
+        expect(screen.getByText('No matching recipes')).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Trending' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Filters, 1 active' })).toBeTruthy();
+    });
+
+    it('restores browse when the ingredient chip is removed', async () => {
+        render(<RecipeDiscoveryScreen onSelectRecipe={vi.fn()} />);
+
+        openFilters();
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'Flour' } });
+        fireEvent.click(await screen.findByRole('button', { name: 'Filter by Flour' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Remove Flour' }));
+
+        expect(screen.getByRole('heading', { name: 'Trending' })).toBeTruthy();
+        expect(screen.queryByText('No matching recipes')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Remove Flour' })).toBeNull();
+    });
+});
+
 describe('RecipeDiscoveryScreen — debounced search (U7)', () => {
     it('echoes the typed value immediately but debounces the value fed to the query', async () => {
         useSearchRecipesMock.mockReturnValue(searchResult());

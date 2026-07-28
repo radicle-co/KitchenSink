@@ -417,9 +417,59 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
             onAddIngredientFilter,
         });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Chicken' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Filter by Chicken' }));
 
         expect(onAddIngredientFilter).toHaveBeenCalledWith({ id: 'ing_1', name: 'Chicken' });
+    });
+
+    // The defect (round 5): the option's accessible name was the BARE ingredient name — the very string the
+    // user just typed into the sibling search field, which carries it as its own value. Any name-addressed
+    // activation (Maestro `tapOn: 'Flour'`, voice control, a switch-access menu) therefore resolves to the
+    // FIELD, which is earlier in the tree, and the pick is silently dropped: the sheet closes with no chip, no
+    // count badge, and `hasActiveFilters` still false. Naming the option by its ACTION makes it addressable.
+    it('names each option by its ACTION, so it cannot collide with the query the field already holds', () => {
+        renderBar({
+            ingredientSearch: {
+                // The worst case, and the one the Maestro flow hits: the typed query IS the match's full name.
+                query: 'Chicken',
+                onQueryChange: noop,
+                viewState: {
+                    kind: 'results',
+                    results: [
+                        { id: 'ing_1', name: 'Chicken', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' },
+                    ],
+                    isError: false,
+                },
+            },
+        });
+
+        // The collision is REAL in this test, not hypothetical: the field really does hold "Chicken".
+        expect((screen.getByLabelText('Search ingredients') as HTMLInputElement).value).toBe('Chicken');
+        // …and the option is still uniquely addressable, because its name describes what activating it does.
+        expect(screen.getByRole('button', { name: 'Filter by Chicken' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Chicken' })).toBeNull();
+    });
+
+    // The option row carried NO style at all — its hit area was the intrinsic height of one line of text
+    // (~19dp), well under the 44pt floor every other control on this leaf (and its web peer's `py-2`) has.
+    it('gives each option the 44pt minimum tap target', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'chi',
+                onQueryChange: noop,
+                viewState: {
+                    kind: 'results',
+                    results: [
+                        { id: 'ing_1', name: 'Chicken', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' },
+                    ],
+                    isError: false,
+                },
+            },
+        });
+
+        const option = screen.getByRole('button', { name: 'Filter by Chicken' });
+
+        expect(appliedStyle(option, 'min-height')).toBe('44px');
     });
 
     it('excludes an already-selected ingredient from the suggestion list', () => {
@@ -438,7 +488,7 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
             },
         });
 
-        expect(screen.queryByRole('button', { name: 'Chicken' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Filter by Chicken' })).toBeNull();
     });
 
     it('updates the search box via onQueryChange', () => {

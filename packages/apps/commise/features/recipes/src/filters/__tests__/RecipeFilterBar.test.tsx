@@ -402,9 +402,33 @@ describe('RecipeFilterBar (web) — ingredient filter typeahead (FR-006 gap #3)'
             onAddIngredientFilter,
         });
 
-        await user.click(screen.getByRole('button', { name: 'Chicken' }));
+        await user.click(screen.getByRole('button', { name: 'Filter by Chicken' }));
 
         expect(onAddIngredientFilter).toHaveBeenCalledWith({ id: 'ing_1', name: 'Chicken' });
+    });
+
+    // Parity with the native leaf's same test: an option named by the bare ingredient name is
+    // indistinguishable from the query the sibling search box already holds, so any name-addressed
+    // activation (voice control, a switch-access menu, a UI harness) can resolve to the FIELD instead of the
+    // option. The name states the ACTION, exactly as the removal chip's "Remove {name}" already does.
+    it('names each option by its ACTION, so it cannot collide with the query the field already holds', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'Chicken',
+                onQueryChange: noop,
+                viewState: {
+                    kind: 'results',
+                    results: [
+                        { id: 'ing_1', name: 'Chicken', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' },
+                    ],
+                    isError: false,
+                },
+            },
+        });
+
+        expect((screen.getByLabelText('Search ingredients') as HTMLInputElement).value).toBe('Chicken');
+        expect(screen.getByRole('button', { name: 'Filter by Chicken' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Chicken' })).toBeNull();
     });
 
     it('excludes an already-selected ingredient from the suggestion list', () => {
@@ -423,7 +447,7 @@ describe('RecipeFilterBar (web) — ingredient filter typeahead (FR-006 gap #3)'
             },
         });
 
-        expect(screen.queryByRole('button', { name: 'Chicken' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Filter by Chicken' })).toBeNull();
     });
 
     it('updates the search box via onQueryChange', async () => {

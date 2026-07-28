@@ -38,6 +38,16 @@ export interface FilterMessages {
     readonly ingredientNoMatches: string;
     /** Shown when an ingredient search fails. */
     readonly ingredientSearchError: string;
+    /**
+     * Accessible-name template for a typeahead RESULT that adds an ingredient filter (contains `{name}`).
+     *
+     * States the ACTION, not just the ingredient: the option sits next to a search box that already holds the
+     * very name the user typed, so a bare `{name}` makes the two indistinguishable to anything that addresses
+     * a control BY NAME — voice control, a switch-access menu, the Maestro flow — and such an activation
+     * resolves to the field (earlier in the tree) instead of the option, silently dropping the selection. The
+     * visible row still reads just the ingredient name, which this template contains (WCAG 2.5.3).
+     */
+    readonly addIngredientFilter: string;
     /** Accessible-name template for a chip that removes a selected ingredient (contains `{name}`). */
     readonly removeIngredientFilter: string;
     /** Singular chip-count template, folded into a chip's accessible name (contains `{count}`). */
@@ -79,6 +89,7 @@ export const filterMessages: LocalizedMessages<FilterMessages> = {
         ingredientSearching: 'Searching ingredients…',
         ingredientNoMatches: 'No matching ingredients',
         ingredientSearchError: 'We couldn’t search ingredients. Try again.',
+        addIngredientFilter: 'Filter by {name}',
         removeIngredientFilter: 'Remove {name}',
     },
 };

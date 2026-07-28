@@ -112,8 +112,11 @@ describe('RecipeWidgetSlot (mobile) — the widget chunk fails to load', () => {
         // here; the two platforms must degrade identically (FR-044 / §14), so the copy is the SAME literal.
         expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
 
-        // Announced, not merely painted — the accessibility half of the same defect.
-        expect(screen.getByRole('alert')).toBeTruthy();
+        // Announced, not merely painted — the accessibility half of the same defect — and POLITELY, in the
+        // same register web uses. See `HomeWidgetErrorNotice`'s web suite for why a widget that failed is a
+        // `status`, not an `alert`; the two platforms make the same call so a screen reader behaves the same.
+        expect(screen.getByRole('status')).toBeTruthy();
+        expect(screen.queryByRole('alert')).toBeNull();
 
         // …and the notice must come from the INNER boundary. If the throw had escaped to the host boundary the
         // sentinel would be showing and the navigation entry would be gone — a silent regression that a bare

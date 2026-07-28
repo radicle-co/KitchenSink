@@ -197,12 +197,14 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
             renderers: { [RECIPE_HOME_WIDGET_ID]: Boom },
         });
 
-        // The throw is caught → no crash, and a LOCALIZED notice stands in for the widget, announced as an
-        // alert so assistive tech reports the failure instead of silence. The copy is asserted as the literal
-        // the catalog ships (not `mobileMessages.en...`), so swapping the key for another message fails here.
+        // The throw is caught → no crash, and a LOCALIZED notice stands in for the widget, announced as a
+        // POLITE `status` so assistive tech reports the failure without interrupting the viewer mid-sentence
+        // over something they cannot act on. The copy is asserted as the literal the catalog ships (not
+        // `mobileMessages.en...`), so swapping the key for another message fails here.
         expect(screen.queryByText('fake-recipe-widget')).toBeNull();
         expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
-        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.getByRole('status')).toBeTruthy();
+        expect(screen.queryByRole('alert')).toBeNull();
         expect(reportError).toHaveBeenCalledWith(expect.any(Error), { widget: RECIPE_HOME_WIDGET_ID });
 
         consoleError.mockRestore();

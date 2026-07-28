@@ -92,7 +92,7 @@ export function RecipeWidgetSlot(): JSX.Element {
                 slot carries the same inner boundary, so both platforms degrade identically (FR-044).
 
                 The fallback is the shared {@link HomeWidgetErrorNotice} — the same stand-in the host boundary
-                renders, so the copy, the muted treatment, and the `alert` announcement have ONE definition and
+                renders, so the copy, the muted treatment, and the `status` announcement have ONE definition and
                 cannot drift between the two boundaries. It carries NO "try again" control, and that is
                 deliberate: `RecipeHomeWidget` is built once at MODULE scope, and React's `lazyInitializer`
                 invokes the loader only while the payload is Uninitialized — a rejection parks it at

@@ -140,7 +140,7 @@ export function HomeWidgetSurface({
                             // localized {@link HomeWidgetErrorNotice} instead of vanishing. That notice is a
                             // component, not inline JSX, because the recipe slot's inner boundary renders the
                             // SAME stand-in: one piece of knowledge ("what a broken widget looks and sounds
-                            // like"), so it gets one representation — and it is ANNOUNCED (`role="alert"`),
+                            // like"), so it gets one representation — and it is ANNOUNCED (`role="status"`),
                             // matching mobile, since a failure arriving mid-session is otherwise silent to
                             // assistive tech.
                             if (Bespoke !== undefined) {

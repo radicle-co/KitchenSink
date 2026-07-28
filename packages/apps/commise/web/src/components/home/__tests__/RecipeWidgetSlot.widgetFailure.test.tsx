@@ -102,12 +102,14 @@ describe('RecipeWidgetSlot (web) — the widget body fails to render', () => {
         expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
     });
 
-    it('announces the loss instead of leaving it silent to assistive tech', () => {
+    it('announces the loss POLITELY instead of leaving it silent to assistive tech', () => {
         renderSlot();
 
-        // The remaining half of the same drift: mobile announces this notice as an `alert`, web rendered a
-        // plain <p>, so on web a widget that failed mid-session was invisible to a screen reader.
-        expect(screen.getByRole('alert').textContent).toBe('This section couldn’t load.');
+        // Announced (the original drift was a plain <p>, silent to a screen reader) but POLITE, not
+        // assertive — see `HomeWidgetErrorNotice`'s own suite for why `status` is the right register here,
+        // and mobile's mirror of this test for the matching native decision.
+        expect(screen.getByRole('status').textContent).toBe('This section couldn’t load.');
+        expect(screen.queryByRole('alert')).toBeNull();
 
         // …and it must be the INNER boundary's notice. Were the throw escaping to the host, the sentinel would
         // be showing and the navigation gone — a regression a bare "is the message on screen?" check passes.

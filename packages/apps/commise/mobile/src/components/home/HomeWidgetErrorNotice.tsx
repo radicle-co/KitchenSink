@@ -9,7 +9,7 @@
  * CONTRACT (a localized explanation, and no recovery affordance) rather than its markup.
  *
  * It exists as a component rather than inline JSX at each boundary so "what a broken widget looks like" has
- * ONE representation — the copy, the alert announcement, and the muted-caption treatment cannot drift between
+ * ONE representation — the copy, the live-region register, and the muted-caption treatment cannot drift between
  * the two boundaries, and the surface's tests can pin it once.
  *
  * NOT offered here: a "try again" control. See the boundary comment in `RecipeWidgetSlot.tsx` — the widget is
@@ -27,15 +27,24 @@ import { mobileMessages } from '../../i18n/messages.js';
 /**
  * The stand-in for a Home widget whose body failed to render.
  *
- * @returns A localized, assertively announced one-line notice.
+ * @returns A localized, POLITELY announced one-line notice.
  */
 export function HomeWidgetErrorNotice(): JSX.Element {
     const { home } = useMessages(mobileMessages);
 
-    // `alert` (not plain text): the notice appears only after the widget has already failed mid-session, so a
-    // viewer using assistive tech would otherwise have to go looking for it to discover anything was wrong.
+    // A LIVE REGION, but a POLITE one — `status`, not `alert`. The region is required (the notice appears
+    // only after the widget has already failed mid-session, so plain text leaves a viewer using assistive
+    // tech to go looking for it); the REGISTER is polite because a single failed widget is not time-critical,
+    // carries no recovery affordance to act on, and leaves the rest of Home usable. The full reasoning —
+    // including why both registers satisfy WCAG SC 4.1.3 — lives in the web leaf's JSDoc; the two platforms
+    // make the SAME call so a screen reader behaves identically on both.
+    //
+    // `accessibilityLiveRegion` is paired with the role deliberately: it is the mechanism Android actually
+    // reads (TalkBack), while `role` is what react-native-web projects to ARIA and what iOS maps to a trait.
+    // Either alone leaves one of the three hosts silent. The assertive pairing in `RecipePhotoManager.native`
+    // is the same construction one register louder.
     return (
-        <Text accessibilityRole="alert" style={styles.notice}>
+        <Text role="status" accessibilityLiveRegion="polite" style={styles.notice}>
             {home.widgetError}
         </Text>
     );

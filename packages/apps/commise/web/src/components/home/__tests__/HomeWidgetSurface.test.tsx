@@ -191,9 +191,11 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         expect(screen.queryByText('fake-recipe-widget')).toBeNull();
         expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
         // ANNOUNCED, not merely painted: this fallback appears only after the widget has already failed
-        // mid-session, so a plain <p> (what web shipped) told a screen-reader user nothing at all while
-        // mobile's counterpart announced it. Same failure, same treatment, both platforms (FR-044 / §14).
-        expect(screen.getByRole('alert')).toBeTruthy();
+        // mid-session, so a plain <p> (what web shipped) told a screen-reader user nothing at all. It is a
+        // POLITE `status`, not an assertive `alert` — see `HomeWidgetErrorNotice.test.tsx`. Same failure,
+        // same treatment, both platforms (FR-044 / §14).
+        expect(screen.getByRole('status')).toBeTruthy();
+        expect(screen.queryByRole('alert')).toBeNull();
         expect(reportError).toHaveBeenCalledWith(expect.any(Error), { widget: RECIPE_HOME_WIDGET_ID });
 
         consoleError.mockRestore();
@@ -228,6 +230,7 @@ describe('HomeWidgetSurface (web) — host composition', () => {
         });
 
         expect(screen.queryByText('This section couldn’t load.')).toBeNull();
+        expect(screen.queryByRole('status')).toBeNull();
         expect(screen.queryByRole('alert')).toBeNull();
 
         consoleError.mockRestore();

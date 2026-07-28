@@ -7,9 +7,11 @@
  * Two things are pinned here, once, for BOTH boundaries that use this fallback (the host's per-widget one in
  * `HomeWidgetSurface.tsx` and the recipe slot's inner one in `RecipeWidgetSlot.tsx`):
  *  - the copy, character-identical to the mobile catalog's `home.widgetError`; and
- *  - that it is ANNOUNCED (`role="alert"`), not merely painted. Web rendered a plain `<p>` with no role at
- *    both boundaries, so a widget failing mid-session was completely silent to assistive tech while mobile
- *    announced it — the accessibility half of the drift, inverted.
+ *  - that it is ANNOUNCED, and in the right REGISTER. Web rendered a plain `<p>` with no role at both
+ *    boundaries, so a widget failing mid-session was completely silent to assistive tech while mobile
+ *    announced it — the accessibility half of the drift, inverted. Both platforms then landed on `alert`
+ *    (assertive), which is the opposite over-correction; `status` (polite) is what this now pins. See the
+ *    announcement test below for the reasoning, and mobile's suite for the matching native assertion.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
@@ -30,12 +32,22 @@ describe('HomeWidgetErrorNotice (web)', () => {
         expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
     });
 
-    it('announces the failure to assistive tech rather than only painting it', () => {
+    it('announces the failure POLITELY — a live region, but never an interruption', () => {
         renderWithProviders(<HomeWidgetErrorNotice />);
 
-        // `alert`: the notice is inserted only AFTER the widget has already failed mid-session, so without a
-        // live region a screen-reader user would have to go looking for it to learn anything went wrong.
-        expect(screen.getByRole('alert').textContent).toBe('This section couldn’t load.');
+        // A live region IS required: the notice is inserted only AFTER the widget has already failed
+        // mid-session, so without one a screen-reader user would have to go looking to learn anything went
+        // wrong. The register is `status` (polite), NOT `alert` (assertive), on three grounds:
+        //
+        //  1. ARIA reserves `alert` for information "that requires the user's immediate attention", and
+        //     assertive interrupts whatever the screen reader is mid-sentence on — including the user's own
+        //     navigation. One widget of a multi-widget Home failing is not that.
+        //  2. This notice deliberately offers NO recovery control (the lazy proxy caches its rejection), so
+        //     interrupting announces something the viewer cannot act on. Home stays fully usable, and the
+        //     slot's route out ("See all recipes") is preserved on purpose.
+        //  3. Both registers satisfy WCAG 2.1 SC 4.1.3 (Status Messages), so politeness costs no conformance.
+        expect(screen.getByRole('status').textContent).toBe('This section couldn’t load.');
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 
     it('carries the muted small-body treatment both boundaries shared before extraction', () => {
@@ -44,7 +56,7 @@ describe('HomeWidgetErrorNotice (web)', () => {
         // The visual treatment is part of what this component makes single-sourced (it was duplicated inline
         // at two boundaries); pinning it is what stops one boundary's notice from drifting louder or quieter
         // than the other's. Mobile pins the same pair through the shared tokens (`bodySm` / `palette.slate`).
-        const notice = screen.getByRole('alert');
+        const notice = screen.getByRole('status');
 
         expect(notice.className).toContain('text-body-sm');
         expect(notice.className).toContain('text-slate');

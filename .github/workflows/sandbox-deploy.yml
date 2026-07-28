@@ -470,6 +470,27 @@ jobs:
                   npx cdk deploy \
                     --app "node packages/services/recipe-service/infra/dist/bin/app.js" \
                     --all --require-approval never
+            # Apply migrations into the per-PR logical DB, creating `kitchensink_recipes_pr_{N}` if absent
+            # (ADR-0006), so a fresh preview self-provisions its isolated database. Omitting this is NOT a
+            # silent no-op: the tasks boot fine and `/health` answers 200 (it does not touch the DB), so the
+            # service looks healthy while every actual query 500s — which is exactly what the first run of
+            # this job produced.
+            - name: Run recipe migrations (creates the per-PR DB if absent)
+              if: steps.changes.outputs.recipe == 'true'
+              run: |
+                  set -euo pipefail
+                  FN=$(aws cloudformation describe-stacks --region "${{ vars.DEFAULT_AWS_REGION }}" \
+                      --stack-name "kitchensink-recipe-service-${{ env.STAGE }}" \
+                      --query "Stacks[0].Outputs[?OutputKey=='RecipeMigrationFunctionName'].OutputValue | [0]" \
+                      --output text)
+                  aws lambda invoke --region "${{ vars.DEFAULT_AWS_REGION }}" --function-name "$FN" \
+                      --payload '{"action":"migrate"}' --cli-binary-format raw-in-base64-out /tmp/recipe-migrate.json
+                  cat /tmp/recipe-migrate.json
+                  # `aws lambda invoke` exits 0 even when the FUNCTION threw, so inspect the payload.
+                  if grep -q '"errorType"' /tmp/recipe-migrate.json; then
+                    echo "::error::recipe migration lambda failed — see payload above"
+                    exit 1
+                  fi
             # Read the image tag the RUNNING task is actually using, so the smoke step can prove the
             # deployment took effect rather than trusting that `cdk deploy` said "success".
             - name: Resolve the running image tag

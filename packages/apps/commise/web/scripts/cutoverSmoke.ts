@@ -95,7 +95,17 @@ function errorCodeOf(err: unknown): string {
  */
 export async function probe(url: string, timeoutMs = 30_000): Promise<ReachabilityResult> {
     try {
-        const response = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(timeoutMs) });
+        const response = await fetch(url, {
+            redirect: 'follow',
+            signal: AbortSignal.timeout(timeoutMs),
+            // Ask for a DOCUMENT, the way a browser does. Clerk's middleware only issues its handshake
+            // redirect for handshake-ELIGIBLE requests (GET + an HTML `Accept`), so bare `fetch` — which
+            // sends `Accept: */*` — silently skips the handshake and comes back `200` with
+            // `x-clerk-auth-status: signed-out`. This tool then reported `OK [app] reached the app` for a
+            // preview that dead-ends at `vercel.com/login` in every real browser, which is worse than no
+            // signal at all: it was the evidence behind a wrong "reachability is fine" conclusion.
+            headers: { accept: 'text/html,application/xhtml+xml' },
+        });
 
         return classifyReachability({ finalUrl: response.url, status: response.status });
     } catch (err) {

@@ -758,7 +758,7 @@ jobs:
               run: npm run test:e2e --workspace=@commise/mobile
 
     e2e-mobile-maestro:
-        name: E2E (mobile — Maestro)
+        name: E2E (mobile — Maestro) · heavy tier
         runs-on: ubuntu-latest
         needs: [install]
         # Cross-platform mandate: the Vitest mobile e2e (above) covers logic; Maestro drives the real UI
@@ -987,7 +987,7 @@ jobs:
               run: docker logs recipe-maestro 2>&1 | tail -100 || true
 
     load-test:
-        name: Load test (recipe — k6)
+        name: Load test (recipe — k6) · heavy tier
         runs-on: ubuntu-latest
         needs: [install]
         # T081/SC-009 performance gate. Gated behind `run_load_test` (default false) so the heavy k6 run
@@ -1194,7 +1194,7 @@ jobs:
               run: docker logs recipe-load 2>&1 | tail -150 || true
 
     load-test-food:
-        name: Load test (food — k6)
+        name: Load test (food — k6) · heavy tier
         runs-on: ubuntu-latest
         needs: [install]
         # CR-002 / U4b performance gate for food's internal service-principal erasure route — the food mirror

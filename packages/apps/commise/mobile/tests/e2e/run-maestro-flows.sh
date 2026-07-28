@@ -37,13 +37,26 @@ export DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_maestro
 #     destructive actions (it deliberately never confirms), so it must not run against a state a later flow
 #     assumes, and it must not be stranded after the delete flow's mutations.
 #   - `recipes/delete` last (its own "run me last" note).
-FLOWS="auth/login-flow home recipes/rating recipes/list-detail recipes/search-navigation recipes/edit recipes/versions recipes/visibility recipes/discover-browse recipes/discover-recent-searches recipes/discover-clone recipes/conflict-merge recipes/collections recipes/collections-pagination recipes/collections-visibility recipes/collections-clone recipes/collections-pull recipes/create recipes/photos recipes/accessibility account-danger-zone recipes/delete"
+#   - `recipes/empty-library` sits next to `list-detail` (its populated sibling). It is the ONE flow that
+#     runs against an EMPTY library — see EMPTY_LIBRARY_FLOWS below — and it mutates nothing, so the next
+#     iteration's normal reset restores the seed for everything after it.
+FLOWS="auth/login-flow home recipes/rating recipes/list-detail recipes/empty-library recipes/search-navigation recipes/edit recipes/versions recipes/visibility recipes/discover-browse recipes/discover-recent-searches recipes/discover-clone recipes/conflict-merge recipes/collections recipes/collections-pagination recipes/collections-visibility recipes/collections-clone recipes/collections-pull recipes/create recipes/photos recipes/accessibility account-danger-zone recipes/delete"
+
+# Flows whose state under test is a GENUINELY EMPTY library (the first-run screen a new account opens on).
+# The reset truncates for every flow; for these it also SKIPS the re-seed, which is the only way to reach
+# that state — and the seeded fixture being universal is exactly what hid a first-run defect from this
+# suite. Space-padded on both sides so the membership test below matches whole names only.
+EMPTY_LIBRARY_FLOWS=" recipes/empty-library "
 
 RC=0
 for f in $FLOWS; do
     echo "::group::maestro flow ${f}"
     adb logcat -c || true # clear the ring buffer so a failing flow's dump is scoped to just this flow
-    if ! node packages/apps/commise/mobile/tests/e2e/reseed.mjs; then
+    case "$EMPTY_LIBRARY_FLOWS" in
+    *" ${f} "*) RESEED_MODE=empty ;;
+    *) RESEED_MODE=seeded ;;
+    esac
+    if ! RESEED_MODE="$RESEED_MODE" node packages/apps/commise/mobile/tests/e2e/reseed.mjs; then
         echo "reseed failed before ${f}"
         RC=1
     fi

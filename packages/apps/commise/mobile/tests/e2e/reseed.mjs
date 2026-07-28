@@ -7,6 +7,11 @@
  *
  * The recipe service keeps running: TRUNCATE holds only a brief lock and does not drop the schema, so its
  * connection pool survives. Usage: `DATABASE_URL=… node packages/apps/commise/mobile/tests/e2e/reseed.mjs`
+ *
+ * `RESEED_MODE=empty` truncates and STOPS — no re-seed — leaving a genuinely empty library. That is the
+ * first-run state (`recipes/empty-library.yaml`), which is unreachable any other way: the seeded fixture is
+ * exactly what hid a permanent-loading-skeleton defect on the screen a brand-new account opens on. Anything
+ * other than `empty` (including unset) is the default seeded reset every other flow depends on.
  */
 import { execSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
@@ -29,6 +34,11 @@ await client.query(
     'TRUNCATE recipes, collections, recipe_ratings, recipe_versions, recipe_version_pending_archives, account_erasure_jobs RESTART IDENTITY CASCADE',
 );
 await client.end();
+
+if (process.env['RESEED_MODE'] === 'empty') {
+    console.log('reseed: recipe DB truncated and left EMPTY (RESEED_MODE=empty).');
+    process.exit(0);
+}
 
 // Re-run the seed via tsx directly (the `npm run seed` workspace script adds turbo overhead that is far
 // too slow for a per-flow loop; the seed script is a standalone pg inserter).

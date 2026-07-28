@@ -30,9 +30,18 @@ test.describe('recipe CRUD (T079)', () => {
         await page.goto(route('/recipes'));
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
 
-        // CREATE — the create control is the pinned FAB ("New recipe") when the library has recipes, or the
-        // empty-state CTA ("Create your first recipe") when it is empty (L1: only one create control per state).
-        await page.getByRole('button', { name: /New recipe|Create your first recipe/ }).click();
+        // CREATE — this spec runs against the mock's DEFAULT seed, so the library is POPULATED, and L1 says
+        // exactly one create control exists per state: the pinned FAB ("New recipe"). The empty-state CTA
+        // belongs to the first-run library and must NOT be here.
+        //
+        // Asserted state-specifically on purpose. This used to be a permissive
+        // `/New recipe|Create your first recipe/` alternation, which passes in EITHER state and so could not
+        // report which one the page was in — that tolerance is part of why a first-run library rendering a
+        // permanent skeleton reached a human. The first-run state has its own spec now
+        // (`recipeListEmptyStates.spec.ts`); this one pins the populated state it actually exercises.
+        await expect(page.getByRole('button', { name: 'Seed Recipe' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Create your first recipe' })).toHaveCount(0);
+        await page.getByRole('button', { name: 'New recipe' }).click();
         await expect(page).toHaveURL(/\/recipes\/new/);
 
         // Step 1 (Basic) — the wizard opens here (Step 1 of 4).

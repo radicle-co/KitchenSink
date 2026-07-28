@@ -1065,4 +1065,22 @@ describe('IngredientPicker — seafoam-tinted controls stay WCAG-AA legible', ()
             'disambiguation freeform on hover (the tint deepens to /20)',
         ).toBeGreaterThanOrEqual(4.5);
     });
+
+    it('keeps the search field’s PLACEHOLDER legible', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+
+        // Placeholder text is text: it is the only thing telling a reader what the field wants before they
+        // type. `mist` scored 1.90:1 here — below even the 3:1 floor a meaningful GRAPHIC owes. Measured
+        // through the `placeholder:` variant so the assertion reads the utility the browser actually applies
+        // to the placeholder, not the input's own `text-charcoal`.
+        const search = await screen.findByRole('searchbox', { name: 'Search ingredients' });
+
+        expect(
+            utilityContrast(search.className, { variant: 'placeholder' }),
+            'ingredient search placeholder',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
 });

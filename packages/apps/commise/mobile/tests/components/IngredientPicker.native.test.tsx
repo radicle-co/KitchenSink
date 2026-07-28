@@ -20,7 +20,7 @@ import {
 import type { IngredientCatalogAvailability, IngredientSuggestion } from '@kitchensink/recipe-service-client';
 
 import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '@commise/features-recipes/hooks';
-import { compositeOver, computedContrast } from '@commise/test-utils';
+import { compositeOver, computedContrast, contrastRatio, placeholderContrast } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 
 import { IngredientPicker } from '../../src/components/IngredientPicker.js';
@@ -704,5 +704,54 @@ describe('IngredientPicker — tinted labels stay WCAG-AA legible', () => {
             computedContrast(label, { surface: surfaceBehind(label) }),
             'freeform fallback action label',
         ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the search field’s PLACEHOLDER legible', () => {
+        render(<IngredientPicker onResolve={vi.fn()} />);
+
+        // Placeholder text is text — it is the only thing telling a reader what the field wants before they
+        // type — and `mist` scored 1.90:1, below even the 3:1 a meaningful graphic owes. `placeholderContrast`
+        // reads the `--placeholderTextColor` property react-native-web actually paints the placeholder with;
+        // a plain `color` read would see the input's own charcoal (12.68:1) and pass while nothing was fixed.
+        expect(
+            placeholderContrast(screen.getByLabelText('Search ingredients')),
+            'ingredient search placeholder',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the inert USDA seam’s label legible', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult([]));
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'zzz' } });
+        settleDebounce();
+
+        // The seam is deliberately non-interactive ("coming soon"), but its caption is still copy a reader
+        // reads to understand what the slot will do. Muted is a design choice; 1.90:1 is not a design choice.
+        const seam = screen.getByText('Search USDA for “zzz”');
+
+        expect(computedContrast(seam), 'USDA seam caption').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the result row’s disclosure chevron perceivable', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult(own([makeIngredient({ name: 'Olive oil' })])));
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'oli' } });
+        settleDebounce();
+
+        // The chevron is the row's only visual affordance for "this opens" — a meaningful graphic, so SC
+        // 1.4.11's 3:1 applies. At `mist` it was 1.90:1, which fails even that lower floor. Asserted against
+        // 3:1, NOT 4.5, because it is genuinely non-text: over-stating the requirement would invite the next
+        // reader to "fix" the test by weakening it. The colour arrives as a PROP, so the icon stub republishes
+        // it as `data-icon-color` — there is no computed colour to read.
+        const row = screen.getByRole('button', { name: 'Olive oil' });
+        const chevron = row.querySelector('[data-icon-name="chevron-right"]');
+
+        expect(chevron, 'no chevron on the result row').not.toBeNull();
+        expect(
+            contrastRatio(chevron?.getAttribute('data-icon-color') ?? '', palette.white),
+            'result-row disclosure chevron',
+        ).toBeGreaterThanOrEqual(3);
     });
 });

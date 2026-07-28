@@ -75,7 +75,7 @@ function ResultRow({ ingredient, onPress }: { ingredient: Ingredient; onPress: (
         <PressScale accessibilityRole="button" accessibilityLabel={ingredient.name} onPress={onPress}>
             <View style={styles.row}>
                 <Text style={styles.rowText}>{ingredient.name}</Text>
-                <Feather name="chevron-right" size={18} color={palette.mist} />
+                <Feather name="chevron-right" size={18} color={palette.slate} />
             </View>
         </PressScale>
     );
@@ -278,7 +278,7 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
                 <TextInput
                     accessibilityLabel={t.searchLabel}
                     placeholder={t.searchPlaceholder}
-                    placeholderTextColor={palette.mist}
+                    placeholderTextColor={palette.slate}
                     value={query}
                     onChangeText={setQuery}
                     style={styles.searchInput}
@@ -376,7 +376,7 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
                         marked "coming soon", non-interactive) so its slot + styling land now without shipping a
                         dead button. Deliberately NOT a `PressScale`/button — nothing to press yet. */}
                     <View style={styles.usdaSeam}>
-                        <Feather name="database" size={14} color={palette.mist} />
+                        <Feather name="database" size={14} color={palette.slate} />
                         <Text style={styles.usdaSeamLabel}>{fillTemplate(t.searchUsdaFor, { query: trimmed })}</Text>
                         <View style={styles.usdaSeamTag}>
                             <Text style={styles.usdaSeamTagLabel}>{t.searchUsdaSoon}</Text>
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 12,
     },
-    usdaSeamLabel: { flex: 1, fontSize: 13, color: palette.mist },
+    usdaSeamLabel: { flex: 1, fontSize: 13, color: palette.slate },
     usdaSeamTag: { borderRadius: 999, backgroundColor: palette.pearl, paddingVertical: 2, paddingHorizontal: 8 },
     usdaSeamTagLabel: { fontSize: 10, fontWeight: '600', color: palette.slate, textTransform: 'uppercase' },
 });

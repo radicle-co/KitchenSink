@@ -19,6 +19,14 @@ export interface MobileMessages {
         /** Label of the recipe widget's entry point into the full recipes surface. */
         readonly seeAllRecipes: string;
         /**
+         * Shown in place of a live Home widget whose body throws (B23) — the mobile counterpart of web's
+         * `home.surface.widgetError`, with IDENTICAL copy, so the two platforms degrade the same way (FR-044 /
+         * §14). Replaces a `fallback={null}` that left unexplained blank space and told a screen-reader user
+         * nothing at all. Roadmap PLACEHOLDER failures stay silent on both platforms — a stand-in's absence is
+         * not a loss worth announcing.
+         */
+        readonly widgetError: string;
+        /**
          * Copy for the Home chrome (top bar + bottom tab bar) — US-000 / FR-046. Keyed by the SHARED nav
          * model in `@commise/features-core`, so a destination added there without copy is a compile error.
          */
@@ -322,6 +330,7 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             },
             regionLabel: 'Home',
             seeAllRecipes: 'See all recipes',
+            widgetError: 'This section couldn’t load.',
             chrome: {
                 pageTitle: 'Home',
                 search: 'Search',

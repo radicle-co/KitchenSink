@@ -24,6 +24,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 
 import { renderWithProviders } from '@commise/test-utils';
 import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
+import { Text } from 'react-native';
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({ useRecipes: vi.fn() }));
 
@@ -53,11 +54,17 @@ beforeEach(() => {
 
 /**
  * Mirrors production composition: `HomeWidgetSurface` draws every widget through a per-widget
- * `<ErrorBoundary fallback={null}>`. Without that wrapper here, a slot-level escape would fail the render
- * outright instead of reproducing the silent-erasure this file guards against.
+ * `ErrorBoundary`. Without that wrapper here, a slot-level escape would fail the render outright instead of
+ * reproducing the silent-erasure this file guards against.
+ *
+ * Its fallback is a DISTINCT sentinel rather than the real host copy on purpose: both boundaries now render
+ * the SAME localized notice, so a shared string could not tell "the inner boundary contained the failure"
+ * apart from "the failure escaped and erased the navigation too" — the very regression this file exists for.
  */
+const HOST_BOUNDARY_SENTINEL = 'host-boundary-fired';
+
 const HostBoundary = ({ children }: { readonly children: ReactNode }): JSX.Element => (
-    <ErrorBoundary fallback={null}>{children}</ErrorBoundary>
+    <ErrorBoundary fallback={<Text>{HOST_BOUNDARY_SENTINEL}</Text>}>{children}</ErrorBoundary>
 );
 
 /**
@@ -89,6 +96,50 @@ describe('RecipeWidgetSlot (mobile) — the widget chunk fails to load', () => {
         fireEvent.click(entry);
 
         expect(onSeeAllRecipes).toHaveBeenCalledTimes(1);
+    });
+
+    it('explains the loss with a localized notice instead of leaving blank space', async () => {
+        renderWithProviders(
+            <HostBoundary>
+                <RecipeWidgetSlot onSeeAllRecipes={() => undefined} onSelectRecipe={() => undefined} />
+            </HostBoundary>,
+        );
+
+        await settleChunkRejection();
+
+        // The drift this fixes: mobile's inner boundary rendered `null`, so a failed widget left unexplained
+        // blank space — and a screen-reader user got NOTHING at all. Web renders its localized `widgetError`
+        // here; the two platforms must degrade identically (FR-044 / §14), so the copy is the SAME literal.
+        expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
+
+        // Announced, not merely painted — the accessibility half of the same defect.
+        expect(screen.getByRole('alert')).toBeTruthy();
+
+        // …and the notice must come from the INNER boundary. If the throw had escaped to the host boundary the
+        // sentinel would be showing and the navigation entry would be gone — a silent regression that a bare
+        // "is the message on screen?" assertion would happily pass.
+        expect(screen.queryByText(HOST_BOUNDARY_SENTINEL)).toBeNull();
+        expect(screen.getByRole('button', { name: 'See all recipes' })).toBeTruthy();
+    });
+
+    it('does not offer a retry affordance it cannot honour (React.lazy caches the rejection)', async () => {
+        renderWithProviders(
+            <HostBoundary>
+                <RecipeWidgetSlot onSeeAllRecipes={() => undefined} onSelectRecipe={() => undefined} />
+            </HostBoundary>,
+        );
+
+        await settleChunkRejection();
+
+        // Deliberate, and matched by web: the ONLY control in the failed slot is the route out of Home. React's
+        // `lazyInitializer` moves the payload to `_status = 2` on rejection and thereafter re-`throw`s the
+        // cached `_result` WITHOUT re-invoking the loader, so a "try again" that merely reset this boundary
+        // would re-throw instantly and appear dead. A retry that silently fails is worse than none; see the
+        // boundary's comment in `RecipeWidgetSlot.tsx` for what a real retry would have to do instead.
+        const controls = screen.getAllByRole('button');
+
+        expect(controls).toHaveLength(1);
+        expect(controls[0]?.textContent).toBe('See all recipes');
     });
 
     it('reports the widget failure rather than swallowing it', async () => {

@@ -64,6 +64,22 @@ describe('RecipeWidgetSlot (mobile)', () => {
         expect(await screen.findByText('No recipes yet. Create your first recipe to see it here.')).toBeTruthy();
     });
 
+    it('shows NO failure notice while the widget renders normally', async () => {
+        useRecipesMock.mockReturnValue(
+            listResult({ data: makeRecipePage([makeRecipe({ id: 'r1', title: 'Weeknight Pasta' })]) }),
+        );
+
+        renderSlot();
+
+        expect(await screen.findByText('Weeknight Pasta')).toBeTruthy();
+
+        // The counterweight to `RecipeWidgetSlot.widgetFailure.native.test.tsx`: an error boundary whose
+        // fallback leaked into the happy path — or a notice rendered unconditionally beside the widget — would
+        // pass every failure assertion in that file and still be wrong. Nothing announces a failure here.
+        expect(screen.queryByText('This section couldn’t load.')).toBeNull();
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
     it('renders a "see all recipes" entry and forwards activation to onSeeAllRecipes', async () => {
         useRecipesMock.mockReturnValue(listResult({ data: makeRecipePage([]) }));
         const onSeeAllRecipes = vi.fn();

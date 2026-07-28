@@ -41,6 +41,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mobileMessages } from '../../i18n/messages.js';
 import { useUserProfile } from '../../hooks/useUserProfile.js';
 import { HomeGreeting } from './HomeGreeting.js';
+import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice.js';
 import { HomeTabBar } from './chrome/HomeTabBar.js';
 import { HomeTopBar } from './chrome/HomeTopBar.js';
 import { homeContainer } from './homeContainer.js';
@@ -176,11 +177,16 @@ export function HomeWidgetSurface({
                     {curated.map((descriptor) => {
                         const Bespoke = activeRenderers[descriptor.id];
 
+                        // A live widget with a bespoke slot. Its last-resort fallback is the localized
+                        // {@link HomeWidgetErrorNotice}, matching web: a `null` here meant a slot-level throw
+                        // (not just a widget-body one — the recipe slot's own inner boundary handles that)
+                        // erased the whole slot into unexplained blank space, with nothing announced to
+                        // assistive tech. Losing the content is acceptable; saying nothing about it is not.
                         if (Bespoke !== undefined) {
                             return (
                                 <ErrorBoundary
                                     key={descriptor.id}
-                                    fallback={null}
+                                    fallback={<HomeWidgetErrorNotice />}
                                     onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
                                 >
                                     <Bespoke />
@@ -188,6 +194,10 @@ export function HomeWidgetSurface({
                             );
                         }
 
+                        // A roadmap PLACEHOLDER keeps a `null` fallback — also matching web, and deliberately
+                        // NOT the notice above. A skeleton is itself a stand-in for a feature that has not
+                        // shipped, so there is no content whose loss is worth announcing; a notice would report
+                        // the failure of something the viewer was never promised. The throw is still reported.
                         if (isPlaceholderHomeWidget(descriptor)) {
                             return (
                                 <ErrorBoundary

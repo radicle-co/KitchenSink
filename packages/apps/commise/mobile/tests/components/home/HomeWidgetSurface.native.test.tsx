@@ -7,7 +7,7 @@
  * the chrome pieces in their own tests.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import type { FC, JSX } from 'react';
 
 import {
@@ -175,10 +175,13 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
         errorSpy.mockRestore();
     });
 
-    it('reports a widget render failure to the injected error reporter and shows the fallback, not a crash (DA9)', () => {
+    it('reports a widget render failure AND shows a localized notice, never silent blank space (B23/DA9)', () => {
         // A widget throw must never crash the surface, AND must never be silent (B23/DA9) — the boundary's
         // `onError` routes to the reporter resolved from the INJECTED `errorReporterToken`, not a hard-coded
         // Sentry import, so this asserts against a fake bound onto the test's own container.
+        //
+        // The VISIBLE half is the mirror of the web host's identical assertion: a `fallback={null}` here left
+        // the viewer (and, worse, a screen-reader user) with unexplained blank space where a widget should be.
         const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
         const reportError: ErrorReporter = vi.fn();
 
@@ -194,10 +197,45 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
             renderers: { [RECIPE_HOME_WIDGET_ID]: Boom },
         });
 
-        // The throw is caught → no crash, the fallback is null (no user-facing text lost) — and the injected
-        // reporter was called with the error plus the widget's id as context.
+        // The throw is caught → no crash, and a LOCALIZED notice stands in for the widget, announced as an
+        // alert so assistive tech reports the failure instead of silence. The copy is asserted as the literal
+        // the catalog ships (not `mobileMessages.en...`), so swapping the key for another message fails here.
         expect(screen.queryByText('fake-recipe-widget')).toBeNull();
+        expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
+        expect(screen.getByRole('alert')).toBeTruthy();
         expect(reportError).toHaveBeenCalledWith(expect.any(Error), { widget: RECIPE_HOME_WIDGET_ID });
+
+        consoleError.mockRestore();
+    });
+
+    it('leaves a PLACEHOLDER failure silent — there is no widget content to explain the loss of (web parity)', async () => {
+        // Deliberate asymmetry, matched on both platforms: a roadmap skeleton is itself a stand-in, so a
+        // notice in its place would announce the failure of something the viewer was never promised. Only the
+        // reporting is mandatory here. This pins the asymmetry so a well-meaning "make it consistent" change
+        // to the placeholder arm has to argue with a test.
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const reportError: ErrorReporter = vi.fn();
+
+        const Boom: FC = () => {
+            throw new Error('placeholder boom');
+        };
+
+        const container = containerWith(
+            makeLiveDescriptor(RECIPE_HOME_WIDGET_ID),
+            makePlaceholderDescriptor('meal-plan', Boom),
+        );
+        container.bindValue(errorReporterToken, reportError);
+
+        renderSurface({ container, renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget } });
+
+        // The placeholder loads through `React.lazy`, so its throw lands a tick later — wait for the REPORT
+        // (the observable proof the boundary fired) before asserting the notice is absent, or this passes
+        // vacuously against a surface that simply had not rendered the failing placeholder yet.
+        await waitFor(() => {
+            expect(reportError).toHaveBeenCalledWith(expect.any(Error), { widget: 'meal-plan' });
+        });
+
+        expect(screen.queryByText('This section couldn’t load.')).toBeNull();
 
         consoleError.mockRestore();
     });

@@ -30,6 +30,14 @@
  * **The avatar shows REAL initials, or nothing invented.** Initials are derived from the viewer's actual
  * profile display name via `initialsFor`. A name-less account (email sign-up, no name set) is a real state:
  * it falls back to a person glyph, never invented initials, and its accessible name says "your account".
+ *
+ * ## Touch floors go on the CONTROL box, never on a painted one
+ *
+ * The 44px mobile touch minimum is a floor on the interactive box. Putting it on a box that also PAINTS is a
+ * defect: `min-height`/`min-width` cannot lose to `height`/`width`, so a floor larger than the paint silently
+ * replaces the design's geometry — which is how the 32px avatar came to paint as a 44px disc inside a 56px
+ * bar. The avatar therefore nests the disc inside a transparent 44px link, the structure both the mockup
+ * (`screen-home`) and the native leaf already use.
  */
 import { initialsFor } from '@commise/features-core';
 import Link from 'next/link';
@@ -111,14 +119,22 @@ export function HomeTopBar({ chrome, pageTitle, locale, displayName, onOpenNav }
                 <Link
                     href={`/${locale}/profile` as Route}
                     aria-label={initials === '' ? chrome.accountNoName : chrome.account}
-                    // 44px mobile touch-target floor, reset at md — a no-op below the size-8 avatar today.
-                    className="ml-1 flex size-8 min-h-11 min-w-11 items-center justify-center rounded-full bg-seafoam text-sm font-semibold text-white md:min-h-0 md:min-w-0"
+                    // The 44px touch floor lives on this TRANSPARENT control box, never on the painted disc
+                    // below it. CSS resolves a used length as `max(min-size, size)`, so a `min-h-11 min-w-11`
+                    // floor on the same box as `size-8` could not lose to it: the mockup's 32px avatar
+                    // painted as a 44px disc that all but filled the `h-14` bar. Reset at `md:`, where the
+                    // control collapses onto the disc it wraps — so desktop paints exactly as before.
+                    className="ml-1 flex min-h-11 min-w-11 items-center justify-center rounded-full md:min-h-0 md:min-w-0"
                 >
-                    {initials === '' ? (
-                        <HomeIcon name="profile" className="size-5" />
-                    ) : (
-                        <span aria-hidden="true">{initials}</span>
-                    )}
+                    {/* The painted disc — the mockup's `w-8 h-8` circle (`screen-home`), and the same 32px
+                        the native leaf's `styles.avatar` paints. */}
+                    <span className="flex size-8 items-center justify-center rounded-full bg-seafoam text-sm font-semibold text-white">
+                        {initials === '' ? (
+                            <HomeIcon name="profile" className="size-5" />
+                        ) : (
+                            <span aria-hidden="true">{initials}</span>
+                        )}
+                    </span>
                 </Link>
             </div>
         </header>

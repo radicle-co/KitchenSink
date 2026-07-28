@@ -6,9 +6,11 @@
  * explosion) — so the two platform renders can't drift on behaviour.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { computedContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep, RecipeVersion } from '@kitchensink/recipe-core';
 
 import { diffSnapshots } from '../diff.js';
@@ -239,6 +241,52 @@ describe('VersionCompareView (native) — reorder-only ingredient diff', () => {
         await user.click(screen.getByRole('button', { name: 'Hide full diff' }));
 
         expect(screen.queryByText('Added: 0 · Removed: 0 · Modified: 2')).toBeNull();
+    });
+});
+
+/**
+ * Cross-platform parity for the web leaf's contrast fix. `computedContrast` measures the leaf's ACTUAL compiled
+ * colour rather than pinning a token spelling (see `RecipeVersionList.native.test.tsx`'s contrast block).
+ * `FullScreenSheet`'s surface is the opaque `palette.white` this sheet is painted on, and the toggle paints no
+ * tint of its own, so white is the backdrop a reader sees behind the label.
+ */
+describe('VersionCompareView (native) — WCAG AA text contrast (SC 1.4.3)', () => {
+    const reorderedB = makeVersion({
+        id: 'ver_8d',
+        versionNumber: 10,
+        snapshot: makeSnapshot({
+            version: 10,
+            ingredients: [
+                makeIngredient({ id: 'ri_a', ingredientId: 'ing_a', quantity: 200, unit: 'g', sortOrder: 2 }),
+                makeIngredient({
+                    id: 'ri_b',
+                    ingredientId: 'ing_b',
+                    quantity: 50,
+                    unit: 'g',
+                    sortOrder: 1,
+                    ingredientName: 'Parmesan',
+                }),
+            ],
+        }),
+    });
+
+    it('the "Show full diff" toggle’s label is legible on the sheet surface', () => {
+        render(
+            <VersionCompareView
+                {...baseProps({
+                    versionA,
+                    versionB: reorderedB,
+                    diff: diffSnapshots(versionA.snapshot, reorderedB.snapshot),
+                })}
+            />,
+        );
+
+        const toggle = screen.getByRole('button', { name: 'Show full diff' });
+
+        expect(
+            computedContrast(within(toggle).getByText('Show full diff'), { surface: palette.white }),
+            '"Show full diff" label on the white sheet surface',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });
 

@@ -248,6 +248,21 @@ describe('RecipeCard (web) — merged fields (CR-002 / L2·L3)', () => {
         expect(utilityContrast(screen.getByText('grill').className)).toBeGreaterThanOrEqual(4.5);
     });
 
+    it('gives the CUISINE badge a WCAG-AA legible label over its seafoam tint', () => {
+        renderCard(<RecipeCard recipe={model({ cuisine: 'Mediterranean' })} />);
+
+        // Same defect as the tag chip above, in the other hue: seafoam-as-text on `bg-seafoam/10` is 3.57:1.
+        expect(utilityContrast(screen.getByText('Mediterranean').className), 'cuisine badge').toBeGreaterThanOrEqual(
+            4.5,
+        );
+    });
+
+    it('gives the VISIBILITY badge a WCAG-AA legible label over the same seafoam tint', () => {
+        renderCard(<RecipeCard recipe={model({ visibility: 'public', status: 'published' })} />);
+
+        expect(utilityContrast(screen.getByText('Public').className), 'visibility badge').toBeGreaterThanOrEqual(4.5);
+    });
+
     it('shows the version badge past v1 (with an accessible name), and hides it at v1', () => {
         renderCard(<RecipeCard recipe={model({ currentVersion: 12 })} />);
         expect(screen.getByLabelText('Version 12').textContent).toBe('v12');

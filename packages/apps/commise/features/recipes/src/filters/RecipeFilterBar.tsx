@@ -264,7 +264,9 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                     <button
                         type="button"
                         onClick={onClearAll}
-                        className="rounded-full px-3.5 py-1.5 text-body-sm font-semibold text-seafoam underline-offset-2 transition-colors motion-reduce:transition-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light"
+                        // The LABEL is `ocean-dark` while the FOCUS RING stays seafoam — that split is the
+                        // palette rule (see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`), not drift.
+                        className="rounded-full px-3.5 py-1.5 text-body-sm font-semibold text-ocean-dark underline-offset-2 transition-colors motion-reduce:transition-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light"
                     >
                         {formatRecipeCount(
                             countActiveFilters(filters),

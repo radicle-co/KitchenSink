@@ -22,8 +22,13 @@
  * action in the language of destruction. Clone is a quiet SECONDARY action, so all three call sites now wear
  * the DS `secondary` tier and cannot drift apart again.
  *
+ * Pull Updates and Save changes LABEL in `ocean-dark`, not `seafoam`: seafoam as a FOREGROUND is 4.02:1 on this
+ * white panel and 3.57:1 under `hover:bg-seafoam/10`, both below the 4.5:1 body-text floor. Pull Updates' seafoam
+ * RING is untouched — a control boundary needs 3:1 (SC 1.4.11), which seafoam clears. See the palette JSDoc in
+ * `@commise/ui` for that (single, authoritative) accent-vs-text rule.
+ *
  * The sibling controls in this panel — Add Recipes (`bg-seafoam`), Pull Updates (a seafoam ring), Save changes
- * (seafoam text) — are deliberately left hand-rolled in this change, and NOT because they are fine. They are
+ * (a bare text control) — are deliberately left hand-rolled in this change, and NOT because they are fine. They are
  * blocked on a decision one layer down: `semantic.secondary` IS `palette.coral` and Tamagui's `light.secondary`
  * is coral, yet the DS `secondary` tier renders a grey-bordered white pill while EVERY non-primary button in
  * the mockups is coral-outlined. Until that tier is resolved, "Pull Updates" has no DS tier that matches its
@@ -91,7 +96,7 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
                             onClick={onPullUpdates}
                             disabled={isPulling}
                             aria-busy={isPulling || undefined}
-                            className="rounded-full px-5 py-2.5 text-body-sm font-medium text-seafoam ring-1 ring-seafoam transition hover:bg-seafoam/10 disabled:opacity-60"
+                            className="rounded-full px-5 py-2.5 text-body-sm font-medium text-ocean-dark ring-1 ring-seafoam transition hover:bg-seafoam/10 disabled:opacity-60"
                         >
                             {actions.pullUpdates}
                         </button>
@@ -153,7 +158,7 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
                     type="button"
                     onClick={onSaveVisibility}
                     disabled={!canSave}
-                    className="self-start rounded-full px-4 py-2 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10 disabled:cursor-not-allowed disabled:text-slate disabled:hover:bg-transparent"
+                    className="self-start rounded-full px-4 py-2 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10 disabled:cursor-not-allowed disabled:text-slate disabled:hover:bg-transparent"
                 >
                     {actions.saveVisibility}
                 </button>

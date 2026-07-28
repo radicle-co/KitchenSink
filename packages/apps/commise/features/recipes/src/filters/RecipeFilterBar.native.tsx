@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
     chipText: { fontSize: 14, fontWeight: '500', color: palette.charcoal },
     chipTextSelected: { fontSize: 14, fontWeight: '500', color: palette.white },
     clear: { alignSelf: 'flex-start', borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14 },
-    clearText: { fontSize: 14, fontWeight: '600', color: palette.seafoam },
+    clearText: { fontSize: 14, fontWeight: '600', color: palette['ocean-dark'] },
     ingredientTypeahead: { gap: 8, flexBasis: '100%' },
     // One typeahead result row: the 44pt touch floor (`Button.native`/`Input.native` carry the same), with
     // horizontal padding so the label is not flush against the sheet edge.

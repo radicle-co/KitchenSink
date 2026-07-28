@@ -11,6 +11,9 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RecipeSearchSortBy, type Recipe, type RecipeSearchResult } from '@kitchensink/recipe-core';
 
+import { utilityContrast } from '@commise/test-utils';
+import { semantic } from '@commise/ui';
+
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { RecipeDiscoveryList } from '../RecipeDiscoveryList.js';
 import type { RecipeDiscoveryListProps } from '../model.js';
@@ -605,5 +608,69 @@ describe('RecipeDiscoveryList (web) — touch targets (44px floor)', () => {
         for (const option of within(group).getAllByRole('radio')) {
             expectTouchFloor(option, `sort option ${option.textContent ?? ''}`);
         }
+    });
+});
+
+describe('RecipeDiscoveryList (web) — text contrast (WCAG 2.1 AA)', () => {
+    /**
+     * Every tertiary control on this surface is TEXT a reader reads, so it owes the 4.5:1 SC 1.4.3 floor —
+     * not the 3:1 an accent owes. `seafoam` does not clear it (4.02:1 on the card, 3.73:1 on the page, and
+     * lower still once a hover tint lands underneath); the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`
+     * is the ONE authoritative statement of that rule and of `ocean-dark` as its text-weight substitute.
+     *
+     * The ratio is read from the class list the button ACTUALLY rendered — a `toContain('text-…')` check would
+     * only pin a spelling and would survive a re-theme that moved the token to near-white — and the HOVER
+     * state is measured as its own state, because a control that clears the floor at rest and drops under it
+     * under the cursor is still an inaccessible control.
+     */
+    const CARD = semantic.card;
+    const PAGE = semantic.background;
+
+    it('keeps the error-state retry legible at rest and under its seafoam hover tint', () => {
+        renderDiscovery({ status: 'error' });
+
+        const retry = screen.getByRole('button', { name: 'Try again' });
+        expect(
+            utilityContrast(retry.className, { surface: CARD }),
+            'retry at rest on the error card',
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+            utilityContrast(retry.className, { surface: CARD, variant: 'hover' }),
+            'retry under its hover:bg-seafoam/10 tint',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the clear-recent-searches control legible at rest and under its mist hover tint', async () => {
+        const user = userEvent.setup();
+        renderDiscovery({ searchValue: '', recentSearches: { queries: ['risotto'], onSelect: noop, onClear: noop } });
+        await user.click(screen.getByRole('searchbox', { name: 'Search public recipes' }));
+
+        // The recent-search panel is its own `bg-card` surface, and it hovers to `mist/20` — a DIFFERENT
+        // tint from the retry's seafoam one, so it is measured rather than assumed.
+        const clear = screen.getByRole('button', { name: 'Clear recent searches' });
+        expect(
+            utilityContrast(clear.className, { surface: CARD }),
+            'clear-recent at rest on the panel',
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+            utilityContrast(clear.className, { surface: CARD, variant: 'hover' }),
+            'clear-recent under its hover:bg-mist/20 tint',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the back-to-browse control legible at rest and under its mist hover tint', () => {
+        renderDiscovery({ status: 'ready', results: threeResults, searchValue: 'lamb', onExitToBrowse: noop });
+
+        // This one paints no card of its own — it sits directly on the page background, which is DARKER than
+        // white and therefore the stricter surface of the two.
+        const back = screen.getByRole('button', { name: 'Back to browse' });
+        expect(
+            utilityContrast(back.className, { surface: PAGE }),
+            'back-to-browse at rest on the page',
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+            utilityContrast(back.className, { surface: PAGE, variant: 'hover' }),
+            'back-to-browse under its hover:bg-mist/20 tint',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });

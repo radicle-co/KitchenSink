@@ -8,6 +8,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { computedContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
+
+import { tintOf } from '../../__tests__/cssColor.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionHeader } from '../CollectionHeader.native.js';
 import type { CollectionHeaderViewProps } from '../model.js';
@@ -85,6 +89,51 @@ describe('CollectionHeader (native) — Back affordance', () => {
         renderHeader({ onBack: undefined });
 
         expect(screen.queryByRole('button', { name: /back/i })).toBeNull();
+    });
+});
+
+/**
+ * Cross-platform parity for the web leaf's seafoam-as-text fix. Three foregrounds here are read as text — Back,
+ * Rename, and the visibility badge — and all three were `palette.seafoam`: 4.02:1 on the header's white surface,
+ * and 3.57:1 for the badge once its own 10%-alpha seafoam tint is composited. The 4.5:1 body-text floor governs
+ * all three; the badge's TINT is a background and stays (see `@commise/ui`'s palette JSDoc).
+ *
+ * Measured, not spelled: `expect(...color).toBe(cssColor(palette['ocean-dark']))` would pin a token NAME and
+ * still pass if the palette re-themed it to near-white. A ratio cannot.
+ */
+describe('CollectionHeader (native) — the seafoam text foregrounds clear the AA body-text floor', () => {
+    it('keeps the Back label legible', () => {
+        renderHeader({ onBack: noop });
+
+        expect(
+            computedContrast(screen.getByText('Back to My Collections')),
+            'Back to My Collections',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the Rename label legible', () => {
+        renderHeader();
+
+        expect(computedContrast(screen.getByText('Rename')), 'Rename').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the visibility badge legible over its own seafoam tint, in both visibility states', () => {
+        renderHeader({ visibility: 'public' });
+        // The tint lives on the badge leaf ITSELF, so `computedContrast` reads it off the DOM and composites it
+        // over the white header — no guessed alpha.
+        expect(computedContrast(screen.getByText('Public')), 'Public badge').toBeGreaterThanOrEqual(4.5);
+
+        cleanup();
+        renderHeader({ visibility: 'private' });
+        expect(computedContrast(screen.getByText('Private')), 'Private badge').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the badge’s seafoam TINT — a background, which the 4.5 floor never governed', () => {
+        renderHeader();
+
+        // Derived from the token, so a re-theme moves the test and an `rgba(...)` literal on the wrong hue
+        // cannot pass by coincidence (RN has no alpha-suffix colour syntax, so the leaf spells the tint out).
+        expect(window.getComputedStyle(screen.getByText('Public')).backgroundColor).toBe(tintOf(palette.seafoam, 0.1));
     });
 });
 

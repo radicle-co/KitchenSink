@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { utilityContrast } from '@commise/test-utils';
 import { buttonSurfaceClass } from '@commise/ui/button';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
@@ -272,6 +273,43 @@ describe('CollectionActions (web) — visibility toggle, free viewer (canGoPriva
         await user.click(screen.getByRole('radio', { name: 'Private' }));
 
         expect(onVisibilityChange).not.toHaveBeenCalledWith('private');
+    });
+});
+
+/**
+ * Pull Updates and Save changes are TEXT controls, so their labels carry the 4.5:1 body-text floor — not the
+ * 3:1 accent floor `seafoam` clears. Both painted `text-seafoam`: 4.02:1 on this white panel at rest, falling
+ * to 3.57:1 the moment `hover:bg-seafoam/10` lands. Pull Updates' seafoam RING is a different question and
+ * deliberately survives — a control boundary needs only 3:1 (SC 1.4.11), which seafoam clears. See
+ * `@commise/ui`'s palette JSDoc for the one authoritative statement of that split.
+ */
+describe('CollectionActions (web) — the seafoam TEXT controls clear the AA body-text floor', () => {
+    it('keeps the Pull Updates label legible at rest AND over its hover tint', () => {
+        renderActions({ isCloned: true });
+        const pull = screen.getByRole('button', { name: 'Pull Updates from Source' });
+
+        expect(utilityContrast(pull.className), 'Pull Updates at rest').toBeGreaterThanOrEqual(4.5);
+        expect(utilityContrast(pull.className, { variant: 'hover' }), 'Pull Updates on hover').toBeGreaterThanOrEqual(
+            4.5,
+        );
+    });
+
+    it('keeps the enabled Save changes label legible at rest AND over its hover tint', () => {
+        renderActions({ visibility: RecipeVisibility.PUBLIC, pendingVisibility: RecipeVisibility.PRIVATE });
+        const save = screen.getByRole('button', { name: 'Save changes' });
+
+        expect(utilityContrast(save.className), 'Save changes at rest').toBeGreaterThanOrEqual(4.5);
+        expect(utilityContrast(save.className, { variant: 'hover' }), 'Save changes on hover').toBeGreaterThanOrEqual(
+            4.5,
+        );
+    });
+
+    it('keeps Pull Updates’ seafoam RING — a 3:1 control boundary, not a text colour', () => {
+        renderActions({ isCloned: true });
+
+        // The counterweight: the fix must demote the LABEL only. Flattening the ring too would erase the
+        // control's affordance to satisfy a floor that never applied to it.
+        expect(screen.getByRole('button', { name: 'Pull Updates from Source' }).className).toContain('ring-seafoam');
     });
 });
 

@@ -8,6 +8,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { LocaleProvider } from '@commise/i18n/react';
+import { computedContrast } from '@commise/test-utils';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { toRecipeCardModel } from '../model.js';
@@ -237,6 +238,21 @@ describe('RecipeCard (native) — merged fields (CR-002 / L2·L3)', () => {
         renderCard(<RecipeCard recipe={model({ tags: ['grill'] })} />);
 
         expect(window.getComputedStyle(screen.getByText('grill')).color).toBe('rgb(99, 110, 114)');
+    });
+
+    // The cuisine and visibility chips share ONE `styles.chip` (tint + text tone), so both are measured: a
+    // regression to either would show up on both surfaces. The ratio is read from the leaf's own compiled
+    // style and its own tint, so re-theming the palette moves the measurement rather than passing anyway.
+    it('makes the cuisine chip label legible over its own seafoam tint', () => {
+        renderCard(<RecipeCard recipe={model({ cuisine: 'Mediterranean' })} />);
+
+        expect(computedContrast(screen.getByText('Mediterranean')), 'cuisine chip label').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('makes the visibility chip label legible over that same tint', () => {
+        renderCard(<RecipeCard recipe={model({ visibility: 'public', status: 'published' })} />);
+
+        expect(computedContrast(screen.getByText('Public')), 'visibility chip label').toBeGreaterThanOrEqual(4.5);
     });
 
     it('shows the version badge past v1 and hides it at v1', () => {

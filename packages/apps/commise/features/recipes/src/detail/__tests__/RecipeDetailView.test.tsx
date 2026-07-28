@@ -100,6 +100,49 @@ describe('RecipeDetailView (web) — header', () => {
     });
 });
 
+/**
+ * The hero badge row and the tag chip above are already measured; these are the three seafoam-as-TEXT leaves
+ * further down the page that the same pass left under the floor. Which seafoam sites are accents (3:1) and
+ * which are text (4.5:1) is stated once, in `@commise/ui`'s palette JSDoc.
+ */
+describe('RecipeDetailView (web) — seafoam-as-text below the hero is WCAG-AA legible', () => {
+    it('makes the NOT-DONE step numeral legible (the reader reads the number)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ steps: [makeStepView({ stepNumber: 1, instruction: 'Rub the lamb.' })] })}
+                checkedSteps={new Set()}
+                onToggleStep={vi.fn()}
+            />,
+        );
+
+        // The not-done marker is an OUTLINED circle whose numeral is the only thing in it — seafoam on the
+        // page surface is 4.02:1. The `border-seafoam` ring stays seafoam (a 3:1 graphic, which it clears).
+        const numeral = within(screen.getByRole('checkbox', { name: 'Mark step 1 complete' })).getByText('1');
+
+        expect(utilityContrast(numeral.className), 'not-done step numeral').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('makes the step timer label legible', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    steps: [makeStepView({ stepNumber: 1, instruction: 'Rest the lamb.', timerSeconds: 120 })],
+                })}
+            />,
+        );
+
+        expect(utilityContrast(screen.getByText('120s timer').className), 'step timer').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('makes the footer visibility badge legible over its seafoam tint', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC })} />);
+
+        const badge = within(screen.getByRole('group', { name: 'Recipe status' })).getByText('Public');
+
+        expect(utilityContrast(badge.className), 'footer visibility badge').toBeGreaterThanOrEqual(4.5);
+    });
+});
+
 describe('RecipeDetailView (web) — meta', () => {
     it('renders prep, cook, total times and servings', () => {
         render(

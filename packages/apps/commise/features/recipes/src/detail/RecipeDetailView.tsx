@@ -200,10 +200,15 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                                     onClick={() => onToggleStep?.(step.stepNumber)}
                                     className="flex size-11 shrink-0 items-center justify-center sm:size-8"
                                 >
+                                    {/* Contrast (WCAG 2.1 AA): in the not-done state the NUMERAL is the only
+                                        thing in the circle and a reader reads it, so it takes `ocean-dark`
+                                        (6.20:1) instead of seafoam (4.02:1). The `border-seafoam` ring stays
+                                        seafoam — a boundary is a 3:1 graphic, which it clears. See
+                                        `@commise/ui`'s palette JSDoc for the one statement of that split. */}
                                     <span
                                         aria-hidden
                                         className={`flex size-8 items-center justify-center rounded-full text-body-sm font-semibold transition ${
-                                            done ? 'bg-seafoam text-white' : 'border-2 border-seafoam text-seafoam'
+                                            done ? 'bg-seafoam text-white' : 'border-2 border-seafoam text-ocean-dark'
                                         }`}
                                     >
                                         {done ? '✓' : step.stepNumber}
@@ -216,7 +221,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                                         {step.instruction}
                                     </span>
                                     {step.timerSeconds !== undefined && (
-                                        <span className="text-body-sm font-medium text-seafoam">
+                                        <span className="text-body-sm font-medium text-ocean-dark">
                                             {fillTemplate(detail.stepTimer, { seconds: step.timerSeconds })}
                                         </span>
                                     )}
@@ -271,7 +276,8 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                         {fillTemplate(detail.versionBadge, { version: recipe.currentVersion })}
                     </span>
                 )}
-                <span className="rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-seafoam">
+                {/* Same tint-on-tint contrast contract as the hero badge row: seafoam tint, `ocean-dark` text. */}
+                <span className="rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-ocean-dark">
                     {recipe.visibility === RecipeVisibility.PUBLIC ? detail.visibilityPublic : detail.visibilityPrivate}
                 </span>
             </footer>

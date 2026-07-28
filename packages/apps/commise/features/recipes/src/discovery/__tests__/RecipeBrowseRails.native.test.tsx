@@ -5,10 +5,13 @@
  * platform renders of the net-new browse surface cannot drift.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { AccessibilityInfo, Animated } from 'react-native';
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
+
+import { computedContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -202,5 +205,21 @@ describe('RecipeBrowseRails (native) — section enter motion (U8 motion pass)',
         await settlePreference();
 
         expect(screen.getByRole('button', { name: 'Viral Pad Thai' })).toBeTruthy();
+    });
+});
+
+describe('RecipeBrowseRails (native) — text contrast (WCAG 2.1 AA)', () => {
+    it('keeps the per-rail "see all" label legible on the screen background', () => {
+        renderRails();
+
+        // Mirrors the web leaf: "See all" is TEXT, so it owes the 4.5:1 SC 1.4.3 floor, and `seafoam` is
+        // 3.73:1 on the `sand` screen background this rail header sits on. See the palette JSDoc in
+        // `@commise/ui`'s `tokens/colors.ts`. The ratio (not a token equality) is asserted, so a re-theme of
+        // the token cannot silently satisfy it; the leaf paints no tint, so the surface is the screen's own.
+        const label = within(screen.getByRole('button', { name: 'See all Trending' })).getByText('See all');
+        expect(
+            computedContrast(label, { surface: palette.sand }),
+            'see-all label on the sand screen background',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });

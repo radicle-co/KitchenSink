@@ -154,7 +154,7 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
                                             <button
                                                 type="button"
                                                 onClick={() => setShowFullDiff((current) => !current)}
-                                                className="self-start rounded-full px-4 py-1.5 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10"
+                                                className="self-start rounded-full px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
                                             >
                                                 {showFullDiff ? compare.hideFullDiff : compare.showFullDiff}
                                             </button>

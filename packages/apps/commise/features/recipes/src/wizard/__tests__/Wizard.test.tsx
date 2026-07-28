@@ -17,6 +17,8 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type FC } from 'react';
 
+import { utilityContrast } from '@commise/test-utils';
+
 import {
     canAdvanceFromStep,
     defaultRecipeFormValues,
@@ -543,6 +545,28 @@ describe('Wizard (web) — the step rail cannot push a step off the screen edge'
         render(<Harness />);
 
         expect((pill().firstElementChild as HTMLElement).className).toContain('shrink-0');
+    });
+});
+
+/**
+ * The rail marker's NUMERAL is text a reader reads to know which step they are on, so it is bound by SC 1.4.3
+ * (4.5:1) — `text-caption` is 12px, nowhere near the large-text exemption. Measured off the marker element's
+ * REAL rendered class list (the marker class is a lookup table, so asserting the constant would prove nothing
+ * about what rendered), with the marker's own `bg-*` composited. See the palette JSDoc in `@commise/ui`'s
+ * `tokens/colors.ts` for when seafoam remains the right token — the marker's `border-seafoam` is one such
+ * non-text site and is deliberately untouched.
+ */
+describe('Wizard (web) — WCAG AA rail-marker contrast (SC 1.4.3)', () => {
+    it('the current step’s marker numeral is legible on the marker’s own fill', () => {
+        render(<Harness initialStep={2} />);
+
+        const marker = screen.getByRole('button', { name: /Ingredients: current step/ })
+            .firstElementChild as HTMLElement;
+
+        expect(
+            utilityContrast(marker.className),
+            'current step’s rail-marker numeral, on the marker’s own fill',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });
 

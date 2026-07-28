@@ -311,7 +311,9 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                     </span>
                 )}
                 {calories !== undefined && (
-                    <span className="rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-seafoam">
+                    // Contrast (WCAG 2.1 AA): the seafoam tint stays; the badge's READ text takes `ocean-dark`
+                    // (see `@commise/ui`'s palette JSDoc — seafoam-as-text on its own `/10` is 3.57:1).
+                    <span className="rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-ocean-dark">
                         {fillTemplate(m.ingredientCaloriesTemplate, { calories })}
                     </span>
                 )}

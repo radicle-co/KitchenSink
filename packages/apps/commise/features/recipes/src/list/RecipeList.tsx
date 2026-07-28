@@ -118,9 +118,13 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                                 onClick={() => tab.onChange(value)}
                                 // Touch floor: `min-h-11` at base, reset at `md:` so the desktop tab density
                                 // (py-2) is unchanged.
+                                //
+                                // The selected tab's UNDERLINE stays seafoam and its LABEL is `ocean-dark`
+                                // deliberately — the split is the palette rule, not an oversight (see the
+                                // palette JSDoc in `@commise/ui`'s `tokens/colors.ts`).
                                 className={`-mb-px inline-flex min-h-11 items-center border-b-2 px-4 py-2 text-body-sm font-semibold transition md:min-h-0 ${
                                     selected
-                                        ? 'border-seafoam text-seafoam'
+                                        ? 'border-seafoam text-ocean-dark'
                                         : 'border-transparent text-slate hover:text-charcoal'
                                 }`}
                             >

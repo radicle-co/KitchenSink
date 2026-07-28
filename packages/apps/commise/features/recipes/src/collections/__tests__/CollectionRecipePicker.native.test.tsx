@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { computedContrast } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 
 import { cssColor, tintOf } from '../../__tests__/cssColor.js';
@@ -73,6 +74,26 @@ describe('CollectionRecipePicker (native) — chrome', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Done' }));
 
         expect(onDone).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * Cross-platform parity for the web leaf's seafoam-as-text fix. One shared `linkLabel` style paints both bare
+ * TEXT controls in this leaf — Done in the chrome and Try again in the load-error card — and it was
+ * `palette.seafoam`: 4.02:1 on white, under the 4.5:1 body-text floor. Both call sites are measured, so a fix
+ * that reached only one of them would still fail.
+ */
+describe('CollectionRecipePicker (native) — text controls clear the AA body-text floor', () => {
+    it('keeps the Done label legible', () => {
+        renderPicker();
+
+        expect(computedContrast(screen.getByText('Done')), 'Done').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the load-error Try again label legible on its white card', () => {
+        renderPicker({ status: 'error', recipes: [] });
+
+        expect(computedContrast(screen.getByText('Try again')), 'Try again').toBeGreaterThanOrEqual(4.5);
     });
 });
 

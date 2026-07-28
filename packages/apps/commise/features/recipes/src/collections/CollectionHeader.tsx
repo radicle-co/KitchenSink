@@ -5,6 +5,10 @@
  * name with its Edit/Delete affordances (C4), a visibility badge, the recipe count, source attribution for
  * a cloned collection, and its last-pulled date — plus the web-only Back affordance (C6). It fetches
  * nothing and performs no mutations; every interaction is delegated upward.
+ *
+ * The three READ foregrounds here — Back, Rename, and the visibility badge — label in `ocean-dark`, not
+ * `seafoam` (4.02:1 on white, 3.57:1 on the badge's own `bg-seafoam/10`, both under the 4.5:1 body-text floor).
+ * The badge's tint stays seafoam; see the palette JSDoc in `@commise/ui` for that accent-vs-text rule.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
@@ -54,7 +58,7 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
                 <button
                     type="button"
                     onClick={onBack}
-                    className="self-start text-body-sm font-medium text-seafoam transition hover:underline"
+                    className="self-start text-body-sm font-medium text-ocean-dark transition hover:underline"
                 >
                     <span aria-hidden="true">{'‹ '}</span>
                     {header.backToCollections}
@@ -70,7 +74,7 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
                     <button
                         type="button"
                         onClick={onEdit}
-                        className="rounded-full px-4 py-2 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10"
+                        className="rounded-full px-4 py-2 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
                     >
                         {detail.renameCta}
                     </button>
@@ -94,7 +98,9 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
                 <p className="text-body-lg text-slate">{description}</p>
             )}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-slate">
-                <span className="rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-seafoam">
+                {/* The TINT stays seafoam (a background); only the LABEL moves to `ocean-dark` — seafoam on
+                    its own `/10` tint is 3.57:1, under the 4.5:1 body-text floor. */}
+                <span className="rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-ocean-dark">
                     {visibilityLabel}
                 </span>
                 <span>{recipeCountLabel}</span>

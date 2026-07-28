@@ -230,9 +230,12 @@ const RAIL_MARKER_STYLE: Record<RailState, { backgroundColor: string; borderColo
     upcoming: { backgroundColor: palette.white, borderColor: 'rgba(178, 190, 195, 0.5)' },
 };
 
+// This table colours the marker's NUMERAL — read text, so SC 1.4.3's 4.5:1 applies. The marker's BORDER
+// (`RAIL_MARKER_STYLE` above) is a non-text boundary at SC 1.4.11's 3:1 and keeps seafoam. See the palette
+// JSDoc in `@commise/ui`'s `tokens/colors.ts` for the one authoritative statement of that split.
 const RAIL_MARKER_TEXT_COLOR: Record<RailState, string> = {
     completed: palette.white,
-    current: palette.seafoam,
+    current: palette['ocean-dark'],
     invalid: palette.white,
     upcoming: palette.slate,
 };

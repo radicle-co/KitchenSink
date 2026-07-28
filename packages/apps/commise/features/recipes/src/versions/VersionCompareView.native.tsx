@@ -169,5 +169,5 @@ const styles = StyleSheet.create({
     fieldValue: { fontSize: 15, color: palette.charcoal },
     tally: { fontSize: 12, color: palette.slate },
     toggleButton: { alignSelf: 'flex-start', borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
-    toggleLabel: { color: palette.seafoam, fontWeight: '600', fontSize: 14 },
+    toggleLabel: { color: palette['ocean-dark'], fontWeight: '600', fontSize: 14 },
 });

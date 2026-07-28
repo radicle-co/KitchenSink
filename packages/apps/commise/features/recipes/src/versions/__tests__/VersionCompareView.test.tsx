@@ -13,6 +13,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
+import { utilityContrast } from '@commise/test-utils';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep, RecipeVersion } from '@kitchensink/recipe-core';
 
 import { diffSnapshots } from '../diff.js';
@@ -257,6 +258,54 @@ describe('VersionCompareView (web) — reorder-only ingredient diff', () => {
         await user.click(screen.getByRole('button', { name: 'Hide full diff' }));
 
         expect(screen.queryByText('Added: 0 · Removed: 0 · Modified: 2')).toBeNull();
+    });
+});
+
+/**
+ * Measured, not eyeballed — see `RecipeVersionList.test.tsx`'s contrast block and the palette JSDoc in
+ * `@commise/ui`'s `tokens/colors.ts` for the one authoritative statement of the seafoam-as-text rule. The
+ * panel's own `bg-card` is white, so the default surface is the one this control actually sits on.
+ */
+describe('VersionCompareView (web) — WCAG AA text contrast (SC 1.4.3)', () => {
+    const reorderedB = makeVersion({
+        id: 'ver_8d',
+        versionNumber: 10,
+        snapshot: makeSnapshot({
+            version: 10,
+            ingredients: [
+                makeIngredient({ id: 'ri_a', ingredientId: 'ing_a', quantity: 200, unit: 'g', sortOrder: 2 }),
+                makeIngredient({
+                    id: 'ri_b',
+                    ingredientId: 'ing_b',
+                    quantity: 50,
+                    unit: 'g',
+                    sortOrder: 1,
+                    ingredientName: 'Parmesan',
+                }),
+            ],
+        }),
+    });
+
+    it('the "Show full diff" toggle’s label is legible at rest and on its hover tint', () => {
+        render(
+            <VersionCompareView
+                {...baseProps({
+                    versionA,
+                    versionB: reorderedB,
+                    diff: diffSnapshots(versionA.snapshot, reorderedB.snapshot),
+                })}
+            />,
+        );
+        const toggle = screen.getByRole('button', { name: 'Show full diff' });
+
+        expect(
+            utilityContrast(toggle.className),
+            '"Show full diff" label at rest, on the panel surface',
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+            utilityContrast(toggle.className, { variant: 'hover' }),
+            '"Show full diff" label on its own hover tint',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });
 

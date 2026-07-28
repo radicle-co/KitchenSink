@@ -108,7 +108,7 @@ const Rail: FC<{
                     type="button"
                     aria-label={fillTemplate(discovery.seeAllLabel, { rail: title })}
                     onClick={rail.onSeeAll}
-                    className="rounded-full px-3 py-1 text-body-sm font-semibold text-seafoam transition hover:bg-mist/20"
+                    className="rounded-full px-3 py-1 text-body-sm font-semibold text-ocean-dark transition hover:bg-mist/20"
                 >
                     {discovery.seeAll}
                 </button>

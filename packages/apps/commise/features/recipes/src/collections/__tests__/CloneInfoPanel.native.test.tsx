@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { computedContrast } from '@commise/test-utils';
+
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CloneInfoPanel } from '../CloneInfoPanel.native.js';
 import type { CloneInfoPanelProps } from '../model.js';
@@ -60,6 +62,19 @@ describe('CloneInfoPanel (native) — unresolved source owner', () => {
         fireEvent.click(screen.getByRole('button', { name: /view source/i }));
 
         expect(onViewSource).toHaveBeenCalledWith('col_source_1');
+    });
+});
+
+/**
+ * Cross-platform parity for the web leaf's seafoam-as-text fix. View Source is a bare TEXT control, so its
+ * label carries the 4.5:1 body-text floor; `palette.seafoam` scored 4.02:1 on this panel's white surface.
+ * Measured rather than compared to a token spelling, so a re-theme to a near-white token cannot pass.
+ */
+describe('CloneInfoPanel (native) — View Source clears the AA body-text floor', () => {
+    it('keeps the View Source label legible on the panel’s white surface', () => {
+        renderPanel();
+
+        expect(computedContrast(screen.getByText('View Source')), 'View Source').toBeGreaterThanOrEqual(4.5);
     });
 });
 

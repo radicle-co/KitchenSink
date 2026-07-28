@@ -11,6 +11,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { utilityContrast } from '@commise/test-utils';
+import { semantic } from '@commise/ui';
+
 import { RecipeFilterBar } from '../RecipeFilterBar.js';
 import { EMPTY_RECIPE_FILTERS } from '../model.js';
 import type { RecipeFilterBarProps, RecipeIngredientSearchState } from '../model.js';
@@ -500,5 +503,28 @@ describe('RecipeFilterBar (web) — ingredient filter typeahead (FR-006 gap #3)'
         });
 
         expect(screen.getByRole('button', { name: 'Clear 2 filters' })).toBeTruthy();
+    });
+});
+
+describe('RecipeFilterBar (web) — text contrast (WCAG 2.1 AA)', () => {
+    it('keeps the clear-all summary legible on the page it sits on, focus ring intact', () => {
+        renderBar({ facets, filters: { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] } });
+
+        // The clear-all summary is TEXT a reader reads, so it owes the 4.5:1 SC 1.4.3 floor, not the 3:1 an
+        // accent owes; `seafoam` is 3.73:1 on the page background the bar sits on. See the palette JSDoc in
+        // `@commise/ui`'s `tokens/colors.ts` for the one authoritative statement of the rule.
+        //
+        // The control paints no background of its own and its hover adds only an underline, so there is no
+        // second tint to measure here — unlike the discovery buttons, which hover to a `mist/20` wash.
+        const clear = screen.getByRole('button', { name: 'Clear 1 filter' });
+        expect(
+            utilityContrast(clear.className, { surface: semantic.background }),
+            'clear-all filters label',
+        ).toBeGreaterThanOrEqual(4.5);
+        // The seafoam FOCUS RING stays: a focus indicator is a non-text graphic on the 3:1 SC 1.4.11 floor,
+        // which seafoam clears. Demoting it too would be an over-correction, so it is pinned here.
+        expect(clear.className, 'the seafoam focus indicator must survive the text fix').toContain(
+            'focus-visible:ring-seafoam-light',
+        );
     });
 });

@@ -9,6 +9,9 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { RecipeSearchSortBy, type Recipe, type RecipeSearchResult } from '@kitchensink/recipe-core';
 
+import { computedContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
+
 import { makeRecipe } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeDiscoveryList } from '../RecipeDiscoveryList.native.js';
@@ -484,5 +487,39 @@ describe('RecipeDiscoveryList (native) — recent searches (U7)', () => {
         fireEvent.focusOut(screen.getByLabelText('Search public recipes'));
 
         expect(screen.queryByLabelText('Recent searches')).toBeNull();
+    });
+});
+
+describe('RecipeDiscoveryList (native) — text contrast (WCAG 2.1 AA)', () => {
+    /**
+     * The native mirror of the web leaf's contrast contract. `seafoam` as a FOREGROUND misses the 4.5:1
+     * SC 1.4.3 floor these labels owe — 4.02:1 on the recent-search panel's white card, 3.73:1 on the screen's
+     * `sand` background — and the palette JSDoc in `@commise/ui`'s `tokens/colors.ts` states once where it
+     * stays and where `ocean-dark` takes over.
+     *
+     * `computedContrast` reads the leaf's colour back off the atomic CSS react-native-web compiled, rather
+     * than comparing it to a token spelling: an equality check would still pass if the palette re-themed the
+     * token to near-white, a ratio cannot. Neither leaf paints a tint of its own, so the surface is the opaque
+     * colour its container spells (`recentPanel` → `palette.white`; the screen container → `palette.sand`).
+     */
+    it('keeps the clear-recent-searches label legible on the recent-search panel', () => {
+        renderDiscovery({ searchValue: '', recentSearches: { queries: ['risotto'], onSelect: noop, onClear: noop } });
+        fireEvent.focusIn(screen.getByLabelText('Search public recipes'));
+
+        const label = within(screen.getByRole('button', { name: 'Clear recent searches' })).getByText('Clear');
+        expect(
+            computedContrast(label, { surface: palette.white }),
+            'clear-recent label on the white recent-search panel',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the back-to-browse label legible on the screen background', () => {
+        renderDiscovery({ status: 'ready', results: threeResults, searchValue: 'lamb', onExitToBrowse: noop });
+
+        const label = within(screen.getByRole('button', { name: 'Back to browse' })).getByText('Back to browse');
+        expect(
+            computedContrast(label, { surface: palette.sand }),
+            'back-to-browse label on the sand screen background',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });

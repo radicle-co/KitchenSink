@@ -10,6 +10,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { computedContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
+
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { FILTER_SHEET_PADDING, RecipeFilterBar } from '../RecipeFilterBar.native.js';
 import { EMPTY_RECIPE_FILTERS } from '../model.js';
@@ -568,5 +571,22 @@ describe('RecipeFilterBar (native) — bottom sheet safe-area insets', () => {
         renderBar();
 
         expect(appliedStyle(sheet(), 'padding-top')).toBe(`${FILTER_SHEET_PADDING}px`);
+    });
+});
+
+describe('RecipeFilterBar (native) — text contrast (WCAG 2.1 AA)', () => {
+    it('keeps the clear-all summary legible on the filter sheet', () => {
+        renderBar({ facets, filters: { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] } });
+
+        // Mirrors the web leaf: the clear-all summary is TEXT, so it owes the 4.5:1 SC 1.4.3 floor, and
+        // `seafoam` is only 4.02:1 on the sheet — whose own `backgroundColor` is `palette.white`, so that is
+        // the surface (the translucent scrim sits BEHIND the opaque sheet and never shows through). See the
+        // palette JSDoc in `@commise/ui`'s `tokens/colors.ts`. A ratio is asserted rather than a token
+        // spelling, so re-theming the token cannot satisfy it by accident.
+        const label = within(screen.getByRole('button', { name: 'Clear 1 filter' })).getByText('Clear 1 filter');
+        expect(
+            computedContrast(label, { surface: palette.white }),
+            'clear-all label on the white filter sheet',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });

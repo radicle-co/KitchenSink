@@ -58,5 +58,7 @@ const styles = StyleSheet.create({
     attribution: { fontSize: 14, color: palette.charcoal },
     meta: { fontSize: 14, color: palette.slate },
     textButton: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 10 },
-    viewSourceLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
+    // `ocean-dark`, not `seafoam`: seafoam as a text foreground is 4.02:1 on this panel's white surface, under
+    // the 4.5:1 body-text floor (see the palette JSDoc in `@commise/ui` for the accent-vs-text rule).
+    viewSourceLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
 });

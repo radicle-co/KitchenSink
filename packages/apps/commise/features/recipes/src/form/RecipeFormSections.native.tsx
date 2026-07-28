@@ -466,7 +466,10 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     statusBadge: { fontSize: 11, color: palette.slate },
-    caloriesBadge: { fontSize: 12, fontWeight: '600', color: palette.seafoam },
+    // Contrast (WCAG 2.1 AA): a badge a reader READS takes `ocean-dark` (6.20:1 on the white card) rather than
+    // seafoam (4.02:1). Mirrors the web leaf's `text-ocean-dark`. The visibility Switch's `trackColor` above
+    // stays seafoam — a control track is a 3:1 graphic, not text.
+    caloriesBadge: { fontSize: 12, fontWeight: '600', color: palette['ocean-dark'] },
     error: { color: palette.error, fontSize: 13 },
     emptyText: { color: palette.slate, fontSize: 13 },
     charCounter: { color: palette.slate, fontSize: 12 },

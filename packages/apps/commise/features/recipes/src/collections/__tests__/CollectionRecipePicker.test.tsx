@@ -14,6 +14,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { utilityContrast } from '@commise/test-utils';
+
 import { CollectionRecipePicker } from '../CollectionRecipePicker.js';
 import type { CollectionRecipePickerProps } from '../model.js';
 
@@ -234,5 +236,33 @@ describe('CollectionRecipePicker (web) — adding', () => {
         expect(className).toContain('text-error');
         expect(className).toContain('bg-error/10');
         expect(className).not.toContain('coral');
+    });
+});
+
+/**
+ * The picker's two bare TEXT controls (Done, Retry) are read, so they carry the 4.5:1 body-text floor — not
+ * the 3:1 accent floor `seafoam` clears. Both painted `text-seafoam`: 4.02:1 on the white card at rest and
+ * 3.57:1 the moment `hover:bg-seafoam/10` lands, so the pointer alone made a failing label worse. `@commise/ui`'s
+ * palette JSDoc states once, authoritatively, where seafoam IS still the right token.
+ *
+ * The ratio is MEASURED off the rendered class list rather than asserted as a spelling: an
+ * `expect(className).toContain('text-ocean-dark')` would keep passing if the palette re-themed that token to
+ * near-white.
+ */
+describe('CollectionRecipePicker (web) — text controls clear the AA body-text floor', () => {
+    it('keeps the Done control legible at rest AND over its hover tint', () => {
+        renderPicker();
+        const done = screen.getByRole('button', { name: 'Done' });
+
+        expect(utilityContrast(done.className), 'Done at rest').toBeGreaterThanOrEqual(4.5);
+        expect(utilityContrast(done.className, { variant: 'hover' }), 'Done on hover').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the load-error Retry control legible at rest AND over its hover tint', () => {
+        renderPicker({ status: 'error' });
+        const retry = screen.getByRole('button', { name: 'Try again' });
+
+        expect(utilityContrast(retry.className), 'Retry at rest').toBeGreaterThanOrEqual(4.5);
+        expect(utilityContrast(retry.className, { variant: 'hover' }), 'Retry on hover').toBeGreaterThanOrEqual(4.5);
     });
 });

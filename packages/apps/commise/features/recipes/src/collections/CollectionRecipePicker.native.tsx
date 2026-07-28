@@ -161,7 +161,9 @@ const styles = StyleSheet.create({
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     heading: { fontSize: 24, fontWeight: '700', color: palette.charcoal, flexShrink: 1 },
     textButton: { paddingVertical: 6, paddingHorizontal: 10 },
-    linkLabel: { color: palette.seafoam, fontWeight: '600', fontSize: 14 },
+    // `ocean-dark`, not `seafoam`: this style paints BOTH bare text controls (Done, Try again), and seafoam as
+    // a text foreground is 4.02:1 on white — under the 4.5:1 body-text floor. The seafoam FILLS below stay.
+    linkLabel: { color: palette['ocean-dark'], fontWeight: '600', fontSize: 14 },
     input: {
         borderRadius: 10,
         borderWidth: 1,

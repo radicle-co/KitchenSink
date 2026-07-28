@@ -8,6 +8,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Pressable, Text } from 'react-native';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { computedContrast } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 
@@ -307,6 +308,20 @@ describe('RecipeDetailView (native) — contrast (U4 / WCAG AA)', () => {
         // keeps the badge in its own hue family. Mirrors the web leaf's `text-ocean-dark`.
         expect(window.getComputedStyle(screen.getByText('Mediterranean')).color).toBe(cssColor(palette['ocean-dark']));
         expect(window.getComputedStyle(screen.getByText('Mediterranean')).color).not.toBe(cssColor(palette.seafoam));
+    });
+
+    // Mirrors the web leaf's step-timer assertion. Measured as a RATIO, not as an equality against a token
+    // spelling: an equality check would keep passing if the palette re-themed the token to near-white.
+    it('makes the step timer label legible (4.02:1 as seafoam, under the 4.5:1 floor)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    steps: [makeStepView({ stepNumber: 1, instruction: 'Rest the lamb.', timerSeconds: 120 })],
+                })}
+            />,
+        );
+
+        expect(computedContrast(screen.getByText('120s timer')), 'step timer label').toBeGreaterThanOrEqual(4.5);
     });
 });
 

@@ -10,8 +10,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { compositeOver, utilityContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
 import { CUISINES, FoodResolutionStatus } from '@kitchensink/recipe-core';
 
+import { tintOf } from '../../__tests__/cssColor.js';
 import { RecipeForm } from '../RecipeForm.js';
 import { DESCRIPTION_MAX_LENGTH, defaultRecipeFormValues, TITLE_MAX_LENGTH, type RecipeFormValues } from '../model.js';
 import type { RecipeFormProps } from '../props.js';
@@ -186,6 +189,68 @@ describe('RecipeForm (web) — basics fields', () => {
         await user.keyboard('{Enter}');
 
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ dietaryFlags: ['vegetarian', 'vegan'] }));
+    });
+});
+
+/**
+ * The form's seafoam-tinted leaves ({@link import('../ChipInput.js').ChipInput}'s chips,
+ * {@link import('../RecipeFormSections.js')}'s per-row calories badge) render through THIS form, so their
+ * contrast is asserted here rather than by reaching past the public component. Ratios are measured from the
+ * class list each leaf actually rendered — see `@commise/ui`'s palette JSDoc for which seafoam sites are
+ * accents (3:1) and which are text (4.5:1).
+ */
+describe('RecipeForm (web) — tinted chip + badge text is WCAG-AA legible', () => {
+    /** The chip element wrapping `value`, reached through its remove control's accessible name. */
+    function chipFor(value: string): { readonly chip: HTMLElement; readonly remove: HTMLElement } {
+        const remove = screen.getByRole('button', { name: `Remove ${value}` });
+        const chip = remove.parentElement;
+
+        if (chip === null) {
+            throw new Error(`Expected the "Remove ${value}" control to sit inside its chip.`);
+        }
+
+        return { chip, remove };
+    }
+
+    it('makes the tag chip LABEL legible over the chip’s own seafoam tint', () => {
+        renderForm({ values: filledValues({ tags: ['quick'] }) });
+
+        const { chip } = chipFor('quick');
+
+        // Seafoam-as-text on its own `/10` tint is 3.57:1 — under the 4.5:1 body-text floor.
+        expect(utilityContrast(chip.className), 'tag chip label').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('makes the chip’s × remove glyph legible AT REST AND ON HOVER', () => {
+        renderForm({ values: filledValues({ tags: ['quick'] }) });
+
+        const { chip, remove } = chipFor('quick');
+
+        // The × is a rendered TEXT glyph, and it is painted INSIDE the chip — so the colour behind it is the
+        // chip's own tint, not the white field behind that, and the control's `hover:` tint STACKS on top.
+        // Measuring it over plain white would flatter both states and let a failing hover through (which is
+        // exactly what happened: ocean-dark over `seafoam/20` is 4.90:1 on white but only 4.41:1 once the
+        // chip's own `/10` is underneath it).
+        expect(chip.className, 'the chip’s tint the × is measured against').toContain('bg-seafoam/10');
+        const surface = compositeOver(tintOf(palette.seafoam, 0.1), palette.white);
+
+        expect(utilityContrast(remove.className, { surface }), '× glyph at rest').toBeGreaterThanOrEqual(4.5);
+        expect(
+            utilityContrast(remove.className, { surface, variant: 'hover' }),
+            '× glyph on hover',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('makes the per-row calories badge legible over its seafoam tint', () => {
+        renderForm({
+            values: filledValues({
+                ingredients: [
+                    { ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300, unit: 'g', caloriesPer100g: 130 },
+                ],
+            }),
+        });
+
+        expect(utilityContrast(screen.getByText('390 cal').className), 'calories badge').toBeGreaterThanOrEqual(4.5);
     });
 });
 

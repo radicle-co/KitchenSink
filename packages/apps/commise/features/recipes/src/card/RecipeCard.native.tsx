@@ -367,10 +367,13 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.full,
         overflow: 'hidden',
     },
+    // The cuisine AND visibility badges share this one style. Contrast (WCAG 2.1 AA): the seafoam tint stays;
+    // the label a reader READS takes `ocean-dark` (5.51:1 on that tint) rather than seafoam (3.57:1). Mirrors
+    // the web leaf's `text-ocean-dark`; see `@commise/ui`'s palette JSDoc for the accent-vs-text split.
     chip: {
         fontSize: nativeTokens.fontSize.overline,
         fontWeight: '500',
-        color: palette.seafoam,
+        color: palette['ocean-dark'],
         backgroundColor: 'rgba(61, 139, 133, 0.1)',
         paddingHorizontal: nativeTokens.spacing[2],
         paddingVertical: 2,

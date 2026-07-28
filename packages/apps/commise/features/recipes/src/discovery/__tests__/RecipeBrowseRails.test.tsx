@@ -10,6 +10,9 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
 
+import { utilityContrast } from '@commise/test-utils';
+import { semantic } from '@commise/ui';
+
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { RecipeBrowseRails } from '../RecipeBrowseRails.js';
 import type { RecipeBrowseRailsProps, RecipeBrowseRailView } from '../model.js';
@@ -194,5 +197,28 @@ describe('RecipeBrowseRails (web) — section enter motion (U8 motion pass)', ()
 
         // The gesture is decorative; the cards must still be present and named.
         expect(screen.getByRole('button', { name: 'Viral Pad Thai' })).toBeTruthy();
+    });
+});
+
+describe('RecipeBrowseRails (web) — text contrast (WCAG 2.1 AA)', () => {
+    it('keeps the per-rail "see all" legible at rest and under its mist hover tint', () => {
+        renderRails();
+
+        // "See all" is TEXT a reader reads, so it owes the 4.5:1 SC 1.4.3 floor, not the 3:1 an accent owes;
+        // `seafoam` is 3.73:1 on the page background it sits on and 3.37:1 once the `mist/20` hover tint lands
+        // underneath. The palette JSDoc in `@commise/ui`'s `tokens/colors.ts` states the rule once, and names
+        // `ocean-dark` as the text-weight substitute that keeps the control in its own hue family.
+        //
+        // Measured from the class list the button ACTUALLY rendered (a `toContain('text-…')` check would pin a
+        // spelling, not a ratio), with the hover state measured as its own state.
+        const seeAll = screen.getByRole('button', { name: 'See all Trending' });
+        expect(
+            utilityContrast(seeAll.className, { surface: semantic.background }),
+            'see-all at rest on the page',
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+            utilityContrast(seeAll.className, { surface: semantic.background, variant: 'hover' }),
+            'see-all under its hover:bg-mist/20 tint',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });

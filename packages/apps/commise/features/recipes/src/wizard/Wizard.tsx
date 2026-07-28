@@ -322,9 +322,12 @@ const RAIL_STATE_LABEL: Record<'completed' | 'current' | 'invalid' | 'upcoming',
     upcoming: 'stateUpcoming',
 };
 
+// The marker's NUMERAL is read text (SC 1.4.3, 4.5:1) while its BORDER is a non-text boundary (SC 1.4.11,
+// 3:1) — so `current` keeps `border-seafoam` and takes `text-ocean-dark` for the numeral. See the palette
+// JSDoc in `@commise/ui`'s `tokens/colors.ts` for the one authoritative statement of that split.
 const RAIL_MARKER_CLASS: Record<'completed' | 'current' | 'invalid' | 'upcoming', string> = {
     completed: 'border-seafoam bg-seafoam text-white',
-    current: 'border-seafoam bg-white text-seafoam',
+    current: 'border-seafoam bg-white text-ocean-dark',
     invalid: 'border-error bg-error text-white',
     upcoming: 'border-border bg-white text-slate',
 };

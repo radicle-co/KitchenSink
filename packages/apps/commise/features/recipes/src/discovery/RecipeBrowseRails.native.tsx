@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     railTitle: { fontSize: nativeTokens.fontSize.headingMd, fontWeight: '600', color: palette.charcoal },
     railAccent: { height: 4, width: 40, borderRadius: nativeTokens.radius.full },
     seeAll: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[2] },
-    seeAllText: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.seafoam },
+    seeAllText: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette['ocean-dark'] },
     railStrip: { gap: nativeTokens.spacing[3], paddingRight: nativeTokens.spacing[4] },
     railCard: { width: 260 },
     railSkeleton: {

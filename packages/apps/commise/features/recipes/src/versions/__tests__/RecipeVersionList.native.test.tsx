@@ -5,8 +5,11 @@
  * platform renders cannot drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+
+import { computedContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
 
 import { makeRecipeVersion } from '../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -277,6 +280,38 @@ describe('RecipeVersionList (native) — compare selection (W6 Task 5)', () => {
         fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
 
         expect(onToggleCompare).toHaveBeenCalledWith(2);
+    });
+});
+
+/**
+ * Cross-platform parity for the web leaf's contrast fix — the two leaves must not drift on legibility any more
+ * than on copy. `computedContrast` reads the leaf's colour off react-native-web's compiled atomic CSS and
+ * measures it against the surface stated here, rather than pinning a token SPELLING: an equality check against
+ * `palette['ocean-dark']` would keep passing if the palette re-themed that token to near-white.
+ *
+ * Both controls sit directly on the row's opaque `palette.white` card (this leaf paints no tint behind either,
+ * unlike the web badge's `bg-seafoam/10`), so white is the surface a reader actually sees behind them. See the
+ * palette JSDoc in `@commise/ui`'s `tokens/colors.ts` for the seafoam-as-text rule.
+ */
+describe('RecipeVersionList (native) — WCAG AA text contrast (SC 1.4.3)', () => {
+    it('the "Current version" badge label is legible on the row card', () => {
+        renderList({ versions: threeVersions, currentVersion: 3 });
+
+        expect(
+            computedContrast(screen.getByText('Current version'), { surface: palette.white }),
+            '"Current version" badge label on the white row card',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('the Restore control’s label is legible on the row card', () => {
+        renderList({ versions: threeVersions, currentVersion: 3 });
+
+        const restore = screen.getByRole('button', { name: 'Restore version 2' });
+
+        expect(
+            computedContrast(within(restore).getByText('Restore'), { surface: palette.white }),
+            'Restore label on the white row card',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });
 

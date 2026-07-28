@@ -6,6 +6,10 @@
  * control. Rendered by the composing container ONLY when the collection is a clone (W5 Task 12) — this leaf
  * assumes it is always given clone props and holds no "not a clone" branch of its own. It fetches nothing
  * and performs no mutations; the View Source interaction is delegated upward.
+ *
+ * View Source labels in `ocean-dark`, not `seafoam`: seafoam as a FOREGROUND is 4.02:1 on this white panel and
+ * 3.57:1 under its own `hover:bg-seafoam/10` tint, both below the 4.5:1 body-text floor. The tint stays seafoam
+ * — see the palette JSDoc in `@commise/ui` for that (single, authoritative) accent-vs-text rule.
  */
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
@@ -44,7 +48,7 @@ export const CloneInfoPanel: FC<CloneInfoPanelProps> = ({
             <button
                 type="button"
                 onClick={() => onViewSource(sourceCollectionId)}
-                className="self-start rounded-full px-4 py-2 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10"
+                className="self-start rounded-full px-4 py-2 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
             >
                 {cloneInfo.viewSource}
             </button>

@@ -100,7 +100,9 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
 const styles = StyleSheet.create({
     container: { gap: 8, paddingHorizontal: 16, paddingVertical: 16 },
     textButton: { paddingVertical: 6, paddingHorizontal: 10 },
-    backLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
+    // `ocean-dark`, not `seafoam`, on every foreground a reader READS in this header (Back, Rename, the badge
+    // label): seafoam is 4.02:1 on white and 3.57:1 on the badge's own tint, under the 4.5:1 body-text floor.
+    backLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
     titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
     // `flexShrink: 1` is load-bearing, not cosmetic. RN defaults `flexShrink` to 0, so without it a long
     // collection name claims its full intrinsic width in this row and pushes `actions` past the screen edge:
@@ -109,7 +111,7 @@ const styles = StyleSheet.create({
     // Shrinking lets the name wrap instead, which is what the web leaf's `min-w-0` + `break-words` already do.
     heading: { flexShrink: 1, fontSize: 28, fontWeight: '700', color: palette.charcoal },
     actions: { flexDirection: 'row', flexShrink: 0, gap: 8 },
-    editLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
+    editLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
     deleteLabel: { color: palette.error, fontWeight: '500', fontSize: 14 },
     description: { fontSize: 15, color: palette.slate },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -117,7 +119,7 @@ const styles = StyleSheet.create({
         // 10%-alpha tint of `palette.seafoam` (#3D8B85 → rgb(61, 139, 133)) — mirrors the web leaf's
         // `bg-seafoam/10` Tailwind utility; RN has no alpha-suffix color syntax, so it is spelled out here.
         backgroundColor: 'rgba(61, 139, 133, 0.1)',
-        color: palette.seafoam,
+        color: palette['ocean-dark'],
         fontWeight: '500',
         fontSize: 12,
         borderRadius: 999,

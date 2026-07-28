@@ -267,7 +267,9 @@ const styles = StyleSheet.create({
     },
     tabSelected: { borderBottomColor: palette.seafoam },
     tabLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.slate },
-    tabLabelSelected: { color: palette.seafoam },
+    // Underline seafoam, LABEL `ocean-dark` — the palette rule, mirroring the web tab (see the palette JSDoc
+    // in `@commise/ui`'s `tokens/colors.ts`).
+    tabLabelSelected: { color: palette['ocean-dark'] },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
     chip: {
         borderRadius: nativeTokens.radius.full,

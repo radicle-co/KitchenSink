@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { utilityContrast } from '@commise/test-utils';
+
 import { CloneInfoPanel } from '../CloneInfoPanel.js';
 import type { CloneInfoPanelProps } from '../model.js';
 
@@ -64,6 +66,24 @@ describe('CloneInfoPanel (web) — unresolved source owner', () => {
         await user.click(screen.getByRole('button', { name: /view source/i }));
 
         expect(onViewSource).toHaveBeenCalledWith('col_source_1');
+    });
+});
+
+/**
+ * View Source is a bare TEXT control — the reader reads its label, so it carries the 4.5:1 body-text floor,
+ * not the 3:1 accent floor `seafoam` clears. It painted `text-seafoam`: 4.02:1 on this white panel at rest and
+ * 3.57:1 once `hover:bg-seafoam/10` lands. See `@commise/ui`'s palette JSDoc for where seafoam IS still right.
+ */
+describe('CloneInfoPanel (web) — View Source clears the AA body-text floor', () => {
+    it('keeps the View Source label legible at rest AND over its hover tint', () => {
+        renderPanel();
+        const viewSource = screen.getByRole('button', { name: /view source/i });
+
+        expect(utilityContrast(viewSource.className), 'View Source at rest').toBeGreaterThanOrEqual(4.5);
+        expect(
+            utilityContrast(viewSource.className, { variant: 'hover' }),
+            'View Source on hover',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });
 

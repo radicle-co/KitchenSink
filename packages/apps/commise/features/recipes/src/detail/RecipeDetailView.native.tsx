@@ -336,5 +336,7 @@ const styles = StyleSheet.create({
     stepBody: { flex: 1, gap: 2, paddingTop: nativeTokens.spacing[1] },
     stepText: { fontSize: 15, lineHeight: 22, color: palette.charcoal },
     stepTextDone: { textDecorationLine: 'line-through', opacity: 0.6 },
-    stepTimer: { fontSize: 13, fontWeight: '500', color: palette.seafoam },
+    // Contrast (WCAG 2.1 AA): a label a reader READS takes `ocean-dark` (6.20:1) rather than seafoam (4.02:1).
+    // Mirrors the web leaf's `text-ocean-dark`; the seafoam step-marker FILL above is a non-text accent.
+    stepTimer: { fontSize: 13, fontWeight: '500', color: palette['ocean-dark'] },
 });

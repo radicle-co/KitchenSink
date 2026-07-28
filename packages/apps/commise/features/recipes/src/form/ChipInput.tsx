@@ -37,10 +37,17 @@ const fieldLabel = 'text-body-sm font-medium text-slate';
 // `min-w-0 break-words` + the remove control's `shrink-0` are one contract: a long tag yields (and breaks)
 // rather than squeezing out the only affordance that can remove it. The native leaf carries the same contract
 // as `flexShrink: 1` / `flexShrink: 0` — see `ChipInput.native.tsx`.
+// Contrast (WCAG 2.1 AA): the chip's tint stays seafoam; its READABLE parts — the tag label and the `×` remove
+// glyph (a text glyph, not an icon) — take `ocean-dark`. See `@commise/ui`'s palette JSDoc for the one
+// authoritative statement of which seafoam sites are accents and which are text.
 const chip =
-    'inline-flex min-w-0 items-center gap-1 break-words rounded-full bg-seafoam/10 py-1 pl-3 pr-1 text-body-sm font-medium text-seafoam';
+    'inline-flex min-w-0 items-center gap-1 break-words rounded-full bg-seafoam/10 py-1 pl-3 pr-1 text-body-sm font-medium text-ocean-dark';
+// The hover tint is `/15`, not `/20`, because it STACKS on the chip's own `/10`: `seafoam/20` over `seafoam/10`
+// composites to #c8dedd, where even `ocean-dark` is only 4.41:1 — a hover-only AA failure. `/15` composites to
+// #d1e4e3 (4.70:1) and still reads as a deepening of the disc. The focus ring stays `seafoam-light`: a focus
+// indicator is a 3:1 graphic, not text.
 const chipRemove =
-    'flex size-5 shrink-0 items-center justify-center rounded-full text-seafoam transition hover:bg-seafoam/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light';
+    'flex size-5 shrink-0 items-center justify-center rounded-full text-ocean-dark transition hover:bg-seafoam/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light';
 const chipField =
     'flex flex-wrap items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal focus-within:ring-2 focus-within:ring-seafoam-light';
 const chipDraft = 'min-w-24 flex-1 border-none bg-transparent p-0 text-body-md text-charcoal outline-none';

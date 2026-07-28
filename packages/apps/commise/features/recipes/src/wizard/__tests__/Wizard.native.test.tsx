@@ -13,6 +13,9 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { useState, type FC } from 'react';
 import { Text, TextInput } from 'react-native';
 
+import { computedContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
+
 import {
     canAdvanceFromStep,
     defaultRecipeFormValues,
@@ -541,6 +544,28 @@ describe('Wizard (native) — the step rail cannot push a step off the screen ed
         expect(screen.getByLabelText(/Ingredients:/)).toBeTruthy();
         expect(screen.getByLabelText(/Instructions:/)).toBeTruthy();
         expect(screen.getByLabelText(/Photos:/)).toBeTruthy();
+    });
+});
+
+/**
+ * Cross-platform parity for the web rail-marker contrast fix. The marker's NUMERAL is text a reader reads to
+ * know which step they are on, so SC 1.4.3's 4.5:1 applies (12px — no large-text exemption). Only the numeral's
+ * colour is measured: the marker's `borderColor` is a non-text boundary bound by SC 1.4.11's 3:1, which seafoam
+ * clears, and it is deliberately left alone (see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`).
+ *
+ * The `current` marker's own fill is opaque `palette.white`, which is the surface behind the numeral.
+ */
+describe('Wizard (native) — WCAG AA rail-marker contrast (SC 1.4.3)', () => {
+    it('the current step’s marker numeral is legible on the marker’s own fill', () => {
+        render(<Harness initialStep={2} />);
+
+        // Scope to the current step's pill: bare numerals collide across the four markers (and with form values).
+        const numeral = within(screen.getByLabelText(/Ingredients: current step/)).getByText('2');
+
+        expect(
+            computedContrast(numeral, { surface: palette.white }),
+            'current step’s rail-marker numeral, on the marker’s white fill',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });
 

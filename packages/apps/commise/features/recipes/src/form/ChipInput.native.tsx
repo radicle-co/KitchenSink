@@ -65,7 +65,10 @@ export const ChipInput: FC<ChipInputProps> = ({ label, values, onChange, placeho
                             onPress={() => onChange(removeChipAt(values, index))}
                             style={styles.chipRemove}
                         >
-                            <Feather name="x" size={14} color={palette.seafoam} />
+                            {/* Contrast (WCAG 2.1 AA): the `×` is the chip's removal affordance and takes the
+                                same tone as the label beside it — seafoam on the chip tint is 3.66:1, and a
+                                seafoam × next to an ocean-dark label would render one chip in two greens. */}
+                            <Feather name="x" size={14} color={palette['ocean-dark']} />
                         </Pressable>
                     </View>
                 ))}
@@ -117,7 +120,9 @@ const styles = StyleSheet.create({
         paddingLeft: 12,
         paddingRight: 6,
     },
-    chipLabel: { flexShrink: 1, fontSize: 13, fontWeight: '500', color: palette.seafoam },
+    // Contrast (WCAG 2.1 AA): the chip's tint stays; the label a reader READS takes `ocean-dark`. Mirrors the
+    // web leaf's `text-ocean-dark`; see `@commise/ui`'s palette JSDoc for the accent-vs-text split.
+    chipLabel: { flexShrink: 1, fontSize: 13, fontWeight: '500', color: palette['ocean-dark'] },
     chipRemove: {
         flexShrink: 0,
         width: 20,

@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
     recentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     recentTitle: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600', color: palette.slate },
     recentClear: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[1] },
-    recentClearLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.seafoam },
+    recentClearLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette['ocean-dark'] },
     recentRow: { minHeight: 44, justifyContent: 'center' },
     recentRowLabel: { fontSize: nativeTokens.fontSize.bodyMd, color: palette.charcoal },
     backToBrowse: {
@@ -365,5 +365,5 @@ const styles = StyleSheet.create({
         minHeight: 44,
         justifyContent: 'center',
     },
-    backToBrowseText: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.seafoam },
+    backToBrowseText: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette['ocean-dark'] },
 });

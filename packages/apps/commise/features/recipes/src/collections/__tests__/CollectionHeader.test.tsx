@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { utilityContrast } from '@commise/test-utils';
+
 import { CollectionHeader } from '../CollectionHeader.js';
 import type { CollectionHeaderViewProps } from '../model.js';
 
@@ -116,6 +118,49 @@ describe('CollectionHeader (web) — Delete stays in the error register', () => 
         // The counterweight assertion: "no coral" must not be reachable by painting EVERYTHING error-toned.
         expect(className).not.toContain('error');
         expect(className).not.toContain('coral');
+    });
+});
+
+/**
+ * Three seafoam FOREGROUNDS in this header are read as text — Back, Rename, and the visibility badge — so all
+ * three carry the 4.5:1 body-text floor, not the 3:1 accent floor `seafoam` clears. Measured: 4.02:1 for Back
+ * and Rename on white, 3.57:1 for Rename once `hover:bg-seafoam/10` lands, and 3.57:1 for the badge, whose own
+ * `bg-seafoam/10` tint is composited before the ratio is taken. See `@commise/ui`'s palette JSDoc for the one
+ * authoritative statement of where seafoam remains correct (this badge's TINT is one of those places).
+ */
+describe('CollectionHeader (web) — the seafoam text foregrounds clear the AA body-text floor', () => {
+    it('keeps the Back control legible', () => {
+        renderHeader({ onBack: noop });
+
+        expect(
+            utilityContrast(screen.getByRole('button', { name: /back/i }).className),
+            'Back to My Collections',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the Rename control legible at rest AND over its hover tint', () => {
+        renderHeader();
+        const rename = screen.getByRole('button', { name: 'Rename' });
+
+        expect(utilityContrast(rename.className), 'Rename at rest').toBeGreaterThanOrEqual(4.5);
+        expect(utilityContrast(rename.className, { variant: 'hover' }), 'Rename on hover').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the visibility badge legible over its own seafoam tint, in both visibility states', () => {
+        renderHeader({ visibility: 'public' });
+        expect(utilityContrast(screen.getByText('Public').className), 'Public badge').toBeGreaterThanOrEqual(4.5);
+
+        cleanup();
+        renderHeader({ visibility: 'private' });
+        expect(utilityContrast(screen.getByText('Private').className), 'Private badge').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the badge’s seafoam TINT — a background, which the 4.5 floor never governed', () => {
+        renderHeader();
+
+        // The counterweight: the fix must demote the LABEL only. Dropping the tint would erase the badge's
+        // own affordance to satisfy a floor that applies to its text, not to its fill.
+        expect(screen.getByText('Public').className).toContain('bg-seafoam/10');
     });
 });
 

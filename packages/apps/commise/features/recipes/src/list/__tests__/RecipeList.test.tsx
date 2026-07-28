@@ -10,6 +10,9 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 
+import { utilityContrast } from '@commise/test-utils';
+import { semantic } from '@commise/ui';
+
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
 import { RecipeList } from '../RecipeList.js';
 import type { RecipeListViewProps } from '../model.js';
@@ -494,5 +497,25 @@ describe('RecipeList (web) — touch targets (44px floor)', () => {
             expect(chip.className).toContain('min-h-11');
             expect(chip.className).toContain('md:min-h-0');
         }
+    });
+});
+
+describe('RecipeList (web) — text contrast (WCAG 2.1 AA)', () => {
+    it('keeps the SELECTED source tab label legible, with its seafoam underline intact', () => {
+        renderList({ status: 'ready', recipes: threeRecipes, tab: { active: 'mine', onChange: noop } });
+
+        // The selected tab's label is TEXT a reader reads, so it owes the 4.5:1 SC 1.4.3 floor, not the 3:1 an
+        // accent owes; `seafoam` is 3.73:1 on the page background the tab strip sits on. See the palette JSDoc
+        // in `@commise/ui`'s `tokens/colors.ts` for the one authoritative statement of the rule.
+        const selected = screen.getByRole('tab', { name: 'My Recipes' });
+        expect(
+            utilityContrast(selected.className, { surface: semantic.background }),
+            'selected source-tab label',
+        ).toBeGreaterThanOrEqual(4.5);
+        // The seafoam UNDERLINE stays: a 2px selection indicator is a non-text graphic on the 3:1 SC 1.4.11
+        // floor, which seafoam clears — and it is what makes the selected tab readable as selected.
+        expect(selected.className, 'the seafoam selection underline must survive the text fix').toContain(
+            'border-seafoam',
+        );
     });
 });

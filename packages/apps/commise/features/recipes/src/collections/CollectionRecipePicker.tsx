@@ -8,6 +8,11 @@
  * scoped to THIS collection, so a row already in another collection is still addable here, and a row already
  * in THIS collection shows an inert marker rather than a re-add.
  *
+ * The two bare text controls (Retry, Done) label in `ocean-dark`, not `seafoam`: seafoam as a FOREGROUND is
+ * 4.02:1 on this white card and 3.57:1 under its own `hover:bg-seafoam/10` tint, both below the 4.5:1 body-text
+ * floor. The tint itself stays seafoam — see the palette JSDoc in `@commise/ui` for that (single, authoritative)
+ * accent-vs-text rule.
+ *
  * The member and in-flight controls stay MOUNTED and focusable (`aria-disabled`, never the `disabled`
  * attribute): a `disabled` button leaves the tab order, so a keyboard user who just activated it would lose
  * focus to `<body>` mid-flow. Re-activation is suppressed in the handler, so the control cannot merely look
@@ -59,7 +64,7 @@ export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
                 <button
                     type="button"
                     onClick={onRetry}
-                    className="mt-3 rounded-full px-4 py-2 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10"
+                    className="mt-3 rounded-full px-4 py-2 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
                 >
                     {picker.retry}
                 </button>
@@ -137,7 +142,7 @@ export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
                 <button
                     type="button"
                     onClick={onDone}
-                    className="rounded-full px-5 py-2.5 text-body-sm font-semibold text-seafoam transition hover:bg-seafoam/10"
+                    className="rounded-full px-5 py-2.5 text-body-sm font-semibold text-ocean-dark transition hover:bg-seafoam/10"
                 >
                     {picker.done}
                 </button>

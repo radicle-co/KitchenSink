@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { utilityContrast } from '@commise/test-utils';
+
 import { makeRecipeVersion } from '../__fixtures__/index.js';
 import { RecipeVersionList } from '../RecipeVersionList.js';
 import type { RecipeVersionListProps } from '../model.js';
@@ -352,6 +354,55 @@ describe('RecipeVersionList (web) — compare selection (W6 Task 5)', () => {
         expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Select version 2 to compare' }).disabled).toBe(
             false,
         );
+    });
+});
+
+/**
+ * Measured, not eyeballed: `utilityContrast` resolves the control's OWN rendered `text-*`/`bg-*` utilities to
+ * palette colours and composites any tint onto the surface beneath, so the ratio asserted is the one a reader
+ * experiences. `seafoam` as a FOREGROUND is 4.02:1 on white and 3.57:1 on its own `/10` tint — both under the
+ * 4.5:1 SC 1.4.3 floor for body text; see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts` for the one
+ * authoritative statement of when seafoam is still the right token (borders, rings, fills — never read text).
+ *
+ * Hover is measured as its own state on every control that carries a `hover:bg-*` tint: a label that clears
+ * the floor at rest and falls under it once the tint lands is still an inaccessible label.
+ */
+describe('RecipeVersionList (web) — WCAG AA text contrast (SC 1.4.3)', () => {
+    it('the "Back to Recipe" control’s label is legible at rest and on its hover tint', () => {
+        renderList({ versions: threeVersions, currentVersion: 3, onBack: vi.fn() });
+        const back = screen.getByRole('button', { name: /back/i });
+
+        expect(
+            utilityContrast(back.className),
+            '"Back to Recipe" label at rest, on the page surface',
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+            utilityContrast(back.className, { variant: 'hover' }),
+            '"Back to Recipe" label on its own hover tint',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('the "Current version" badge label is legible on its own tinted pill', () => {
+        renderList({ versions: threeVersions, currentVersion: 3 });
+
+        // The badge paints its own tint and sits on the row's `bg-card` (white), so the default surface applies.
+        expect(
+            utilityContrast(screen.getByText('Current version').className),
+            '"Current version" badge label on its tinted pill',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('the Restore control’s label is legible at rest and on its hover tint', () => {
+        renderList({ versions: threeVersions, currentVersion: 3 });
+        const restore = screen.getByRole('button', { name: 'Restore version 2' });
+
+        expect(utilityContrast(restore.className), 'Restore label at rest, on the row surface').toBeGreaterThanOrEqual(
+            4.5,
+        );
+        expect(
+            utilityContrast(restore.className, { variant: 'hover' }),
+            'Restore label on its own hover tint',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });
 

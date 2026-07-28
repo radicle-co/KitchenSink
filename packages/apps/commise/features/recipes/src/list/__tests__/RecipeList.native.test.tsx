@@ -6,7 +6,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { computedContrast } from '@commise/test-utils';
 import { nativeTokens } from '@commise/ui/native';
+import { palette } from '@commise/ui';
 
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -381,3 +383,19 @@ function appliedFontFamily(element: Element): string | undefined {
 
     return undefined;
 }
+
+describe('RecipeList (native) — text contrast (WCAG 2.1 AA)', () => {
+    it('keeps the SELECTED source-tab label legible on the screen background', () => {
+        renderList({ status: 'ready', recipes: threeRecipes, tab: { active: 'mine', onChange: noop } });
+
+        // Mirrors the web leaf: the selected tab's label is TEXT, so it owes the 4.5:1 SC 1.4.3 floor, and
+        // `seafoam` is 3.73:1 on the `sand` screen background the tab strip sits on. The 2px seafoam underline
+        // (`tabSelected`) is a non-text selection indicator on the 3:1 SC 1.4.11 floor and deliberately stays.
+        // See the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
+        const label = within(screen.getByRole('tab', { name: 'My Recipes' })).getByText('My Recipes');
+        expect(
+            computedContrast(label, { surface: palette.sand }),
+            'selected source-tab label on the sand screen background',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+});

@@ -44,7 +44,7 @@ const VersionListHeader: FC<{
             <button
                 type="button"
                 onClick={onBack}
-                className="rounded-full px-4 py-1.5 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10"
+                className="rounded-full px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
             >
                 {backLabel}
             </button>
@@ -149,7 +149,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                 </label>
                             )}
                             {isCurrent ? (
-                                <span className="ml-auto rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-seafoam">
+                                <span className="ml-auto rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-ocean-dark">
                                     {versionList.currentBadge}
                                 </span>
                             ) : (
@@ -173,7 +173,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                         })}
                                         disabled={isRestoring}
                                         onClick={() => onRestore(version.versionNumber)}
-                                        className="rounded-full px-4 py-1.5 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10 disabled:opacity-60"
+                                        className="rounded-full px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10 disabled:opacity-60"
                                     >
                                         {versionList.restore}
                                     </button>

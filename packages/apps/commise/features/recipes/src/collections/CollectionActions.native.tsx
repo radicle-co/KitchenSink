@@ -160,7 +160,9 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 20,
     },
-    secondaryLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
+    // `ocean-dark`, not `seafoam`: seafoam as a text FOREGROUND is 4.02:1 on this panel's white surface, under
+    // the 4.5:1 body-text floor. `secondaryButton`'s seafoam BORDER above is a 3:1 control boundary and stays.
+    secondaryLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
     buttonDisabled: { opacity: 0.6 },
     statusLabel: { fontSize: 13, color: palette.slate },
     wrap: { gap: 8 },
@@ -179,6 +181,6 @@ const styles = StyleSheet.create({
     optionLabelActive: { color: palette.charcoal, fontWeight: '600' },
     reason: { fontSize: 13, color: palette.warning },
     saveButton: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 16 },
-    saveLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
+    saveLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
     saveLabelDisabled: { color: palette.slate },
 });

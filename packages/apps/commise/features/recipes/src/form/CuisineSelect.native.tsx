@@ -78,7 +78,10 @@ export const CuisineSelect: FC<CuisineSelectProps> = ({ value, onChange }) => {
                                 <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
                                     {option.label}
                                 </Text>
-                                {isSelected && <Feather name="check" size={16} color={palette.seafoam} />}
+                                {/* Contrast (WCAG 2.1 AA): the check is this row's selection affordance and
+                                    carries the same tone as the label beside it — seafoam on the pearl
+                                    highlight is 3.68:1, and a two-tone row would read as two states. */}
+                                {isSelected && <Feather name="check" size={16} color={palette['ocean-dark']} />}
                             </Pressable>
                         );
                     })}
@@ -124,5 +127,8 @@ const styles = StyleSheet.create({
     },
     optionSelected: { backgroundColor: palette.pearl },
     optionLabel: { flexShrink: 1, fontSize: 16, color: palette.charcoal },
-    optionLabelSelected: { fontWeight: '600', color: palette.seafoam },
+    // Contrast (WCAG 2.1 AA): the selected row's pearl highlight stays; its label a reader READS takes
+    // `ocean-dark` (5.68:1 on pearl) rather than seafoam (3.68:1). This control is native-only — there is no
+    // web leaf to mirror, since web keeps its platform `<select>`. See `@commise/ui`'s palette JSDoc.
+    optionLabelSelected: { fontWeight: '600', color: palette['ocean-dark'] },
 });

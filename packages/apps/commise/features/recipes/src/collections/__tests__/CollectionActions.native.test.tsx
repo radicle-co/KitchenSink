@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { computedContrast } from '@commise/test-utils';
 import { glass, palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
@@ -250,6 +251,42 @@ describe('CollectionActions (native) — visibility toggle, free viewer (canGoPr
         fireEvent.click(screen.getByRole('radio', { name: 'Private' }));
 
         expect(onVisibilityChange).not.toHaveBeenCalledWith('private');
+    });
+});
+
+/**
+ * Cross-platform parity for the web leaf's seafoam-as-text fix. `palette.seafoam` labelled both Pull Updates
+ * and Save changes on this panel's white surface — 4.02:1, under the 4.5:1 body-text floor.
+ *
+ * The ratio is MEASURED off the leaf's compiled colour rather than compared to a token SPELLING: an
+ * `expect(...color).toBe(cssColor(palette['ocean-dark']))` pins a name and would still pass if the palette
+ * re-themed that token to near-white. Pull Updates' seafoam BORDER is a control boundary (3:1, SC 1.4.11) and
+ * deliberately survives — see `@commise/ui`'s palette JSDoc for that split.
+ */
+describe('CollectionActions (native) — the seafoam TEXT labels clear the AA body-text floor', () => {
+    it('keeps the Pull Updates label legible on the panel’s white surface', () => {
+        renderActions({ isCloned: true });
+
+        expect(
+            computedContrast(screen.getByText('Pull Updates from Source')),
+            'Pull Updates label',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the enabled Save changes label legible on the panel’s white surface', () => {
+        renderActions({ visibility: RecipeVisibility.PUBLIC, pendingVisibility: RecipeVisibility.PRIVATE });
+
+        expect(computedContrast(screen.getByText('Save changes')), 'Save changes label').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the Pull Updates BORDER seafoam — a 3:1 control boundary, not a text colour', () => {
+        renderActions({ isCloned: true });
+
+        // The counterweight: the fix must demote the LABEL only. Flattening the outline too would erase the
+        // control's affordance to satisfy a floor that never governed it.
+        expect(
+            window.getComputedStyle(screen.getByRole('button', { name: 'Pull Updates from Source' })).borderTopColor,
+        ).toBe(cssColor(palette.seafoam));
     });
 });
 

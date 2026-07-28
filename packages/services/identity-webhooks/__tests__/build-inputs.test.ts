@@ -24,56 +24,91 @@ const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc');
 const TEST_ONLY = /(^|\/)(__tests__|__fixtures__|__mocks__|tests)\//;
 
 /**
+ * `tsc --listFilesOnly` costs ~18s on a CI runner (well under a second of that is this package's own
+ * files — it is program construction). Memoised per project so the three assertions below spawn it ONCE
+ * rather than three times; without this the guards alone added ~54s per service to `turbo run test` and
+ * blew vitest's 5s default, which is what turned CI red.
+ */
+const PROGRAM_CACHE = new Map<string, readonly string[]>();
+
+/** Generous because the cost is process spawn + program construction, not our own code. */
+const TSC_TIMEOUT_MS = 120_000;
+
+/**
  * Every file the given project would compile, including transitive imports.
  *
  * @sideEffect Spawns `tsc --listFilesOnly` (resolution only — it neither typechecks nor emits).
  */
 function programFiles(project: string): readonly string[] {
+    const cached = PROGRAM_CACHE.get(project);
+
+    if (cached !== undefined) {
+        return cached;
+    }
+
     const stdout = execFileSync(process.execPath, [tsc, '--listFilesOnly', '-p', project], {
         cwd: packageRoot,
         encoding: 'utf8',
+        // Kill a wedged tsc rather than hanging the suite until vitest's own timeout fires.
+        timeout: TSC_TIMEOUT_MS,
     });
 
-    return stdout
+    const files = stdout
         .split('\n')
         .map((line) => line.trim())
         .filter((line) => line.length > 0)
         .filter((file) => file.startsWith(packageRoot) && !file.includes('/node_modules/'))
         .map((file) => path.relative(packageRoot, file));
+
+    PROGRAM_CACHE.set(project, files);
+
+    return files;
 }
 
 describe('production build inputs', () => {
-    it('compiles src only — no tests, fixtures or mocks reach the Lambda asset', () => {
-        const leaked = programFiles('tsconfig.build.json').filter(
-            (file) => TEST_ONLY.test(file) || /\.(test|spec)\.ts$/.test(file),
-        );
+    it(
+        'compiles src only — no tests, fixtures or mocks reach the Lambda asset',
+        () => {
+            const leaked = programFiles('tsconfig.build.json').filter(
+                (file) => TEST_ONLY.test(file) || /\.(test|spec)\.ts$/.test(file),
+            );
 
-        expect(leaked).toEqual([]);
-    });
+            expect(leaked).toEqual([]);
+        },
+        TSC_TIMEOUT_MS,
+    );
 
-    it('still compiles every handler the CDK stack references', () => {
-        const files = programFiles('tsconfig.build.json');
+    it(
+        'still compiles every handler the CDK stack references',
+        () => {
+            const files = programFiles('tsconfig.build.json');
 
-        // Each WebhooksStack function names `handlers/<name>.handler`; a handler dropped from the build is an
-        // asset that is missing at runtime rather than a visible build failure.
-        for (const handler of [
-            'identityWebhook',
-            'deletion-worker',
-            'reconciliation',
-            'tombstone-sweep',
-            'erasure-reconciliation',
-            'log-forwarder',
-            'migrate',
-        ]) {
-            expect(files).toContain(path.join('src', 'handlers', `${handler}.ts`));
-        }
-    });
+            // Each WebhooksStack function names `handlers/<name>.handler`; a handler dropped from the build is an
+            // asset that is missing at runtime rather than a visible build failure.
+            for (const handler of [
+                'identityWebhook',
+                'deletion-worker',
+                'reconciliation',
+                'tombstone-sweep',
+                'erasure-reconciliation',
+                'log-forwarder',
+                'migrate',
+            ]) {
+                expect(files).toContain(path.join('src', 'handlers', `${handler}.ts`));
+            }
+        },
+        TSC_TIMEOUT_MS,
+    );
 });
 
 describe('typecheck project', () => {
-    it('covers the co-located specs, so excluding them from the BUILD does not stop them being checked', () => {
-        const files = programFiles('tsconfig.json');
+    it(
+        'covers the co-located specs, so excluding them from the BUILD does not stop them being checked',
+        () => {
+            const files = programFiles('tsconfig.json');
 
-        expect(files.some((file) => /^src\/.*\/__tests__\/.*\.test\.ts$/.test(file))).toBe(true);
-    });
+            expect(files.some((file) => /^src\/.*\/__tests__\/.*\.test\.ts$/.test(file))).toBe(true);
+        },
+        TSC_TIMEOUT_MS,
+    );
 });

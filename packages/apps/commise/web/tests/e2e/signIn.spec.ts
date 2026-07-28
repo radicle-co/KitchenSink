@@ -7,6 +7,14 @@ import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from './utils/testUser';
 
 test.describe('sign-in flow', () => {
     test('signing in through the form lands on the home page (single basePath prefix)', async ({ page }) => {
+        // Long by nature, and it does NOT fit the 30s default: this test alone budgets 15s waiting for the
+        // "check your email" step, then polls up to 30s for the post-verification redirect — a poll whose
+        // window equals the whole test's budget can never complete, so the test always dies first. It only
+        // passed locally because the earlier steps are fast enough here to leave room; on a CI runner they
+        // are not, and it failed all three attempts. `test.slow()` triples the budget to 90s, the same
+        // treatment `signOut.spec.ts` gives its Clerk-driven flow.
+        test.slow();
+
         await setupClerkTestingToken({ page });
         await page.goto(route('/sign-in'));
 

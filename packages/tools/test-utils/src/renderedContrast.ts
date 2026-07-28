@@ -180,6 +180,50 @@ export function computedContrast(element: Element, options: ComputedContrastOpti
     return contrastRatio(compositeOver(style.color, backdrop), backdrop);
 }
 
+/**
+ * The custom property react-native-web routes `placeholderTextColor` through. Its `::placeholder` rule is
+ * `color: var(--placeholderTextColor)`, and the value is set inline on the input — so the colour IS
+ * observable, which is what makes placeholder contrast assertable rather than merely arguable.
+ */
+const PLACEHOLDER_COLOR_PROPERTY = '--placeholderTextColor';
+
+/**
+ * The WCAG contrast ratio of a NATIVE input's PLACEHOLDER text against the surface behind it.
+ *
+ * Placeholder text is text: a reader has to read it to know what the field wants. But `placeholderTextColor`
+ * is a React Native prop, not a style, so a plain computed-`color` read sees the input's own text colour and
+ * silently measures the wrong thing — passing while the placeholder is illegible. This reads the property
+ * react-native-web actually paints the placeholder with.
+ *
+ * The web leg needs no equivalent: there the placeholder is a Tailwind variant, so
+ * `utilityContrast(className, { variant: 'placeholder' })` already covers it.
+ *
+ * @sideEffect Reads computed style from the DOM.
+ * @param element - The rendered `TextInput` element.
+ * @param options - The opaque colour behind the input. Defaults to white.
+ * @returns The ratio, 1..21.
+ * @throws Error when the element paints no placeholder colour (the prop was never passed, so this test would
+ *   be asserting the platform default rather than the design token it means to pin).
+ */
+export function placeholderContrast(element: Element, options: ComputedContrastOptions = {}): number {
+    const { surface = palette.white } = options;
+    const style = window.getComputedStyle(element);
+    const color = style.getPropertyValue(PLACEHOLDER_COLOR_PROPERTY).trim();
+
+    if (parse(color) === undefined) {
+        throw new Error(
+            `Expected the element to carry a \`${PLACEHOLDER_COLOR_PROPERTY}\`; without it there is no placeholder colour to measure.`,
+        );
+    }
+
+    const backdrop =
+        style.backgroundColor === TRANSPARENT || parse(style.backgroundColor) === undefined
+            ? surface
+            : compositeOver(style.backgroundColor, surface);
+
+    return contrastRatio(compositeOver(color, backdrop), backdrop);
+}
+
 /** An 0..1 alpha as the two hex digits an `#RRGGBBAA` colour carries. Pure. */
 function toHexAlpha(alpha: number): string {
     return Math.round(alpha * 255)

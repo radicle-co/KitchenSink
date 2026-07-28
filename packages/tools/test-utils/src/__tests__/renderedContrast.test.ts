@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { palette } from '@commise/ui';
 
 import { compositeOver, contrastRatio } from '../contrast.js';
-import { computedContrast, utilityContrast } from '../renderedContrast.js';
+import { computedContrast, placeholderContrast, utilityContrast } from '../renderedContrast.js';
 
 describe('utilityContrast', () => {
     it('measures the palette pair the class list names', () => {
@@ -108,5 +108,55 @@ describe('computedContrast', () => {
 
     it('refuses to measure an element that carries no colour', () => {
         expect(() => computedContrast(document.createElement('div'))).toThrow(/computed `color`/);
+    });
+});
+
+describe('placeholderContrast', () => {
+    /** An input painted the way react-native-web paints `placeholderTextColor` — via a custom property. */
+    const withPlaceholderColor = (color: string, textColor = palette.charcoal): Element => {
+        const element = document.createElement('input');
+
+        element.style.color = textColor;
+        element.style.setProperty('--placeholderTextColor', color);
+        document.body.append(element);
+
+        return element;
+    };
+
+    it('measures the PLACEHOLDER colour, not the input own text colour', () => {
+        const element = withPlaceholderColor(palette.mist, palette.charcoal);
+
+        // The distinction is the whole point: charcoal-on-white is 12.68:1, so a reader of the input's `color`
+        // would call an illegible mist placeholder a pass.
+        expect(placeholderContrast(element)).toBeCloseTo(contrastRatio(palette.mist, palette.white), 5);
+        expect(placeholderContrast(element)).toBeLessThan(2);
+    });
+
+    it('honours the surface when the input paints no background of its own', () => {
+        const element = withPlaceholderColor(palette.slate);
+
+        element.style.backgroundColor = 'transparent';
+
+        expect(placeholderContrast(element, { surface: palette.sand })).toBeCloseTo(
+            contrastRatio(palette.slate, palette.sand),
+            5,
+        );
+    });
+
+    it('lets the input OWN opaque background win over the stated surface', () => {
+        // A field painted `bg-white` on a sand page is read against white, not sand — which is why the
+        // element's own background is consulted first rather than the caller's backdrop being trusted blindly.
+        const element = withPlaceholderColor(palette.slate);
+
+        element.style.backgroundColor = palette.white;
+
+        expect(placeholderContrast(element, { surface: palette.sand })).toBeCloseTo(
+            contrastRatio(palette.slate, palette.white),
+            5,
+        );
+    });
+
+    it('refuses to measure an input that paints no placeholder colour', () => {
+        expect(() => placeholderContrast(document.createElement('input'))).toThrow(/placeholderTextColor/);
     });
 });

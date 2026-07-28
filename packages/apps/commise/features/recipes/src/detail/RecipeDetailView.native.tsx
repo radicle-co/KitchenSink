@@ -245,9 +245,12 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         overflow: 'hidden',
     },
-    badgeSeafoam: { backgroundColor: 'rgba(61, 139, 133, 0.1)', color: palette.seafoam },
-    // Contrast (U4 / WCAG AA): coral-as-text on the coral tint is 2.2:1 — demote the tag text to slate (5:1)
-    // while keeping the warm tint background. The brand coral-on-darker-coral treatment is U8's.
+    // Contrast (WCAG AA): a tint-on-tint badge labels itself in a DARKENED relative of its own hue, never the
+    // hue itself. Seafoam-on-seafoam/10 is 3.57:1 — the U4 pass demoted only the coral half and left this one
+    // under the 4.5:1 floor; `ocean-dark` is 5.51:1 and keeps the badge in its hue family.
+    badgeSeafoam: { backgroundColor: 'rgba(61, 139, 133, 0.1)', color: palette['ocean-dark'] },
+    // Coral-as-text on the coral tint is 2.06:1 — demote the tag text to slate (4.67:1) while keeping the
+    // warm tint background. The brand coral-on-darker-coral treatment is U8's.
     badgeCoral: { backgroundColor: 'rgba(232, 145, 122, 0.15)', color: palette.slate },
     badgeNeutral: { backgroundColor: palette.pearl, color: palette.slate },
     description: { fontSize: nativeTokens.fontSize.bodyMd, lineHeight: 24, color: palette.slate },

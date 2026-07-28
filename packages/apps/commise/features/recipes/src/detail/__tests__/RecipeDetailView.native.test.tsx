@@ -8,7 +8,10 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Pressable, Text } from 'react-native';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
+
+import { cssColor } from '../../__tests__/cssColor.js';
 
 import {
     makeIngredientView,
@@ -291,9 +294,19 @@ describe('RecipeDetailView (native) — contrast (U4 / WCAG AA)', () => {
     it('renders tag chips with a slate (AA-legible) text colour, not the 2.2:1 coral', () => {
         render(<RecipeDetailView recipe={makeRecipeDetail({ tags: ['grill'] })} onFilterByTag={vi.fn()} />);
 
-        // The coral tint background stays; the tag TEXT is demoted to slate (rgb(99,110,114) ≈ 5:1). The old
+        // The coral tint background stays; the tag TEXT is demoted to slate (rgb(99,110,114) ≈ 4.9:1). The old
         // coral-as-text (#E8917A) was 2.2:1.
         expect(window.getComputedStyle(screen.getByText('grill')).color).toBe('rgb(99, 110, 114)');
+    });
+
+    it('labels the SEAFOAM badge in ocean-dark, not the seafoam it is tinted with', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ cuisine: 'Mediterranean' })} />);
+
+        // The badge row alternates seafoam and coral tints, and only the coral half was ever corrected —
+        // seafoam-on-seafoam/10 is 3.57:1, still under the 4.5:1 body-text floor. `ocean-dark` is 5.51:1 and
+        // keeps the badge in its own hue family. Mirrors the web leaf's `text-ocean-dark`.
+        expect(window.getComputedStyle(screen.getByText('Mediterranean')).color).toBe(cssColor(palette['ocean-dark']));
+        expect(window.getComputedStyle(screen.getByText('Mediterranean')).color).not.toBe(cssColor(palette.seafoam));
     });
 });
 

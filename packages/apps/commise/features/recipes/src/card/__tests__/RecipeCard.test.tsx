@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event';
 import { LocaleProvider } from '@commise/i18n/react';
 import { glass, glassBackdropCss, toWebGlass } from '@commise/ui';
 
+import { utilityContrast } from '../../__tests__/tailwindContrast.js';
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { toRecipeCardModel } from '../model.js';
 import { RecipeCard } from '../RecipeCard.js';
@@ -235,6 +236,16 @@ describe('RecipeCard (web) — merged fields (CR-002 / L2·L3)', () => {
 
         expect(screen.getByText('grill')).toBeTruthy();
         expect(screen.getByText('summer')).toBeTruthy();
+    });
+
+    it('gives the tag chip a WCAG-AA legible label over its warm tint', () => {
+        renderCard(<RecipeCard recipe={model({ tags: ['grill'] })} />);
+
+        // Measured, not eyeballed: the chip's own rendered utilities are resolved to palette colours and the
+        // tint is composited onto the card beneath it. Coral-as-text over `bg-coral/10` scored 2.21:1 — less
+        // than half the 4.5:1 floor for body text — which is exactly what the native leaf already fixed by
+        // demoting the LABEL to slate while keeping the warm tint.
+        expect(utilityContrast(screen.getByText('grill').className)).toBeGreaterThanOrEqual(4.5);
     });
 
     it('shows the version badge past v1 (with an accessible name), and hides it at v1', () => {

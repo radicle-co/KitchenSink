@@ -286,7 +286,10 @@ const CardTags: FC = () => {
     return (
         <ul className="flex flex-wrap gap-1.5">
             {recipe.tags.map((tag) => (
-                <li key={tag} className="rounded-full bg-coral/10 px-2 py-0.5 text-caption font-medium text-coral">
+                // Contrast (WCAG AA): coral-as-text over the coral tint is 2.21:1, less than half the 4.5:1
+                // floor. The LABEL demotes to slate (4.85:1) and the warm tint stays, which is exactly the
+                // fix the native leaf already carries — the two now agree again.
+                <li key={tag} className="rounded-full bg-coral/10 px-2 py-0.5 text-caption font-medium text-slate">
                     {tag}
                 </li>
             ))}

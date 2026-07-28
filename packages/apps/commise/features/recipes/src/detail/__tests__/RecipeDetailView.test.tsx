@@ -17,6 +17,7 @@ import {
     makeRecipeDetail,
     makeStepView,
 } from '../../__fixtures__/index.js';
+import { utilityContrast } from '../../__tests__/tailwindContrast.js';
 import { RecipeDetailView } from '../RecipeDetailView.js';
 
 afterEach(cleanup);
@@ -66,6 +67,35 @@ describe('RecipeDetailView (web) — header', () => {
         expect(screen.getByText('Mediterranean')).toBeTruthy();
         expect(screen.getByText('Gluten-Free')).toBeTruthy();
         expect(screen.getByText('grill')).toBeTruthy();
+    });
+
+    it('makes EVERY badge in the hero row WCAG-AA legible over its own tint', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ cuisine: 'Mediterranean', dietaryFlags: ['Gluten-Free'], tags: ['grill'] })}
+            />,
+        );
+
+        // The row alternates a seafoam-tinted badge with a coral-tinted one, so a fix that only reaches the
+        // coral half leaves the other still failing. Both scored below the 4.5:1 body-text floor — coral-on-
+        // coral at 2.06:1, seafoam-on-seafoam at 3.56:1 — and both are asserted here so neither can drift.
+        for (const label of ['Mediterranean', 'Gluten-Free']) {
+            const badge = screen.getByText(label);
+
+            expect(utilityContrast(badge.className), `${label} badge`).toBeGreaterThanOrEqual(4.5);
+        }
+    });
+
+    it('makes the tappable tag chip WCAG-AA legible AT REST AND ON HOVER', () => {
+        render(<RecipeDetailView recipe={makeRecipeDetail({ tags: ['grill'] })} />);
+
+        const chip = screen.getByRole('button', { name: 'Find recipes tagged grill' });
+
+        // Hover is a state, not decoration: this chip deepens its tint on hover, so a label that clears the
+        // floor at rest can be pushed back under it by the pointer alone (slate over `bg-coral/25` is
+        // 4.26:1). Both states are measured, so a hover-only regression cannot slip through.
+        expect(utilityContrast(chip.className)).toBeGreaterThanOrEqual(4.5);
+        expect(utilityContrast(chip.className, { variant: 'hover' })).toBeGreaterThanOrEqual(4.5);
     });
 });
 

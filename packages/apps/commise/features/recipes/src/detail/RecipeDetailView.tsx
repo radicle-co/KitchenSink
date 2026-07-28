@@ -56,8 +56,13 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                             {staticBadges.map((badge, index) => (
                                 <li
                                     key={badge}
+                                    // Contrast (WCAG AA): a tint-on-tint badge labels itself in a DARKENED
+                                    // relative of its own hue, never the hue itself — seafoam-on-seafoam was
+                                    // 3.57:1 and coral-on-coral 2.06:1, both under the 4.5:1 body-text floor.
+                                    // `ocean-dark` (5.51:1) keeps the seafoam badge's identity; the coral
+                                    // badge takes slate (4.67:1), matching the native leaf and the card chip.
                                     className={`rounded-full px-3 py-1 text-body-sm font-medium ${
-                                        index % 2 === 0 ? 'bg-seafoam/10 text-seafoam' : 'bg-coral/15 text-coral'
+                                        index % 2 === 0 ? 'bg-seafoam/10 text-ocean-dark' : 'bg-coral/15 text-slate'
                                     }`}
                                 >
                                     {badge}
@@ -71,7 +76,10 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                                         onClick={() => onFilterByTag?.(tag)}
                                         // Touch floor: the chip is an interactive filter, so it clears 44px at
                                         // base; `md:min-h-0` restores the original desktop chip density.
-                                        className="inline-flex min-h-11 items-center rounded-full bg-coral/15 px-3 py-1 text-body-sm font-medium text-coral transition hover:bg-coral/25 md:min-h-0"
+                                        // Contrast (WCAG AA): slate at rest (4.67:1); the hover tint deepens
+                                        // to `coral/25`, where slate would fall to 4.26:1 — so hover darkens
+                                        // the LABEL to charcoal (10.31:1) rather than leaving it behind.
+                                        className="inline-flex min-h-11 items-center rounded-full bg-coral/15 px-3 py-1 text-body-sm font-medium text-slate transition hover:bg-coral/25 hover:text-charcoal md:min-h-0"
                                     >
                                         {tag}
                                     </button>

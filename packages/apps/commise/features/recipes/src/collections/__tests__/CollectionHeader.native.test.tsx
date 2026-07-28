@@ -101,3 +101,65 @@ describe('CollectionHeader (native) — Edit/Delete affordances', () => {
         expect(onDelete).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * Resolve the value react-native-web actually APPLIED for a CSS property, by walking the element's atomic
+ * `r-*` classes back to their compiled rules. `getComputedStyle` does not resolve these, and a `style`
+ * attribute check would miss `StyleSheet.create` styles entirely. Mirrors `RecipeHero.native.test.tsx`.
+ */
+function appliedStyle(element: Element, property: string): string | undefined {
+    const classNames = element.className.split(' ').filter((name) => name.startsWith('r-'));
+    const sheets = document.styleSheets;
+    let resolved: string | undefined;
+
+    for (const className of classNames) {
+        for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
+            const rules = sheets[sheetIndex]?.cssRules;
+
+            for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
+                const rule = rules?.[ruleIndex];
+
+                if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
+                    const value = rule.style.getPropertyValue(property);
+
+                    if (value !== '') {
+                        resolved = value;
+                    }
+                }
+            }
+        }
+    }
+
+    return resolved;
+}
+
+/**
+ * Regression (Maestro `collections` / `collections-pagination`): the title row is
+ * `[name][Rename][Delete]` at `justifyContent: 'space-between'`, and React Native's default `flexShrink`
+ * is 0 — so a long collection name took its full intrinsic width and pushed the action group off the
+ * right edge. On-device, "Rename" was clipped to a 33px slither at x=1047..1080 and **"Delete" was not in
+ * the view hierarchy at all** (laid out past the 1080px screen edge), making deleting a collection
+ * impossible on mobile. jsdom has no layout engine, so this asserts the flex CONTRACT that prevents it:
+ * the name is allowed to shrink (and wrap), the action group is not.
+ */
+describe('CollectionHeader (native) — title row cannot squeeze its actions off-screen', () => {
+    it('lets a long name shrink instead of pushing Rename/Delete out of the viewport', () => {
+        renderHeader({ name: 'Maestro renamed collection with a deliberately very long name' });
+
+        const heading = screen.getByRole('heading', {
+            name: 'Maestro renamed collection with a deliberately very long name',
+        });
+
+        // `flexShrink: 0` (RN's default) is exactly the bug; anything shrinkable keeps the actions on screen.
+        expect(appliedStyle(heading, 'flex-shrink')).toBe('1');
+    });
+
+    it('never shrinks the action group itself, so neither control is clipped', () => {
+        renderHeader({ name: 'Maestro renamed collection with a deliberately very long name' });
+
+        const actions = screen.getByRole('button', { name: 'Delete' }).parentElement;
+
+        expect(actions).not.toBeNull();
+        expect(appliedStyle(actions as Element, 'flex-shrink')).toBe('0');
+    });
+});

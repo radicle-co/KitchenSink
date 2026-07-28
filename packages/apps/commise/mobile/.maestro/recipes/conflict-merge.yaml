@@ -84,8 +84,17 @@ appId: io.commise.mobile
 - tapOn: 'Step 1 instruction'
 - inputText: 'Combine everything and simmer.'
 
-# Publish is the sticky top-bar action, present on every step — no scroll (and no forward `Next` to step 4)
-# needed to reach it.
+# Publish is the STEP-4 FOOTER PRIMARY, not a sticky top-bar action. U6 collapsed the wizard chrome to one
+# contextual footer primary — `Next: …` on steps 1-3, swapping to `Publish` on step 4 (`Wizard.native.tsx`'s
+# module doc: "Publish is NO LONGER live on steps 1-3"); the header holds only Preview + the More-actions
+# overflow. This flow used to tap `Publish` from step 3 on the pre-U6 assumption and failed there. Advancing
+# to step 4 also keeps the discard guard un-triggered — this is forward navigation, never backward.
+- scrollUntilVisible:
+      element: 'Next: Photos'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Photos'
+- assertVisible: 'Step 4 of 4'
 - tapOn: 'Publish'
 # If a concurrent save landed first, the conflict view offers the per-side banner, the changed-only diff, and
 # all three W7 FR-007c resolutions (A/B/C). UN-DRIVABLE without a conflict-seeding harness — see module note.

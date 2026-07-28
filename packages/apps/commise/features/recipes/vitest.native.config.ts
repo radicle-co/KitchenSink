@@ -69,6 +69,11 @@ export default defineConfig({
             // gradient/blur rendering is a device/Maestro concern.
             'expo-linear-gradient': path.resolve(import.meta.dirname, 'test-utils/expoLinearGradientStub.tsx'),
             'expo-blur': path.resolve(import.meta.dirname, 'test-utils/expoBlurStub.tsx'),
+            // `react-native-safe-area-context` reports the device's window insets from a native module with
+            // no jsdom runtime; the full-screen modal sheets (`FullScreenSheet.native.tsx`) read them so their
+            // content clears the status/navigation bars. The stub serves fixed NON-ZERO insets so those
+            // assertions stay falsifiable (same reasoning as the expo stubs above).
+            'react-native-safe-area-context': path.resolve(import.meta.dirname, 'test-utils/safeAreaContextStub.tsx'),
         },
     },
 });

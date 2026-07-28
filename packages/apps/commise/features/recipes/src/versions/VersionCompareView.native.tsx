@@ -1,9 +1,10 @@
 /**
  * @module @commise/features-recipes — native two-version compare sheet (W6 Task 4 / FR-007b, FR-007c).
  *
- * The React Native leaf of {@link import('./VersionCompareView.js').VersionCompareView}: a full-screen RN
- * `Modal` sheet (`presentationStyle="fullScreen"`, `animationType="slide"`), MIRRORING
- * `VersionPreviewModal.native.tsx` (W6 Task 3) and rendering the SAME controlled, presentational contract as
+ * The React Native leaf of {@link import('./VersionCompareView.js').VersionCompareView}: a
+ * {@link FullScreenSheet} (the shared primitive that owns the modal window and its safe-area padding — this
+ * leaf used to hand-roll both, and shipped `PullUpdatesDialog`'s system-bar occlusion bug along with them),
+ * MIRRORING `VersionPreviewModal.native.tsx` (W6 Task 3) and rendering the SAME controlled, presentational contract as
  * the web leaf — same state precedence, same localized copy, so the two platforms can't drift.
  * `onRequestClose` (the Android hardware-back path RN provides) is wired straight to `onClose`, the same
  * callback the explicit close control uses — one exit path, not two. Per CR-004 ("Native adaptation: the
@@ -21,7 +22,9 @@ import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { useState } from 'react';
 import type { FC } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { FullScreenSheet } from '../components/FullScreenSheet.native.js';
 
 import { recipeVersionMessages } from './messages.js';
 import {
@@ -59,8 +62,8 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
     const hasCollectionRow = rows.some((row) => row.tally !== undefined);
 
     return (
-        <Modal visible={open} onRequestClose={onClose} animationType="slide" presentationStyle="fullScreen">
-            <View style={styles.container}>
+        <FullScreenSheet label={heading} onRequestClose={onClose}>
+            <>
                 <View style={styles.headerRow}>
                     <Text accessibilityRole="header" style={styles.title}>
                         {heading}
@@ -143,13 +146,12 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({
                         )}
                     </ScrollView>
                 )}
-            </View>
-        </Modal>
+            </>
+        </FullScreenSheet>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: palette.white, padding: 20, gap: 16 },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
     title: { flexShrink: 1, fontSize: 20, fontWeight: '600', color: palette.charcoal },
     closeButton: { borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 },

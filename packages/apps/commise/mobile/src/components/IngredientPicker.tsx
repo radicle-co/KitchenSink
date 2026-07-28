@@ -256,7 +256,13 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
         );
     }
 
-    const hasQuery = trimmed.length > 0;
+    // REQ-057's 2-character search trigger, read off the SHARED resolver model rather than re-derived: the
+    // `idle` kind IS "nothing typed, or below the threshold". Gating on `trimmed.length > 0` instead offered
+    // all three query-keyed affordances at ONE character — a divergence from the web leaf (which renders its
+    // action row only inside the non-idle kinds) that Maestro `create` caught on-device. Not cosmetic:
+    // "Find nutrition for “T”" fires exactly the search REQ-057 gates, and "Create “T”" mints a real catalog
+    // ingredient named "T".
+    const showQueryActions = viewState.kind !== 'idle';
     const showEmpty = viewState.kind === 'results' && ownRows.length === 0 && catalogRows.length === 0;
     // F2: the food catalog degraded, so only the caller's own ingredients rendered. `disabled` (an operator
     // switch) deliberately shows nothing — it is not an incident to report to the user.
@@ -332,7 +338,7 @@ export function IngredientPicker({ onResolve }: IngredientPickerProps): JSX.Elem
             {showEmpty && <Text style={styles.muted}>{t.empty}</Text>}
             {showCatalogUnavailable && <Text style={styles.muted}>{t.catalogUnavailable}</Text>}
 
-            {hasQuery && (
+            {showQueryActions && (
                 <>
                     <View style={styles.actions}>
                         {/* PRIMARY: resolve real nutrition via the food service (the async-resolution entry). */}

@@ -1,9 +1,10 @@
 /**
  * @module @commise/features-recipes — native version preview modal (W6 Task 3 / FR-007b).
  *
- * The React Native leaf of {@link import('./VersionPreviewModal.js').VersionPreviewModal}: a full-screen RN
- * `Modal` sheet (`presentationStyle="fullScreen"`, `animationType="slide"`), MIRRORING `PullUpdatesDialog
- * .native.tsx` (W5 Task 10) and rendering the SAME controlled, presentational contract as the web leaf — same
+ * The React Native leaf of {@link import('./VersionPreviewModal.js').VersionPreviewModal}: a
+ * {@link FullScreenSheet} (the shared primitive that owns the modal window and its safe-area padding — this
+ * leaf used to hand-roll both, and shipped `PullUpdatesDialog`'s system-bar occlusion bug along with them),
+ * rendering the SAME controlled, presentational contract as the web leaf — same
  * state precedence, same localized copy, so the two platforms can't drift. `onRequestClose` (the Android
  * hardware-back / web-Escape path RN provides) is wired straight to `onCancel`, the same callback the
  * explicit "Keep current version" control uses — one exit path, not two.
@@ -18,8 +19,9 @@
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import type { FC } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { FullScreenSheet } from '../components/FullScreenSheet.native.js';
 import { formatDurationMinutes } from '../list/model.js';
 import { recipeVersionMessages } from './messages.js';
 import {
@@ -58,8 +60,8 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
             : preview.titleLoading;
 
     return (
-        <Modal visible={open} onRequestClose={onCancel} animationType="slide" presentationStyle="fullScreen">
-            <View style={styles.container}>
+        <FullScreenSheet label={title} onRequestClose={onCancel}>
+            <>
                 <Text accessibilityRole="header" style={styles.title}>
                     {title}
                 </Text>
@@ -162,13 +164,12 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                         </Pressable>
                     )}
                 </View>
-            </View>
-        </Modal>
+            </>
+        </FullScreenSheet>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: palette.white, padding: 20, gap: 16 },
     title: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
     body: { fontSize: 15, lineHeight: 22, color: palette.slate },
     error: { fontSize: 15, color: palette.error },

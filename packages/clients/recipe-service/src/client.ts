@@ -40,11 +40,12 @@ import type {
     SetRecipeRatingInput,
     UpdateRecipeInput,
 } from '@kitchensink/recipe-core';
-import ky, { HTTPError } from 'ky';
+import ky, { HTTPError, TimeoutError } from 'ky';
 import type { KyInstance, Options } from 'ky';
 
 import {
     BadRequestError,
+    FetchUnavailableError,
     ForbiddenError,
     GoneError,
     NotFoundError,
@@ -106,6 +107,20 @@ const pullDiffSchema = z.object({
  */
 export type TokenSource = string | ((options?: { readonly forceRefresh?: boolean }) => string | Promise<string>);
 
+/**
+ * Per-request timeout (ms) — the ceiling on how long ONE HTTP attempt may wait for the service to answer.
+ *
+ * A bounded wait is not a nicety, it is what makes a failure representable. Every read on the recipe
+ * surfaces flows into a TanStack Query whose `isLoading` is `isPending && isFetching`: with no timeout, a
+ * connection that never answers (an ALB target draining mid-deploy, a Fargate cold start, a stalled query, a
+ * mobile network handoff that drops the socket without an RST) leaves the promise pending for the life of the
+ * page, so the surface's loading branch never flips and BOTH its empty and error branches become unreachable
+ * — the viewer gets a skeleton forever with no retry. 10s is generous for the JSON reads/writes this client
+ * makes (the sibling `@kitchensink/food-service-client` uses 8s) and is deliberately longer than any healthy
+ * p99, so it only ever fires on a genuine hang.
+ */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+
 /** Construction options. */
 export interface RecipeServiceClientOptions {
     /** The recipe API base origin, e.g. `https://api.commise.app` (no trailing `/v1`). */
@@ -128,6 +143,12 @@ export interface RecipeServiceClientOptions {
     readonly identitySyncBackoffMs?: readonly number[];
     /** Injectable sleep (defaults to `setTimeout`) — enables instant retries in tests. */
     readonly sleep?: (ms: number) => Promise<void>;
+    /**
+     * Per-request timeout in milliseconds; defaults to {@link DEFAULT_REQUEST_TIMEOUT_MS}. A request that
+     * exceeds it is ABORTED and rejects with {@link FetchUnavailableError}. Overridable per client (tests use
+     * a few ms) but never disable-able: an unbounded wait is the defect this exists to prevent.
+     */
+    readonly timeoutMs?: number;
 }
 
 /** A normalized response: status and parsed JSON body (or `undefined` for empty/`204`). */
@@ -212,6 +233,7 @@ export class RecipeServiceClient {
     private readonly maxIdentitySyncRetries: number;
     private readonly identitySyncBackoffMs: readonly number[];
     private readonly sleep: (ms: number) => Promise<void>;
+    private readonly timeoutMs: number;
     /** The configured ky transport: base URL, token attach, JSON body/parse, and typed error throwing. */
     private readonly http: KyInstance;
 
@@ -222,6 +244,7 @@ export class RecipeServiceClient {
         this.maxIdentitySyncRetries = options.maxIdentitySyncRetries ?? 3;
         this.identitySyncBackoffMs = options.identitySyncBackoffMs ?? [250, 500, 1000];
         this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+        this.timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
         this.http = ky.create({
             // ky appends the single joining slash; input paths are passed without a leading slash.
             prefixUrl: this.baseUrl,
@@ -232,9 +255,14 @@ export class RecipeServiceClient {
             // in Node/RN. (Test doubles are plain functions and need no binding.)
             fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
             // Identity-sync retries are owned by `send()` (they inspect the body + re-mint the token), and
-            // no other status is retried — so ky's own retry/timeout are disabled to preserve behavior.
+            // no other status is retried — so ky's own retry is disabled to preserve behavior.
             retry: 0,
-            timeout: false,
+            // The timeout, by contrast, is ky's to own: it aborts the request and rejects with ky's
+            // `TimeoutError`, which `sendOnce` maps to `FetchUnavailableError`. It was `false` here (a
+            // like-for-like carry-over of the hand-rolled `fetch` this client replaced), which left EVERY
+            // request unbounded — see `DEFAULT_REQUEST_TIMEOUT_MS` for why that surfaced as a permanent
+            // loading state rather than an error.
+            timeout: this.timeoutMs,
             headers: { accept: 'application/json' },
             hooks: {
                 beforeRequest: [
@@ -950,6 +978,19 @@ export class RecipeServiceClient {
         } catch (error) {
             if (error instanceof HTTPError) {
                 return normalizeResponse(error.response);
+            }
+
+            // A timeout is NOT a response — there is no status to map — so it cannot be folded into a
+            // `RawResponse`. Re-throwing it as a typed client error (rather than leaking ky's own
+            // `TimeoutError`) keeps the transport's contract "typed result or typed error", and lets a
+            // consumer tell "the service did not answer" apart from "the service said no". It is thrown, not
+            // returned, precisely so `send()`'s two 401 retry paths cannot replay it — a retried timeout
+            // would multiply the bounded wait straight back toward the unbounded one.
+            if (error instanceof TimeoutError) {
+                throw new FetchUnavailableError(
+                    `Recipe service did not respond within ${this.timeoutMs}ms (${method} ${path})`,
+                    error,
+                );
             }
 
             throw error;

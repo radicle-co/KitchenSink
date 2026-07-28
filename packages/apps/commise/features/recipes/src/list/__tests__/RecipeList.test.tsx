@@ -376,6 +376,50 @@ describe('RecipeList (web) — no-match state', () => {
         expect(screen.getByText('No recipes yet')).toBeTruthy();
         expect(screen.queryByText('No matching recipes')).toBeNull();
     });
+
+    it('treats an active FACET chip that filtered every row out as a no-match, not a first-run empty', () => {
+        // The facet chips are DERIVED from the loaded library, so a chip can only exist when the caller HAS
+        // recipes. Zero rows with a chip pressed is therefore a NO-MATCH — deriving the empty-vs-no-match
+        // split from `searchValue` alone tells a viewer with a full library that they have no recipes at all.
+        // Same defect class the discovery surface already fixed (`searchValue || hasActiveFilters`).
+        renderList({
+            status: 'ready',
+            recipes: [],
+            searchValue: '',
+            filters: { available: ['Vegetarian', 'Italian'], active: ['Vegetarian'], onToggle: noop, onClear: noop },
+        });
+
+        expect(screen.getByText('No matching recipes')).toBeTruthy();
+        expect(screen.queryByText('No recipes yet')).toBeNull();
+    });
+
+    it('offers no first-run create CTA, and keeps the FAB, when a facet filtered every row out', () => {
+        renderList({
+            status: 'ready',
+            recipes: [],
+            searchValue: '',
+            filters: { available: ['Vegetarian'], active: ['Vegetarian'], onToggle: noop, onClear: noop },
+        });
+
+        // "Create your first recipe" is first-run copy; the caller is not on their first run.
+        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
+        // The FAB is the persistent create control everywhere EXCEPT the true empty state.
+        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+    });
+
+    it('still shows the first-run empty copy when chips are OFFERED but none is active', () => {
+        // The other direction: available chips are not themselves a narrowing. Only an ACTIVE facet is.
+        renderList({
+            status: 'ready',
+            recipes: [],
+            searchValue: '',
+            filters: { available: ['Vegetarian'], active: [], onToggle: noop, onClear: noop },
+        });
+
+        expect(screen.getByText('No recipes yet')).toBeTruthy();
+        expect(screen.queryByText('No matching recipes')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
+    });
 });
 
 describe('RecipeList (web) — populated state', () => {

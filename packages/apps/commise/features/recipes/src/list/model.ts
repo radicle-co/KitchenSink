@@ -143,6 +143,27 @@ export const matchesListFacet = (recipe: RecipeFacetSource, facet: string): bool
 export const filterChipLabel = (facet: string, quickLabel: string): string =>
     facet === QUICK_TIME_FACET ? quickLabel : facet;
 
+/**
+ * Whether the viewer has NARROWED the list — an active search term, or at least one active quick-filter chip.
+ *
+ * This is the empty-vs-no-match discriminator, and the one authoritative representation of it (both list
+ * leaves call this, so web and native cannot drift on the branch they pick). Zero rows *while narrowing* is a
+ * NO-MATCH: the library has recipes and the viewer's own criteria excluded them. Zero rows *without*
+ * narrowing is the genuine first-run empty library — the only state that earns "No recipes yet" and the
+ * "Create your first recipe" CTA.
+ *
+ * Facets count, not just the search box: the chips are DERIVED from the loaded library, so a pressed chip can
+ * only exist when the caller has recipes — treating a chip-narrowed zero as first-run tells a viewer with a
+ * full library that they have nothing. The discovery surface reaches the same conclusion through its own
+ * `searchValue || hasActiveFilters` gate. Pure.
+ *
+ * @param searchValue - The raw (untrimmed) search-box value.
+ * @param activeFacets - The active quick-filter facet values; absent/empty means no chip is pressed.
+ * @returns `true` when the visible rows are the result of viewer-applied criteria.
+ */
+export const isListNarrowed = (searchValue: string, activeFacets: readonly string[] = []): boolean =>
+    searchValue.trim().length > 0 || activeFacets.length > 0;
+
 /** Props for a single recipe row in the list. */
 export interface RecipeListCardProps {
     readonly recipe: RecipeListItem;

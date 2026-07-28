@@ -176,6 +176,34 @@ export function isGoneError(error: unknown): error is GoneError {
     return error instanceof GoneError;
 }
 
+/**
+ * The service did not respond within the client's request timeout, so the call was aborted. Carries NO HTTP
+ * status — nothing answered — which is exactly why it needs its own type: a hung connection is otherwise
+ * indistinguishable from "still loading", and an unbounded wait leaves every consuming query pending for the
+ * life of the page (the surface's loading branch never flips, and its empty/error branches are unreachable).
+ * Mirrors `@kitchensink/food-service-client`'s `FetchUnavailableError`, so the two clients read alike.
+ */
+export class FetchUnavailableError extends RecipeServiceClientError {
+    /**
+     * The underlying abort/timeout error, when the transport supplied one. Narrows `Error.cause` (which the
+     * ES2022 lib declares as optional `unknown`) to a value this constructor always sets, so a caller reading
+     * `error.cause` for diagnostics does not have to widen it back.
+     */
+    public override readonly cause: unknown;
+
+    public constructor(message = 'Recipe service did not respond in time', cause?: unknown) {
+        super(message);
+        this.name = 'FetchUnavailableError';
+        this.cause = cause;
+        Object.setPrototypeOf(this, FetchUnavailableError.prototype);
+    }
+}
+
+/** Type guard for {@link FetchUnavailableError}. */
+export function isFetchUnavailableError(error: unknown): error is FetchUnavailableError {
+    return error instanceof FetchUnavailableError;
+}
+
 /** Any unmapped/unexpected response status (a contract drift the caller should surface, not swallow). */
 export class UnexpectedResponseError extends RecipeServiceClientError {
     public constructor(status: number, message = `Unexpected recipe-service response (${status})`) {

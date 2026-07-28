@@ -13,6 +13,10 @@
  * previously carried three copies of it, and therefore three copies of the defect below). Callers own only
  * their own UI state; the command owns the ordering, the mechanism, and the post-condition.
  *
+ * The ordering + post-condition themselves live in `signOutAndVerify` (`@commise/features-account`), because
+ * they are the same invariant on mobile and MUST NOT drift from it — this hook is the WEB adapter: it supplies
+ * Clerk's load-safe `signOut` and the client to verify against, and owns what "leaving" means on the web.
+ *
  * **Why `useAuth().signOut` and NOT `useClerk().signOut`.** `useClerk()` returns `IsomorphicClerk`, whose
  * `signOut` is the raw method:
  *
@@ -48,6 +52,7 @@
  * own auth gate sends a signed-out caller to the branded welcome hero.
  */
 import { useAuth, useClerk } from '@clerk/nextjs';
+import { signOutAndVerify } from '@commise/features-account';
 
 import { withBasePath } from '@/lib/basePath';
 import { navigateTo } from '@/lib/navigation';
@@ -71,24 +76,12 @@ export function useSignOutAndLeave(): SignOutAndLeave {
     const { signOut } = useAuth();
 
     const signOutAndLeave = async (): Promise<void> => {
-        // Clerk's awaiter only settles on "ready"/"degraded", so delegating on a failed load would hang the
-        // caller forever. Fail fast and let it surface (B17 — never spin forever).
-        if (clerk.status === 'error') {
-            throw new Error('cannot sign out: Clerk failed to load');
-        }
-
-        await signOut();
-
-        // ⚠️ DELIBERATE — ADR-0009. The fail-CLOSED post-condition, and NOT defensive noise: a sign-out that
-        // resolved without revoking anything is exactly the observed defect, and without this check the viewer
-        // is navigated to the public page believing they left while their session is still live at Clerk.
-        if (!clerk.loaded) {
-            throw new Error(`sign-out did not take effect: Clerk is not loaded (status "${clerk.status}")`);
-        }
-
-        if (clerk.session) {
-            throw new Error(`sign-out did not take effect: session ${clerk.session.id} is still active`);
-        }
+        // ⚠️ DELIBERATE — ADR-0009. The `error`-status short-circuit AND the fail-CLOSED post-condition live
+        // in the shared command (`@commise/features-account`), because they are the SAME security invariant on
+        // both platforms and must never drift: mobile's own sign-out hook issues the identical core. This hook
+        // is the web ADAPTER — it supplies Clerk's load-safe `signOut` plus the client to verify against, and
+        // owns only what "leaving" means here.
+        await signOutAndVerify(clerk, signOut);
 
         // Clerk's own redirect is not basePath-aware (ADR-0001 / U2); prefix it. No-op in production.
         navigateTo(withBasePath('/'));

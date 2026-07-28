@@ -184,6 +184,17 @@ export interface MobileMessages {
         readonly securityBody: string;
         /** Label of the sign-out action. */
         readonly signOutAction: string;
+        /** Busy label shown while the sign-out is in flight. */
+        readonly signingOut: string;
+        /** Alert shown when the sign-out fails, so the control is retryable rather than silent (ADR-0009). */
+        readonly signOutFailed: string;
+        /**
+         * Alert shown when an account ERASURE was accepted (202) but the follow-up sign-out failed.
+         * Deliberately distinct from {@link signOutFailed} and from the erasure dialog's own submit error: the
+         * erasure DID succeed server-side, so telling the viewer to retry it would be a lie — the only
+         * outstanding action is leaving the (now-destroyed) account's session.
+         */
+        readonly eraseSignOutFailed: string;
         /** Label of the back affordance returning to the profile surface. */
         readonly backAction: string;
         /** Label of the profile-surface entry point into this account hub. */
@@ -429,6 +440,10 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             securityHeading: 'Security',
             securityBody: 'Manage your password, MFA, and linked social accounts from the IdP-hosted user profile.',
             signOutAction: 'Sign out',
+            signingOut: 'Signing out…',
+            signOutFailed: 'We couldn’t sign you out. Please try again.',
+            eraseSignOutFailed:
+                'Your data is being erased, but we couldn’t sign you out. Sign out to finish leaving this account.',
             backAction: 'Back',
             settingsAction: 'Account settings',
         },

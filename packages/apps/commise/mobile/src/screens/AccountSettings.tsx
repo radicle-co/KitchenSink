@@ -9,8 +9,13 @@
  *
  * On the design system now: the sign-out/back controls are `@commise/ui` {@link Button}s, all copy comes
  * from `mobileMessages`, and the surface is wrapped in a `SafeAreaView`.
+ *
+ * SIGN OUT is the shared {@link SignOutButton}, which issues the app's one sign-out COMMAND and owns that
+ * control's own busy/failed state. This screen used to inline `onPress={() => void signOut()}` —
+ * fire-and-forget, nothing awaited, no failure path: a sign-out that failed left the viewer silently signed in,
+ * told nothing, with no way to retry (ADR-0009 / B17).
  */
-import { useAuth, useUser } from '@clerk/expo';
+import { useUser } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
@@ -21,6 +26,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AccountDangerZone } from '../components/account/AccountDangerZone.js';
+import { SignOutButton } from '../components/account/SignOutButton.js';
 import { mobileMessages } from '../i18n/messages.js';
 
 /** Props for {@link AccountSettingsScreen}. */
@@ -31,7 +37,6 @@ export interface AccountSettingsScreenProps {
 
 export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps = {}): JSX.Element {
     const { account: t } = useMessages(mobileMessages);
-    const { signOut } = useAuth();
     const { user } = useUser();
 
     return (
@@ -58,13 +63,7 @@ export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps = {
                 </View>
 
                 <View style={styles.section}>
-                    <Button
-                        variant="secondary"
-                        icon={<Feather name="log-out" size={16} color={palette.charcoal} />}
-                        onPress={() => void signOut()}
-                    >
-                        {t.signOutAction}
-                    </Button>
+                    <SignOutButton />
                 </View>
 
                 <View style={styles.section}>

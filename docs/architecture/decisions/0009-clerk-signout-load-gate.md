@@ -1,8 +1,8 @@
 # 0009 — Sign-out goes through one command that verifies the session actually ended
 
 - Status: Accepted
-- Date: 2026-07-27
-- Deciders: web
+- Date: 2026-07-27 (mobile half added 2026-07-27)
+- Deciders: web, mobile
 - Related: [0001](0001-sandbox-front-end-addressing.md)
 
 ## Context
@@ -87,6 +87,45 @@ from the browser's `__session` cookie before signing out and afterwards asserts,
 that the session is no longer `active` (plus that the cookie is gone). That is the only assertion that fails
 when a sign-out resolves without revoking.
 
+## Update (2026-07-27) — the mobile half, and where the command actually lives
+
+Mobile was **not** exposed to the load race above (it already used `useAuth().signOut`, and `AuthGate`
+genuinely blocks the tree while Clerk loads because there is no SSR `initialState`). It was, however, exposed
+to the other half of the problem: **both** of its session-ending controls were `void signOut()` —
+fire-and-forget, nothing awaited, no failure path. `AccountSettings.tsx` did it on press, and
+`AccountDangerZone.tsx` did it as a side effect of the erasure mutation's `onSuccess`. A sign-out that failed
+left the viewer silently signed in and told nothing; in the danger-zone case there was nowhere to report it at
+all. Not a security hole — a silent-failure hole.
+
+So the decision above is now split by what is platform-neutral and what is not:
+
+1. **`signOutAndVerify` (`@commise/features-account`, `src/session/`) owns the ordering, the
+   `status: 'error'` short-circuit, and the fail-closed post-condition.** These are the same invariant on both
+   platforms and there is exactly one implementation of them, raising one typed `SignOutNotVerifiedError`.
+   Mobile keeps the post-condition even though it is not exposed to the premount queue: it is an assertion
+   about the security property (rather than about which function was called), so it also fails closed if a
+   future Clerk release regresses its own wrapper — on either platform, from the same code.
+2. **Each platform's hook is a thin ADAPTER** that supplies its SDK's load-safe `signOut` plus the client to
+   verify against: `useSignOutAndLeave` (web) and `useSignOutAndVerify` (mobile).
+3. **"Leaving" is web-only.** Web must replace the document (a router redirect re-renders the authenticated
+   shell from a payload resolved for the destroyed session). Mobile has no document and no SSR payload —
+   `AuthGate` swaps to the unauthenticated tree off Clerk's own state — so the mobile hook deliberately has no
+   navigation step. That is the one part of the sequence that was NOT shared, and the reason the hook, not the
+   command, is per-platform.
+4. **Mobile's controls now own the states web's already had:** busy (and un-double-fireable) while in flight,
+   and a localized alert on failure, never a raw error string. Both surfaces issue the shared
+   `SignOutButton`, so the hub's sign-out and the danger zone's recovery cannot drift.
+5. **The erasure exit tells the truth.** By the time the sign-out runs, the erasure has already been accepted
+   (202) server-side. A failure to leave therefore surfaces its OWN copy (`account.eraseSignOutFailed`) plus a
+   sign-out control as the recovery — never the erasure dialog's "we couldn't erase, try again", which would
+   invite a retry of something that already happened. Mobile matches web here.
+
+Not covered by this update, and left as a known gap rather than changed silently: mobile's account **CLOSURE**
+still signs out inside `useDeleteAccount`'s `mutationFn` without the post-condition, and reports a failed
+sign-out through the same `close.error` alert as a failed closure — the same conflation web's
+`AccountCloseForm` documents. The closure is recoverable and the alert is now at least shown (it used to be
+swallowed entirely), so this is a truthfulness wrinkle, not a silent failure.
+
 ## Consequences
 
 - A sign-out clicked during the clerk-js bootstrap shows the ordinary busy state for the remainder of the load,
@@ -95,8 +134,9 @@ when a sign-out resolves without revoking.
   the control stays busy. Narrow (the click has to land in the sub-second window before the failure) and it is a
   stuck spinner on a page where the viewer is still signed in and told nothing — not a false "you are signed
   out". Accepted over the alternatives; revisit if it is ever observed.
-- Any NEW control whose correctness depends on ending the Clerk session must issue `useSignOutAndLeave()`
-  rather than calling `signOut` from either hook directly. Calling it directly re-opens this hole.
+- Any NEW control whose correctness depends on ending the Clerk session must issue `useSignOutAndLeave()` (web)
+  or `useSignOutAndVerify()` (mobile) rather than calling `signOut` from either hook directly. Calling it
+  directly re-opens this hole.
 
 ## Scope: development vs production instances
 

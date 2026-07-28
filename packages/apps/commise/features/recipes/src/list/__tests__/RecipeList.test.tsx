@@ -36,6 +36,9 @@ function renderList(overrides: Partial<RecipeListViewProps> = {}) {
     return props;
 }
 
+/** The source switcher's destinations — the web app's real `/{locale}/…` pair. */
+const HREF = { mine: '/en/recipes', community: '/en/discover' } as const;
+
 const threeRecipes = [
     makeRecipeListItem({ id: 'rec_1', title: 'Mediterranean Grilled Lamb', totalTimeMinutes: 45 }),
     makeRecipeListItem({ id: 'rec_2', title: 'Asparagus with Green Sauce', totalTimeMinutes: 20 }),
@@ -167,43 +170,34 @@ describe('RecipeList (web) — create FAB (L1)', () => {
     });
 });
 
+// The switcher's own contract — link semantics, the resting affordance, its contrast floors and touch
+// targets — is owned by `RecipeSourceTabs.test.tsx` (ONE strip, shared with the discovery surface). What
+// belongs HERE is the composition: that this view mounts it, and that the active source still drives the
+// list's own Community-specific behaviour.
 describe('RecipeList (web) — source tabs (L5)', () => {
-    it('renders no tab control when no tab prop is given (backward compatible)', () => {
+    it('renders no source switcher when no tab prop is given (backward compatible)', () => {
         renderList({ status: 'ready', recipes: threeRecipes });
 
-        expect(screen.queryByRole('tablist')).toBeNull();
+        expect(screen.queryByRole('navigation', { name: 'Recipe source' })).toBeNull();
     });
 
-    it('renders My Recipes / Community tabs with the active one selected', () => {
+    it('mounts the shared switcher with the active source marked and BOTH destinations reachable', () => {
         renderList({
             status: 'ready',
             recipes: threeRecipes,
-            tab: { active: 'mine', onChange: noop },
+            tab: { active: 'mine', href: HREF },
         });
 
-        expect(screen.getByRole('tab', { name: 'My Recipes' }).getAttribute('aria-selected')).toBe('true');
-        expect(screen.getByRole('tab', { name: 'Community' }).getAttribute('aria-selected')).toBe('false');
-    });
-
-    it('reports a tab change upward', async () => {
-        const user = userEvent.setup();
-        const onChange = vi.fn();
-        renderList({
-            status: 'ready',
-            recipes: threeRecipes,
-            tab: { active: 'mine', onChange },
-        });
-
-        await user.click(screen.getByRole('tab', { name: 'Community' }));
-
-        expect(onChange).toHaveBeenCalledWith('community');
+        const nav = screen.getByRole('navigation', { name: 'Recipe source' });
+        expect(within(nav).getByRole('link', { name: 'My Recipes' }).getAttribute('aria-current')).toBe('page');
+        expect(within(nav).getByRole('link', { name: 'Community' }).getAttribute('href')).toBe('/en/discover');
     });
 
     it('shows the distinct Community empty copy and NO FAB on the Community tab', () => {
         renderList({
             status: 'ready',
             recipes: [],
-            tab: { active: 'community', onChange: noop },
+            tab: { active: 'community', href: HREF },
         });
 
         expect(screen.getByText('No community recipes')).toBeTruthy();
@@ -474,16 +468,7 @@ describe('RecipeList (web) — populated state', () => {
 });
 
 describe('RecipeList (web) — touch targets (44px floor)', () => {
-    it('gives every source tab the 44px touch floor, reset for the mouse at md', () => {
-        renderList({ status: 'ready', recipes: threeRecipes, tab: { active: 'mine', onChange: noop } });
-
-        for (const name of ['My Recipes', 'Community']) {
-            const tab = screen.getByRole('tab', { name });
-            expect(tab.className).toContain('min-h-11');
-            expect(tab.className).toContain('md:min-h-0');
-        }
-    });
-
+    // The source tabs' own floor moved WITH them, to `RecipeSourceTabs.test.tsx`.
     it('gives the "All" chip and every facet chip the 44px touch floor, reset for the mouse at md', () => {
         renderList({
             status: 'ready',
@@ -501,24 +486,8 @@ describe('RecipeList (web) — touch targets (44px floor)', () => {
 });
 
 describe('RecipeList (web) — text contrast (WCAG 2.1 AA)', () => {
-    it('keeps the SELECTED source tab label legible, with its seafoam underline intact', () => {
-        renderList({ status: 'ready', recipes: threeRecipes, tab: { active: 'mine', onChange: noop } });
-
-        // The selected tab's label is TEXT a reader reads, so it owes the 4.5:1 SC 1.4.3 floor, not the 3:1 an
-        // accent owes; `seafoam` is 3.73:1 on the page background the tab strip sits on. See the palette JSDoc
-        // in `@commise/ui`'s `tokens/colors.ts` for the one authoritative statement of the rule.
-        const selected = screen.getByRole('tab', { name: 'My Recipes' });
-        expect(
-            utilityContrast(selected.className, { surface: semantic.background }),
-            'selected source-tab label',
-        ).toBeGreaterThanOrEqual(4.5);
-        // The seafoam UNDERLINE stays: a 2px selection indicator is a non-text graphic on the 3:1 SC 1.4.11
-        // floor, which seafoam clears — and it is what makes the selected tab readable as selected.
-        expect(selected.className, 'the seafoam selection underline must survive the text fix').toContain(
-            'border-seafoam',
-        );
-    });
-
+    // The source tabs' contrast — selected AND unselected, resting AND hover, label AND boundary — moved with
+    // them to `RecipeSourceTabs.test.tsx`, where the strip is measured once for both surfaces that mount it.
     it('keeps the search field’s PLACEHOLDER text legible on the field', () => {
         renderList({ status: 'ready', recipes: threeRecipes });
 

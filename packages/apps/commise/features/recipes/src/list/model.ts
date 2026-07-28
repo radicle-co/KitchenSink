@@ -8,6 +8,7 @@
 import type { Locale } from '@commise/i18n';
 
 import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
+import type { RecipeListMessages } from '../messages.js';
 
 /**
  * The three top-level states the list view renders. `ready` further splits into empty vs populated on
@@ -201,11 +202,47 @@ export interface RecipeListRefreshControl {
 /** Which recipe source the list shows (L5). */
 export type RecipeListTab = 'mine' | 'community';
 
-/** The My/Community source-tab control (L5) — the active tab plus a change callback. */
+/**
+ * The two sources, in display order. The ONE authoritative order (both platform strips map over this), so
+ * "My Recipes then Community" cannot drift between the leaves — it used to be spelled inline in each.
+ */
+export const RECIPE_SOURCE_TABS: readonly RecipeListTab[] = ['mine', 'community'];
+
+/**
+ * The My/Community source switcher (L5): which source is showing, WHERE each source lives, and how to
+ * activate one.
+ *
+ * `href` is REQUIRED, and that is the point. The web strip renders real links from it, so a switcher can no
+ * longer be built without a destination for BOTH sources — the exact defect this contract closes, where
+ * "Community" pushed a route and "My Recipes" led nowhere at all, making the community surface a one-way
+ * trip. A missing destination is now a type error rather than a dead end a viewer discovers.
+ *
+ * Each platform consumes the half its navigation model can express — the same web-only/native-only prop
+ * convention `refresh` (native pull-to-refresh, ignored on web) and `className` already follow:
+ *
+ *  - **web** routes by URL, so its strip IS a set of links built from `href` and never calls `onChange`;
+ *  - **native** has no URLs — its shell swaps screens — so its strip calls `onChange` and ignores `href`.
+ */
 export interface RecipeListTabControl {
     readonly active: RecipeListTab;
-    readonly onChange: (tab: RecipeListTab) => void;
+    /** Where each source lives. Web navigates by these; native ignores them (see the interface JSDoc). */
+    readonly href: Readonly<Record<RecipeListTab, string>>;
+    /** Activate a source. Native's only navigation seam; web ignores it (its link does the navigating). */
+    readonly onChange?: (tab: RecipeListTab) => void;
 }
+
+/**
+ * The visible label for one source. The ONE mapping from source to copy, so the web strip, the native strip
+ * and the mobile shell cannot disagree about which label belongs to which source. Pure.
+ *
+ * @param value - The source.
+ * @param labels - The localized tab copy.
+ * @returns The label to render.
+ */
+export const sourceTabLabel = (
+    value: RecipeListTab,
+    labels: Pick<RecipeListMessages, 'tabMine' | 'tabCommunity'>,
+): string => (value === 'mine' ? labels.tabMine : labels.tabCommunity);
 
 /**
  * The quick-filter chip control (L4): the available real facet values (dietary flags + cuisine present in the

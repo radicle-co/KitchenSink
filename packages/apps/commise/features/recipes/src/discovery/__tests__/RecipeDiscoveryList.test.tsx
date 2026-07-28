@@ -43,6 +43,9 @@ function renderDiscovery(overrides: Partial<RecipeDiscoveryListProps> = {}) {
     return props;
 }
 
+/** The source switcher's destinations — the web app's real `/{locale}/…` pair. */
+const HREF = { mine: '/en/recipes', community: '/en/discover' } as const;
+
 const threeResults = [
     makeSearchResult({ id: 'rec_1', title: 'Mediterranean Grilled Lamb', sourceAttribution: 'Serious Eats' }),
     makeSearchResult({ id: 'rec_2', title: 'Asparagus with Green Sauce' }),
@@ -80,6 +83,43 @@ describe('RecipeDiscoveryList (web) — chrome', () => {
         await user.paste('lamb');
 
         expect(onSearchChange).toHaveBeenCalledWith('lamb');
+    });
+});
+
+describe('RecipeDiscoveryList (web) — source switcher (L5)', () => {
+    // THE regression this surface existed without: it rendered a heading and nothing else, so a viewer who
+    // chose "Community" on /recipes arrived here with no route back to their own library — a one-way trip.
+    // The switcher's own contract (link semantics, affordance, contrast, touch floor) is owned by
+    // `../../list/__tests__/RecipeSourceTabs.test.tsx`; what belongs here is that this surface MOUNTS it, on
+    // the community side, with the way back present.
+    it('renders no source switcher when no tab prop is given (a shell may own it)', () => {
+        renderDiscovery({ status: 'ready', results: threeResults });
+
+        expect(screen.queryByRole('navigation', { name: 'Recipe source' })).toBeNull();
+    });
+
+    it('offers a link BACK to My Recipes, with Community marked as the current source', () => {
+        renderDiscovery({ status: 'ready', results: threeResults, tab: { active: 'community', href: HREF } });
+
+        const nav = screen.getByRole('navigation', { name: 'Recipe source' });
+        expect(within(nav).getByRole('link', { name: 'My Recipes' }).getAttribute('href')).toBe('/en/recipes');
+        expect(within(nav).getByRole('link', { name: 'Community' }).getAttribute('aria-current')).toBe('page');
+    });
+
+    it('keeps the switcher in EVERY body state — loading, error, browse, no-match', () => {
+        // The way back must not depend on the search having succeeded: a failed load or an empty browse is
+        // exactly when a viewer wants out. The strip lives in the persistent chrome, above the body.
+        for (const props of [
+            { status: 'loading' as const, results: [] },
+            { status: 'error' as const, results: [] },
+            { status: 'ready' as const, results: [], searchValue: 'lamb' },
+            { status: 'ready' as const, results: threeResults, browseSlot: <div>CURATED RAILS</div> },
+        ]) {
+            renderDiscovery({ ...props, tab: { active: 'community', href: HREF } });
+
+            expect(screen.getByRole('link', { name: 'My Recipes' }).getAttribute('href')).toBe('/en/recipes');
+            cleanup();
+        }
     });
 });
 

@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
 import { RecipeSearchSortBy, type RecipeSearchResult } from '@kitchensink/recipe-core';
 
 import type { RecipeCardModel } from '../card/model.js';
-import type { RecipeListRefreshControl } from '../list/model.js';
+import type { RecipeListRefreshControl, RecipeListTabControl } from '../list/model.js';
 
 /**
  * The sort options the discovery UI offers (S3), in display order — a subset of {@link RecipeSearchSortBy}
@@ -155,6 +155,16 @@ export interface RecipeDiscoveryListProps {
      * matches your search"), not the browse-empty "no public recipes" state. Defaults to `false`.
      */
     readonly hasActiveFilters?: boolean;
+    /**
+     * The My/Community source switcher (L5) — the SAME control, and the same
+     * {@link import('../list/RecipeSourceTabs.js').RecipeSourceTabs} strip, the personal library renders.
+     *
+     * This surface IS the community source, so it passes `active: 'community'`. It is not decoration: without
+     * it the community surface was a ONE-WAY TRIP — reachable from the library's "Community" tab, with nothing
+     * on the far side pointing back at `/{locale}/recipes`. A host that omits it recreates that dead end, so
+     * omit it only where the shell itself owns the switcher (mobile's recipe shell does).
+     */
+    readonly tab?: RecipeListTabControl;
     /**
      * Optional composition seam rendered between the search field and the results body — where the composing
      * app mounts the {@link import('../filters/index.js').RecipeFilterBar} so the filters sit under the search

@@ -20,6 +20,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, Vie
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 
 import { toRecipeCardModel } from '../card/model.js';
+import { RecipeSourceTabs } from '../list/RecipeSourceTabs.native.js';
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.native.js';
@@ -58,6 +59,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     onExitToBrowse,
     refresh,
     recentSearches,
+    tab,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
@@ -221,6 +223,10 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
             <Text accessibilityRole="header" style={styles.heading}>
                 {discovery.heading}
             </Text>
+            {/* L5 — the source switcher, same component and same position as the personal library's, so a host
+                that composes this surface WITHOUT a shell tab bar still offers the way back (mobile's recipe
+                shell owns its own switcher, so it passes no `tab`). */}
+            {tab !== undefined && <RecipeSourceTabs tab={tab} />}
             <TextInput
                 accessibilityLabel={discovery.searchLabel}
                 placeholder={discovery.searchPlaceholder}

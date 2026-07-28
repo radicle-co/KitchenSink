@@ -20,6 +20,7 @@ import { Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 're
 
 import { recipeMessages } from '../messages.js';
 import { RecipeListCard } from './RecipeListCard.native.js';
+import { RecipeSourceTabs } from './RecipeSourceTabs.native.js';
 import { filterChipLabel, formatRecipeCount, isListNarrowed, type RecipeListViewProps } from './model.js';
 
 /** The inter-card gap, hoisted so the FlashList separator and the header spacer share one value. */
@@ -136,27 +137,9 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                 </View>
             </GradientSurface>
 
-            {tab !== undefined && (
-                <View accessibilityRole="tablist" accessibilityLabel={list.tabsLabel} style={styles.tabs}>
-                    {(['mine', 'community'] as const).map((value) => {
-                        const selected = tab.active === value;
-
-                        return (
-                            <Pressable
-                                key={value}
-                                accessibilityRole="tab"
-                                accessibilityState={{ selected }}
-                                onPress={() => tab.onChange(value)}
-                                style={[styles.tab, selected && styles.tabSelected]}
-                            >
-                                <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>
-                                    {value === 'mine' ? list.tabMine : list.tabCommunity}
-                                </Text>
-                            </Pressable>
-                        );
-                    })}
-                </View>
-            )}
+            {/* The source switcher (L5) is the ONE shared `RecipeSourceTabs`, shared with the community
+                surface — the same composition the web leaf uses, so the platforms cannot drift on it. */}
+            {tab !== undefined && <RecipeSourceTabs tab={tab} />}
 
             <TextInput
                 accessibilityLabel={list.searchLabel}
@@ -253,25 +236,8 @@ const styles = StyleSheet.create({
     },
     createLabel: { color: palette.white, fontWeight: '600', fontSize: nativeTokens.fontSize.bodySm },
     emptyBody: { gap: nativeTokens.spacing[3], alignItems: 'flex-start' },
-    // The mine/community source tabs are a 44pt touch target (RC-3); the underline sits at the row's foot.
-    tabs: {
-        flexDirection: 'row',
-        gap: nativeTokens.spacing[2],
-        borderBottomWidth: 1,
-        borderBottomColor: nativeTokens.borderSubtle,
-    },
-    tab: {
-        paddingHorizontal: nativeTokens.spacing[4],
-        minHeight: 44,
-        justifyContent: 'center',
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
-    },
-    tabSelected: { borderBottomColor: palette.seafoam },
-    tabLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600', color: palette.slate },
-    // Underline seafoam, LABEL `ocean-dark` — the palette rule, mirroring the web tab (see the palette JSDoc
-    // in `@commise/ui`'s `tokens/colors.ts`).
-    tabLabelSelected: { color: palette['ocean-dark'] },
+    // The mine/community source tabs own their surface in `RecipeSourceTabs.native.tsx` — one definition for
+    // both recipe-source screens, so nothing to restate here.
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
     chip: {
         borderRadius: nativeTokens.radius.full,

@@ -42,6 +42,9 @@ function renderDiscovery(overrides: Partial<RecipeDiscoveryListProps> = {}) {
     return props;
 }
 
+/** The source switcher's destinations. Native ignores them (no URLs) — see the control's JSDoc. */
+const HREF = { mine: '/en/recipes', community: '/en/discover' } as const;
+
 const threeResults = [
     makeSearchResult({ id: 'rec_1', title: 'Mediterranean Grilled Lamb', sourceAttribution: 'Serious Eats' }),
     makeSearchResult({ id: 'rec_2', title: 'Asparagus with Green Sauce' }),
@@ -63,6 +66,31 @@ describe('RecipeDiscoveryList (native) — chrome', () => {
         fireEvent.change(screen.getByLabelText('Search public recipes'), { target: { value: 'lamb' } });
 
         expect(onSearchChange).toHaveBeenCalledWith('lamb');
+    });
+});
+
+describe('RecipeDiscoveryList (native) — source switcher (L5)', () => {
+    // Parity with the web leaf: a host that composes this surface without a shell tab bar must still offer the
+    // way back. (Mobile's recipe shell owns its own switcher, so the app passes no `tab` — hence the first
+    // case.) The strip's own contract lives in `../../list/__tests__/RecipeSourceTabs.native.test.tsx`.
+    it('renders no source switcher when no tab prop is given (the shell owns it on mobile)', () => {
+        renderDiscovery({ status: 'ready', results: threeResults });
+
+        expect(screen.queryByLabelText('Recipe source')).toBeNull();
+    });
+
+    it('offers a way BACK to My Recipes, with Community marked as the current source', () => {
+        const onChange = vi.fn();
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            tab: { active: 'community', href: HREF, onChange },
+        });
+
+        expect(screen.getByRole('tab', { name: 'Community' }).getAttribute('aria-selected')).toBe('true');
+        fireEvent.click(screen.getByRole('tab', { name: 'My Recipes' }));
+
+        expect(onChange).toHaveBeenCalledWith('mine');
     });
 });
 

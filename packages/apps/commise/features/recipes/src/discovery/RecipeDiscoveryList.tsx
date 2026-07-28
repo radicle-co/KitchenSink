@@ -26,6 +26,7 @@ import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 
 import { toRecipeCardModel } from '../card/model.js';
 import { RecipeCardGridSkeleton } from '../card/RecipeCardGridSkeleton.js';
+import { RecipeSourceTabs } from '../list/RecipeSourceTabs.js';
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.js';
@@ -63,6 +64,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     browseSlot,
     onExitToBrowse,
     recentSearches,
+    tab,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const locale = useLocale();
@@ -184,6 +186,11 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
             <header>
                 <h1 className="font-display text-display-md font-bold text-charcoal">{discovery.heading}</h1>
             </header>
+            {/* L5 — the source switcher, in the SAME position (directly under the heading, above the search
+                field) and from the SAME component the personal library uses. This is the way BACK: before it,
+                `/discover` rendered a heading and nothing else, so a viewer who chose "Community" on
+                `/recipes` had no route home short of the browser's Back button. */}
+            {tab !== undefined && <RecipeSourceTabs tab={tab} />}
             {/* The field + its recent-search panel form ONE focus scope: `focusout` bubbles here carrying the
                 element focus is moving TO, so a click that moves focus INTO the panel keeps it mounted long
                 enough for that click to land — the classic "the suggestion vanished under my cursor" bug. */}

@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { computedContrast, placeholderContrast } from '@commise/test-utils';
+import { placeholderContrast } from '@commise/test-utils';
 import { nativeTokens } from '@commise/ui/native';
 import { palette } from '@commise/ui';
 
@@ -33,6 +33,9 @@ function renderList(overrides: Partial<RecipeListViewProps> = {}) {
     render(<RecipeList {...props} />);
     return props;
 }
+
+/** The source switcher's destinations. Native ignores them (its shell has no URLs) — see the control's JSDoc. */
+const HREF = { mine: '/en/recipes', community: '/en/discover' } as const;
 
 const threeRecipes = [
     makeRecipeListItem({ id: 'rec_1', title: 'Mediterranean Grilled Lamb', totalTimeMinutes: 45 }),
@@ -147,25 +150,28 @@ describe('RecipeList (native) — create FAB (L1)', () => {
     });
 });
 
+// The switcher's own contract — roles, selected state, the resting affordance and its contrast floors, the
+// 44pt targets — is owned by `RecipeSourceTabs.native.test.tsx` (ONE strip, shared with discovery). What
+// belongs HERE is the composition, and that the active source still drives this view's Community behaviour.
 describe('RecipeList (native) — source tabs (L5)', () => {
-    it('renders no tab control when no tab prop is given', () => {
+    it('renders no source switcher when no tab prop is given', () => {
         renderList({ status: 'ready', recipes: threeRecipes });
 
         expect(screen.queryByText('Community')).toBeNull();
     });
 
-    it('renders My Recipes / Community tabs and reports a change upward', () => {
+    it('mounts the shared switcher with the active source marked and both sources reachable', () => {
         const onChange = vi.fn();
-        renderList({ status: 'ready', recipes: threeRecipes, tab: { active: 'mine', onChange } });
+        renderList({ status: 'ready', recipes: threeRecipes, tab: { active: 'mine', href: HREF, onChange } });
 
-        expect(screen.getByText('My Recipes')).toBeTruthy();
-        fireEvent.click(screen.getByText('Community'));
+        expect(screen.getByRole('tab', { name: 'My Recipes' }).getAttribute('aria-selected')).toBe('true');
+        fireEvent.click(screen.getByRole('tab', { name: 'Community' }));
 
         expect(onChange).toHaveBeenCalledWith('community');
     });
 
     it('shows the Community empty copy and NO FAB on the Community tab', () => {
-        renderList({ status: 'ready', recipes: [], tab: { active: 'community', onChange: noop } });
+        renderList({ status: 'ready', recipes: [], tab: { active: 'community', href: HREF, onChange: noop } });
 
         expect(screen.getByText('No community recipes')).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
@@ -253,16 +259,6 @@ describe('RecipeList (native) — loading state', () => {
         // hidden from it — mirrors the discovery skeletons.
         const region = screen.getByLabelText('Loading recipes');
         expect(region.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(0);
-    });
-});
-
-describe('RecipeList (native) — touch targets (U4 / RC-3)', () => {
-    it('gives the source tabs a 44pt minimum hit area', () => {
-        renderList({ status: 'ready', recipes: threeRecipes, tab: { active: 'mine', onChange: noop } });
-
-        for (const tab of screen.getAllByRole('tab')) {
-            expect(window.getComputedStyle(tab).minHeight).toBe('44px');
-        }
     });
 });
 
@@ -385,20 +381,8 @@ function appliedFontFamily(element: Element): string | undefined {
 }
 
 describe('RecipeList (native) — text contrast (WCAG 2.1 AA)', () => {
-    it('keeps the SELECTED source-tab label legible on the screen background', () => {
-        renderList({ status: 'ready', recipes: threeRecipes, tab: { active: 'mine', onChange: noop } });
-
-        // Mirrors the web leaf: the selected tab's label is TEXT, so it owes the 4.5:1 SC 1.4.3 floor, and
-        // `seafoam` is 3.73:1 on the `sand` screen background the tab strip sits on. The 2px seafoam underline
-        // (`tabSelected`) is a non-text selection indicator on the 3:1 SC 1.4.11 floor and deliberately stays.
-        // See the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
-        const label = within(screen.getByRole('tab', { name: 'My Recipes' })).getByText('My Recipes');
-        expect(
-            computedContrast(label, { surface: palette.sand }),
-            'selected source-tab label on the sand screen background',
-        ).toBeGreaterThanOrEqual(4.5);
-    });
-
+    // The source tabs' contrast — selected AND unselected, label AND boundary — moved with them to
+    // `RecipeSourceTabs.native.test.tsx`, where the strip is measured once for both surfaces that mount it.
     it('keeps the search field’s PLACEHOLDER text legible on the field', () => {
         renderList({ status: 'ready', recipes: threeRecipes });
 

@@ -5,10 +5,13 @@
  */
 export { RecipeList } from './RecipeList.js';
 export { RecipeListCard } from './RecipeListCard.js';
+export { RecipeSourceTabs } from './RecipeSourceTabs.js';
+export type { RecipeSourceTabsProps } from './RecipeSourceTabs.js';
 
 export {
     QUICK_TIME_FACET,
     QUICK_TIME_THRESHOLD_MINUTES,
+    RECIPE_SOURCE_TABS,
     fillTemplate,
     filterChipLabel,
     formatDurationMinutes,
@@ -16,6 +19,7 @@ export {
     isListNarrowed,
     isQuickRecipe,
     matchesListFacet,
+    sourceTabLabel,
     toRecipeListItem,
 } from './model.js';
 export type {
@@ -24,5 +28,7 @@ export type {
     RecipeListCardProps,
     RecipeListItem,
     RecipeListStatus,
+    RecipeListTab,
+    RecipeListTabControl,
     RecipeListViewProps,
 } from './model.js';

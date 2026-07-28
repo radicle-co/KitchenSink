@@ -13,6 +13,7 @@ import { RecipeCardGridSkeleton } from '../card/RecipeCardGridSkeleton.js';
 import { PlusIcon } from '../form/icons.js';
 import { recipeMessages } from '../messages.js';
 import { RecipeListCard } from './RecipeListCard.js';
+import { RecipeSourceTabs } from './RecipeSourceTabs.js';
 import { filterChipLabel, formatRecipeCount, isListNarrowed, type RecipeListViewProps } from './model.js';
 
 export const RecipeList: FC<RecipeListViewProps> = ({
@@ -104,36 +105,9 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                 </header>
             </GradientSurface>
 
-            {tab !== undefined && (
-                <div role="tablist" aria-label={list.tabsLabel} className="flex gap-2 border-b border-border">
-                    {(['mine', 'community'] as const).map((value) => {
-                        const selected = tab.active === value;
-
-                        return (
-                            <button
-                                key={value}
-                                type="button"
-                                role="tab"
-                                aria-selected={selected}
-                                onClick={() => tab.onChange(value)}
-                                // Touch floor: `min-h-11` at base, reset at `md:` so the desktop tab density
-                                // (py-2) is unchanged.
-                                //
-                                // The selected tab's UNDERLINE stays seafoam and its LABEL is `ocean-dark`
-                                // deliberately — the split is the palette rule, not an oversight (see the
-                                // palette JSDoc in `@commise/ui`'s `tokens/colors.ts`).
-                                className={`-mb-px inline-flex min-h-11 items-center border-b-2 px-4 py-2 text-body-sm font-semibold transition md:min-h-0 ${
-                                    selected
-                                        ? 'border-seafoam text-ocean-dark'
-                                        : 'border-transparent text-slate hover:text-charcoal'
-                                }`}
-                            >
-                                {value === 'mine' ? list.tabMine : list.tabCommunity}
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
+            {/* The source switcher (L5) is the ONE shared `RecipeSourceTabs` — the same strip the community
+                surface mounts, so the pair stays symmetric and a viewer can always get back. */}
+            {tab !== undefined && <RecipeSourceTabs tab={tab} />}
 
             <input
                 type="search"

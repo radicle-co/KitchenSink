@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
-import { computedContrast } from '@commise/test-utils';
+import { compositeOver, computedContrast, contrastRatio } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 import {
     useCloneRecipe,
@@ -79,6 +79,11 @@ const useRecipeMock = vi.mocked(useRecipe);
 /** A query-result double (only the fields the screens read); cast to the concrete hook's result type. */
 function query<T>(overrides: Record<string, unknown> = {}): T {
     return { isLoading: false, isError: false, data: undefined, refetch: vi.fn(), ...overrides } as unknown as T;
+}
+
+/** The opaque colour a tab's own fill resolves to, read off the DOM and flattened onto the screen. */
+function fillOf(tab: Element): string {
+    return compositeOver(window.getComputedStyle(tab).backgroundColor, palette.sand);
 }
 
 /** A mutation-result double; cast to the concrete hook's result type. */
@@ -190,16 +195,47 @@ describe('RecipesScreen — navigation', () => {
         expect(screen.getByRole('heading', { name: 'Discover recipes' })).toBeTruthy();
     });
 
-    it('keeps the SELECTED tab’s label WCAG-AA legible on the screen’s sand background', () => {
+    it('keeps the SELECTED tab’s label WCAG-AA legible on its own fill', () => {
         render(<RecipesScreen />);
 
-        // The tab bar paints no background of its own, so the selected label sits on the screen container's
-        // `sand`: seafoam scored 3.73:1 there, under the 4.5:1 body floor (SC 1.4.3). The selected tab's
+        // The selected tab now paints a white "front folder" fill; seafoam-as-label scored 3.73:1 on the
+        // screen's sand, under the 4.5:1 body floor (SC 1.4.3), which is why the label is `ocean-dark`. The
         // `borderBottomColor` underline is a non-text accent and stays seafoam — see the palette JSDoc in
         // `@commise/ui`.
-        const label = within(screen.getByRole('tab', { name: 'My recipes' })).getByText('My recipes');
+        const tab = screen.getByRole('tab', { name: 'My recipes' });
+        const label = within(tab).getByText('My recipes');
 
-        expect(computedContrast(label, { surface: palette.sand }), 'selected tab label').toBeGreaterThanOrEqual(4.5);
+        expect(computedContrast(label, { surface: fillOf(tab) }), 'selected tab label').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('gives the UNSELECTED tabs a resting affordance a thumb can see (no hover exists on touch)', () => {
+        // The owner-reported defect, on the surface a phone user actually touches: an unselected tab was a
+        // transparent border over no fill — bare text, indistinguishable from a heading. It now rests as a
+        // visible folder (fill + hairline), from the SAME shared `RecipeSourceTab` the web strip mirrors, and
+        // both halves are measured rather than spelled: the label owes 4.5:1 (SC 1.4.3) on that fill and the
+        // hairline, being the control's boundary, owes 3:1 (SC 1.4.11) against it.
+        render(<RecipesScreen />);
+
+        const inactive = screen.getByRole('tab', { name: 'Discover' });
+        const style = window.getComputedStyle(inactive);
+
+        expect(style.backgroundColor, 'an unselected tab must paint a fill').not.toBe('rgba(0, 0, 0, 0)');
+        expect(Number.parseFloat(style.borderBottomWidth), 'and a visible boundary').toBeGreaterThan(0);
+        expect(
+            computedContrast(within(inactive).getByText('Discover'), { surface: fillOf(inactive) }),
+            'unselected tab label on its resting fill',
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+            contrastRatio(compositeOver(style.borderBottomColor, fillOf(inactive)), fillOf(inactive)),
+            'unselected tab boundary against its own fill',
+        ).toBeGreaterThanOrEqual(3);
+    });
+
+    it('marks the active destination as the selected tab', () => {
+        render(<RecipesScreen />);
+
+        expect(screen.getByRole('tab', { name: 'My recipes' }).getAttribute('aria-selected')).toBe('true');
+        expect(screen.getByRole('tab', { name: 'Discover' }).getAttribute('aria-selected')).not.toBe('true');
     });
 
     it('gives the top-level tabs a 44pt touch target (U4 / RC-3)', () => {

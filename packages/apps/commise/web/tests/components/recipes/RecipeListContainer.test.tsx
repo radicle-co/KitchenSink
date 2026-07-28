@@ -163,8 +163,7 @@ describe('RecipeListContainer', () => {
         expect(screen.queryByRole('button', { name: 'Weeknight Pasta' })).not.toBeInTheDocument();
     });
 
-    it('navigates to the discover surface when the Community tab is chosen (L5)', async () => {
-        const user = userEvent.setup();
+    it('points the Community source at the discover route as a real LINK (L5)', async () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipes').mockResolvedValue(
             makeRecipesPage([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]),
@@ -173,9 +172,14 @@ describe('RecipeListContainer', () => {
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
         await screen.findByRole('button', { name: 'Weeknight Pasta' });
 
-        await user.click(screen.getByRole('tab', { name: 'Community' }));
-
-        expect(pushMock).toHaveBeenCalledWith('/en/discover');
+        // It used to be a `<button onClick={router.push}>`, which cost the control its link semantics
+        // (middle-click, ⌘-click, "open in new tab", the `link` role) — and, because `active` was hardcoded to
+        // `'mine'`, gave the far side no way back. Both sources are now addressable destinations, and THIS
+        // list is the current one.
+        const nav = screen.getByRole('navigation', { name: 'Recipe source' });
+        expect(within(nav).getByRole('link', { name: 'Community' })).toHaveAttribute('href', '/en/discover');
+        expect(within(nav).getByRole('link', { name: 'My Recipes' })).toHaveAttribute('href', '/en/recipes');
+        expect(within(nav).getByRole('link', { name: 'My Recipes' })).toHaveAttribute('aria-current', 'page');
     });
 
     it('derives quick-filter chips from the loaded dietary flags + cuisine and filters by one (L4)', async () => {

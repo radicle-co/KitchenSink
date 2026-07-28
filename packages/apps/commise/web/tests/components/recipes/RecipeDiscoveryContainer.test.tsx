@@ -17,7 +17,7 @@
  * `vi.spyOn(client, 'searchRecipes' | 'cloneRecipe')`. The Next router mocks and the `replaceState` spy
  * stay as before.
  */
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RECENT_SEARCHES_STORAGE_KEY } from '@commise/features-recipes';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
@@ -53,6 +53,22 @@ afterEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
     nav.params = new URLSearchParams();
+});
+
+describe('RecipeDiscoveryContainer — source switcher (L5)', () => {
+    it('offers a link BACK to the caller’s own recipes, with Community as the current source', () => {
+        // The owner-reported dead end: this surface rendered a heading and nothing else, so choosing
+        // "Community" on /recipes was a one-way trip. The switcher is mounted here with the SAME destinations
+        // the list container hands over, so the pair is symmetric.
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
+
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+
+        const nav = screen.getByRole('navigation', { name: 'Recipe source' });
+        expect(within(nav).getByRole('link', { name: 'My Recipes' })).toHaveAttribute('href', '/en/recipes');
+        expect(within(nav).getByRole('link', { name: 'Community' })).toHaveAttribute('aria-current', 'page');
+    });
 });
 
 describe('RecipeDiscoveryContainer — result list', () => {

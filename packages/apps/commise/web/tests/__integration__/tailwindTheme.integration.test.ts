@@ -40,6 +40,10 @@ const GLOBALS_CSS = fileURLToPath(new URL('../../src/app/globals.css', import.me
 
 /** Utilities probed below. Forced into the build so the test never depends on current app usage. */
 const PROBES = [
+    'bg-pearl',
+    'border-slate',
+    'border-seafoam',
+    'rounded-t-lg',
     'size-8',
     'size-6',
     'size-5',
@@ -140,5 +144,23 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
         // Guards the opposite failure: "fixing" the namespace by clearing it (`--text-*: initial`) would break
         // every stock `text-sm`/`text-lg` the app also uses.
         expect(ruleFor(css, 'text-sm')).toContain('var(--text-sm)');
+    });
+
+    it('emits a real rule for every utility the source-tab affordance depends on', async () => {
+        // "The class is in the JSX" is not proof it paints anything: this repo shipped an entire DS type ramp
+        // that compiled to NOTHING. The recipe-source switcher's resting affordance is made of these four
+        // utilities, so each must resolve to a declaration that actually names its token. They come from the
+        // SHARED `@commise/features-recipes` package, which is why the `@source` glob for it is load-bearing —
+        // drop that glob and these vanish while every jsdom test still passes.
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'bg-pearl'), 'the inactive tab’s resting fill').toContain('var(--color-pearl)');
+        expect(ruleFor(css, 'border-slate'), 'the inactive tab’s boundary').toContain('var(--color-slate)');
+        expect(ruleFor(css, 'border-seafoam'), 'the active tab’s underline').toContain('var(--color-seafoam)');
+        expect(ruleFor(css, 'rounded-t-lg'), 'the folder-tab geometry').toContain('border-top-left-radius');
+        // Variant-scoped utilities compile to a nested/at-ruled selector, so they are matched by presence
+        // rather than by a flat `.class { … }` body — but they must be PRESENT, which is the regression risk.
+        expect(css, 'the hover fill').toContain('hover\\:bg-mist\\/40');
+        expect(css, 'the focus ring').toContain('focus-visible\\:ring-ocean-dark');
     });
 });

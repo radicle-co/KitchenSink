@@ -59,6 +59,8 @@ import type { FC } from 'react';
 
 import { webRecentSearchStore } from '@/lib/recentSearchStore';
 
+import { recipeSourceHrefs } from './sourceTabHref';
+
 /** Props for {@link RecipeDiscoveryContainer}. */
 export interface RecipeDiscoveryContainerProps {
     /** The active route locale, used to build locale-prefixed navigation targets. */
@@ -196,6 +198,10 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
             onRetry={() => void search.refetch()}
             cloningId={cloningId}
             hasActiveFilters={hasActiveFilters(filters)}
+            // L5: this surface IS the "Community" source, so it mounts the SAME switcher the library does with
+            // `community` active — the half that was missing. Without it a viewer who chose "Community" landed
+            // on a surface with no route back to their own recipes at all.
+            tab={{ active: 'community', href: recipeSourceHrefs(locale) }}
             sort={{ active: sortBy, onChange: setSortBy }}
             recentSearches={{
                 queries: recentSearches.queries,

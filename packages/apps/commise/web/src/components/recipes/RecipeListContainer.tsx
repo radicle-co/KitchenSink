@@ -22,6 +22,8 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import type { FC } from 'react';
 
+import { recipeSourceHrefs } from './sourceTabHref';
+
 /** Props for {@link RecipeListContainer}. */
 export interface RecipeListContainerProps {
     /** The active route locale, used to build locale-prefixed navigation targets. */
@@ -98,16 +100,12 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale }) =>
             onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
             onCreateRecipe={() => router.push(`/${locale}/recipes/new` as Route)}
             onRetry={() => void query.refetch()}
-            // L5: "My Recipes" is this list; "Community" browses public recipes on the discover surface (the
-            // same model the mobile shell uses — functional parity, not identical chrome).
-            tab={{
-                active: 'mine',
-                onChange: (next) => {
-                    if (next === 'community') {
-                        router.push(`/${locale}/discover` as Route);
-                    }
-                },
-            }}
+            // L5: "My Recipes" IS this list; "Community" is the discover surface. Both destinations are handed
+            // over as routes, so the shared switcher renders real links — the strip used to push `/discover`
+            // from a `<button>` with `active` hardcoded to `'mine'`, which is why the far side had no way
+            // back. `/discover` now mounts the same switcher with `active: 'community'`, and the pair is
+            // symmetric by construction.
+            tab={{ active: 'mine', href: recipeSourceHrefs(locale) }}
             filters={{
                 available: availableFacets,
                 active: activeFacets,

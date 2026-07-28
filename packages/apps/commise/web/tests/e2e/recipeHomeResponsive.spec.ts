@@ -361,16 +361,19 @@ test.describe('recipe list touch targets — 390×844 phone with a touchscreen',
         await page.goto(route('/recipes'));
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
 
-        const tabs = page.getByRole('tablist', { name: 'Recipe source' });
-        const mine = tabs.getByRole('tab', { name: 'My Recipes' });
-        const community = tabs.getByRole('tab', { name: 'Community' });
+        // The switcher is a `nav` of LINKS, not a `tablist` of buttons: each source is a route, so it keeps
+        // link semantics (⌘-click, middle-click, "open in new tab") and marks the current one with
+        // `aria-current="page"`. See `RecipeSourceTabs`' module JSDoc for the full argument.
+        const tabs = page.getByRole('navigation', { name: 'Recipe source' });
+        const mine = tabs.getByRole('link', { name: 'My Recipes' });
+        const community = tabs.getByRole('link', { name: 'Community' });
 
         expectTouchTarget(await heightOf(mine), 'the My Recipes tab');
         expectTouchTarget(await heightOf(community), 'the Community tab');
 
         // This list IS "My Recipes", and the tab says so.
-        await expect(mine).toHaveAttribute('aria-selected', 'true');
-        await expect(community).toHaveAttribute('aria-selected', 'false');
+        await expect(mine).toHaveAttribute('aria-current', 'page');
+        await expect(community).not.toHaveAttribute('aria-current', 'page');
 
         await community.tap();
 

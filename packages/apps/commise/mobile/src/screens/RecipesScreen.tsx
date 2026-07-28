@@ -13,9 +13,10 @@
  */
 import type { JSX } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { RecipeSourceTab } from '@commise/features-recipes/source-tabs/mobile';
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
@@ -54,7 +55,17 @@ const TAB_IDS: readonly TabId[] = ['list', 'discovery', 'collections'];
 const isTab = (surface: Surface): surface is Surface & { readonly id: TabId } =>
     (TAB_IDS as readonly string[]).includes(surface.id);
 
-/** The persistent tab bar shown on the three top-level destinations. */
+/**
+ * The persistent tab bar shown on the three top-level destinations — mobile's recipe-SOURCE switcher, and the
+ * one a phone user actually touches (the shared list/discovery views take no `tab` of their own here, because
+ * this bar already spans them).
+ *
+ * Each destination is the shared {@link RecipeSourceTab}, so the affordance — the resting fill + hairline that
+ * make an unselected tab visible WITHOUT a hover state, the seafoam-underline/`ocean-dark`-label palette rule,
+ * the 44pt target — is defined once, in `@commise/features-recipes`, and is identical to the web strip's. It
+ * used to be transcribed here as a local StyleSheet whose unselected tab was a transparent border over no
+ * fill: bare text, indistinguishable from a heading, with nothing for a thumb to recognise as a control.
+ */
 function TabBar({
     current,
     onSelect,
@@ -67,22 +78,14 @@ function TabBar({
 
     return (
         <View accessibilityRole="tablist" style={styles.tabBar}>
-            {TAB_IDS.map((tab) => {
-                const selected = tab === current;
-
-                return (
-                    <Pressable
-                        key={tab}
-                        accessibilityRole="tab"
-                        accessibilityLabel={labels[tab]}
-                        accessibilityState={{ selected }}
-                        onPress={() => onSelect(tab)}
-                        style={[styles.tab, selected && styles.tabSelected]}
-                    >
-                        <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{labels[tab]}</Text>
-                    </Pressable>
-                );
-            })}
+            {TAB_IDS.map((tab) => (
+                <RecipeSourceTab
+                    key={tab}
+                    label={labels[tab]}
+                    selected={tab === current}
+                    onPress={() => onSelect(tab)}
+                />
+            ))}
         </View>
     );
 }
@@ -271,17 +274,6 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: nativeTokens.borderSubtle,
     },
-    // The recipe tabs are a 44pt touch target (RC-3); the underline sits at the tab's foot.
-    tab: {
-        minHeight: 44,
-        justifyContent: 'center',
-        paddingHorizontal: nativeTokens.spacing[1],
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
-    },
-    tabSelected: { borderBottomColor: palette.seafoam },
-    tabLabel: { fontSize: 15, fontWeight: '500', color: palette.slate },
-    // The selected tab's UNDERLINE stays seafoam (a non-text accent, above); its LABEL is text and takes
-    // `ocean-dark` (see the palette JSDoc in `@commise/ui`).
-    tabLabelSelected: { color: palette['ocean-dark'], fontWeight: '600' },
+    // Each tab's own surface (target, fill, hairline, underline, label colour) belongs to the shared
+    // `RecipeSourceTab` — one definition for this bar, the shared list strip and the web strip.
 });

@@ -4,12 +4,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { derivePreviewBasePath } from './src/lib/basePath';
+import { derivePreviewAllowedOrigins } from './src/lib/serverActionOrigins';
 
 // ⚠️ DELIBERATE — see docs/architecture/decisions/0001-sandbox-front-end-addressing.md
 // Per-PR sandbox previews are served under /pr-{N} at one origin (single Clerk azp). basePath is
 // build-time only, so each PR build bakes its own prefix here. Do NOT drop the prefix derivation
 // or move to per-PR subdomains without reading the ADR.
 const previewBasePath = derivePreviewBasePath(process.env);
+
+// ⚠️ DELIBERATE — see docs/architecture/decisions/0001-sandbox-front-end-addressing.md
+// The sandbox router host-swaps the origin, so behind it the Host this app terminates is the Vercel
+// deployment host while the browser's Origin is the public preview host. Next 15 rejects that mismatch
+// with a 500 on every Server Action; this is the documented reverse-proxy escape hatch. `undefined` in
+// production, which keeps the prod config free of any CSRF allowlist. See serverActionOrigins.ts.
+const previewAllowedOrigins = derivePreviewAllowedOrigins(process.env);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
@@ -45,6 +53,7 @@ const nextConfig: NextConfig = {
     // Standalone server output so the app can run off Vercel (ECS) later; traces the monorepo root.
     output: 'standalone',
     outputFileTracingRoot: repoRoot,
+    ...(previewAllowedOrigins ? { experimental: { serverActions: { allowedOrigins: previewAllowedOrigins } } } : {}),
     ...(previewBasePath ? { basePath: previewBasePath } : {}),
     // Surface the prefix to runtime code (Clerk middleware, base-path helper) — `basePath` is not
     // readable at runtime. Empty string in production.

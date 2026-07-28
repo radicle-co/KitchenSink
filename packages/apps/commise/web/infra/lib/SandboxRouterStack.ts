@@ -88,10 +88,16 @@ export class SandboxRouterStack extends Stack {
                 cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
                 // EXCEPT_HOST_HEADER, not ALL_VIEWER: the function host-swaps the origin to a DIFFERENT
                 // host (the per-PR Vercel deployment), so the origin's own domain must drive the Host
-                // header + TLS SNI. ALL_VIEWER forwards the viewer Host (`sandbox.commise.app`), which
-                // CloudFront then uses as SNI — it won't match the origin's cert (`*.vercel.app`), so the
-                // origin TLS handshake fails and EVERY routed request 502s. Cookies/Authorization (Clerk)
-                // are still forwarded; only Host is dropped. See ADR-0001.
+                // header + TLS SNI. Forwarding the viewer Host fails at Vercel whichever way you slice it
+                // (measured 2026-07-28, ADR-0001): an unregistered host is `404 DEPLOYMENT_NOT_FOUND`, and
+                // a registered host arriving under the deployment's SNI is `403 x-vercel-mitigated: deny`
+                // (anti-domain-fronting). Cookies/Authorization (Clerk) are still forwarded; only Host is
+                // dropped.
+                //
+                // ⚠️ This is why previews are unreachable in a browser: the app's Host is then the Vercel
+                // deployment host, not the public origin, which breaks Clerk's handshake redirect and
+                // Next's Server-Action same-origin check. The fix is NOT ALL_VIEWER — it is to stop
+                // resolving preview hostnames through CloudFront at all. See ADR-0001 "Update (2026-07-28)".
                 originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
                 viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                 allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,

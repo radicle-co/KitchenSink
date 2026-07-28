@@ -1,6 +1,6 @@
 # 0001 — Sandbox front-end addressing: path-based PR routing, not per-PR subdomains
 
-- **Status:** Accepted — _path routing implemented_ (per-PR `basePath` builds + a singleton CloudFront + CloudFront Function (runtime 2.0) + KeyValueStore router that host-swaps `/pr-{N}/*` to each PR's app, with the project-wide Vercel bypass token injected at the edge). The **manifest/static-resource mechanism** and **native mobile** remain deferred. **Revisited 2026-07-12** — a feasibility spike found per-PR **subdomains are viable** after all (see the Update below); migration to subdomains is planned. Path routing stays in place until it lands.
+- **Status:** Accepted, **with an unresolved reachability defect** — see the _Update (2026-07-28)_ below: the router's Host swap makes every subdomain preview unreachable in a browser, and the fix is an infra change (previews resolve to Vercel directly), not a code change. Originally _path routing implemented_ (per-PR `basePath` builds + a singleton CloudFront + CloudFront Function (runtime 2.0) + KeyValueStore router that host-swaps `/pr-{N}/*` to each PR's app, with the project-wide Vercel bypass token injected at the edge). The **manifest/static-resource mechanism** and **native mobile** remain deferred. **Revisited 2026-07-12** — a feasibility spike found per-PR **subdomains are viable** after all (see the Update below); migration to subdomains is planned. Path routing stays in place until it lands.
 - **Date:** 2026-06-14
 - **Area:** sandbox deploy topology · web/mobile serving · Clerk session-token auth
 - **Related:** service-side Clerk session-token verification (PR #39), `.github/workflows/sandbox-deploy.yml`, `.github/workflows/sandbox-identity-deploy.yml`, `packages/services/identity/src/auth/clerk-auth.service.ts`, `packages/services/identity/src/config/env.schema.ts`, the Option B′ spike (`docs/brainstorms/2026-07-10-sandbox-subdomain-azp-spike-requirements.md`, `docs/plans/2026-07-11-001-feat-sandbox-subdomain-azp-spike-plan.md`)
@@ -13,6 +13,50 @@ The trap below rests on one claim: _"Clerk matches `azp` by exact string, so per
 - **The dev instance accepts subdomain origins with no toggle.** Probed live against the sandbox Frontend API (`nice-fowl-6.clerk.accounts.dev`): it reflects **any** `Origin` back in `Access-Control-Allow-Origin` — `sandbox.commise.app`, `pr-9001.sandbox.commise.app`, **and** an unrelated origin — with `allow-credentials: true`. So a sign-in served from a per-PR subdomain is accepted and mints a token with `azp = that subdomain`. Clerk's "allowed subdomains" toggle is **production-instance-only**, but the **dev instance doesn't need it** — it isn't origin-restricted. This is precisely why the regex-`azp` guard is _essential_ on the dev sandbox: the instance trusts any origin, so our backend check is the real trust boundary.
 
 **Recommendation: GO** — migrate sandbox previews to per-PR subdomains, gated by the regex-`azp` predicate. Prod is unaffected (single origin, exact-match). **One empirical confirmation remains:** a real browser sign-in on a live `pr-N.sandbox.commise.app` to decode the minted token and see `azp` literally equal the subdomain (near-certain given the CORS result + Clerk's documented `azp = Origin`). The old "Wildcard / pattern `azp` — not possible" line under _Alternatives_ is corrected below.
+
+## Update (2026-07-28) — the router's Host swap makes every preview unreachable; the cure is to take CloudFront OUT of the preview path
+
+Post-cutover the subdomain previews were **entirely unreachable in a browser**. One root cause, three symptoms, all traced live against `pr-73.sandbox.commise.app`.
+
+**Root cause.** `ALL_VIEWER_EXCEPT_HOST_HEADER` + `updateRequestOrigin({ hostHeader: <deployment host> })` means the Host the Next app terminates is the **per-PR Vercel deployment host**, never the public preview origin. The app's idea of its own host ≠ the browser's origin. `x-forwarded-host` does **not** rescue this: the CFF already sets it (`router.cff.js`), and Vercel overwrites it with the Host it terminates — re-confirmed in the live trace below, so do not re-propose it.
+
+1. **Clerk's handshake leaves our origin and dead-ends at Vercel SSO.** The dev-instance handshake's `redirect_url` is built from the app's host, so it came back as `https://commise-<hash>-radicle-co.vercel.app/en` — the bare deployment host, which **is** SSO-protected (`ssoProtection: all_except_custom_domains`). Every first document request ended at `vercel.com/login`. `/en`, `/en/sign-in` and `/en/recipes` were all dead.
+2. **Every Server Action → 500.** Next 15's Server-Action CSRF check (`isCsrfOriginAllowed`, `next/dist/server/app-render/csrf-protection.js`) rejects `Origin !== Host` **before** it looks the action id up. Isolated to that one variable on the live preview, same URL and same bogus `Next-Action` id: `Origin == Host` → **404** (check passed, no such action); `Origin != Host` → **500**.
+3. **clerk-js failing to load** — a consequence of (1), not a separate defect.
+
+### What the alias experiment PROVED (and refuted)
+
+The proposed cure was: register `pr-{N}.sandbox.commise.app` as a Vercel domain/alias and let Host be the public host. **As stated — keeping CloudFront in front — it is impossible.** Two independent Vercel constraints close it:
+
+- **Cert issuance requires the hostname to resolve to Vercel.** `POST /v7/certs` for `pr-73.sandbox.commise.app` returned `449 http_pretest_domain_not_resolving_to_vercel_error` while the name still resolved to CloudFront, and `POST /v2/deployments/{id}/aliases` refuses with `400 cert_missing` until a cert exists. So you cannot register the alias _and_ keep CloudFront as the name's resolver.
+- **Vercel rejects Host ≠ SNI outright.** Even with the domain registered and aliased, a request to the deployment host (SNI = `*.vercel.app`) carrying `Host: pr-73.sandbox.commise.app` returns **`403` with `x-vercel-mitigated: deny`** (anti-domain-fronting). The same request with matching SNI/Host returns normally. So "keep CloudFront's SNI on the deployment host and only override `hostHeader`" does not work either.
+
+**The variant that DOES work — and it removes machinery.** Point the preview hostname at Vercel directly (Route 53 `CNAME → cname.vercel-dns.com`), let Vercel issue the cert, and alias the hostname to the PR's deployment. Executed live on PR #73 and verified in a real browser:
+
+- Handshake `redirect_url` is now `https://pr-73.sandbox.commise.app/en`; the chain completes `307 → 307 → 307 → 200` and lands on `/en/sign-in` with **clerk-js loaded**.
+- The Server-Action control pair inverts as predicted: `Origin == Host` → 404, `Origin != Host` → 500. Symptom 2 disappears with **no** app change, because Origin and Host are the same host again.
+- **No bypass token is involved.** A registered custom domain is exempt from deployment protection, so the router's `vercel-bypass` KVS key becomes unnecessary for previews — as does the KVS route, the CFF, and the router distribution itself, for the preview path.
+
+**Closes the last open confirmation.** A real browser sign-in on the live `pr-73.sandbox.commise.app` minted a session token whose `azp` is literally `"https://pr-73.sandbox.commise.app"` (`iss = https://nice-fowl-6.clerk.accounts.dev`), and the signed-in Home page rendered. The regex-`azp` guard therefore holds on a real per-PR subdomain; the item "confirm a live sign-in mints `azp` equal to the subdomain" is **done**.
+
+### Was the SNI reframing right? Partly — and the corrected reason is stronger
+
+The historical justification for `ALL_VIEWER_EXCEPT_HOST_HEADER` was "viewer Host → wrong origin TLS SNI → 502". The hypothesis that this was merely a **consequence of the domain not being registered** — i.e. that registering it makes Host pass-through viable — is **refuted for the CloudFront-fronted topology**, because registration is only possible once the name already resolves to Vercel. It is right only in the trivial sense that registration is part of the cure; it is wrong that it makes the _router_ viable.
+
+The keep-`EXCEPT_HOST_HEADER` invariant therefore **stands**, but for a better-evidenced reason: with CloudFront in front, forwarding the viewer Host fails at Vercel regardless of TLS — unregistered → `404 DEPLOYMENT_NOT_FOUND`, registered-but-mismatched-SNI → `403 x-vercel-mitigated: deny`. Do not "fix" the router by switching to `ALL_VIEWER`.
+
+### What remains — an infra action, not a code change
+
+The repo-side change that landed here is `experimental.serverActions.allowedOrigins` (`src/lib/serverActionOrigins.ts` → `next.config.ts`). It fixes symptom 2 only, and is **necessary but not sufficient**: it does nothing for the Clerk handshake, so previews stay unreachable behind the router with it alone. It is a no-op once the topology below lands, and it is the right safety net while the router remains.
+
+Adopting the working topology is an **infra/CI change the repo owner must make**, not something a code change can do:
+
+1. Per PR, create the Route 53 record `pr-{N}.sandbox.commise.app` → `CNAME cname.vercel-dns.com` (more specific than the existing `*.sandbox` alias, so it wins), add the Vercel project domain, issue the cert, and **alias the specific preview deployment** (`POST /v2/deployments/{id}/aliases`) on every build — the workflow already resolves that deployment for the KVS step.
+2. Do **not** use a Vercel _branch domain_ (`gitBranch`) as the auto-alias shortcut. Measured: with `gitBranch` set the domain is treated as a preview URL and deployment protection comes **back** (`302 → vercel.com/sso-api`); with `gitBranch` cleared the domain falls back to the **production** deployment. Only an explicit per-deployment alias gives an unprotected, correct preview.
+3. Teardown on PR close must remove the alias, the Vercel project domain, **and** the Route 53 record — a CNAME left pointing at Vercel after the domain is released is a subdomain-takeover vector.
+4. Once previews no longer resolve through CloudFront, the router distribution/KVS/CFF and the `vercel-bypass` secret are dead weight for the web preview and can be retired.
+
+**Live state left in place (PR #73 only):** the Route 53 CNAME, the Vercel project domain + cert, and an alias pinned to deployment `dpl_CZLpYW9JrqYqYJYPftELYuL26E4M`. The preview works today; because nothing re-points it, the **next push to the branch will leave it serving that pinned build** until the alias is re-assigned.
 
 ## ⚠️ Before you change this — the trap
 

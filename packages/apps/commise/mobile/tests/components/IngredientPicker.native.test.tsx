@@ -20,6 +20,8 @@ import {
 import type { IngredientCatalogAvailability, IngredientSuggestion } from '@kitchensink/recipe-service-client';
 
 import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '@commise/features-recipes/hooks';
+import { compositeOver, computedContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
 
 import { IngredientPicker } from '../../src/components/IngredientPicker.js';
 import { makeIngredient } from '../__fixtures__/recipes.js';
@@ -659,5 +661,48 @@ describe('IngredientPicker — search Stage 2 (blended food-catalog suggestions)
             expect(screen.getByRole('button', { name: 'Find nutrition for “zzz”' })).toBeTruthy();
             expect(screen.getByRole('button', { name: 'Create “zzz”' })).toBeTruthy();
         });
+    });
+});
+
+/**
+ * WCAG 2.1 AA text contrast (SC 1.4.3) for the picker's two seafoam-on-tint labels — the provenance badge and
+ * the freeform fallback action. Both are read against the tint their own wrapper actually paints (read off the
+ * DOM, not restated), composited over the card's white. The tints, the pills and the filled primary action are
+ * non-text accents and stay as they are; see the palette JSDoc in `@commise/ui` for the rule.
+ */
+describe('IngredientPicker — tinted labels stay WCAG-AA legible', () => {
+    /** The opaque colour behind a label: its wrapper's own tint, flattened onto the card's white. */
+    function surfaceBehind(label: Element): string {
+        const tint = window.getComputedStyle(label.parentElement as Element).backgroundColor;
+
+        return compositeOver(tint, palette.white);
+    }
+
+    it('keeps the badge label legible over the badge tint', () => {
+        render(<IngredientPicker onResolve={vi.fn()} />);
+
+        // `badgeLabel` is the ONE style both badges share — the search box's "USDA database" pill and each
+        // catalog row's "USDA" provenance pill — so a token change here moves both. Seafoam scored 3.66:1 on
+        // this tint, under the 4.5:1 body floor.
+        const badge = screen.getByText('USDA database');
+
+        expect(computedContrast(badge, { surface: surfaceBehind(badge) }), 'USDA badge label').toBeGreaterThanOrEqual(
+            4.5,
+        );
+    });
+
+    it('keeps the freeform fallback action’s label legible over its tint', () => {
+        useSuggestIngredientsMock.mockReturnValue(searchResult([]));
+
+        render(<IngredientPicker onResolve={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Search ingredients'), { target: { value: 'zzz' } });
+        settleDebounce();
+
+        const label = screen.getByText('Create “zzz”');
+
+        expect(
+            computedContrast(label, { surface: surfaceBehind(label) }),
+            'freeform fallback action label',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });

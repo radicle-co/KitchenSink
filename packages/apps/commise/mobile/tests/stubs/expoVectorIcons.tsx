@@ -10,6 +10,10 @@
  * gradient stub already uses): glyphs stay invisible and contribute nothing to any accessible name, but a
  * suite can assert that a control renders its intended glyph — which a `null` stub made impossible, and
  * which is how icon-less chrome passed its tests. Real glyph rendering stays a device/Maestro concern.
+ *
+ * The requested `color` is republished the same way, for the same reason: a glyph's colour arrives as a PROP,
+ * not a style, so there is no computed colour to read back off the DOM — and without the marker an icon that
+ * shares a control's colour decision with its label (an active tab, say) could silently drift away from it.
  */
 import type { FC } from 'react';
 import { View, type ViewProps } from 'react-native';
@@ -17,9 +21,15 @@ import { View, type ViewProps } from 'react-native';
 /** `dataSet` is a react-native-web runtime prop (→ DOM `data-*`) absent from react-native's `ViewProps`. */
 const MarkedView = View as unknown as FC<ViewProps & { readonly dataSet?: Record<string, string | undefined> }>;
 
-/** A stand-in icon: an empty marked View carrying the requested glyph name. */
-const IconStub: FC<Record<string, unknown>> = ({ name }) => (
-    <MarkedView dataSet={{ commiseStub: 'icon', iconName: typeof name === 'string' ? name : undefined }} />
+/** A stand-in icon: an empty marked View carrying the requested glyph name and colour. */
+const IconStub: FC<Record<string, unknown>> = ({ name, color }) => (
+    <MarkedView
+        dataSet={{
+            commiseStub: 'icon',
+            iconName: typeof name === 'string' ? name : undefined,
+            iconColor: typeof color === 'string' ? color : undefined,
+        }}
+    />
 );
 
 /** Icon-set factories return the same stand-in component. */

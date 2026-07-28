@@ -121,7 +121,10 @@ export function HomeSidebar({
                             aria-current={isActive ? 'page' : undefined}
                             className={`flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 transition-colors ${
                                 isActive
-                                    ? 'border-l-[3px] border-seafoam bg-gradient-to-r from-seafoam/[0.12] to-seafoam/[0.08] text-seafoam'
+                                    ? // The rail, the gradient pill and the glyph tint stay seafoam — non-text
+                                      // accents. The FOREGROUND is `ocean-dark`, because this class colours the
+                                      // visible label too (see the palette JSDoc in `@commise/ui`).
+                                      'border-l-[3px] border-seafoam bg-gradient-to-r from-seafoam/[0.12] to-seafoam/[0.08] text-ocean-dark'
                                     : 'text-slate hover:bg-white/10 hover:text-charcoal'
                             }`}
                         >

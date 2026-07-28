@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
+import { utilityContrast } from '@commise/test-utils';
 
 import { webMessages } from '@/i18n/messages';
 
@@ -40,6 +41,19 @@ describe('HomeTabBar', () => {
 
         const home = screen.getByRole('link', { name: chrome.destinations.home });
         expect(home.getAttribute('aria-current')).toBe('page');
+    });
+
+    it('keeps BOTH the active and the inactive tab label WCAG-AA legible', () => {
+        renderTabBar();
+
+        // The tab's colour class sits on the link and its `text-xs` label span INHERITS it, so the tab colour
+        // is the colour of real text. Seafoam is 4.02:1 on the bar — under the 4.5:1 body floor — while the
+        // inactive slate already clears it; both are asserted so a fix cannot land on the wrong branch.
+        const active = screen.getByRole('link', { name: chrome.destinations.home });
+        const inactive = screen.getByRole('link', { name: chrome.destinations.recipes });
+
+        expect(utilityContrast(active.className), 'active tab label').toBeGreaterThanOrEqual(4.5);
+        expect(utilityContrast(inactive.className), 'inactive tab label').toBeGreaterThanOrEqual(4.5);
     });
 
     it('reserves the device home-indicator inset (safe-area) at the foot without touching desktop', () => {

@@ -32,7 +32,7 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '@commise/features-recipes/hooks';
-import { renderWithRecipeClient } from '@commise/test-utils';
+import { renderWithRecipeClient, utilityContrast } from '@commise/test-utils';
 
 import { IngredientPicker } from '@/components/recipes/IngredientPicker';
 
@@ -972,5 +972,97 @@ describe('IngredientPicker — every live region carries its label as VISIBLE co
         await user.click(await screen.findByRole('button', { name: /Chicken thigh, cooked/ }));
 
         expectSpokenStatus(await screen.findByRole('status', { name: 'Resolving ingredient' }), 'Resolving ingredient');
+    });
+});
+
+/**
+ * WCAG 2.1 AA text contrast (SC 1.4.3) for the picker's seafoam-tinted controls. Four separate class strings
+ * in this component paint text on a seafoam tint, and each is asserted on its own so a fix that reaches one
+ * literal and misses another still fails. Hover is measured wherever the control deepens its tint: a chip that
+ * clears the floor at rest and drops under it on hover is still inaccessible (seafoam over `/10` is 3.57:1 and
+ * over `/20` is 3.18:1). The badges' pills, tints and the focus ring stay seafoam — non-text accents clear the
+ * 3:1 SC 1.4.11 floor. See the palette JSDoc in `@commise/ui` for the one authoritative statement of the rule.
+ */
+describe('IngredientPicker — seafoam-tinted controls stay WCAG-AA legible', () => {
+    /** Type a query long enough to clear the REQ-057 trigger and settle the debounced search. */
+    async function search(user: ReturnType<typeof userEvent.setup>, query = 'chick'): Promise<void> {
+        await user.type(screen.getByRole('searchbox', { name: 'Search ingredients' }), query);
+    }
+
+    it('keeps the "USDA database" badge beside the search box legible over its own tint', () => {
+        const client = createFakeRecipeServiceClient();
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+
+        expect(
+            utilityContrast(screen.getByText('USDA database').className),
+            'USDA-database badge beside the search box',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the food-catalog provenance badge on a catalog row legible over its own tint', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended([fromCatalog('01J0FOOD', 'Chicken breast, raw')]),
+        );
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await search(user);
+
+        const catalogSection = await screen.findByRole('region', { name: 'Food catalog' });
+
+        expect(
+            utilityContrast(within(catalogSection).getByText('USDA').className),
+            'catalog-provenance badge',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the freeform fallback action legible AT REST AND ON HOVER (results branch)', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(blended([]));
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await search(user, 'zzz');
+
+        const freeform = await screen.findByRole('button', { name: 'Add “zzz” as a custom ingredient' });
+
+        expect(utilityContrast(freeform.className), 'freeform fallback at rest').toBeGreaterThanOrEqual(4.5);
+        expect(
+            utilityContrast(freeform.className, { variant: 'hover' }),
+            'freeform fallback on hover (the tint deepens to /20)',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the DISAMBIGUATION panel’s freeform fallback legible AT REST AND ON HOVER', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'suggestIngredients').mockResolvedValue(
+            blended(
+                own([
+                    makeIngredient({
+                        id: 'ing_u',
+                        name: 'Quinoa',
+                        foodResolutionStatus: FoodResolutionStatus.UNRESOLVED,
+                    }),
+                ]),
+            ),
+        );
+        vi.spyOn(client, 'getIngredientCandidates').mockResolvedValue([]);
+
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, client);
+        await search(user, 'quin');
+        await user.click(await screen.findByRole('button', { name: 'Quinoa' }));
+
+        // A SECOND literal class string, in the disambiguation panel — measured separately from the results
+        // branch's copy above, so fixing only one of them cannot pass.
+        const freeform = await screen.findByRole('button', { name: 'Add “Quinoa” as a custom ingredient' });
+
+        expect(utilityContrast(freeform.className), 'disambiguation freeform at rest').toBeGreaterThanOrEqual(4.5);
+        expect(
+            utilityContrast(freeform.className, { variant: 'hover' }),
+            'disambiguation freeform on hover (the tint deepens to /20)',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });

@@ -78,7 +78,9 @@ const BackToRecipeLink: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
         <button
             type="button"
             onClick={onBack}
-            className="self-start rounded-full px-4 py-1.5 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/10"
+            // `ocean-dark` foreground over a seafoam hover tint: the label is text a reader reads, the tint is a
+            // non-text accent (see the palette JSDoc in `@commise/ui`).
+            className="self-start rounded-full px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/10"
         >
             {versionList.backToRecipe}
         </button>

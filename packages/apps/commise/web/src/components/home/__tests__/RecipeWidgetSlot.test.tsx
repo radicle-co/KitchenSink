@@ -47,7 +47,7 @@ import type { Recipe } from '@kitchensink/recipe-core';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 
-import { renderWithProviders } from '@commise/test-utils';
+import { renderWithProviders, utilityContrast } from '@commise/test-utils';
 
 import { RecipeWidgetSlot } from '../RecipeWidgetSlot';
 
@@ -155,6 +155,17 @@ describe('RecipeWidgetSlot (web)', () => {
 
         const link = screen.getByRole('link', { name: 'See all recipes' });
         expect(link.getAttribute('href')).toContain('/recipes');
+    });
+
+    it('keeps the "see all recipes" link WCAG-AA legible on the Home surface', async () => {
+        await renderResolved(clientReturning(() => Promise.resolve([])));
+
+        // The slot's only navigation affordance is bare text on the Home surface — no tint of its own — so
+        // the ratio is the token against the surface: seafoam scored 4.02:1, under the 4.5:1 body-text floor
+        // (SC 1.4.3). See the palette JSDoc in `@commise/ui` for when seafoam IS still the right token.
+        const link = screen.getByRole('link', { name: 'See all recipes' });
+
+        expect(utilityContrast(link.className), '“See all recipes” link').toBeGreaterThanOrEqual(4.5);
     });
 
     it('lays the recent recipes out as the mockup card grid (2-up, 4-up from md)', async () => {

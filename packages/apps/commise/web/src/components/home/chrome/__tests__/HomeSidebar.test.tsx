@@ -11,6 +11,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
+import { compositeOver, utilityContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
 
 import { webMessages } from '@/i18n/messages';
 
@@ -56,6 +58,30 @@ describe('HomeSidebar', () => {
         renderSidebar({ activeId: 'home' });
 
         expect(screen.getByRole('link', { name: 'Home' }).getAttribute('aria-current')).toBe('page');
+    });
+
+    it('keeps the ACTIVE destination’s label WCAG-AA legible over BOTH stops of its gradient pill', () => {
+        renderSidebar({ activeId: 'home' });
+
+        const active = screen.getByRole('link', { name: 'Home' });
+
+        // The active pill's background is an arbitrary-value GRADIENT, which is not one `bg-*` utility a class
+        // reader can resolve — so it is measured STOP BY STOP, each stop composited over the surface, and both
+        // asserted (the darker 0.12 end is the worse case at 3.49:1, the 0.08 end 3.67:1 — both under the
+        // 4.5:1 body floor for seafoam). The class colours the icon AND the visible label span, and the label
+        // is text a reader reads, so it takes `ocean-dark`; the `border-seafoam` rail and the gradient itself
+        // are non-text accents and stay (see the palette JSDoc in `@commise/ui`).
+        expect(active.className, 'the measured stops must still be the ones the pill paints').toContain(
+            'from-seafoam/[0.12] to-seafoam/[0.08]',
+        );
+        expect(
+            utilityContrast(active.className, { surface: compositeOver(`${palette.seafoam}1f`, palette.white) }),
+            'active nav item over the 0.12 gradient stop',
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+            utilityContrast(active.className, { surface: compositeOver(`${palette.seafoam}14`, palette.white) }),
+            'active nav item over the 0.08 gradient stop',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 
     it('renders gated destinations as non-interactive "coming soon" controls, NOT links', () => {

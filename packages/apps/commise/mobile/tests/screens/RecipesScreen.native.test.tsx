@@ -6,8 +6,10 @@
  * covered by each screen's own test), so the hooks are mocked only enough to render each destination.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
+import { computedContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
 import {
     useCloneRecipe,
     useCollectionsInfinite,
@@ -186,6 +188,18 @@ describe('RecipesScreen — navigation', () => {
         fireEvent.click(screen.getByRole('tab', { name: 'Discover' }));
 
         expect(screen.getByRole('heading', { name: 'Discover recipes' })).toBeTruthy();
+    });
+
+    it('keeps the SELECTED tab’s label WCAG-AA legible on the screen’s sand background', () => {
+        render(<RecipesScreen />);
+
+        // The tab bar paints no background of its own, so the selected label sits on the screen container's
+        // `sand`: seafoam scored 3.73:1 there, under the 4.5:1 body floor (SC 1.4.3). The selected tab's
+        // `borderBottomColor` underline is a non-text accent and stays seafoam — see the palette JSDoc in
+        // `@commise/ui`.
+        const label = within(screen.getByRole('tab', { name: 'My recipes' })).getByText('My recipes');
+
+        expect(computedContrast(label, { surface: palette.sand }), 'selected tab label').toBeGreaterThanOrEqual(4.5);
     });
 
     it('gives the top-level tabs a 44pt touch target (U4 / RC-3)', () => {

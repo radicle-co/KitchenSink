@@ -10,6 +10,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
+import { computedContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
 import { NotFoundError } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
@@ -163,6 +165,18 @@ describe('RecipeDetailScreen — ready state', () => {
 
         rerender(<RecipeDetailScreen recipeId="rec_1" />);
         expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
+    });
+
+    it('keeps the back affordance’s label WCAG-AA legible on the screen’s sand background', () => {
+        useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ title: 'Weeknight Pasta' }) }));
+
+        render(<RecipeDetailScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        // A bare text control on the screen container's `sand` background: seafoam scored 3.73:1 there, under
+        // the 4.5:1 body floor (SC 1.4.3). Web's equivalent back control takes the same token (§14).
+        const label = within(screen.getByRole('button', { name: 'Back' })).getByText('Back');
+
+        expect(computedContrast(label, { surface: palette.sand }), 'back control label').toBeGreaterThanOrEqual(4.5);
     });
 
     it('hides owner actions (including the More menu) from a non-owner', () => {

@@ -79,7 +79,9 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId }: HomeT
                         href={href ?? (`/${locale}` as never)}
                         aria-current={isActive ? 'page' : undefined}
                         className={`flex flex-1 flex-col items-center gap-1 py-2 ${
-                            isActive ? 'text-seafoam' : 'text-slate'
+                            // The active colour reaches the `text-xs` LABEL as well as the glyph, so it must be a
+                            // text-grade token: `ocean-dark` (see the palette JSDoc in `@commise/ui`).
+                            isActive ? 'text-ocean-dark' : 'text-slate'
                         }`}
                     >
                         <HomeIcon name={item.id} className="size-6" />

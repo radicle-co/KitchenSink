@@ -9,7 +9,8 @@ import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import { HOME_NAV_ITEMS } from '@commise/features-core';
-import { renderWithProviders } from '@commise/test-utils';
+import { compositeOver, computedContrast, contrastRatio, renderWithProviders } from '@commise/test-utils';
+import { palette } from '@commise/ui';
 
 import { HomeTabBar } from '../../../src/components/home/chrome/HomeTabBar.js';
 import { NAV_ICONS } from '../../../src/components/home/chrome/icons.js';
@@ -113,6 +114,41 @@ describe('HomeTabBar (mobile)', () => {
         // …and the names stay exactly the label (gated tabs keep their "coming soon" suffix).
         expect(screen.getByRole('tab', { name: 'Recipes' })).toBeTruthy();
         expect(screen.getByRole('tab', { name: `Grocery, ${chrome.comingSoonSuffix}` })).toBeTruthy();
+    });
+
+    /**
+     * The bar's own translucent glass over the Home screen's `sand` background — the opaque colour a reader
+     * actually sees behind a tab label. Read from the rendered bar rather than restated, so re-tinting the
+     * glass moves the measurement instead of quietly invalidating it.
+     */
+    const barSurface = (): string =>
+        compositeOver(window.getComputedStyle(screen.getByRole('tablist')).backgroundColor, palette.sand);
+
+    it('keeps the ACTIVE tab’s label WCAG-AA legible over the bar’s glass', () => {
+        renderTabBar({ activeId: 'recipes' });
+
+        // The selected label is real text a reader reads; seafoam is 3.99:1 on this glass, under the 4.5:1
+        // body floor (SC 1.4.3). The web tab bar takes the same treatment — cross-platform parity (§14).
+        const label = within(screen.getByRole('tab', { name: 'Recipes' })).getByText('Recipes');
+
+        expect(computedContrast(label, { surface: barSurface() }), 'active tab label').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the ACTIVE tab’s GLYPH on the same colour decision as its label', () => {
+        renderTabBar({ activeId: 'recipes' });
+
+        // The glyph's colour arrives as a PROP, so there is no computed colour to read — the stub republishes
+        // it as `data-icon-color`. It shares the active tab with the label, so it must share the label's
+        // colour: an icon left on seafoam next to an `ocean-dark` label paints one control in two greens.
+        const glyph = screen.getByRole('tab', { name: 'Recipes' }).querySelector('[data-commise-stub="icon"]');
+
+        expect(glyph?.getAttribute('data-icon-color'), 'active tab glyph colour').toBe(palette['ocean-dark']);
+        // …and the token it lands on clears the floor, so the assertion above stays a contrast claim rather
+        // than a spelling check.
+        expect(
+            contrastRatio(palette['ocean-dark'], barSurface()),
+            'ocean-dark on the bar glass',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 
     it('renders the "coming soon" label in slate (AA), not the 1.9:1 mist (U4)', () => {

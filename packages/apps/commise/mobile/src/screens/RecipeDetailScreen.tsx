@@ -301,7 +301,8 @@ const styles = StyleSheet.create({
     content: { paddingBottom: 120 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     backButton: { alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 16 },
-    backLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 15 },
+    // `ocean-dark`, not `seafoam`: this is text a reader reads (see the palette JSDoc in `@commise/ui`).
+    backLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 15 },
     ownerActions: { gap: 12, paddingHorizontal: 16, paddingBottom: 24 },
     // `[Edit] [More]` (C4 wireframe parity): Edit and the More trigger sit side by side as the header's
     // primary + overflow controls. The action surfaces themselves belong to the DS `Button` (U8) — this row

@@ -281,5 +281,7 @@ const styles = StyleSheet.create({
     },
     tabSelected: { borderBottomColor: palette.seafoam },
     tabLabel: { fontSize: 15, fontWeight: '500', color: palette.slate },
-    tabLabelSelected: { color: palette.seafoam, fontWeight: '600' },
+    // The selected tab's UNDERLINE stays seafoam (a non-text accent, above); its LABEL is text and takes
+    // `ocean-dark` (see the palette JSDoc in `@commise/ui`).
+    tabLabelSelected: { color: palette['ocean-dark'], fontWeight: '600' },
 });

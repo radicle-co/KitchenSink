@@ -143,7 +143,10 @@ export function HomeMobileNav({
                                     onClick={onClose}
                                     className={`flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 transition-colors ${
                                         isActive
-                                            ? 'bg-gradient-to-r from-seafoam/[0.12] to-seafoam/[0.08] text-seafoam'
+                                            ? // The gradient pill stays seafoam (a non-text accent); the
+                                              // FOREGROUND — which colours the visible label — is `ocean-dark`
+                                              // (see the palette JSDoc in `@commise/ui`).
+                                              'bg-gradient-to-r from-seafoam/[0.12] to-seafoam/[0.08] text-ocean-dark'
                                             : 'text-slate hover:bg-white/40 hover:text-charcoal'
                                     }`}
                                 >

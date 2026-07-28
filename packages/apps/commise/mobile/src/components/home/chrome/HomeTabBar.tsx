@@ -94,7 +94,9 @@ export function HomeTabBar({
                     >
                         <ChromeIcon
                             name={NAV_ICONS[item.id]}
-                            color={selected ? palette.seafoam : palette.slate}
+                            // The glyph shares the active tab with its LABEL, so it shares the label's
+                            // text-grade colour rather than drifting to a second green.
+                            color={selected ? palette['ocean-dark'] : palette.slate}
                             size={TAB_ICON_SIZE}
                         />
                         <Text style={selected ? styles.labelActive : styles.label}>{label}</Text>
@@ -127,7 +129,9 @@ const styles = StyleSheet.create({
         gap: nativeTokens.spacing[1],
     },
     label: { fontSize: nativeTokens.fontSize.caption, color: palette.slate },
-    labelActive: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600', color: palette.seafoam },
+    // The selected label is real text, and seafoam is 3.99:1 on the bar's glass — under the 4.5:1 body floor.
+    // `ocean-dark` keeps the hue and clears it (see the palette JSDoc in `@commise/ui`).
+    labelActive: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600', color: palette['ocean-dark'] },
     // Contrast (U4 / WCAG AA): the "coming soon" label is real text — mist is 1.9:1, slate is 5:1. The
     // non-interactivity (a View, not a Pressable) and the "…, coming soon" accessible name carry the disabled
     // meaning, not a sub-legible colour.

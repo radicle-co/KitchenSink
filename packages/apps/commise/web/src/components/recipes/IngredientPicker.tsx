@@ -110,7 +110,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
             >
                 {suggestion.name}
             </button>
-            <span className="shrink-0 rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-seafoam">
+            <span className="shrink-0 rounded-full bg-seafoam/10 px-2 py-0.5 text-caption font-medium text-ocean-dark">
                 {picker.catalogBadge}
             </span>
         </li>
@@ -202,7 +202,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                     onClick={addFreeform}
                     disabled={createStatus.isPending}
                     aria-busy={createStatus.isPending}
-                    className="rounded-full bg-seafoam/10 px-4 py-1.5 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/20 disabled:opacity-60"
+                    className="rounded-full bg-seafoam/10 px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/20 disabled:opacity-60"
                 >
                     {fillTemplate(picker.addFreeform, { query: trimmed })}
                 </button>
@@ -239,7 +239,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                         className="w-full flex-1 rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
                     />
                     {/* C5: names the ingredient database the typeahead searches (wireframe recipe-edit.md:56). */}
-                    <span className="shrink-0 whitespace-nowrap rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-seafoam">
+                    <span className="shrink-0 whitespace-nowrap rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-ocean-dark">
                         {picker.usdaBadge}
                     </span>
                 </div>
@@ -323,7 +323,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                             onClick={addFreeform}
                             disabled={createStatus.isPending}
                             aria-busy={createStatus.isPending}
-                            className="rounded-full bg-seafoam/10 px-4 py-1.5 text-body-sm font-medium text-seafoam transition hover:bg-seafoam/20 disabled:opacity-60"
+                            className="rounded-full bg-seafoam/10 px-4 py-1.5 text-body-sm font-medium text-ocean-dark transition hover:bg-seafoam/20 disabled:opacity-60"
                         >
                             {fillTemplate(picker.addFreeform, { query: viewState.name })}
                         </button>

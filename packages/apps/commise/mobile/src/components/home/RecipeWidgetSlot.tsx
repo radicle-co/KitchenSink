@@ -132,5 +132,6 @@ export function RecipeWidgetSlot({
 const styles = StyleSheet.create({
     slot: { gap: 8 },
     seeAll: { alignSelf: 'flex-end', paddingVertical: 4 },
-    seeAllLabel: { fontSize: 14, fontWeight: '600', color: palette.seafoam },
+    // `ocean-dark`, not `seafoam`: this is text a reader reads (see the palette JSDoc in `@commise/ui`).
+    seeAllLabel: { fontSize: 14, fontWeight: '600', color: palette['ocean-dark'] },
 });

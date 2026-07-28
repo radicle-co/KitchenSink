@@ -440,7 +440,9 @@ const styles = StyleSheet.create({
         paddingVertical: 2,
         paddingHorizontal: 8,
     },
-    badgeLabel: { fontSize: 11, fontWeight: '600', color: palette.seafoam },
+    // Text on a tint: `ocean-dark`, not `seafoam` (see the palette JSDoc in `@commise/ui`). The pill's own
+    // tint is a non-text accent and stays.
+    badgeLabel: { fontSize: 11, fontWeight: '600', color: palette['ocean-dark'] },
     list: { borderRadius: 10, borderWidth: 1, borderColor: border, overflow: 'hidden' },
     row: {
         flexDirection: 'row',
@@ -466,7 +468,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 16,
     },
-    fallbackActionLabel: { fontSize: 14, fontWeight: '500', color: palette.seafoam },
+    fallbackActionLabel: { fontSize: 14, fontWeight: '500', color: palette['ocean-dark'] },
     ghostAction: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16 },
     ghostActionLabel: { fontSize: 14, fontWeight: '500', color: palette.slate },
     actionDisabled: { opacity: 0.6 },

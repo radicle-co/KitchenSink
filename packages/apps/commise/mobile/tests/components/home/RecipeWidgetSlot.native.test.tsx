@@ -6,9 +6,10 @@
  * list when populated, and the empty state when the viewer has none — plus the "see all recipes" entry.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 
-import { renderWithProviders } from '@commise/test-utils';
+import { computedContrast, renderWithProviders } from '@commise/test-utils';
+import { palette } from '@commise/ui';
 import { useRecipes } from '@kitchensink/recipe-service-client/hooks';
 
 import { RecipeWidgetSlot } from '../../../src/components/home/RecipeWidgetSlot.js';
@@ -90,6 +91,23 @@ describe('RecipeWidgetSlot (mobile)', () => {
         fireEvent.click(entry);
 
         expect(onSeeAllRecipes).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the "see all recipes" label WCAG-AA legible on the Home surface', async () => {
+        useRecipesMock.mockReturnValue(listResult({ data: makeRecipePage([]) }));
+
+        renderSlot();
+
+        // Bare text on the Home screen's `sand` background — no tint of its own — so the ratio is the token
+        // against that surface: seafoam scored 3.73:1, under the 4.5:1 body floor (SC 1.4.3). Mirrors the web
+        // slot's link, which is the same control on the other platform (§14).
+        const label = within(await screen.findByRole('button', { name: 'See all recipes' })).getByText(
+            'See all recipes',
+        );
+
+        expect(computedContrast(label, { surface: palette.sand }), '“See all recipes” label').toBeGreaterThanOrEqual(
+            4.5,
+        );
     });
 });
 

@@ -72,6 +72,73 @@ describe('HomeTopBar (mobile)', () => {
     });
 });
 
+/**
+ * The avatar's GEOMETRY, in pixels.
+ *
+ * Web collapsed the hit area and the painted disc into ONE box and then floored it to the 44pt touch
+ * minimum — and both CSS and Yoga resolve a used length as `max(min-size, size)`, so the 32pt disc painted at
+ * 44pt and all but filled the 56pt bar. Native already separates `avatarTouch` (44) from `avatar` (32), so
+ * this suite is the pin that keeps the two platforms from drifting back apart on the geometry the mockup
+ * (`screen-home`: `p-2` wrapper around a `w-8 h-8` disc) specifies.
+ */
+describe('HomeTopBar (mobile) — avatar geometry', () => {
+    /** The mockup's avatar disc (`w-8 h-8`), and the web bar's `size-8`. */
+    const AVATAR_DIAMETER_PX = 32;
+
+    /** The breathing room the disc must leave above AND below itself inside the bar. */
+    const MIN_BREATHING_PX = 8;
+
+    /**
+     * The length Yoga/CSS would USE for an axis — `max(min-size, size)`.
+     *
+     * @param style - The element's computed style.
+     * @param axis - Which axis to resolve.
+     * @returns The used length in px.
+     */
+    const usedPx = (style: CSSStyleDeclaration, axis: 'width' | 'height'): number => {
+        const size = Number.parseFloat(style[axis]);
+        const floor = Number.parseFloat(axis === 'width' ? style.minWidth : style.minHeight);
+
+        return Math.max(Number.isFinite(size) ? size : 0, Number.isFinite(floor) ? floor : 0);
+    };
+
+    /**
+     * The painted disc: the avatar `View` inside the 44pt `Pressable` hit box.
+     *
+     * @returns The painted element.
+     */
+    const paintedDisc = (): Element => {
+        const disc = screen.getByRole('button', { name: chrome.account }).firstElementChild;
+
+        expect(disc, 'the account control paints no inner disc').not.toBeNull();
+
+        return disc as Element;
+    };
+
+    it('paints a 32pt disc inside the 44pt hit box — the touch floor stays OFF the painted box', () => {
+        renderTopBar({ displayName: 'Jane Doe' });
+
+        const disc = window.getComputedStyle(paintedDisc());
+
+        expect(usedPx(disc, 'height')).toBe(AVATAR_DIAMETER_PX);
+        expect(usedPx(disc, 'width')).toBe(AVATAR_DIAMETER_PX);
+    });
+
+    it('fits inside the 56pt bar with breathing room above and below', () => {
+        renderTopBar({ displayName: 'Jane Doe' });
+
+        // The title `Text` is a direct child of the bar `View`, so its parent IS the bar.
+        const bar = screen.getByText(chrome.pageTitle).parentElement;
+        expect(bar, 'the title is not a child of the bar').not.toBeNull();
+
+        const barHeightPx = Number.parseFloat(window.getComputedStyle(bar as Element).height);
+        const discHeightPx = usedPx(window.getComputedStyle(paintedDisc()), 'height');
+
+        expect(barHeightPx).toBe(56);
+        expect(barHeightPx - discHeightPx).toBeGreaterThanOrEqual(2 * MIN_BREATHING_PX);
+    });
+});
+
 describe('HomeTopBar (mobile) — search + notifications affordances (mockup parity)', () => {
     /** The affordance and the glyph the mockup pairs it with. */
     const affordances = [

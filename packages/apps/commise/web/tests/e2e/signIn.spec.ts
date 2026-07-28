@@ -22,12 +22,38 @@ test.describe('sign-in flow', () => {
         await page.getByRole('textbox', { name: /email/i }).fill(TEST_USER_EMAIL);
         await page.getByRole('button', { name: 'Continue' }).click();
         await page.getByRole('textbox', { name: 'Password' }).fill(TEST_USER_PASSWORD);
+
+        // This instance verifies a new device with an email code — `+clerk_test` accepts 424242. Clerk SENDS
+        // that code with a `prepare_*` POST against the sign-in attempt, and submitting the digits before it
+        // resolves lands on "You need to send a verification code before attempting to verify." — the form
+        // then never advances. That is the exact CI failure, read off the saved page snapshot; the previous
+        // barrier (`waitForLoadState('networkidle')`) settles too early on a slow runner. Arm the waiter
+        // BEFORE the click that triggers the send. `.catch()` because a Clerk endpoint rename must degrade to
+        // the recovery below rather than fail the suite outright.
+        const codeSent = page
+            .waitForResponse(
+                (response) => /\/v1\/client\/sign_ins\/[^/]+\/prepare_/.test(response.url()) && response.ok(),
+                { timeout: 30_000 },
+            )
+            .catch(() => undefined);
+
         await page.getByRole('button', { name: 'Continue' }).click();
-        // This instance verifies a new device with an email code — `+clerk_test` accepts 424242. The
-        // OTP auto-submits on the 6th digit, so wait for the async "prepare" (send) to settle first.
         await expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible({ timeout: 15_000 });
-        await page.waitForLoadState('networkidle');
+        await codeSent;
         await page.getByRole('textbox', { name: /verification code/i }).fill('424242');
+
+        // Recovery for the same race, keyed on Clerk's own words: if the digits still went in too early,
+        // re-send and re-enter rather than waiting out the poll. Clerk disables Resend for a short cooldown
+        // after each send, so wait for it to become enabled instead of clicking blind.
+        const notPrepared = page.getByText(/need to send a verification code/i);
+
+        if (await notPrepared.isVisible().catch(() => false)) {
+            const resend = page.getByRole('button', { name: /resend/i });
+
+            await expect(resend).toBeEnabled({ timeout: 60_000 });
+            await resend.click();
+            await page.getByRole('textbox', { name: /verification code/i }).fill('424242');
+        }
 
         // Do NOT rely on the auto-submit alone. It fires from a change handler on the 6th digit, and when it
         // does not fire the test just sat here until the poll expired — the failure mode seen intermittently

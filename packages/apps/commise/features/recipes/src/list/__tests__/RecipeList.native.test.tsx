@@ -39,6 +39,18 @@ const threeRecipes = [
 ];
 
 describe('RecipeList (native) — chrome', () => {
+    it('draws the FAB glyph as an icon, never a baseline-positioned "+" character', () => {
+        // Native mirrored web's defect AND compounded it: `fabLabel` hard-coded `lineHeight: 32` under a
+        // `displayMd` (28) font — off-token leading that iOS applies as extra leading and Android pairs with
+        // `includeFontPadding`. The icon stub renders null here, so the falsifiable assertion is the ABSENCE
+        // of the text glyph: a "+" character in the FAB is exactly the defect.
+        renderList({ status: 'loading' });
+
+        const fab = screen.getByRole('button', { name: 'New recipe' });
+
+        expect(within(fab).queryByText('+')).toBeNull();
+    });
+
     it('always renders the heading, search field, and create action', () => {
         renderList({ status: 'loading' });
 

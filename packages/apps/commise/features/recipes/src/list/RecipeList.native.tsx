@@ -10,6 +10,7 @@
  * (`nativeTokens`) with 44pt touch targets on the source tabs.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { Feather } from '@expo/vector-icons';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { GradientSurface } from '@commise/ui/surface';
@@ -208,7 +209,10 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                     onPress={onCreateRecipe}
                     style={styles.fab}
                 >
-                    <Text style={styles.fabLabel}>+</Text>
+                    {/* An icon, not a "+" character: flex centres the line box but ink is placed by the baseline, so the
+                        glyph painted low — and `fabLabel` compounded it with an off-token `lineHeight: 32` under a 28px
+                        font, which iOS applies as extra leading and Android pairs with `includeFontPadding`. */}
+                    <Feather name="plus" size={24} color={palette.white} />
                 </Pressable>
             )}
         </View>
@@ -290,7 +294,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         elevation: 4,
     },
-    fabLabel: { color: palette.white, fontSize: nativeTokens.fontSize.displayMd, fontWeight: '700', lineHeight: 32 },
     search: {
         backgroundColor: palette.white,
         borderRadius: nativeTokens.radius.full,

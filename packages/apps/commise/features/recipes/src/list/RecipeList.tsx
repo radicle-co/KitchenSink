@@ -10,6 +10,7 @@ import { GradientSurface } from '@commise/ui/surface';
 import type { FC, ReactElement } from 'react';
 
 import { RecipeCardGridSkeleton } from '../card/RecipeCardGridSkeleton.js';
+import { PlusIcon } from '../form/icons.js';
 import { recipeMessages } from '../messages.js';
 import { RecipeListCard } from './RecipeListCard.js';
 import { filterChipLabel, formatRecipeCount, isListNarrowed, type RecipeListViewProps } from './model.js';
@@ -186,9 +187,12 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                     // Bottom offset is DERIVED, not hardcoded: it clears the narrow-breakpoint bottom nav (Task
                     // 1.5) plus the device safe-area inset, and drops to the base offset once the nav becomes a
                     // desktop sidebar at the shared `lg` cutover.
-                    className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-seafoam text-2xl font-bold text-white shadow-lg transition hover:bg-ocean-dark lg:bottom-8"
+                    className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-seafoam text-white shadow-lg transition hover:bg-ocean-dark lg:bottom-8"
                 >
-                    <span aria-hidden="true">+</span>
+                    {/* An SVG, not the text "+": flex centres the LINE BOX but ink is placed by the BASELINE, so a
+                        "+" character paints ~1.7px low and no centring property can correct it. This glyph's
+                        extents are symmetric about the viewBox centre, matching the mockup. */}
+                    <PlusIcon className="size-6" />
                 </button>
             )}
         </section>

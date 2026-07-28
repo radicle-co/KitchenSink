@@ -69,6 +69,21 @@ describe('RecipeList (web) — chrome', () => {
         expect(onSearchChange).toHaveBeenCalledWith('lamb');
     });
 
+    it('draws the FAB glyph as a geometrically centred icon, not a baseline-positioned character', () => {
+        // The FAB rendered the literal text "+". Flex centring centres the LINE BOX, but the ink inside it is
+        // placed by the BASELINE — "+" sits on the math axis (~0.29em above baseline) while the em-box centre
+        // is ~0.365em above it, so the glyph paints ~1.7px low at 24px. That offset is INVARIANT under
+        // line-height, so no amount of added centring properties fixes it; only a symmetric shape does.
+        // docs/mockups/screens/screen-recipes.html draws this FAB with an SVG whose extents (4→20 on both
+        // axes) are exactly symmetric about the viewBox centre.
+        renderList({ status: 'loading' });
+
+        const fab = screen.getByRole('button', { name: 'New recipe' });
+
+        expect(fab.querySelector('svg')).not.toBeNull();
+        expect(fab.textContent).toBe('');
+    });
+
     it('reports create requests upward from the FAB', async () => {
         const user = userEvent.setup();
         const onCreateRecipe = vi.fn();

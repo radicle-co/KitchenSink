@@ -29,8 +29,8 @@ const Glyph: FC<SVGProps<SVGSVGElement> & { readonly d: string }> = ({ d, ...pro
     </svg>
 );
 
-/** Plus — the "add ingredient / add step" actions. */
-export const PlusIcon: FC = () => <Glyph d="M12 5v14M5 12h14" />;
+/** Plus — the "add ingredient / add step" actions, and the recipes FAB. */
+export const PlusIcon: FC<SVGProps<SVGSVGElement>> = (props) => <Glyph d="M12 5v14M5 12h14" {...props} />;
 
 /** Trash — the "remove ingredient / remove step" destructive actions. */
 export const TrashIcon: FC = () => (

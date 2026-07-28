@@ -13,5 +13,5 @@ import { nativeTokens } from '@commise/ui/native';
 /** The semibold Playfair face — display headings that are not the marquee greeting. */
 export const DISPLAY_FONT_SEMIBOLD = nativeTokens.fontFace.display.semibold;
 
-/** The bold Playfair face — the marquee Home greeting and the welcome wordmark. */
+/** The bold Playfair face — the marquee Home greeting. */
 export const DISPLAY_FONT_BOLD = nativeTokens.fontFace.display.bold;

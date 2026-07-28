@@ -5,7 +5,13 @@
  * (`@commise/ui` {@link Button} with `busy` + tokenized {@link Input}), all copy from `mobileMessages`,
  * associated field labels, and a `SafeAreaView` + `KeyboardAvoidingView` shell. It runs `signUp.create` →
  * `signUp.password` → `setActive` on completion; anything short of `complete` surfaces the localized
- * additional-verification notice (the branded welcome/entry screen is U8, out of scope here).
+ * additional-verification notice.
+ *
+ * `onBack` returns to the sign-in form, which is where this screen is always reached FROM: the signed-out gate
+ * opens on login, and login's own "Create account" control is the only route here (owner decision 2026-07-28
+ * deleted the welcome hero that used to provide a "Get started" entry). So the existing back affordance — the
+ * secondary "Sign in" button under `haveAccountPrompt` — still lands exactly where the user came from, and it
+ * is now the ONLY exit, which is why `AuthGate` keeps rendering it rather than a bare form.
  */
 import { useClerk, useSignUp } from '@clerk/expo';
 import { Button } from '@commise/ui/button';

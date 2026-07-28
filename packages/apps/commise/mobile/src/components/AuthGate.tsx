@@ -3,8 +3,13 @@
  *
  * Selects the surface for the CURRENT {@link AuthState} derived by `@commise/features-account` (the same
  * derivation web uses, so the two platforms cannot disagree on which sessions are blocked): a named loading
- * affordance while the session resolves, the branded welcome → sign-up/sign-in flow when signed out, a
- * localized notice for a blocked or failed session, and the app itself once authenticated.
+ * affordance while the session resolves, the sign-in form when signed out, a localized notice for a blocked or
+ * failed session, and the app itself once authenticated.
+ *
+ * ⚠️ Owner decision, 2026-07-28: there is NO welcome/landing screen. A signed-out session used to open on a
+ * branded welcome hero whose two CTAs led into sign-up and sign-in; that screen is deleted, here and on web
+ * (whose locale root now redirects a signed-out caller straight to `/sign-in`). Sign-UP stays reachable from
+ * the sign-in form's own control, which is now its ONLY entry point on mobile.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
@@ -17,7 +22,6 @@ import { useAuth } from '../hooks/useAuth';
 import { mobileMessages } from '../i18n/messages';
 import { LoginScreen } from '../screens/login';
 import { SignUpScreen } from '../screens/signup';
-import { WelcomeScreen } from '../screens/welcome';
 import { LoadingState } from './LoadingState';
 
 /** Props for {@link AuthGate}. */
@@ -26,9 +30,12 @@ interface AuthGateProps {
     readonly children: ReactNode;
 }
 
-// U8: the signed-out flow opens on the branded WELCOME hero, which then leads into the sign-up ("Get
-// started") or sign-in form; login/signup still toggle between each other.
-type Screen = 'welcome' | 'login' | 'signup';
+/**
+ * The signed-out surfaces, which toggle between each other. The union deliberately has NO welcome/landing
+ * member: with the hero deleted, "the app opens on a landing screen" is not a state this gate can represent,
+ * so the decision is enforced by the type rather than only by the initial value below.
+ */
+type Screen = 'login' | 'signup';
 
 /**
  * The authentication gate.
@@ -39,7 +46,7 @@ type Screen = 'welcome' | 'login' | 'signup';
 export function AuthGate({ children }: AuthGateProps): JSX.Element {
     const { auth, common } = useMessages(mobileMessages);
     const { state } = useAuth();
-    const [screen, setScreen] = useState<Screen>('welcome');
+    const [screen, setScreen] = useState<Screen>('login');
 
     switch (state.status) {
         case 'loading':
@@ -51,11 +58,7 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
                 return <SignUpScreen onBack={() => setScreen('login')} />;
             }
 
-            if (screen === 'login') {
-                return <LoginScreen onSignUp={() => setScreen('signup')} />;
-            }
-
-            return <WelcomeScreen onGetStarted={() => setScreen('signup')} onSignIn={() => setScreen('login')} />;
+            return <LoginScreen onSignUp={() => setScreen('signup')} />;
         case 'blocked':
             return (
                 <View style={styles.center}>

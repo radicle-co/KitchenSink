@@ -6,6 +6,9 @@
 # mailbox needed). When a persisted session already exists (`expo-secure-store` token cache), the login
 # screen is absent, the guarded block is skipped, and the flow falls straight through to the Home landing.
 #
+# A signed-out launch lands DIRECTLY on the login form — the branded welcome hero that used to sit in front of
+# it was deleted by owner decision on 2026-07-28, on both platforms.
+#
 # Consumers that want the Home surface (`home.yaml`) use THIS core. Consumers that want the recipes list
 # (`signin.yaml` and, through it, the recipe flows) wrap this core and then cross into recipes — so "sign
 # in" and "navigate to a feature" stay separate concerns.
@@ -18,18 +21,21 @@ appId: io.commise.mobile
 ---
 - launchApp
 
-# U8: a signed-out app now opens on the branded WELCOME hero (not the bare login form). Cross into the
-# sign-in form via its returning-user control FIRST — guarded on the welcome tagline (unique to the hero),
-# so a live persisted session (neither welcome nor login present) falls straight through to Home.
-- runFlow:
-      when:
-          visible: 'Cook with confidence. Plan with ease.'
-      commands:
-          - tapOn: 'Already have an account? Sign in'
+# Wait for the auth gate to FINISH resolving the session before deciding anything. This barrier is load-bearing
+# now that there is no welcome hero in front of the login form (owner decision 2026-07-28): the guarded block
+# below is the FIRST thing that reads the screen, and `when: visible:` does not wait — so while `AuthGate` is
+# still showing its "Checking your session…" affordance, the guard would evaluate false, the sign-in would be
+# skipped entirely, and the flow would fail 40s later at the Home assertion for a reason unrelated to sign-in.
+# Previously the welcome-crossing `tapOn` absorbed that window incidentally. Keyed on the loading label's
+# DISAPPEARANCE (mobile i18n `auth.sessionLoading`), so it is satisfied by either outcome — login form or a
+# live session — and never by a hang.
+- extendedWaitUntil:
+      notVisible: 'Checking your session…'
+      timeout: 30000
 
 # Sign in only when the credentials form is present (fresh install / cleared state). A live session skips this.
-# The guard keys on the email PLACEHOLDER 'you@example.com' — present only on the login form (the welcome
-# hero's "…Sign in" control would false-match a plain 'Sign in' guard).
+# The guard keys on the email PLACEHOLDER 'you@example.com', which is unique to the login form — a plain
+# 'Sign in' guard would false-match the form's own submit button and the sign-up screen's return control.
 #
 # The U2 rebuild puts the login form on the design-system `Input`, which renders a VISIBLE LABEL as a
 # separate element from the text field (associated for assistive tech). So the fields are tapped by their

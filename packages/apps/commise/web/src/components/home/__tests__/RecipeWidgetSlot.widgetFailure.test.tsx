@@ -84,4 +84,14 @@ describe('RecipeWidgetSlot (web) — the widget body fails to render', () => {
         // The host fallback firing means the whole slot — navigation included — was replaced.
         expect(screen.queryByText('widget unavailable')).toBeNull();
     });
+
+    it('explains the loss with the localized notice, in the same words mobile uses', () => {
+        renderSlot();
+
+        // The inner boundary's own copy was previously unasserted on BOTH platforms: mobile had drifted to a
+        // silent `null` here, and nothing on web would have failed if this fallback had been deleted too. The
+        // literal is asserted (not `webMessages.en...`) and is character-identical to the mobile catalog's
+        // `home.widgetError`, so the two surfaces cannot drift apart again without one of these tests going red.
+        expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
+    });
 });

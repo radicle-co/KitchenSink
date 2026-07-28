@@ -24,6 +24,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { mobileMessages } from '../../i18n/messages.js';
+import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice.js';
 
 /** The recipe widget's data prop contract (native): recent recipes + a loading flag (see the module doc). */
 interface RecipeHomeWidgetProps {
@@ -96,8 +97,19 @@ export function RecipeWidgetSlot({
                 `Suspense` cannot cover this: it handles a PENDING lazy chunk, never a REJECTED one, and
                 `React.lazy` CACHES a rejection — so once the chunk fails it re-throws on every later render
                 and the slot never recovers on its own. Losing the widget's content to a failed chunk is
-                acceptable; losing the navigation is not. */}
-            <ErrorBoundary fallback={null} onError={(error) => onWidgetError?.(error)}>
+                acceptable; losing the navigation is not.
+
+                The fallback is a localized NOTICE, not `null`: blank space explained nothing and gave a
+                screen-reader user no signal at all, while web rendered its `widgetError` copy here — a
+                cross-platform drift (§14). It carries NO "try again" control, and that is deliberate. React's
+                `lazyInitializer` calls the loader only while the payload is Uninitialized; a rejection sets
+                `_status = 2` and every later render re-`throw`s the cached `_result` WITHOUT re-invoking the
+                loader. `RecipeHomeWidget` is built once at module scope, so resetting this boundary would
+                re-throw immediately and the button would look broken. A real retry would have to mint a NEW
+                `lazy()` (a generation counter keying `useMemo`) — worth doing only once we know what actually
+                throws here, since on a single-bundle Metro build a rejected `import()` is a module-EVALUATION
+                failure, which a re-import would deterministically reproduce. */}
+            <ErrorBoundary fallback={<HomeWidgetErrorNotice />} onError={(error) => onWidgetError?.(error)}>
                 <Suspense fallback={null}>
                     {/* The slot owns navigation, not the widget: the presentational card grid reports WHICH
                         recipe was activated, and this layer — the only one with the navigation intent —

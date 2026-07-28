@@ -40,10 +40,14 @@ jobs:
     # ── Cleanup: on PR close, tear down THIS PR's ephemeral resources (ADR-0005) ──
     # Deletes everything tagged Environment=pr-{N} OR named `pr-{N}` / `pr-{N}-…` — the PR's feature
     # stacks (tagged via the App-level Environment tag), plus log groups + ECR repos the stacks don't
-    # own. There is deliberately NO denylist: persistent global infra is Environment=global and named
-    # kitchensink-*, so it can never match a pr-{N} tag or prefix — that precision IS the safety. The
-    # match is delimiter-aware (pr-{N} exactly or pr-{N}-…) so pr-1 != pr-15/pr-100. Static job name
-    # (no ${{ }}) so the open-PR skipped state shows a clean title.
+    # own, plus the preview's PUBLIC ADDRESS (the `pr-{N}.sandbox.<domain>` Route 53 record and the
+    # Vercel project-domain binding — ADR-0001 "Update (2026-07-28)"; a CNAME left pointing at Vercel
+    # after the domain is released is a subdomain-takeover vector). There is deliberately NO denylist:
+    # persistent global infra is Environment=global and named kitchensink-*, so it can never match a
+    # pr-{N} tag or prefix — that precision IS the safety. The match is delimiter-aware (pr-{N} exactly
+    # or pr-{N}-…) so pr-1 != pr-15/pr-100, and the DNS half is stricter still (the record's first label
+    # must be EXACTLY pr-{N}, so the apex, the *.sandbox wildcard and the shared identity.sandbox.… host
+    # can never be targets). Static job name (no ${{ }}) so the open-PR skipped state shows a clean title.
     cleanup:
         name: Destroy sandbox preview
         runs-on: ubuntu-latest
@@ -53,16 +57,40 @@ jobs:
             REGION: ${{ vars.DEFAULT_AWS_REGION }}
         steps:
             - uses: actions/checkout@v6
+            # The preview-domain step runs `npx tsx …/teardownPreviewDomain.ts`; the rest of the script
+            # is aws-cli only.
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - run: npm ci
             - name: Configure AWS credentials
               uses: aws-actions/configure-aws-credentials@v4
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Resolve the sandbox hosted zone
+              id: zone
+              run: |
+                  set -euo pipefail
+                  ZONE=$(aws cloudformation list-exports --region "$REGION" \
+                    --query "Exports[?Name=='kitchensink-domain-sandbox:HostedZoneId'].Value | [0]" --output text)
+                  if [ -z "$ZONE" ] || [ "$ZONE" = "None" ]; then
+                    echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — the preview DNS record cannot be removed"
+                    exit 1
+                  fi
+                  echo "hosted_zone_id=$ZONE" >> "$GITHUB_OUTPUT"
             # All teardown logic lives in one script so the on-close cleanup and the scheduled reaper
-            # cannot drift. It is scoped hard to pr-{N} (name or Environment tag), so the shared
-            # global/identity/data infra can never match.
+            # cannot drift. It is scoped hard to pr-{N} (name, Environment tag, or exact DNS label), so
+            # the shared global/identity/data infra can never match.
             - name: Tear down ${{ env.PR }} sandbox resources
+              env:
+                  PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
+                  PREVIEW_HOSTED_ZONE_ID: ${{ steps.zone.outputs.hosted_zone_id }}
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
               run: |
                   chmod +x .github/scripts/teardown-sandbox-pr.sh
                   .github/scripts/teardown-sandbox-pr.sh "$PR" "$REGION"
@@ -84,19 +112,46 @@ jobs:
             STALE_DAYS: '30'
         steps:
             - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - run: npm ci
             - name: Configure AWS credentials
               uses: aws-actions/configure-aws-credentials@v4
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Resolve the sandbox hosted zone
+              id: zone
+              run: |
+                  set -euo pipefail
+                  ZONE=$(aws cloudformation list-exports --region "$REGION" \
+                    --query "Exports[?Name=='kitchensink-domain-sandbox:HostedZoneId'].Value | [0]" --output text)
+                  if [ -z "$ZONE" ] || [ "$ZONE" = "None" ]; then
+                    echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — dangling preview DNS records cannot be reaped"
+                    exit 1
+                  fi
+                  echo "hosted_zone_id=$ZONE" >> "$GITHUB_OUTPUT"
             - name: Reap pr-{N} resources whose PR is closed or long-stale
+              env:
+                  PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
+                  PREVIEW_HOSTED_ZONE_ID: ${{ steps.zone.outputs.hosted_zone_id }}
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
               run: |
                   set -uo pipefail
                   chmod +x .github/scripts/teardown-sandbox-pr.sh
 
-                  # Distinct pr-{N} tokens from CFN stack names, ECR repos, and log groups. The teardown
-                  # script re-applies an anchored belongs() match, so an incidental "pr-5" substring is safe.
+                  # Distinct pr-{N} tokens from CFN stack names, ECR repos, log groups, and Route 53
+                  # record names. Route 53 is load-bearing, not belt-and-braces: a PR that only ever had
+                  # a WEB preview owns no stack, repo or log group, so without this source its dangling
+                  # `pr-{N}.sandbox.<domain>` CNAME would be invisible to the reaper forever. This is
+                  # only CANDIDATE discovery — the teardown script re-applies the anchored pr-{N} match
+                  # (and the DNS half re-checks the exact record label), so an incidental "pr-5"
+                  # substring can never widen the blast radius.
                   tokens=$(
                       {
                           aws cloudformation list-stacks --region "$REGION" \
@@ -106,12 +161,15 @@ jobs:
                               --query 'repositories[].repositoryName' --output text 2>/dev/null | tr '\t' '\n'
                           aws logs describe-log-groups --region "$REGION" \
                               --query 'logGroups[].logGroupName' --output text 2>/dev/null | tr '\t' '\n'
+                          aws route53 list-resource-record-sets --hosted-zone-id "$PREVIEW_HOSTED_ZONE_ID" \
+                              --query 'ResourceRecordSets[].Name' --output text 2>/dev/null | tr '\t' '\n'
                       } | grep -oE 'pr-[0-9]+' | sort -u
                   )
                   if [ -z "$tokens" ]; then echo "No pr-{N} sandbox resources found."; exit 0; fi
                   echo "Candidate previews: $(echo "$tokens" | tr '\n' ' ')"
 
                   now=$(date -u +%s)
+                  reaper_failed=0
                   for pr in $tokens; do
                       n="${pr#pr-}"
                       pr_json=$(gh api "repos/${{ github.repository }}/pulls/$n" 2>/dev/null) || pr_json=""
@@ -132,11 +190,21 @@ jobs:
                       fi
                       if [ -n "$reason" ]; then
                           echo "::notice::reaping $pr — $reason"
-                          .github/scripts/teardown-sandbox-pr.sh "$pr" "$REGION" || echo "::warning::teardown of $pr reported errors"
+                          # A failed reap is an ERROR, not a warning: this job is the only thing left
+                          # that will notice a dangling `pr-{N}.sandbox.<domain>` CNAME, and a warning
+                          # keeps the run green so nobody looks. Keep sweeping the other tokens first.
+                          if ! .github/scripts/teardown-sandbox-pr.sh "$pr" "$REGION"; then
+                              echo "::error::teardown of $pr reported errors — inspect it by hand"
+                              reaper_failed=1
+                          fi
                       else
                           echo "keeping $pr (state=$state)"
                       fi
                   done
+                  if [ "$reaper_failed" -ne 0 ]; then
+                      echo "::error::Reaper sweep finished with failures."
+                      exit 1
+                  fi
                   echo "Reaper sweep complete."
 
     # ═══════════════════════════════════════════════════════════════════

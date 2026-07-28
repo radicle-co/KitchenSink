@@ -37,6 +37,7 @@ export {
     formatServerBanner,
     formatVersionTimestamp,
     isConflictBaseStale,
+    resolveVersionPreview,
     snapshotFieldLabel,
     sortVersionsDescending,
     toVersionPreviewIngredientLines,
@@ -51,6 +52,8 @@ export {
     type VersionCompareViewProps,
     type VersionPreviewIngredientLine,
     type VersionPreviewModalProps,
+    type VersionPreviewSource,
+    type VersionPreviewState,
 } from './model.js';
 export {
     recipeVersionMessages,

@@ -250,6 +250,29 @@ describe('VersionPreviewModal (web) — error', () => {
         await user.click(screen.getByRole('button', { name: 'Keep current version' }));
         expect(onCancel).toHaveBeenCalledTimes(1);
     });
+
+    it('reports a failure — not a spinner — when there is no version AND no fetch in flight (B21)', async () => {
+        // The dead end this closes: `showLoading` used to swallow "no version" whatever `isLoading` said, so
+        // a caller that finished (or never started) a lookup and had nothing to show produced a permanent
+        // progress affordance. Nothing pending + nothing to render IS a failure, `error` flag or not.
+        const user = userEvent.setup();
+        const onCancel = vi.fn();
+        render(<VersionPreviewModal {...baseProps({ isLoading: false, onCancel })} />);
+
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Please try again.');
+        expect(screen.queryByRole('status')).toBeNull();
+
+        await user.click(screen.getByRole('button', { name: 'Keep current version' }));
+        expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('still shows progress — not a failure — while a fetch IS in flight with no version yet', () => {
+        // The complement: loading must keep beating the absent version, or every first paint reads as broken.
+        render(<VersionPreviewModal {...baseProps({ isLoading: true })} />);
+
+        expect(screen.getByRole('status')).toBeTruthy();
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
 });
 
 describe('VersionPreviewModal (web) — dismissal', () => {

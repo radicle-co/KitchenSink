@@ -19,9 +19,10 @@
  * `preventDefault()`ing Radix's own no-op default.
  *
  * A discriminated three-way state (mutually exclusive, matching {@link VersionPreviewModalProps}'s JSDoc):
- * (1) a `role="status"` progress affordance while `isLoading`, or before any `version` has arrived; (2) a
- * `role="alert"` for a failed fetch — deliberately NOT a dead end: "Keep current version" still closes the
- * modal, so the composing container (W6 Task 5) can retry; (3) the loaded `version` — the snapshot's title,
+ * (1) a `role="status"` progress affordance while `isLoading`; (2) a `role="alert"` for a failed lookup —
+ * either an explicit `error` or, per B21, nothing pending and still no `version` — deliberately NOT a dead
+ * end: "Keep current version" still closes the modal, so the composing container (W6 Task 5) can retry;
+ * (3) the loaded `version` — the snapshot's title,
  * description, servings, prep/cook/total time, and ingredient lines (calorie chip only when the line carries
  * a `userCalories` override — never fabricated), plus the "Changed from current" summary when
  * `diffFromCurrent` was supplied, and the count-templated Restore action.
@@ -63,10 +64,13 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
 
     wasOpenRef.current = open;
 
-    // Never trust an in-flight fetch: loading always wins, and no version at all reads as "still loading"
-    // rather than risking a blank/misleading dialog before the first fetch resolves.
-    const showLoading = isLoading || (version === undefined && error !== true);
-    const showError = !showLoading && error === true;
+    // Loading always wins — a fetch that is genuinely in flight must not read as broken on first paint. Once
+    // NOTHING is pending, though, having no version to show IS a failure (B21): this used to read "still
+    // loading" whenever `version` was absent, so a caller that had settled with nothing — the shape a preview
+    // target missing from the loaded history produces — was stranded on a spinner the modal had no state to
+    // escape into. `error` is now one of TWO ways to reach the failure affordance, not the only one.
+    const showLoading = isLoading;
+    const showError = !showLoading && (error === true || version === undefined);
     const showContent = !showLoading && !showError && version !== undefined;
 
     const title =

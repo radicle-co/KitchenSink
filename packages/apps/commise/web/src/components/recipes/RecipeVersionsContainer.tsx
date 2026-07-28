@@ -45,8 +45,10 @@ import {
     VersionPreviewModal,
     diffSnapshots,
     recipeVersionMessages,
+    resolveVersionPreview,
     type RecipeVersionRestoreError,
 } from '@commise/features-recipes';
+import { toDetailQueryView } from '@commise/features-core';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
 import { isVersionConflictError } from '@kitchensink/recipe-service-client';
@@ -109,7 +111,21 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
         router.push(`/${locale}/recipes/${recipeId}` as Route);
     };
 
-    if (versionsQuery.isLoading || recipeQuery.isLoading) {
+    // B21: ONE derivation of which fetch-state affordance to render, over BOTH queries combined — the pair
+    // is loading while either is, failed if either failed, and ready only with BOTH data present. The
+    // settled-but-absent case (neither loading nor errored, still no data) used to fall into a SECOND loading
+    // branch below the error one, stranding the viewer on a permanent spinner; mobile's
+    // `RecipeVersionsScreen` has always routed it into ERROR, and web now agrees BY CONSTRUCTION.
+    const view = toDetailQueryView({
+        isLoading: versionsQuery.isLoading || recipeQuery.isLoading,
+        isError: versionsQuery.isError || recipeQuery.isError,
+        data:
+            versionsQuery.data === undefined || recipeQuery.data === undefined
+                ? undefined
+                : { versions: versionsQuery.data, recipe: recipeQuery.data },
+    });
+
+    if (view.status === 'loading') {
         return (
             <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
                 <BackToRecipeLink onBack={goToRecipe} />
@@ -120,7 +136,7 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
         );
     }
 
-    if (versionsQuery.isError || recipeQuery.isError) {
+    if (view.status === 'error') {
         return (
             <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
                 <BackToRecipeLink onBack={goToRecipe} />
@@ -140,21 +156,7 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
         );
     }
 
-    if (versionsQuery.data === undefined || recipeQuery.data === undefined) {
-        // Enabled queries that are neither loading nor errored should have data; guard defensively so a
-        // transient undefined never crashes the view.
-        return (
-            <div className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-8">
-                <BackToRecipeLink onBack={goToRecipe} />
-                <p role="status" aria-label={recipes.versions.loadingLabel} className="text-body-md text-slate">
-                    {recipes.versions.loadingLabel}
-                </p>
-            </div>
-        );
-    }
-
-    const versions = versionsQuery.data;
-    const recipe = recipeQuery.data;
+    const { versions, recipe } = view.data;
     const restoringVersion = restore.isPending ? restore.variables.versionNumber : null;
 
     // B17 — a failed restore must never silently no-op. Map the mutation's error to an honest code: a 409 is
@@ -185,14 +187,15 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
         );
     };
 
-    // W6 Task 5 — Preview (see module docs for the "read from the already-loaded list" rationale).
-    const previewVersion = previewTarget === null ? undefined : versions.find((v) => v.versionNumber === previewTarget);
-    const currentVersionInList = versions.find((v) => v.versionNumber === recipe.currentVersion);
-    const diffFromCurrent =
-        previewVersion !== undefined && currentVersionInList !== undefined
-            ? diffSnapshots(currentVersionInList.snapshot, previewVersion.snapshot)
-            : undefined;
-    const isRestoringPreview = restore.isPending && restore.variables?.versionNumber === previewTarget;
+    // W6 Task 5 — Preview (see module docs for the "read from the already-loaded list" rationale). B21: the
+    // whole derivation — including the FAILED-LOOKUP report a preview target the history no longer contains
+    // must produce — lives in the shared `resolveVersionPreview`, so the native screen cannot drift from it.
+    const preview = resolveVersionPreview({
+        previewTarget,
+        versions,
+        currentVersion: recipe.currentVersion,
+        restoringVersion,
+    });
 
     // W6 Task 5 — Compare: both selected versions come from the same already-loaded list data (no fetch).
     const compareVersions = compareSelection
@@ -235,11 +238,7 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
                 onToggleCompare={toggleCompare}
             />
             <VersionPreviewModal
-                open={previewTarget !== null}
-                version={previewVersion}
-                isLoading={false}
-                diffFromCurrent={diffFromCurrent}
-                isRestoring={isRestoringPreview}
+                {...preview}
                 locale={activeLocale}
                 onCancel={() => setPreviewTarget(null)}
                 onRestore={(versionNumber) => restoreVersion(versionNumber, () => setPreviewTarget(null))}

@@ -128,10 +128,15 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
                         triggerRef.current?.focus();
                     }}
                     // Bottom-pinned sheet: its foot must clear the device home indicator. The bottom padding is
-                    // the sheet's existing `p-6` foot (`2rem` under the app's spacing scale) PLUS the safe-area
-                    // inset. `env(...)` is 0 in a normal viewport, so the base padding is byte-identical to the
-                    // former `p-6` and only real devices see the extra inset.
-                    className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-2xl bg-white p-6 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-xl"
+                    // the sheet's `p-8` foot (2rem) PLUS the safe-area inset. `env(...)` is 0 in a normal
+                    // viewport, so the base padding equals the foot and only real devices see the extra inset.
+                    //
+                    // `p-6` → `p-8` is a no-op in painted pixels: the DS used to redefine Tailwind's
+                    // `--spacing-*` scale, under which `p-6` WAS 2rem. With the numeric utilities back on
+                    // Tailwind's own ramp, 2rem is `p-8` — which is what keeps this foot equal to the literal
+                    // `2rem` in the `calc()` beside it. Change one and you must change the other, or the sheet
+                    // goes asymmetric. See `@commise/ui/tokens/themeCss`.
+                    className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-2xl bg-white p-8 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-xl"
                 >
                     <Dialog.Title className="font-display text-lg font-semibold text-charcoal">
                         {home.nudge.title}

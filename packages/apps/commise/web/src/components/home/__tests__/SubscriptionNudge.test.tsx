@@ -57,9 +57,9 @@ describe('SubscriptionNudge (web) — open', () => {
         render(<SubscriptionNudge open onDismiss={() => undefined} />);
 
         // This sheet is pinned to the bottom edge, so its foot must clear the device home indicator. The
-        // bottom padding is `2rem` (the sheet's existing `p-6` foot under the app's spacing scale) PLUS the
-        // safe-area inset — NOT the 1.5rem a standard scale would imply — so with `env(...)` = 0 the base
-        // padding is byte-identical to before and only real devices see the extra inset.
+        // bottom padding is `2rem` (the sheet's `p-8` foot) PLUS the safe-area inset, so with `env(...)` = 0
+        // the base padding equals the foot and only real devices see the extra inset. The two must stay in
+        // lockstep — the literal `2rem` here and the `p-8` utility are the same length spelled two ways.
         const dialog = screen.getByRole('dialog', { name: 'Unlock Commise Pro' });
         expect(dialog.className).toContain('pb-[calc(2rem+env(safe-area-inset-bottom))]');
     });

@@ -86,8 +86,10 @@ export function HomeTopBar({ chrome, pageTitle, locale, displayName, onOpenNav }
                     onClick={onOpenNav}
                     aria-label={chrome.openNav}
                     // `min-h-11 min-w-11` (44px) is an explicit mobile touch-target FLOOR, reset at `md:` to
-                    // keep desktop density. It sits below the control's current ~48px computed size, so it
-                    // changes no pixels today — it guards the target minimum against future icon/padding drift.
+                    // keep desktop density. The control itself is 40px (`p-2` + a 24px glyph — the mockup's
+                    // icon button), so the floor is LOAD-BEARING on mobile: it is what lifts the tap target to
+                    // 44px. Desktop keeps the mockup's 40px. (It used to be a documented no-op only because the
+                    // DS redefined `--spacing-*` and inflated this control to 48px — see themeCss.)
                     className="-ml-2 min-h-11 min-w-11 rounded-full p-2 text-charcoal transition-colors hover:bg-pearl md:hidden md:min-h-0 md:min-w-0"
                 >
                     <HomeIcon name="menu" className="size-6" />
@@ -100,7 +102,8 @@ export function HomeTopBar({ chrome, pageTitle, locale, displayName, onOpenNav }
                 <button
                     type="button"
                     aria-label={chrome.search}
-                    // 44px mobile touch-target floor, reset at md — a no-op below the ~48px control today.
+                    // 44px mobile touch-target floor, reset at md. The control is the mockup's 40px icon
+                    // button (`p-2` + 24px glyph), so on mobile this floor is what reaches 44px.
                     className="min-h-11 min-w-11 rounded-full p-2 text-charcoal transition-colors hover:bg-pearl md:min-h-0 md:min-w-0"
                 >
                     <HomeIcon name="search" className="size-6" />
@@ -120,10 +123,16 @@ export function HomeTopBar({ chrome, pageTitle, locale, displayName, onOpenNav }
                     href={`/${locale}/profile` as Route}
                     aria-label={initials === '' ? chrome.accountNoName : chrome.account}
                     // The 44px touch floor lives on this TRANSPARENT control box, never on the painted disc
-                    // below it. CSS resolves a used length as `max(min-size, size)`, so a `min-h-11 min-w-11`
-                    // floor on the same box as `size-8` could not lose to it: the mockup's 32px avatar
-                    // painted as a 44px disc that all but filled the `h-14` bar. Reset at `md:`, where the
-                    // control collapses onto the disc it wraps — so desktop paints exactly as before.
+                    // below it: CSS resolves a used length as `max(min-size, size)`, so a floor sharing a box
+                    // with `size-8` would paint the disc itself at 44px. Reset at `md:`, where the control
+                    // collapses onto the disc it wraps.
+                    //
+                    // Historical note, because the original diagnosis here was WRONG and cost a second pass:
+                    // the disc really did overflow the `h-14` bar, but not because the floor beat `size-8`.
+                    // The DS emitted its own ramp into Tailwind's `--spacing-*` namespace, so `size-8`
+                    // resolved to 4rem/64px — larger than the 56px bar — while `h-14` and `min-h-11` still
+                    // resolved through the default `--spacing` base. Splitting the boxes was right for the
+                    // touch target but could not have fixed the size; only freeing the namespace did.
                     className="ml-1 flex min-h-11 min-w-11 items-center justify-center rounded-full md:min-h-0 md:min-w-0"
                 >
                     {/* The painted disc — the mockup's `w-8 h-8` circle (`screen-home`), and the same 32px

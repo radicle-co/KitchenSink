@@ -300,16 +300,23 @@ describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
         );
 
         // The interactive control (the button carrying role=checkbox) is the tap target: `size-11` (44px) at
-        // base, `sm:size-5` back to the original 24px on wider viewports. The visible tick box is a nested
-        // element sized `size-6 sm:size-5`, so the mobile target grows without enlarging the desktop glyph.
+        // base, `sm:size-6` back to 24px on wider viewports. The visible tick box is a nested element sized
+        // `size-8 sm:size-6` (32px mobile, 24px desktop), so the mobile target grows without enlarging the
+        // desktop glyph.
+        //
+        // These indices shifted from `size-6 sm:size-5` with NO change in painted pixels: the DS used to
+        // redefine Tailwind's `--spacing-*` scale, so the old classes resolved to the same 32/24px. Note this
+        // asserts CLASS STRINGS — jsdom computes no layout, so it cannot prove a length. The pixel contract
+        // is enforced by Playwright's `boundingBox()` in `recipeHomeResponsive.spec.ts`, and the meaning of
+        // each utility by the compiled-CSS test in `web/tests/__integration__/tailwindTheme`.
         const box = screen.getByRole('checkbox', { name: /Olive oil/ });
         expect(box.className).toContain('size-11');
-        expect(box.className).toContain('sm:size-5');
+        expect(box.className).toContain('sm:size-6');
 
         const visual = box.firstElementChild as HTMLElement | null;
         expect(visual).not.toBeNull();
-        expect(visual?.className).toContain('size-6');
-        expect(visual?.className).toContain('sm:size-5');
+        expect(visual?.className).toContain('size-8');
+        expect(visual?.className).toContain('sm:size-6');
     });
 
     it('invokes onToggleIngredient with the ingredient id when its checkbox is activated (D5)', async () => {

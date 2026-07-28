@@ -119,21 +119,27 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                         return (
                             <li key={ingredient.ingredientId} className="flex items-center gap-3 px-3 py-3">
                                 {/* The interactive control is the 44px base touch target (`size-11`), collapsing
-                                    to the original 24px box (`sm:size-5`) from sm up. The visible tick box is a
-                                    nested element (`size-6 sm:size-5`) so the mobile tap area grows without
-                                    enlarging the desktop glyph — desktop is byte-identical (a 24px box in a 24px
-                                    control). */}
+                                    to the 24px box (`sm:size-6`) from sm up. The visible tick box is a nested
+                                    element (`size-8 sm:size-6` — 32px mobile, 24px desktop) so the mobile tap
+                                    area grows without enlarging the desktop glyph, and desktop stays a 24px box
+                                    in a 24px control.
+
+                                    The step indices moved (`size-6 sm:size-5` → `size-8 sm:size-6`) with NO
+                                    change in painted pixels: the DS used to redefine Tailwind's `--spacing-*`
+                                    scale, so the old classes resolved to these same 32/24px. Now that the
+                                    numeric utilities are back on Tailwind's own ramp, the same geometry needs
+                                    the true indices. See `@commise/ui/tokens/themeCss`. */}
                                 <button
                                     type="button"
                                     role="checkbox"
                                     aria-checked={checked}
                                     aria-label={`${label} ${ingredient.name}`.trim()}
                                     onClick={() => onToggleIngredient?.(ingredient.ingredientId)}
-                                    className="flex size-11 shrink-0 items-center justify-center sm:size-5"
+                                    className="flex size-11 shrink-0 items-center justify-center sm:size-6"
                                 >
                                     <span
                                         aria-hidden
-                                        className={`flex size-6 items-center justify-center rounded border-2 transition sm:size-5 ${
+                                        className={`flex size-8 items-center justify-center rounded border-2 transition sm:size-6 ${
                                             checked
                                                 ? 'border-seafoam bg-seafoam text-white'
                                                 : 'border-mist bg-transparent'

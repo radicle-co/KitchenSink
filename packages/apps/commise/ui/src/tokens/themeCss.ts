@@ -15,12 +15,28 @@
  *
  * The module is pure and imports only other token modules (no `node:fs`, no platform API), which is what lets
  * the test import it directly while the script keeps sole responsibility for touching the filesystem.
+ *
+ * ## ⚠️ The prefix is a Tailwind NAMESPACE, not a free-form name — and there is deliberately NO `--spacing-*`
+ *
+ * Every prefix below must be one of Tailwind v4's theme namespaces. Naming them after the source variable is
+ * what produced two shipped defects: `--font-size-*` / `--line-height-*` are not namespaces (v4 uses
+ * `--text-*` / `--leading-*`), so the type ramp compiled to nothing; and `--spacing-*` IS one, so emitting the
+ * DS ramp there silently REDEFINED every numeric utility — `size-8` became 64px where the mockups and the
+ * native leaves both mean 32px, while `h-14`/`min-h-11` kept resolving through the default `--spacing` base,
+ * leaving one stylesheet with two spacing systems.
+ *
+ * `scale.spacing` is therefore NOT emitted at all, on purpose. Its ramp — 0, 4, 8, 12, 16, 24, 32, 48, 64,
+ * 96px — is a strict SUBSET of Tailwind's own 4px ramp (steps 0-4, 6, 8, 12, 16, 24), so emitting it can only
+ * ever collide: it adds no value a plain `p-6` cannot already express. Web gets its spacing from Tailwind's
+ * single `--spacing` base; `scale.spacing` remains the numeric source for NATIVE, which has no such base.
+ *
+ * Do not add a `--spacing-*` block back, and do not "fix" a size by defining the missing step. Any new token
+ * family must be checked against Tailwind's namespace list first, and covered by the compiled-output test.
  */
 import { palette, semantic } from './colors.js';
 import { glass } from './gradients.js';
 import { radius } from './radius.js';
 import { shadows } from './shadows.js';
-import { space } from './spacing.js';
 import { fonts, fontSizes, fontWeights, lineHeights } from './typography.js';
 
 /** A token map as emitted: keys become custom-property suffixes, values are written verbatim. */
@@ -65,12 +81,15 @@ export function themeCss(): string {
         ...declarations('color', palette),
         ...declarations('color', semantic),
         ...declarations('font', fonts),
-        ...declarations('font-size', fontSizes),
-        ...declarations('line-height', lineHeights),
+        // `--text-*` / `--leading-*` are Tailwind v4's namespaces for font size and line height. They were
+        // once emitted as `--font-size-*` / `--line-height-*` — spellings that match the SOURCE VARIABLE's
+        // name but no namespace at all — so `text-body-sm`, `text-display-md`, `leading-body` and friends
+        // generated NO rule and every one of their 324 call sites silently inherited the parent's size. The
+        // whole DS type ramp had never reached the browser. See `__integration__/tailwindTheme` in the web
+        // app, which compiles this artifact and asserts what a utility resolves to.
+        ...declarations('text', fontSizes),
+        ...declarations('leading', lineHeights),
         ...declarations('font-weight', fontWeights),
-        // Numeric scale keys (`0`..`9`) are emitted verbatim — kebab-casing them would be a no-op that only
-        // obscures the intent.
-        ...declarations('spacing', space, false),
         ...declarations('radius', radius, false),
         ...declarations('shadow', shadows, false),
         // Appended LAST so every pre-existing declaration keeps its exact position in the artifact.

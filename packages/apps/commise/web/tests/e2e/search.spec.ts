@@ -180,8 +180,6 @@ test.describe('recipe search (T110)', () => {
             recipes: [
                 // Default ingredients (`utils/recipeApi.ts`'s `makeRecipeDetail`) carry the catalog id `ing_salt`
                 // ("Salt") the mocked `/v1/ingredients/search` always returns, regardless of the typed query.
-                // The title deliberately avoids the substring "Salt" so it cannot collide with the ingredient
-                // result button's accessible name below.
                 makeRecipeDetail({ id: 'rec_soup', ownerId: 'usr_other', title: 'Weeknight Ramen Bowl' }),
                 makeRecipeDetail({
                     id: 'rec_salad',
@@ -202,8 +200,10 @@ test.describe('recipe search (T110)', () => {
         // FILTER — typing an ingredient name surfaces the catalog match; picking it narrows the set. The
         // non-matching salad disappearing is the assertion that matters: it can only happen if
         // `ingredientIds=ing_salt` actually reached the API.
+        // The option is addressed by its ACTION name ("Filter by Salt"), which is what makes it distinguishable
+        // from the search box that now holds the typed query — a bare "Salt" would also match the field.
         await page.getByRole('searchbox', { name: 'Search ingredients' }).fill('sal');
-        const saltResult = page.getByRole('button', { name: 'Salt' });
+        const saltResult = page.getByRole('button', { name: 'Filter by Salt' });
         await expect(saltResult).toBeVisible();
         await saltResult.click();
 

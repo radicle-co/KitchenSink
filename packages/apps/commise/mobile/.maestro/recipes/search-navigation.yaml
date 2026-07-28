@@ -165,13 +165,25 @@ appId: io.commise.mobile
 # real, suite-safe assertion: it can only clear the currently-visible public feed (Herb Risotto included) if
 # `ingredientIds=<flour-id>` actually reached the API — a UI that dropped the filter would keep rendering it.
 # The ingredient typeahead lives inside the "Filters" sheet.
+#
+# The typeahead RESULT is addressed as "Filter by Flour", never as the bare "Flour" — that bare string also
+# matches the search field itself, which now holds the typed query, and the field is earlier in the hierarchy,
+# so `tapOn: 'Flour'` selected the FIELD and the pick was silently dropped (round 5: the run landed back on
+# browse with no count badge). Asserting the ACTION name is also the only real proof the catalog search
+# returned a match — `assertVisible: 'Flour'` was satisfied by the field's own value whether it did or not.
+#
+# `scrollUntilVisible`, not a blind `extendedWaitUntil`: the Ingredients group is the LAST facet in the sheet's
+# scroll list and the keyboard is up from the `inputText`, so the result row can land just below the visible
+# region. Same idiom `create.yaml` uses for the picker's "Create …" affordance under the same conditions — it
+# still waits for the row to EXIST, it just also brings it into view.
 - tapOn: 'Filters'
 - tapOn: 'Search ingredients'
 - inputText: 'Flour'
-- extendedWaitUntil:
-      visible: 'Flour'
+- scrollUntilVisible:
+      element: 'Filter by Flour'
+      direction: DOWN
       timeout: 40000
-- tapOn: 'Flour'
+- tapOn: 'Filter by Flour'
 - tapOn: 'Done'
 - extendedWaitUntil:
       visible: 'No matching recipes'

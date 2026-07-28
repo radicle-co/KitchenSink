@@ -214,14 +214,23 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
 
                     {visibleResults.length > 0 && (
                         <View role="list">
+                            {/* Named by its ACTION ("Filter by Flour"), not the bare ingredient name: the
+                                sibling search box already carries that exact string as its value, so a bare
+                                name is not uniquely addressable — see the `addIngredientFilter` message's doc
+                                for the failure that closes. The row also carries the 44pt tap-target floor
+                                every other control here has (its web peer's `py-2`); unstyled, its hit area
+                                was the intrinsic height of one line of text. */}
                             {visibleResults.map((ingredient) => (
                                 <Pressable
                                     key={ingredient.id}
                                     accessibilityRole="button"
-                                    accessibilityLabel={ingredient.name}
+                                    accessibilityLabel={fillTemplate(m.addIngredientFilter, {
+                                        name: ingredient.name,
+                                    })}
                                     onPress={() => onAddIngredientFilter({ id: ingredient.id, name: ingredient.name })}
+                                    style={styles.ingredientOption}
                                 >
-                                    <Text>{ingredient.name}</Text>
+                                    <Text style={styles.ingredientOptionText}>{ingredient.name}</Text>
                                 </Pressable>
                             ))}
                         </View>
@@ -393,6 +402,15 @@ const styles = StyleSheet.create({
     clear: { alignSelf: 'flex-start', borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14 },
     clearText: { fontSize: 14, fontWeight: '600', color: palette.seafoam },
     ingredientTypeahead: { gap: 8, flexBasis: '100%' },
+    // One typeahead result row: the 44pt touch floor (`Button.native`/`Input.native` carry the same), with
+    // horizontal padding so the label is not flush against the sheet edge.
+    ingredientOption: {
+        minHeight: 44,
+        justifyContent: 'center',
+        borderRadius: nativeTokens.radius.md,
+        paddingHorizontal: nativeTokens.spacing[3],
+    },
+    ingredientOptionText: { fontSize: nativeTokens.fontSize.bodyMd, color: palette.charcoal },
     ingredientInput: {
         borderRadius: 8,
         borderWidth: 1,

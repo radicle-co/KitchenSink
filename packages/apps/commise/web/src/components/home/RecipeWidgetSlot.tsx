@@ -26,6 +26,8 @@ import { ErrorBoundary } from 'react-error-boundary';
 
 import { webMessages } from '@/i18n/messages';
 
+import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice';
+
 /**
  * The recipe widget's props at this boundary — its recent recipes as a promise (see the module doc) plus the
  * card-activation navigation seam this slot fulfils.
@@ -87,8 +89,18 @@ export function RecipeWidgetSlot(): JSX.Element {
                 widget-body throw (failed chunk, bad recipe record) replaced the "see all recipes" LINK with
                 the widget-error text — the viewer's route out of Home disappeared along with the content that
                 failed. Losing the widget's content is acceptable; losing the navigation is not. The mobile
-                slot carries the same inner boundary, so both platforms degrade identically (FR-044). */}
-            <ErrorBoundary fallback={<p className="text-body-sm text-slate">{home.surface.widgetError}</p>}>
+                slot carries the same inner boundary, so both platforms degrade identically (FR-044).
+
+                The fallback is the shared {@link HomeWidgetErrorNotice} — the same stand-in the host boundary
+                renders, so the copy, the muted treatment, and the `alert` announcement have ONE definition and
+                cannot drift between the two boundaries. It carries NO "try again" control, and that is
+                deliberate: `RecipeHomeWidget` is built once at MODULE scope, and React's `lazyInitializer`
+                invokes the loader only while the payload is Uninitialized — a rejection parks it at
+                `_status = 2` and every later render bare-throws the cached `_result` WITHOUT re-invoking the
+                loader. Resetting this boundary would therefore re-throw synchronously against the same object
+                and the button would look dead. A real retry would have to mint a NEW lazy proxy (a generation
+                counter keying the dynamic import), worth doing only once we know what actually throws here. */}
+            <ErrorBoundary fallback={<HomeWidgetErrorNotice />}>
                 {/* The slot owns navigation, not the widget: the presentational card grid reports which recipe
                     was activated, and this layer — the only one that knows the App Router and the locale
                     prefix — routes to the recipe detail. */}

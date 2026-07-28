@@ -5,7 +5,7 @@
  * list measured as whichever token came first — is pinned here.
  */
 import { describe, expect, it } from 'vitest';
-import { palette } from '@commise/ui';
+import { palette } from '@commise/ui/colors';
 
 import { compositeOver, contrastRatio } from '../contrast.js';
 import { computedContrast, placeholderContrast, utilityContrast } from '../renderedContrast.js';

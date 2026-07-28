@@ -27,7 +27,7 @@
  * Every function here is pure apart from reading the DOM, which {@link computedContrast} documents.
  */
 import { parse } from 'culori';
-import { palette } from '@commise/ui';
+import { palette } from '@commise/ui/colors';
 
 import { compositeOver, contrastRatio } from './contrast.js';
 

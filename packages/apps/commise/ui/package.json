@@ -19,6 +19,7 @@
             "default": "./dist/index.js"
         },
         "./theme.css": "./dist/theme.css",
+        "./colors": "./src/tokens/colors.ts",
         "./scale": "./src/tokens/scale.ts",
         "./native": "./src/tokens/native.ts",
         "./tokens/*": {

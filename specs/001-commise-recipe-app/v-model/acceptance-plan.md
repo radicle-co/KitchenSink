@@ -1933,14 +1933,15 @@ strict Given/When/Then format.
 #### Test Case: ATP-NF-018-B (Fallback to localhost:3000 when unset)
 
 **Linked Requirement:** REQ-NF-018
-**Description:** Validates default web API base URL when env variable is missing.
-**Validation Condition:** Web app starts with `NEXT_PUBLIC_API_URL` unset.
-**Expected Result:** API client base URL defaults to `http://localhost:3000`. (reconciled 2026-07-25: as-built default, was `:4000`)
+**Description:** Validates that a MISSING web API base URL is fatal — there is no default. (Inverted 2026-07-28 by owner decision; this case previously asserted a `http://localhost:3000` fallback, which is the defect that shipped to the sandbox preview.)
+**Validation Condition:** Web build/startup runs with `NEXT_PUBLIC_RECIPE_API_URL` unset or blank.
+**Expected Result:** The build fails with an error naming the missing variable. No bundle is produced, and no request is ever addressed to localhost.
 
 - **User Scenario: SCN-NF-018-B1**
-    - **Given** web runtime environment does not define `NEXT_PUBLIC_API_URL`
-    - **When** the web app initializes its API client
-    - **Then** outbound API requests default to `http://localhost:3000`
+    - **Given** the web build environment does not define `NEXT_PUBLIC_RECIPE_API_URL`
+    - **When** `next build` runs
+    - **Then** it exits non-zero reporting `Invalid environment variables: NEXT_PUBLIC_RECIPE_API_URL`
+    - **And** automated coverage lives in `web/src/config/__tests__/env.test.ts` (+ the mobile mirror), replacing the `Inspection` method with an executable check
 
 ---
 

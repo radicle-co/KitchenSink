@@ -574,6 +574,17 @@ jobs:
             - name: Build
               if: matrix.workspace != '@commise/web' || steps.secrets.outcome == 'success'
               run: npm run build --workspace=${{ matrix.workspace }}
+              # The web app's endpoints are declared with NO default and validated at build time
+              # (src/config/env.ts), so `next build` FAILS unless they are supplied — by design: that is
+              # what stops an unconfigured build from inlining `http://localhost:3000` into a bundle it
+              # ships to real browsers, which is exactly what reached the sandbox preview.
+              #
+              # This job only proves the app COMPILES; its output is never deployed (Vercel builds the
+              # preview, the prod pipeline builds prod). So localhost is the honest value here — it makes
+              # the build hermetic and needs no cloud endpoint. Harmless for the other workspaces.
+              env:
+                  NEXT_PUBLIC_RECIPE_API_URL: http://localhost:3000
+                  NEXT_PUBLIC_IDENTITY_API_URL: http://localhost:4000
 
     e2e-backend:
         # Static name (not a matrix) so a skipped run still shows a clean title instead of a raw
@@ -620,13 +631,11 @@ jobs:
         # Base tier. Gating this is what stops a labelled PR from running TWO concurrent Playwright suites
         # on the same commit (ci-pr.yml + heavy-e2e.yml) against the shared sandbox Clerk instance.
         if: ${{ inputs.run_base_jobs }}
-        # Pin BOTH API origins the web app resolves from env, so CI and a developer machine run the suite
-        # against the SAME resolved origins instead of both happening to land on the in-code fallbacks.
-        # Locally these come from the gitignored `.env.local` that `scripts/fetch-secrets.mjs` writes (it
-        # emits exactly these two values); CI has no `.env.local`, so until now the job depended on
-        # `recipeServiceConfig.ts`'s `?? 'http://localhost:3000'` and `identityServiceClient.ts`'s
-        # `?? 'http://localhost:4000'` silently continuing to match that file. Stating them here makes the
-        # baseline explicit and drift-proof (see also packages/apps/commise/web/.env.template).
+        # Pin BOTH API origins the web app resolves from env. `src/config/env.ts` declares them with NO
+        # default and validates at load, so an unset variable is a loud build failure rather than a silent
+        # localhost fallback — which means CI must state them. Locally the same two values come from the
+        # COMMITTED `.env.development`, which Next loads only for `next dev`; the Playwright webServer runs
+        # `npm run dev`, so a developer machine and CI resolve identical origins.
         #
         # These localhost values are the CORRECT ones for this suite, not a placeholder: every spec mocks the
         # API with the ORIGIN-AGNOSTIC glob `page.route('**/v1/**')` (tests/e2e/utils/recipeApi.ts, plus the
@@ -638,8 +647,8 @@ jobs:
         # make the suite non-hermetic, not more correct (that path is the opt-in `recipeLive.spec.ts`, gated on
         # E2E_LIVE_BACKEND=1, which stays skipped here).
         env:
-            NEXT_PUBLIC_API_URL: http://localhost:3000
-            NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
+            NEXT_PUBLIC_RECIPE_API_URL: http://localhost:3000
+            NEXT_PUBLIC_IDENTITY_API_URL: http://localhost:4000
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6

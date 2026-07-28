@@ -16,9 +16,7 @@ import type { JSX, ReactNode } from 'react';
 import { useMemo } from 'react';
 
 import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
-
-/** Local API origin used when `EXPO_PUBLIC_API_URL` is unset (backend on :3000; no trailing `/v1`). */
-const DEFAULT_API_URL = 'http://localhost:3000';
+import { env } from '../config/env.js';
 
 /**
  * Mount the recipe-service client provider for the subtree.
@@ -32,7 +30,9 @@ export function RecipeServiceGate({ children }: { readonly children: ReactNode }
     const client = useMemo(
         () =>
             new RecipeServiceClient({
-                baseUrl: process.env['EXPO_PUBLIC_API_URL'] ?? DEFAULT_API_URL,
+                // Required and validated at load — `localhost` on a phone is the PHONE, so a default here
+                // could never have been right in a deployed build. See `../config/env.ts`.
+                baseUrl: env.EXPO_PUBLIC_RECIPE_API_URL,
                 token: (options) =>
                     getToken({ template: NATIVE_JWT_TEMPLATE, skipCache: options?.forceRefresh ?? false }).then(
                         (token) => token ?? '',

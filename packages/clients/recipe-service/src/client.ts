@@ -9,9 +9,11 @@
  * - **Typed results / errors.** Each method returns a DTO from `@kitchensink/recipe-core` (or a wire
  *   envelope from `./types.js`) on success and throws a typed error (see `./errors.js`) for
  *   `400`/`401`/`403`/`404`/`409`/`410`.
- * - **Base URL injected (never hardcoded).** The consumer reads its platform env var
- *   (`NEXT_PUBLIC_API_BASE_URL` on web, `EXPO_PUBLIC_API_URL` on mobile) and injects it, exactly like
- *   `FoodServiceClient`.
+ * - **Base URL injected (never hardcoded, and never defaulted).** The consumer resolves it from its
+ *   platform's validated config — `NEXT_PUBLIC_RECIPE_API_URL` on web (`web/src/config/env.ts`),
+ *   `EXPO_PUBLIC_RECIPE_API_URL` on mobile (`mobile/src/config/env.ts`) — and injects it, exactly like
+ *   `FoodServiceClient`. Both declare it with no fallback, so a misconfigured build fails rather than
+ *   silently addressing localhost.
  */
 import {
     IDENTITY_SYNC_PENDING_CODE,

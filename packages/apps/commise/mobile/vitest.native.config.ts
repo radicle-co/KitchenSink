@@ -61,6 +61,19 @@ export default defineConfig({
         setupFiles: ['./tests/setup.native.ts'],
         include: ['tests/**/*.native.test.tsx'],
         exclude: ['node_modules', 'dist'],
+
+        // `src/config/env.ts` validates the app's endpoints at MODULE LOAD and has no defaults, so any
+        // screen test that reaches a service client would otherwise die with a configuration error.
+        // Expo's own `.env.development` loader is not running under vitest, so state them explicitly —
+        // the same reason and the same two values the web app's vitest config uses.
+        //
+        // Values are irrelevant to assertions (these suites never hit the network); only PRESENCE matters,
+        // so a red test means the code is wrong rather than the environment being unset.
+        // `tests/config/env.test.ts` overrides them per-case to prove absence still fails loudly.
+        env: {
+            EXPO_PUBLIC_RECIPE_API_URL: 'http://localhost:3000',
+            EXPO_PUBLIC_IDENTITY_API_URL: 'http://localhost:4000',
+        },
     },
     resolve: {
         alias: {

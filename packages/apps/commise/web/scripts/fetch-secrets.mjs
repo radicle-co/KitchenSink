@@ -34,13 +34,13 @@ try {
         '# Clerk authentication (sandbox dev instance — pk_test/sk_test, safe for localhost + Playwright e2e)',
         `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${publishableKey}`,
         `CLERK_SECRET_KEY=${secretKey}`,
-        '',
-        '# API backends. Identity/account API (apiClient.ts) and the recipe API (RecipeServiceClient).',
-        '# Default to locally-run services; point NEXT_PUBLIC_API_URL at the sandbox recipe host for',
-        '# dev-against-sandbox. The Playwright e2e route-intercepts these, so localhost is fine for tests.',
-        'NEXT_PUBLIC_API_BASE_URL=http://localhost:4000',
-        'NEXT_PUBLIC_API_URL=http://localhost:3000',
     ];
+
+    // NOTE: the API endpoints are deliberately NOT written here. They live in the committed
+    // `.env.development`, which Next loads for `next dev` and never for `next build` — so local work is
+    // zero-config while a deployed build still cannot inherit a localhost default. This script only
+    // fetches SECRETS, which is why it stopped emitting `NEXT_PUBLIC_*_API_URL`. To develop against a
+    // deployed backend, set the endpoint in `.env.local` yourself; it wins over `.env.development`.
 
     writeFileSync(ENV_FILE, lines.join('\n') + '\n', 'utf-8');
     console.log(`Wrote ${ENV_FILE}`);

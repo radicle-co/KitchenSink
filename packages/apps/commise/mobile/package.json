@@ -33,6 +33,7 @@
         "@react-native-community/netinfo": "12.0.1",
         "@sentry/react-native": "~7.11.0",
         "@shopify/flash-list": "~2.3.2",
+        "@t3-oss/env-core": "^0.13.11",
         "@tamagui/core": "^2.1.0",
         "@tamagui/web": "^2.1.0",
         "@tanstack/react-query": "^5.62.0",
@@ -57,7 +58,8 @@
         "react-native": "0.86.0",
         "react-native-safe-area-context": "~5.7.0",
         "react-native-web": "^0.20.0",
-        "tamagui": "^2.3.0"
+        "tamagui": "^2.3.0",
+        "zod": "^4.4.3"
     },
     "devDependencies": {
         "@babel/core": "^7.29.7",

@@ -4,10 +4,14 @@
  * talks to `GET`/`PATCH`/`DELETE /v1/users/me` (`useUserProfile`, `AccountEditForm`, `AccountDeleteForm`),
  * mirroring `recipeServiceConfig.ts`'s role for the recipe client.
  *
- * `NEXT_PUBLIC_API_BASE_URL` is read here (never hardcoded — CODING_STANDARDS §12) as the ONE source of
- * truth for the identity origin; `lib/apiClient.ts` (still used by the two server-rendered pages that have
- * not migrated to the typed client) imports {@link IDENTITY_SERVICE_BASE_URL} from here rather than
- * re-declaring its own fallback, so the two never drift apart.
+ * The origin comes from the validated configuration in `@/config/env` (never hardcoded —
+ * CODING_STANDARDS §12) and has deliberately NO default; `lib/apiClient.ts` (still used by the two
+ * server-rendered pages that have not migrated to the typed client) imports
+ * {@link IDENTITY_SERVICE_BASE_URL} from here rather than re-declaring its own, so the two never drift.
+ *
+ * This used to read `process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:4000'`. `NEXT_PUBLIC_*`
+ * is inlined at BUILD time, so that fallback shipped in the deployed preview bundle and every signed-in
+ * visitor's profile fetch hit their own machine. An unconfigured build now fails loudly instead.
  *
  * The redirect-on-401 + `credentials: 'include'` behavior reproduces `apiClient.ts`'s prior side effects
  * exactly (same observable behavior, DA10 is a shape refactor, not a behavior change) — but as an INJECTED
@@ -16,11 +20,12 @@
  */
 import { ProfileServiceClient, type TokenSource } from '@commise/features-account';
 
+import { env } from '@/config/env';
 import { withBasePath } from '@/lib/basePath';
 import { navigateTo } from '@/lib/navigation';
 
-/** The identity API base origin. Matches `lib/apiClient.ts`'s `API_BASE_URL` default. */
-export const IDENTITY_SERVICE_BASE_URL = process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:4000';
+/** The identity API base origin, from the validated environment. */
+export const IDENTITY_SERVICE_BASE_URL = env.NEXT_PUBLIC_IDENTITY_API_URL;
 
 /**
  * Build a {@link ProfileServiceClient} for the web app.

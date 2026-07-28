@@ -2,6 +2,15 @@
 # dotenv environment variable files
 .env*
 
+# ...except the two that carry NO secrets and MUST be committed:
+#  - .env.template documents every variable the app reads.
+#  - .env.development supplies the LOCAL endpoint defaults. Next loads `.env.$(NODE_ENV)` only when
+#    NODE_ENV is `development` (i.e. `next dev`) and NEVER during `next build`, which is exactly what
+#    lets local development stay zero-config while a deployed build still cannot silently fall back to
+#    a developer's laptop. Do not move these values into `.env` — that one IS read by `next build`.
+!.env.template
+!.env.development
+
 # clerk configuration (can include secrets)
 /.clerk/
 

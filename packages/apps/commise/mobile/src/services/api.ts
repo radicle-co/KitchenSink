@@ -1,11 +1,15 @@
+import { env } from '../config/env.js';
+
 // Identity endpoints (`/v1/users/me`, `/v1/accounts/me`) are served by the IDENTITY service, which is a
 // separate deployable on a separate host from the recipe service (sandbox/prod route them to distinct
 // subdomains — `identity.{stage}` vs `recipe.{stage}` — and there is no cross-service proxy). So identity
-// calls must target their OWN origin, not the recipe origin in `EXPO_PUBLIC_API_URL`. This mirrors the web
-// split (`NEXT_PUBLIC_API_BASE_URL` for identity vs `NEXT_PUBLIC_API_URL` for recipe). Fall back to the
-// recipe origin only for back-compat with a single-gateway deployment, then to the prod default.
-export const API_BASE_URL =
-    process.env.EXPO_PUBLIC_IDENTITY_API_URL ?? process.env.EXPO_PUBLIC_API_URL ?? 'https://api.commise.io';
+// calls must target their OWN origin, mirroring the web split.
+//
+// This used to fall back to the recipe origin and then to a literal `https://api.commise.io`. Both were
+// unsafe guesses: the first sends `/v1/users/me` to a service that does not serve it (a 404 that reads as
+// a profile-screen bug), and the second is a production hostname nothing in this repo provisions. The
+// origin is now required and validated — see `../config/env.ts`.
+export const API_BASE_URL = env.EXPO_PUBLIC_IDENTITY_API_URL;
 
 export type GetToken = () => Promise<string | null>;
 

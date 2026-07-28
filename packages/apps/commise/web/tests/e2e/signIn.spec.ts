@@ -3,6 +3,7 @@ import { clerk, setupClerkTestingToken } from '@clerk/testing/playwright';
 
 import { route, isHome, isRoute, hasDoublePrefix, pathnameOf } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
+import { submitClerkEmailCode } from './utils/clerkEmailCode';
 import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from './utils/testUser';
 
 test.describe('sign-in flow', () => {
@@ -24,48 +25,17 @@ test.describe('sign-in flow', () => {
         await page.getByRole('textbox', { name: 'Password' }).fill(TEST_USER_PASSWORD);
 
         // This instance verifies a new device with an email code — `+clerk_test` accepts 424242. Clerk SENDS
-        // that code with a `prepare_*` POST against the sign-in attempt, and submitting the digits before it
-        // resolves lands on "You need to send a verification code before attempting to verify." — the form
-        // then never advances. That is the exact CI failure, read off the saved page snapshot; the previous
-        // barrier (`waitForLoadState('networkidle')`) settles too early on a slow runner. Arm the waiter
-        // BEFORE the click that triggers the send. `.catch()` because a Clerk endpoint rename must degrade to
-        // the recovery below rather than fail the suite outright.
-        const codeSent = page
-            .waitForResponse(
-                (response) => /\/v1\/client\/sign_ins\/[^/]+\/prepare_/.test(response.url()) && response.ok(),
-                { timeout: 30_000 },
-            )
-            .catch(() => undefined);
-
-        await page.getByRole('button', { name: 'Continue' }).click();
-        await expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible({ timeout: 15_000 });
-        await codeSent;
-        await page.getByRole('textbox', { name: /verification code/i }).fill('424242');
-
-        // Recovery for the same race, keyed on Clerk's own words: if the digits still went in too early,
-        // re-send and re-enter rather than waiting out the poll. Clerk disables Resend for a short cooldown
-        // after each send, so wait for it to become enabled instead of clicking blind.
-        const notPrepared = page.getByText(/need to send a verification code/i);
-
-        if (await notPrepared.isVisible().catch(() => false)) {
-            const resend = page.getByRole('button', { name: /resend/i });
-
-            await expect(resend).toBeEnabled({ timeout: 60_000 });
-            await resend.click();
-            await page.getByRole('textbox', { name: /verification code/i }).fill('424242');
-        }
-
-        // Do NOT rely on the auto-submit alone. It fires from a change handler on the 6th digit, and when it
-        // does not fire the test just sat here until the poll expired — the failure mode seen intermittently
-        // in CI (passing on one commit, failing all three attempts on the next, with no related change).
-        // Clerk still renders a Continue button on this step, so submit explicitly IF the step is still up.
-        // Guarded rather than unconditional: on the common path the auto-submit has already navigated, and
-        // clicking a detached button would fail. This makes the outcome independent of that race.
-        const verifyContinue = page.getByRole('button', { name: 'Continue' });
-
-        if (await verifyContinue.isVisible().catch(() => false)) {
-            await verifyContinue.click().catch(() => undefined);
-        }
+        // that code with an async `prepare_*` POST against the sign-in attempt, and submitting the digits
+        // before it resolves lands on "You need to send a verification code before attempting to verify."
+        // `submitClerkEmailCode` owns that barrier, its recovery, and the explicit submit that removes the
+        // dependency on Clerk's OTP auto-submit — shared with signUp.spec.ts, which hits the same race on
+        // its own `sign_ups` prepare call.
+        await submitClerkEmailCode(page, {
+            attempt: 'sign_ins',
+            triggerSend: () => page.getByRole('button', { name: 'Continue' }).click(),
+            expectStep: () =>
+                expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible({ timeout: 15_000 }),
+        });
 
         await expect.poll(() => isHome(pathnameOf(page)), { timeout: 30_000 }).toBe(true);
         expect(hasDoublePrefix(pathnameOf(page))).toBe(false);

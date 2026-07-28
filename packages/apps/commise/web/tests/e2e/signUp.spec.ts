@@ -3,6 +3,7 @@ import { setupClerkTestingToken } from '@clerk/testing/playwright';
 
 import { route, isHome, hasDoublePrefix, pathnameOf } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
+import { submitClerkEmailCode } from './utils/clerkEmailCode';
 import { TEST_USER_PASSWORD, uniqueSignUpEmail, deleteUsersByEmail } from './utils/testUser';
 
 test.describe('sign-up flow', () => {
@@ -23,6 +24,12 @@ test.describe('sign-up flow', () => {
     });
 
     test('completing the sign-up form creates a user and lands on home', async ({ page }) => {
+        // Does NOT fit the 30s default, for the same reason signIn.spec.ts does not: this test budgets 15s
+        // for the verification step, up to 30s for Clerk's send, and — on the recovery path — up to 60s
+        // waiting out Clerk's Resend cooldown, before a 20s redirect poll. Under the default budget the
+        // recovery could never complete, so the test would die before the safety net it carries could run.
+        test.slow();
+
         const email = uniqueSignUpEmail();
 
         try {
@@ -36,15 +43,19 @@ test.describe('sign-up flow', () => {
             await page.getByRole('textbox', { name: /username/i }).fill(`e2e_${Date.now()}`);
             await page.getByRole('textbox', { name: /email/i }).fill(email);
             await page.getByRole('textbox', { name: 'Password' }).fill(TEST_USER_PASSWORD);
-            await page.getByRole('button', { name: /continue|sign up/i }).click();
 
-            // Email verification — Clerk test emails (`+clerk_test`) accept the fixed code 424242.
-            // The OTP auto-submits on the 6th digit, so wait for Clerk's async "prepare" (send) call to
-            // settle first — otherwise the attempt races ahead of it ("need to send a verification
-            // code before attempting to verify").
-            await expect(page.getByRole('heading', { name: /verify your email/i })).toBeVisible({ timeout: 15_000 });
-            await page.waitForLoadState('networkidle');
-            await page.getByRole('textbox', { name: /verification code/i }).fill('424242');
+            // Email verification — Clerk test emails (`+clerk_test`) accept the fixed code 424242. The
+            // send is an async `prepare_verification` POST and entering the digits before it resolves
+            // breaks the flow; `submitClerkEmailCode` owns that barrier (and its recovery) for both auth
+            // flows, so this spec and signIn.spec.ts cannot drift apart on it.
+            await submitClerkEmailCode(page, {
+                attempt: 'sign_ups',
+                triggerSend: () => page.getByRole('button', { name: /continue|sign up/i }).click(),
+                expectStep: () =>
+                    expect(page.getByRole('heading', { name: /verify your email/i })).toBeVisible({
+                        timeout: 15_000,
+                    }),
+            });
 
             await expect.poll(() => isHome(pathnameOf(page)), { timeout: 20_000 }).toBe(true);
             expect(hasDoublePrefix(pathnameOf(page))).toBe(false);

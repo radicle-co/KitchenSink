@@ -77,7 +77,14 @@ export const CollectionHeader: FC<CollectionHeaderViewProps> = ({
                     <button
                         type="button"
                         onClick={onDelete}
-                        className="rounded-full px-4 py-2 text-body-sm font-medium text-error transition hover:bg-coral/10"
+                        // The tint is the ERROR token, not coral. This control labels itself `text-error`
+                        // (#E17055) but used to tint with `bg-coral/10` (#E8917A) — two adjacent-but-different
+                        // hues in one control, with a brand accent standing in for the destructive register.
+                        // `hover:bg-error/10` is what the DS `destructive` Button tier already uses, and the
+                        // native leaf (`palette.error`, no tint) never carried the coral, so this was a
+                        // WEB-ONLY drift. Delete stays a bare text control pending the DS `secondary`-tier
+                        // decision — see `CollectionActions.tsx`.
+                        className="rounded-full px-4 py-2 text-body-sm font-medium text-error transition hover:bg-error/10"
                     >
                         {detail.deleteCta}
                     </button>

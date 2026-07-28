@@ -135,3 +135,32 @@ describe('CollectionMemberRow (web) — select / remove', () => {
         expect(onSelect).not.toHaveBeenCalled();
     });
 });
+
+/**
+ * Remove is painted in the ERROR register — with the error hue, not coral.
+ *
+ * The control already labelled itself `text-error` (#E17055) but tinted its hover with `bg-coral/10`
+ * (#E8917A) — two adjacent-but-different hues inside one control, and the wrong one for a destructive action:
+ * coral is a brand accent (the mockups spend it on tags and warm highlights), `error` is the destructive
+ * token, and the design system's own `destructive` Button tier already tints with `hover:bg-error/10`. The
+ * native leaf never had the coral at all (`palette.error` text, no tint), so this was a WEB-ONLY drift.
+ */
+describe('CollectionMemberRow (web) — Remove stays in the error register', () => {
+    it('tints Remove’s hover with the error token, never coral', () => {
+        renderRow({ member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }) });
+        const className = screen.getByRole('button', { name: 'Remove Weeknight Pasta' }).className;
+
+        expect(className).toContain('text-error');
+        expect(className).toContain('hover:bg-error/10');
+        expect(className).not.toContain('coral');
+    });
+
+    it('leaves the non-destructive select target out of the error register entirely', () => {
+        renderRow({ member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }) });
+        const className = screen.getByRole('button', { name: 'Weeknight Pasta' }).className;
+
+        // The counterweight assertion: "no coral" must not be reachable by painting EVERYTHING error-toned.
+        expect(className).not.toContain('error');
+        expect(className).not.toContain('coral');
+    });
+});

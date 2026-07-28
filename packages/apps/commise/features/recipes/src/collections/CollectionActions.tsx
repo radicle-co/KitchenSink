@@ -9,12 +9,34 @@
  * arrives as a plain boolean (the composing container's policy-fn result) and `disabledReason` as
  * already-localized copy — the gate is that one boolean prop; this component holds no eligibility logic of
  * its own. It fetches nothing and performs no mutations; every interaction is delegated upward.
+ *
+ * ## Clone Collection is the design-system `Button` (`secondary`) — why, and why its siblings are NOT (yet)
+ *
+ * This panel's Clone painted a solid-coral pill while the discovery card's clone painted a coral OUTLINE and
+ * the recipe-detail clone painted a third variant: one action, three hand-rolled answers. The premise under
+ * all of them fails on inspection — no mockup contains a clone action at all, and the mockups never FILL a
+ * button coral (their coral button form is `border-2 border-coral text-coral` over glass, filling only on
+ * hover). Coral's documented role is the danger register ("Destructive/secondary actions, highlights, warm
+ * accents"), which the mockups spend on the Danger Zone and the allergy warning, and `palette.coral` (#E8917A)
+ * sits one hue from `palette.error` (#E17055) — so a filled-coral pill announced a safe, additive, reversible
+ * action in the language of destruction. Clone is a quiet SECONDARY action, so all three call sites now wear
+ * the DS `secondary` tier and cannot drift apart again.
+ *
+ * The sibling controls in this panel — Add Recipes (`bg-seafoam`), Pull Updates (a seafoam ring), Save changes
+ * (seafoam text) — are deliberately left hand-rolled in this change, and NOT because they are fine. They are
+ * blocked on a decision one layer down: `semantic.secondary` IS `palette.coral` and Tamagui's `light.secondary`
+ * is coral, yet the DS `secondary` tier renders a grey-bordered white pill while EVERY non-primary button in
+ * the mockups is coral-outlined. Until that tier is resolved, "Pull Updates" has no DS tier that matches its
+ * seafoam ring, and migrating it would bake today's answer into three more call sites. Clone moved anyway
+ * because its defect is independent of that question: it was in the WRONG REGISTER, not merely the wrong tone.
  */
 import { useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
 import { useId, type FC } from 'react';
 
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
+import { CloneIcon } from '../actions/icons.js';
 import { collectionMessages } from './messages.js';
 import type { CollectionActionsProps } from './model.js';
 
@@ -80,16 +102,11 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
                         )}
                     </div>
                 )}
-                <div className="flex flex-col gap-1">
-                    <button
-                        type="button"
-                        onClick={onClone}
-                        disabled={isCloning}
-                        aria-busy={isCloning || undefined}
-                        className="rounded-full bg-coral px-5 py-2.5 text-body-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
-                    >
+                <div className="flex flex-col items-start gap-1">
+                    {/* `busy` supplies the in-place spinner, the disabled in-flight guard, and `aria-busy`. */}
+                    <Button variant="secondary" icon={<CloneIcon />} onPress={onClone} busy={isCloning}>
                         {actions.cloneCollection}
-                    </button>
+                    </Button>
                     {isCloning && (
                         <span role="status" className="text-body-sm text-slate">
                             {actions.cloningLabel}

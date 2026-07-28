@@ -34,16 +34,13 @@ import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
-import { Feather } from '@expo/vector-icons';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
+import { CloneIcon } from './icons.js';
 import { recipeActionMessages } from './messages.js';
 import type { RecipeCloneActionProps } from './model.js';
-
-/** Action glyph size — the DS Button pairs every label with an icon (matches the sibling action leaves). */
-const ACTION_ICON_SIZE = 16;
 
 export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({
     canClone,
@@ -60,13 +57,7 @@ export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({
             )}
             {/* `busy` supplies the in-place `ActivityIndicator`, the disabled in-flight guard (so the clone
                 cannot be double-fired), and the `accessibilityState.busy` announcement VoiceOver/TalkBack read. */}
-            <Button
-                variant="secondary"
-                icon={<Feather name="copy" size={ACTION_ICON_SIZE} color={palette.charcoal} />}
-                disabled={!canClone}
-                busy={cloning}
-                onPress={onClone}
-            >
+            <Button variant="secondary" icon={<CloneIcon />} disabled={!canClone} busy={cloning} onPress={onClone}>
                 {clone.clone}
             </Button>
             {cloning && <Text style={styles.attribution}>{clone.cloningLabel}</Text>}

@@ -6,14 +6,22 @@
  * `canGoPrivate`-gated (C1, FR-010) Public/Private visibility toggle with a Save action, rendered with RN
  * primitives. `canGoPrivate`/`disabledReason` arrive as plain, already-resolved values from the composing
  * container — the gate is that one boolean prop; this leaf holds no eligibility logic of its own.
+ *
+ * Clone Collection is the design-system `Button` (`secondary`) — the SAME tier as the web leaf and as every
+ * other clone affordance in the product. It used to hand-roll `backgroundColor: palette.coral` with a white
+ * label; see the web leaf's module comment for the full reasoning (no mockup has a clone action; the mockups
+ * never fill a button coral; coral is the danger register) and for why this panel's seafoam siblings are
+ * deliberately still hand-rolled pending the `semantic.secondary === palette.coral` decision.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
+import { CloneIcon } from '../actions/icons.js';
 import { collectionMessages } from './messages.js';
 import type { CollectionActionsProps } from './model.js';
 
@@ -72,16 +80,11 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
                     </View>
                 )}
                 <View style={styles.actionGroup}>
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={actions.cloneCollection}
-                        aria-busy={isCloning || undefined}
-                        disabled={isCloning}
-                        onPress={onClone}
-                        style={[styles.cloneButton, isCloning && styles.buttonDisabled]}
-                    >
-                        <Text style={styles.cloneLabel}>{actions.cloneCollection}</Text>
-                    </Pressable>
+                    {/* `busy` supplies the in-place `ActivityIndicator`, the disabled in-flight guard (so the
+                        clone cannot be double-fired), and the `accessibilityState.busy` announcement. */}
+                    <Button variant="secondary" icon={<CloneIcon />} busy={isCloning} onPress={onClone}>
+                        {actions.cloneCollection}
+                    </Button>
                     {isCloning && <Text style={styles.statusLabel}>{actions.cloningLabel}</Text>}
                 </View>
             </View>
@@ -136,7 +139,11 @@ export const CollectionActions: FC<CollectionActionsProps> = ({
 const styles = StyleSheet.create({
     container: { gap: 16, padding: 20, borderRadius: 16, backgroundColor: palette.white },
     buttonStack: { gap: 8 },
-    actionGroup: { gap: 4 },
+    // `alignItems: 'flex-start'` keeps the pill hugging its label rather than stretching to the rail's full
+    // width — the job the removed `alignSelf: 'flex-start'` on the hand-rolled clone surface did. (RN stretches
+    // a column's children by default; the DS Button carries no self-alignment of its own.) Mirrors the web
+    // leaf's `items-start`.
+    actionGroup: { gap: 4, alignItems: 'flex-start' },
     primaryButton: {
         alignSelf: 'flex-start',
         backgroundColor: palette.seafoam,
@@ -154,14 +161,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
     },
     secondaryLabel: { color: palette.seafoam, fontWeight: '500', fontSize: 14 },
-    cloneButton: {
-        alignSelf: 'flex-start',
-        backgroundColor: palette.coral,
-        borderRadius: 999,
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-    },
-    cloneLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
     buttonDisabled: { opacity: 0.6 },
     statusLabel: { fontSize: 13, color: palette.slate },
     wrap: { gap: 8 },

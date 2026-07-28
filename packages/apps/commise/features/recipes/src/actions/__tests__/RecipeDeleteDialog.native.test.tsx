@@ -9,7 +9,7 @@ import { fireEvent } from '@testing-library/dom';
 
 import { palette, semantic } from '@commise/ui';
 
-import { cssColor } from './cssColor.js';
+import { cssColor } from '../../__tests__/cssColor.js';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeDeleteDialog } from '../RecipeDeleteDialog.native.js';

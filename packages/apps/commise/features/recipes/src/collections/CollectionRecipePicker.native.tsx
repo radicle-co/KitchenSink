@@ -171,7 +171,12 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: palette.charcoal,
     },
-    alert: { backgroundColor: 'rgba(232, 145, 122, 0.1)', borderRadius: 10, padding: 12 },
+    // 10%-alpha tint of `palette.error` (#E17055 → rgb(225, 112, 85)) — mirrors the web leaf's `bg-error/10`;
+    // RN has no alpha-suffix colour syntax, so it is spelled out here. It previously spelled out
+    // `rgba(232, 145, 122, 0.1)`, which is `palette.coral` (#E8917A) — a brand ACCENT filling an alert whose
+    // own text is `palette.error`. Because the literal is opaque to a `palette.coral` grep, the test asserts
+    // it against a tint DERIVED from the token (`tintOf(palette.error, 0.1)`) rather than a second literal.
+    alert: { backgroundColor: 'rgba(225, 112, 85, 0.1)', borderRadius: 10, padding: 12 },
     alertLabel: { color: palette.error, fontSize: 14 },
     announcement: { color: palette.slate, fontSize: 14 },
     stateCard: {

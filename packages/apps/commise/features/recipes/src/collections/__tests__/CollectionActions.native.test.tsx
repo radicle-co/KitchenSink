@@ -7,8 +7,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { palette, semantic } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
+import { cssColor } from '../../__tests__/cssColor.js';
+import { pillOf } from '../../__tests__/dsPill.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionActions } from '../CollectionActions.native.js';
 import type { CollectionActionsProps } from '../model.js';
@@ -97,6 +101,74 @@ describe('CollectionActions (native) — Clone Collection', () => {
 
         fireEvent.click(button);
         expect(onClone).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * Clone Collection IS the design-system Button on native too — the SAME `secondary` tier as the web leaf and
+ * as the recipe-detail clone. This leaf hand-rolled `backgroundColor: palette.coral` with a white label while
+ * the discovery card's clone hand-rolled a coral OUTLINE: two platforms, three call sites, three answers. See
+ * the web sibling's block for why coral was wrong here at all (no mockup has a clone action; the mockups never
+ * fill a button coral; coral is the danger register).
+ *
+ * These assertions also stand in for what the hand-rolled `StyleSheet` promised and now gets from the DS: the
+ * 44pt touch floor, the tokenised radius, and a real busy announcement.
+ */
+describe('CollectionActions (native) — Clone Collection is the DS secondary surface', () => {
+    it('meets the 44pt touch floor the DS Button guarantees', () => {
+        renderActions();
+
+        // `pillOf` throws when no 44pt surface exists, so reaching this line IS the assertion.
+        expect(pillOf(screen.getByRole('button', { name: 'Clone Collection' }))).toBeTruthy();
+    });
+
+    it('paints the DS secondary surface — a bordered white pill, NOT the old solid coral fill', () => {
+        renderActions();
+        const style = window.getComputedStyle(pillOf(screen.getByRole('button', { name: 'Clone Collection' })));
+
+        expect(style.backgroundColor).toBe(cssColor(palette.white));
+        // The hairline comes from the shared semantic border token, so a re-theme moves it with the DS.
+        expect(style.borderTopColor).toBe(cssColor(semantic.border));
+        // The regression this replaces: a bespoke coral fill.
+        expect(style.backgroundColor).not.toBe(cssColor(palette.coral));
+    });
+
+    it('labels in the tier foreground colour, not the old white-on-coral', () => {
+        renderActions();
+
+        // A leftover white label on the now-white surface would be invisible — assert the tier's charcoal.
+        expect(window.getComputedStyle(screen.getByText('Clone Collection')).color).toBe(cssColor(palette.charcoal));
+    });
+
+    it('rounds from the radius scale, not a magic 999', () => {
+        renderActions();
+
+        expect(
+            window.getComputedStyle(pillOf(screen.getByRole('button', { name: 'Clone Collection' })))
+                .borderTopLeftRadius,
+        ).toBe(`${nativeTokens.radius.full}px`);
+    });
+
+    it('announces the in-flight clone through NATIVE busy semantics, not a web-only aria-busy prop', () => {
+        renderActions({ isCloning: true });
+
+        // `accessibilityState.busy` is what an on-device screen reader reads; react-native-web projects the
+        // DS Button/PressScale's `aria-busy` alias, which is what makes it assertable here.
+        expect(screen.getByRole('button', { name: 'Clone Collection' }).getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('reports NOT busy when idle', () => {
+        renderActions();
+
+        expect(screen.getByRole('button', { name: 'Clone Collection' }).getAttribute('aria-busy')).not.toBe('true');
+    });
+
+    it('keeps the label as the sole accessible name (Maestro selects this control by it)', () => {
+        renderActions();
+
+        expect(screen.getByRole('button', { name: 'Clone Collection' }).getAttribute('aria-label')).toBe(
+            'Clone Collection',
+        );
     });
 });
 

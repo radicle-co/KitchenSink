@@ -102,7 +102,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 <button
                     type="button"
                     onClick={onRetry}
-                    className="mt-3 rounded-full px-4 py-2 text-body-sm font-semibold text-seafoam transition hover:bg-seafoam/10"
+                    className="mt-3 inline-flex min-h-11 items-center rounded-full px-4 py-2 text-body-sm font-semibold text-seafoam transition hover:bg-seafoam/10 md:min-h-0"
                 >
                     {discovery.retry}
                 </button>
@@ -150,7 +150,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                         onClick={loadMore.onLoadMore}
                         disabled={loadMore.loading}
                         aria-busy={loadMore.loading || undefined}
-                        className="self-center rounded-full bg-pearl px-6 py-2.5 text-body-sm font-semibold text-charcoal transition hover:bg-mist/40 disabled:opacity-60"
+                        className="inline-flex min-h-11 items-center justify-center self-center rounded-full bg-pearl px-6 py-2.5 text-body-sm font-semibold text-charcoal transition hover:bg-mist/40 disabled:opacity-60 md:min-h-0"
                     >
                         {loadMore.loading ? discovery.loadingMore : discovery.loadMore}
                     </button>
@@ -197,7 +197,10 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                                 type="button"
                                 aria-label={discovery.clearRecentSearchesLabel}
                                 onClick={recentSearches.onClear}
-                                className="rounded-full px-2 py-1 text-caption font-semibold text-seafoam transition hover:bg-mist/20"
+                                // Touch floor: `min-h-11` (44px) at base — the native leaf's `styles.recentClear`
+                                // already carries the same 44pt floor — reset at `md:` so the desktop density
+                                // of this small header control is unchanged.
+                                className="inline-flex min-h-11 items-center rounded-full px-2 py-1 text-caption font-semibold text-seafoam transition hover:bg-mist/20 md:min-h-0"
                             >
                                 {discovery.clearRecentSearches}
                             </button>
@@ -209,7 +212,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                                         type="button"
                                         aria-label={fillTemplate(discovery.recentSearchLabel, { query })}
                                         onClick={() => recentSearches.onSelect(query)}
-                                        className="w-full rounded-lg px-2 py-2 text-left text-body-sm text-charcoal transition hover:bg-pearl"
+                                        className="inline-flex min-h-11 w-full items-center rounded-lg px-2 py-2 text-left text-body-sm text-charcoal transition hover:bg-pearl md:min-h-0"
                                     >
                                         {query}
                                     </button>
@@ -224,7 +227,7 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 <button
                     type="button"
                     onClick={onExitToBrowse}
-                    className="self-start rounded-full px-3 py-1 text-body-sm font-semibold text-seafoam transition hover:bg-mist/20"
+                    className="inline-flex min-h-11 items-center self-start rounded-full px-3 py-1 text-body-sm font-semibold text-seafoam transition hover:bg-mist/20 md:min-h-0"
                 >
                     {discovery.backToBrowse}
                 </button>
@@ -241,7 +244,10 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                                 role="radio"
                                 aria-checked={checked}
                                 onClick={() => sort.onChange(option)}
-                                className={`rounded-full px-3 py-1 text-body-sm font-medium transition ${
+                                // Touch floor: `min-h-11` at base, reset at `md:` so the desktop chip density is
+                                // unchanged — the same treatment `RecipeList`'s facet chips and the native
+                                // leaf's `styles.sortChip` (`minHeight: 44`) already carry.
+                                className={`inline-flex min-h-11 items-center rounded-full px-3 py-1 text-body-sm font-medium transition md:min-h-0 ${
                                     checked ? 'bg-charcoal text-white' : 'bg-pearl text-slate hover:bg-mist/40'
                                 }`}
                             >

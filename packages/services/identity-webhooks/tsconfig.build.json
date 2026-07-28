@@ -1,0 +1,15 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "./tsconfig.json",
+    // The EMIT project (`npm run build` → `tsc -p tsconfig.build.json` → `npm run package`). `tsconfig.json`
+    // stays the typecheck/editor/eslint project and keeps INCLUDING the co-located specs — vitest transpiles
+    // without typechecking, so a spec excluded there gets no static analysis at all. This project is the mirror
+    // image: production code only, because every handler's `Code.fromAsset(dist)` ships the whole `dist`
+    // directory, and compiled specs (importing `vitest`, a devDependency absent from the asset) have no
+    // business inside a deployed Lambda.
+    //
+    // `include` is overridden as well as `exclude`, so a future `__tests__/**` glob in the base project cannot
+    // silently become a build input.
+    "include": ["src/**/*.ts"],
+    "exclude": ["node_modules", "dist", "tests", "src/**/__tests__", "src/**/*.test.ts", "src/**/__fixtures__"]
+}

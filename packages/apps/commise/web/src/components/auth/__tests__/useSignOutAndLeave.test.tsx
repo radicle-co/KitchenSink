@@ -14,6 +14,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook } from '@testing-library/react';
+import { SignOutNotVerifiedError } from '@commise/features-account';
 
 const { rawClerkSignOut, loadSafeSignOut, clerkState } = vi.hoisted(() => ({
     // The raw, premount-queuing method. The command must NEVER call this one.
@@ -138,7 +139,9 @@ describe('useSignOutAndLeave (U3 / B23)', () => {
         it('rejects IMMEDIATELY instead of awaiting a load that will never happen', async () => {
             const { result } = renderHook(() => useSignOutAndLeave());
 
-            await expect(result.current.signOutAndLeave()).rejects.toThrow(/clerk/i);
+            // Asserted on the TYPE, not the prose: the failure is the shared command's own
+            // `SignOutNotVerifiedError` (ADR-0009), which both platforms raise from one implementation.
+            await expect(result.current.signOutAndLeave()).rejects.toThrow(SignOutNotVerifiedError);
             // Clerk's own awaiter only settles on "ready"/"degraded", so delegating here would hang the
             // caller's busy state forever (B17 — never spin forever).
             expect(loadSafeSignOut).not.toHaveBeenCalled();

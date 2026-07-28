@@ -9,5 +9,7 @@
     },
     // Override include (not just exclude) so the base project's `__tests__/**` never becomes a build input.
     "include": ["src/**/*.ts"],
-    "exclude": ["node_modules", "dist", "src/**/__tests__", "src/**/*.test.ts", "tests"]
+    // `src/**/__fixtures__` is excluded for the same reason as the specs: the message factories are test-only,
+    // and `Code.fromAsset(dist)` ships everything emitted here into the deployed Lambda.
+    "exclude": ["node_modules", "dist", "src/**/__tests__", "src/**/*.test.ts", "src/**/__fixtures__", "tests"]
 }

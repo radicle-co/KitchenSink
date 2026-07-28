@@ -6,23 +6,35 @@
  * phrase) and, on success, signs the viewer out. The dialog's full state matrix is covered in
  * `@commise/features-account`; here we assert the mobile WIRING.
  *
+ * The two SESSION-ENDING exits are covered as first-class states (ADR-0009 / B17): both go through the app's
+ * one sign-out COMMAND (never Clerk's `signOut` directly), a failed closure is reported instead of stopping
+ * silently, and an erasure that was ACCEPTED but whose sign-out failed says so TRUTHFULLY — the erasure
+ * succeeded server-side, so the alert must never be the dialog's "we couldn't erase, try again" copy.
+ *
  * Local-run note (per repo constraint): mobile-app `.native` screen tests can fail locally on the Clerk/expo
  * ESM graph — this suite mocks `@clerk/expo` + the platform hooks so it stays isolated, and it is
  * CI-verified regardless. The shared dialog's behaviour is additionally covered locally by
  * `@commise/features-account`'s own native tests.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
 import { palette, semantic } from '@commise/ui';
 import { accountDangerMessages } from '@commise/features-account/danger';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
+import { mobileMessages } from '../../src/i18n/messages.js';
 import { useDeleteAccount } from '../../src/hooks/useUserProfile.js';
 
-const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }));
-vi.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut }) }));
+const { signOut, signOutAndVerify } = vi.hoisted(() => ({ signOut: vi.fn(), signOutAndVerify: vi.fn() }));
+vi.mock('@clerk/expo', () => ({
+    useAuth: () => ({ signOut }),
+    useClerk: () => ({ signOut, loaded: true, status: 'ready', session: null }),
+}));
+vi.mock('../../src/hooks/useSignOutAndVerify.js', () => ({
+    useSignOutAndVerify: () => ({ signOutAndVerify }),
+}));
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useAllOwnerRecipes: vi.fn(),
@@ -62,13 +74,23 @@ function setErasure(state: { isPending?: boolean; isError?: boolean } = {}): voi
     } as unknown as ReturnType<typeof useRequestAccountErasure>);
 }
 
+const { close, erase } = accountDangerMessages.en;
+const { account } = mobileMessages.en;
+
+function setDeleteAccount(state: { isPending?: boolean; isError?: boolean } = {}): void {
+    useDeleteAccountMock.mockReturnValue({
+        mutate: deleteMutate,
+        isPending: state.isPending ?? false,
+        isError: state.isError ?? false,
+    } as unknown as ReturnType<typeof useDeleteAccount>);
+}
+
 beforeEach(() => {
     signOut.mockReset().mockResolvedValue(undefined);
+    signOutAndVerify.mockReset().mockResolvedValue(undefined);
     deleteMutate.mockReset();
     erasureMutate.mockReset();
-    useDeleteAccountMock.mockReturnValue({ mutate: deleteMutate, isPending: false } as unknown as ReturnType<
-        typeof useDeleteAccount
-    >);
+    setDeleteAccount();
     setRecipes([]);
     setErasure();
 });
@@ -85,8 +107,6 @@ describe('AccountDangerZone (native) — closure vs erasure are distinct', () =>
 });
 
 describe('AccountDangerZone (native) — design-system surfaces (U4b)', () => {
-    const { close, erase } = accountDangerMessages.en;
-
     it('paints the close trigger as the bordered secondary tier, on palette', () => {
         render(<AccountDangerZone />);
 
@@ -128,9 +148,7 @@ describe('AccountDangerZone (native) — design-system surfaces (U4b)', () => {
         expect(screen.queryByRole('progressbar', { hidden: true })).toBeNull();
         unmount();
 
-        useDeleteAccountMock.mockReturnValue({ mutate: deleteMutate, isPending: true } as unknown as ReturnType<
-            typeof useDeleteAccount
-        >);
+        setDeleteAccount({ isPending: true });
         render(<AccountDangerZone />);
 
         // A real spinner, not merely a swapped label — and the control is out of action while in flight.
@@ -162,6 +180,19 @@ describe('AccountDangerZone (native) — close (recoverable)', () => {
 
         expect(deleteMutate).toHaveBeenCalledTimes(1);
     });
+
+    it('reports a FAILED closure instead of stopping silently (B17)', () => {
+        setDeleteAccount({ isError: true });
+        render(<AccountDangerZone />);
+
+        expect(screen.getByRole('alert').textContent).toBe(close.error);
+    });
+
+    it('shows no closure alert while nothing has failed', () => {
+        render(<AccountDangerZone />);
+
+        expect(screen.queryByText(close.error)).toBeNull();
+    });
 });
 
 describe('AccountDangerZone (native) — erase (irreversible)', () => {
@@ -178,10 +209,8 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
         expect(screen.queryByRole('checkbox', { name: 'Public Published' })).toBeNull();
     });
 
-    it('erases with the typed phrase + donate election, then signs out on success', () => {
-        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
-            options?.onSuccess?.(),
-        );
+    /** Drive the erasure flow to its confirmed state, with `priv` elected for donation. */
+    function confirmErasure(): void {
         setRecipes([makeRecipe('priv', 'Private Published', 'private', 'published')]);
         render(<AccountDangerZone />);
 
@@ -191,13 +220,50 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
 
         const eraseButtons = screen.getAllByRole('button', { name: 'Erase my data' });
         fireEvent.click(eraseButtons[eraseButtons.length - 1] as HTMLElement);
+    }
+
+    it('erases with the typed phrase + donate election, then signs out on success', async () => {
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+        confirmErasure();
 
         expect(erasureMutate).toHaveBeenCalledTimes(1);
         expect(erasureMutate.mock.calls[0]?.[0]).toEqual({
             confirmationPhrase: 'ERASE MY DATA',
             publishRecipeIds: ['priv'],
         });
-        expect(signOut).toHaveBeenCalledTimes(1);
+        // The app's one sign-out COMMAND — a raw `signOut()` has no failure path and no post-condition.
+        await waitFor(() => expect(signOutAndVerify).toHaveBeenCalledTimes(1));
+        expect(signOut).not.toHaveBeenCalled();
+    });
+
+    it('reports an accepted erasure whose sign-out FAILED, without claiming the erasure failed', async () => {
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+        signOutAndVerify.mockRejectedValue(new Error('sign-out did not take effect: session sess_live is active'));
+        confirmErasure();
+
+        const alert = await screen.findByRole('alert');
+        expect(alert.textContent).toBe(account.eraseSignOutFailed);
+        // The erasure DID succeed (202), so inviting a retry of it would be a lie.
+        expect(screen.queryByText(erase.error)).toBeNull();
+        // …and the raw error never reaches the viewer.
+        expect(screen.queryByText(/sess_live/)).toBeNull();
+    });
+
+    it('dismisses the now-dead dialog when the exit fails, and offers signing out as the recovery', async () => {
+        erasureMutate.mockImplementation((_request: unknown, options?: { onSuccess?: () => void }) =>
+            options?.onSuccess?.(),
+        );
+        signOutAndVerify.mockRejectedValue(new Error('nope'));
+        confirmErasure();
+
+        await screen.findByRole('alert');
+        // The dialog would otherwise trap focus inside a flow whose account no longer exists.
+        expect(screen.queryByLabelText('Confirmation phrase')).toBeNull();
+        expect(screen.getByRole('button', { name: account.signOutAction })).toBeTruthy();
     });
 
     it('does not erase while the phrase gate is unsatisfied', () => {

@@ -4,7 +4,7 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "tsc -p tsconfig.json && npm run package",
+        "build": "tsc -p tsconfig.build.json && npm run package",
         "infra:build": "tsc -p infra/tsconfig.json",
         "infra:synth": "cdk synth --app 'npx tsx infra/bin/app.ts'",
         "infra:deploy": "cdk deploy --app 'npx tsx infra/bin/app.ts'",

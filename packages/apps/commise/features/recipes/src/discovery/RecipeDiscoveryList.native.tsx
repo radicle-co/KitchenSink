@@ -81,29 +81,10 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
 
     let body: ReactElement;
 
-    if (browsing) {
-        // ScrollView, NOT a bare fragment: the browse surface is three curated rails plus the cuisine
-        // shortcuts, which is several viewports tall on a phone. Rendered unwrapped inside the screen's
-        // `flex: 1` container nothing scrolled at all, stranding the third rail ("Quick") and the cuisine
-        // shortcuts off-screen with no way to reach them (caught on-device by Maestro `discover-browse` /
-        // `search-navigation`, which swiped up 13 times without the surface moving). The RESULT state was
-        // always virtualized (FlashList) and so never had this problem — browse was the one stranded state.
-        // Pull-to-refresh rides along here too, so the gesture means the same thing on both surfaces.
-        body = (
-            <ScrollView
-                style={styles.cardsScroll}
-                contentContainerStyle={styles.cards}
-                keyboardShouldPersistTaps="handled"
-                refreshControl={
-                    refresh !== undefined ? (
-                        <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
-                    ) : undefined
-                }
-            >
-                {browseSlot}
-            </ScrollView>
-        );
-    } else if (status === 'loading') {
+    // ⚠️ ORDER IS LOAD-BEARING: `status` outranks `browsing`. See the web leaf's identical note — browsing is
+    // the DEFAULT state of Discover, so testing it first made the loading, error and empty branches below
+    // unreachable on the surface's own default, taking the only retry down with them.
+    if (status === 'loading') {
         // Skeleton cards (NOT a blank view — the previous bug): inert, motion-free placeholders in the same
         // 2-col grid the results use, so the surface has shape while the first page loads. Being motion-free,
         // they need no reduce-motion gate (there is no non-essential animation to suppress).
@@ -128,9 +109,32 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 </Pressable>
             </View>
         );
+    } else if (browsing) {
+        // ScrollView, NOT a bare fragment: the browse surface is three curated rails plus the cuisine
+        // shortcuts, which is several viewports tall on a phone. Rendered unwrapped inside the screen's
+        // `flex: 1` container nothing scrolled at all, stranding the third rail ("Quick") and the cuisine
+        // shortcuts off-screen with no way to reach them (caught on-device by Maestro `discover-browse` /
+        // `search-navigation`, which swiped up 13 times without the surface moving). The RESULT state was
+        // always virtualized (FlashList) and so never had this problem — browse was the one stranded state.
+        // Pull-to-refresh rides along here too, so the gesture means the same thing on both surfaces.
+        body = (
+            <ScrollView
+                style={styles.cardsScroll}
+                contentContainerStyle={styles.cards}
+                keyboardShouldPersistTaps="handled"
+                refreshControl={
+                    refresh !== undefined ? (
+                        <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
+                    ) : undefined
+                }
+            >
+                {browseSlot}
+            </ScrollView>
+        );
     } else if (results.length === 0) {
         // Empty ≠ no-match: a search/filter with zero hits is a NO-MATCH, not the browse-empty "no public
-        // recipes" state. `searchValue` or an active filter distinguishes them.
+        // recipes" state. `searchValue` or an active filter distinguishes them. The browse-empty half is
+        // reachable on both platforms once a rail's "see all" drops the browse slot — see the web leaf.
         body = (
             <View>
                 <Text>{searching ? discovery.noMatchTitle : discovery.emptyTitle}</Text>

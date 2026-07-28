@@ -271,6 +271,37 @@ describe('RecipeDiscoveryList (native) — browse slot (U7)', () => {
         expect(screen.queryByText('No recipes found')).toBeNull();
     });
 
+    it('surfaces a FAILURE while browsing, with the retry, instead of swallowing it', () => {
+        const onRetry = vi.fn();
+        renderDiscovery({
+            status: 'error',
+            results: [],
+            searchValue: '',
+            browseSlot: <>{'CURATED RAILS'}</>,
+            onRetry,
+        });
+
+        // Browsing is the DEFAULT state of Discover, so a browse branch that outranks `status` makes the
+        // error body — and the only retry this surface has — unreachable on the surface's own default.
+        expect(screen.getByRole('alert')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the loading skeleton while browsing, not curated rails with no data behind them', () => {
+        renderDiscovery({ status: 'loading', results: [], searchValue: '', browseSlot: <>{'CURATED RAILS'}</> });
+
+        expect(screen.getByLabelText('Loading recipes')).toBeTruthy();
+        expect(screen.queryByText('CURATED RAILS')).toBeNull();
+    });
+
+    it('returns to the browse slot once the load settles', () => {
+        renderDiscovery({ status: 'ready', results: [], searchValue: '', browseSlot: <>{'CURATED RAILS'}</> });
+
+        expect(screen.getByText('CURATED RAILS')).toBeTruthy();
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
     it('shows the result list once a query is active', () => {
         renderDiscovery({
             status: 'ready',

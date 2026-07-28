@@ -85,9 +85,22 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
 
     let body: ReactElement;
 
-    if (browsing) {
-        body = <>{browseSlot}</>;
-    } else if (status === 'loading') {
+    // ⚠️ ORDER IS LOAD-BEARING: `status` outranks `browsing`, NOT the other way round.
+    //
+    // `browsing` used to be tested FIRST, and because it is the DEFAULT state of /discover (no query, no
+    // filter, rails supplied), that made the loading, error and empty branches below unreachable on the
+    // surface's own default. The error branch carries the ONLY "Try again" this surface has, so a failed
+    // load settled into curated rails with no failure reported and no way to recover — while /recipes, on
+    // the identical failure, offered a working retry.
+    //
+    // The rails DO own per-rail loading/error states of their own, which is why the gap hid for so long: the
+    // surface looked busy. But those cover a DIFFERENT query (`useBrowseRails`), not the container's main
+    // search — the one that also feeds the facets the filter bar and cuisine shortcuts are built from. When
+    // that query fails there is nothing behind the browse surface, so the honest body is the failure and its
+    // retry, not partially-populated rails. (Accepted trade-off: if the main query fails while the rails
+    // happen to succeed, working rails are replaced by the error card. They share an endpoint and an auth
+    // context, so that split is rare, and a reachable retry beats a silent failure either way.)
+    if (status === 'loading') {
         // A card skeleton grid, NOT a blank body (the previous bug): the ONE authoritative web recipe-grid
         // skeleton, shared with `RecipeList`, so discovery and the personal list cannot drift. It also carries
         // the localized label as its visible caption — an empty `role="status"` announces nothing.
@@ -107,9 +120,17 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                 </button>
             </div>
         );
+    } else if (browsing) {
+        // Settled and idle: the curated rails ARE the default experience, not a bare relevance stream.
+        body = <>{browseSlot}</>;
     } else if (results.length === 0) {
         // Empty ≠ no-match: a search/filter with zero hits is a NO-MATCH, not the browse-empty "no public
         // recipes" state. `searchValue` or an active filter distinguishes them.
+        //
+        // The browse-empty half (`emptyTitle`/`emptyBody`) is REACHABLE on web, and is not dead copy: the
+        // container passes `browseSlot` only while `browsing`, so a viewer who leaves browse via a rail's
+        // "see all" (`browseDismissed`) has no query and no filter AND no browse slot — exactly this branch.
+        // `RecipeDiscoveryContainer`'s own test pins that path so it cannot be optimised away by accident.
         body = (
             <div>
                 <p>{searching ? discovery.noMatchTitle : discovery.emptyTitle}</p>

@@ -296,6 +296,41 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
         await vi.waitFor(() => expect(searchSpy).toHaveBeenCalledWith({ sortBy: 'most-cloned', page: 1 }));
         expect(screen.queryByRole('heading', { name: 'Trending' })).not.toBeInTheDocument();
     });
+
+    it('reaches the BROWSE-EMPTY copy (not the no-match copy) after a rail’s "see all" finds nothing', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
+
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+
+        await user.click(await screen.findByRole('button', { name: 'See all Trending' }));
+
+        // This pins `discovery.emptyTitle`/`emptyBody` as LIVE web copy rather than an unreachable string.
+        // The container supplies `browseSlot` only while browsing, so leaving browse via "see all" is the
+        // one path with no query, no filter AND no browse slot — precisely the browse-empty branch. Without
+        // it, the only zero-result copy a web viewer could ever see would be the no-match wording, which
+        // wrongly implies a search they never made.
+        expect(await screen.findByText('No recipes found')).toBeInTheDocument();
+        expect(screen.queryByText('No matching recipes')).not.toBeInTheDocument();
+    });
+
+    it('offers a working retry when the load fails on the BROWSE default, not just in a result list', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        const searchSpy = vi.spyOn(client, 'searchRecipes').mockRejectedValue(new Error('boom'));
+
+        renderWithRecipeClient(<RecipeDiscoveryContainer locale="en" />, client);
+
+        // Browsing is /discover's default, so a failure here used to settle into curated rails with the
+        // failure — and its only recovery affordance — rendered nowhere at all.
+        const retry = await screen.findByRole('button', { name: 'Try again' }, { timeout: 5000 });
+        const before = searchSpy.mock.calls.length;
+
+        await user.click(retry);
+
+        await vi.waitFor(() => expect(searchSpy.mock.calls.length).toBeGreaterThan(before));
+    });
 });
 
 /**

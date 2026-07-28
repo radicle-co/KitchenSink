@@ -510,6 +510,40 @@ describe('Wizard (web) — chrome landmark labels (a11y, localized, not shared)'
     });
 });
 
+/**
+ * Cross-platform parity for the native leaf's step-rail fix (the Maestro dump where step 4 rendered clipped
+ * at the 1080px screen edge, because the native rail laid its four pills out on one horizontally scrolling
+ * line). This leaf was already the SAFE one — `flex-wrap` puts an overflowing pill on the next line — so
+ * these assertions pin the wrap the native leaf has now adopted, plus the same shrink contract: a pill may
+ * yield width and break its label, its number badge may not. Keeps the two leaves' overflow behaviour from
+ * drifting again (`li`'s `min-width: auto` still lets a single long token overflow otherwise).
+ */
+describe('Wizard (web) — the step rail cannot push a step off the screen edge', () => {
+    const pill = (): HTMLElement => screen.getByRole('button', { name: /Instructions:/ });
+
+    it('wraps the pill row instead of laying the four pills out on one over-wide line', () => {
+        render(<Harness />);
+
+        const row = pill().parentElement?.parentElement;
+
+        expect(row?.tagName).toBe('OL');
+        expect(row?.className).toContain('flex-wrap');
+    });
+
+    it('lets a pill shrink and break its label rather than overflow the row', () => {
+        render(<Harness />);
+
+        expect(pill().parentElement?.className).toContain('min-w-0');
+        expect(within(pill()).getByText('Instructions').className).toContain('break-words');
+    });
+
+    it('never shrinks the step marker itself', () => {
+        render(<Harness />);
+
+        expect((pill().firstElementChild as HTMLElement).className).toContain('shrink-0');
+    });
+});
+
 describe('Wizard (web) — Preview', () => {
     it('shows the current draft values and can be closed', async () => {
         const user = userEvent.setup();

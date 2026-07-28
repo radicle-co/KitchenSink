@@ -467,3 +467,40 @@ describe('RecipeDetailView (web) — touch targets (44px floor)', () => {
         expect(chip.className).toContain('md:min-h-0');
     });
 });
+
+/**
+ * Cross-platform parity for the native leaf's ingredient-row fix. CSS flex items shrink by default, so this
+ * leaf degraded more gracefully than RN — but `min-width: auto` still lets a single long token overflow the
+ * card, and the trailing `Custom` badge was itself shrinkable (its pill would deform before the text yielded).
+ * Pinning both keeps the two leaves' overflow behaviour from drifting again.
+ */
+describe('RecipeDetailView (web) — a long ingredient line cannot push the row chrome off the screen', () => {
+    const longIngredient = () =>
+        makeRecipeDetail({
+            ingredients: [
+                makeIngredientView({
+                    name: 'Slow-roasted San Marzano tomatoes from the co-op down the road',
+                    notes: 'peeled, deseeded, and crushed by hand just before serving',
+                    isUserEntered: true,
+                }),
+            ],
+        });
+
+    it('lets the ingredient name shrink and wrap rather than overflow the row', () => {
+        render(<RecipeDetailView recipe={longIngredient()} />);
+
+        const name = screen.getByText('Slow-roasted San Marzano tomatoes from the co-op down the road');
+
+        expect(name.className).toContain('min-w-0');
+        expect(name.className).toContain('break-words');
+    });
+
+    it('never shrinks the fixed-format quantity or the trailing user-entered badge', () => {
+        render(<RecipeDetailView recipe={longIngredient()} />);
+
+        // Both are the row's CHROME: the quantity is a formatted fixed field and the badge is a pill — RN
+        // leaves them unshrinkable by default, so web says so explicitly.
+        expect(screen.getByText('2 tbsp').className).toContain('shrink-0');
+        expect(screen.getByText('Custom').className).toContain('shrink-0');
+    });
+});

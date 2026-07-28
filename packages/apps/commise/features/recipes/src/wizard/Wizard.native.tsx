@@ -5,8 +5,9 @@
  * preview toggle); see that module's doc for the full rationale, including why `Wizard.TopBar` and
  * `Wizard.Controls` are deliberately two separate parts rather than the plan's literal single "Controls".
  *
- * **Native adaptation (per the plan):** `Wizard.Rail` collapses to a horizontally scrollable pill row plus
- * "Step N of 4"; `Wizard.Step` bodies are full-screen (the composing screen wraps its `Wizard.Step` content
+ * **Native adaptation (per the plan):** `Wizard.Rail` collapses to a WRAPPING pill row plus "Step N of 4"
+ * (it was a horizontally scrollable row until that row was found laying steps 3–4 past the screen edge — see
+ * {@link WizardRail}); `Wizard.Step` bodies are full-screen (the composing screen wraps its `Wizard.Step` content
  * in its own `ScrollView`, exactly as `RecipeForm.native.tsx` already does for the flat form); `Wizard.TopBar`
  * is a sticky header row the composing screen places above the scrolling step content.
  *
@@ -23,7 +24,7 @@ import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { Feather } from '@expo/vector-icons';
 import { createContext, useContext, useState, type FC, type ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
 import { recipeFormMessages } from '../form/messages.js';
@@ -236,7 +237,18 @@ const RAIL_MARKER_TEXT_COLOR: Record<RailState, string> = {
     upcoming: palette.slate,
 };
 
-/** The step-rail: a horizontally scrollable pill row + "Step N of 4" (native adaptation of FR-044). */
+/**
+ * The step-rail: a WRAPPING pill row + "Step N of 4" (native adaptation of FR-044).
+ *
+ * It wraps rather than scrolls horizontally, which is a bug fix, not a restyle. The four pills
+ * (`[1 Basic] [2 Ingredients] [3 Instructions] [4 Photos]`) need ~390dp, while a 360dp phone leaves ~296dp
+ * inside the composing screen's and this rail's own 16dp paddings — so on one unbounded line steps 3–4 were
+ * laid out past the right screen edge (the Maestro view-hierarchy dump caught step 4 clipped at the 1080px
+ * boundary), reachable only by a horizontal drag that is undiscoverable AND fights the vertical `ScrollView`
+ * this rail is nested in. It is why `.maestro/recipes/photos.yaml` walks the footer `Next: …` primaries
+ * instead of jumping via the rail. Wrapping is also exactly what the web leaf's `ol` already does
+ * (`flex flex-wrap`), so the two platforms converge rather than diverge.
+ */
 const WizardRail: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
@@ -246,7 +258,7 @@ const WizardRail: FC = () => {
             <Text style={styles.railProgress}>
                 {fillTemplate(m.stepProgress, { current: model.step, total: WIZARD_TOTAL_STEPS })}
             </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railScroll}>
+            <View style={styles.railRow}>
                 {WIZARD_STEPS.map((s, index) => {
                     const name = m.stepNames[index] ?? '';
                     const railState = deriveRailStepState({
@@ -280,7 +292,7 @@ const WizardRail: FC = () => {
                         </Pressable>
                     );
                 })}
-            </ScrollView>
+            </View>
         </View>
     );
 };
@@ -448,9 +460,15 @@ const border = 'rgba(178, 190, 195, 0.3)';
 const styles = StyleSheet.create({
     railContainer: { gap: 8, paddingHorizontal: 16, paddingTop: 12 },
     railProgress: { fontSize: 13, color: palette.slate },
-    railScroll: { flexDirection: 'row', gap: 16, paddingBottom: 8 },
-    railPill: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    // `flexWrap` is load-bearing (see `WizardRail`): a pill that does not fit moves to the NEXT LINE instead
+    // of past the screen edge. The shrink pair below is its backstop — line-breaking uses each pill's flex
+    // BASIS, so a single pill wider than the row (a long localized step name at a large font scale) is the
+    // one case wrapping cannot solve: `flexShrink: 1` lets that pill yield width and wrap its label, while
+    // `flexShrink: 0` keeps the number badge a circle. RN defaults `flexShrink` to 0, so both are explicit.
+    railRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16, paddingBottom: 8 },
+    railPill: { flexDirection: 'row', flexShrink: 1, alignItems: 'center', gap: 6 },
     railMarker: {
+        flexShrink: 0,
         width: 24,
         height: 24,
         borderRadius: 999,

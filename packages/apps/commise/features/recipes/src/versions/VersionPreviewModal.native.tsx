@@ -123,7 +123,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                             {toVersionPreviewIngredientLines(version.snapshot.ingredients, preview, locale).map(
                                 (line) => (
                                     <View key={line.key} style={styles.ingredientRow}>
-                                        <Text style={styles.body}>{line.text}</Text>
+                                        <Text style={[styles.body, styles.ingredientText]}>{line.text}</Text>
                                         {line.calories !== undefined && (
                                             <Text style={styles.calories}>{line.calories}</Text>
                                         )}
@@ -182,7 +182,11 @@ const styles = StyleSheet.create({
     sectionHeading: { fontSize: 16, fontWeight: '600', color: palette.charcoal },
     ingredients: { gap: 4 },
     ingredientRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-    calories: { fontSize: 14, color: palette.slate },
+    // RN defaults `flexShrink` to 0, so a long composed line (quantity + unit + a user-supplied ingredient
+    // name) used to push the calorie chip past the sheet edge. `flexShrink` is applied HERE rather than on the
+    // shared `body` style, which is also used outside this row. Mirrors `fieldValue` above.
+    ingredientText: { flexShrink: 1 },
+    calories: { flexShrink: 0, fontSize: 14, color: palette.slate },
     changedNote: { fontSize: 13, fontStyle: 'italic', color: palette.slate },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
     cancelButton: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 },

@@ -101,7 +101,13 @@ const styles = StyleSheet.create({
     field: { gap: 6 },
     fieldLabel: { fontSize: 13, fontWeight: '500', color: palette.slate },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    // `chipRow` wraps BETWEEN chips, which cannot help a single over-long tag: RN defaults `flexShrink` to 0,
+    // so one long tag used to claim its full intrinsic width and push its OWN remove control off the field —
+    // and that control is the only way to remove it, so the tag became permanent. The chip (and its label)
+    // therefore yield width while the 20pt remove target never does. The web leaf spells the same pair
+    // `min-w-0 break-words` / `shrink-0`.
     chip: {
+        flexShrink: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
@@ -111,8 +117,15 @@ const styles = StyleSheet.create({
         paddingLeft: 12,
         paddingRight: 6,
     },
-    chipLabel: { fontSize: 13, fontWeight: '500', color: palette.seafoam },
-    chipRemove: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
+    chipLabel: { flexShrink: 1, fontSize: 13, fontWeight: '500', color: palette.seafoam },
+    chipRemove: {
+        flexShrink: 0,
+        width: 20,
+        height: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 999,
+    },
     entryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     input: {
         flex: 1,

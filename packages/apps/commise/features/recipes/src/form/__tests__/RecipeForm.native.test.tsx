@@ -6,7 +6,7 @@
  * platform renders cannot drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { CUISINES, FoodResolutionStatus } from '@kitchensink/recipe-core';
@@ -759,6 +759,152 @@ describe('RecipeForm (native) — submit + cancel', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
         expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * Resolve the value react-native-web actually APPLIED for a CSS property, by walking the element's atomic
+ * `r-*` classes back to their compiled rules (`getComputedStyle` does not resolve them) and falling back to
+ * the inline `style` attribute for per-render styles. Same helper as `CollectionHeader.native.test.tsx` /
+ * `RecipeFilterBar.native.test.tsx`, which established the idiom.
+ */
+function appliedStyle(element: Element, property: string): string | undefined {
+    const classNames = element.className.split(' ').filter((name) => name.startsWith('r-'));
+    const sheets = document.styleSheets;
+    let resolved: string | undefined;
+
+    for (const className of classNames) {
+        for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
+            const rules = sheets[sheetIndex]?.cssRules;
+
+            for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
+                const rule = rules?.[ruleIndex];
+
+                if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
+                    const value = rule.style.getPropertyValue(property);
+
+                    if (value !== '') {
+                        resolved = value;
+                    }
+                }
+            }
+        }
+    }
+
+    return (resolved ?? (element as HTMLElement).style.getPropertyValue(property)) || undefined;
+}
+
+/**
+ * Regression (Maestro CI view-hierarchy dump): the instruction row is
+ * `[number][instruction input][timer input][Remove step N]` on ONE non-wrapping line, and React Native
+ * defaults `flexShrink` to 0 — so its ~28 + 178 + 88 + ~160dp of children could not fit the ~296dp a 360dp
+ * phone leaves inside the screen's and the card's paddings. On-device the remove button was laid out at
+ * x=999..1080 on a 1080px-wide display: half of it past the screen edge, so the only way to delete an
+ * instruction was untappable. Same family as `CollectionHeader.native.tsx`'s clipped Rename/absent Delete.
+ *
+ * The fix is the treatment this file's INGREDIENT row already carries (and the web leaf's `min-w-0 flex-1`
+ * field + wrapping row): the row WRAPS, the flexible field yields width, and the destructive action never
+ * shrinks. Note that shrinking ALONE would not do — with all four children on one line the instruction field
+ * would be squeezed to a few dp — which is why the wrap is the load-bearing half. jsdom has no layout engine,
+ * so this pins the flex CONTRACT that makes the off-screen action unrepresentable.
+ */
+describe('RecipeForm (native) — an instruction row cannot push its remove action off the screen edge', () => {
+    /** The instruction row itself — the `stepRow` View laying out marker + inputs + Remove. */
+    const stepRow = (): HTMLElement => screen.getByLabelText('Step 1 instruction').parentElement as HTMLElement;
+
+    /** The row-level slot holding the remove control (the child of the row that the button lives inside). */
+    const removeSlot = (): HTMLElement => {
+        const row = stepRow();
+        let node = screen.getByRole('button', { name: 'Remove step 1' });
+
+        while (node.parentElement !== null && node.parentElement !== row) {
+            node = node.parentElement;
+        }
+
+        return node;
+    };
+
+    it('wraps the row, so a child that does not fit moves to the next line instead of off the screen', () => {
+        renderForm();
+
+        expect(appliedStyle(stepRow(), 'flex-wrap')).toBe('wrap');
+    });
+
+    it('lets the instruction field yield width rather than claim its full intrinsic size', () => {
+        renderForm();
+
+        expect(appliedStyle(screen.getByLabelText('Step 1 instruction'), 'flex-shrink')).toBe('1');
+    });
+
+    it('never shrinks the remove action itself, so its label and touch target are never clipped', () => {
+        renderForm();
+
+        expect(appliedStyle(removeSlot(), 'flex-shrink')).toBe('0');
+    });
+
+    it('keeps the remove control at the 44pt touch floor', () => {
+        renderForm();
+
+        // The row treatment must not squeeze the pill below the comfortable touch target `Button` guarantees.
+        const button = screen.getByRole('button', { name: 'Remove step 1' });
+
+        expect(appliedStyle(button.firstElementChild as Element, 'min-height')).toBe('44px');
+    });
+
+    it('applies the same non-shrinking treatment to the ingredient row action (one row contract, both rows)', () => {
+        renderForm();
+
+        const row = screen.getByLabelText('Ingredient 1 name').parentElement as HTMLElement;
+        let node = screen.getByRole('button', { name: 'Remove ingredient 1' });
+
+        while (node.parentElement !== null && node.parentElement !== row) {
+            node = node.parentElement;
+        }
+
+        expect(appliedStyle(row, 'flex-wrap')).toBe('wrap');
+        expect(appliedStyle(node, 'flex-shrink')).toBe('0');
+    });
+});
+
+/**
+ * Same regression sweep, two more rows in this form whose variable text is USER-SUPPLIED:
+ *
+ *  - the cuisine Select's trigger and its option rows are `[label][chevron|check]` at
+ *    `justifyContent: 'space-between'` — and a non-curated CUSTOM cuisine value is deliberately preserved and
+ *    shown (see `CuisineSelect.native.tsx`), so a long one pushed the chevron (the only affordance that opens
+ *    the menu) and the selected-state check off the field's right edge;
+ *  - a tag/dietary-flag chip is `[tag][×]`, so a long tag pushed its OWN remove control out — and that control
+ *    is the field's only removal path, making the tag unremovable.
+ *
+ * The contract is the same one `CollectionHeader.native.tsx` documents: user text shrinks, chrome does not.
+ */
+describe('RecipeForm (native) — user-supplied values cannot push a row control off the field edge', () => {
+    const longCuisine = 'Coastal Ligurian home cooking with a Provençal accent';
+    const longTag = 'weeknight-dinner-for-a-crowd-of-hungry-teenagers';
+
+    it('lets the cuisine trigger label shrink, keeping the disclosure chevron on the field', () => {
+        renderForm({ values: filledValues({ cuisine: longCuisine }) });
+
+        expect(appliedStyle(screen.getByText(longCuisine), 'flex-shrink')).toBe('1');
+    });
+
+    it('lets a cuisine option label shrink, keeping its selected-state check visible', () => {
+        renderForm({ values: filledValues({ cuisine: longCuisine }) });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Cuisine' }));
+
+        const option = screen.getByRole('menuitem', { name: longCuisine });
+
+        expect(appliedStyle(within(option).getByText(longCuisine), 'flex-shrink')).toBe('1');
+    });
+
+    it('lets a chip label shrink but never its remove control, so a long tag stays removable', () => {
+        renderForm({ values: filledValues({ tags: [longTag] }) });
+
+        const remove = screen.getByRole('button', { name: `Remove ${longTag}` });
+
+        expect(appliedStyle(screen.getByText(longTag), 'flex-shrink')).toBe('1');
+        expect(appliedStyle(remove, 'flex-shrink')).toBe('0');
     });
 });
 

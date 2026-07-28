@@ -979,3 +979,58 @@ describe('RecipeForm (web) — every action button carries an icon and a real su
         }
     });
 });
+
+/**
+ * Cross-platform parity for the native leaf's instruction-row fix (the Maestro dump where "Remove step 1" was
+ * laid out at x=999..1080 on a 1080px display — half past the screen edge, untappable). This leaf was already
+ * the SAFE one: the instruction field is `min-w-0 flex-1` so IT yields the width instead of the action, the
+ * step marker is `shrink-0`, and the remove label collapses to icon-only below `sm` — three mitigations the
+ * native leaf had none of. Pinning them here keeps the two leaves' overflow behaviour from drifting again.
+ */
+describe('RecipeForm (web) — an instruction row cannot push its remove action off the screen edge', () => {
+    it('lets the instruction field yield width rather than claim its full intrinsic size', () => {
+        renderForm();
+
+        const field = screen.getByLabelText('Step 1 instruction');
+
+        expect(field.className).toContain('min-w-0');
+        expect(field.className).toContain('flex-1');
+    });
+
+    it('never shrinks the step marker', () => {
+        renderForm();
+
+        const row = screen.getByLabelText('Step 1 instruction').parentElement as HTMLElement;
+        const marker = row.firstElementChild as HTMLElement;
+
+        expect(marker.className).toContain('shrink-0');
+    });
+
+    it('applies the same treatment to the ingredient row (one row contract, both rows)', () => {
+        renderForm();
+
+        expect(screen.getByLabelText('Ingredient 1 name').className).toContain('min-w-0');
+        expect(screen.getByLabelText('Ingredient 1 name').parentElement?.className).toContain('flex-wrap');
+    });
+});
+
+/**
+ * Cross-platform parity for the native chip fix: a long tag must never push its own remove control out, since
+ * that control is the field's only removal path. Web shrinks flex items by default — which here means the
+ * `size-5` remove button was the thing that got squeezed — so the treatment is the same on both leaves: the
+ * tag text yields (and breaks), the remove control never does.
+ */
+describe('RecipeForm (web) — a long tag cannot push its own remove control out of the chip', () => {
+    const longTag = 'weeknight-dinner-for-a-crowd-of-hungry-teenagers';
+
+    it('lets the chip text break instead of overflowing, and never shrinks the remove control', () => {
+        renderForm({ values: filledValues({ tags: [longTag] }) });
+
+        const remove = screen.getByRole('button', { name: `Remove ${longTag}` });
+        const chip = remove.parentElement;
+
+        expect(chip?.className).toContain('min-w-0');
+        expect(chip?.className).toContain('break-words');
+        expect(remove.className).toContain('shrink-0');
+    });
+});

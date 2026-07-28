@@ -235,6 +235,71 @@ describe('VersionPreviewModal (native) — error', () => {
     });
 });
 
+/**
+ * Resolve the value react-native-web actually APPLIED for a CSS property, by walking the element's atomic
+ * `r-*` classes back to their compiled rules and falling back to the inline `style` attribute. Same helper as
+ * `CollectionHeader.native.test.tsx` / `RecipeFilterBar.native.test.tsx`, which established the idiom.
+ */
+function appliedStyle(element: Element, property: string): string | undefined {
+    const classNames = element.className.split(' ').filter((name) => name.startsWith('r-'));
+    const sheets = document.styleSheets;
+    let resolved: string | undefined;
+
+    for (const className of classNames) {
+        for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
+            const rules = sheets[sheetIndex]?.cssRules;
+
+            for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
+                const rule = rules?.[ruleIndex];
+
+                if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
+                    const value = rule.style.getPropertyValue(property);
+
+                    if (value !== '') {
+                        resolved = value;
+                    }
+                }
+            }
+        }
+    }
+
+    return (resolved ?? (element as HTMLElement).style.getPropertyValue(property)) || undefined;
+}
+
+/**
+ * Regression sweep (the `CollectionHeader.native.tsx` family): an ingredient line row is
+ * `[composed line text][calorie chip]` at `justifyContent: 'space-between'`, and React Native defaults
+ * `flexShrink` to 0 — so a long line (quantity + unit + a user-supplied ingredient name) claimed its full
+ * intrinsic width and pushed the calorie chip past the sheet edge. This file's sibling `field` row already
+ * carries the fix (`fieldValue: { flexShrink: 1 }`), so the two rows now agree.
+ */
+describe('VersionPreviewModal (native) — a long ingredient line cannot push its calorie chip off the sheet', () => {
+    const longLineVersion = makeVersion({
+        snapshot: makeSnapshot({
+            ingredients: [
+                makeIngredient({
+                    ingredientName: 'Slow-roasted San Marzano tomatoes from the co-op down the road',
+                    userCalories: 420,
+                }),
+            ],
+        }),
+    });
+
+    it('lets the line text shrink instead of claiming its intrinsic width', () => {
+        render(<VersionPreviewModal {...baseProps({ version: longLineVersion })} />);
+
+        const line = screen.getByText('200 g Slow-roasted San Marzano tomatoes from the co-op down the road');
+
+        expect(appliedStyle(line, 'flex-shrink')).toBe('1');
+    });
+
+    it('never shrinks the calorie chip, so it cannot be clipped away', () => {
+        render(<VersionPreviewModal {...baseProps({ version: longLineVersion })} />);
+
+        expect(appliedStyle(screen.getByText('420 cal'), 'flex-shrink')).toBe('0');
+    });
+});
+
 describe('VersionPreviewModal (native) — dismissal', () => {
     it('Keep current version fires onCancel', async () => {
         const user = userEvent.setup();

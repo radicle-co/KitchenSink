@@ -34,10 +34,13 @@ export interface ChipInputProps {
 }
 
 const fieldLabel = 'text-body-sm font-medium text-slate';
+// `min-w-0 break-words` + the remove control's `shrink-0` are one contract: a long tag yields (and breaks)
+// rather than squeezing out the only affordance that can remove it. The native leaf carries the same contract
+// as `flexShrink: 1` / `flexShrink: 0` — see `ChipInput.native.tsx`.
 const chip =
-    'inline-flex items-center gap-1 rounded-full bg-seafoam/10 py-1 pl-3 pr-1 text-body-sm font-medium text-seafoam';
+    'inline-flex min-w-0 items-center gap-1 break-words rounded-full bg-seafoam/10 py-1 pl-3 pr-1 text-body-sm font-medium text-seafoam';
 const chipRemove =
-    'flex size-5 items-center justify-center rounded-full text-seafoam transition hover:bg-seafoam/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light';
+    'flex size-5 shrink-0 items-center justify-center rounded-full text-seafoam transition hover:bg-seafoam/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light';
 const chipField =
     'flex flex-wrap items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal focus-within:ring-2 focus-within:ring-seafoam-light';
 const chipDraft = 'min-w-24 flex-1 border-none bg-transparent p-0 text-body-md text-charcoal outline-none';

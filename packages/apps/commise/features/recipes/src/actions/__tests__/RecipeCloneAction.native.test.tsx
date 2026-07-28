@@ -10,7 +10,8 @@ import { fireEvent } from '@testing-library/dom';
 import { palette, semantic } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 
-import { cssColor } from './cssColor.js';
+import { cssColor } from '../../__tests__/cssColor.js';
+import { pillOf } from '../../__tests__/dsPill.js';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeCloneAction } from '../RecipeCloneAction.native.js';
@@ -86,23 +87,6 @@ describe('RecipeCloneAction (native)', () => {
  * The 44pt floor / radius / busy assertions are KEPT: they used to guard a hand-rolled control, and they now
  * prove the DS Button actually delivers what the hand-rolled version was justified by.
  */
-/**
- * The DS Button composes `PressScale` (which renders the accessible `Pressable`) around the styled pill `View`,
- * so the geometry/fill live on a DESCENDANT of the `role="button"` element rather than on it. Locate that pill
- * the same way the design system's own native tests do — by the resolved computed style, because
- * react-native-web compiles `StyleSheet` metrics to atomic CSS classes instead of inline styles.
- */
-function pillOf(button: HTMLElement): HTMLElement {
-    const candidates = [button, ...Array.from(button.querySelectorAll<HTMLElement>('*'))];
-    const pill = candidates.find((element) => window.getComputedStyle(element).minHeight === '44px');
-
-    if (pill === undefined) {
-        throw new Error('No 44pt DS pill found inside the clone control — the touch floor is gone.');
-    }
-
-    return pill;
-}
-
 describe('RecipeCloneAction (native) — design-system surface', () => {
     it('meets the 44pt touch floor the DS Button guarantees', () => {
         renderClone();

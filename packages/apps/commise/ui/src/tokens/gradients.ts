@@ -91,20 +91,35 @@ export interface GlassSpec {
  * The frosted-glass tiers. `card` is the standard stat/widget/detail glass card; `subtle` is a lighter
  * treatment for chrome (rails, banners). Each carries a solid `fallback` so the surface stays readable
  * when blur is unavailable.
+ *
+ * **The blur/saturate pairs are TRANSCRIBED from `docs/mockups/screens/*.html`, not chosen.** Across all
+ * nine screens the frosted treatments come in exactly three pairs, and each blur radius binds to ONE
+ * saturation with no exception anywhere in the corpus:
+ *
+ *  - `backdrop-blur-[12px] saturate-[130%]` → **`subtle`** — the chrome/control glass (it is also the
+ *    surface the mockups' own secondary BUTTON is built on: `from-white/80 to-white/60
+ *    backdrop-blur-[12px] saturate-[130%] border-2 border-coral text-coral`).
+ *  - `backdrop-blur-[16px] saturate-[140%]` → **`card`** — the standard content card (30 occurrences).
+ *  - `backdrop-blur-[24px] saturate-[160%]` — the fixed nav rail / sticky top bar. Deliberately NOT
+ *    tokenised: no Commise surface paints it today, and a tier nobody consumes is speculative capability.
+ *
+ * Both tiers were previously off-mockup (`card` saturated at 1.6 — a value that pairs only with the 24px
+ * nav blur, never with 16px; `subtle` at blur 10 / 1.4 — a 10px blur appears in NO mockup at all), so the
+ * web `backdrop-filter` and the native `expo-blur` intensity were both single-sourced to a wrong number.
  */
 export const glass = {
     card: {
         surface: 'rgba(255, 255, 255, 0.85)',
         fallback: 'rgba(255, 255, 255, 0.96)',
         blur: 16,
-        saturate: 1.6,
+        saturate: 1.4,
         border: 'rgba(255, 255, 255, 0.3)',
     },
     subtle: {
         surface: 'rgba(255, 255, 255, 0.6)',
         fallback: 'rgba(255, 255, 255, 0.9)',
-        blur: 10,
-        saturate: 1.4,
+        blur: 12,
+        saturate: 1.3,
         border: 'rgba(255, 255, 255, 0.3)',
     },
 } as const satisfies Record<string, GlassSpec>;

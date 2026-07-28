@@ -9,8 +9,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { buttonSurfaceClass } from '@commise/ui/button';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
+import { RecipeCloneAction } from '../../actions/RecipeCloneAction.js';
 import { CollectionActions } from '../CollectionActions.js';
 import type { CollectionActionsProps } from '../model.js';
 
@@ -105,6 +107,87 @@ describe('CollectionActions (web) — Clone Collection', () => {
 
         await user.click(button);
         expect(onClone).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * Clone Collection IS the design-system Button — the SAME `secondary` tier the recipe-detail clone wears.
+ *
+ * This control painted a solid-coral pill (`bg-coral … text-white`) while its sibling clone affordance on the
+ * discovery card painted a coral OUTLINE and the detail clone painted a solid — three hand-rolled answers to
+ * one question. The premise under all of them is false: no mockup contains a clone action at all, and the
+ * mockups never FILL a button coral (their coral button form is `border-2 border-coral text-coral` over glass,
+ * filling only on hover). Coral's documented role is the danger register, which is why a filled-coral pill put
+ * a safe, additive, reversible action next to `palette.error`.
+ *
+ * The assertions pin the surface by EQUALITY against the shared recipe, so any re-hand-rolling — a stray
+ * colour utility, a re-typed radius, a dropped touch floor — breaks them.
+ */
+describe('CollectionActions (web) — Clone Collection is the DS secondary surface', () => {
+    it('wears the DS secondary Button surface verbatim (no hand-rolled pill)', () => {
+        renderActions();
+
+        expect(screen.getByRole('button', { name: 'Clone Collection' }).className).toBe(
+            buttonSurfaceClass('secondary'),
+        );
+    });
+
+    it('is the SAME surface the recipe-detail clone wears — one decision governs every clone affordance', () => {
+        renderActions();
+        render(<RecipeCloneAction canClone onClone={noop} />);
+
+        // Compared against the sibling control's ACTUAL rendered class, not a re-spelled string: if either
+        // leaf drifts onto its own tier, this fails even though both would still "be a DS Button".
+        expect(screen.getByRole('button', { name: 'Clone Collection' }).className).toBe(
+            screen.getByRole('button', { name: 'Clone' }).className,
+        );
+    });
+
+    it('paints no coral at all — the hue that put a reversible action in the danger register is gone', () => {
+        renderActions();
+        const className = screen.getByRole('button', { name: 'Clone Collection' }).className;
+
+        expect(className).not.toContain('coral');
+        // The replacement must be a real DS surface, not "no surface at all" (the bare-text regression).
+        expect(className).toContain('bg-white');
+    });
+
+    it('gives the control the DS 44px touch floor, reset for the mouse at md', () => {
+        renderActions();
+        const className = screen.getByRole('button', { name: 'Clone Collection' }).className;
+
+        expect(className).toContain('min-h-11');
+        expect(className).toContain('md:min-h-0');
+    });
+
+    it('pairs the label with a decorative icon that never joins the accessible name', () => {
+        renderActions();
+        const button = screen.getByRole('button', { name: 'Clone Collection' });
+
+        // The DS Button requires an icon and hides it, so the visible label alone owns the name — which is
+        // what keeps `getByRole('button', { name: 'Clone Collection' })` stable in RTL AND in Playwright
+        // (`tests/e2e/collections.spec.ts` selects this exact name).
+        expect(button.querySelector('svg')).not.toBeNull();
+        expect(button.querySelector('[aria-hidden="true"]')).not.toBeNull();
+        expect(button.getAttribute('aria-label')).toBeNull();
+    });
+
+    it('swaps the icon slot for the DS spinner while cloning, keeping the surface and label stable', () => {
+        renderActions({ isCloning: true });
+        const button = screen.getByRole('button', { name: 'Clone Collection' });
+
+        // Busy must not restyle the pill (that would shift layout mid-flight) — same class string as idle.
+        expect(button.className).toBe(buttonSurfaceClass('secondary'));
+        expect(button.querySelector('svg.animate-spin')).not.toBeNull();
+        // The separate live-region status survives the migration; the spinner does not replace it.
+        expect(screen.getByRole('status').textContent).toBe('Cloning…');
+    });
+
+    it('keeps the idle control spinner-free and status-free', () => {
+        renderActions();
+
+        expect(screen.getByRole('button', { name: 'Clone Collection' }).querySelector('svg.animate-spin')).toBeNull();
+        expect(screen.queryByRole('status')).toBeNull();
     });
 });
 

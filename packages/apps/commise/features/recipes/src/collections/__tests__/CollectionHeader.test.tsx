@@ -90,6 +90,35 @@ describe('CollectionHeader (web) — Back affordance (C6)', () => {
     });
 });
 
+/**
+ * Delete is painted in the ERROR register — with the error hue, not coral.
+ *
+ * The control already labelled itself `text-error` (#E17055) but tinted its hover with `bg-coral/10`
+ * (#E8917A) — two adjacent-but-different hues inside one control, and the wrong one for a destructive action:
+ * coral is a brand accent (the mockups spend it on tags and warm highlights), `error` is the destructive
+ * token, and the design system's own `destructive` Button tier already tints with `hover:bg-error/10`. The
+ * native leaf never had the coral at all (`palette.error` text, no tint), so this was a WEB-ONLY drift.
+ */
+describe('CollectionHeader (web) — Delete stays in the error register', () => {
+    it('tints Delete’s hover with the error token, never coral', () => {
+        renderHeader();
+        const className = screen.getByRole('button', { name: 'Delete' }).className;
+
+        expect(className).toContain('text-error');
+        expect(className).toContain('hover:bg-error/10');
+        expect(className).not.toContain('coral');
+    });
+
+    it('leaves the non-destructive Rename out of the error register entirely', () => {
+        renderHeader();
+        const className = screen.getByRole('button', { name: 'Rename' }).className;
+
+        // The counterweight assertion: "no coral" must not be reachable by painting EVERYTHING error-toned.
+        expect(className).not.toContain('error');
+        expect(className).not.toContain('coral');
+    });
+});
+
 describe('CollectionHeader (web) — Edit/Delete affordances (C4)', () => {
     it('reports edit and delete requests upward', async () => {
         const user = userEvent.setup();

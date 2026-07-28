@@ -38,19 +38,9 @@ import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
 import { fillTemplate } from '../list/model.js';
+import { CloneIcon } from './icons.js';
 import { recipeActionMessages } from './messages.js';
 import type { RecipeCloneActionProps } from './model.js';
-
-/**
- * The clone glyph — two offset sheets ("copy"). Decorative only: the DS Button renders every icon inside an
- * `aria-hidden` slot, so the visible label keeps sole ownership of the accessible name.
- */
-const CopyIcon: FC = () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="9" y="9" width="11" height="11" rx="2" strokeWidth="2" />
-        <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 15V5a2 2 0 0 1 2-2h10" />
-    </svg>
-);
 
 export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({
     canClone,
@@ -70,7 +60,7 @@ export const RecipeCloneAction: FC<RecipeCloneActionProps> = ({
                 </p>
             )}
             {/* `busy` supplies the in-place spinner, the disabled in-flight guard, and `aria-busy`. */}
-            <Button variant="secondary" icon={<CopyIcon />} onPress={onClone} disabled={!canClone} busy={cloning}>
+            <Button variant="secondary" icon={<CloneIcon />} onPress={onClone} disabled={!canClone} busy={cloning}>
                 {clone.clone}
             </Button>
             {cloning && (

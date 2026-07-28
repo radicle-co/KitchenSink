@@ -15,6 +15,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { palette } from '@commise/ui';
+
+import { cssColor, tintOf } from '../../__tests__/cssColor.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionRecipePicker } from '../CollectionRecipePicker.native.js';
 import type { CollectionRecipePickerProps } from '../model.js';
@@ -178,5 +181,21 @@ describe('CollectionRecipePicker (native) — adding', () => {
 
         expect(screen.getByRole('alert').textContent).toContain('We couldn’t add that recipe. Please try again.');
         expect(screen.getByRole('button', { name: 'Add Weeknight Pasta' })).toBeTruthy();
+    });
+
+    it('tints the add-failure alert with the error token, never coral', () => {
+        renderPicker({ addFailed: true });
+        const alert = screen.getByRole('alert');
+
+        // RN has no alpha-suffix colour syntax, so this leaf spells its tint out as an `rgba(...)` literal —
+        // and it spelled out CORAL (#E8917A → 232,145,122) under `palette.error` text: two adjacent-but-
+        // different hues in one element, with coral (a brand ACCENT) standing in for the failure register.
+        // Deriving the expectation FROM the token is what keeps this assertion pointed at the token: a
+        // re-theme of `palette.error` moves the test with it, and a literal that agrees by luck cannot pass.
+        expect(window.getComputedStyle(alert).backgroundColor).toBe(tintOf(palette.error, 0.1));
+        expect(window.getComputedStyle(alert).backgroundColor).not.toBe(tintOf(palette.coral, 0.1));
+        expect(window.getComputedStyle(within(alert).getByText(/couldn’t add that recipe/)).color).toBe(
+            cssColor(palette.error),
+        );
     });
 });

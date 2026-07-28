@@ -7,10 +7,20 @@
  * badge, rating, and tags — plus the Clone action that copies the public recipe into the viewer's library.
  * Presentational: it reports selection/clone upward and holds no state. Building it from `RecipeCard.*`
  * (rather than a widening discovery prop bag) is exactly why the card is a compound component.
+ *
+ * The Clone action is the design-system `Button` on the `secondary` tier — the same tier the recipe-detail and
+ * collection clone affordances wear, so ONE decision governs every clone control in the product. It previously
+ * hand-rolled a coral OUTLINE while the collections rail hand-rolled a coral FILL: the shared premise ("clone
+ * is coral") is false — no mockup contains a clone action at all, the mockups never fill a button coral, and
+ * coral's documented role is the danger register, which is the wrong register for a safe, additive, reversible
+ * action. Migrating also fixed real gaps the hand-rolled surface had: no 44px touch floor, no focus ring, and
+ * no in-place busy affordance.
  */
 import { useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
+import { CloneIcon } from '../actions/icons.js';
 import { RecipeCard } from '../card/index.js';
 import { fillTemplate } from '../list/model.js';
 import { discoveryMessages } from './messages.js';
@@ -62,16 +72,20 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
                 <RecipeCard.Badges />
                 <RecipeCard.Rating />
                 <RecipeCard.Tags />
-                <button
-                    type="button"
-                    aria-label={cloneLabel}
-                    aria-busy={isCloning}
-                    disabled={isCloning}
-                    onClick={() => onClone(recipe.id)}
-                    className="mt-1 self-start rounded-full border border-coral bg-transparent px-4 py-2 text-body-sm font-semibold text-coral transition hover:bg-coral/10 disabled:opacity-60"
-                >
-                    {isCloning ? discovery.cloning : discovery.clone}
-                </button>
+                {/* `busy` supplies the in-place spinner, the disabled in-flight guard, and `aria-busy`. The
+                    accessible name is the ROW-UNIQUE template (the visible label is the generic "Clone", which
+                    would collide across sibling rows), so it is passed as an explicit override. */}
+                <div className="mt-1 flex flex-col items-start">
+                    <Button
+                        variant="secondary"
+                        icon={<CloneIcon />}
+                        accessibilityLabel={cloneLabel}
+                        busy={isCloning}
+                        onPress={() => onClone(recipe.id)}
+                    >
+                        {isCloning ? discovery.cloning : discovery.clone}
+                    </Button>
+                </div>
             </div>
         </RecipeCard>
     );

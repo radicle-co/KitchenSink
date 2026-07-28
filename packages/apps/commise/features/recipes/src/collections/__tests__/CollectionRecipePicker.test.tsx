@@ -224,4 +224,15 @@ describe('CollectionRecipePicker (web) — adding', () => {
         // The failure is per-add, not per-screen: the user must still be able to retry from the row.
         expect(screen.getByRole('button', { name: 'Add Weeknight Pasta' })).toBeTruthy();
     });
+
+    it('tints the add-failure alert with the error token, never coral', () => {
+        renderPicker({ addFailed: true });
+        const className = screen.getByRole('alert').className;
+
+        // The banner labelled itself `text-error` (#E17055) but filled with `bg-coral/10` (#E8917A): two
+        // adjacent-but-different hues in one element, and coral is a brand ACCENT, not the failure register.
+        expect(className).toContain('text-error');
+        expect(className).toContain('bg-error/10');
+        expect(className).not.toContain('coral');
+    });
 });

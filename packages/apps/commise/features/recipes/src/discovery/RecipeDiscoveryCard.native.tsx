@@ -5,13 +5,22 @@
  * composition of the shared {@link RecipeCard} compound parts — tappable cover + title, `by @handle` author
  * attribution (and imported source when present), cuisine/time/calorie meta, visibility badge, rating,
  * tags — plus the Clone action. Same contract as the web leaf so the two cannot drift.
+ *
+ * The Clone action is the design-system `Button` on the `secondary` tier — the same tier the web leaf and every
+ * other clone affordance in the product wear. It previously hand-rolled a coral OUTLINE while the collections
+ * rail hand-rolled a coral FILL; see the web leaf's module comment for why the shared "clone is coral" premise
+ * is false. Migrating also repaired a real accessibility gap: this leaf set `accessibilityState.busy`, but
+ * react-native-web reads `accessibilityState` for `disabled` only, so the in-flight state emitted nothing —
+ * the DS `PressScale` carries RN's first-class `aria-busy` alias alongside it.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
+import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { CloneIcon } from '../actions/icons.js';
 import { RecipeCard } from '../card/index.js';
 import { fillTemplate } from '../list/model.js';
 import { discoveryMessages } from './messages.js';
@@ -55,16 +64,22 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
                 <RecipeCard.Badges />
                 <RecipeCard.Rating />
                 <RecipeCard.Tags />
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={cloneLabel}
-                    accessibilityState={{ busy: isCloning, disabled: isCloning }}
-                    disabled={isCloning}
-                    onPress={() => onClone(recipe.id)}
-                    style={[styles.cloneButton, isCloning && styles.cloneButtonBusy]}
-                >
-                    <Text style={styles.cloneLabel}>{isCloning ? discovery.cloning : discovery.clone}</Text>
-                </Pressable>
+                {/* `busy` supplies the in-place `ActivityIndicator`, the disabled in-flight guard, and the
+                    `accessibilityState.busy` announcement — which this leaf previously set but which never
+                    reached the DOM, leaving the in-flight state unobservable. The accessible name is the
+                    ROW-UNIQUE template (the visible label is the generic "Clone", which would collide across
+                    sibling rows), so it is passed as an explicit override. */}
+                <View style={styles.cloneWrap}>
+                    <Button
+                        variant="secondary"
+                        icon={<CloneIcon />}
+                        accessibilityLabel={cloneLabel}
+                        busy={isCloning}
+                        onPress={() => onClone(recipe.id)}
+                    >
+                        {isCloning ? discovery.cloning : discovery.clone}
+                    </Button>
+                </View>
             </View>
         </RecipeCard>
     );
@@ -79,21 +94,10 @@ const styles = StyleSheet.create({
         gap: nativeTokens.spacing[2],
     },
     attribution: { fontSize: 13, color: palette.slate },
-    // Demoted to a ghost/outline (U7): the card should read "tap to open" first, so Clone is a quiet
-    // secondary action (coral outline) rather than a filled-coral CTA competing with the cover/title. The
-    // coral accent is U7's deliberate choice (the brand re-tone is U8's); U4 only adds a 44pt tap target.
-    cloneButton: {
-        alignSelf: 'flex-start',
-        backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: palette.coral,
-        borderRadius: nativeTokens.radius.full,
-        paddingVertical: nativeTokens.spacing[2],
-        paddingHorizontal: nativeTokens.spacing[4],
-        marginTop: nativeTokens.spacing[1],
-        minHeight: 44,
-        justifyContent: 'center',
-    },
-    cloneButtonBusy: { opacity: 0.6 },
-    cloneLabel: { color: palette.coral, fontWeight: '600', fontSize: nativeTokens.fontSize.bodySm },
+    // U7's read still holds — the card must read "tap to open" first, so Clone stays a quiet SECONDARY action
+    // rather than a CTA competing with the cover/title. What changed is only WHICH secondary: the DS
+    // `secondary` tier instead of a hand-rolled coral outline. `alignItems: 'flex-start'` keeps the pill
+    // hugging its label (RN stretches a column's children by default, and the DS Button carries no
+    // self-alignment); the 44pt floor, radius, padding and busy affordance now come from the Button itself.
+    cloneWrap: { alignItems: 'flex-start', marginTop: nativeTokens.spacing[1] },
 });

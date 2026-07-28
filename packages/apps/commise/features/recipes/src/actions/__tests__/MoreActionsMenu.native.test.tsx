@@ -12,7 +12,7 @@ import userEvent from '@testing-library/user-event';
 import { palette, semantic } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 
-import { cssColor } from './cssColor.js';
+import { cssColor } from '../../__tests__/cssColor.js';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { MoreActionsMenu } from '../MoreActionsMenu.native.js';

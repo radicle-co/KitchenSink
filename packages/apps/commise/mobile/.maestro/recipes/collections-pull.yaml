@@ -107,19 +107,37 @@ appId: io.commise.mobile
 - assertVisible: '0 recipes removed from source'
 - assertVisible: '1 already in this collection (no changes)'
 
-# CONFIRM. A successful commit closes the dialog; the pulled recipe becomes a visible member and "Last
-# pulled" appears in the header — the two signals that prove the pull actually APPLIED, not merely closed.
+# CONFIRM. A successful commit closes the dialog, the header's member count goes 1 -> 2, "Last pulled"
+# appears, and the pulled recipe becomes a real MEMBER — the signals that prove the pull actually APPLIED
+# rather than merely closing. The count + "Last pulled" are asserted FIRST because both live in the header,
+# which is on screen the moment the dialog closes; the count is the falsifiable core (a dialog that closed
+# without committing leaves "1 recipe").
 - tapOn: 'Pull 1 Recipes'
 - extendedWaitUntil:
       notVisible: 'Pull Updates from Source Collection'
       timeout: 40000
 - extendedWaitUntil:
-      visible: 'Asparagus with Green Sauce'
+      visible: '2 recipes'
       timeout: 40000
 - assertVisible:
       text: 'Last pulled:.*'
 
-# CLEANUP (hermetic): delete the clone, then the source.
+# ...and the member itself. The recipes list sits BELOW the header + action block + clone-info card, which
+# together fill a phone viewport (the hierarchy dump showed the first member's row ending exactly at the
+# screen's bottom edge), so the pulled row is off-fold and must be scrolled to — `assertVisible` only ever
+# sees the current viewport, which is why the old blind wait timed out against a collection that had really
+# pulled.
+- scrollUntilVisible:
+      element: 'Asparagus with Green Sauce'
+      direction: DOWN
+      timeout: 20000
+
+# CLEANUP (hermetic): delete the clone, then the source. Scroll back up first — Delete lives in the header,
+# now above the fold after the scroll down.
+- scrollUntilVisible:
+      element: 'Back to My Collections'
+      direction: UP
+      timeout: 20000
 - tapOn: 'Delete'
 - extendedWaitUntil:
       visible: 'New collection'

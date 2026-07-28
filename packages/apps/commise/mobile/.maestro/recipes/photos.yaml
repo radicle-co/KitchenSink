@@ -61,18 +61,51 @@ appId: io.commise.mobile
 
 # The photo manager is STEP 4's body (`RecipeEditScreen` passes `RecipePhotoUploader` as `photosSlot`), not a
 # block at the foot of one long scrolling form — w3 replaced that flat form with the screen-per-step wizard.
-# Walk forward through the footer `Next: …` primaries to reach it. Steps 2 and 3 are passed through untouched:
-# this flow asserts the photo surface, and the seeded recipe's own validity is `edit.yaml`'s concern.
+# Walk forward through the footer `Next: …` primaries to reach it.
+#
+# Steps 2 and 3 CANNOT be passed through untouched (this flow's previous assumption, which stranded it on step
+# 2): each `Next: …` is gated by `canAdvanceFromStep`, and `recipe-service`'s seed inserts the recipe row
+# directly via SQL with NO ingredients and NO steps (see `database/seed.ts`, and the same note in
+# `versions.yaml`). So step 2 refuses to advance until the draft has an ingredient and step 3 until it has an
+# instruction. Both are added here exactly as `versions.yaml` does — the freeform "Create …" path, whose name
+# is deliberately OUTSIDE the seeded catalog so it cannot collide with `search-navigation.yaml`'s "Flour"
+# ingredient filter. Nothing is saved (this flow never publishes), so the recipe itself is left untouched.
 - scrollUntilVisible:
       element: 'Next: Ingredients'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Next: Ingredients'
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+- inputText: 'Tomato'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Tomato.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Tomato.*'
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
 - scrollUntilVisible:
       element: 'Next: Instructions'
       direction: DOWN
       timeout: 20000
 - tapOn: 'Next: Instructions'
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Marinate for two hours.'
 - scrollUntilVisible:
       element: 'Next: Photos'
       direction: DOWN
@@ -83,8 +116,13 @@ appId: io.commise.mobile
 # A freshly-seeded recipe carries no photos, so the manager renders its empty state + the add control. This
 # recipe IS persisted (an edit, not a create), so step 4 is the real manager rather than the "save first"
 # guidance notice a create shows.
+#
+# Anchored on "Add photo" — the LAST element of the manager block — not on "Photos": the step RAIL renders a
+# "Photos" marker of its own at the top of every step, so a scroll anchored there settles on try 0 without
+# ever moving (the same wrong-anchor trap `rating.yaml` fell into). Reaching "Add photo" puts the whole
+# manager, empty state included, on screen.
 - scrollUntilVisible:
-      element: 'Photos'
+      element: 'Add photo'
       direction: DOWN
       timeout: 20000
 - assertVisible: 'No photos yet.'

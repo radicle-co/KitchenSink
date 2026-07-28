@@ -6,6 +6,7 @@ import {
     CUISINES,
     isRecipeError,
     MAX_RECIPE_PHOTO_UPLOAD_BYTES,
+    recipeVersionSchema,
     RecipeErrorCode,
 } from '../index.js';
 import type { Collection, RecipeError } from '../index.js';
@@ -145,5 +146,65 @@ describe('recipe photo upload constants (REQ-009/REQ-011/REQ-012/REQ-013)', () =
         // but fail thumbnail generation — see this constant's own doc and specs/001-commise-recipe-app's
         // waivers.md WAV-001.
         expect(ALLOWED_RECIPE_PHOTO_MIME_TYPES).toEqual(['image/jpeg', 'image/png', 'image/webp']);
+    });
+});
+
+describe('recipeVersionSchema — the version-history read contract', () => {
+    const RECIPE_ID = '11111111-1111-4111-8111-111111111101';
+
+    /** A version-history row exactly as `recipe-service` serializes one, parameterized by its one line's unit. */
+    const wireVersion = (unit: unknown): unknown => ({
+        id: '22222222-2222-4222-8222-222222222201',
+        recipeId: RECIPE_ID,
+        versionNumber: 2,
+        snapshot: {
+            version: 2,
+            title: 'Mediterranean Grilled Lamb',
+            description: 'Herb-marinated grilled lamb.',
+            servings: 4,
+            prepTimeMinutes: 15,
+            cookTimeMinutes: 30,
+            steps: [
+                {
+                    id: '33333333-3333-4333-8333-333333333301',
+                    recipeId: RECIPE_ID,
+                    stepNumber: 1,
+                    instruction: 'Marinate for two hours.',
+                },
+            ],
+            ingredients: [
+                {
+                    id: '44444444-4444-4444-8444-444444444401',
+                    recipeId: RECIPE_ID,
+                    ingredientId: '00000000-0000-4000-8000-0000000000aa',
+                    quantity: 1,
+                    unit,
+                    sortOrder: 0,
+                    ingredientName: 'Tomato',
+                    isUserEntered: true,
+                },
+            ],
+        },
+        createdBy: '01JVERSIONCONTRACT0000000A',
+        changeSummary: 'Updated',
+        createdAt: '2026-07-28T02:30:00.000Z',
+    });
+
+    it('accepts a snapshot line that carries a unit', () => {
+        expect(recipeVersionSchema.safeParse(wireVersion('cup')).success).toBe(true);
+    });
+
+    it('accepts a snapshot line with NO unit — the empty string the server actually writes', () => {
+        // `recipe_ingredients.unit` is a NOT NULL column whose "unitless" value is `''` (the create DTO's
+        // `unit` is optional and `RecipesService.resolveIngredientLines` persists `line.unit ?? ''`), and
+        // `aggregateToSnapshot` copies the column into the snapshot VERBATIM. A `min(1)` here therefore
+        // rejects the service's own output: every version of a recipe with a unitless line ("2 eggs",
+        // "1 lemon") failed client-side parsing, and the whole version-history screen fell to its error
+        // state with no server-side error to show for it (Maestro `recipes/versions`, round 3).
+        expect(recipeVersionSchema.safeParse(wireVersion('')).success).toBe(true);
+    });
+
+    it('still rejects a snapshot line whose unit is not a string', () => {
+        expect(recipeVersionSchema.safeParse(wireVersion(3)).success).toBe(false);
     });
 });

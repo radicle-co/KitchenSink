@@ -26,8 +26,9 @@ import { createContext, useContext, useState, type FC, type ReactNode } from 're
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../list/model.js';
+import { recipeFormMessages } from '../form/messages.js';
 import type { RecipeFormErrors, RecipeFormValues, RecipeWizardStep } from '../form/model.js';
-import { deriveRailStepState, WIZARD_STEPS, WIZARD_TOTAL_STEPS } from './model.js';
+import { blockedAdvanceErrors, deriveRailStepState, WIZARD_STEPS, WIZARD_TOTAL_STEPS } from './model.js';
 import { wizardMessages } from './messages.js';
 
 /** Props for {@link Wizard} (Root) — identical contract to the web leaf. */
@@ -54,6 +55,11 @@ export interface WizardProps {
 
 interface WizardModel extends Omit<WizardProps, 'children'> {
     readonly attempted: ReadonlySet<RecipeWizardStep>;
+    /**
+     * The step whose `Next` was just REFUSED, or `null` — gates the footer's blocked-advance notice. See the
+     * web leaf's identical field for why this is NOT `attempted` (Publish would double-report).
+     */
+    readonly blockedStep: RecipeWizardStep | null;
     readonly previewOpen: boolean;
     readonly requestGoNext: () => void;
     readonly requestGoPrev: () => void;
@@ -76,9 +82,10 @@ function useWizardModel(): WizardModel {
 }
 
 const WizardRoot: FC<WizardProps> = (props) => {
-    const { step, isDirty, onCancel, goNext, goPrev, goToStep, publish, children } = props;
+    const { step, canAdvanceFrom, isDirty, onCancel, goNext, goPrev, goToStep, publish, children } = props;
     const m = useMessages(wizardMessages);
     const [attempted, setAttempted] = useState<ReadonlySet<RecipeWizardStep>>(new Set());
+    const [blockedStep, setBlockedStep] = useState<RecipeWizardStep | null>(null);
     const [previewOpen, setPreviewOpen] = useState(false);
     const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
@@ -87,6 +94,8 @@ const WizardRoot: FC<WizardProps> = (props) => {
 
     const requestGoNext = (): void => {
         markAttempted(step);
+        // Record a REFUSED advance so the footer can say why; cleared on a successful advance.
+        setBlockedStep(canAdvanceFrom(step) ? null : step);
         goNext();
     };
 
@@ -116,6 +125,9 @@ const WizardRoot: FC<WizardProps> = (props) => {
 
     const requestPublish = (): void => {
         setAttempted(new Set(WIZARD_STEPS));
+        // A refused Publish is answered by the container's own whole-form `errors`, rendered inline by the
+        // step bodies — the footer must not repeat those sentences.
+        setBlockedStep(null);
         publish();
     };
 
@@ -124,6 +136,7 @@ const WizardRoot: FC<WizardProps> = (props) => {
     const model: WizardModel = {
         ...props,
         attempted,
+        blockedStep,
         previewOpen,
         requestGoNext,
         requestGoPrev,
@@ -371,39 +384,53 @@ const WizardTopBar: FC = () => {
 const WizardControls: FC = () => {
     const model = useWizardModel();
     const m = useMessages(wizardMessages);
+    const f = useMessages(recipeFormMessages);
     const index = model.step - 1;
     const prevName = index > 0 ? m.stepNames[index - 1] : undefined;
     const nextName = index < WIZARD_TOTAL_STEPS - 1 ? m.stepNames[index + 1] : undefined;
+    // Why the refusal is voiced HERE, next to the control that refused: see `blockedAdvanceErrors`.
+    const blocking = blockedAdvanceErrors(model.blockedStep === model.step, model.stepErrors(model.step));
 
     return (
-        <View accessibilityLabel={m.controlsLabel} style={styles.controlsRow}>
-            {prevName !== undefined ? (
-                <Button
-                    variant="secondary"
-                    icon={<Feather name="chevron-left" size={16} color={palette.charcoal} />}
-                    onPress={model.requestGoPrev}
-                >
-                    {fillTemplate(m.prevLabel, { name: prevName })}
-                </Button>
-            ) : (
-                <View />
+        <View style={styles.controls}>
+            {blocking.length > 0 && (
+                <View accessibilityRole="alert" style={styles.blockedNotice}>
+                    {blocking.map((code) => (
+                        <Text key={code} style={styles.blockedText}>
+                            {f.errors[code]}
+                        </Text>
+                    ))}
+                </View>
             )}
-            {nextName !== undefined ? (
-                <Button
-                    icon={<Feather name="chevron-right" size={16} color={palette.white} />}
-                    onPress={model.requestGoNext}
-                >
-                    {fillTemplate(m.nextLabel, { name: nextName })}
-                </Button>
-            ) : (
-                <Button
-                    icon={<Feather name="check" size={16} color={palette.white} />}
-                    busy={model.submitting}
-                    onPress={model.requestPublish}
-                >
-                    {m.publish}
-                </Button>
-            )}
+            <View accessibilityLabel={m.controlsLabel} style={styles.controlsRow}>
+                {prevName !== undefined ? (
+                    <Button
+                        variant="secondary"
+                        icon={<Feather name="chevron-left" size={16} color={palette.charcoal} />}
+                        onPress={model.requestGoPrev}
+                    >
+                        {fillTemplate(m.prevLabel, { name: prevName })}
+                    </Button>
+                ) : (
+                    <View />
+                )}
+                {nextName !== undefined ? (
+                    <Button
+                        icon={<Feather name="chevron-right" size={16} color={palette.white} />}
+                        onPress={model.requestGoNext}
+                    >
+                        {fillTemplate(m.nextLabel, { name: nextName })}
+                    </Button>
+                ) : (
+                    <Button
+                        icon={<Feather name="check" size={16} color={palette.white} />}
+                        busy={model.submitting}
+                        onPress={model.requestPublish}
+                    >
+                        {m.publish}
+                    </Button>
+                )}
+            </View>
         </View>
     );
 };
@@ -443,6 +470,9 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: border,
     },
+    controls: { gap: 4 },
+    blockedNotice: { gap: 2, paddingHorizontal: 16, paddingTop: 12 },
+    blockedText: { fontSize: 13, color: palette.error },
     controlsRow: {
         flexDirection: 'row',
         alignItems: 'center',

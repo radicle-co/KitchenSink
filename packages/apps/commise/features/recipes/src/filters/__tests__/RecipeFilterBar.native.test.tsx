@@ -11,11 +11,58 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
-import { RecipeFilterBar } from '../RecipeFilterBar.native.js';
+import { FILTER_SHEET_PADDING, RecipeFilterBar } from '../RecipeFilterBar.native.js';
 import { EMPTY_RECIPE_FILTERS } from '../model.js';
 import type { RecipeFilterBarProps, RecipeIngredientSearchState } from '../model.js';
 
+// A DISTINCT value per edge, so an assertion cannot pass on a leaf that adds the wrong inset to the wrong
+// side. Restated inside the factory because `vi.mock` is hoisted above every module-level binding.
+vi.mock('react-native-safe-area-context', () => ({
+    useSafeAreaInsets: () => ({ top: 24, right: 8, bottom: 16, left: 4 }),
+}));
+
+const INSETS = { top: 24, right: 8, bottom: 16, left: 4 } as const;
+
 afterEach(cleanup);
+
+/**
+ * Resolve the value react-native-web actually APPLIED for a CSS property. `StyleSheet.create` styles compile
+ * to atomic `r-*` classes (walked back to their rules here, since `getComputedStyle` does not resolve them),
+ * while per-render styles — such as this sheet's inset-derived padding — land in the inline `style`
+ * attribute; checking only one source would read `undefined` for exactly the geometry under test. Same
+ * helper as `FullScreenSheet.native.test.tsx`, which established the idiom.
+ */
+function appliedStyle(element: Element, property: string): string | undefined {
+    const inline = (element as HTMLElement).style.getPropertyValue(property);
+
+    if (inline !== '') {
+        return inline;
+    }
+
+    const classNames = element.className.split(' ').filter((name) => name.startsWith('r-'));
+    const sheets = document.styleSheets;
+    let resolved: string | undefined;
+
+    for (const className of classNames) {
+        for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
+            const rules = sheets[sheetIndex]?.cssRules;
+
+            for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
+                const rule = rules?.[ruleIndex];
+
+                if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
+                    const value = rule.style.getPropertyValue(property);
+
+                    if (value !== '') {
+                        resolved = value;
+                    }
+                }
+            }
+        }
+    }
+
+    return resolved;
+}
 
 const noop = () => undefined;
 
@@ -442,5 +489,34 @@ describe('RecipeFilterBar (native) — ingredient filter typeahead (FR-006 gap #
         });
 
         expect(screen.getByRole('button', { name: 'Clear 2 filters' })).toBeTruthy();
+    });
+});
+
+describe('RecipeFilterBar (native) — bottom sheet safe-area insets', () => {
+    /** The sheet's own padded surface — the labelled group the leaf renders inside the modal window. */
+    const sheet = (): HTMLElement => screen.getByLabelText('Filter recipes');
+
+    // The defect: an Android `Modal` window spans the WHOLE display (the app is edge-to-edge), and this
+    // sheet is bottom-anchored (`justifyContent: 'flex-end'`), so a flat pad puts its footer "Done" INSIDE
+    // the navigation bar's own tap region. On-device the button drew at y 2272–2329 on a 1080×2400 device
+    // whose navigation bar starts at y=2274: every tap on it was swallowed by the system bar, the sheet
+    // never closed, and the two Maestro discovery flows failed on the steps AFTER it (round 3).
+    it('adds the device bottom inset to the sheet padding, so Done clears the navigation bar', () => {
+        renderBar();
+
+        expect(appliedStyle(sheet(), 'padding-bottom')).toBe(`${FILTER_SHEET_PADDING + INSETS.bottom}px`);
+    });
+
+    it('adds the device left/right insets so no facet sits under a landscape cutout', () => {
+        renderBar();
+
+        expect(appliedStyle(sheet(), 'padding-left')).toBe(`${FILTER_SHEET_PADDING + INSETS.left}px`);
+        expect(appliedStyle(sheet(), 'padding-right')).toBe(`${FILTER_SHEET_PADDING + INSETS.right}px`);
+    });
+
+    it('leaves the top padding at the base value — the sheet is bottom-anchored, never under the status bar', () => {
+        renderBar();
+
+        expect(appliedStyle(sheet(), 'padding-top')).toBe(`${FILTER_SHEET_PADDING}px`);
     });
 });

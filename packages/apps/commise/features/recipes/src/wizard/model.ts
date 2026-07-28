@@ -4,7 +4,7 @@
  * these through `useState`/context; this module is the ONE place the rail's completed/current/invalid rule
  * and the "unsaved edits" structural comparison are DEFINED, so the two platform leaves cannot drift.
  */
-import type { RecipeFormValues, RecipeWizardStep } from '../form/model.js';
+import type { RecipeFormErrorCode, RecipeFormErrors, RecipeFormValues, RecipeWizardStep } from '../form/model.js';
 
 /** The wizard's 4 steps, in order — `[1] Basic → [2] Ingredients → [3] Instructions → [4] Photos`. */
 export const WIZARD_STEPS: readonly RecipeWizardStep[] = [1, 2, 3, 4];
@@ -48,6 +48,38 @@ export function deriveRailStepState(params: {
     }
 
     return step < currentStep ? 'completed' : 'upcoming';
+}
+
+/**
+ * The distinct validation codes that are BLOCKING the author from leaving a step — what the footer surfaces
+ * when `Next` was pressed and the wizard refused to advance.
+ *
+ * Why this exists: `Next` is always enabled and `requestGoNext` marks the step attempted then calls a
+ * `goNext` that no-ops while the step is invalid. Before this, the only feedback was the rail marker
+ * flipping to `invalid` — so on a step whose body is a single empty list (step 2 with no ingredients) the
+ * primary control simply did nothing, with nothing said. An enabled control that silently refuses is a
+ * defect; DISABLING it instead would be worse, because the attempt is what flags the rail in the first
+ * place (see {@link deriveRailStepState}).
+ *
+ * `attempted` gates it for the same reason the rail's `invalid` flag is gated: an author who has merely
+ * ARRIVED at an incomplete step must not be shouted at. Deduped, because two fields of one step can carry
+ * the same code and the notice must not repeat a sentence. Pure.
+ *
+ * NOTE — after a failed Publish the container ALSO populates its own `errors` prop (whole-form validation),
+ * so returning to an invalid step can show the same sentence both inline and here. That overlap is
+ * deliberate and bounded: the two have different triggers (a field's own state vs. a refused navigation),
+ * and suppressing either would put one of them back to failing silently.
+ *
+ * @param attempted - Whether the author has already tried to advance past (or publish through) this step.
+ * @param errors - That step's validation errors ({@link import('../form/model.js').stepErrorsFor}'s output).
+ * @returns The distinct blocking codes, in field order; empty when unattempted or valid.
+ */
+export function blockedAdvanceErrors(attempted: boolean, errors: RecipeFormErrors): readonly RecipeFormErrorCode[] {
+    if (!attempted) {
+        return [];
+    }
+
+    return [...new Set(Object.values(errors).filter((code): code is RecipeFormErrorCode => code !== undefined))];
 }
 
 /**

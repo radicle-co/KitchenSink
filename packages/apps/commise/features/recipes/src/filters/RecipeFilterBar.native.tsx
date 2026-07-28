@@ -17,6 +17,7 @@ import { nativeTokens } from '@commise/ui/native';
 import type { Ingredient } from '@kitchensink/recipe-core';
 import { useState, type FC, type ReactElement } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fillTemplate, formatRecipeCount } from '../list/model.js';
 import { filterMessages, type FilterMessages } from './messages.js';
@@ -52,6 +53,13 @@ const FACET_DESCRIPTORS: readonly FacetDescriptor[] = [
     { id: 'maxTotalTime', kind: 'timeBucket', timeField: 'maxTotalTime', labelKey: 'maxTotalTimeLabel' },
     { id: 'ingredients', kind: 'ingredientTypeahead', labelKey: 'ingredientsLabel' },
 ];
+
+/**
+ * The bottom sheet's base edge padding, in dp, BEFORE the device's window insets are added. Exported so a
+ * test can assert the COMPOSED padding rather than restating the literal (which would still pass with the
+ * inset term dropped — exactly the defect this constant's consumer exists to prevent).
+ */
+export const FILTER_SHEET_PADDING = nativeTokens.spacing[4];
 
 /** The `timeField` → setter map the `timeBucket` renderer dispatches on. */
 function timeSetterFor(
@@ -243,6 +251,11 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
     // groups above the results were eating the phone viewport before a single card was visible. The button
     // carries an active-count badge; the sheet holds every facet + Clear-all, unchanged.
     const [open, setOpen] = useState(false);
+    // An Android `Modal` window spans the WHOLE display (the app is edge-to-edge, as `FullScreenSheet.native`
+    // already compensates for), and this sheet is bottom-ANCHORED — so without the device's bottom inset its
+    // footer "Done" lands inside the navigation bar's own tap region and every press on it is swallowed by
+    // the system bar. Left/right cover a landscape cutout for the same reason.
+    const insets = useSafeAreaInsets();
     const activeCount = countActiveFilters(filters);
     const triggerLabel =
         activeCount > 0 ? fillTemplate(m.filtersButtonActive, { count: activeCount }) : m.filtersButton;
@@ -265,7 +278,18 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
 
             <Modal visible={open} transparent onRequestClose={() => setOpen(false)}>
                 <View style={styles.sheetBackdrop}>
-                    <View role="group" aria-label={m.barLabel} style={styles.sheet}>
+                    <View
+                        role="group"
+                        aria-label={m.barLabel}
+                        style={[
+                            styles.sheet,
+                            {
+                                paddingBottom: FILTER_SHEET_PADDING + insets.bottom,
+                                paddingLeft: FILTER_SHEET_PADDING + insets.left,
+                                paddingRight: FILTER_SHEET_PADDING + insets.right,
+                            },
+                        ]}
+                    >
                         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
                             {FACET_DESCRIPTORS.map((descriptor) => (
                                 <View key={descriptor.id}>{renderers[descriptor.kind](descriptor)}</View>
@@ -338,9 +362,9 @@ const styles = StyleSheet.create({
         backgroundColor: palette.white,
         borderTopLeftRadius: nativeTokens.radius.xl,
         borderTopRightRadius: nativeTokens.radius.xl,
-        paddingTop: nativeTokens.spacing[4],
-        paddingHorizontal: nativeTokens.spacing[4],
-        paddingBottom: nativeTokens.spacing[4],
+        paddingTop: FILTER_SHEET_PADDING,
+        // Bottom/left/right are composed PER RENDER from the device insets (see the `insets` read above) —
+        // deliberately absent here so a static rule can never win over the inset-aware value.
         gap: nativeTokens.spacing[3],
     },
     done: {

@@ -33,6 +33,16 @@ export default defineConfig({
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 1,
     workers: 1,
+    // 60s, not Playwright's 30s default. Almost every spec here opens with `signInWithTicket`, whose own
+    // landing poll budgets 30s to absorb Next dev's on-demand route compilation — i.e. EXACTLY the default
+    // per-test budget. A step whose timeout equals the whole test's budget can never report its own
+    // failure: the test dies of a generic 30s timeout first, which is how the `signInWithTicket` flake
+    // presents (a bare timeout on the sign-in step, with no indication of which precondition missed).
+    // Raising the cap makes that inner poll strictly smaller than the enclosing budget, so the helper's
+    // diagnostic is reachable, and leaves headroom for the Clerk round-trips that follow. It is not a
+    // licence for slow tests: the suite averages ~4s per test, so 60s only bites on genuine pathology,
+    // and `test.slow()` still triples it for the two flows that legitimately need more.
+    timeout: 60_000,
     reporter: 'html',
     // globalSetup resolves this run's fixture identity, PINS it into process.env (the workers inherit it),
     // and provisions the run's Clerk user.

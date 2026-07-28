@@ -29,6 +29,18 @@ test.describe('sign-in flow', () => {
         await page.waitForLoadState('networkidle');
         await page.getByRole('textbox', { name: /verification code/i }).fill('424242');
 
+        // Do NOT rely on the auto-submit alone. It fires from a change handler on the 6th digit, and when it
+        // does not fire the test just sat here until the poll expired — the failure mode seen intermittently
+        // in CI (passing on one commit, failing all three attempts on the next, with no related change).
+        // Clerk still renders a Continue button on this step, so submit explicitly IF the step is still up.
+        // Guarded rather than unconditional: on the common path the auto-submit has already navigated, and
+        // clicking a detached button would fail. This makes the outcome independent of that race.
+        const verifyContinue = page.getByRole('button', { name: 'Continue' });
+
+        if (await verifyContinue.isVisible().catch(() => false)) {
+            await verifyContinue.click().catch(() => undefined);
+        }
+
         await expect.poll(() => isHome(pathnameOf(page)), { timeout: 30_000 }).toBe(true);
         expect(hasDoublePrefix(pathnameOf(page))).toBe(false);
         await expect(page.getByRole('heading', { name: /welcome to commise/i })).toBeVisible();

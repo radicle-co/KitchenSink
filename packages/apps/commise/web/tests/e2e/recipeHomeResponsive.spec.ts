@@ -40,29 +40,35 @@ const RECIPE_ID = 'rec_pasta';
 const TOUCH_TARGET_PX = 44;
 
 /**
- * …and its CEILING.
+ * …and the default CEILING, for controls that sit AT the floor by design.
  *
- * These controls are fixed at the floor by design, so the maximum is as meaningful as the minimum. A bare
- * `>= 44` is satisfied by 44, by 64 and by 200 — inflation only ever HELPS it — which is exactly how a 2×
- * sizing error (a design system redefining Tailwind's `--spacing-*` namespace, painting a 32px avatar at
- * 64px) survived a suite that does measure real boxes. The slack absorbs sub-pixel layout and a locale
- * whose label sets a slightly taller line box; it is far too small to hide a scale error.
+ * A bare `>= 44` is satisfied by 44, by 64 and by 200 — inflation only ever HELPS it — which is exactly how
+ * a 2× sizing error (a design system redefining Tailwind's `--spacing-*` namespace, painting a 32px avatar
+ * at 64px) survived a suite that does measure real boxes. So compact controls assert a bounded range; the
+ * slack absorbs sub-pixel layout and a locale whose label sets a slightly taller line box, and is far too
+ * small to hide a scale error.
+ *
+ * This ceiling applies to COMPACT controls only — chips, a tick box, a source tab. It is deliberately NOT
+ * universal: a bottom-tab destination stacks an icon over a label and is *meant* to be a generous target
+ * (iOS HIG 49pt, Material 56-80dp), so it measures ~60px and a 48px cap would be asserting the wrong thing.
+ * Such controls pass their own `max` — see the tab-bar case, where the meaningful ceiling is the height of
+ * the BAR that contains them, an upper bound that scales with the design instead of fighting it.
  */
 const TOUCH_TARGET_MAX_PX = 48;
 
 /**
- * Assert a control's measured length is AT the touch floor, not merely above it.
+ * Assert a control's measured length clears the touch floor without being inflated past its intended size.
  *
  * @param actual - The measured px.
  * @param what - Human-readable name, for the failure message.
+ * @param max - Upper bound; defaults to the compact-control ceiling. Pass the containing chrome's height
+ *   for controls that are legitimately larger than a compact 44px target.
  */
-function expectTouchTarget(actual: number, what: string): void {
-    expect(actual, `${what} should be ${TOUCH_TARGET_PX}px (±slack) but was ${actual}px`).toBeGreaterThanOrEqual(
+function expectTouchTarget(actual: number, what: string, max: number = TOUCH_TARGET_MAX_PX): void {
+    expect(actual, `${what} should be at least ${TOUCH_TARGET_PX}px but was ${actual}px`).toBeGreaterThanOrEqual(
         TOUCH_TARGET_PX,
     );
-    expect(actual, `${what} should not exceed ${TOUCH_TARGET_MAX_PX}px but was ${actual}px`).toBeLessThanOrEqual(
-        TOUCH_TARGET_MAX_PX,
-    );
+    expect(actual, `${what} should not exceed ${max}px but was ${actual}px`).toBeLessThanOrEqual(max);
 }
 
 const baseSnapshot: RecipeSnapshot = {
@@ -192,7 +198,10 @@ test.describe('recipe/home responsive — 375px phone (U5)', () => {
             const linkBox = await link.boundingBox();
 
             expect(linkBox).not.toBeNull();
-            expectTouchTarget(linkBox?.height ?? 0, 'a tab-bar destination');
+            // Ceiling is the BAR, not the compact 44px cap: a destination stacks an icon over a label and
+            // measures ~60px by design. "No taller than the chrome it lives in" is the bound that actually
+            // means something here, and it tracks the design instead of pinning an arbitrary number.
+            expectTouchTarget(linkBox?.height ?? 0, 'a tab-bar destination', box?.height ?? TOUCH_TARGET_MAX_PX);
             expect(linkBox?.y ?? 0, 'a destination must not overflow the top of the tab bar').toBeGreaterThanOrEqual(
                 barTop - 1,
             );

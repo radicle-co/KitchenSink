@@ -6,7 +6,8 @@ import type { ReactElement } from 'react';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Button } from '../Button.native.js';
-import { gradient, toNativeGradient } from '../../tokens/gradients.js';
+import { palette } from '../../tokens/colors.js';
+import { glass, gradient, toNativeGradient } from '../../tokens/gradients.js';
 
 /**
  * Button (native) — rendered via react-native-web under jsdom. Mirrors the web leaf's behavioural coverage
@@ -197,11 +198,40 @@ describe('Button (native)', () => {
         }
     });
 
+    it("outlines the secondary tier in CORAL over the subtle glass — the mockups' secondary button", () => {
+        render(
+            <Button icon={markerIcon} variant="secondary" onPress={vi.fn()}>
+                Add to Meal Plan
+            </Button>,
+        );
+
+        const surface = withBorderWidth(screen.getByRole('button', { name: 'Add to Meal Plan' }), '2px');
+        expect(surface).not.toBeNull();
+        // The coral accent edge IS the tier (the web leaf's `border-2 border-coral`), replacing the grey
+        // `semantic.border` hairline the tier used to carry.
+        expect(getComputedStyle(surface as HTMLElement).borderTopColor).toBe(rgb(palette.coral));
+        // RN has no `backdrop-filter`, so the native projection of the mockups' glass IS the tier's own
+        // solid fallback — the same value `toWebGlass(glass.subtle, false)` paints on a blurless host.
+        expect(getComputedStyle(surface as HTMLElement).backgroundColor).toBe(rgba(glass.subtle.fallback));
+    });
+
+    it('labels the secondary tier in slate, not the coral the mockups use (WCAG AA)', () => {
+        render(
+            <Button icon={markerIcon} variant="secondary" onPress={vi.fn()}>
+                Change Plan
+            </Button>,
+        );
+
+        // Coral-as-text is 2.40:1 against the glass — below the 4.5:1 floor. Slate is 5.24:1. This mirrors
+        // the web leaf's `text-slate` exactly, so the two platforms cannot disagree on the label colour.
+        expect(getComputedStyle(screen.getByText('Change Plan')).color).toBe(rgb(palette.slate));
+        expect(getComputedStyle(screen.getByText('Change Plan')).color).not.toBe(rgb(palette.coral));
+    });
+
     it('gives every tier the SAME pill geometry, so only the fill distinguishes them', () => {
         // The touch floor is a tier-independent promise; a tier that lost it would be a silently smaller
-        // target. (The per-tier FILLS are asserted where the token→computed-colour helper already lives:
-        // `features/recipes/.../RecipeCloneAction.native.test.tsx` for `secondary`, and the gradient stub
-        // assertions above for `primary`.)
+        // target. (The per-tier FILLS are asserted directly above for `secondary`, and by the gradient stub
+        // assertions for `primary`.)
         for (const variant of ['primary', 'secondary', 'destructive'] as const) {
             const { unmount } = render(
                 <Button icon={markerIcon} variant={variant} onPress={vi.fn()}>
@@ -235,4 +265,22 @@ describe('Button (native)', () => {
 function withMinHeight(root: HTMLElement, minHeight: string): HTMLElement | null {
     const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
     return candidates.find((el) => getComputedStyle(el).minHeight === minHeight) ?? null;
+}
+
+/** The sibling of {@link withMinHeight} for the tier's bordered surface (RNW compiles borders the same way). */
+function withBorderWidth(root: HTMLElement, borderWidth: string): HTMLElement | null {
+    const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+    return candidates.find((el) => getComputedStyle(el).borderTopWidth === borderWidth) ?? null;
+}
+
+/** `#RRGGBB` → the `rgb(r, g, b)` spelling jsdom's `getComputedStyle` normalises colours to. */
+function rgb(hex: string): string {
+    const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
+/** `rgba(r, g, b, a)` → jsdom's normalised spelling (it drops the spaces the token string carries). */
+function rgba(color: string): string {
+    return color.replace(/\s+/g, ' ');
 }

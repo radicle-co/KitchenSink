@@ -317,8 +317,10 @@ describe('Wizard (web) — footer is the ONE contextual primary (U6)', () => {
 
         render(<Harness initialValues={validValues()} initialStep={2} />);
         const prev = screen.getByRole('button', { name: 'Prev: Basic' });
-        // Secondary tier == bordered surface, never the filled primary (only ONE filled primary in the footer).
-        expect(prev.className).toContain('border-border');
+        // Secondary tier == the coral-outlined glass surface, never the filled seafoam primary (there is only
+        // ONE filled primary in the footer, and this control must not be it).
+        expect(prev.className).toContain('border-coral');
+        expect(prev.className).not.toContain('from-seafoam');
     });
 
     it('Next in the footer advances the step; Publish in the footer calls publish', async () => {

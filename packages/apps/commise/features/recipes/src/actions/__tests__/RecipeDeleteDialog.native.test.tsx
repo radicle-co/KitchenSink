@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import { palette, semantic } from '@commise/ui';
+import { glass, palette } from '@commise/ui';
 
 import { cssColor } from '../../__tests__/cssColor.js';
 
@@ -113,8 +113,11 @@ describe('RecipeDeleteDialog (native) — design-system action controls', () => 
         renderDialog();
         const surface = pill(screen.getByRole('button', { name: 'Cancel' }))!;
 
-        expect(window.getComputedStyle(surface).borderTopColor).toBe(semantic.border);
-        expect(window.getComputedStyle(surface).backgroundColor).toBe(cssColor(palette.white));
+        // Secondary is the mockups' coral-outlined glass; destructive (asserted above) is the error-toned
+        // outline. They must stay visibly DIFFERENT tiers — same-looking cancel/confirm is the real hazard.
+        expect(window.getComputedStyle(surface).borderTopColor).toBe(cssColor(palette.coral));
+        expect(window.getComputedStyle(surface).backgroundColor).toBe(glass.subtle.fallback);
+        expect(window.getComputedStyle(surface).borderTopColor).not.toBe(cssColor(palette.error));
     });
 
     it('swaps the confirm icon for a REAL spinner while deleting (not a label swap)', () => {

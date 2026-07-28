@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import { palette, semantic } from '@commise/ui';
+import { glass, palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
@@ -122,22 +122,26 @@ describe('CollectionActions (native) — Clone Collection is the DS secondary su
         expect(pillOf(screen.getByRole('button', { name: 'Clone Collection' }))).toBeTruthy();
     });
 
-    it('paints the DS secondary surface — a bordered white pill, NOT the old solid coral fill', () => {
+    it('paints the DS secondary surface — a coral OUTLINE over glass, NOT the old solid coral fill', () => {
         renderActions();
         const style = window.getComputedStyle(pillOf(screen.getByRole('button', { name: 'Clone Collection' })));
 
-        expect(style.backgroundColor).toBe(cssColor(palette.white));
-        // The hairline comes from the shared semantic border token, so a re-theme moves it with the DS.
-        expect(style.borderTopColor).toBe(cssColor(semantic.border));
-        // The regression this replaces: a bespoke coral fill.
+        // The tier's own surface, from the tier's own token: `glass.subtle`'s solid fallback (RN cannot blur).
+        expect(style.backgroundColor).toBe(glass.subtle.fallback);
+        // Coral survives as the DS tier's accent EDGE — the mockups' secondary button — never as the fill.
+        expect(style.borderTopColor).toBe(cssColor(palette.coral));
+        expect(style.borderTopWidth).toBe('2px');
+        // The regression this replaces: a bespoke solid coral fill that read as destructive.
         expect(style.backgroundColor).not.toBe(cssColor(palette.coral));
     });
 
-    it('labels in the tier foreground colour, not the old white-on-coral', () => {
+    it('labels in the tier foreground colour — slate, not the old white-on-coral', () => {
         renderActions();
 
-        // A leftover white label on the now-white surface would be invisible — assert the tier's charcoal.
-        expect(window.getComputedStyle(screen.getByText('Clone Collection')).color).toBe(cssColor(palette.charcoal));
+        // A leftover white label on the now-glass surface would be invisible; coral-as-text is 2.40:1. The
+        // tier labels in slate (5.24:1), identically to the web leaf.
+        expect(window.getComputedStyle(screen.getByText('Clone Collection')).color).toBe(cssColor(palette.slate));
+        expect(window.getComputedStyle(screen.getByText('Clone Collection')).color).not.toBe(cssColor(palette.white));
     });
 
     it('rounds from the radius scale, not a magic 999', () => {

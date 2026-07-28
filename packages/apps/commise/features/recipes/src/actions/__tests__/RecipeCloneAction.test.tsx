@@ -102,13 +102,17 @@ describe('RecipeCloneAction (web) — design-system surface', () => {
         expect(screen.getByRole('button', { name: 'Clone' }).className).toBe(buttonSurfaceClass('secondary'));
     });
 
-    it('paints no bespoke coral fill — the hue that made this a hand-rolled control is gone', () => {
+    it('paints no bespoke coral FILL — clone stays out of the danger register', () => {
         renderClone();
         const className = screen.getByRole('button', { name: 'Clone' }).className;
 
-        expect(className).not.toContain('coral');
-        // `bg-coral`'s replacement must be a real DS surface, not "no surface at all".
-        expect(className).toContain('bg-white');
+        // The regression was a solid `bg-coral` pill at REST, which read as destructive. The DS secondary
+        // tier does carry coral — as the mockups' accent OUTLINE (`border-coral`) over glass, and as the
+        // hover fill only — so the invariant is "no resting coral fill", not "no coral".
+        expect(className).not.toContain('bg-coral');
+        expect(className).toContain('border-coral');
+        // The surface must be a real DS one, not "no surface at all" (the bare-text regression).
+        expect(className).toContain('from-white/80');
     });
 
     it('pairs the label with a decorative icon that never joins the accessible name', () => {

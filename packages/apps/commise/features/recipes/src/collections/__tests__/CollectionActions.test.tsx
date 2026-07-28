@@ -143,13 +143,16 @@ describe('CollectionActions (web) — Clone Collection is the DS secondary surfa
         );
     });
 
-    it('paints no coral at all — the hue that put a reversible action in the danger register is gone', () => {
+    it('paints no coral FILL at rest — a reversible action stays out of the danger register', () => {
         renderActions();
         const className = screen.getByRole('button', { name: 'Clone Collection' }).className;
 
-        expect(className).not.toContain('coral');
+        // The DS secondary tier IS coral-outlined glass (the mockups' own secondary button), so coral is
+        // expected on the border. What must never come back is the solid coral FILL at rest.
+        expect(className).not.toContain('bg-coral');
+        expect(className).toContain('border-coral');
         // The replacement must be a real DS surface, not "no surface at all" (the bare-text regression).
-        expect(className).toContain('bg-white');
+        expect(className).toContain('from-white/80');
     });
 
     it('gives the control the DS 44px touch floor, reset for the mouse at md', () => {

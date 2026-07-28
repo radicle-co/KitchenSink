@@ -122,13 +122,17 @@ describe('RecipeDiscoveryCard (web) — the clone control is the DS secondary su
         );
     });
 
-    it('paints no coral at all — neither the outline nor the tint that put clone in the danger register', () => {
+    it("paints no BESPOKE coral tint — the accent it carries is the DS tier's, not this leaf's", () => {
         renderCard();
         const className = screen.getByRole('button', { name: cloneName() }).className;
 
-        expect(className).not.toContain('coral');
+        // The hand-rolled regression was a `bg-coral/10` tint behind a coral edge, invented here. The DS
+        // secondary tier's coral outline over glass IS the mockups' secondary button, so the invariant is
+        // that no coral FILL survives — the accent edge is expected.
+        expect(className).not.toContain('bg-coral');
+        expect(className).toContain('border-coral');
         // The replacement must be a real DS surface, not "no surface at all" (the bare-text regression).
-        expect(className).toContain('bg-white');
+        expect(className).toContain('from-white/80');
     });
 
     it('gives the control the DS 44px touch floor, reset for the mouse at md', () => {

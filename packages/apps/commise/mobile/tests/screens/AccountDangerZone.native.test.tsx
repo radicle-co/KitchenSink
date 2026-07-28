@@ -20,7 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { useAllOwnerRecipes, useRequestAccountErasure } from '@kitchensink/recipe-service-client/hooks';
-import { palette, semantic } from '@commise/ui';
+import { palette } from '@commise/ui';
 import { accountDangerMessages } from '@commise/features-account/danger';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
@@ -107,15 +107,16 @@ describe('AccountDangerZone (native) — closure vs erasure are distinct', () =>
 });
 
 describe('AccountDangerZone (native) — design-system surfaces (U4b)', () => {
-    it('paints the close trigger as the bordered secondary tier, on palette', () => {
+    it('paints the close trigger as the coral-outlined secondary tier, on palette', () => {
         render(<AccountDangerZone />);
 
         const trigger = screen.getByRole('button', { name: close.trigger });
 
-        // The label is charcoal — NOT the off-palette `#2C3E50` the hand-rolled Pressable used.
-        expect(window.getComputedStyle(screen.getByText(close.trigger)).color).toBe(rgb(palette.charcoal));
-        // …and its surface carries the design system's own border colour, not an inlined mist hex.
-        expect(borderColours(trigger)).toContain(semantic.border);
+        // The label is the tier's slate — NOT the off-palette `#2C3E50` the hand-rolled Pressable used, and
+        // not the mockups' coral-as-text (2.40:1, below the WCAG-AA floor the DS tier holds at 5.24:1).
+        expect(window.getComputedStyle(screen.getByText(close.trigger)).color).toBe(rgb(palette.slate));
+        // …and its surface carries the design system's own accent edge, not an inlined mist hex.
+        expect(borderColours(trigger)).toContain(rgb(palette.coral));
     });
 
     it('paints the erase trigger as the destructive tier, on palette', () => {

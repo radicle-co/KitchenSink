@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import { palette, semantic } from '@commise/ui';
+import { glass, palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 
 import { cssColor } from '../../__tests__/cssColor.js';
@@ -101,21 +101,25 @@ describe('RecipeDiscoveryCard (native) — the clone control is the DS secondary
         expect(pillOf(screen.getByRole('button', { name: cloneName() }))).toBeTruthy();
     });
 
-    it('paints the DS secondary surface — a bordered white pill, NOT the old coral outline', () => {
+    it("paints the DS secondary surface — the mockups' coral edge over glass, not a bespoke one", () => {
         renderCard();
         const style = window.getComputedStyle(pillOf(screen.getByRole('button', { name: cloneName() })));
 
-        expect(style.backgroundColor).toBe(cssColor(palette.white));
-        // The hairline comes from the shared semantic border token, so a re-theme moves it with the DS.
-        expect(style.borderTopColor).toBe(cssColor(semantic.border));
-        // The regression this replaces: a bespoke coral edge on a transparent surface.
-        expect(style.borderTopColor).not.toBe(cssColor(palette.coral));
+        // The tier's own surface, from the tier's own token: `glass.subtle`'s solid fallback (RN cannot blur).
+        expect(style.backgroundColor).toBe(glass.subtle.fallback);
+        // The coral edge is now the DESIGN SYSTEM's — the mockups' secondary button — at the DS width, so a
+        // re-theme moves it with the DS instead of this leaf re-spelling an outline of its own.
+        expect(style.borderTopColor).toBe(cssColor(palette.coral));
+        expect(style.borderTopWidth).toBe('2px');
+        // The regression this replaces: a bespoke edge on a fully TRANSPARENT surface (no tier fill at all).
+        expect(style.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
     });
 
-    it('labels in the tier foreground colour, not the old coral-on-transparent', () => {
+    it('labels in the tier foreground colour — slate, not the old coral-on-transparent', () => {
         renderCard();
 
-        expect(window.getComputedStyle(screen.getByText('Clone')).color).toBe(cssColor(palette.charcoal));
+        // Coral-as-text is 2.40:1; the DS tier labels in slate (5.24:1), matching the web leaf exactly.
+        expect(window.getComputedStyle(screen.getByText('Clone')).color).toBe(cssColor(palette.slate));
         expect(window.getComputedStyle(screen.getByText('Clone')).color).not.toBe(cssColor(palette.coral));
     });
 

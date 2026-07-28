@@ -43,10 +43,39 @@ const BASE =
  * button is that none of them reads as plain text. (This map is the WEB idiom of the shared
  * {@link ButtonVariant} set; the native leaf carries its own StyleSheet mapping — the two change for
  * different reasons, so they are deliberately not merged.)
+ *
+ * ## `secondary` is the mockups' CORAL-outlined glass, not a grey-bordered white pill
+ *
+ * The tier used to paint `border border-border bg-white text-charcoal` — a flat grey hairline that appears
+ * in NO mockup. The mockups' secondary button is one recurring recipe across `screen-grocery`,
+ * `screen-profile` and `screen-recipe-detail` ("Add to Meal Plan", "Change Plan", "Change Password"):
+ *
+ *     bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-[12px] saturate-[130%]
+ *     border-2 border-coral text-coral
+ *     hover:from-coral hover:to-coral/90 hover:text-white hover:border-coral
+ *
+ * Coral is the brand's documented accent for exactly this role (`semantic.secondary` IS `palette.coral`), and
+ * `glass.subtle`'s own JSDoc already records that its 12px/1.3 pair was transcribed FROM this button — the
+ * design system simply never wired the tier to it. The blur/saturate arbitrary values are written literally
+ * because Tailwind only compiles arbitrary values it can see in source text; a test pins them to
+ * `glass.subtle` so the two representations cannot drift.
+ *
+ * **Two deliberate divergences from the mockup, both for WCAG AA (the repo's U4 bar):**
+ *  1. The resting label is `text-slate` (5.24:1 over the glass), not the mockups' `text-coral` — coral as
+ *     TEXT is 2.40:1, below the 4.5:1 floor. This is the same demotion already applied to the native tag
+ *     chips ("coral-as-text 2.2:1 → slate"); coral survives where it is an ACCENT, on the border.
+ *  2. The hover label is `hover:text-charcoal` (5.29:1 on the coral fill), not the mockups' `hover:text-white`
+ *     (2.40:1). The coral fill itself is transcribed verbatim.
+ *
+ * The mockups' `hover:shadow-[0_2px_12px_rgba(232,145,122,0.3)]` coral halo is NOT transcribed: it would
+ * re-spell the coral hex as a raw literal here, and adding a one-caller `elevation` token for a single hover
+ * state buys nothing the border already communicates.
  */
 const VARIANT: Record<ButtonVariant, string> = {
     primary: 'bg-gradient-to-br from-seafoam to-ocean-dark text-white shadow-sm hover:opacity-95',
-    secondary: 'border border-border bg-white text-charcoal shadow-sm hover:bg-pearl',
+    secondary:
+        'border-2 border-coral bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-[12px] ' +
+        'backdrop-saturate-[1.3] text-slate hover:from-coral hover:to-coral/90 hover:text-charcoal',
     destructive: 'border border-error/40 bg-white text-error shadow-sm hover:bg-error/10',
 };
 

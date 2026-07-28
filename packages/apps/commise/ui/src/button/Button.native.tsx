@@ -17,15 +17,17 @@
  * The `primary` tier paints the SAME `gradient.brand` (seafoam → ocean-dark) the web leaf carries as the
  * Tailwind `from-seafoam to-ocean-dark` utility — projected through `toNativeGradient` into
  * `expo-linear-gradient` — so the two platforms' primary CTA converge on one single-sourced gradient
- * (round-2 R7). Secondary/destructive stay flat surfaces.
+ * (round-2 R7). Secondary/destructive stay flat surfaces: `secondary` is the mockups' CORAL-outlined glass
+ * degraded to `glass.subtle`'s own solid fallback (RN has no `backdrop-filter`), `destructive` an
+ * error-toned outline.
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import type { FC, ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { gradient, toNativeGradient } from '../tokens/gradients.js';
+import { glass, gradient, toNativeGradient } from '../tokens/gradients.js';
 import { nativeTokens } from '../tokens/native.js';
-import { palette, semantic } from '../tokens/colors.js';
+import { palette } from '../tokens/colors.js';
 import { PressScale } from '../pressScale/index.js';
 import type { ButtonProps, ButtonVariant } from './props.js';
 
@@ -109,15 +111,26 @@ const styles = StyleSheet.create({
 /**
  * Per-tier FLAT surface — the native idiom of the shared {@link ButtonVariant} set (see the web leaf's
  * map). `primary` is intentionally absent: its surface is the brand `LinearGradient`, not a flat colour.
+ *
+ * `secondary` mirrors the web leaf's mockup-derived CORAL-outlined glass. React Native has no
+ * `backdrop-filter`, so the native projection of that glass is the tier's own solid `fallback` — literally
+ * the value `toWebGlass(glass.subtle, false)` paints on a blurless web host, so the two platforms degrade to
+ * the same colour from the same token rather than one of them re-spelling "white".
  */
 const flatSurface: Record<Exclude<ButtonVariant, 'primary'>, object> = {
-    secondary: { backgroundColor: palette.white, borderWidth: 1, borderColor: semantic.border },
+    secondary: { backgroundColor: glass.subtle.fallback, borderWidth: 2, borderColor: palette.coral },
     destructive: { backgroundColor: palette.white, borderWidth: 1, borderColor: palette.error },
 };
 
-/** Per-tier foreground colour — paints the label AND the busy spinner so the two always agree. */
+/**
+ * Per-tier foreground colour — paints the label AND the busy spinner so the two always agree.
+ *
+ * `secondary` is SLATE, not the coral the mockups put on this tier's label: coral-as-text is 2.40:1 against
+ * the glass, below WCAG AA's 4.5:1, while slate is 5.24:1. The web leaf makes the identical substitution
+ * (`text-slate`), so a screen-reader-invisible colour choice cannot diverge across platforms.
+ */
 const labelColor: Record<ButtonVariant, string> = {
     primary: palette.white,
-    secondary: palette.charcoal,
+    secondary: palette.slate,
     destructive: palette.error,
 };

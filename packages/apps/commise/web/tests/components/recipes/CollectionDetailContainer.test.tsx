@@ -190,6 +190,40 @@ describe('CollectionDetailContainer', () => {
         expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
     });
 
+    describe('settled but absent (B21 — the state you cannot get out of)', () => {
+        // `useCollection` disables itself for an empty id, which is exactly the settled-with-nothing shape:
+        // `isLoading` false (a disabled query is pending but not FETCHING), `isError` false, `data` undefined.
+        // This container used to route that back into its LOADING affordance — a permanent spinner with no
+        // retry — while the mobile `CollectionDetailScreen` routed the same shape into ERROR. Web converges.
+        it('reports a failure instead of spinning forever', () => {
+            const client = createFakeRecipeServiceClient();
+            const getCollectionSpy = vi.spyOn(client, 'getCollectionById');
+
+            renderWithRecipeClient(<CollectionDetailContainer id="" locale="en" />, client);
+
+            expect(getCollectionSpy).not.toHaveBeenCalled();
+            expect(screen.getByRole('alert')).toBeInTheDocument();
+            expect(screen.getByText(/couldn.t load this collection/i)).toBeInTheDocument();
+            expect(screen.queryByRole('status', { name: 'Loading collection' })).not.toBeInTheDocument();
+        });
+
+        it('offers a way OUT — a retry control, exactly as the generic error state does', () => {
+            const client = createFakeRecipeServiceClient();
+
+            renderWithRecipeClient(<CollectionDetailContainer id="" locale="en" />, client);
+
+            expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+        });
+
+        it('does not misreport it as a 404 — there is no evidence the collection is missing', () => {
+            const client = createFakeRecipeServiceClient();
+
+            renderWithRecipeClient(<CollectionDetailContainer id="" locale="en" />, client);
+
+            expect(screen.queryByText(/couldn.t find that collection/i)).not.toBeInTheDocument();
+        });
+    });
+
     describe('mutation failure (B17: no frozen no-op)', () => {
         it('surfaces the delete-failed banner when the delete mutation errored', async () => {
             const user = userEvent.setup();

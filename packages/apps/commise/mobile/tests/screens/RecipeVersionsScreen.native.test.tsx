@@ -11,6 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
+import { recipeVersionMessages } from '@commise/features-recipes';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 import { VersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useRecipeVersions, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
@@ -113,6 +114,42 @@ describe('RecipeVersionsScreen — loading and error', () => {
         render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
 
         expect(screen.getByRole('alert')).toBeTruthy();
+    });
+
+    it('treats a query that SETTLED WITH NOTHING as a failure, not a pending fetch (B21 guard)', () => {
+        // Neither loading nor errored, yet no data — the shape a DISABLED query has. This screen has always
+        // routed it into ERROR; the web containers routed it into LOADING (a permanent spinner). Pinned here
+        // so the platform that was already right cannot drift onto the wrong side of the convergence.
+        useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail() }));
+        useRecipeVersionsMock.mockReturnValue(versionsResult({ isLoading: false, isError: false, data: undefined }));
+
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.queryByRole('progressbar', { name: mobileMessages.en.recipes.versionsLoading })).toBeNull();
+    });
+
+    it('offers a retry that re-issues BOTH requests (web parity — an error state needs a way forward)', () => {
+        const recipeRefetch = vi.fn();
+        const versionsRefetch = vi.fn();
+        useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail(), refetch: recipeRefetch as never }));
+        useRecipeVersionsMock.mockReturnValue(versionsResult({ isError: true, refetch: versionsRefetch as never }));
+
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: mobileMessages.en.recipes.versionsRetry }));
+
+        expect(versionsRefetch).toHaveBeenCalledTimes(1);
+        expect(recipeRefetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps Back alongside the retry, so the error state is never a one-way street', () => {
+        useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail() }));
+        useRecipeVersionsMock.mockReturnValue(versionsResult({ isError: true }));
+
+        render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+
+        expect(screen.getByRole('button', { name: mobileMessages.en.recipes.back })).toBeTruthy();
+        expect(screen.getByRole('button', { name: mobileMessages.en.recipes.versionsRetry })).toBeTruthy();
     });
 });
 
@@ -303,6 +340,50 @@ describe('RecipeVersionsScreen — preview (W6 Task 5)', () => {
 
         expect(screen.getByRole('button', { name: 'Restoring…' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Restore this version' })).toBeNull();
+    });
+
+    describe('previewed version absent from the refreshed history (B21)', () => {
+        /** Open the preview on v1, then let the history refresh WITHOUT v1 (the real shape: a restore 409s,
+         *  the screen refetches, and the retention window has rolled v1 out of the newest-N list). The modal
+         *  is left open pointing at a version that no longer exists. */
+        function openPreviewThenLoseTheVersion(): void {
+            const { rerender } = render(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+            fireEvent.click(screen.getByRole('button', { name: 'Preview version 1' }));
+
+            useRecipeMock.mockReturnValue(recipeResult({ data: makeRecipeDetail({ currentVersion: 3 }) }));
+            useRecipeVersionsMock.mockReturnValue(
+                versionsResult({
+                    data: [
+                        makeRecipeVersion({ id: 'ver_2', versionNumber: 2, snapshot: revisedSnapshot }),
+                        makeRecipeVersion({ id: 'ver_3', versionNumber: 3, snapshot: revisedSnapshot }),
+                    ],
+                }),
+            );
+            rerender(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />);
+        }
+
+        it('says the version failed to load instead of spinning forever', () => {
+            openPreviewThenLoseTheVersion();
+
+            expect(screen.getByText(recipeVersionMessages.en.preview.error)).toBeTruthy();
+            // The defect: with `error` never wired, this state rendered the preview's progress affordance —
+            // an unrecoverable spinner the modal had no way to escape into a failure.
+            expect(screen.queryByRole('progressbar', { name: recipeVersionMessages.en.preview.loading })).toBeNull();
+        });
+
+        it('still offers a way OUT — Keep current version closes the modal', () => {
+            openPreviewThenLoseTheVersion();
+
+            fireEvent.click(screen.getByRole('button', { name: 'Keep current version' }));
+
+            expect(screen.queryByText(recipeVersionMessages.en.preview.error)).toBeNull();
+        });
+
+        it('offers no Restore action for a version it could not resolve', () => {
+            openPreviewThenLoseTheVersion();
+
+            expect(screen.queryByRole('button', { name: 'Restore this version' })).toBeNull();
+        });
     });
 });
 

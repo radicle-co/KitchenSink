@@ -272,6 +272,43 @@ describe('RecipeDetailContainer', () => {
             expect(await screen.findByText(/couldn.t find that recipe/i)).toBeInTheDocument();
             expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
         });
+
+        describe('settled but absent (B21 — the state you cannot get out of)', () => {
+            // A query that has stopped loading, carries no error, and still holds no data has SETTLED WITH
+            // NOTHING. `useRecipe` disables itself for an empty id, which is exactly that shape: `isLoading`
+            // is false (a disabled query is pending but not FETCHING), `isError` is false, `data` is
+            // undefined. This container used to route that back into its LOADING affordance — a permanent
+            // spinner with no retry and no explanation — while the mobile `RecipeDetailScreen` routed the same
+            // shape into ERROR. Web now converges on mobile: it is a failure, and it says so.
+            it('reports a failure instead of spinning forever', () => {
+                const client = createFakeRecipeServiceClient();
+                const getRecipeSpy = vi.spyOn(client, 'getRecipeById');
+
+                renderWithRecipeClient(<RecipeDetailContainer id="" />, client);
+
+                // The query never ran, so this is genuinely settled-with-nothing, not an in-flight fetch.
+                expect(getRecipeSpy).not.toHaveBeenCalled();
+                expect(screen.getByRole('alert')).toBeInTheDocument();
+                expect(screen.getByText(/couldn.t load this recipe/i)).toBeInTheDocument();
+                expect(screen.queryByRole('status', { name: 'Loading recipe' })).not.toBeInTheDocument();
+            });
+
+            it('offers a way OUT — a retry control, exactly as the generic error state does', () => {
+                const client = createFakeRecipeServiceClient();
+
+                renderWithRecipeClient(<RecipeDetailContainer id="" />, client);
+
+                expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+            });
+
+            it('does not misreport it as a 404 — there is no evidence the recipe is missing', () => {
+                const client = createFakeRecipeServiceClient();
+
+                renderWithRecipeClient(<RecipeDetailContainer id="" />, client);
+
+                expect(screen.queryByText(/couldn.t find that recipe/i)).not.toBeInTheDocument();
+            });
+        });
     });
 
     describe('back (C1 wireframe parity)', () => {

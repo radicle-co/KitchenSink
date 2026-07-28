@@ -36,6 +36,7 @@ import {
     formatVersionTimestamp,
     formatYourCardHeading,
     isConflictBaseStale,
+    resolveVersionPreview,
     sortVersionsDescending,
     toVersionPreviewIngredientLines,
     type RecipeMergeSelections,
@@ -710,5 +711,127 @@ describe('formatChangedFromCurrent (localization-quality fix)', () => {
         expect(formatChangedFromCurrent(diff, preview, conflict, 'en-US')).toBe(
             'Changed from current: 15 ingredients, 1 step',
         );
+    });
+});
+
+/**
+ * B21 — the version preview's state is derived ONCE, purely, from the container's own inputs. Both call
+ * sites (the web `RecipeVersionsContainer` and the native `RecipeVersionsScreen`) previously duplicated this
+ * derivation verbatim AND hard-coded `isLoading={false}` while never passing `error`, so a preview target
+ * the loaded history does not contain rendered an unrecoverable spinner: no call site could put the modal in
+ * the state where it says "this failed". Settled-but-absent is a FAILURE, not a pending fetch.
+ */
+describe('resolveVersionPreview', () => {
+    const v1 = makeRecipeVersion({ versionNumber: 1 });
+    const v2 = makeRecipeVersion({ versionNumber: 2 });
+
+    it('is closed, idle, and error-free when nothing is being previewed', () => {
+        const state = resolveVersionPreview({
+            previewTarget: null,
+            versions: [v1, v2],
+            currentVersion: 2,
+            restoringVersion: null,
+        });
+
+        expect(state).toStrictEqual({ open: false, isLoading: false, error: false, isRestoring: false });
+    });
+
+    it('resolves the previewed version off the already-loaded list (no fetch, so never loading)', () => {
+        const state = resolveVersionPreview({
+            previewTarget: 1,
+            versions: [v1, v2],
+            currentVersion: 2,
+            restoringVersion: null,
+        });
+
+        expect(state.open).toBe(true);
+        expect(state.version).toBe(v1);
+        expect(state.isLoading).toBe(false);
+        expect(state.error).toBe(false);
+    });
+
+    it('computes the changed-from-current diff against the current version in the same list', () => {
+        const previewed = makeRecipeVersion({
+            versionNumber: 1,
+            snapshot: { ...v1.snapshot, title: 'Old title' },
+        });
+        const current = makeRecipeVersion({
+            versionNumber: 2,
+            snapshot: { ...v1.snapshot, version: 2, title: 'New title' },
+        });
+        const state = resolveVersionPreview({
+            previewTarget: 1,
+            versions: [previewed, current],
+            currentVersion: 2,
+            restoringVersion: null,
+        });
+
+        expect(state.diffFromCurrent?.changedFields).toStrictEqual(['title']);
+    });
+
+    it('omits the changed-from-current diff when the current version is not in the list', () => {
+        const state = resolveVersionPreview({
+            previewTarget: 1,
+            versions: [v1],
+            currentVersion: 99,
+            restoringVersion: null,
+        });
+
+        expect(state.version).toBe(v1);
+        expect(state.error).toBe(false);
+        expect(state.diffFromCurrent).toBeUndefined();
+    });
+
+    it('reports ERROR — not loading — when the previewed version is absent from the settled list', () => {
+        const state = resolveVersionPreview({
+            previewTarget: 7,
+            versions: [v1, v2],
+            currentVersion: 2,
+            restoringVersion: null,
+        });
+
+        expect(state.open).toBe(true);
+        expect(state.error).toBe(true);
+        // The whole defect: this state used to render the spinner, stranding the viewer with no way to learn
+        // the lookup had failed.
+        expect(state.isLoading).toBe(false);
+        expect(state.version).toBeUndefined();
+    });
+
+    it('never reports a restore in flight for a version it could not resolve', () => {
+        const state = resolveVersionPreview({
+            previewTarget: 7,
+            versions: [v1, v2],
+            currentVersion: 2,
+            restoringVersion: 7,
+        });
+
+        expect(state.error).toBe(true);
+        expect(state.isRestoring).toBe(false);
+    });
+
+    it('reports a restore in flight only for the version being previewed', () => {
+        const previewingRestored = resolveVersionPreview({
+            previewTarget: 1,
+            versions: [v1, v2],
+            currentVersion: 2,
+            restoringVersion: 1,
+        });
+        const previewingOther = resolveVersionPreview({
+            previewTarget: 1,
+            versions: [v1, v2],
+            currentVersion: 2,
+            restoringVersion: 2,
+        });
+
+        expect(previewingRestored.isRestoring).toBe(true);
+        expect(previewingOther.isRestoring).toBe(false);
+    });
+
+    it('does not mutate the versions it was given', () => {
+        const versions = [v2, v1];
+        resolveVersionPreview({ previewTarget: 1, versions, currentVersion: 2, restoringVersion: null });
+
+        expect(versions).toStrictEqual([v2, v1]);
     });
 });

@@ -42,6 +42,7 @@ import {
     useCookingProgress,
     type RecipeRatingError,
 } from '@commise/features-recipes';
+import { toDetailQueryView } from '@commise/features-core';
 import { useMessages } from '@commise/i18n/react';
 import { buttonSurfaceClass } from '@commise/ui/button';
 import { canClone, canGoPrivate, isOwner, makeViewer } from '@kitchensink/recipe-core';
@@ -121,7 +122,15 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
         deleteRecipe.reset();
     }
 
-    if (query.isLoading) {
+    // B21: ONE derivation of which fetch-state affordance to render, applying the settled-but-absent rule —
+    // a query that stopped loading, carries no error, and still has no data has settled with NOTHING, which
+    // is a FAILURE, not a pending fetch. It used to fall into a SECOND loading branch below the error one,
+    // stranding the viewer on a permanent spinner with no retry; mobile's `RecipeDetailScreen` has always
+    // routed it into ERROR, and web now agrees BY CONSTRUCTION, because both read the same rule. `'ready'`
+    // carries the recipe, so there is no re-derivation of absence to drift from this one.
+    const view = toDetailQueryView(query);
+
+    if (view.status === 'loading') {
         return (
             <p role="status" aria-label={recipes.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
                 {recipes.detail.loadingLabel}
@@ -129,7 +138,9 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
         );
     }
 
-    if (query.isError) {
+    if (view.status === 'error') {
+        // `isNotFoundError` needs an error OBJECT: settled-but-absent has none, so it correctly reads as the
+        // GENERIC failure (with retry) rather than a fabricated 404 — there is no evidence the recipe is gone.
         const notFound = isNotFoundError(query.error);
 
         return (
@@ -144,17 +155,7 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
         );
     }
 
-    if (query.data === undefined) {
-        // An enabled query that is neither loading nor errored should have data; guard defensively so a
-        // transient undefined never crashes the view.
-        return (
-            <p role="status" aria-label={recipes.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
-                {recipes.detail.loadingLabel}
-            </p>
-        );
-    }
-
-    const recipe = query.data;
+    const recipe = view.data;
     const viewerId = readViewerId(sessionClaims);
     // P4: ONE Viewer value object, built from this platform's identity signals (Clerk's `external_id` claim
     // + the profile's subscription tier), feeds every gate below through the shared policy predicates — the

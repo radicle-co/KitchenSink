@@ -20,9 +20,12 @@ import {
     VersionCompareView,
     VersionPreviewModal,
     diffSnapshots,
+    resolveVersionPreview,
     type RecipeVersionRestoreError,
 } from '@commise/features-recipes';
+import { toDetailQueryView } from '@commise/features-core';
 import { useLocale, useMessages } from '@commise/i18n/react';
+import { palette } from '@commise/ui';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
 import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useRecipeVersions, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
@@ -65,21 +68,49 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
         </Pressable>
     );
 
-    if (recipe.isLoading || versions.isLoading) {
+    // B21: this screen was already on the right side of the settled-but-absent rule (an absent `data` with
+    // nothing in flight reads as ERROR, not as a pending fetch), but it STATED that rule itself while the web
+    // container stated its own — the shape that let the two platforms drift in the first place. Both now read
+    // the ONE statement in `toDetailQueryView`, over both queries combined. `'ready'` carries the pair, so
+    // absence is never re-derived downstream.
+    const view = toDetailQueryView({
+        isLoading: recipe.isLoading || versions.isLoading,
+        isError: recipe.isError || versions.isError,
+        data:
+            recipe.data === undefined || versions.data === undefined
+                ? undefined
+                : { recipe: recipe.data, versions: versions.data },
+    });
+
+    if (view.status === 'loading') {
         return <LoadingState label={t.versionsLoading} />;
     }
 
-    if (recipe.isError || recipe.data === undefined || versions.isError || versions.data === undefined) {
+    if (view.status === 'error') {
+        // B21 fold-in: this branch used to offer Back and one sentence — no way to try again, so a transient
+        // failure could only be escaped by leaving the surface entirely. It now mirrors the web container's
+        // error affordance: the honest message PLUS a retry that re-issues BOTH requests, with Back kept
+        // alongside it so the state is never a one-way street.
         return (
             <View style={styles.center}>
                 {back}
                 <Text accessibilityRole="alert">{t.versionsError}</Text>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t.versionsRetry}
+                    onPress={() => {
+                        void versions.refetch();
+                        void recipe.refetch();
+                    }}
+                    style={styles.retryButton}
+                >
+                    <Text style={styles.retryLabel}>{t.versionsRetry}</Text>
+                </Pressable>
             </View>
         );
     }
 
-    const versionRows = versions.data;
-    const currentRecipe = recipe.data;
+    const { versions: versionRows, recipe: currentRecipe } = view.data;
     const restoringVersion = restore.isPending ? (restore.variables?.versionNumber ?? null) : null;
 
     // B17 — a failed restore must never silently no-op. Map the mutation's error to an honest code: a 409 is
@@ -113,15 +144,15 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
     };
 
     // W6 Task 5 — Preview/Compare read snapshots straight off the already-loaded list (no extra fetch) — see
-    // the module docs / the web container's `RecipeVersionsContainer.tsx` for the fuller rationale.
-    const previewVersion =
-        previewTarget === null ? undefined : versionRows.find((v) => v.versionNumber === previewTarget);
-    const currentVersionInList = versionRows.find((v) => v.versionNumber === currentRecipe.currentVersion);
-    const diffFromCurrent =
-        previewVersion !== undefined && currentVersionInList !== undefined
-            ? diffSnapshots(currentVersionInList.snapshot, previewVersion.snapshot)
-            : undefined;
-    const isRestoringPreview = restore.isPending && restore.variables?.versionNumber === previewTarget;
+    // the module docs / the web container's `RecipeVersionsContainer.tsx` for the fuller rationale. B21: the
+    // preview's whole derivation — including the FAILED-LOOKUP report a preview target the history no longer
+    // contains must produce — lives in the shared `resolveVersionPreview`, so web cannot drift from it.
+    const preview = resolveVersionPreview({
+        previewTarget,
+        versions: versionRows,
+        currentVersion: currentRecipe.currentVersion,
+        restoringVersion,
+    });
 
     const compareVersions = compareSelection
         .map((versionNumber) => versionRows.find((v) => v.versionNumber === versionNumber))
@@ -162,11 +193,7 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
                 onToggleCompare={toggleCompare}
             />
             <VersionPreviewModal
-                open={previewTarget !== null}
-                version={previewVersion}
-                isLoading={false}
-                diffFromCurrent={diffFromCurrent}
-                isRestoring={isRestoringPreview}
+                {...preview}
                 locale={locale}
                 onCancel={() => setPreviewTarget(null)}
                 onRestore={(versionNumber) => restoreVersion(versionNumber, () => setPreviewTarget(null))}
@@ -185,5 +212,8 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+    // 44px touch floor (10 + 10 padding around a ~24px line box), matching the other screens' controls.
+    retryButton: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 22, backgroundColor: palette.seafoam },
+    retryLabel: { color: palette.white, fontWeight: '600', fontSize: 15 },
 });

@@ -35,6 +35,7 @@ import {
     collectionMessages,
     type CollectionDetailError,
 } from '@commise/features-recipes';
+import { toDetailQueryView } from '@commise/features-core';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useAuth } from '@clerk/nextjs';
 import { canGoPrivate, makeViewer, type RecipeVisibility } from '@kitchensink/recipe-core';
@@ -126,7 +127,14 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
         commitPull.reset();
     }
 
-    if (query.isLoading) {
+    // B21: ONE derivation of which fetch-state affordance to render, applying the settled-but-absent rule —
+    // a query that stopped loading, carries no error, and still has no data has settled with NOTHING, which
+    // is a FAILURE, not a pending fetch. It used to fall into a SECOND loading branch below the error one,
+    // stranding the viewer on a permanent spinner with no retry; mobile's `CollectionDetailScreen` has always
+    // routed it into ERROR, and web now agrees BY CONSTRUCTION, because both read the same rule.
+    const view = toDetailQueryView(query);
+
+    if (view.status === 'loading') {
         return (
             <p role="status" aria-label={collections.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
                 {collections.detail.loadingLabel}
@@ -134,7 +142,9 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
         );
     }
 
-    if (query.isError) {
+    if (view.status === 'error') {
+        // `isNotFoundError` needs an error OBJECT: settled-but-absent has none, so it correctly reads as the
+        // GENERIC failure (with retry), never a fabricated 404 — nothing says the collection is gone.
         const notFound = isNotFoundError(query.error);
 
         return (
@@ -149,17 +159,7 @@ export const CollectionDetailContainer: FC<CollectionDetailContainerProps> = ({ 
         );
     }
 
-    if (query.data === undefined) {
-        // An enabled query that is neither loading nor errored should have data; guard defensively so a
-        // transient undefined never crashes the view.
-        return (
-            <p role="status" aria-label={collections.detail.loadingLabel} className="px-4 py-8 text-body-md text-slate">
-                {collections.detail.loadingLabel}
-            </p>
-        );
-    }
-
-    const collection = query.data;
+    const collection = view.data;
     const isCloned = collection.sourceCollectionId !== undefined;
     const savedVisibility = collection.visibility;
     const effectivePending = pendingVisibility ?? savedVisibility;

@@ -221,6 +221,9 @@ export interface MobileMessages {
         readonly versionsLoading: string;
         /** Message shown when the version history fails to load. */
         readonly versionsError: string;
+        /** Label of the retry action in the version-history error state (B21 — web parity: an error state
+         *  must offer a way forward, not only a way back). */
+        readonly versionsRetry: string;
     };
     readonly recipePhotos: {
         /** Visible + accessible label of the control that opens the native image picker. */
@@ -444,6 +447,7 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             cloneError: 'We couldn’t clone this recipe. Please try again.',
             versionsLoading: 'Loading version history…',
             versionsError: 'We couldn’t load the version history.',
+            versionsRetry: 'Try again',
         },
         recipePhotos: {
             addLabel: 'Add photo',

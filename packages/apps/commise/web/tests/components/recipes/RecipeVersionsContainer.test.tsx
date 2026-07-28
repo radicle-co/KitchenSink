@@ -20,7 +20,7 @@
  * the container reads `locale` off `useParams` and navigates "Back to Recipe" via `useRouter`, both of which
  * throw/return `null` outside an actual Next app-router tree.
  */
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { VersionConflictError } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
@@ -122,6 +122,36 @@ describe('RecipeVersionsContainer', () => {
 
         await vi.waitFor(() => expect(versionsSpy).toHaveBeenCalledTimes(2));
         expect(recipeSpy).toHaveBeenCalledTimes(2);
+    });
+
+    describe('settled but absent (B21 — the state you cannot get out of)', () => {
+        // Both `useRecipeVersions` and `useRecipe` disable themselves for an empty id, which is exactly the
+        // settled-with-nothing shape: `isLoading` false (a disabled query is pending but not FETCHING),
+        // `isError` false, `data` undefined. This container used to route that back into its LOADING
+        // affordance — a permanent spinner — while the mobile `RecipeVersionsScreen` routed the same shape
+        // into ERROR. Web converges on mobile.
+        it('reports a failure instead of spinning forever', () => {
+            const client = createFakeRecipeServiceClient();
+            const versionsSpy = vi.spyOn(client, 'listRecipeVersions');
+            const recipeSpy = vi.spyOn(client, 'getRecipeById');
+
+            renderWithRecipeClient(<RecipeVersionsContainer recipeId="" />, client);
+
+            expect(versionsSpy).not.toHaveBeenCalled();
+            expect(recipeSpy).not.toHaveBeenCalled();
+            expect(screen.getByRole('alert')).toBeInTheDocument();
+            expect(screen.getByText(/couldn.t load the version history/i)).toBeInTheDocument();
+            expect(screen.queryByRole('status', { name: 'Loading version history' })).not.toBeInTheDocument();
+        });
+
+        it('offers BOTH ways out — retry and Back to Recipe', () => {
+            const client = createFakeRecipeServiceClient();
+
+            renderWithRecipeClient(<RecipeVersionsContainer recipeId="" />, client);
+
+            expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Back to Recipe' })).toBeInTheDocument();
+        });
     });
 
     it('renders the version list with the current version marked', async () => {
@@ -329,6 +359,66 @@ describe('RecipeVersionsContainer', () => {
 
             expect(restoreSpy).toHaveBeenCalledWith('rec_1', 1);
             await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        });
+
+        describe('previewed version absent from the refreshed history (B21)', () => {
+            /** Seed a client whose history REFRESH drops the version currently being previewed — the real
+             *  shape of this: a restore 409s, the container refetches the history (B17), and the retention
+             *  window has meanwhile rolled the previewed version out of the newest-N list. The modal is left
+             *  open pointing at a version that no longer exists. */
+            function historyThatDropsVersionOneOnRefetch(): RecipeServiceClient {
+                const client = createFakeRecipeServiceClient();
+                vi.spyOn(client, 'listRecipeVersions')
+                    .mockResolvedValueOnce([
+                        makeRecipeVersion({ versionNumber: 1 }),
+                        makeRecipeVersion({ versionNumber: 2 }),
+                    ])
+                    .mockResolvedValue([
+                        makeRecipeVersion({ versionNumber: 2 }),
+                        makeRecipeVersion({ versionNumber: 3 }),
+                    ]);
+                vi.spyOn(client, 'getRecipeById')
+                    .mockResolvedValueOnce(makeRecipeDetail({ currentVersion: 2 }))
+                    .mockResolvedValue(makeRecipeDetail({ currentVersion: 3 }));
+                vi.spyOn(client, 'restoreRecipeVersion').mockRejectedValue(new VersionConflictError(3, 1));
+
+                return client;
+            }
+
+            /** Open the preview on v1, then fire the restore whose 409 refetches a history without v1. */
+            async function openPreviewThenLoseTheVersion(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+                const client = historyThatDropsVersionOneOnRefetch();
+                renderWithRecipeClient(<RecipeVersionsContainer recipeId="rec_1" />, client);
+
+                await user.click(await screen.findByRole('button', { name: 'Preview version 1' }));
+                await user.click(screen.getByRole('button', { name: 'Restore this version' }));
+                await vi.waitFor(() =>
+                    expect(screen.queryByRole('button', { name: 'Restore this version' })).not.toBeInTheDocument(),
+                );
+            }
+
+            it('says the version failed to load instead of spinning forever', async () => {
+                const user = userEvent.setup();
+                await openPreviewThenLoseTheVersion(user);
+
+                const dialog = within(screen.getByRole('dialog'));
+
+                expect(dialog.getByRole('alert')).toHaveTextContent('We couldn’t load that version.');
+                // The defect: with `error` never wired, this state rendered the preview's progress affordance
+                // — an unrecoverable spinner the modal had no way to escape into a failure.
+                expect(dialog.queryByRole('status')).not.toBeInTheDocument();
+            });
+
+            it('still offers a way OUT — Keep current version closes the modal', async () => {
+                const user = userEvent.setup();
+                await openPreviewThenLoseTheVersion(user);
+
+                await user.click(
+                    within(screen.getByRole('dialog')).getByRole('button', { name: 'Keep current version' }),
+                );
+
+                expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+            });
         });
 
         it('shows the preview Restore action as busy while a restore-from-preview is in flight (no double-submit)', async () => {

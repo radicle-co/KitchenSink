@@ -105,7 +105,7 @@ describe('HomeTopBar', () => {
         // A base `min-h-11 min-w-11` (44px) floor guarantees the mobile touch-target minimum regardless of
         // future icon/padding tweaks, reset to `md:min-h-0 md:min-w-0` so desktop density is untouched. The
         // floor belongs on the CONTROL box; what it must never sit on is a PAINTED box smaller than 44px —
-        // see the avatar-geometry suite below for why that distinction is load-bearing.
+        // see the structural suite below, and `tests/e2e/homeTopBarGeometry.spec.ts` for the pixels.
         const targets = [
             screen.getByRole('button', { name: chrome.openNav }),
             screen.getByRole('button', { name: chrome.search }),
@@ -123,133 +123,81 @@ describe('HomeTopBar', () => {
 });
 
 /**
- * The avatar's GEOMETRY, asserted in pixels rather than in class names.
+ * The avatar's STRUCTURE — the paint/hit-area split, in the only terms jsdom is authoritative about.
  *
- * jsdom runs no Tailwind and computes no layout, so `getComputedStyle` here reports nothing useful — the
- * pixel facts live in the utility classes. These helpers resolve the classes that are actually present into
- * the box CSS would produce, so the assertions below are about 32px vs 44px, not about which strings appear.
+ * ⚠️ These assertions are deliberately about STRUCTURE and CLASS STRINGS, never about pixels. jsdom runs no
+ * Tailwind and computes no layout, so nothing here can measure a box. The previous version of this suite
+ * tried anyway: it re-implemented the CSS box model in JavaScript (a `STEP_PX = 4` spacing ramp and a
+ * `max(min-size, size)` resolver) and asserted the component against that model. It passed while production
+ * painted the avatar at 64px and overflowed its own 56px bar, because the design system had redefined
+ * Tailwind's `--spacing-*` namespace and the simulator's `4px per step` premise was simply false. A
+ * simulator can only ever confirm its own assumptions, so it was guaranteed to miss the next theme-level
+ * defect too — it was deleted rather than corrected once `themeCss` freed the namespace (21932fd2).
  *
- * Tailwind's spacing ramp is 4px per step (`size-8` → 32px, `min-h-11` → 44px, `h-14` → 56px), the same 4px
- * base as `@commise/ui`'s `spacing` scale.
+ * The pixel facts — a 32px disc, a ≥44px control at base and 40px at `md`+, and the disc sitting wholly
+ * inside the 56px `h-14` bar — are measured with real `boundingBox()` calls in a real engine by
+ * `tests/e2e/homeTopBarGeometry.spec.ts`. That is the only tier that can measure them.
  */
-const STEP_PX = 4;
-
-/**
- * Resolve one base-breakpoint sizing utility to pixels.
- *
- * @param className - The element's full class attribute.
- * @param prefix - The utility prefix (`size`, `h`, `w`, `min-h`, `min-w`).
- * @returns The declared length in px, or `undefined` when the utility is absent. Responsive variants
- *   (`md:min-h-0`) are deliberately ignored: the defect being pinned is the BASE (phone) geometry.
- */
-const declaredPx = (className: string, prefix: string): number | undefined => {
-    const match = new RegExp(String.raw`(?:^|\s)${prefix}-(\d+(?:\.5)?)(?:\s|$)`, 'u').exec(className);
-
-    return match?.[1] === undefined ? undefined : Number.parseFloat(match[1]) * STEP_PX;
-};
-
-/**
- * The box CSS would USE for an element, per axis — `max(min-size, size)`.
- *
- * This is the rule the bug rode in on: a `min-h-11`/`min-w-11` touch floor on the same box as `size-8`
- * cannot lose to it, so the 32px avatar painted as a 44px disc.
- *
- * @param element - The element to measure.
- * @returns Its used width/height in px. An axis with no declared size falls back to its floor (a
- *   content-sized box can only be pinned by its floor here).
- */
-const usedBox = (element: Element): { readonly widthPx: number; readonly heightPx: number } => {
-    const className = element.className;
-    const size = declaredPx(className, 'size');
-    const widthFloor = declaredPx(className, 'min-w') ?? 0;
-    const heightFloor = declaredPx(className, 'min-h') ?? 0;
-
-    return {
-        widthPx: Math.max(size ?? declaredPx(className, 'w') ?? 0, widthFloor),
-        heightPx: Math.max(size ?? declaredPx(className, 'h') ?? 0, heightFloor),
-    };
-};
-
-/** The mockup's avatar disc (`screen-home`: `w-8 h-8 bg-seafoam rounded-full`). */
-const AVATAR_DIAMETER_PX = 32;
-
-/** The 44px mobile touch-target floor (U5 / RC-3). */
-const TOUCH_TARGET_PX = 44;
-
-/** The breathing room the disc must leave above AND below itself inside the bar. */
-const MIN_BREATHING_PX = 8;
-
-describe('HomeTopBar — avatar geometry', () => {
+describe('HomeTopBar — avatar structure', () => {
     /**
-     * Find the element that PAINTS the avatar disc (the seafoam fill), which is not necessarily the control.
+     * Find the element that PAINTS the avatar disc (the seafoam fill).
      *
      * @param control - The account link.
      * @returns The painted element.
      */
     const paintedDisc = (control: HTMLElement): Element => {
-        const painted = control.className.includes('bg-seafoam')
-            ? control
-            : control.querySelector('[class*="bg-seafoam"]');
+        const painted = control.querySelector('[class*="bg-seafoam"]');
 
-        expect(painted, 'nothing in the account control paints the avatar fill').not.toBeNull();
+        expect(painted, 'nothing inside the account control paints the avatar fill').not.toBeNull();
 
         return painted as Element;
     };
 
-    it('paints a 32px disc — the touch floor must not inflate the PAINTED box', () => {
+    it('paints the disc on a SEPARATE box from the control that carries the touch floor', () => {
         renderTopBar({ displayName: 'Jane Doe' });
 
-        const disc = usedBox(paintedDisc(screen.getByRole('link', { name: chrome.account })));
+        const control = screen.getByRole('link', { name: chrome.account });
+        const disc = paintedDisc(control);
 
-        // `min-*` beats `height`/`width` in CSS, so a 44px floor on the painted box silently replaces the
-        // mockup's 32px disc with a 44px one. The floor belongs on a transparent parent instead.
-        expect(disc.heightPx).toBe(AVATAR_DIAMETER_PX);
-        expect(disc.widthPx).toBe(AVATAR_DIAMETER_PX);
+        // The defect this split exists to prevent: `min-*` cannot lose to `height`/`width`, so a 44px floor
+        // sharing a box with the 32px disc silently repaints the disc at 44px. The floor must therefore live
+        // on a box that paints nothing, and the disc must carry no floor of its own.
+        expect(disc).not.toBe(control);
+        expect(control.className).not.toContain('bg-seafoam');
+        expect(disc.className).not.toContain('min-h-');
+        expect(disc.className).not.toContain('min-w-');
     });
 
-    it('paints a CIRCLE, not an ellipse (both axes resolve to the same length)', () => {
+    it('sizes the disc with a single square utility, so it cannot resolve to an ellipse', () => {
         renderTopBar({ displayName: 'Jane Doe' });
 
-        // Flooring one axis only (e.g. `min-h-11` without `min-w-11`) yields a 32×44 pill under
-        // `rounded-full`; the disc must stay square on both axes.
-        const disc = usedBox(paintedDisc(screen.getByRole('link', { name: chrome.account })));
+        const disc = paintedDisc(screen.getByRole('link', { name: chrome.account }));
 
-        expect(disc.heightPx).toBe(disc.widthPx);
+        // `size-8` sets both axes at once; a `h-8 w-11` pair (or a one-axis floor) would render a pill under
+        // `rounded-full`. The resulting length is asserted in the browser, not here.
+        expect(disc.className).toContain('size-8');
+        expect(disc.className).toContain('rounded-full');
     });
 
-    it('fits inside the h-14 bar with breathing room above and below', () => {
-        renderTopBar({ displayName: 'Jane Doe' });
-
-        const bar = screen.getByRole('banner');
-        const barHeightPx = declaredPx(bar.className, 'h');
-        const disc = usedBox(paintedDisc(screen.getByRole('link', { name: chrome.account })));
-
-        expect(barHeightPx).toBe(56);
-        // 56 − 32 = 24px of bar, i.e. 12px above and below. A 44px disc leaves 6px and reads as a circle
-        // bursting out of the bar.
-        expect((barHeightPx ?? 0) - disc.heightPx).toBeGreaterThanOrEqual(2 * MIN_BREATHING_PX);
-    });
-
-    it('keeps the 44px touch target on the CONTROL while the disc shrinks', () => {
-        renderTopBar({ displayName: 'Jane Doe' });
-
-        // Separating paint from hit area must not cost the tap target: the link keeps the floor.
-        const control = usedBox(screen.getByRole('link', { name: chrome.account }));
-
-        expect(control.heightPx).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
-        expect(control.widthPx).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
-    });
-
-    it('holds the same geometry for the name-less viewer (glyph fallback)', () => {
+    it('holds the same structure for the name-less viewer (glyph fallback)', () => {
         renderTopBar({ displayName: undefined });
 
-        // The fallback path renders a different child (a glyph, not initials) — it must not render a
+        // The fallback path renders a different CHILD (a glyph, not initials) — it must not render a
         // different disc.
         const control = screen.getByRole('link', { name: chrome.accountNoName });
-        const disc = usedBox(paintedDisc(control));
+        const disc = paintedDisc(control);
 
-        expect(disc.heightPx).toBe(AVATAR_DIAMETER_PX);
-        expect(disc.widthPx).toBe(AVATAR_DIAMETER_PX);
-        expect(usedBox(control).heightPx).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
+        expect(disc).not.toBe(control);
+        expect(disc.className).toContain('size-8');
+        expect(control.className).toContain('min-h-11');
+        expect(control.className).toContain('min-w-11');
+    });
+
+    it("renders the bar at the mockup's h-14, the height the disc must fit inside", () => {
+        renderTopBar();
+
+        // The 56px bar is the constraint the disc is measured against in the browser; that it is declared at
+        // all is the part jsdom can hold.
+        expect(screen.getByRole('banner').className).toContain('h-14');
     });
 });

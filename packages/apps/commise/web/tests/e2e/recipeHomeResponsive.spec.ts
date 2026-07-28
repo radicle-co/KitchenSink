@@ -12,8 +12,8 @@ import { signInWithTicket } from './utils/auth';
  * contract intercepted via `utils/recipeApi`). Two things are proven here that jsdom component tests cannot:
  *
  *  1. **375px (a phone):** no surface scrolls horizontally; the bottom tab bar sits pinned at the foot with
- *     ≥44px controls (it clears the home indicator via `env(safe-area-inset-bottom)` — 0 in headless, so the
- *     clearance itself is asserted by class in the component tests); the ingredient checkbox is a ≥44px tap
+ *     44px controls that fit inside it (it clears the home indicator via `env(safe-area-inset-bottom)` — 0 in headless, so the
+ *     clearance itself is asserted by class in the component tests); the ingredient checkbox is a 44px tap
  *     target; and the version-compare A/B columns STACK to a single column.
  *  2. **1280px (desktop) is UNCHANGED:** the very same elements resolve to their original desktop values —
  *     the ingredient box is back to 24px, the detail title back to text-4xl (36px), version-compare is
@@ -23,13 +23,47 @@ import { signInWithTicket } from './utils/auth';
  *
  * A third block covers the recipe LIST's own touch floors at 390×844 with a real touchscreen (`hasTouch`, so
  * the controls are `tap()`ped, not mouse-clicked). Those chips and tabs grew `min-h-11` (reset at `md:`), and a
- * touch floor is only worth anything if the enlarged control still WORKS: each assertion pairs the ≥44px box
- * with the effect of tapping it, so a control that is merely tall enough — or one whose growth pushed the real
- * hit area under another element — fails.
+ * touch floor is only worth anything if the enlarged control still WORKS: each assertion pairs the box with the
+ * effect of tapping it, so a control that is merely tall enough — or one whose growth pushed the real hit area
+ * under another element — fails.
+ *
+ * **Every touch-target box is asserted as a bounded RANGE, never as a floor** (`expectTouchTarget`). A bare
+ * `>= 44` is satisfied by every inflation, so measuring the real browser bought nothing against a 2× sizing
+ * error; where the design fixes the size, the maximum carries as much signal as the minimum. Containment —
+ * "does the control fit the chrome it sits in" — is asserted wherever a parent box defines it.
  *
  * Selectors are role/label/text only (repo policy); no `data-testid`, no `waitForTimeout`.
  */
 const RECIPE_ID = 'rec_pasta';
+
+/** The mobile touch-target floor (`min-h-11` / `size-11`). */
+const TOUCH_TARGET_PX = 44;
+
+/**
+ * …and its CEILING.
+ *
+ * These controls are fixed at the floor by design, so the maximum is as meaningful as the minimum. A bare
+ * `>= 44` is satisfied by 44, by 64 and by 200 — inflation only ever HELPS it — which is exactly how a 2×
+ * sizing error (a design system redefining Tailwind's `--spacing-*` namespace, painting a 32px avatar at
+ * 64px) survived a suite that does measure real boxes. The slack absorbs sub-pixel layout and a locale
+ * whose label sets a slightly taller line box; it is far too small to hide a scale error.
+ */
+const TOUCH_TARGET_MAX_PX = 48;
+
+/**
+ * Assert a control's measured length is AT the touch floor, not merely above it.
+ *
+ * @param actual - The measured px.
+ * @param what - Human-readable name, for the failure message.
+ */
+function expectTouchTarget(actual: number, what: string): void {
+    expect(actual, `${what} should be ${TOUCH_TARGET_PX}px (±slack) but was ${actual}px`).toBeGreaterThanOrEqual(
+        TOUCH_TARGET_PX,
+    );
+    expect(actual, `${what} should not exceed ${TOUCH_TARGET_MAX_PX}px but was ${actual}px`).toBeLessThanOrEqual(
+        TOUCH_TARGET_MAX_PX,
+    );
+}
 
 const baseSnapshot: RecipeSnapshot = {
     version: 1,
@@ -130,9 +164,7 @@ async function compareColumnCount(page: Page): Promise<number> {
 test.describe('recipe/home responsive — 375px phone (U5)', () => {
     test.use({ viewport: { width: 375, height: 812 } });
 
-    test('Home fits the viewport and the bottom tab bar is pinned at the foot with ≥44px controls', async ({
-        page,
-    }) => {
+    test('Home fits the viewport and the bottom tab bar is pinned at the foot with 44px controls', async ({ page }) => {
         await seed(page);
         await page.goto(route('/'));
         await expect(page.getByRole('region', { name: 'Home' })).toBeVisible();
@@ -150,10 +182,24 @@ test.describe('recipe/home responsive — 375px phone (U5)', () => {
         expect(box?.height ?? 0).toBeLessThan(200);
         expect((box?.y ?? 0) + (box?.height ?? 0)).toBeGreaterThanOrEqual(812 - 2);
 
-        // Every reachable destination is a ≥44px tap target.
+        // Every reachable destination is a 44px tap target that FITS ITS OWN BAR. The containment half is
+        // the one a floor cannot express: a control taller than the chrome it sits in still passes `>= 44`
+        // while visibly bursting out of it, which is the defect class this suite exists to catch.
+        const barTop = box?.y ?? 0;
+        const barBottom = barTop + (box?.height ?? 0);
+
         for (const link of await tabBar.getByRole('link').all()) {
             const linkBox = await link.boundingBox();
-            expect(linkBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+            expect(linkBox).not.toBeNull();
+            expectTouchTarget(linkBox?.height ?? 0, 'a tab-bar destination');
+            expect(linkBox?.y ?? 0, 'a destination must not overflow the top of the tab bar').toBeGreaterThanOrEqual(
+                barTop - 1,
+            );
+            expect(
+                (linkBox?.y ?? 0) + (linkBox?.height ?? 0),
+                'a destination must not overflow the bottom of the tab bar',
+            ).toBeLessThanOrEqual(barBottom + 1);
         }
     });
 
@@ -165,17 +211,21 @@ test.describe('recipe/home responsive — 375px phone (U5)', () => {
         await expectNoHorizontalOverflow(page);
     });
 
-    test('the recipe detail fits the viewport and the ingredient checkbox is a ≥44px tap target', async ({ page }) => {
+    test('the recipe detail fits the viewport and the ingredient checkbox is a 44px tap target', async ({ page }) => {
         await seed(page);
         await page.goto(route(`/recipes/${RECIPE_ID}`));
         await expect(page.getByRole('heading', { level: 1, name: 'Weeknight Pasta with Garlic' })).toBeVisible();
 
         await expectNoHorizontalOverflow(page);
 
+        // `size-11` at base, `sm:size-6` on the mouse — so at 375px this box is EXACTLY the 44px floor. The
+        // desktop half of this suite already pins it at 24px; bounding it here means neither end can drift.
         const checkbox = page.getByRole('checkbox', { name: /Olive oil/ });
         const box = await checkbox.boundingBox();
-        expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
-        expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+        expect(box).not.toBeNull();
+        expectTouchTarget(box?.width ?? 0, 'the ingredient checkbox width');
+        expectTouchTarget(box?.height ?? 0, 'the ingredient checkbox height');
     });
 
     test('version-compare stacks the A/B columns into one', async ({ page }) => {
@@ -263,7 +313,7 @@ async function seedQuickAndSlow(page: Page): Promise<void> {
 test.describe('recipe list touch targets — 390×844 phone with a touchscreen', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
-    test('tapping the Quick (<30m) chip clears the 44px floor AND applies the filter', async ({ page }) => {
+    test('tapping the Quick (<30m) chip sits AT the 44px floor AND applies the filter', async ({ page }) => {
         await seedQuickAndSlow(page);
         await page.goto(route('/recipes'));
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
@@ -272,9 +322,10 @@ test.describe('recipe list touch targets — 390×844 phone with a touchscreen',
         const allChip = chips.getByRole('button', { name: 'All' });
         const quickChip = chips.getByRole('button', { name: 'Quick (<30m)' });
 
-        // Both chips are ≥44px tall at phone width (`min-h-11`, reset at `md:` for the desktop density).
-        expect(await heightOf(allChip)).toBeGreaterThanOrEqual(44);
-        expect(await heightOf(quickChip)).toBeGreaterThanOrEqual(44);
+        // Both chips sit AT the 44px floor at phone width (`min-h-11`, reset at `md:` for the desktop
+        // density) — bounded above too, so an inflated spacing ramp cannot pass by being larger.
+        expectTouchTarget(await heightOf(allChip), 'the All chip');
+        expectTouchTarget(await heightOf(quickChip), 'the Quick chip');
 
         // Nothing is filtered yet: "All" is the pressed chip and both recipes are listed.
         await expect(allChip).toHaveAttribute('aria-pressed', 'true');
@@ -296,7 +347,7 @@ test.describe('recipe list touch targets — 390×844 phone with a touchscreen',
         await expect(page.getByRole('button', { name: 'Sunday Ragu' })).toBeVisible();
     });
 
-    test('tapping the Community source tab clears the 44px floor AND switches source', async ({ page }) => {
+    test('tapping the Community source tab sits AT the 44px floor AND switches source', async ({ page }) => {
         await seedQuickAndSlow(page);
         await page.goto(route('/recipes'));
         await expect(page.getByRole('heading', { name: 'Recipes' })).toBeVisible();
@@ -305,8 +356,8 @@ test.describe('recipe list touch targets — 390×844 phone with a touchscreen',
         const mine = tabs.getByRole('tab', { name: 'My Recipes' });
         const community = tabs.getByRole('tab', { name: 'Community' });
 
-        expect(await heightOf(mine)).toBeGreaterThanOrEqual(44);
-        expect(await heightOf(community)).toBeGreaterThanOrEqual(44);
+        expectTouchTarget(await heightOf(mine), 'the My Recipes tab');
+        expectTouchTarget(await heightOf(community), 'the Community tab');
 
         // This list IS "My Recipes", and the tab says so.
         await expect(mine).toHaveAttribute('aria-selected', 'true');

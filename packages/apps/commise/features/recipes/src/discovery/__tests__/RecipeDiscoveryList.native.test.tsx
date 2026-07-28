@@ -82,6 +82,19 @@ describe('RecipeDiscoveryList (native) — error state', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
+
+    it('clears the 44pt touch floor on the retry action', () => {
+        renderDiscovery({ status: 'error' });
+
+        // Every other control on this leaf carries `minHeight: 44` (sort chips, load-more, the recent-search
+        // rows, back-to-browse); the retry was a bare `Pressable` wrapping a `Text` — a ~20pt target.
+        const retry = screen.getByRole('button', { name: 'Try again' });
+        const surface = [retry, ...Array.from(retry.querySelectorAll<HTMLElement>('*'))].find(
+            (node) => window.getComputedStyle(node).minHeight === '44px',
+        );
+
+        expect(surface, 'the retry action does not reach a 44pt target').toBeDefined();
+    });
 });
 
 describe('RecipeDiscoveryList (native) — empty state', () => {

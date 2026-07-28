@@ -478,6 +478,32 @@ describe('RecipeDiscoveryList (web) — recent searches (U7)', () => {
         expect(onClear).toHaveBeenCalledTimes(1);
     });
 
+    it('gives the clear control the 44px touch floor, reset for the mouse at md', async () => {
+        const user = userEvent.setup();
+        renderDiscovery({ searchValue: '', recentSearches: recent });
+
+        await focusSearch(user);
+
+        // The native leaf already carries `minHeight: 44` on this row (`styles.recentClear`); the web leaf had
+        // `px-2 py-1` and nothing else, i.e. a ~24px target — well under the floor the rest of the app holds.
+        const clear = screen.getByRole('button', { name: 'Clear recent searches' });
+        expect(clear.className).toContain('min-h-11');
+        expect(clear.className).toContain('md:min-h-0');
+    });
+
+    it('gives every recent-search row the 44px touch floor, reset for the mouse at md', async () => {
+        const user = userEvent.setup();
+        renderDiscovery({ searchValue: '', recentSearches: recent });
+
+        await focusSearch(user);
+
+        const panel = screen.getByRole('region', { name: 'Recent searches' });
+        for (const option of within(panel).getAllByRole('button', { name: /^Search for/ })) {
+            expect(option.className).toContain('min-h-11');
+            expect(option.className).toContain('md:min-h-0');
+        }
+    });
+
     it('hides again once focus leaves the search area entirely', async () => {
         const user = userEvent.setup();
         renderDiscovery({ status: 'ready', results: threeResults, searchValue: '', recentSearches: recent });
@@ -488,5 +514,55 @@ describe('RecipeDiscoveryList (web) — recent searches (U7)', () => {
         await user.click(screen.getByRole('button', { name: 'Clone Asparagus with Green Sauce' }));
 
         expect(screen.queryByRole('region', { name: 'Recent searches' })).toBeNull();
+    });
+});
+
+describe('RecipeDiscoveryList (web) — touch targets (44px floor)', () => {
+    /**
+     * Every interactive control on this surface must clear the 44px floor the rest of the app was raised to
+     * (`min-h-11` at base, reset at `md:` for the mouse density — the `@commise/ui` Button recipe's own
+     * treatment). The native leaf already carries `minHeight: 44` on its equivalents, so a web control without
+     * the floor is also a cross-platform parity break.
+     */
+    function expectTouchFloor(control: HTMLElement, what: string): void {
+        expect(control.className, `${what} has no 44px touch floor`).toContain('min-h-11');
+        expect(control.className, `${what} does not reset the floor for the mouse`).toContain('md:min-h-0');
+    }
+
+    it('gives the error state’s retry action the floor', () => {
+        renderDiscovery({ status: 'error' });
+
+        expectTouchFloor(screen.getByRole('button', { name: 'Try again' }), 'retry');
+    });
+
+    it('gives the load-more action the floor', () => {
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            searchValue: 'lamb',
+            loadMore: { onLoadMore: noop, loading: false, hasMore: true },
+        });
+
+        expectTouchFloor(screen.getByRole('button', { name: 'Load more' }), 'load more');
+    });
+
+    it('gives the back-to-browse action the floor', () => {
+        renderDiscovery({ status: 'ready', results: [], searchValue: 'lamb', onExitToBrowse: noop });
+
+        expectTouchFloor(screen.getByRole('button', { name: 'Back to browse' }), 'back to browse');
+    });
+
+    it('gives every sort option the floor', () => {
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            searchValue: 'lamb',
+            sort: { active: RecipeSearchSortBy.RELEVANCE, onChange: noop },
+        });
+
+        const group = screen.getByRole('radiogroup', { name: 'Sort by' });
+        for (const option of within(group).getAllByRole('radio')) {
+            expectTouchFloor(option, `sort option ${option.textContent ?? ''}`);
+        }
     });
 });

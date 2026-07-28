@@ -97,7 +97,12 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
         body = (
             <View accessibilityRole="alert">
                 <Text>{discovery.errorTitle}</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel={discovery.retry} onPress={onRetry}>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={discovery.retry}
+                    onPress={onRetry}
+                    style={styles.retry}
+                >
                     <Text>{discovery.retry}</Text>
                 </Pressable>
             </View>
@@ -276,6 +281,8 @@ const styles = StyleSheet.create({
         color: palette.charcoal,
     },
     count: { fontSize: 13, fontWeight: '500', color: palette.slate },
+    // The settled-failure retry — the 44pt floor every other control on this leaf already carries.
+    retry: { minHeight: 44, justifyContent: 'center' },
     sortRow: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
     sortChip: {
         borderRadius: nativeTokens.radius.full,

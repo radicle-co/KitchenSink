@@ -13,6 +13,7 @@ export {
     filterChipLabel,
     formatDurationMinutes,
     formatRecipeCount,
+    isListNarrowed,
     isQuickRecipe,
     matchesListFacet,
     toRecipeListItem,

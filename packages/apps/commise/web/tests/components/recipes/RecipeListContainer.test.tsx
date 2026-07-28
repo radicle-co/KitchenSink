@@ -11,6 +11,7 @@
  */
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -64,6 +65,27 @@ describe('RecipeListContainer', () => {
         renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
 
         expect(await screen.findByText('No recipes yet')).toBeInTheDocument();
+        // The loading branch must have FLIPPED, not merely been joined by the empty copy.
+        expect(screen.queryByRole('status', { name: 'Loading recipes' })).not.toBeInTheDocument();
+    });
+
+    it('settles on the error state — never a permanent skeleton — when the recipe request HANGS', async () => {
+        // The reported first-run bug: on a hung connection the query stays `isPending && isFetching`, so
+        // `status` never leaves 'loading' and BOTH the empty branch and the error branch (with its retry) are
+        // unreachable — the surface shimmers forever. Driven through a REAL client over a fetch double that
+        // never answers, so the assertion is on the SURFACE the viewer sees, not on the client in isolation.
+        const client = new RecipeServiceClient({
+            baseUrl: 'https://recipes.example.test',
+            token: 't',
+            fetch: (() => new Promise<Response>(() => undefined)) as unknown as typeof fetch,
+            timeoutMs: 25,
+        });
+
+        renderWithRecipeClient(<RecipeListContainer locale="en" />, client);
+
+        expect(await screen.findByRole('alert')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+        expect(screen.queryByRole('status', { name: 'Loading recipes' })).not.toBeInTheDocument();
     });
 
     it('renders the error state and retries on demand', async () => {

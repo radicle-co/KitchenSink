@@ -279,6 +279,45 @@ describe('RecipeList (native) — no-match state', () => {
         expect(screen.getByText('No matching recipes')).toBeTruthy();
         expect(screen.queryByText('No recipes yet')).toBeNull();
     });
+
+    it('treats an active FACET chip that filtered every row out as a no-match, not a first-run empty', () => {
+        // Parity with the web leaf: the chips are derived from the loaded library, so a pressed chip means the
+        // caller HAS recipes. Zero rows under a pressed chip is a no-match, never "No recipes yet".
+        renderList({
+            status: 'ready',
+            recipes: [],
+            searchValue: '',
+            filters: { available: ['Vegetarian', 'Italian'], active: ['Vegetarian'], onToggle: noop, onClear: noop },
+        });
+
+        expect(screen.getByText('No matching recipes')).toBeTruthy();
+        expect(screen.queryByText('No recipes yet')).toBeNull();
+    });
+
+    it('offers no first-run create CTA, and keeps the FAB, when a facet filtered every row out', () => {
+        renderList({
+            status: 'ready',
+            recipes: [],
+            searchValue: '',
+            filters: { available: ['Vegetarian'], active: ['Vegetarian'], onToggle: noop, onClear: noop },
+        });
+
+        expect(screen.queryByRole('button', { name: 'Create your first recipe' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
+    });
+
+    it('still shows the first-run empty copy when chips are OFFERED but none is active', () => {
+        renderList({
+            status: 'ready',
+            recipes: [],
+            searchValue: '',
+            filters: { available: ['Vegetarian'], active: [], onToggle: noop, onClear: noop },
+        });
+
+        expect(screen.getByText('No recipes yet')).toBeTruthy();
+        expect(screen.queryByText('No matching recipes')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Create your first recipe' })).toBeTruthy();
+    });
 });
 
 describe('RecipeList (native) — populated state', () => {

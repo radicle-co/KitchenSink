@@ -71,6 +71,22 @@ export function rejectingFetch(error: Error): typeof fetch {
     }) as unknown as typeof fetch;
 }
 
+/**
+ * A `fetch` double that NEVER settles — no response, no error, no FIN — modeling a hung connection: an ALB
+ * target draining mid-deploy, a Fargate cold start, a stalled query, or a mobile network handoff that drops
+ * the socket without an RST. Deliberately ignores the abort signal, so the only thing that can end the wait
+ * is the client's OWN timeout; a client without one waits forever.
+ *
+ * @sideEffect Returns a `vi.fn` that records calls and captures request bodies.
+ */
+export function hangingFetch(): typeof fetch {
+    return vi.fn(async (request: Request) => {
+        await captureBody(request);
+
+        return new Promise<Response>(() => undefined);
+    }) as unknown as typeof fetch;
+}
+
 /** The recorded `fetch` calls; ky invokes the injected fetch with a `Request` as the first argument. */
 export function callsOf(fetchMock: typeof fetch): [Request, ...unknown[]][] {
     return (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls as [Request, ...unknown[]][];

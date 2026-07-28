@@ -8,7 +8,7 @@
  * TanStack Query hooks live on the `./hooks` subpath (`@kitchensink/recipe-service-client/hooks`) so a
  * non-React consumer of the plain client never pulls React in.
  */
-export { RecipeServiceClient } from './client.js';
+export { DEFAULT_REQUEST_TIMEOUT_MS, RecipeServiceClient } from './client.js';
 export type { RecipeServiceClientOptions, TokenSource } from './client.js';
 
 // P5 (W9) — the `queryOptions` repository-read-seam factories + the recipe-write invalidation registry.
@@ -26,6 +26,7 @@ export { collectionQueries, ingredientQueries, recipeProjections, recipeQueries 
 
 export {
     BadRequestError,
+    FetchUnavailableError,
     ForbiddenError,
     GoneError,
     NotFoundError,
@@ -35,6 +36,7 @@ export {
     UnexpectedResponseError,
     VersionConflictError,
     isBadRequestError,
+    isFetchUnavailableError,
     isForbiddenError,
     isGoneError,
     isNotFoundError,

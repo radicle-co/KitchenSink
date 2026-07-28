@@ -9,14 +9,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
 
 import {
+    DEFAULT_REQUEST_TIMEOUT_MS,
     ForbiddenError,
     RecipeServiceClient,
     UnauthorizedError,
     UnexpectedResponseError,
+    isFetchUnavailableError,
     isRecipeServiceClientError,
 } from '../index.js';
+import type { FetchUnavailableError } from '../index.js';
 import { makePaginatedResponse, makeRecipeDetail } from '../__fixtures__/recipes.js';
-import { callsOf, rejectingFetch, requestAt, sequenceFetch, stubFetch } from './utils/fetchDouble.js';
+import { callsOf, hangingFetch, rejectingFetch, requestAt, sequenceFetch, stubFetch } from './utils/fetchDouble.js';
 
 const BASE = 'https://recipes.example.test';
 const SYNC_PENDING = { code: IDENTITY_SYNC_PENDING_CODE, message: 'identity not yet available' };
@@ -224,6 +227,73 @@ describe('RecipeServiceClient — degenerate response bodies', () => {
 
         expect(error).toBe(failure);
         expect(isRecipeServiceClientError(error)).toBe(false);
+    });
+});
+
+describe('RecipeServiceClient — request timeout (bounded wait)', () => {
+    it('rejects a HUNG request with a typed FetchUnavailableError instead of waiting forever', async () => {
+        // The infinite-loading root cause: a connection that never answers. Without a client timeout the
+        // returned promise never settles, so a consuming `useQuery` stays `isPending && isFetching` for the
+        // life of the page — the surface's loading branch never flips and its empty/error branches are
+        // unreachable. A bounded wait turns the hang into a SETTLED failure the UI can render and retry.
+        const fetchMock = hangingFetch();
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 't', fetch: fetchMock, timeoutMs: 25 });
+
+        const error = await client.listRecipes().catch((caught: unknown) => caught);
+
+        expect(isFetchUnavailableError(error)).toBe(true);
+        expect(isRecipeServiceClientError(error)).toBe(true);
+        // A transport failure has no HTTP status — nothing answered.
+        expect((error as FetchUnavailableError).status).toBeUndefined();
+    });
+
+    it('ABORTS the hung request rather than leaking the connection', async () => {
+        const fetchMock = hangingFetch();
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 't', fetch: fetchMock, timeoutMs: 25 });
+
+        await client.listRecipes().catch(() => undefined);
+
+        // Racing a rejection is not enough: the in-flight request must actually be cancelled, or a stalled
+        // socket per navigation accumulates until the platform's connection pool is exhausted.
+        expect(callsOf(fetchMock)[0]![0].signal.aborted).toBe(true);
+    });
+
+    it('bounds the wait by DEFAULT, not only when a caller passes timeoutMs', async () => {
+        // The default is the one that ships: every app constructs this client WITHOUT a timeout override
+        // (`RecipeProviders` on web, `RecipeServiceGate` on mobile), so a finite default is the fix.
+        vi.useFakeTimers();
+
+        try {
+            const client = new RecipeServiceClient({ baseUrl: BASE, token: 't', fetch: hangingFetch() });
+            const settled = client.listRecipes().catch((caught: unknown) => caught);
+
+            await vi.advanceTimersByTimeAsync(DEFAULT_REQUEST_TIMEOUT_MS + 1);
+
+            expect(isFetchUnavailableError(await settled)).toBe(true);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not abort a request that answers within the timeout', async () => {
+        // The regression guard: the timeout must not clip a healthy response.
+        const empty = makePaginatedResponse<never>([], { total: 0 });
+        const fetchMock = stubFetch(200, empty);
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 't', fetch: fetchMock, timeoutMs: 25 });
+
+        await expect(client.listRecipes()).resolves.toEqual(empty);
+        expect(callsOf(fetchMock)[0]![0].signal.aborted).toBe(false);
+    });
+
+    it('does not retry a timeout (the query layer owns retry; the client fails fast)', async () => {
+        const fetchMock = hangingFetch();
+        const client = new RecipeServiceClient({ baseUrl: BASE, token: 't', fetch: fetchMock, timeoutMs: 25 });
+
+        await client.listRecipes().catch(() => undefined);
+
+        // A timeout is not a 401, so neither the identity-sync loop nor the expired-token retry may replay it
+        // — otherwise the bounded wait multiplies back into a near-infinite one.
+        expect(callsOf(fetchMock)).toHaveLength(1);
     });
 });
 

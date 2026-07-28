@@ -14,6 +14,7 @@ import {
     filterChipLabel,
     formatDurationMinutes,
     formatRecipeCount,
+    isListNarrowed,
     isQuickRecipe,
     matchesListFacet,
     toRecipeListItem,
@@ -137,5 +138,31 @@ describe('filterChipLabel', () => {
     it('passes every other facet value through unchanged (dietary flags/cuisine are free-text data, not copy)', () => {
         expect(filterChipLabel('Vegetarian', 'Quick (<30m)')).toBe('Vegetarian');
         expect(filterChipLabel('Italian', 'Quick (<30m)')).toBe('Italian');
+    });
+});
+
+describe('isListNarrowed (the empty-vs-no-match discriminator)', () => {
+    it('is false for a blank surface — the genuine first-run empty library', () => {
+        expect(isListNarrowed('', [])).toBe(false);
+        expect(isListNarrowed('')).toBe(false);
+    });
+
+    it('treats a whitespace-only search term as no narrowing at all', () => {
+        expect(isListNarrowed('   ', [])).toBe(false);
+    });
+
+    it('is true for a real search term', () => {
+        expect(isListNarrowed('lamb', [])).toBe(true);
+        expect(isListNarrowed('  lamb  ', [])).toBe(true);
+    });
+
+    it('is true for an ACTIVE facet chip even with a blank search box', () => {
+        // The defect this predicate exists to prevent: a chip-narrowed zero rendering first-run empty copy.
+        expect(isListNarrowed('', ['Vegetarian'])).toBe(true);
+        expect(isListNarrowed('', [QUICK_TIME_FACET])).toBe(true);
+    });
+
+    it('is true when both a term and a facet are active', () => {
+        expect(isListNarrowed('lamb', ['Vegetarian'])).toBe(true);
     });
 });

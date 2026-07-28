@@ -12,7 +12,7 @@ import type { FC, ReactElement } from 'react';
 import { RecipeCardGridSkeleton } from '../card/RecipeCardGridSkeleton.js';
 import { recipeMessages } from '../messages.js';
 import { RecipeListCard } from './RecipeListCard.js';
-import { filterChipLabel, formatRecipeCount, type RecipeListViewProps } from './model.js';
+import { filterChipLabel, formatRecipeCount, isListNarrowed, type RecipeListViewProps } from './model.js';
 
 export const RecipeList: FC<RecipeListViewProps> = ({
     status,
@@ -28,6 +28,9 @@ export const RecipeList: FC<RecipeListViewProps> = ({
     const { list } = useMessages(recipeMessages);
     const locale = useLocale();
     const onCommunity = tab?.active === 'community';
+    // Empty ≠ no-match, and the discriminator is the SHARED predicate (see `isListNarrowed`): an active search
+    // term OR an active quick-filter chip means the viewer narrowed the rows themselves.
+    const narrowed = isListNarrowed(searchValue, filters?.active);
 
     let body: ReactElement;
 
@@ -46,16 +49,15 @@ export const RecipeList: FC<RecipeListViewProps> = ({
             </div>
         );
     } else if (recipes.length === 0) {
-        // Empty ≠ no-match: an active search that filtered every row out is NOT "no recipes yet" (the caller
-        // has recipes) — it's a no-match. The Community tab has its own distinct empty copy (L5).
-        const searching = searchValue.trim().length > 0;
+        // A narrowed zero (search term or pressed chip) is a NO-MATCH, not "no recipes yet" — the caller HAS
+        // recipes. The Community tab has its own distinct empty copy (L5).
         const emptyTitle = onCommunity ? list.emptyCommunityTitle : list.emptyTitle;
         const emptyBody = onCommunity ? list.emptyCommunityBody : list.emptyBody;
         body = (
             <div className="flex flex-col items-start gap-3">
-                <p>{searching ? list.noMatchTitle : emptyTitle}</p>
-                <p>{searching ? list.noMatchBody : emptyBody}</p>
-                {!searching && !onCommunity && (
+                <p>{narrowed ? list.noMatchTitle : emptyTitle}</p>
+                <p>{narrowed ? list.noMatchBody : emptyBody}</p>
+                {!narrowed && !onCommunity && (
                     // Empty-state CTA — the SOLE create control here (the floating FAB is suppressed on empty
                     // so there are never two competing create affordances). Never on Community (L5).
                     <button
@@ -86,8 +88,10 @@ export const RecipeList: FC<RecipeListViewProps> = ({
 
     // The FAB is the persistent create control (L1) — pinned, OUTSIDE the header, present across loading /
     // error / populated. It is suppressed in the true empty state (the empty-state CTA is the single create
-    // affordance) AND on the Community tab (L5 — you never create into someone else's list).
-    const isEmpty = status === 'ready' && recipes.length === 0 && searchValue.trim().length === 0;
+    // affordance) AND on the Community tab (L5 — you never create into someone else's list). "True empty"
+    // means the same thing here as in the body branch above, so both read the ONE `narrowed` predicate: a
+    // chip-narrowed zero keeps the FAB, because its empty body renders no CTA to replace it.
+    const isEmpty = status === 'ready' && recipes.length === 0 && !narrowed;
     const showFab = !isEmpty && !onCommunity;
 
     return (

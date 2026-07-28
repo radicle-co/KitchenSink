@@ -929,4 +929,41 @@ describe('useAllOwnerRecipes', () => {
         expect(result.current.isComplete).toBe(false);
         expect(result.current.recipes).toEqual([]);
     });
+
+    it('STOPS paging when a page after the first fails, instead of re-fetching it forever', async () => {
+        // The pager is a `useEffect` keyed on `hasNextPage`/`isFetchingNextPage`. When page 2 fails, no page is
+        // appended, so `hasNextPage` stays true while `isFetchingNextPage` falls back to false — a dependency
+        // change that re-runs the effect and re-issues the SAME failing fetch. Unguarded that is an unbounded
+        // request storm against the API, and `isLoading` (which ORs in `hasNextPage`) never settles.
+        const client = makeGuardedClient();
+        const listRecipes = vi
+            .spyOn(client, 'listRecipes')
+            .mockResolvedValueOnce(makePaginatedResponse([makeRecipe({ id: 'r1' })], { hasMore: true, page: 1 }))
+            .mockRejectedValue(new Error('page 2 down'));
+
+        const { result } = renderRecipeHook(() => useAllOwnerRecipes(), { client });
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+
+        // Page 1 + exactly one failed attempt at page 2. A loop shows up here as an ever-growing call count.
+        expect(listRecipes).toHaveBeenCalledTimes(2);
+        const callsAfterFailure = listRecipes.mock.calls.length;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(listRecipes.mock.calls.length).toBe(callsAfterFailure);
+    });
+
+    it('reports a mid-pager failure as ERROR, not as a permanent loading state', async () => {
+        // Both erasure dialogs branch `recipesLoading ? … : recipesError ? …`, so a composite `isLoading` that
+        // stays true through a failure makes the error branch unreachable and the donate election spins forever.
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'listRecipes')
+            .mockResolvedValueOnce(makePaginatedResponse([makeRecipe({ id: 'r1' })], { hasMore: true, page: 1 }))
+            .mockRejectedValue(new Error('page 2 down'));
+
+        const { result } = renderRecipeHook(() => useAllOwnerRecipes(), { client });
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+        expect(result.current.isLoading).toBe(false);
+        expect(result.current.isComplete).toBe(false);
+    });
 });

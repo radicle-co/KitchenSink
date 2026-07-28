@@ -54,7 +54,13 @@ const renderSlot = (): void => {
     // leaving it un-stubbed leaks an UNHANDLED REJECTION. Vitest then fails the whole file on unhandled
     // errors even while both assertions pass, and whether the rejection lands before the run ends depends
     // on machine load — which is exactly how it turned `turbo run test` nondeterministic.
-    vi.spyOn(client, 'listRecipes').mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 0 });
+    vi.spyOn(client, 'listRecipes').mockResolvedValue({
+        data: [],
+        total: 0,
+        page: 1,
+        pageSize: 0,
+        hasMore: false,
+    });
 
     render(
         <RecipeServiceProvider client={client}>

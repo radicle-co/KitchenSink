@@ -7,7 +7,7 @@
  * `RecipeWidgetSlot.test.tsx`, the chrome in `chrome/__tests__`, and the greeting in `HomeGreeting.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen, within } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { FC, JSX } from 'react';
 
@@ -188,8 +188,47 @@ describe('HomeWidgetSurface (web) — host composition', () => {
 
         // The throw is caught → a localized fallback replaces the silent null, and the injected reporter was
         // called with the error plus the widget's id as context.
+        expect(screen.queryByText('fake-recipe-widget')).toBeNull();
         expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
+        // ANNOUNCED, not merely painted: this fallback appears only after the widget has already failed
+        // mid-session, so a plain <p> (what web shipped) told a screen-reader user nothing at all while
+        // mobile's counterpart announced it. Same failure, same treatment, both platforms (FR-044 / §14).
+        expect(screen.getByRole('alert')).toBeTruthy();
         expect(reportError).toHaveBeenCalledWith(expect.any(Error), { widget: RECIPE_HOME_WIDGET_ID });
+
+        consoleError.mockRestore();
+    });
+
+    it('leaves a PLACEHOLDER failure silent — there is no widget content to explain the loss of (mobile parity)', async () => {
+        // Deliberate asymmetry, matched on both platforms: a roadmap skeleton is ITSELF a stand-in for a
+        // feature that has not shipped, so a notice in its place would announce the failure of something the
+        // viewer was never promised. Only the REPORTING is mandatory on this arm. Pinning it here means a
+        // well-meaning "make the two boundaries consistent" change has to argue with a test — the mirror of
+        // the same guard in `mobile/tests/components/home/HomeWidgetSurface.native.test.tsx`.
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const reportError: ErrorReporter = vi.fn();
+
+        const Boom: FC = () => {
+            throw new Error('placeholder boom');
+        };
+
+        const container = containerWith(
+            makeLiveDescriptor(RECIPE_HOME_WIDGET_ID),
+            makePlaceholderDescriptor('meal-plan', Boom),
+        );
+        container.bindValue(errorReporterToken, reportError);
+
+        renderSurface({ container, renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget } });
+
+        // The placeholder loads through `next/dynamic`, so its throw lands a tick later — wait for the REPORT
+        // (the observable proof the boundary fired) before asserting the notice is absent, or this passes
+        // vacuously against a surface that simply had not rendered the failing placeholder yet.
+        await waitFor(() => {
+            expect(reportError).toHaveBeenCalledWith(expect.any(Error), { widget: 'meal-plan' });
+        });
+
+        expect(screen.queryByText('This section couldn’t load.')).toBeNull();
+        expect(screen.queryByRole('alert')).toBeNull();
 
         consoleError.mockRestore();
     });

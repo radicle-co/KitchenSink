@@ -41,9 +41,16 @@ beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
+/**
+ * Its fallback is a DISTINCT sentinel rather than the real host copy on purpose: both boundaries render the
+ * SAME localized notice, so a shared string could not tell "the inner boundary CONTAINED the failure" apart
+ * from "the failure ESCAPED and erased the navigation with it" — the very regression this file exists for.
+ */
+const HOST_BOUNDARY_SENTINEL = 'host-boundary-fired';
+
 /** Mirrors production composition: the host wraps every bespoke slot in a per-widget `ErrorBoundary`. */
 const HostBoundary = ({ children }: { readonly children: ReactNode }): JSX.Element => (
-    <ErrorBoundary fallback={<p>widget unavailable</p>}>{children}</ErrorBoundary>
+    <ErrorBoundary fallback={<p>{HOST_BOUNDARY_SENTINEL}</p>}>{children}</ErrorBoundary>
 );
 
 const renderSlot = (): void => {
@@ -82,7 +89,7 @@ describe('RecipeWidgetSlot (web) — the widget body fails to render', () => {
         renderSlot();
 
         // The host fallback firing means the whole slot — navigation included — was replaced.
-        expect(screen.queryByText('widget unavailable')).toBeNull();
+        expect(screen.queryByText(HOST_BOUNDARY_SENTINEL)).toBeNull();
     });
 
     it('explains the loss with the localized notice, in the same words mobile uses', () => {
@@ -93,5 +100,34 @@ describe('RecipeWidgetSlot (web) — the widget body fails to render', () => {
         // literal is asserted (not `webMessages.en...`) and is character-identical to the mobile catalog's
         // `home.widgetError`, so the two surfaces cannot drift apart again without one of these tests going red.
         expect(screen.getByText('This section couldn’t load.')).toBeTruthy();
+    });
+
+    it('announces the loss instead of leaving it silent to assistive tech', () => {
+        renderSlot();
+
+        // The remaining half of the same drift: mobile announces this notice as an `alert`, web rendered a
+        // plain <p>, so on web a widget that failed mid-session was invisible to a screen reader.
+        expect(screen.getByRole('alert').textContent).toBe('This section couldn’t load.');
+
+        // …and it must be the INNER boundary's notice. Were the throw escaping to the host, the sentinel would
+        // be showing and the navigation gone — a regression a bare "is the message on screen?" check passes.
+        expect(screen.queryByText(HOST_BOUNDARY_SENTINEL)).toBeNull();
+        expect(screen.getByRole('link', { name: 'See all recipes' })).toBeTruthy();
+    });
+
+    it('does not offer a retry affordance it cannot honour (React.lazy caches the rejection)', () => {
+        renderSlot();
+
+        // Deliberate, and matched by mobile: the ONLY control left in the failed slot is the route out of
+        // Home. React's `lazyInitializer` (react 19.2.7, `cjs/react.development.js`) invokes the loader only
+        // while `_status === -1`; a rejection parks the payload at `_status = 2` and every later render bare-
+        // throws the cached `_result`. So a "try again" that merely called `resetErrorBoundary()` would
+        // re-render the same module-scope lazy object, re-throw synchronously, and read as a dead button.
+        expect(screen.queryAllByRole('button')).toHaveLength(0);
+
+        const controls = screen.getAllByRole('link');
+
+        expect(controls).toHaveLength(1);
+        expect(controls[0]?.textContent).toBe('See all recipes');
     });
 });

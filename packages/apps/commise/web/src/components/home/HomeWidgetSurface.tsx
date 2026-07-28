@@ -43,6 +43,7 @@ import { webMessages } from '@/i18n/messages';
 
 import { HomeGreeting } from './HomeGreeting';
 import { homeContainer } from './homeContainer';
+import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice';
 import { RecipeWidgetSlot } from './RecipeWidgetSlot';
 import { RoadmapWidgetSlot } from './RoadmapWidgetSlot';
 import { HomeNudgeContext, SubscriptionNudge, useOncePerSessionNudge } from './SubscriptionNudge';
@@ -135,14 +136,19 @@ export function HomeWidgetSurface({
 
                             // A widget with a bespoke host slot (the live recipe widget, which needs its data
                             // prop wired) renders through that slot. B23/DA9 — a render throw / chunk-load
-                            // reject is reported through the injected reporter (never swallowed) and shows a
-                            // small localized fallback instead of vanishing.
+                            // reject is reported through the injected reporter (never swallowed) and shows the
+                            // localized {@link HomeWidgetErrorNotice} instead of vanishing. That notice is a
+                            // component, not inline JSX, because the recipe slot's inner boundary renders the
+                            // SAME stand-in: one piece of knowledge ("what a broken widget looks and sounds
+                            // like"), so it gets one representation — and it is ANNOUNCED (`role="alert"`),
+                            // matching mobile, since a failure arriving mid-session is otherwise silent to
+                            // assistive tech.
                             if (Bespoke !== undefined) {
                                 return (
                                     <ErrorBoundary
                                         key={descriptor.id}
                                         onError={(error) => reportWidgetError(error, { widget: descriptor.id })}
-                                        fallback={<p className="text-body-sm text-slate">{home.surface.widgetError}</p>}
+                                        fallback={<HomeWidgetErrorNotice />}
                                     >
                                         <Suspense fallback={null}>
                                             <Bespoke />
@@ -152,8 +158,11 @@ export function HomeWidgetSurface({
                             }
 
                             // A roadmap placeholder renders through its own loader seam — no bespoke slot, no
-                            // second id list in the host. Its fallback stays null (nothing user-facing to lose),
-                            // but a throw is still reported (B23/DA9), never silent.
+                            // second id list in the host. Its fallback stays `null` — deliberately NOT the
+                            // notice above, and matched by mobile: a skeleton is itself a stand-in for a
+                            // feature that has not shipped, so a notice here would announce the failure of
+                            // something the viewer was never promised. The asymmetry is pinned by a test on
+                            // both platforms. A throw is still reported (B23/DA9), never silent.
                             if (isPlaceholderHomeWidget(descriptor)) {
                                 return (
                                     <ErrorBoundary

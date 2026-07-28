@@ -73,12 +73,12 @@ const SELECTED = 'border-b-2 border-seafoam bg-white text-ocean-dark shadow-sm';
  * hairline, both present WITHOUT a pointer.
  *
  * Both halves are measurable, and both are asserted (`utilityContrast`, rest AND hover):
- *  - label `slate` on the `pearl` fill = 4.76:1, clearing the 4.5:1 SC 1.4.3 text floor;
- *  - the `slate` hairline is the control's BOUNDARY, so it owes 3:1 (SC 1.4.11) against the fill — 4.76:1.
- *    `mist` is the tone this would reach for by instinct and it fails at 1.87:1, which is why the boundary is
+ *  - label `slate` on the `pearl` fill = 4.81:1, clearing the 4.5:1 SC 1.4.3 text floor;
+ *  - the `slate` hairline is the control's BOUNDARY, so it owes 3:1 (SC 1.4.11) against the fill — 4.81:1.
+ *    `mist` is the tone this would reach for by instinct and it fails at 1.74:1, which is why the boundary is
  *    slate: it is the lightest token in the palette that clears the floor at all.
  *  - hover deepens the fill to `mist/40` (composited over the page, since a `hover:bg-*` REPLACES the resting
- *    fill rather than stacking on it) and the label to `charcoal`; the hairline stays slate at 3.79:1 there.
+ *    fill rather than stacking on it) and the label to `charcoal`; the hairline stays slate at 3.94:1 there.
  */
 const UNSELECTED = 'border-b border-slate bg-pearl text-slate hover:bg-mist/40 hover:text-charcoal';
 

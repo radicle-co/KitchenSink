@@ -90,7 +90,7 @@ describe('RecipeSourceTabs (web) — the INACTIVE tab’s resting affordance (WC
             'inactive source-tab label on its resting fill',
         ).toBeGreaterThanOrEqual(4.5);
         // The hairline is the BOUNDARY that makes it perceivable as a control at all, so it owes the 3:1
-        // SC 1.4.11 floor against that fill. `mist` — the instinctive choice — is 1.87:1 and fails.
+        // SC 1.4.11 floor against that fill. `mist` — the instinctive choice — is 1.74:1 and fails.
         expect(
             utilityContrast(inactive.className, { surface: semantic.background, foreground: 'border' }),
             'inactive source-tab boundary against its own fill',

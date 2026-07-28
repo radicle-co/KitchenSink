@@ -84,7 +84,7 @@ describe('RecipeSourceTabs (native) — the INACTIVE tab’s resting affordance 
         const style = window.getComputedStyle(inactive);
 
         // The hairline is what makes the control perceivable AS a control on a touch device. `transparent`
-        // (the defect) and `mist` (1.87:1, the instinctive choice) both fail this.
+        // (the defect) and `mist` (1.74:1, the instinctive choice) both fail this.
         expect(Number.parseFloat(style.borderBottomWidth)).toBeGreaterThan(0);
         expect(
             contrastRatio(compositeOver(style.borderBottomColor, fillOf(inactive)), fillOf(inactive)),

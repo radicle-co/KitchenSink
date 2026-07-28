@@ -47,7 +47,7 @@ export interface RecipeSourceTabProps {
  * `pearl` fill under a `slate` hairline — instead of bare text. Touch has no hover, so a hover-only signal (the
  * web defect this mirrors) means no signal at all on a phone; the resting fill + hairline are what a thumb can
  * see. `slate` is the lightest palette token whose boundary clears the 3:1 SC 1.4.11 floor against the fill
- * (`mist` is 1.87:1), and the label clears the 4.5:1 text floor on it at 4.76:1 — both measured in the tests.
+ * (`mist` is 1.74:1), and the label clears the 4.5:1 text floor on it at 4.81:1 — both measured in the tests.
  *
  * The selected tab keeps the seafoam UNDERLINE with an `ocean-dark` LABEL: the palette rule (see the palette
  * JSDoc in `@commise/ui`'s `tokens/colors.ts`), mirroring the web leaf exactly.

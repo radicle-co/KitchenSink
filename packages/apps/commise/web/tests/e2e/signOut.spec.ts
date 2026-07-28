@@ -10,7 +10,8 @@ import { clerkSessionStatus, sessionIdFromCookies } from './utils/testUser';
  * re-rendered the AUTHENTICATED shell from a client payload resolved for the session that had just been
  * destroyed. This spec is the invariant those flows were fixed to, asserted for the plain sign-out too:
  * awaiting the sign-out and leaving with a FULL-DOCUMENT navigation lands the viewer on the app's public front
- * door (the U8 branded welcome hero), with nothing authenticated left on screen.
+ * door — which, since the owner deleted the welcome hero (2026-07-28), IS the sign-in form — with nothing
+ * authenticated left on screen.
  *
  * It also asserts the property the landing is only a PROXY for: the session is REVOKED at Clerk. B23 was
  * exactly a sign-out that resolved without revoking anything (`useClerk().signOut` queues instead of signing
@@ -20,7 +21,7 @@ import { clerkSessionStatus, sessionIdFromCookies } from './utils/testUser';
  * Selectors are role/label only (repo policy); no `data-testid`, no `waitForTimeout`. Serial (Clerk-authed).
  */
 test.describe('signing out leaves the authenticated shell (U3)', () => {
-    test('lands on the public welcome hero, not a stale authenticated shell', async ({ page }) => {
+    test('lands on the public sign-in form, not a stale authenticated shell', async ({ page }) => {
         // Long by nature: a Clerk sign-in, a real sign-out, and a landing on a route Next dev may still have
         // to compile on demand.
         test.slow();
@@ -41,11 +42,11 @@ test.describe('signing out leaves the authenticated shell (U3)', () => {
         // this also exercises the B23 window rather than tiptoeing around it.
         await signOut.click();
 
-        // The viewer left the app entirely: the locale root bounces a signed-out caller to the branded
-        // welcome/auth-entry hero. Generous timeouts absorb Next dev's on-demand compilation of that route.
-        await expect.poll(() => isRoute(pathnameOf(page), '/welcome'), { timeout: 20_000 }).toBe(true);
-        await expect(page.getByRole('heading', { name: 'Commise' })).toBeVisible({ timeout: 20_000 });
-        await expect(page.getByRole('link', { name: 'Get started' })).toBeVisible();
+        // The viewer left the app entirely: the locale root bounces a signed-out caller to the sign-in form.
+        // Generous timeouts absorb Next dev's on-demand compilation of that route.
+        await expect.poll(() => isRoute(pathnameOf(page), '/sign-in'), { timeout: 20_000 }).toBe(true);
+        // The public surface actually RENDERED — Clerk's <SignIn> email field, not a blank page or a 404.
+        await expect(page.getByRole('textbox', { name: /email/i })).toBeVisible({ timeout: 20_000 });
 
         // The regression this exists for: nothing authenticated survives. No app nav shell, and no sign-out
         // control (which would mean the shell re-rendered for a session that no longer exists).

@@ -25,17 +25,19 @@ node packages/apps/commise/mobile/tests/e2e/ensure-signin-user.mjs
 export DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_maestro
 
 # Order is deliberate:
-#   - `auth/welcome-flow` FIRST: it is the only SIGNED-OUT flow (two `launchApp: clearState` cycles asserting
-#     the U8 branded hero and both entry CTAs). Running it first means it never has to tear down a session a
-#     later flow depends on, and `auth/login-flow` right after it re-establishes one from cleared state.
-#   - `auth/login-flow` + `home` next, then the recipe stories.
+#   - `auth/login-flow` FIRST: it is the only SIGNED-OUT flow — it launches with `clearState`, asserts the app
+#     opens directly on the sign-in form, walks the sign-up entry and back, then signs in. Running it first
+#     means it never has to tear down a session a later flow depends on, and it re-establishes one from cleared
+#     state for everything after it. (It absorbed `auth/welcome-flow`, deleted with the welcome screen itself by
+#     owner decision on 2026-07-28.)
+#   - `home` next, then the recipe stories.
 #   - `recipes/discover-browse` sits with the other read-only discovery flows (it types and clears a query but
 #     mutates nothing, so it is order-independent).
 #   - `account-danger-zone` late but BEFORE `delete`: it walks Profile → Account settings and CANCELS both
 #     destructive actions (it deliberately never confirms), so it must not run against a state a later flow
 #     assumes, and it must not be stranded after the delete flow's mutations.
 #   - `recipes/delete` last (its own "run me last" note).
-FLOWS="auth/welcome-flow auth/login-flow home recipes/rating recipes/list-detail recipes/search-navigation recipes/edit recipes/versions recipes/visibility recipes/discover-browse recipes/discover-recent-searches recipes/discover-clone recipes/conflict-merge recipes/collections recipes/collections-pagination recipes/collections-visibility recipes/collections-clone recipes/collections-pull recipes/create recipes/photos recipes/accessibility account-danger-zone recipes/delete"
+FLOWS="auth/login-flow home recipes/rating recipes/list-detail recipes/search-navigation recipes/edit recipes/versions recipes/visibility recipes/discover-browse recipes/discover-recent-searches recipes/discover-clone recipes/conflict-merge recipes/collections recipes/collections-pagination recipes/collections-visibility recipes/collections-clone recipes/collections-pull recipes/create recipes/photos recipes/accessibility account-danger-zone recipes/delete"
 
 RC=0
 for f in $FLOWS; do

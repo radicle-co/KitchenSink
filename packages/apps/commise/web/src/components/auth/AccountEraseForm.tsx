@@ -19,8 +19,8 @@
  * Next router, which re-renders the authenticated shell from a client-side payload that was resolved for a
  * session — and an account — that no longer exists; observed end-to-end, the viewer was left sitting on the
  * authenticated Home route after erasing. So the command awaits the revoke (session cookies gone) and then
- * hard-navigates to the app's public entry, where the root route's own auth gate sends a signed-out caller to
- * the branded welcome hero. Nothing authenticated survives an irreversible erasure. The command also VERIFIES
+ * hard-navigates to the app's public entry, where the locale root's own auth gate sends a signed-out caller to
+ * the sign-in form. Nothing authenticated survives an irreversible erasure. The command also VERIFIES
  * the session actually ended before navigating (B23: a sign-out issued before clerk-js has loaded resolves
  * without revoking anything), so a fake exit lands in the failure path below instead of looking like success.
  *

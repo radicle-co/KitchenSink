@@ -31,10 +31,10 @@
  * Before clerk-js finishes loading, `await` on that resolves having signed nobody out: no revoke request
  * reaches Clerk's Frontend API, `__session` / `__client_uat` are untouched, and the session keeps minting
  * fresh JWTs. The queued callback would run when clerk-js loads — except the caller's own full-document
- * navigation destroys the page first. Observed end-to-end: the viewer is shown the public welcome page while
- * their session stays live at Clerk. On a shared device that is a real account-takeover window, and nothing in
- * the flow reports a failure. Clerk does not guard this for us — its own `<SignOutButton>` is registered
- * `renderWhileLoading: true` and calls the same raw method.
+ * navigation destroys the page first. Observed end-to-end: the viewer is navigated away from the authenticated
+ * surface while their session stays live at Clerk. On a shared device that is a real account-takeover window,
+ * and nothing in the flow reports a failure. Clerk does not guard this for us — its own `<SignOutButton>` is
+ * registered `renderWhileLoading: true` and calls the same raw method.
  *
  * `useAuth().signOut` is Clerk's load-SAFE wrapper — `createSignOut` → `await clerkLoaded(clerk)` → delegate —
  * so an early click waits for the bootstrap instead of being silently swallowed. Two consequences we own:
@@ -48,8 +48,13 @@
  * **Leaving is a FULL-DOCUMENT navigation, deliberately** (the conclusion the close/erase flows were already
  * fixed to): `signOut({ redirectUrl })` leaves via the Next router, which re-renders the authenticated shell
  * from a client payload resolved for the session that was just destroyed. So the command awaits the sign-out
- * — cookies gone — and only then replaces the document with the app's public entry, where the root route's
- * own auth gate sends a signed-out caller to the branded welcome hero.
+ * — cookies gone — and only then replaces the document with the app's public entry (`/`), where the locale
+ * root's own auth gate sends a signed-out caller to the sign-in form. That target is deliberately the bare
+ * root rather than `/sign-in` directly: the ONE gate stays in `[locale]/page.tsx`, so this command cannot
+ * drift from it, and the locale is negotiated by the middleware instead of guessed here.
+ *
+ * ⚠️ Owner decision, 2026-07-28: leaving used to land on a branded `/{locale}/welcome` hero, which is deleted.
+ * The destination below did not change — its RESOLUTION did (`/` now resolves to sign-in).
  */
 import { useAuth, useClerk } from '@clerk/nextjs';
 import { signOutAndVerify } from '@commise/features-account';

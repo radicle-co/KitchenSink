@@ -22,8 +22,10 @@
 # `auth/signin.yaml` and `auth/signin-home.yaml` are reusable SUB-flows (`runFlow` targets), not stories, so
 # they are excluded from discovery — listing `auth/login-flow.yaml` explicitly admits only the real auth
 # story. Adding a flow under `recipes/` needs no change here; adding one under a NEW subfolder does.
+#
+# `auth/welcome-flow.yaml` was removed with the welcome screen itself (owner decision 2026-07-28): the
+# signed-out app opens directly on the sign-in form, and `auth/login-flow.yaml` now covers that entry.
 flows:
     - '*'
-    - 'auth/welcome-flow.yaml'
     - 'auth/login-flow.yaml'
     - 'recipes/*'

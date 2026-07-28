@@ -8,9 +8,11 @@
 ## Context
 
 The web sign-out did not sign anybody out. Observed end-to-end on `/en/settings`: clicking **Sign out of your
-account** navigated the viewer to the public welcome page while their Clerk session stayed **active**, kept
-minting fresh JWTs (`iat` advancing on every page load), and `__session` / `__client_uat` were untouched. On a
-shared device that is an account-takeover window, and nothing in the flow reported a failure.
+account** navigated the viewer away from settings while their Clerk session stayed **active**, kept minting
+fresh JWTs (`iat` advancing on every page load), and `__session` / `__client_uat` were untouched — the trace
+below shows the viewer landing on `/en` still rendering the AUTHENTICATED Home surface (whose `<h1>` is
+"Welcome to Commise"), because the root's auth gate saw a live session. On a shared device that is an
+account-takeover window, and nothing in the flow reported a failure.
 
 The cause is not in Clerk's session handling — it is `useClerk().signOut`. `useClerk()` returns
 `IsomorphicClerk` (`@clerk/clerk-react`), whose `signOut` is the **raw** method:
@@ -137,6 +139,24 @@ swallowed entirely), so this is a truthfulness wrinkle, not a silent failure.
 - Any NEW control whose correctness depends on ending the Clerk session must issue `useSignOutAndLeave()` (web)
   or `useSignOutAndVerify()` (mobile) rather than calling `signOut` from either hook directly. Calling it
   directly re-opens this hole.
+
+## Update (2026-07-28) — where sign-out LANDS (owner decision)
+
+Sign-out on web now lands on the **sign-in form**, not a public welcome page. Nothing in the decision above
+changed: `useSignOutAndLeave` still hard-navigates to the app's public entry `/`, and the locale root's own auth
+gate still decides what a signed-out caller sees. What changed is that gate's answer — the owner removed the
+branded welcome/auth-entry surface on **both** platforms, so `/{locale}` redirects a signed-out caller to
+`/{locale}/sign-in` (and mobile's `AuthGate` opens directly on its sign-in form). Consequences for this ADR:
+
+- The landing assertion in `tests/e2e/signOut.spec.ts` targets `/sign-in` and Clerk's `<SignIn>` email field.
+  Point **5** above still governs it: the landing is a proxy, and the load-bearing assertion remains the Clerk
+  **Backend API** check that the session is no longer `active`.
+- Keeping the navigation target as the bare `/` — rather than pointing the command at `/sign-in` — is
+  deliberate. The signed-out destination stays defined in exactly ONE place (`[locale]/page.tsx`), so this
+  command cannot drift from it, and the locale keeps being negotiated by the middleware instead of guessed by
+  the caller.
+- The historical trace in **Context** is left as recorded evidence; the `h1="Welcome to Commise"` in it is
+  Home's own (screen-reader) heading under a still-live session, and that heading is unaffected by this change.
 
 ## Scope: development vs production instances
 

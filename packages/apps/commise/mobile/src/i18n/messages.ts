@@ -122,30 +122,6 @@ export interface MobileMessages {
         /** Appended when a session id is known, for support to correlate. Contains `{sessionId}`. */
         readonly sessionLabel: string;
     };
-    /**
-     * Copy for the branded auth-entry / welcome screen (U8) — the hero the app opens on when signed out,
-     * before the sign-in / sign-up forms. All strings localized (repo mandate).
-     */
-    readonly welcome: {
-        /** Accessible name of the welcome hero region. */
-        readonly regionLabel: string;
-        /** Accessible name of the brand logo mark. */
-        readonly logoAlt: string;
-        /** The brand wordmark (Playfair display). */
-        readonly title: string;
-        /** The brand tagline beneath the wordmark. */
-        readonly tagline: string;
-        /** The three feature pills naming what the app does. */
-        readonly features: {
-            readonly saveRecipes: string;
-            readonly planMeals: string;
-            readonly shopSmarter: string;
-        };
-        /** Label of the primary gradient CTA that leads into sign-up. */
-        readonly getStarted: string;
-        /** Label of the secondary control that leads into sign-in (for returning users). */
-        readonly signIn: string;
-    };
     readonly profile: {
         /** Field label for the display-name input (also its accessible name). */
         readonly displayName: string;
@@ -406,19 +382,6 @@ export const mobileMessages: LocalizedMessages<MobileMessages> = {
             title: 'Impersonation blocked on mobile',
             message: 'For account safety, administrator impersonation is not available in the mobile app.',
             sessionLabel: 'Session: {sessionId}',
-        },
-        welcome: {
-            regionLabel: 'Welcome to Commise',
-            logoAlt: 'Commise',
-            title: 'Commise',
-            tagline: 'Cook with confidence. Plan with ease.',
-            features: {
-                saveRecipes: 'Save recipes',
-                planMeals: 'Plan meals',
-                shopSmarter: 'Shop smarter',
-            },
-            getStarted: 'Get started',
-            signIn: 'Already have an account? Sign in',
         },
         profile: {
             displayName: 'Display name',

@@ -88,15 +88,20 @@ test.describe('account danger zone — closure vs erasure (CR-002/U4b)', () => {
             });
 
         // …and the viewer was signed out to the app's PUBLIC FRONT DOOR: `signOut({ redirectUrl: '/' })` lands
-        // on the locale root, which bounces a signed-out caller to the U8 branded welcome/auth-entry hero
-        // (`[locale]/page.tsx`). NOT /sign-in: the account they would sign into no longer exists, so inviting
-        // them straight back into a sign-in form would be the wrong destination. The pathname check also guards
-        // the double-prefix class (a redirect target manually prefixed AND run through the prefix-aware router).
-        // Generous timeouts: this is the first hit on /welcome in a run, so it absorbs Next dev's on-demand
-        // compilation of that route (same reason `utils/auth.ts` and the sign-in specs wait long here).
-        await expect.poll(() => isRoute(pathnameOf(page), '/welcome'), { timeout: 20_000 }).toBe(true);
-        await expect(page.getByRole('heading', { name: 'Commise' })).toBeVisible({ timeout: 20_000 });
-        await expect(page.getByRole('link', { name: 'Get started' })).toBeVisible();
+        // on the locale root, which bounces a signed-out caller to the sign-in form (`[locale]/page.tsx`).
+        //
+        // ⚠️ This assertion CHANGED MEANING, it was not merely relaxed. It used to pin the U8 branded welcome
+        // hero and noted that /sign-in would be the wrong destination after erasure (the account is gone). The
+        // owner deleted the welcome surface on 2026-07-28, so the app has exactly one signed-out destination
+        // now and this flow shares it — the residual UX wrinkle (a just-erased user is shown a sign-in form for
+        // an account that no longer exists) is a deliberate consequence of that decision, not a regression this
+        // spec should hide. What still MUST hold is that nothing authenticated survives, asserted below.
+        //
+        // The pathname check also guards the double-prefix class (a redirect target manually prefixed AND run
+        // through the prefix-aware router). Generous timeouts absorb Next dev's on-demand compilation.
+        await expect.poll(() => isRoute(pathnameOf(page), '/sign-in'), { timeout: 20_000 }).toBe(true);
+        await expect(page.getByRole('textbox', { name: /email/i })).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
         expect(hasDoublePrefix(pathnameOf(page))).toBe(false);
     });
 });

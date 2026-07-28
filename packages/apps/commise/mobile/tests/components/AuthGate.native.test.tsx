@@ -1,10 +1,15 @@
 /**
  * Component tests for the mobile `AuthGate` render map (react-native-web under jsdom).
  *
- * Covers EVERY branch of the derived auth state — loading, unauthenticated (welcome → sign-up / sign-in),
- * blocked, error, authenticated — with the two U8 polish invariants asserted explicitly: the first-paint
- * spinner is NAMED (not a nameless shape), and every string the gate itself owns comes from
- * `mobileMessages`, never a literal.
+ * Covers EVERY branch of the derived auth state — loading, unauthenticated (sign-in ⇄ sign-up), blocked,
+ * error, authenticated — with the two U8 polish invariants asserted explicitly: the first-paint spinner is
+ * NAMED (not a nameless shape), and every string the gate itself owns comes from `mobileMessages`, never a
+ * literal.
+ *
+ * Owner decision, 2026-07-28: there is no welcome/landing screen. A signed-out session opens DIRECTLY on the
+ * sign-in form (web's locale root redirects to `/sign-in` for the same reason), and sign-up stays reachable
+ * from it. The stubs below therefore expose the login screen's `onSignUp` and the sign-up screen's `onBack`,
+ * which are the only two signed-out transitions that exist.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -16,20 +21,26 @@ import { useAuth } from '../../src/hooks/useAuth.js';
 
 vi.mock('../../src/hooks/useAuth', () => ({ useAuth: vi.fn() }));
 // The signed-out surfaces are covered by their own suites; stub them so this suite asserts the ROUTING.
-vi.mock('../../src/screens/welcome', () => ({
-    WelcomeScreen: ({ onGetStarted, onSignIn }: { onGetStarted: () => void; onSignIn: () => void }) => (
+vi.mock('../../src/screens/login', () => ({
+    LoginScreen: ({ onSignUp }: { onSignUp: () => void }) => (
         <>
-            <button type="button" onClick={onGetStarted}>
-                stub-get-started
-            </button>
-            <button type="button" onClick={onSignIn}>
-                stub-sign-in
+            <div>stub-login</div>
+            <button type="button" onClick={onSignUp}>
+                stub-go-to-signup
             </button>
         </>
     ),
 }));
-vi.mock('../../src/screens/login', () => ({ LoginScreen: () => <div>stub-login</div> }));
-vi.mock('../../src/screens/signup', () => ({ SignUpScreen: () => <div>stub-signup</div> }));
+vi.mock('../../src/screens/signup', () => ({
+    SignUpScreen: ({ onBack }: { onBack: () => void }) => (
+        <>
+            <div>stub-signup</div>
+            <button type="button" onClick={onBack}>
+                stub-back-to-login
+            </button>
+        </>
+    ),
+}));
 
 const useAuthMock = vi.mocked(useAuth);
 
@@ -58,7 +69,7 @@ describe('AuthGate', () => {
         expect(screen.queryByText('app')).toBeNull();
     });
 
-    it('opens on the branded welcome hero when signed out', () => {
+    it('opens DIRECTLY on the sign-in form when signed out — no landing surface first', () => {
         useAuthMock.mockReturnValue(authState({ status: 'unauthenticated' }));
 
         render(
@@ -67,27 +78,29 @@ describe('AuthGate', () => {
             </AuthGate>,
         );
 
-        expect(screen.getByText('stub-get-started')).toBeTruthy();
+        expect(screen.getByText('stub-login')).toBeTruthy();
+        // The regression this guards (owner decision 2026-07-28): the gate used to open on a branded welcome
+        // hero, so the sign-in form was two taps away. Nothing else may stand in front of it.
+        expect(screen.queryByText('stub-signup')).toBeNull();
     });
 
-    it('routes the welcome CTAs into sign-up and sign-in', () => {
+    it('keeps sign-up reachable FROM the sign-in form, and back again', () => {
+        // The welcome hero was the app's only "Get started" entry into sign-up. With it gone, the login
+        // screen's own sign-up control is the ONLY route to registration on mobile — so it is asserted, in
+        // both directions, rather than assumed.
         useAuthMock.mockReturnValue(authState({ status: 'unauthenticated' }));
-
-        const { unmount } = render(
-            <AuthGate>
-                <Text>app</Text>
-            </AuthGate>,
-        );
-        fireEvent.click(screen.getByText('stub-get-started'));
-        expect(screen.getByText('stub-signup')).toBeTruthy();
-        unmount();
 
         render(
             <AuthGate>
                 <Text>app</Text>
             </AuthGate>,
         );
-        fireEvent.click(screen.getByText('stub-sign-in'));
+
+        fireEvent.click(screen.getByText('stub-go-to-signup'));
+        expect(screen.getByText('stub-signup')).toBeTruthy();
+        expect(screen.queryByText('stub-login')).toBeNull();
+
+        fireEvent.click(screen.getByText('stub-back-to-login'));
         expect(screen.getByText('stub-login')).toBeTruthy();
     });
 

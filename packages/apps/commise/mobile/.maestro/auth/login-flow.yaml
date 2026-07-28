@@ -1,5 +1,12 @@
-# Maestro E2E: mobile Clerk sign-in journey (US-auth). Verifies the login screen renders and a full
-# email + password + new-device email-code sign-in lands the caller on the authenticated recipe surface.
+# Maestro E2E: mobile Clerk sign-in journey (US-auth). Verifies that a signed-out app opens DIRECTLY on the
+# sign-in form, that sign-up is reachable from it, and that a full email + password + new-device email-code
+# sign-in lands the caller on the authenticated recipe surface.
+#
+# Owner decision, 2026-07-28: the branded welcome hero that used to be the signed-out front door is deleted on
+# both platforms (web's locale root now redirects a signed-out caller straight to `/sign-in`). This flow
+# absorbed the two things `auth/welcome-flow.yaml` used to prove and that still matter — the app's signed-out
+# ENTRY, and that registration is reachable from it — because the welcome hero was mobile's only "Get started"
+# CTA into sign-up, and the login screen's own control is now the sole route there.
 #
 # Uses a Clerk `+clerk_test` magic email whose new-device verification accepts the fixed code 424242 — no
 # real mailbox needed. The shared, idempotent `signin.yaml` sub-flow owns the actual credential entry (and
@@ -18,17 +25,37 @@ appId: io.commise.mobile
 - launchApp:
       clearState: true
 
-# U8: cleared state opens on the branded WELCOME hero (brand wordmark + tagline + the two entry CTAs).
-- assertVisible: 'Commise'
-- assertVisible: 'Cook with confidence. Plan with ease.'
-- assertVisible: 'Get started'
-- assertVisible: 'Already have an account? Sign in'
-
-# Cross into the sign-in form (returning-user path) and assert the login chrome (credential fields + submit).
-- tapOn: 'Already have an account? Sign in'
+# Cleared state opens on the SIGN-IN FORM ITSELF — no landing screen, no tap required. The email placeholder is
+# the landmark unique to that form (its 'Sign in' submit alone would also match the sign-up screen's return
+# control). `extendedWaitUntil` rather than a bare assert because `AuthGate` paints its "Checking your session…"
+# affordance first, and this is the flow's first read of the screen.
+- extendedWaitUntil:
+      visible: 'you@example.com'
+      timeout: 30000
 - assertVisible: 'Email'
 - assertVisible: 'Password'
 - assertVisible: 'Sign in'
+
+# The regression guard for the decision above: the deleted hero must not reappear in front of the form. (The
+# assertion above — that the form is up with NO interaction — is what actually proves the entry; this one names
+# the specific surface that must not come back.)
+- assertNotVisible: 'Cook with confidence. Plan with ease.'
+- assertNotVisible: 'Get started'
+
+# Sign-UP is reachable from the sign-in form, and returns to it. This is the entry point the welcome hero used
+# to own, so it is asserted in both directions rather than assumed (web's `routeProtection.spec.ts` asserts the
+# same property via the sign-up link Clerk renders from `signUpUrl` — cross-platform parity). Copy comes from
+# mobile i18n `auth.signUpLink` / `createHeading` / `createAccountAction` / `haveAccountPrompt`.
+- tapOn: 'Sign up'
+- assertVisible: 'Create your account'
+- assertVisible: 'Create account'
+- assertVisible: 'Already have an account?'
+# The sign-up screen's return control. 'Sign in' is unambiguous HERE (this screen's submit is 'Create account'),
+# whereas on the login screen it would also match that form's own submit — which is why the flow taps it only
+# while the sign-up screen is up, and confirms the login form is back by its unique email placeholder.
+- tapOn: 'Sign in'
+- assertVisible: 'you@example.com'
+- assertVisible: 'Password'
 
 # Sign in with the shared test user (email + password + new-device email code) via the reusable sub-flow.
 # clearState above guarantees the guarded credential block runs (no persisted session to skip it).

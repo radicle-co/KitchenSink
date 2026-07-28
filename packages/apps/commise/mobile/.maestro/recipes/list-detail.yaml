@@ -4,12 +4,32 @@ appId: io.commise.mobile
 # first in CI ordering) and the app pointed at a seeded recipe API (EXPO_PUBLIC_API_URL). Asserts the
 # list chrome renders, then drills into a seeded recipe and back — the mobile mirror of the web
 # Playwright recipe-list/detail flow (cross-platform mandate).
+#
+# This flow is POPULATED-ONLY, deliberately: the per-flow reset (tests/e2e/run-maestro-flows.sh) hands it
+# the clean seed, whose FREE owner — the dev-bypass signer — has exactly 3 recipes. It used to claim it
+# also tolerated an empty library; it never could (see below), and the genuinely-empty first-run state now
+# has its own flow, `recipes/empty-library.yaml`.
 - runFlow: ../auth/signin.yaml
 
-# The recipe list surface (RecipeListScreen): heading + search + create CTA are always present.
+# Chrome that renders in EVERY state — including a hung load — so it proves the screen mounted, nothing more.
 - assertVisible: 'Recipes'
 - assertVisible: 'Search recipes'
+
+# That the list actually SETTLED is a separate claim, and this is what makes it: the "{n} recipes" count
+# label is rendered only by the POPULATED branch. The old settle assertion was `New recipe` (the pinned
+# FAB), which renders while loading and while erroring too — so it passed against the reported
+# permanent-loading-skeleton bug, and could never have distinguished an empty library from a stuck one.
+- extendedWaitUntil:
+      visible:
+          text: '^3 recipes$'
+      timeout: 40000
+- assertNotVisible: 'Loading recipes'
+
+# Populated ⇒ the pinned FAB is the create control and the first-run CTA is absent (L1: exactly one create
+# control per state). Asserted as a PAIR, because either one alone is satisfied by more than one state.
 - assertVisible: 'New recipe'
+- assertNotVisible: 'Create your first recipe'
+- assertNotVisible: 'No recipes yet'
 
 # W1/L8 — pull-to-refresh: a downward swipe on the list triggers the RefreshControl (smoke: the list
 # survives the gesture and its chrome is still present afterwards).
@@ -17,26 +37,28 @@ appId: io.commise.mobile
       direction: DOWN
 - assertVisible: 'Recipes'
 
-# Drive list -> detail on the first seeded recipe, then return. Guarded by `when: visible` so an empty
-# library (no seed) still passes the chrome assertions above without failing the whole flow.
+# Drive list -> detail on a seeded recipe, then return. Anchored on the seed row itself rather than wrapped
+# in a `when: visible` guard: the seed cards are full-bleed 4:3, so only ~1 fits the viewport, and that
+# guard therefore SKIPPED the entire detail leg — silently, and still green — whenever the row happened to
+# sit below the fold. `scrollUntilVisible` brings it into view and fails if the seed really is missing.
+- scrollUntilVisible:
+      element: 'Mediterranean Grilled Lamb'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Mediterranean Grilled Lamb'
+# RecipeDetailView sections (header + ingredients + instructions + nutrition).
+- assertVisible: 'Ingredients'
+- assertVisible: 'Instructions'
+- assertVisible: 'Nutrition (per serving)'
+# REQ-034 — the USDA-source disclosure is GATED to recipes with a user-entered ingredient; this
+# seeded recipe's ingredients are all food-database-resolved, so the notice must NOT render (the
+# positive case — a freeform ingredient — is covered by `create.yaml`).
+- assertNotVisible: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.'
+# W2/D4 — per-step cooking-progress checkboxes are interactive (smoke: tapping does not crash).
 - runFlow:
       when:
-          visible: 'Mediterranean Grilled Lamb'
+          visible: 'Mark step 1 complete'
       commands:
-          - tapOn: 'Mediterranean Grilled Lamb'
-          # RecipeDetailView sections (header + ingredients + instructions + nutrition).
-          - assertVisible: 'Ingredients'
-          - assertVisible: 'Instructions'
-          - assertVisible: 'Nutrition (per serving)'
-          # REQ-034 — the USDA-source disclosure is GATED to recipes with a user-entered ingredient; this
-          # seeded recipe's ingredients are all food-database-resolved, so the notice must NOT render (the
-          # positive case — a freeform ingredient — is covered by `create.yaml`).
-          - assertNotVisible: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.'
-          # W2/D4 — per-step cooking-progress checkboxes are interactive (smoke: tapping does not crash).
-          - runFlow:
-                when:
-                    visible: 'Mark step 1 complete'
-                commands:
-                    - tapOn: 'Mark step 1 complete'
-          - tapOn: 'Back'
-          - assertVisible: 'Recipes'
+          - tapOn: 'Mark step 1 complete'
+- tapOn: 'Back'
+- assertVisible: 'Recipes'

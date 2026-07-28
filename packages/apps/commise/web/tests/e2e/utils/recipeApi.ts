@@ -651,7 +651,15 @@ export interface EnrichedConflictSeed {
 
 /** Options for {@link mockRecipeApi}. */
 export interface MockRecipeApiOptions {
-    /** Recipes to seed the store with (defaults to one public "Seed Recipe" owned by the viewer). */
+    /**
+     * Recipes to seed the store with (defaults to one public "Seed Recipe" owned by the viewer).
+     *
+     * **The default seed HIDES the first-run state, so state it explicitly when that is what you mean.**
+     * Because every spec inherited a non-empty library, nothing here had ever rendered `/recipes` with
+     * `recipes: []` — and a first-run library stuck on a permanent loading skeleton reached the owner
+     * unseen. Pass `recipes: []` (as `recipeListEmptyStates.spec.ts` does) whenever the state under test is
+     * "the viewer has nothing yet"; a convenient default is not a neutral one.
+     */
     readonly recipes?: readonly RecipeDetail[];
     /** The viewer's subscription tier surfaced at `/v1/users/me` (defaults to premium so private is enabled). */
     readonly tier?: 'free' | 'premium';

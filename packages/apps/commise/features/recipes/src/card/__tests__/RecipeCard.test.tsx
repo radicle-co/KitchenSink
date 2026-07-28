@@ -10,9 +10,9 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { LocaleProvider } from '@commise/i18n/react';
+import { utilityContrast } from '@commise/test-utils';
 import { glass, glassBackdropCss, toWebGlass } from '@commise/ui';
 
-import { utilityContrast } from '../../__tests__/tailwindContrast.js';
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { toRecipeCardModel } from '../model.js';
 import { RecipeCard } from '../RecipeCard.js';

@@ -18,6 +18,7 @@
     },
     "dependencies": {
         "@commise/i18n": "*",
+        "@commise/ui": "*",
         "@kitchensink/recipe-service-client": "*",
         "@tanstack/react-query": "^5.62.0"
     },

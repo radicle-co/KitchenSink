@@ -10,6 +10,8 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
+import { utilityContrast } from '@commise/test-utils';
+
 import {
     makeIngredientView,
     makeNutrition,
@@ -17,7 +19,6 @@ import {
     makeRecipeDetail,
     makeStepView,
 } from '../../__fixtures__/index.js';
-import { utilityContrast } from '../../__tests__/tailwindContrast.js';
 import { RecipeDetailView } from '../RecipeDetailView.js';
 
 afterEach(cleanup);

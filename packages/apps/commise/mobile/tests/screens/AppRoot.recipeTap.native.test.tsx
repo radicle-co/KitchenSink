@@ -98,5 +98,13 @@ describe('Home → recipe detail (mobile, end to end)', () => {
         // And we really left Home: the greeting is gone, a recipe detail heading is present.
         expect(screen.queryByText(/Chef/u)).toBeNull();
         expect(await screen.findByRole('heading', { name: 'Weeknight Pasta' })).toBeTruthy();
-    });
+        // 20s, not the 5s default. This is the heaviest test in the monorepo — the ONLY one that exceeds
+        // 2s — because it deliberately renders the REAL `AppRoot` + REAL `HomeScreen`, waits for the
+        // lazily-loaded widget chunk, and then drives a second screen. That integration depth IS the
+        // test's value (it is what proves the tapped id survives every hop), so the cost is inherent
+        // rather than a fixable slowness: ~1.5s idle, but ~5.4s when `turbo run test` saturates every
+        // core across 39 packages, which tripped the default and made the whole monorepo run flake.
+        // Raised HERE rather than as a global `testTimeout` on purpose — a repo-wide bump would mask
+        // genuine slowness in the other 3000+ tests, which all finish well under 2s.
+    }, 20_000);
 });

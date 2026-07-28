@@ -47,8 +47,17 @@ const HostBoundary = ({ children }: { readonly children: ReactNode }): JSX.Eleme
 );
 
 const renderSlot = (): void => {
+    const client = createFakeRecipeServiceClient();
+
+    // Stub the read even though the widget body is mocked to throw. The fake client's un-stubbed methods
+    // reject on purpose ("unstubbed method reached the network"), and the slot still issues this query — so
+    // leaving it un-stubbed leaks an UNHANDLED REJECTION. Vitest then fails the whole file on unhandled
+    // errors even while both assertions pass, and whether the rejection lands before the run ends depends
+    // on machine load — which is exactly how it turned `turbo run test` nondeterministic.
+    vi.spyOn(client, 'listRecipes').mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 0 });
+
     render(
-        <RecipeServiceProvider client={createFakeRecipeServiceClient()}>
+        <RecipeServiceProvider client={client}>
             <HostBoundary>
                 <RecipeWidgetSlot />
             </HostBoundary>

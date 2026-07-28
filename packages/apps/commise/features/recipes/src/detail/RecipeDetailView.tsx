@@ -142,13 +142,18 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                                         {checked && <span>✓</span>}
                                     </span>
                                 </button>
-                                <span className="font-medium text-charcoal">{label}</span>{' '}
-                                <span className="text-charcoal">{ingredient.name}</span>
+                                <span className="shrink-0 font-medium text-charcoal">{label}</span>{' '}
+                                {/* The user-supplied name/notes yield the width (`min-w-0` so a single long
+                                    token can break too); the trailing badge never does. Parity with the
+                                    native leaf's `flexShrink` pair — see `RecipeDetailView.native.tsx`. */}
+                                <span className="min-w-0 break-words text-charcoal">{ingredient.name}</span>
                                 {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
-                                    <span className="text-body-sm text-slate">{ingredient.notes}</span>
+                                    <span className="min-w-0 break-words text-body-sm text-slate">
+                                        {ingredient.notes}
+                                    </span>
                                 )}
                                 {ingredient.isUserEntered && (
-                                    <span className="ml-auto rounded-full bg-pearl px-2 py-0.5 text-caption text-slate">
+                                    <span className="ml-auto shrink-0 rounded-full bg-pearl px-2 py-0.5 text-caption text-slate">
                                         {detail.userEnteredBadge}
                                     </span>
                                 )}

@@ -287,8 +287,9 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[1],
         paddingHorizontal: nativeTokens.spacing[2],
     },
-    // 44pt tap target (RC-3) around the compact visible checkbox.
-    checkboxTouch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    // 44pt tap target (RC-3) around the compact visible checkbox. `flexShrink: 0` protects that floor from
+    // the row's own overflow: RN would otherwise be free to squeeze the target, not the text beside it.
+    checkboxTouch: { flexShrink: 0, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     checkbox: {
         width: 18,
         height: 18,
@@ -302,9 +303,18 @@ const styles = StyleSheet.create({
     checkboxChecked: { backgroundColor: palette.seafoam, borderColor: palette.seafoam },
     checkMark: { fontSize: nativeTokens.fontSize.caption, color: palette.white },
     ingredientQty: { fontWeight: '600', color: palette.charcoal },
-    ingredientName: { color: palette.charcoal },
-    ingredientNotes: { fontSize: 13, color: palette.slate },
-    userBadge: { marginLeft: 'auto', fontSize: nativeTokens.fontSize.overline, color: palette.slate },
+    // RN defaults `flexShrink` to 0, so without these the two USER-SUPPLIED values in this row took their full
+    // intrinsic width and pushed the `Custom` badge (and the notes) past the card and screen edge — the same
+    // failure that clipped `CollectionHeader.native.tsx`'s Rename and dropped its Delete out of the hierarchy.
+    // The web leaf spells the pair `min-w-0 break-words` / `shrink-0`.
+    ingredientName: { flexShrink: 1, color: palette.charcoal },
+    ingredientNotes: { flexShrink: 1, fontSize: 13, color: palette.slate },
+    userBadge: {
+        flexShrink: 0,
+        marginLeft: 'auto',
+        fontSize: nativeTokens.fontSize.overline,
+        color: palette.slate,
+    },
     stepList: { gap: 14 },
     stepRow: { flexDirection: 'row', gap: nativeTokens.spacing[3], alignItems: 'flex-start' },
     // 44pt tap target (RC-3) around the compact 32px numbered marker circle.

@@ -221,7 +221,7 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
         const quantityInvalid = ingredientsInvalid && line.quantity <= 0;
 
         return (
-            <View key={index} style={styles.row}>
+            <View key={index} style={styles.listRow}>
                 <TextInput
                     accessibilityLabel={fillTemplate(m.ingredientNameLabel, { number })}
                     editable={!resolved}
@@ -261,13 +261,15 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 {calories !== undefined && (
                     <Text style={styles.caloriesBadge}>{fillTemplate(m.ingredientCaloriesTemplate, { calories })}</Text>
                 )}
-                <Button
-                    variant="destructive"
-                    icon={<Feather name="trash-2" size={16} color={palette.error} />}
-                    onPress={() => onChange(removeIngredientAt(values, index))}
-                >
-                    {fillTemplate(m.removeIngredient, { number })}
-                </Button>
+                <View style={styles.rowAction}>
+                    <Button
+                        variant="destructive"
+                        icon={<Feather name="trash-2" size={16} color={palette.error} />}
+                        onPress={() => onChange(removeIngredientAt(values, index))}
+                    >
+                        {fillTemplate(m.removeIngredient, { number })}
+                    </Button>
+                </View>
             </View>
         );
     });
@@ -319,7 +321,7 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
         const instructionInvalid = stepsInvalid && step.instruction.trim() === '';
 
         return (
-            <View key={index} style={styles.stepRow}>
+            <View key={index} style={styles.listRow}>
                 <Text style={styles.stepMarker}>{number}</Text>
                 <TextInput
                     accessibilityLabel={fillTemplate(m.stepInstructionLabel, { number })}
@@ -343,13 +345,15 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
                     }}
                     style={[styles.input, styles.rowNarrow]}
                 />
-                <Button
-                    variant="destructive"
-                    icon={<Feather name="trash-2" size={16} color={palette.error} />}
-                    onPress={() => onChange(removeStepAt(values, index))}
-                >
-                    {fillTemplate(m.removeStep, { number })}
-                </Button>
+                <View style={styles.rowAction}>
+                    <Button
+                        variant="destructive"
+                        icon={<Feather name="trash-2" size={16} color={palette.error} />}
+                        onPress={() => onChange(removeStepAt(values, index))}
+                    >
+                        {fillTemplate(m.removeStep, { number })}
+                    </Button>
+                </View>
             </View>
         );
     });
@@ -435,10 +439,21 @@ const styles = StyleSheet.create({
     difficultyChipSelected: { borderColor: palette.seafoam, backgroundColor: palette.seafoam },
     difficultyChipLabel: { fontSize: 14, color: palette.charcoal },
     difficultyChipLabelSelected: { color: palette.white },
-    row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-    rowGrow: { flexGrow: 1, flexBasis: '60%' },
+    // ONE geometry contract for BOTH dynamic list rows (ingredient lines, instruction steps) — they are one
+    // piece of knowledge that changes for one reason: a row of flexible fields ending in a destructive remove
+    // action, on a ~296dp-wide phone card. It used to be spelled twice, and the instruction row's copy was
+    // missing `flexWrap` — which IS the bug. `flexWrap` is the load-bearing half: the children (a 28dp marker
+    // + a 60%-basis field + an 88dp field + a ~160dp "Remove step N" pill) cannot share one line, and RN
+    // defaults `flexShrink` to 0, so without it the action was laid out PAST the screen edge (the Maestro dump
+    // caught "Remove step 1" at x=999..1080 on a 1080px display, half of it unreachable — the same failure
+    // that clipped `CollectionHeader.native.tsx`'s Rename and dropped its Delete out of the hierarchy).
+    // Shrinking alone would NOT do: on one line the instruction field would be squeezed to a few dp.
+    listRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+    // The flexible field yields width (the web leaf's `min-w-0 flex-1`); the action never does, so its label
+    // and its 44pt touch target can never be clipped (the web leaf's `shrink-0` idiom).
+    rowGrow: { flexGrow: 1, flexShrink: 1, flexBasis: '60%' },
     rowNarrow: { width: 88 },
-    stepRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    rowAction: { flexShrink: 0 },
     stepMarker: {
         width: 28,
         height: 28,

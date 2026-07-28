@@ -134,9 +134,12 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                                 key={line.key}
                                                 className="flex items-center justify-between gap-3 px-3 py-2 text-body-sm text-charcoal"
                                             >
-                                                <span>{line.text}</span>
+                                                {/* The line text yields the width (and breaks); the calorie
+                                                    chip never shrinks. Parity with the native leaf's
+                                                    `flexShrink` pair — see `VersionPreviewModal.native.tsx`. */}
+                                                <span className="min-w-0 break-words">{line.text}</span>
                                                 {line.calories !== undefined && (
-                                                    <span className="text-slate">{line.calories}</span>
+                                                    <span className="shrink-0 text-slate">{line.calories}</span>
                                                 )}
                                             </li>
                                         ),

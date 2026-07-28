@@ -351,7 +351,11 @@ const WizardRail: FC = () => {
                     const stateWord = m[RAIL_STATE_LABEL[railState]];
 
                     return (
-                        <li key={s}>
+                        // `min-w-0` + the label's `break-words` are the web spelling of the native leaf's
+                        // `flexShrink: 1` on the pill (see `Wizard.native.tsx`'s `railRow`): the wrapping row
+                        // already moves an overflowing pill to the next line, and these let a single pill
+                        // wider than the row itself break instead of overflowing it.
+                        <li key={s} className="min-w-0">
                             <button
                                 type="button"
                                 onClick={() => model.requestGoToStep(s)}
@@ -365,7 +369,7 @@ const WizardRail: FC = () => {
                                 >
                                     {s}
                                 </span>
-                                <span>{name}</span>
+                                <span className="break-words">{name}</span>
                             </button>
                         </li>
                     );

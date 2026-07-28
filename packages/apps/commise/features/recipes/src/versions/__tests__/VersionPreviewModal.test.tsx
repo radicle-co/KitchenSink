@@ -304,3 +304,32 @@ describe('VersionPreviewModal (web) — dismissal', () => {
         expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open version preview' }));
     });
 });
+
+/**
+ * Cross-platform parity for the native leaf's ingredient-line fix (a long line pushed the calorie chip past
+ * the sheet edge, because RN defaults `flexShrink` to 0). Web shrinks by default, so here the chip was the
+ * item being squeezed instead; the contract is the same on both leaves — the line text yields and breaks, the
+ * chip never shrinks.
+ */
+describe('VersionPreviewModal (web) — a long ingredient line cannot push its calorie chip off the sheet', () => {
+    const longLineVersion = makeVersion({
+        snapshot: makeSnapshot({
+            ingredients: [
+                makeIngredient({
+                    ingredientName: 'Slow-roasted San Marzano tomatoes from the co-op down the road',
+                    userCalories: 420,
+                }),
+            ],
+        }),
+    });
+
+    it('lets the line text break rather than overflow, and never shrinks the calorie chip', () => {
+        render(<VersionPreviewModal {...baseProps({ version: longLineVersion })} />);
+
+        const line = screen.getByText('200 g Slow-roasted San Marzano tomatoes from the co-op down the road');
+
+        expect(line.className).toContain('min-w-0');
+        expect(line.className).toContain('break-words');
+        expect(screen.getByText('420 cal').className).toContain('shrink-0');
+    });
+});

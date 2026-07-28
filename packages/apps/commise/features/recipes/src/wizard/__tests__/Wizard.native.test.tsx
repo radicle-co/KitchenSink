@@ -453,6 +453,97 @@ describe('Wizard (native) — chrome landmark labels (a11y, localized, not share
     });
 });
 
+/**
+ * Resolve the value react-native-web actually APPLIED for a CSS property, by walking the element's atomic
+ * `r-*` classes back to their compiled rules (`getComputedStyle` does not resolve them) and falling back to
+ * the inline `style` attribute for per-render styles. Same helper as `CollectionHeader.native.test.tsx` /
+ * `RecipeFilterBar.native.test.tsx`, which established the idiom.
+ */
+function appliedStyle(element: Element, property: string): string | undefined {
+    const classNames = element.className.split(' ').filter((name) => name.startsWith('r-'));
+    const sheets = document.styleSheets;
+    let resolved: string | undefined;
+
+    for (const className of classNames) {
+        for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
+            const rules = sheets[sheetIndex]?.cssRules;
+
+            for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
+                const rule = rules?.[ruleIndex];
+
+                if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
+                    const value = rule.style.getPropertyValue(property);
+
+                    if (value !== '') {
+                        resolved = value;
+                    }
+                }
+            }
+        }
+    }
+
+    return (resolved ?? (element as HTMLElement).style.getPropertyValue(property)) || undefined;
+}
+
+/**
+ * Regression (Maestro CI view-hierarchy dump): the rail used to be a horizontal `ScrollView`, so its four
+ * pills were laid out on ONE unbounded line — `[1 Basic] [2 Ingredients] [3 Instructions] [4 Photos]` needs
+ * ~390dp but a 360dp phone leaves ~296dp inside the screen's and the rail's own 16dp paddings. Steps 3–4
+ * therefore sat past the right screen edge: on-device step 4 rendered clipped ("4 Pl…") at the 1080px
+ * boundary, reachable only by a horizontal drag that (a) is undiscoverable and (b) fights the vertical
+ * `ScrollView` the rail is nested in. It is why `.maestro/recipes/photos.yaml` walks the FOOTER `Next: …`
+ * primaries instead of jumping via the rail.
+ *
+ * The fix is the web leaf's own treatment (`ol className="flex flex-wrap …"`): the pill row WRAPS, so a pill
+ * that does not fit moves to the next line instead of off the screen, and no scroller hides it. jsdom has no
+ * layout engine, so this pins the flex CONTRACT that makes the clipping unrepresentable.
+ */
+describe('Wizard (native) — the step rail cannot push a step off the screen edge', () => {
+    /** The row that lays out the four step pills — the pills' own parent. */
+    const pillRow = (): HTMLElement => screen.getByLabelText(/Photos:/).parentElement as HTMLElement;
+
+    it('wraps the pill row instead of laying the four pills out on one over-wide line', () => {
+        render(<Harness />);
+
+        expect(appliedStyle(pillRow(), 'flex-wrap')).toBe('wrap');
+    });
+
+    it('puts the pills in no horizontally scrolling ancestor, so no step is hidden behind a swipe', () => {
+        render(<Harness />);
+
+        const rail = screen.getByLabelText('Recipe wizard steps');
+
+        for (let node: HTMLElement | null = pillRow(); node !== null; node = node.parentElement) {
+            expect(appliedStyle(node, 'overflow-x')).not.toBe('auto');
+            expect(appliedStyle(node, 'overflow-x')).not.toBe('scroll');
+
+            if (node === rail) {
+                break;
+            }
+        }
+    });
+
+    it('lets a pill shrink (wrapping its label) rather than overflow the row, but never its step marker', () => {
+        render(<Harness />);
+
+        const pill = screen.getByLabelText(/Instructions:/);
+        // The number badge is the pill's fixed chrome — squeezing it would deform the circle.
+        const marker = pill.firstElementChild as Element;
+
+        expect(appliedStyle(pill, 'flex-shrink')).toBe('1');
+        expect(appliedStyle(marker, 'flex-shrink')).toBe('0');
+    });
+
+    it('keeps every step reachable by its accessible name (all four pills present, none clipped away)', () => {
+        render(<Harness />);
+
+        expect(screen.getByLabelText(/Basic:/)).toBeTruthy();
+        expect(screen.getByLabelText(/Ingredients:/)).toBeTruthy();
+        expect(screen.getByLabelText(/Instructions:/)).toBeTruthy();
+        expect(screen.getByLabelText(/Photos:/)).toBeTruthy();
+    });
+});
+
 describe('Wizard (native) — Preview', () => {
     it('shows the current draft values and can be closed', () => {
         render(<Harness initialValues={validValues()} />);

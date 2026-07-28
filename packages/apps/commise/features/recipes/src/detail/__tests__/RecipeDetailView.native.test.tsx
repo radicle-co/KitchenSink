@@ -437,6 +437,89 @@ describe('RecipeDetailView (native) — hero cover (mockup screen-recipe-detail)
  * stack), so the honest read is the injected declaration itself. Returns `undefined` when the element
  * carries no compiled family — which is itself a failure for a leaf that is supposed to set one.
  */
+/**
+ * Resolve the value react-native-web actually APPLIED for a CSS property, by walking the element's atomic
+ * `r-*` classes back to their compiled rules and falling back to the inline `style` attribute. Same helper as
+ * `CollectionHeader.native.test.tsx` / `RecipeFilterBar.native.test.tsx`, which established the idiom.
+ */
+function appliedStyle(element: Element, property: string): string | undefined {
+    const classNames = element.className.split(' ').filter((name) => name.startsWith('r-'));
+    const sheets = document.styleSheets;
+    let resolved: string | undefined;
+
+    for (const className of classNames) {
+        for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
+            const rules = sheets[sheetIndex]?.cssRules;
+
+            for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
+                const rule = rules?.[ruleIndex];
+
+                if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
+                    const value = rule.style.getPropertyValue(property);
+
+                    if (value !== '') {
+                        resolved = value;
+                    }
+                }
+            }
+        }
+    }
+
+    return (resolved ?? (element as HTMLElement).style.getPropertyValue(property)) || undefined;
+}
+
+/**
+ * Regression sweep (same family as `CollectionHeader.native.tsx`'s clipped Rename / absent Delete): the
+ * ingredient checklist row is `[44pt checkbox][qty][name][notes][Custom badge]` on one non-wrapping line with
+ * the badge pushed right by `marginLeft: 'auto'`, and React Native defaults `flexShrink` to 0 — so a long
+ * ingredient name plus notes claimed their full intrinsic width and pushed the badge (and the notes
+ * themselves) past the card and screen edge. Two of the three variable-length values in this row come
+ * straight from user data, so it needs no unusual recipe to hit.
+ *
+ * jsdom has no layout engine, so this pins the flex CONTRACT: the user-supplied text yields width, the fixed
+ * chrome (the 44pt tap target, the badge) never does.
+ */
+describe('RecipeDetailView (native) — a long ingredient line cannot push the row chrome off the screen', () => {
+    const longIngredient = () =>
+        makeRecipeDetail({
+            ingredients: [
+                makeIngredientView({
+                    name: 'Slow-roasted San Marzano tomatoes from the co-op down the road',
+                    notes: 'peeled, deseeded, and crushed by hand just before serving',
+                    isUserEntered: true,
+                }),
+            ],
+        });
+
+    it('lets the ingredient name and its notes shrink instead of claiming their intrinsic width', () => {
+        render(<RecipeDetailView recipe={longIngredient()} />);
+
+        const name = screen.getByText('Slow-roasted San Marzano tomatoes from the co-op down the road');
+        const notes = screen.getByText('peeled, deseeded, and crushed by hand just before serving');
+
+        expect(appliedStyle(name, 'flex-shrink')).toBe('1');
+        expect(appliedStyle(notes, 'flex-shrink')).toBe('1');
+    });
+
+    it('never shrinks the trailing user-entered badge, so it cannot be clipped away', () => {
+        render(<RecipeDetailView recipe={longIngredient()} />);
+
+        expect(appliedStyle(screen.getByText('Custom'), 'flex-shrink')).toBe('0');
+    });
+
+    it('never shrinks the 44pt checkbox tap target', () => {
+        render(<RecipeDetailView recipe={longIngredient()} />);
+
+        // The ingredient's own tick box (the step list carries checkboxes of its own).
+        const checkbox = screen.getByRole('checkbox', { name: /Slow-roasted San Marzano tomatoes/ });
+
+        expect(appliedStyle(checkbox, 'flex-shrink')).toBe('0');
+        // The touch floor the row must not compromise (RC-3).
+        expect(appliedStyle(checkbox, 'width')).toBe('44px');
+        expect(appliedStyle(checkbox, 'height')).toBe('44px');
+    });
+});
+
 function appliedFontFamily(element: Element): string | undefined {
     const className = element.className.split(' ').find((name) => name.startsWith('r-fontFamily-'));
 

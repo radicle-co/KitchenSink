@@ -104,7 +104,10 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 12,
     },
-    triggerLabel: { fontSize: 16, color: palette.charcoal },
+    // A CUSTOM (non-curated) cuisine value is deliberately preserved and shown here, and RN defaults
+    // `flexShrink` to 0 — so a long one used to take its full intrinsic width and push the disclosure chevron
+    // (the only affordance that opens this menu) past the field's right edge. Same for an option row's check.
+    triggerLabel: { flexShrink: 1, fontSize: 16, color: palette.charcoal },
     menu: {
         borderRadius: 10,
         borderWidth: 1,
@@ -120,6 +123,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
     },
     optionSelected: { backgroundColor: palette.pearl },
-    optionLabel: { fontSize: 16, color: palette.charcoal },
+    optionLabel: { flexShrink: 1, fontSize: 16, color: palette.charcoal },
     optionLabelSelected: { fontWeight: '600', color: palette.seafoam },
 });

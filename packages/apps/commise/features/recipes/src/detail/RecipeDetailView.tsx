@@ -150,7 +150,10 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                                         className={`flex size-8 items-center justify-center rounded border-2 transition sm:size-6 ${
                                             checked
                                                 ? 'border-seafoam bg-seafoam text-white'
-                                                : 'border-mist bg-transparent'
+                                                : // Unchecked, the outline IS the affordance (no fill, no
+                                                  // glyph) — a UI component owing 3:1 under SC 1.4.11, where
+                                                  // `mist` was 1.90:1. Mirrors the native leaf's U4 fix.
+                                                  'border-slate bg-transparent'
                                         }`}
                                     >
                                         {checked && <span>✓</span>}

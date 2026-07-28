@@ -99,7 +99,10 @@ const STAR_PATH =
 const Star: FC<{ filled: boolean }> = ({ filled }) => (
     <svg
         aria-hidden="true"
-        className={`h-4 w-4 ${filled ? 'fill-warning text-warning' : 'text-mist'}`}
+        // An EMPTY pip states the readout's SCALE, so it is `slate`, not `mist` — see the palette JSDoc in
+        // `@commise/ui`'s `tokens/colors.ts`. This is the web half of the fix `RecipeCard.native.tsx` already
+        // carries; the two halves had drifted.
+        className={`h-4 w-4 ${filled ? 'fill-warning text-warning' : 'text-slate'}`}
         fill={filled ? 'currentColor' : 'none'}
         stroke="currentColor"
         viewBox="0 0 20 20"
@@ -122,7 +125,9 @@ const CardCover: FC = () => {
                 <div
                     role="img"
                     aria-label={card.noPhotoLabel}
-                    className="flex h-full w-full items-center justify-center text-mist"
+                    // A labelled `role="img"` is a MEANINGFUL graphic, so it is `slate`, not the `mist`
+                    // hairline tone — see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
+                    className="flex h-full w-full items-center justify-center text-slate"
                 >
                     <svg aria-hidden="true" className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path

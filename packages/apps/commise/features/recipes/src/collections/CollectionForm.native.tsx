@@ -36,7 +36,9 @@ export const CollectionForm: FC<CollectionFormProps> = ({
             <TextInput
                 accessibilityLabel={form.nameLabel}
                 placeholder={form.namePlaceholder}
-                placeholderTextColor={palette.mist}
+                // Placeholder text is TEXT, so it takes `slate`, never the `mist` hairline tone — see the
+                // palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
+                placeholderTextColor={palette.slate}
                 value={name}
                 editable={!submitting}
                 onChangeText={onChange}

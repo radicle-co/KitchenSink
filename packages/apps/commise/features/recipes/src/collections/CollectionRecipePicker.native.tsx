@@ -129,7 +129,9 @@ export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
             <TextInput
                 accessibilityLabel={picker.searchLabel}
                 placeholder={picker.searchPlaceholder}
-                placeholderTextColor={palette.mist}
+                // Placeholder text is TEXT, so it takes `slate`, never the `mist` hairline tone — see the
+                // palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
+                placeholderTextColor={palette.slate}
                 value={query}
                 onChangeText={onQueryChange}
                 style={styles.input}

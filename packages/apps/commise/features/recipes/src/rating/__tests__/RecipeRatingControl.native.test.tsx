@@ -14,6 +14,8 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { LocaleProvider } from '@commise/i18n/react';
+import { computedContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeRatingDisplay, RecipeRatingInput } from '../RecipeRatingControl.native.js';
@@ -192,5 +194,51 @@ describe('RecipeRatingInput (native) — interactive variant', () => {
         renderInput({ error: 'generic' });
 
         expect(screen.getByText('We couldn’t save your rating. Please try again.')).toBeTruthy();
+    });
+});
+
+describe('RecipeRatingControl (native) — text contrast (WCAG 2.1 AA)', () => {
+    /**
+     * The U4 pass demoted the sibling leaf's empty pips to `slate` ("a mist empty star is 1.9:1 — slate (5:1)
+     * makes the empty pips legible for low vision", `RecipeCard.native.tsx`) but MISSED this leaf, so both its
+     * `starEmpty` and `rateStarEmpty` styles were still `palette.mist`. An empty pip is the half of a rating
+     * readout that states the SCALE — without it "two stars" cannot be told from "two out of two" — so it is
+     * meaning-bearing, and it is drawn at body-text weight beside the summary. Rule stated once in the palette
+     * JSDoc in `@commise/ui`'s `tokens/colors.ts`.
+     *
+     * Both variants sit directly on the recipe-detail screen, which paints no surface of its own, so the
+     * backdrop is the app's `sand` background — the stricter of the plausible surfaces.
+     */
+    const SCREEN = palette.sand;
+
+    it('draws the EMPTY community pips legibly on the screen background', () => {
+        // average 2 of 5 → pips 3, 4 and 5 render EMPTY, which is what the scale is read from.
+        renderDisplay({ average: 2, ratingCount: 3 });
+
+        const pips = screen.getAllByText('★');
+
+        expect(pips).toHaveLength(5);
+        for (const [index, pip] of pips.slice(2).entries()) {
+            expect(
+                computedContrast(pip, { surface: SCREEN }),
+                `empty community pip ${index + 3} of 5 on the sand screen background`,
+            ).toBeGreaterThanOrEqual(4.5);
+        }
+    });
+
+    it('draws the EMPTY pips of the rate INPUT legibly on the screen background', () => {
+        // ratingCount 0 → no community aggregate, so the only pips rendered are the rate input's own five;
+        // selectedStars 2 leaves the 3rd, 4th and 5th empty.
+        renderInput({ selectedStars: 2 });
+
+        const pips = screen.getAllByText('★');
+
+        expect(pips).toHaveLength(5);
+        for (const [index, pip] of pips.slice(2).entries()) {
+            expect(
+                computedContrast(pip, { surface: SCREEN }),
+                `empty rate-input pip ${index + 3} of 5 on the sand screen background`,
+            ).toBeGreaterThanOrEqual(4.5);
+        }
     });
 });

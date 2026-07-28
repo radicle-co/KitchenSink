@@ -393,6 +393,29 @@ describe('RecipeDetailView (web) — interactivity (D4/D5/D6)', () => {
         expect(visual?.className).toContain('sm:size-6');
     });
 
+    it('makes the UNCHECKED ingredient checkbox perceivable — its border is all there is', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil' })],
+                })}
+                checkedIngredients={new Set()}
+            />,
+        );
+
+        // Unchecked, the box paints no fill and holds no glyph, so its OUTLINE is the entire affordance — a
+        // UI component under SC 1.4.11, floor 3:1. `border-mist` was 1.90:1, failing even that lower bar.
+        // The native leaf was demoted to slate in the U4 pass and carries a comment saying exactly this; the
+        // web half was never brought along, which is the drift this asserts shut.
+        const visual = screen.getByRole('checkbox', { name: /Olive oil/ }).firstElementChild;
+
+        expect(visual).not.toBeNull();
+        expect(
+            utilityContrast(visual?.className ?? '', { foreground: 'border' }),
+            'unchecked ingredient checkbox outline',
+        ).toBeGreaterThanOrEqual(3);
+    });
+
     it('invokes onToggleIngredient with the ingredient id when its checkbox is activated (D5)', async () => {
         const onToggleIngredient = vi.fn();
         const user = userEvent.setup();

@@ -16,6 +16,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { LocaleProvider } from '@commise/i18n/react';
+import { utilityContrast } from '@commise/test-utils';
 
 import { RecipeRatingDisplay, RecipeRatingInput } from '../RecipeRatingControl.js';
 import type { RecipeRatingDisplayProps, RecipeRatingInputProps } from '../model.js';
@@ -175,5 +176,50 @@ describe('RecipeRatingInput (web) — interactive variant', () => {
         renderInput({ error: 'generic' });
 
         expect(screen.getByRole('alert').textContent).toBe('We couldn’t save your rating. Please try again.');
+    });
+});
+
+describe('RecipeRatingControl (web) — text contrast (WCAG 2.1 AA)', () => {
+    /**
+     * An `<svg>`'s `className` is an `SVGAnimatedString`, NOT a string — `utilityContrast(svg.className)`
+     * would measure an object. The rendered class list comes off the attribute instead.
+     */
+    const classListOf = (element: Element): string => element.getAttribute('class') ?? '';
+
+    it('draws the EMPTY community pips in a legible tone — they carry the "out of 5" scale', () => {
+        // average 2 of 5 → pips 3, 4 and 5 render EMPTY, which is what the scale is read from.
+        renderDisplay({ average: 2, ratingCount: 3 });
+
+        // An empty pip is the half of a rating readout that states the SCALE: without it "two stars" cannot be
+        // distinguished from "two out of two". So it is a meaning-bearing graphic, owed at least the 3:1 of SC
+        // 1.4.11 — and it is drawn at body-text weight beside the summary, so it takes the 4.5:1 line with the
+        // rest of the readout. `mist` measured 1.90:1 on white here, under every floor there is. The rule is
+        // stated ONCE in the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`; the native leaf
+        // (`RecipeCard.native.tsx`) already carries the fix, and this is the web half catching up.
+        const pips = [...screen.getByRole('img', { name: /out of 5/ }).querySelectorAll('svg')];
+
+        expect(pips).toHaveLength(5);
+        for (const [index, pip] of pips.slice(2).entries()) {
+            expect(
+                utilityContrast(classListOf(pip)),
+                `empty community pip ${index + 3} of 5 on the detail card surface`,
+            ).toBeGreaterThanOrEqual(4.5);
+        }
+    });
+
+    it('draws the EMPTY pips of the rate INPUT in the same legible tone', () => {
+        // selectedStars 2 → the 3rd, 4th and 5th options render empty; they are the unselected half of the
+        // scale a rater aims at, so the same floor applies to the interactive variant.
+        renderInput({ selectedStars: 2 });
+
+        const pips = [...screen.getByRole('radiogroup', { name: 'Your rating' }).querySelectorAll('svg')];
+
+        expect(pips).toHaveLength(5);
+        for (const [index, pip] of pips.slice(2).entries()) {
+            expect(
+                utilityContrast(classListOf(pip)),
+                `empty rate-input pip ${index + 3} of 5 on the detail card surface`,
+            ).toBeGreaterThanOrEqual(4.5);
+        }
     });
 });

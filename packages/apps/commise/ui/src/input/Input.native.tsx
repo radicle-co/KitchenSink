@@ -49,7 +49,10 @@ export const Input: FC<InputProps> = ({
                 value={value}
                 onChangeText={onChangeText}
                 placeholder={placeholder}
-                placeholderTextColor={palette.mist}
+                // Placeholder text is TEXT, so it takes `slate`, never the `mist` hairline tone — see the
+                // palette JSDoc in `../tokens/colors.ts`. Fixing it in the primitive fixes every form built on
+                // it; there is no web `Input.tsx` (this primitive is native-only), so there is no second half.
+                placeholderTextColor={palette.slate}
                 secureTextEntry={secureTextEntry}
                 keyboardType={keyboardType}
                 autoCapitalize={autoCapitalize}

@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { computedContrast } from '@commise/test-utils';
+import { computedContrast, placeholderContrast } from '@commise/test-utils';
 import { nativeTokens } from '@commise/ui/native';
 import { palette } from '@commise/ui';
 
@@ -396,6 +396,21 @@ describe('RecipeList (native) — text contrast (WCAG 2.1 AA)', () => {
         expect(
             computedContrast(label, { surface: palette.sand }),
             'selected source-tab label on the sand screen background',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the search field’s PLACEHOLDER text legible on the field', () => {
+        renderList({ status: 'ready', recipes: threeRecipes });
+
+        // Placeholder copy is TEXT a reader reads — the field's only visible instruction before they type — so
+        // it owes the 4.5:1 of SC 1.4.3; `placeholderTextColor={palette.mist}` measured 1.90:1 on the white
+        // field. `placeholderContrast` reads the colour react-native-web actually paints (the
+        // `--placeholderTextColor` custom property its compiled `::placeholder` rule resolves) and composites
+        // the field's own opaque background over the screen, so this fails if the token drifts AND if the prop
+        // stops being passed. Web's `placeholder:text-…` half is asserted in `RecipeList.test.tsx`.
+        expect(
+            placeholderContrast(screen.getByLabelText('Search recipes'), { surface: palette.sand }),
+            'recipe-list search placeholder on its white field',
         ).toBeGreaterThanOrEqual(4.5);
     });
 });

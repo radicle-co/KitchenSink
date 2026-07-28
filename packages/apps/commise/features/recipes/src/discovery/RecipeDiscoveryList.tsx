@@ -202,7 +202,9 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                     placeholder={discovery.searchPlaceholder}
                     value={searchValue}
                     onChange={(event) => onSearchChange(event.target.value)}
-                    className="w-full rounded-full border border-border bg-card px-5 py-3 text-body-md text-charcoal shadow-sm outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
+                    // Placeholder text is TEXT: `placeholder:text-slate`, never `mist` (palette JSDoc,
+                    // `@commise/ui`'s `tokens/colors.ts`). The `border-border` hairline stays `mist`-derived.
+                    className="w-full rounded-full border border-border bg-card px-5 py-3 text-body-md text-charcoal shadow-sm outline-none placeholder:text-slate focus:ring-2 focus:ring-seafoam-light"
                 />
                 {showRecentSearches && (
                     <section

@@ -49,7 +49,10 @@ export const RecipeHero: FC<RecipeHeroProps> = ({ title, coverPhotoUrl }) => {
                 <div
                     role="img"
                     aria-label={card.noPhotoLabel}
-                    className={`flex items-center justify-center text-mist ${HERO_BOX}`}
+                    // A labelled `role="img"` is a MEANINGFUL graphic, so it is `slate`, not the `mist` hairline
+                    // tone — see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`. The native leaf
+                    // already uses `palette.slate`; this is the web half catching up.
+                    className={`flex items-center justify-center text-slate ${HERO_BOX}`}
                 >
                     <svg aria-hidden="true" className="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path

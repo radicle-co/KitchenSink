@@ -11,7 +11,7 @@ import userEvent from '@testing-library/user-event';
 
 import { LocaleProvider } from '@commise/i18n/react';
 import { utilityContrast } from '@commise/test-utils';
-import { glass, glassBackdropCss, toWebGlass } from '@commise/ui';
+import { glass, glassBackdropCss, palette, toWebGlass } from '@commise/ui';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { toRecipeCardModel } from '../model.js';
@@ -326,5 +326,47 @@ describe('RecipeCard (web) — relative timestamp (CR-002 / recipe-list wirefram
 
         expect(screen.getByText('Created 1w ago')).toBeTruthy();
         expect(screen.queryByText(/^Edited/)).toBeNull();
+    });
+});
+
+describe('RecipeCard (web) — non-text graphics stay legible (WCAG 2.1 AA)', () => {
+    /**
+     * An `<svg>`'s `className` is an `SVGAnimatedString`, NOT a string — `utilityContrast(svg.className)`
+     * would measure an object. The rendered class list comes off the attribute instead.
+     */
+    const classListOf = (element: Element): string => element.getAttribute('class') ?? '';
+
+    it('draws the EMPTY star pips in a legible tone — they carry the "out of 5" scale', () => {
+        // average 2 of 5 → pips 3, 4 and 5 render EMPTY, which is what the scale is read from.
+        renderCard(<RecipeCard recipe={model({ averageRating: 2, ratingCount: 3 })} />);
+
+        // The native leaf (`RecipeCard.native.tsx`) demoted these to `slate` in the U4 pass and says why: an
+        // empty pip is the half of the readout that states the SCALE, so it is meaning-bearing, not decoration.
+        // The web half was never brought along and stayed on `mist` at 1.90:1 — under even the 3:1 SC 1.4.11
+        // floor. The rule is stated ONCE in the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
+        const pips = [...screen.getByRole('img', { name: /out of 5/ }).querySelectorAll('svg')];
+
+        expect(pips).toHaveLength(5);
+        for (const [index, pip] of pips.slice(2).entries()) {
+            expect(
+                utilityContrast(classListOf(pip)),
+                `empty star pip ${index + 3} of 5 on the card surface`,
+            ).toBeGreaterThanOrEqual(4.5);
+        }
+    });
+
+    it('keeps the labelled no-cover placeholder glyph legible on its pearl tile', () => {
+        renderCard(<RecipeCard recipe={model({ coverPhotoUrl: undefined })} />);
+
+        // A `role="img"` carrying a localized `aria-label` is a MEANINGFUL graphic, not a decorative rule — so
+        // it owes at least the 3:1 of SC 1.4.11, and it is the only thing drawn in the tile. `mist` measured
+        // 1.74:1 against the `bg-pearl` tile it is painted on (the placeholder itself paints no background, so
+        // the tile IS its surface), which clears nothing.
+        const placeholder = screen.getByRole('img', { name: 'No photo yet' });
+
+        expect(
+            utilityContrast(placeholder.className, { surface: palette.pearl }),
+            'no-cover placeholder glyph on the pearl cover tile',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });

@@ -32,10 +32,13 @@ import { palette } from '@commise/ui';
 import { compositeOver, contrastRatio } from './contrast.js';
 
 /**
- * A `text-…` / `bg-…` utility with an optional leading variant and an optional `/NN` opacity suffix —
- * `bg-coral/10`, `text-slate`, `hover:bg-coral/25`.
+ * A `text-…` / `bg-…` / `border-…` utility with an optional leading variant and an optional `/NN` opacity
+ * suffix — `bg-coral/10`, `text-slate`, `hover:bg-coral/25`, `border-mist`.
+ *
+ * Sizing and side variants fall out naturally: `border-2` and `border-b-2` carry digits, which `[a-z-]+?`
+ * cannot match, and `border-border` names no palette entry — so neither is mistaken for a colour.
  */
-const COLOR_UTILITY = /^(?:([a-z-]+):)?(text|bg)-([a-z-]+?)(?:\/(\d{1,3}))?$/;
+const COLOR_UTILITY = /^(?:([a-z-]+):)?(text|bg|border)-([a-z-]+?)(?:\/(\d{1,3}))?$/;
 
 /** The CSS notation jsdom reports for "no background painted here". */
 const TRANSPARENT = 'rgba(0, 0, 0, 0)';
@@ -46,6 +49,13 @@ export interface UtilityContrastOptions {
     readonly surface?: string;
     /** A Tailwind variant to prefer, e.g. `'hover'`. Utilities without it are the fallback. */
     readonly variant?: string;
+    /**
+     * Which foreground to measure. `'text'` (the default) is the label. `'border'` measures the element's
+     * OUTLINE instead — an unchecked checkbox or an outlined control has no label of its own, and its border
+     * is the whole of what makes it perceivable. Compare a border against the 3:1 `ui-component` floor
+     * (SC 1.4.11), not 4.5:1.
+     */
+    readonly foreground?: 'text' | 'border';
 }
 
 /** How to read a rendered native leaf: the opaque colour its (possibly translucent) background sits on. */
@@ -55,15 +65,15 @@ export interface ComputedContrastOptions {
 }
 
 /**
- * Find the `text-*` or `bg-*` utilities in `className` that name a PALETTE colour, preferring the ones
- * carrying `variant` when a variant is requested.
+ * Find the utilities of one role in `className` that name a PALETTE colour, preferring the ones carrying
+ * `variant` when a variant is requested.
  *
- * Type utilities that share the prefix (`text-body-sm`, `text-caption`) resolve to no palette entry and are
- * skipped, which is what lets one regex serve both roles. Pure.
+ * Non-colour utilities that share a prefix (`text-body-sm`, `text-caption`, `border-2`, `border-border`)
+ * resolve to no palette entry and are skipped, which is what lets one regex serve every role. Pure.
  */
 function candidates(
     className: string,
-    prefix: 'text' | 'bg',
+    prefix: 'text' | 'bg' | 'border',
     variant: string | undefined,
 ): readonly { readonly name: string; readonly alphaPercent: string | undefined }[] {
     const all = className
@@ -89,16 +99,16 @@ function colorOf({ name, alphaPercent }: { name: string; alphaPercent: string | 
 /**
  * The element's FOREGROUND colour, which must be present exactly once.
  *
- * @throws Error when the class list carries no palette-coloured `text-*` utility, or more than one at the
+ * @throws Error when the class list carries no palette-coloured utility of that role, or more than one at the
  *   same variant level (an ambiguous measurement is worse than none — it would silently measure whichever
  *   came first).
  */
-function foreground(className: string, variant: string | undefined): string {
-    const found = candidates(className, 'text', variant);
+function foreground(className: string, role: 'text' | 'border', variant: string | undefined): string {
+    const found = candidates(className, role, variant);
 
     if (found.length !== 1) {
         throw new Error(
-            `Expected exactly ONE palette-coloured \`text-*\` utility in "${className}", found ${found.length}.`,
+            `Expected exactly ONE palette-coloured \`${role}-*\` utility in "${className}", found ${found.length}.`,
         );
     }
 
@@ -138,10 +148,10 @@ function background(className: string, variant: string | undefined, surface: str
  * @returns The ratio, 1..21.
  */
 export function utilityContrast(className: string, options: UtilityContrastOptions = {}): number {
-    const { surface = palette.white, variant } = options;
+    const { surface = palette.white, variant, foreground: role = 'text' } = options;
 
     return contrastRatio(
-        compositeOver(foreground(className, variant), surface),
+        compositeOver(foreground(className, role, variant), surface),
         background(className, variant, surface),
     );
 }

@@ -9,7 +9,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { RecipeSearchSortBy, type Recipe, type RecipeSearchResult } from '@kitchensink/recipe-core';
 
-import { computedContrast } from '@commise/test-utils';
+import { computedContrast, placeholderContrast } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
@@ -520,6 +520,19 @@ describe('RecipeDiscoveryList (native) — text contrast (WCAG 2.1 AA)', () => {
         expect(
             computedContrast(label, { surface: palette.sand }),
             'back-to-browse label on the sand screen background',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the search field’s PLACEHOLDER text legible on the field', () => {
+        renderDiscovery({ searchValue: '' });
+
+        // Placeholder copy is TEXT a reader reads — the field's only visible instruction before they type — so
+        // it owes the 4.5:1 of SC 1.4.3; `placeholderTextColor={palette.mist}` measured 1.90:1 on the white
+        // field. `placeholderContrast` reads the colour react-native-web actually paints, so this fails if the
+        // token drifts AND if the prop stops being passed.
+        expect(
+            placeholderContrast(screen.getByLabelText('Search public recipes'), { surface: palette.sand }),
+            'discovery search placeholder on its white field',
         ).toBeGreaterThanOrEqual(4.5);
     });
 });

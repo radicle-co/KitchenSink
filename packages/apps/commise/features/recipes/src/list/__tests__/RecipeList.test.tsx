@@ -518,4 +518,19 @@ describe('RecipeList (web) — text contrast (WCAG 2.1 AA)', () => {
             'border-seafoam',
         );
     });
+
+    it('keeps the search field’s PLACEHOLDER text legible on the field', () => {
+        renderList({ status: 'ready', recipes: threeRecipes });
+
+        // Placeholder copy is TEXT a reader reads — the field's only visible instruction before they type — so
+        // it owes the same 4.5:1 as body copy; `mist` measured 1.90:1 here. `placeholder:` is just another
+        // Tailwind variant, so it is measured as its own state (the base `text-charcoal` on the same element is
+        // the VALUE colour and would mask the defect). See `@commise/ui`'s `tokens/colors.ts` JSDoc.
+        const search = screen.getByRole('searchbox', { name: 'Search recipes' });
+
+        expect(
+            utilityContrast(search.className, { surface: semantic.card, variant: 'placeholder' }),
+            'recipe-list search placeholder on the card-white field',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
 });

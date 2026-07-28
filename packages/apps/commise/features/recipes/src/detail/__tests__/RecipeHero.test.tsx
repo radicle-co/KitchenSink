@@ -12,6 +12,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 
 import { LocaleProvider } from '@commise/i18n/react';
+import { utilityContrast } from '@commise/test-utils';
+import { gradient } from '@commise/ui';
 
 import { RecipeHero } from '../RecipeHero.js';
 
@@ -86,5 +88,27 @@ describe('RecipeHero (web) — cover absent (the deliberate fallback)', () => {
         const { container } = renderHero(<RecipeHero title="Herb Risotto" />);
 
         expect(container.querySelector('[class*="from-charcoal/60"]')).toBeNull();
+    });
+});
+
+describe('RecipeHero (web) — the no-cover placeholder is legible on the beach-glow ramp (WCAG 2.1 AA)', () => {
+    it('keeps the labelled placeholder glyph above the AA floor on the WORST hero gradient stop', () => {
+        renderHero(<RecipeHero title="Herb Risotto" />);
+
+        // A `role="img"` carrying a localized `aria-label` is a MEANINGFUL graphic (SC 1.4.11's 3:1 floor at
+        // minimum), and here it is the ONLY thing drawn in the hero. `mist` measured 1.70:1 against the
+        // gradient's coolest stop — under every floor there is. The native leaf already uses `palette.slate`;
+        // this is the web half catching up. Rule stated once in `@commise/ui`'s `tokens/colors.ts` JSDoc.
+        //
+        // A gradient has no single backdrop, so the measurement takes the WORST (lightest) stop — clear that
+        // and every point on the ramp is clear. The stop's colour is READ FROM THE TOKEN rather than spelled as
+        // a hex, so re-toning the beach-glow ramp moves this test instead of silently invalidating it.
+        const [, , coolestStop] = gradient.hero.stops;
+        const placeholder = screen.getByRole('img', { name: 'No photo yet' });
+
+        expect(
+            utilityContrast(placeholder.className, { surface: coolestStop.color }),
+            'no-cover hero glyph on the lightest hero-gradient stop',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });

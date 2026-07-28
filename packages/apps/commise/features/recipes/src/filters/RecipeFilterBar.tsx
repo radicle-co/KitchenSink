@@ -187,7 +187,9 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                         placeholder={m.ingredientSearchPlaceholder}
                         value={ingredientSearch.query}
                         onChange={(event) => ingredientSearch.onQueryChange(event.target.value)}
-                        className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-mist focus:ring-2 focus:ring-seafoam-light"
+                        // Placeholder text is TEXT: `placeholder:text-slate`, never `mist` (palette JSDoc,
+                        // `@commise/ui`'s `tokens/colors.ts`). The `border-border` hairline stays `mist`-derived.
+                        className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-slate focus:ring-2 focus:ring-seafoam-light"
                     />
 
                     {/* The label is the region's CONTENT, not only its `aria-label`: an empty `role="status"`

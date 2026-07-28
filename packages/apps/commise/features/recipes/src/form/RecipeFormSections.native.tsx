@@ -72,7 +72,9 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                     aria-invalid={titleInvalid || undefined}
                     aria-describedby={titleInvalid ? titleErrorId : undefined}
                     placeholder={m.titlePlaceholder}
-                    placeholderTextColor={palette.mist}
+                    // Placeholder text is TEXT, so it takes `slate`, never the `mist` hairline tone — see the
+                    // palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
+                    placeholderTextColor={palette.slate}
                     value={values.title}
                     maxLength={TITLE_MAX_LENGTH}
                     onChangeText={(text) => onChange({ ...values, title: text })}

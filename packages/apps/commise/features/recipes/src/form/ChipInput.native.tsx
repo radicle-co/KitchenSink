@@ -77,7 +77,9 @@ export const ChipInput: FC<ChipInputProps> = ({ label, values, onChange, placeho
                 <TextInput
                     accessibilityLabel={label}
                     placeholder={placeholder}
-                    placeholderTextColor={palette.mist}
+                    // Placeholder text is TEXT, so it takes `slate`, never the `mist` hairline tone — see the
+                    // palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
+                    placeholderTextColor={palette.slate}
                     value={draft}
                     onChangeText={setDraft}
                     onSubmitEditing={commit}

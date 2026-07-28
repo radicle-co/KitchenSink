@@ -161,7 +161,9 @@ export const RecipeList: FC<RecipeListViewProps> = ({
             <TextInput
                 accessibilityLabel={list.searchLabel}
                 placeholder={list.searchPlaceholder}
-                placeholderTextColor={palette.mist}
+                // Placeholder text is TEXT, so it takes `slate`, never the `mist` hairline tone — see the
+                // palette JSDoc in `@commise/ui`'s `tokens/colors.ts`.
+                placeholderTextColor={palette.slate}
                 value={searchValue}
                 onChangeText={onSearchChange}
                 style={styles.search}

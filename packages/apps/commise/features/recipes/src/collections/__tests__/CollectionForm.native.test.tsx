@@ -7,6 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { placeholderContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
+
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionForm } from '../CollectionForm.native.js';
 import type { CollectionFormProps } from '../model.js';
@@ -92,5 +95,22 @@ describe('CollectionForm (native) — submitting state', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Create' }));
 
         expect(onSubmit).not.toHaveBeenCalled();
+    });
+});
+
+describe('CollectionForm (native) — PLACEHOLDER text clears the AA body-text floor', () => {
+    it('keeps the name field’s placeholder legible on the white card', () => {
+        renderForm();
+
+        // Placeholder copy is TEXT a reader reads — the field's only visible instruction before they type — so
+        // it owes the 4.5:1 of SC 1.4.3; `placeholderTextColor={palette.mist}` measured 1.90:1 here. The field
+        // paints no background of its own, so the backdrop is the form's white card.
+        // `placeholderContrast` reads the colour react-native-web actually paints (the `--placeholderTextColor`
+        // custom property its compiled `::placeholder` rule resolves), so this fails if the token drifts AND if
+        // the prop stops being passed. See `@commise/ui`'s `tokens/colors.ts` JSDoc for the rule.
+        expect(
+            placeholderContrast(screen.getByLabelText('Collection name'), { surface: palette.white }),
+            'collection-name placeholder on the white card',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });

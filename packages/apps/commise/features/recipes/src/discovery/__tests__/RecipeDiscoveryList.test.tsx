@@ -673,4 +673,19 @@ describe('RecipeDiscoveryList (web) — text contrast (WCAG 2.1 AA)', () => {
             'back-to-browse under its hover:bg-mist/20 tint',
         ).toBeGreaterThanOrEqual(4.5);
     });
+
+    it('keeps the search field’s PLACEHOLDER text legible on the field', () => {
+        renderDiscovery({ searchValue: '' });
+
+        // Placeholder copy is TEXT a reader reads — it is the field's only visible instruction before they
+        // type — so it owes the same 4.5:1 as body copy. `mist` measured 1.90:1 here. `placeholder:` is just
+        // another Tailwind variant, so the placeholder state is measured as its own state (the base
+        // `text-charcoal` on the same element is the value colour, and would mask the defect).
+        const search = screen.getByRole('searchbox', { name: 'Search public recipes' });
+
+        expect(
+            utilityContrast(search.className, { surface: CARD, variant: 'placeholder' }),
+            'discovery search placeholder on the card-white field',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
 });

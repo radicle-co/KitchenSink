@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { placeholderContrast } from '@commise/test-utils';
+
 import { Input } from '../Input.native.js';
 
 /**
@@ -57,5 +59,25 @@ describe('Input (native)', () => {
         // The field points at the very element that carries the message — a real association, not just
         // two elements that happen to sit near each other.
         expect(field.getAttribute('aria-describedby')).toBe(alert.getAttribute('id'));
+    });
+
+    it('draws the PLACEHOLDER above the WCAG AA body-text floor on its white field', () => {
+        render(<Input label="Email" value="" onChangeText={vi.fn()} placeholder="you@example.com" />);
+
+        // Placeholder copy is TEXT a reader reads — a field's only visible instruction before they type — so it
+        // owes the 4.5:1 of SC 1.4.3, not the 3:1 an accent owes. This primitive passed
+        // `placeholderTextColor={palette.mist}`, which measured 1.90:1 against its own white field: the palette
+        // JSDoc in `../../tokens/colors.ts` states once that `mist` is a hairline tone and never a text tone.
+        // Fixing it HERE fixes every form built on the primitive, which is the reason it exists.
+        //
+        // `placeholderContrast` reads the colour react-native-web actually paints (the `--placeholderTextColor`
+        // custom property its compiled `::placeholder` rule resolves) and composites the field's own background
+        // over the surface — so this fails if the token drifts AND if the prop stops being passed at all.
+        //
+        // There is no web `Input.tsx`: this primitive is native-only, so there is no web half to keep in step.
+        expect(
+            placeholderContrast(screen.getByRole('textbox', { name: 'Email' })),
+            'Input placeholder on its white field',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });

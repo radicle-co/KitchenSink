@@ -70,6 +70,33 @@ describe('utilityContrast', () => {
     it('refuses to guess when two background utilities apply at the same level', () => {
         expect(() => utilityContrast('text-charcoal bg-white bg-pearl')).toThrow(/at most ONE/);
     });
+
+    it('measures the BORDER when asked, so an unlabelled outlined control is assertable', () => {
+        // An unchecked checkbox has no label of its own — its border is the whole of what makes it
+        // perceivable, which is why SC 1.4.11 governs it and why `text` alone could never reach it.
+        const cls = 'flex size-8 rounded border-2 border-mist bg-transparent';
+
+        expect(utilityContrast(cls, { foreground: 'border' })).toBeCloseTo(
+            contrastRatio(palette.mist, palette.white),
+            10,
+        );
+    });
+
+    it('does not mistake sizing, side or non-palette border utilities for a colour', () => {
+        // `border-2`, `border-b-2` and `border-l-[3px]` carry digits; `border-border` names a semantic token
+        // that is not a palette key. If any of them resolved, the measurement would silently move.
+        const cls = 'border-2 border-b-2 border-l-[3px] border-border border-slate';
+
+        expect(utilityContrast(cls, { foreground: 'border' })).toBeCloseTo(
+            contrastRatio(palette.slate, palette.white),
+            10,
+        );
+    });
+
+    it('reports which role was ambiguous or missing', () => {
+        expect(() => utilityContrast('text-charcoal', { foreground: 'border' })).toThrow(/`border-\*`/);
+        expect(() => utilityContrast('border-mist border-slate', { foreground: 'border' })).toThrow(/exactly ONE/);
+    });
 });
 
 describe('computedContrast', () => {
@@ -113,7 +140,7 @@ describe('computedContrast', () => {
 
 describe('placeholderContrast', () => {
     /** An input painted the way react-native-web paints `placeholderTextColor` — via a custom property. */
-    const withPlaceholderColor = (color: string, textColor = palette.charcoal): Element => {
+    const withPlaceholderColor = (color: string, textColor = palette.charcoal): HTMLInputElement => {
         const element = document.createElement('input');
 
         element.style.color = textColor;

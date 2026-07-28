@@ -175,12 +175,15 @@ const styles = StyleSheet.create({
     heading: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
     stars: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     starFilled: { fontSize: 16, color: palette.warning },
-    starEmpty: { fontSize: 16, color: palette.mist },
+    // An EMPTY pip states the readout's SCALE, so it is `slate`, not `mist` — see the palette JSDoc in
+    // `@commise/ui`'s `tokens/colors.ts`. The U4 pass fixed the sibling `RecipeCard.native.tsx` and MISSED
+    // this leaf, so both of its empty-pip styles were still the 1.9:1 hairline tone.
+    starEmpty: { fontSize: 16, color: palette.slate },
     unrated: { fontSize: 13, color: palette.slate },
     rateBlock: { gap: 10 },
     rateHeading: { fontSize: 14, fontWeight: '500', color: palette.charcoal },
     rateStarFilled: { fontSize: 30, color: palette.warning },
-    rateStarEmpty: { fontSize: 30, color: palette.mist },
+    rateStarEmpty: { fontSize: 30, color: palette.slate },
     // B10 — a ≥44×44 touch target around the 30px glyph (WCAG 2.5.5 / Apple + Android minimums).
     starOption: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     optionDisabled: { opacity: 0.6 },

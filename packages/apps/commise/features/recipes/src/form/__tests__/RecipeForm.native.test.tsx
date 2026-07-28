@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import { compositeOver, computedContrast, contrastRatio } from '@commise/test-utils';
+import { compositeOver, computedContrast, contrastRatio, placeholderContrast } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 import { CUISINES, FoodResolutionStatus } from '@kitchensink/recipe-core';
 
@@ -1037,5 +1037,35 @@ describe('RecipeForm (native) — every action button carries a decorative icon 
         // The Button wraps the caller's icon in an `aria-hidden` element, so the glyph never contributes to
         // the accessible name — present here regardless of what Feather draws.
         expect(button.querySelector('[aria-hidden="true"]')).not.toBeNull();
+    });
+});
+
+describe('RecipeForm (native) — PLACEHOLDER text clears the AA body-text floor', () => {
+    /**
+     * Placeholder copy is TEXT a reader reads — it is a field's only visible instruction before they type — so
+     * it owes the 4.5:1 of SC 1.4.3, not the 3:1 an accent owes. Both of this form's field leaves passed
+     * `placeholderTextColor={palette.mist}` (1.90:1 on their white fields), which the palette JSDoc in
+     * `@commise/ui`'s `tokens/colors.ts` names as a hairline tone that is never a text tone.
+     *
+     * `placeholderContrast` reads the colour react-native-web actually paints (it lands as the
+     * `--placeholderTextColor` custom property that the compiled `::placeholder` rule resolves), so this fails
+     * both if the token drifts and if the prop stops being passed at all.
+     */
+    it('gives the basics fields (RecipeFormSections) a legible placeholder', () => {
+        renderForm({ values: filledValues({ title: '' }) });
+
+        expect(
+            placeholderContrast(screen.getByLabelText('Title')),
+            'title-field placeholder on its white field',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('gives the tag/dietary ChipInput a legible placeholder', () => {
+        renderForm();
+
+        expect(
+            placeholderContrast(screen.getByLabelText('Tags')),
+            'ChipInput placeholder on its white field',
+        ).toBeGreaterThanOrEqual(4.5);
     });
 });

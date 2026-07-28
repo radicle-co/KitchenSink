@@ -527,4 +527,19 @@ describe('RecipeFilterBar (web) — text contrast (WCAG 2.1 AA)', () => {
             'focus-visible:ring-seafoam-light',
         );
     });
+
+    it('keeps the ingredient typeahead’s PLACEHOLDER text legible on the field', () => {
+        renderBar();
+
+        // Placeholder copy is TEXT a reader reads — the field's only visible instruction before they type — so
+        // it owes the same 4.5:1 as body copy; `mist` measured 1.90:1 on this `bg-white` field. `placeholder:`
+        // is just another Tailwind variant, measured as its own state (the base `text-charcoal` on the same
+        // element is the VALUE colour and would mask the defect).
+        const search = screen.getByLabelText('Search ingredients');
+
+        expect(
+            utilityContrast(search.className, { variant: 'placeholder' }),
+            'ingredient typeahead placeholder on its white field',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
 });

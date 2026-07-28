@@ -404,6 +404,18 @@ describe('RecipeDiscoveryList (native) — recent searches (U7)', () => {
         expect(screen.queryByLabelText('Recent searches')).toBeNull();
     });
 
+    it('stays hidden when a FILTER is active with a blank query — also the RESULT state, not idle', () => {
+        // The blank query is what made this slip: the panel gated on `searchValue` being empty, but the
+        // surface's own definition of idle is `!searching`, and `searching` is query OR filters. Applying a
+        // filter from the sheet leaves the query blank, so the idle-only panel stayed drawn over the result
+        // list — covering the middle of a phone screen, where a swipe to scroll the results lands.
+        renderDiscovery({ searchValue: '', hasActiveFilters: true, recentSearches: recent });
+
+        focusSearch();
+
+        expect(screen.queryByLabelText('Recent searches')).toBeNull();
+    });
+
     it('renders no panel at all when the history is empty', () => {
         renderDiscovery({ searchValue: '', recentSearches: { ...recent, queries: [] } });
 

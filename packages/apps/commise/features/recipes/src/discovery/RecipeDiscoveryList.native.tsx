@@ -71,12 +71,13 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
     // with neither, the curated `browseSlot` (when provided) is the default experience, not a bare stream.
     const searching = searchValue.trim().length > 0 || hasActiveFilters;
     const browsing = browseSlot !== undefined && !searching;
-    // Idle + focused + something to offer: anything else renders no panel at all rather than an empty one.
+    // Idle + focused + something to offer: anything else (a typed query, an ACTIVE FILTER, an empty
+    // history) renders no panel at all rather than an empty one. Gate on `!searching`, not on the query
+    // alone: a filter applied from the sheet leaves the query blank, so checking only `searchValue` kept
+    // this idle-only panel drawn over the result list — and on a phone it covers the middle of the screen,
+    // which is exactly where a swipe to scroll the results lands.
     const showRecentSearches =
-        recentSearches !== undefined &&
-        recentSearches.queries.length > 0 &&
-        searchFocused &&
-        searchValue.trim().length === 0;
+        recentSearches !== undefined && recentSearches.queries.length > 0 && searchFocused && !searching;
 
     let body: ReactElement;
 

@@ -445,6 +445,20 @@ describe('RecipeDiscoveryList (web) — recent searches (U7)', () => {
         expect(screen.queryByRole('region', { name: 'Recent searches' })).toBeNull();
     });
 
+    it('stays hidden when a FILTER is active with a blank query — also the RESULT state, not idle', async () => {
+        // The blank query is what made this slip: the panel gated on `searchValue` being empty, but the
+        // surface's own definition of idle is `!searching`, and `searching` is query OR filters. So a
+        // filter applied from the sheet (which leaves the query blank) left the idle-only panel drawn over
+        // the result list. On a phone it covers the middle of the screen — the Maestro flow could no longer
+        // scroll the results at all, and a real user would have the same problem.
+        const user = userEvent.setup();
+        renderDiscovery({ searchValue: '', hasActiveFilters: true, recentSearches: recent });
+
+        await focusSearch(user);
+
+        expect(screen.queryByRole('region', { name: 'Recent searches' })).toBeNull();
+    });
+
     it('renders no panel at all when the history is empty', async () => {
         const user = userEvent.setup();
         renderDiscovery({ searchValue: '', recentSearches: { ...recent, queries: [] } });

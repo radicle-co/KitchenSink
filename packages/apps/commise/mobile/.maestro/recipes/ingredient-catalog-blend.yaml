@@ -2,7 +2,7 @@ appId: io.commise.mobile
 ---
 # Search Stage 2 — the blended ingredient typeahead on mobile. Assumes an authenticated session (the auth
 # login flow runs first in CI ordering) and the app pointed at the runner's recipe-service
-# (EXPO_PUBLIC_API_URL), exactly like `create.yaml`.
+# (EXPO_PUBLIC_RECIPE_API_URL), exactly like `create.yaml`.
 #
 # WHAT THIS FLOW ASSERTS, AND WHY IT IS THE F2 PATH RATHER THAN THE CATALOG PICK.
 # The Maestro job is deliberately self-contained: it boots recipe-service + Postgres on the runner and

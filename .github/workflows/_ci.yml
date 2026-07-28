@@ -883,7 +883,10 @@ jobs:
               if: steps.secrets.outcome == 'success'
               working-directory: packages/apps/commise/mobile
               env:
-                  EXPO_PUBLIC_API_URL: http://10.0.2.2:3000
+                  # 10.0.2.2 is the Android emulator's host loopback. Both endpoints are REQUIRED —
+                  # `mobile/src/config/env.ts` declares them with no default, so the APK build fails
+                  # outright if either is absent (that is the point: `localhost` on a phone is the phone).
+                  EXPO_PUBLIC_RECIPE_API_URL: http://10.0.2.2:3000
                   # The app fetches the viewer PROFILE (viewerId → client-side ownership, tier) from the
                   # identity service; this job runs a stub for it on :4000 (see the stub step below).
                   EXPO_PUBLIC_IDENTITY_API_URL: http://10.0.2.2:4000

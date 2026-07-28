@@ -11,7 +11,7 @@
 # `RecipesScreen`'s seeded `[list, detail]` stack. The final Back assertion is what proves the stack was
 # SEEDED with the list beneath the detail rather than rooted at the detail (which would dead-end).
 #
-# Requires a seeded recipe API (EXPO_PUBLIC_API_URL) — the same seed the other recipe flows use.
+# Requires a seeded recipe API (EXPO_PUBLIC_RECIPE_API_URL) — the same seed the other recipe flows use.
 
 appId: io.commise.mobile
 ---

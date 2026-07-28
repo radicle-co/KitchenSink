@@ -2,7 +2,7 @@ appId: io.commise.mobile
 ---
 # Recipe create happy path (US1, T067; rewritten w3/e8 for the 4-step SCREEN-PER-STEP wizard). Assumes an
 # authenticated session (the auth login flow runs first in CI ordering) and the app pointed at a seeded
-# recipe API (EXPO_PUBLIC_API_URL). Drives the recipe list -> new-recipe wizard, walks all 4 steps via the
+# recipe API (EXPO_PUBLIC_RECIPE_API_URL). Drives the recipe list -> new-recipe wizard, walks all 4 steps via the
 # `Next: …` footer nav, states a difficulty, resolves an ingredient via the freeform create, adds a step,
 # and Publishes — landing on the new recipe's detail. Mobile mirror of the web Playwright `recipeCrud.spec.ts`
 # create path.

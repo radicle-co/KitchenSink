@@ -1,7 +1,7 @@
 appId: io.commise.mobile
 ---
 # Recipe list -> detail happy path (US1). Assumes an authenticated session (the auth login flow runs
-# first in CI ordering) and the app pointed at a seeded recipe API (EXPO_PUBLIC_API_URL). Asserts the
+# first in CI ordering) and the app pointed at a seeded recipe API (EXPO_PUBLIC_RECIPE_API_URL). Asserts the
 # list chrome renders, then drills into a seeded recipe and back — the mobile mirror of the web
 # Playwright recipe-list/detail flow (cross-platform mandate).
 #

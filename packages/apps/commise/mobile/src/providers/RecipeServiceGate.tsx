@@ -1,6 +1,6 @@
 /**
  * Provides a configured {@link RecipeServiceClient} to the recipe-service query hooks. Constructs the
- * client from the mobile API origin (`EXPO_PUBLIC_API_URL`) and a Clerk-backed token source, then mounts
+ * client from the mobile API origin (`EXPO_PUBLIC_RECIPE_API_URL`) and a Clerk-backed token source, then mounts
  * `RecipeServiceProvider`. Mount inside both `ClerkProvider` (for `useAuth`) and `QueryClientProvider`
  * (the hooks own no query client of their own).
  *

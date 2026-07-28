@@ -319,3 +319,182 @@ jobs:
                   npx cdk deploy \
                     --app "node packages/services/food-service/infra/dist/bin/app.js" \
                     --all --require-approval never
+
+    # ------------------------------------------------------------------------------------------------
+    # Recipe (feature 001). This job exists because its ABSENCE was itself the defect: the recipe service
+    # was hand-deployed once (2026-07-13) and never again, so it silently drifted fifteen days behind
+    # `main` — missing the CORS support added in 1bba364f — while every existing signal stayed green
+    # (`/health` 200, `cdk synth` 0, and k6/Playwright/Maestro/integration all boot or mock their OWN
+    # backend). Nothing in the pipeline ever exercised the deployed artifact. See ADR-0005 / ADR-0006.
+    #
+    # Ordering is load-bearing: recipe-WORKERS owns the account-erasure queue and publishes its URL/ARN to
+    # SSM (`/kitchensink/{stage}/recipe/account-erasure-queue-*`), which recipe-SERVICE reads at deploy
+    # time. Deploying the service first fails with "Unable to fetch parameters ... from parameter store".
+    # SSM (rather than a CFN export) is deliberate — see the comment in recipe-service-stack.ts: an
+    # `Fn.importValue` would lock the workers export while the service imports it, and ADR-0005's PR-close
+    # cleanup deletes a PR's stacks in no fixed order, so workers-first would hit the ADR-0002
+    # export-in-use deadlock unattended.
+    #
+    # Every infra input is RESOLVED from CloudFormation exports rather than hardcoded or carried in repo
+    # variables, so a platform change cannot leave this job pointing at something stale.
+    deploy-recipe:
+        name: Deploy recipe sandbox (pr-${{ github.event.pull_request.number }})
+        runs-on: ubuntu-latest
+        if: |
+            (github.event_name == 'pull_request' && github.event.action != 'closed') ||
+            (github.event_name == 'workflow_dispatch' && github.event.inputs.service == 'recipe')
+        env:
+            STAGE: ${{ github.event.inputs.stage || format('pr-{0}', github.event.pull_request.number) }}
+            # A per-PR feature deploy rides the SHARED sandbox platform tier (ADR-0006), so every export
+            # below is read from the `sandbox` base stage, never from `pr-{N}`.
+            BASE_STAGE: sandbox
+            IMAGE_TAG: pr-${{ github.event.pull_request.number }}-${{ github.sha }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+            # Gate: only proceed when the recipe tier actually changed on this PR. `recipe-core` is in the
+            # image, so a change there ships too.
+            - name: Detect recipe changes
+              id: changes
+              uses: dorny/paths-filter@v3
+              with:
+                  filters: |
+                      recipe:
+                          - 'packages/services/recipe-service/**'
+                          - 'packages/services/recipe-workers/**'
+                          - 'packages/shared/recipe-core/**'
+            - name: Setup Node.js
+              if: steps.changes.outputs.recipe == 'true'
+              uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - name: Install dependencies
+              if: steps.changes.outputs.recipe == 'true'
+              run: npm ci
+            # turbo (not a bare workspace build) so `^build` compiles the shared dists the image COPYs
+            # (recipe-core, food-service-client, clerk-verify, identity-core). Without them the container
+            # crash-loops at boot on the bare @kitchensink/* specifiers.
+            - name: Build recipe packages (+ shared dists)
+              if: steps.changes.outputs.recipe == 'true'
+              run: npx turbo run build --filter=@kitchensink/recipe-service --filter=@kitchensink/recipe-workers
+            - name: Build recipe infra
+              if: steps.changes.outputs.recipe == 'true'
+              run: npm run infra:build --workspace=packages/services/recipe-service
+            - name: Bundle recipe lambdas
+              if: steps.changes.outputs.recipe == 'true'
+              run: npm run bundle:lambda --workspace=packages/services/recipe-service
+            - name: Configure AWS credentials
+              if: steps.changes.outputs.recipe == 'true'
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            # Resolve every platform input from the shared tier's CloudFormation exports. `set -euo
+            # pipefail` plus the empty-check means a renamed or missing export fails HERE, with the export
+            # name in the log, instead of surfacing as an opaque CDK error later.
+            - name: Resolve platform inputs from CloudFormation exports
+              id: infra
+              if: steps.changes.outputs.recipe == 'true'
+              run: |
+                  set -euo pipefail
+                  lookup() {
+                    local name="$1"
+                    local value
+                    value=$(aws cloudformation list-exports \
+                      --query "Exports[?Name=='${name}'].Value" --output text)
+                    if [ -z "$value" ] || [ "$value" = "None" ]; then
+                      echo "::error::CloudFormation export '${name}' not found — is the ${BASE_STAGE} platform tier deployed?"
+                      exit 1
+                    fi
+                    echo "$value"
+                  }
+                  {
+                    echo "vpc_id=$(lookup "kitchensink-network-${BASE_STAGE}:VpcId")"
+                    echo "lambda_sg_id=$(lookup "kitchensink-network-${BASE_STAGE}:LambdaSecurityGroupId")"
+                    echo "db_endpoint=$(lookup "kitchensink-data-${BASE_STAGE}:DatabaseEndpoint")"
+                    echo "db_port=$(lookup "kitchensink-data-${BASE_STAGE}:DatabasePort")"
+                    # `rds-db:connect` ARNs are keyed on the DbiResourceId (db-XXXX…), NOT the instance name.
+                    echo "db_resource_id=$(lookup "kitchensink-data-${BASE_STAGE}:DatabaseResourceId")"
+                    echo "archive_bucket=$(lookup "kitchensink-data-${BASE_STAGE}:ArchiveBucketName")"
+                    echo "media_bucket=$(lookup "kitchensink-data-${BASE_STAGE}:MediaBucketName")"
+                    echo "handle_sync_topic_arn=$(lookup "kitchensink-data-${BASE_STAGE}:HandleSyncTopicArn")"
+                  } >> "$GITHUB_OUTPUT"
+            - name: Login to Amazon ECR
+              id: login-ecr
+              if: steps.changes.outputs.recipe == 'true'
+              uses: aws-actions/amazon-ecr-login@v2
+            # The recipe stack imports the repo by name (ecr.Repository.fromRepositoryName), so create it
+            # on first deploy — the image push and the ECS pull both need it to exist.
+            - name: Ensure ECR repository exists
+              if: steps.changes.outputs.recipe == 'true'
+              run: aws ecr describe-repositories --repository-names kitchensink-recipes || aws ecr create-repository --repository-name kitchensink-recipes
+            # The tag carries the commit SHA and is therefore IMMUTABLE per deploy. That is what makes the
+            # currency assertion in the smoke step meaningful: a mutable `pr-{N}` tag would let ECS keep
+            # serving a cached older layer while the tag "matched".
+            - name: Build, tag, and push recipe Docker image
+              if: steps.changes.outputs.recipe == 'true'
+              env:
+                  ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+              run: |
+                  docker buildx build --platform linux/amd64 \
+                    -f packages/services/recipe-service/Dockerfile \
+                    -t ${ECR_REGISTRY}/kitchensink-recipes:${IMAGE_TAG} --push .
+            # Pass 1 — WORKERS first: this creates the account-erasure queue and writes the two SSM
+            # parameters the service reads. Skipping it is what makes the service undeployable.
+            - name: CDK Deploy — recipe workers (publishes the erasure-queue SSM params)
+              if: steps.changes.outputs.recipe == 'true'
+              run: |
+                  STAGE=${{ env.STAGE }} \
+                  DOMAIN_NAME=${{ vars.DOMAIN_NAME }} \
+                  RECIPE_VPC_ID=${{ steps.infra.outputs.vpc_id }} \
+                  RECIPE_LAMBDA_SG_ID=${{ steps.infra.outputs.lambda_sg_id }} \
+                  RECIPE_DB_ENDPOINT=${{ steps.infra.outputs.db_endpoint }} \
+                  RECIPE_DB_PORT=${{ steps.infra.outputs.db_port }} \
+                  RECIPE_DB_INSTANCE_ID=${{ steps.infra.outputs.db_resource_id }} \
+                  RECIPE_ARCHIVE_BUCKET=${{ steps.infra.outputs.archive_bucket }} \
+                  RECIPE_MEDIA_BUCKET=${{ steps.infra.outputs.media_bucket }} \
+                  HANDLE_SYNC_TOPIC_ARN=${{ steps.infra.outputs.handle_sync_topic_arn }} \
+                  npx cdk deploy \
+                    --app "npx tsx packages/services/recipe-workers/infra/bin/app.ts" \
+                    --all --require-approval never
+            # Pass 2 — the service, which can only synth once the SSM parameters above exist.
+            - name: CDK Deploy — recipe service
+              if: steps.changes.outputs.recipe == 'true'
+              run: |
+                  STAGE=${{ env.STAGE }} \
+                  DOMAIN_NAME=${{ vars.DOMAIN_NAME }} \
+                  RECIPE_VPC_ID=${{ steps.infra.outputs.vpc_id }} \
+                  RECIPE_IMAGE_TAG=${{ env.IMAGE_TAG }} \
+                  npx cdk deploy \
+                    --app "node packages/services/recipe-service/infra/dist/bin/app.js" \
+                    --all --require-approval never
+            # Read the image tag the RUNNING task is actually using, so the smoke step can prove the
+            # deployment took effect rather than trusting that `cdk deploy` said "success".
+            - name: Resolve the running image tag
+              id: running
+              if: steps.changes.outputs.recipe == 'true'
+              run: |
+                  set -euo pipefail
+                  cluster=$(aws ecs list-clusters --query 'clusterArns[]' --output text \
+                    | tr '\t' '\n' | grep "recipe-service-${STAGE}-" | head -1)
+                  service=$(aws ecs list-services --cluster "$cluster" --query 'serviceArns[0]' --output text)
+                  task_def=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+                    --query 'services[0].taskDefinition' --output text)
+                  image=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                    --query 'taskDefinition.containerDefinitions[0].image' --output text)
+                  echo "image_tag=${image##*:}" >> "$GITHUB_OUTPUT"
+            # THE check the pipeline was missing. `cdk deploy` succeeding proves the stack converged; it
+            # does not prove the service serves traffic, and `/health` alone does not prove a BROWSER can
+            # reach it — a CORS preflight is sent without credentials, so a service whose auth runs first
+            # answers 401 and is unusable from every browser while staying 200 to curl. Verified against
+            # both a genuinely broken service (exit 1) and a working one (exit 0).
+            - name: Smoke test — deployed recipe service is live, browser-reachable and CURRENT
+              if: steps.changes.outputs.recipe == 'true'
+              run: |
+                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                    "https://recipe-${STAGE}.${{ vars.DOMAIN_NAME }}" \
+                    "https://${STAGE}.sandbox.${{ vars.DOMAIN_NAME }}" \
+                    "${IMAGE_TAG}" \
+                    "${{ steps.running.outputs.image_tag }}"

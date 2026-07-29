@@ -2,8 +2,10 @@ export { compositeOver, contrastRatio, meetsContrast, type ContrastUse } from '.
 export {
     computedContrast,
     placeholderContrast,
+    ringContrast,
     utilityContrast,
     type ComputedContrastOptions,
+    type RingContrastOptions,
     type UtilityContrastOptions,
 } from './renderedContrast.js';
 export { renderWithProviders, type RenderWithProvidersOptions } from './renderWithProviders.js';

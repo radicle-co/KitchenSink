@@ -9,6 +9,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { ringContrast } from '@commise/test-utils';
+import { semantic } from '@commise/ui';
+
 import { CollectionForm } from '../CollectionForm.js';
 import type { CollectionFormProps } from '../model.js';
 
@@ -130,5 +133,49 @@ describe('CollectionForm (web) — submitting state', () => {
         await user.click(screen.getByRole('button', { name: 'Create' }));
 
         expect(onSubmit).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * The form IS a `bg-card` panel, so its name field's focus ring is drawn on the card — the field's own white
+ * fill is irrelevant, because a Tailwind ring is a spread box-shadow OUTSIDE the border box.
+ *
+ * The ring shipped as `ring-seafoam-light` (2.78:1 on the card), under the 3:1 SC 1.4.11 floor a focus
+ * indicator owes (#114). This form has exactly ONE field and `outline-none`, so the ring is the whole of the
+ * keyboard affordance.
+ */
+describe('CollectionForm (web) — the name field’s focus ring clears the 3:1 SC 1.4.11 floor', () => {
+    it('rings the name field legibly against the card it sits on', () => {
+        renderForm();
+
+        const name = screen.getByRole('textbox', { name: 'Collection name' });
+
+        expect(name.className, 'the browser outline is suppressed, so the ring is the whole indicator') //
+            .toContain('outline-none');
+        expect(ringContrast(name.className, { surface: semantic.card }), 'collection-name focus ring') //
+            .toBeGreaterThanOrEqual(3);
+    });
+
+    it('keeps the ring measurable in the SUBMITTING state, where the field also dims', () => {
+        renderForm({ submitting: true });
+
+        // `disabled:opacity-60` fades the field but does not change the ring token; a state-specific class
+        // list is still a class list, so the floor holds here too.
+        expect(
+            ringContrast(screen.getByRole('textbox', { name: 'Collection name' }).className, {
+                surface: semantic.card,
+            }),
+            'collection-name focus ring while submitting',
+        ).toBeGreaterThanOrEqual(3);
+    });
+
+    it('out-measures the `seafoam-light` it replaced', () => {
+        renderForm();
+
+        expect(
+            ringContrast(screen.getByRole('textbox', { name: 'Collection name' }).className, {
+                surface: semantic.card,
+            }),
+        ).toBeGreaterThan(ringContrast('ring-2 ring-seafoam-light', { surface: semantic.card }));
     });
 });

@@ -35,7 +35,7 @@ import type { ButtonVariant } from './props.js';
  */
 const BASE =
     'inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-body-sm ' +
-    'font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light ' +
+    'font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam ' +
     'disabled:cursor-not-allowed disabled:opacity-60 md:min-h-0';
 
 /**

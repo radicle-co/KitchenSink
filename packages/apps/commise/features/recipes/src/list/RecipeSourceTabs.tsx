@@ -44,11 +44,17 @@ import { RECIPE_SOURCE_TABS, sourceTabLabel, type RecipeListTabControl } from '.
  * Geometry + type shared by both states. `min-h-11` is the 44px touch floor, reset at `md:` so the desktop
  * tab density (`py-2`) is unchanged; `-mb-px` laps the strip's own hairline so the tabs sit ON the rule.
  *
- * The keyboard-focus ring is `ocean-dark`, NOT the design system's usual `ring-seafoam-light`. A focus
+ * The keyboard-focus ring is `ocean-dark` (6.20:1 on white), deliberately NOT `seafoam-light`. A focus
  * indicator is a non-text graphic on the 3:1 SC 1.4.11 floor and `seafoam-light` measures 2.78:1 on white —
  * under it — so reusing that token here would ship the accessibility defect this component exists to remove.
  * `ocean-dark` keeps the hue family and clears the floor (asserted in the tests, so a re-theme cannot quietly
- * drop it back under). The wider `ring-seafoam-light` usage elsewhere is a separate, pre-existing gap.
+ * drop it back under).
+ *
+ * The wider `ring-seafoam-light` usage this once called out as "a separate, pre-existing gap" is CLOSED (#114):
+ * all 15 of those call sites now ring `seafoam` (4.67:1 on white, 4.34:1 on the `sand` page), so this strip is
+ * a darker member of the same hue family rather than the app's only compliant ring. It stays `ocean-dark`
+ * because the tab strip's own `pearl`/`white` folder fills are the lightest surfaces any ring in the app sits
+ * on; converging it to `seafoam` would be a pure restyle with no measured gain.
  */
 const BASE =
     '-mb-px inline-flex min-h-11 items-center rounded-t-lg px-4 py-2 text-body-sm font-semibold transition ' +

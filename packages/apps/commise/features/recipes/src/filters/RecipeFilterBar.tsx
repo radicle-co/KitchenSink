@@ -31,7 +31,7 @@ import {
 } from './model.js';
 
 const CHIP_BASE =
-    'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-body-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light';
+    'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-body-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam';
 const CHIP_SELECTED = 'border-seafoam bg-seafoam text-white';
 const CHIP_UNSELECTED = 'border-border bg-card text-charcoal hover:border-seafoam-light';
 
@@ -189,7 +189,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                         onChange={(event) => ingredientSearch.onQueryChange(event.target.value)}
                         // Placeholder text is TEXT: `placeholder:text-slate`, never `mist` (palette JSDoc,
                         // `@commise/ui`'s `tokens/colors.ts`). The `border-border` hairline stays `mist`-derived.
-                        className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-slate focus:ring-2 focus:ring-seafoam-light"
+                        className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-slate focus:ring-2 focus:ring-seafoam"
                     />
 
                     {/* The label is the region's CONTENT, not only its `aria-label`: an empty `role="status"`
@@ -268,7 +268,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                         onClick={onClearAll}
                         // The LABEL is `ocean-dark` while the FOCUS RING stays seafoam — that split is the
                         // palette rule (see the palette JSDoc in `@commise/ui`'s `tokens/colors.ts`), not drift.
-                        className="rounded-full px-3.5 py-1.5 text-body-sm font-semibold text-ocean-dark underline-offset-2 transition-colors motion-reduce:transition-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light"
+                        className="rounded-full px-3.5 py-1.5 text-body-sm font-semibold text-ocean-dark underline-offset-2 transition-colors motion-reduce:transition-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam"
                     >
                         {formatRecipeCount(
                             countActiveFilters(filters),

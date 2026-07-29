@@ -32,7 +32,8 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '@commise/features-recipes/hooks';
-import { renderWithRecipeClient, utilityContrast } from '@commise/test-utils';
+import { renderWithRecipeClient, ringContrast, utilityContrast } from '@commise/test-utils';
+import { semantic } from '@commise/ui';
 
 import { IngredientPicker } from '@/components/recipes/IngredientPicker';
 
@@ -1082,5 +1083,57 @@ describe('IngredientPicker — seafoam-tinted controls stay WCAG-AA legible', ()
             utilityContrast(search.className, { variant: 'placeholder' }),
             'ingredient search placeholder',
         ).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+/**
+ * The search field's FOCUS RING is the whole of its keyboard affordance — the field carries `outline-none`, so
+ * the browser's own indicator is suppressed — and it shipped as `ring-seafoam-light`, which measures 2.58:1 on
+ * the page the wizard step sits on: under the 3:1 SC 1.4.11 floor a non-text UI component boundary owes (#114).
+ *
+ * It is measured against the SURFACE the ring is drawn on, never the field's own `bg-white`: a Tailwind `ring-*`
+ * is a spread box-shadow OUTSIDE the border box, so the fill is not what a reader sees the ring against. That
+ * distinction is what `ringContrast` exists to encode (`utilityContrast(..., { foreground: 'border' })` would
+ * score the ring against the fill and pass a ring nobody can see).
+ */
+describe('IngredientPicker — the search field’s focus ring clears the 3:1 SC 1.4.11 floor', () => {
+    /** WCAG 2.1 AA, SC 1.4.11 — a focus indicator is a non-text UI component boundary, not text. */
+    const AA_UI_COMPONENT = 3;
+
+    /** The wizard step the picker mounts in paints no surface of its own, so it sits on the app background. */
+    const PAGE = semantic.background;
+
+    function renderPicker(): void {
+        renderWithRecipeClient(<IngredientPicker onSelect={vi.fn()} />, createFakeRecipeServiceClient());
+    }
+
+    it('rings the search box legibly against the page it sits on', () => {
+        renderPicker();
+
+        const search = screen.getByRole('searchbox', { name: 'Search ingredients' });
+
+        expect(search.className, 'the browser outline is suppressed, so the ring is the whole indicator') //
+            .toContain('outline-none');
+        expect(ringContrast(search.className, { surface: PAGE }), 'ingredient search focus ring') //
+            .toBeGreaterThanOrEqual(AA_UI_COMPONENT);
+    });
+
+    it('also clears the floor on a white card, for a caller that nests the picker in one', () => {
+        renderPicker();
+
+        expect(
+            ringContrast(screen.getByRole('searchbox', { name: 'Search ingredients' }).className, {
+                surface: semantic.card,
+            }),
+            'ingredient search focus ring on a card',
+        ).toBeGreaterThanOrEqual(AA_UI_COMPONENT);
+    });
+
+    it('out-measures the `seafoam-light` it replaced, so a re-theme cannot quietly restore the defect', () => {
+        renderPicker();
+
+        expect(
+            ringContrast(screen.getByRole('searchbox', { name: 'Search ingredients' }).className, { surface: PAGE }),
+        ).toBeGreaterThan(ringContrast('ring-2 ring-seafoam-light', { surface: PAGE }));
     });
 });

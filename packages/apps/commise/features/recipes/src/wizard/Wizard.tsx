@@ -429,7 +429,7 @@ const WizardActionsMenu: FC = () => {
                 aria-expanded={open}
                 aria-label={m.actionsMenu}
                 onClick={() => setOpen((prev) => !prev)}
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-border bg-white px-3 text-charcoal shadow-sm transition hover:bg-pearl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light md:min-h-0 md:py-2.5"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-border bg-white px-3 text-charcoal shadow-sm transition hover:bg-pearl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam md:min-h-0 md:py-2.5"
             >
                 <MoreVerticalIcon />
             </button>

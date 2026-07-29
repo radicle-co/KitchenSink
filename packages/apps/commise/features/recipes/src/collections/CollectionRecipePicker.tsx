@@ -155,7 +155,7 @@ export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
                     value={query}
                     placeholder={picker.searchPlaceholder}
                     onChange={(event) => onQueryChange(event.target.value)}
-                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam-light"
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam"
                 />
             </label>
 

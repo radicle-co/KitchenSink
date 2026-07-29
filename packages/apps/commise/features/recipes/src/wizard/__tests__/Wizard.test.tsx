@@ -17,7 +17,8 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type FC } from 'react';
 
-import { utilityContrast } from '@commise/test-utils';
+import { ringContrast, utilityContrast } from '@commise/test-utils';
+import { semantic } from '@commise/ui';
 
 import {
     canAdvanceFromStep,
@@ -628,5 +629,37 @@ describe('Wizard (web) — Preview', () => {
         // A click on the backdrop itself (the dialog element, outside the card) dismisses it.
         await user.click(preview);
         expect(screen.queryByRole('dialog', { name: 'Preview' })).toBeFalsy();
+    });
+});
+
+/**
+ * The wizard's top bar sits on the app background (the shell paints no card behind it), so that is the surface
+ * the "More actions" trigger's focus ring is drawn on — a Tailwind ring is a spread box-shadow OUTSIDE the
+ * border box, so the trigger's own white fill is not what the ring is seen against.
+ *
+ * The ring shipped as `ring-seafoam-light` (2.58:1), under the 3:1 SC 1.4.11 floor (#114). This trigger is the
+ * ONLY route to Save Draft and Cancel since U6 demoted them into the overflow menu, and it is an icon-only
+ * control with `outline-none` — so a keyboard viewer who cannot see the ring cannot find the menu at all.
+ */
+describe('Wizard (web) — the overflow trigger’s focus ring clears the 3:1 SC 1.4.11 floor', () => {
+    it('rings the "More actions" trigger legibly against the page it sits on', () => {
+        render(<Harness />);
+
+        const trigger = screen.getByRole('button', { name: 'More actions' });
+
+        expect(trigger.className, 'the browser outline is suppressed, so the ring is the whole indicator') //
+            .toContain('outline-none');
+        expect(ringContrast(trigger.className, { surface: semantic.background }), 'overflow-trigger focus ring') //
+            .toBeGreaterThanOrEqual(3);
+    });
+
+    it('out-measures the `seafoam-light` it replaced', () => {
+        render(<Harness />);
+
+        expect(
+            ringContrast(screen.getByRole('button', { name: 'More actions' }).className, {
+                surface: semantic.background,
+            }),
+        ).toBeGreaterThan(ringContrast('ring-2 ring-seafoam-light', { surface: semantic.background }));
     });
 });

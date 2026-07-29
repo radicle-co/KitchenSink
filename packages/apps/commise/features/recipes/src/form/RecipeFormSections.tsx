@@ -57,11 +57,11 @@ const sectionCard = 'flex flex-col gap-4 rounded-2xl bg-card p-6 shadow-sm';
 const sectionHeading = 'font-display text-heading-md font-semibold text-charcoal';
 const fieldLabel = 'text-body-sm font-medium text-slate';
 const field =
-    'w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam-light';
+    'w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam';
 const rowField = `${field} min-w-0 flex-1`;
 const errorText = 'text-body-sm text-error-dark';
 const difficultyChip =
-    'relative flex cursor-pointer items-center rounded-full border border-border bg-white px-4 py-1.5 text-body-sm text-charcoal transition focus-within:ring-2 focus-within:ring-seafoam-light';
+    'relative flex cursor-pointer items-center rounded-full border border-border bg-white px-4 py-1.5 text-body-sm text-charcoal transition focus-within:ring-2 focus-within:ring-seafoam';
 // The radio input is a transparent overlay covering its whole chip (not `sr-only`), so the semantic control
 // is itself the click/tap target — directly actionable for pointer users and E2E (`getByRole('radio')`),
 // while the visible chip text renders beneath. `sr-only` would shrink it to a 1px point the visible label

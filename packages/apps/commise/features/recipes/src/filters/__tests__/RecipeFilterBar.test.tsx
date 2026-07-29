@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { utilityContrast } from '@commise/test-utils';
+import { ringContrast, utilityContrast } from '@commise/test-utils';
 import { semantic } from '@commise/ui';
 
 import { RecipeFilterBar } from '../RecipeFilterBar.js';
@@ -522,10 +522,12 @@ describe('RecipeFilterBar (web) — text contrast (WCAG 2.1 AA)', () => {
             'clear-all filters label',
         ).toBeGreaterThanOrEqual(4.5);
         // The seafoam FOCUS RING stays: a focus indicator is a non-text graphic on the 3:1 SC 1.4.11 floor,
-        // which seafoam clears. Demoting it too would be an over-correction, so it is pinned here.
-        expect(clear.className, 'the seafoam focus indicator must survive the text fix').toContain(
-            'focus-visible:ring-seafoam-light',
-        );
+        // which seafoam clears. Demoting it too would be an over-correction, so it is pinned here — by
+        // MEASUREMENT, not by a class spelling, which passes just as happily after a re-theme.
+        expect(
+            ringContrast(clear.className, { surface: semantic.background }),
+            'the focus indicator must survive the text fix',
+        ).toBeGreaterThanOrEqual(3);
     });
 
     it('keeps the ingredient typeahead’s PLACEHOLDER text legible on the field', () => {
@@ -541,5 +543,58 @@ describe('RecipeFilterBar (web) — text contrast (WCAG 2.1 AA)', () => {
             utilityContrast(search.className, { variant: 'placeholder' }),
             'ingredient typeahead placeholder on its white field',
         ).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+/**
+ * The bar sits directly on the app background (the discovery `<section>` paints no surface of its own), so
+ * that is the backdrop every one of its focus rings is drawn on — a Tailwind `ring-*` is a spread box-shadow
+ * OUTSIDE the border box, so neither the field's white fill nor the selected chip's seafoam fill is what the
+ * reader sees the ring against.
+ *
+ * All three rings shipped as `ring-seafoam-light`, which measures 2.58:1 there — under the 3:1 SC 1.4.11 floor
+ * a focus indicator owes (#114). Keyboard-only viewers have nothing else telling them where they are, and the
+ * chips are the bar's primary control, so the ring is not decoration.
+ */
+describe('RecipeFilterBar (web) — focus rings clear the 3:1 SC 1.4.11 floor', () => {
+    const PAGE = semantic.background;
+
+    it('rings an UNSELECTED facet chip legibly against the page', () => {
+        renderBar({ facets, filters: EMPTY_RECIPE_FILTERS });
+
+        const chip = screen.getByRole('button', { name: 'vegan, 4 recipes' });
+
+        expect(chip.getAttribute('aria-pressed'), 'the chip measured must be the unselected one').toBe('false');
+        expect(ringContrast(chip.className, { surface: PAGE }), 'unselected facet chip focus ring') //
+            .toBeGreaterThanOrEqual(3);
+    });
+
+    it('rings a SELECTED facet chip legibly against the page (its own seafoam fill is NOT the backdrop)', () => {
+        renderBar({ facets, filters: { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] } });
+
+        const chip = screen.getByRole('button', { name: 'vegan, 4 recipes' });
+
+        expect(chip.getAttribute('aria-pressed'), 'the chip measured must be the selected one').toBe('true');
+        expect(ringContrast(chip.className, { surface: PAGE }), 'selected facet chip focus ring') //
+            .toBeGreaterThanOrEqual(3);
+    });
+
+    it('rings the ingredient typeahead legibly', () => {
+        renderBar();
+
+        expect(
+            ringContrast(screen.getByLabelText('Search ingredients').className, { surface: PAGE }),
+            'ingredient typeahead focus ring',
+        ).toBeGreaterThanOrEqual(3);
+    });
+
+    it('out-measures the `seafoam-light` it replaced, so a re-theme cannot quietly restore the defect', () => {
+        renderBar({ facets });
+
+        const baseline = ringContrast('ring-2 ring-seafoam-light', { surface: PAGE });
+
+        expect(
+            ringContrast(screen.getByRole('button', { name: 'vegan, 4 recipes' }).className, { surface: PAGE }),
+        ).toBeGreaterThan(baseline);
     });
 });

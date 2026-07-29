@@ -14,7 +14,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { utilityContrast } from '@commise/test-utils';
+import { ringContrast, utilityContrast } from '@commise/test-utils';
+import { semantic } from '@commise/ui';
 
 import { CollectionRecipePicker } from '../CollectionRecipePicker.js';
 import type { CollectionRecipePickerProps } from '../model.js';
@@ -264,5 +265,37 @@ describe('CollectionRecipePicker (web) — text controls clear the AA body-text 
 
         expect(utilityContrast(retry.className), 'Retry at rest').toBeGreaterThanOrEqual(4.5);
         expect(utilityContrast(retry.className, { variant: 'hover' }), 'Retry on hover').toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+/**
+ * The picker is a `<section>` on the app background (it paints no surface of its own), so that is the backdrop
+ * its search field's focus ring is drawn on — not the field's own white fill, because a Tailwind ring is a
+ * spread box-shadow OUTSIDE the border box.
+ *
+ * The ring shipped as `ring-seafoam-light` (2.58:1), under the 3:1 SC 1.4.11 floor (#114).
+ */
+describe('CollectionRecipePicker (web) — the search field’s focus ring clears the 3:1 SC 1.4.11 floor', () => {
+    it('rings the search box legibly against the page it sits on', () => {
+        renderPicker();
+
+        const search = screen.getByRole('searchbox', { name: 'Search your recipes' });
+
+        expect(search.className, 'the browser outline is suppressed, so the ring is the whole indicator') //
+            .toContain('outline-none');
+        expect(
+            ringContrast(search.className, { surface: semantic.background }),
+            'picker-search focus ring',
+        ).toBeGreaterThanOrEqual(3);
+    });
+
+    it('out-measures the `seafoam-light` it replaced', () => {
+        renderPicker();
+
+        expect(
+            ringContrast(screen.getByRole('searchbox', { name: 'Search your recipes' }).className, {
+                surface: semantic.background,
+            }),
+        ).toBeGreaterThan(ringContrast('ring-2 ring-seafoam-light', { surface: semantic.background }));
     });
 });

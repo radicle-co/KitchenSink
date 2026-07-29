@@ -51,7 +51,7 @@ export const CollectionForm: FC<CollectionFormProps> = ({
                     placeholder={form.namePlaceholder}
                     disabled={submitting}
                     onChange={(event) => onChange(event.target.value)}
-                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam-light disabled:opacity-60"
+                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam disabled:opacity-60"
                 />
             </label>
             {hasError && (

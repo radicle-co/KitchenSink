@@ -11,7 +11,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RecipeSearchSortBy, type Recipe, type RecipeSearchResult } from '@kitchensink/recipe-core';
 
-import { utilityContrast } from '@commise/test-utils';
+import { ringContrast, utilityContrast } from '@commise/test-utils';
 import { semantic } from '@commise/ui';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
@@ -727,5 +727,38 @@ describe('RecipeDiscoveryList (web) — text contrast (WCAG 2.1 AA)', () => {
             utilityContrast(search.className, { surface: CARD, variant: 'placeholder' }),
             'discovery search placeholder on the card-white field',
         ).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+/**
+ * The discovery surface is a `<section>` on the app background, so that is the backdrop its search field's
+ * focus ring is drawn on (a Tailwind ring is a spread box-shadow OUTSIDE the border box — the field's own
+ * `bg-card` fill is not what the ring is seen against).
+ *
+ * The ring shipped as `ring-seafoam-light` (2.58:1), under the 3:1 SC 1.4.11 floor (#114); with
+ * `outline-none` suppressing the browser default, it is a keyboard viewer's only position cue.
+ */
+describe('RecipeDiscoveryList (web) — the search field’s focus ring clears the 3:1 SC 1.4.11 floor', () => {
+    it('rings the search box legibly against the page it sits on', () => {
+        renderDiscovery();
+
+        const search = screen.getByRole('searchbox', { name: 'Search public recipes' });
+
+        expect(search.className, 'the browser outline is suppressed, so the ring is the whole indicator') //
+            .toContain('outline-none');
+        expect(
+            ringContrast(search.className, { surface: semantic.background }),
+            'discovery-search focus ring',
+        ).toBeGreaterThanOrEqual(3);
+    });
+
+    it('out-measures the `seafoam-light` it replaced', () => {
+        renderDiscovery();
+
+        expect(
+            ringContrast(screen.getByRole('searchbox', { name: 'Search public recipes' }).className, {
+                surface: semantic.background,
+            }),
+        ).toBeGreaterThan(ringContrast('ring-2 ring-seafoam-light', { surface: semantic.background }));
     });
 });

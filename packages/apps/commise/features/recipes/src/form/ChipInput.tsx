@@ -44,12 +44,17 @@ const chip =
     'inline-flex min-w-0 items-center gap-1 break-words rounded-full bg-seafoam/10 py-1 pl-3 pr-1 text-body-sm font-medium text-ocean-dark';
 // The hover tint is `/15`, not `/20`, because it STACKS on the chip's own `/10`: `seafoam/20` over `seafoam/10`
 // composites to #c8dedd, where even `ocean-dark` is only 4.41:1 — a hover-only AA failure. `/15` composites to
-// #d1e4e3 (4.70:1) and still reads as a deepening of the disc. The focus ring stays `seafoam-light`: a focus
-// indicator is a 3:1 graphic, not text.
+// #d1e4e3 (4.70:1) and still reads as a deepening of the disc.
+//
+// The focus ring is `seafoam`, not `seafoam-light` (#114). A ring is a 3:1 SC 1.4.11 graphic rather than text,
+// but this ring is the hardest one in the app to satisfy: it is drawn OUTSIDE the button, on the CHIP's own
+// `seafoam/10` over the white field, so the backdrop is #eaf2f1 — where `seafoam-light` is 2.45:1 (its worst
+// reading anywhere) and `seafoam` is 4.10:1. Measured against that composited surface in the tests, not
+// against a nominal white, which would have flattered it by 0.33 and hidden the failure.
 const chipRemove =
-    'flex size-5 shrink-0 items-center justify-center rounded-full text-ocean-dark transition hover:bg-seafoam/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam-light';
+    'flex size-5 shrink-0 items-center justify-center rounded-full text-ocean-dark transition hover:bg-seafoam/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seafoam';
 const chipField =
-    'flex flex-wrap items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal focus-within:ring-2 focus-within:ring-seafoam-light';
+    'flex flex-wrap items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal focus-within:ring-2 focus-within:ring-seafoam';
 const chipDraft = 'min-w-24 flex-1 border-none bg-transparent p-0 text-body-md text-charcoal outline-none';
 
 /**

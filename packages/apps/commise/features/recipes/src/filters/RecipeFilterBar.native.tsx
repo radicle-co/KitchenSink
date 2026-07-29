@@ -103,6 +103,13 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
             key={chip.value}
             accessibilityRole="button"
             accessibilityLabel={formatFacetChipName(chip, countLabels, locale)}
+            // Both state forms are load-bearing, neither is redundant (#114). `accessibilityState.selected` is
+            // the DEVICE trait (React Native has no `pressed` state), and `aria-pressed` is the only one that
+            // reaches the DOM — react-native-web forwards literal `aria-*` props and projects
+            // `accessibilityState` for nothing, so the object form alone is silent on the web build. RN maps
+            // `aria-selected`/`checked`/`busy`/`expanded`/`disabled` back into `accessibilityState` but NOT
+            // `aria-pressed`, so dropping the object form would silence the device instead. `aria-pressed`
+            // rather than `aria-selected` because this is a `role="button"` toggle, matching the web leaf.
             accessibilityState={{ selected: chip.selected }}
             aria-pressed={chip.selected}
             onPress={onSelect}
@@ -119,6 +126,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
             key={minutes}
             accessibilityRole="button"
             accessibilityLabel={fillTemplate(m.timeBucket, { minutes })}
+            // Device trait + the DOM-observable toggle state — see `chipButton` above.
             accessibilityState={{ selected: active }}
             aria-pressed={active}
             onPress={onPress}

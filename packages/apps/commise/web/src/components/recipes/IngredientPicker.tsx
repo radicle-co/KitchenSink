@@ -236,7 +236,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                         placeholder={picker.searchPlaceholder}
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
-                        className="w-full flex-1 rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-slate focus:ring-2 focus:ring-seafoam-light"
+                        className="w-full flex-1 rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none placeholder:text-slate focus:ring-2 focus:ring-seafoam"
                     />
                     {/* C5: names the ingredient database the typeahead searches (wireframe recipe-edit.md:56). */}
                     <span className="shrink-0 whitespace-nowrap rounded-full bg-seafoam/10 px-3 py-1 text-caption font-medium text-ocean-dark">

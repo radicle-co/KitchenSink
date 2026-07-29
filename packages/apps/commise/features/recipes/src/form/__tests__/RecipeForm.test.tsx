@@ -10,8 +10,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { compositeOver, utilityContrast } from '@commise/test-utils';
-import { palette } from '@commise/ui';
+import { compositeOver, ringContrast, utilityContrast } from '@commise/test-utils';
+import { palette, semantic } from '@commise/ui';
 import { CUISINES, FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { tintOf } from '../../__tests__/cssColor.js';
@@ -251,6 +251,104 @@ describe('RecipeForm (web) — tinted chip + badge text is WCAG-AA legible', () 
         });
 
         expect(utilityContrast(screen.getByText('390 cal').className), 'calories badge').toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+/**
+ * Keyboard focus is the ONLY way a non-pointer viewer knows which field they are typing into, so the ring is
+ * as load-bearing as the label — and it is governed by SC 1.4.11 (3:1, a non-text UI component boundary), not
+ * by the 4.5:1 text floor.
+ *
+ * Every ring here shipped as `ring-seafoam-light`, which measures 2.78:1 on the form's own `bg-card` sections
+ * and 2.45:1 on the tag chip's seafoam tint (#114). The token is deliberately NOT being darkened — it is the
+ * light teal of `semantic.primary`, and the lightness a ring needs would collapse it into `seafoam` (palette
+ * JSDoc) — so the fix is to point these rings at `seafoam`, and the measurement is what pins that.
+ *
+ * `ringContrast` measures the ring against the backdrop the ring is DRAWN ON, never the control's own fill: a
+ * Tailwind ring is a spread box-shadow outside the border box, so the field's white background is irrelevant
+ * and the chip's tint is not.
+ */
+describe('RecipeForm (web) — focus rings clear the 3:1 SC 1.4.11 floor', () => {
+    /** The form's fields all sit inside `bg-card` sections, so that is the surface every ring is drawn on. */
+    const CARD = semantic.card;
+
+    it('rings the text and numeric fields legibly against the card they sit on', () => {
+        renderForm();
+
+        const fields = [
+            screen.getByRole('textbox', { name: 'Title' }),
+            screen.getByRole('textbox', { name: 'Description' }),
+            screen.getByRole('spinbutton', { name: 'Servings' }),
+            screen.getByRole('spinbutton', { name: 'Prep time (minutes)' }),
+            screen.getByRole('spinbutton', { name: 'Cook time (minutes)' }),
+        ];
+
+        for (const field of fields) {
+            expect(
+                ringContrast(field.className, { surface: CARD }),
+                `${field.getAttribute('aria-label') ?? 'field'} focus ring`,
+            ).toBeGreaterThanOrEqual(3);
+        }
+    });
+
+    it('rings the cuisine select legibly', () => {
+        renderForm();
+
+        expect(
+            ringContrast(screen.getByRole('combobox', { name: 'Cuisine' }).className, { surface: CARD }),
+            'cuisine select focus ring',
+        ).toBeGreaterThanOrEqual(3);
+    });
+
+    it('rings the difficulty chips legibly (the ring is on the label, which owns focus-within)', () => {
+        renderForm();
+
+        for (const label of ['Easy', 'Medium', 'Hard', 'Not stated']) {
+            const chip = screen.getByRole('radio', { name: label }).parentElement;
+
+            if (chip === null) {
+                throw new Error(`Expected the "${label}" radio to sit inside its chip label.`);
+            }
+
+            expect(ringContrast(chip.className, { surface: CARD }), `${label} difficulty chip focus ring`) //
+                .toBeGreaterThanOrEqual(3);
+        }
+    });
+
+    it('rings the chip INPUT (its focus-within box) legibly against the card', () => {
+        renderForm({ values: filledValues({ tags: ['quick'] }) });
+
+        // The chip field is the `focus-within` box that wraps the committed chips and the draft input.
+        const field = screen.getByRole('textbox', { name: 'Tags' }).parentElement;
+
+        if (field === null) {
+            throw new Error('Expected the tags draft input to sit inside its chip field.');
+        }
+
+        expect(ringContrast(field.className, { surface: CARD }), 'chip field focus ring').toBeGreaterThanOrEqual(3);
+    });
+
+    it('rings the chip’s × remove control against the chip’s own TINT, not the white field behind it', () => {
+        renderForm({ values: filledValues({ tags: ['quick'] }) });
+
+        const remove = screen.getByRole('button', { name: 'Remove quick' });
+        const chip = remove.parentElement;
+
+        if (chip === null) {
+            throw new Error('Expected the "Remove quick" control to sit inside its chip.');
+        }
+
+        // Two surfaces deep: the ring is drawn on the chip's `bg-seafoam/10`, itself over the white field.
+        // Measuring it against a nominal white overstates the ratio by 0.57 — enough to hide a failure.
+        expect(chip.className, 'the chip tint the ring is measured against').toContain('bg-seafoam/10');
+        const surface = compositeOver(tintOf(palette.seafoam, 0.1), CARD);
+
+        expect(ringContrast(remove.className, { surface }), '× remove focus ring on the chip tint') //
+            .toBeGreaterThanOrEqual(3);
+        expect(
+            ringContrast(remove.className, { surface }),
+            '× remove focus ring vs the seafoam-light it replaced',
+        ).toBeGreaterThan(ringContrast(`ring-2 ring-seafoam-light`, { surface }));
     });
 });
 

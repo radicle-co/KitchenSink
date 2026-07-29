@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { palette } from '@commise/ui/colors';
 
 import { compositeOver, contrastRatio } from '../contrast.js';
-import { computedContrast, placeholderContrast, utilityContrast } from '../renderedContrast.js';
+import { computedContrast, placeholderContrast, ringContrast, utilityContrast } from '../renderedContrast.js';
 
 describe('utilityContrast', () => {
     it('measures the palette pair the class list names', () => {
@@ -99,6 +99,74 @@ describe('utilityContrast', () => {
     it('reports which role was ambiguous or missing', () => {
         expect(() => utilityContrast('text-charcoal', { foreground: 'border' })).toThrow(/`border-\*`/);
         expect(() => utilityContrast('border-mist border-slate', { foreground: 'border' })).toThrow(/exactly ONE/);
+    });
+});
+
+describe('ringContrast', () => {
+    it('measures the ring token against the surface the ring is drawn on', () => {
+        expect(ringContrast('rounded-full focus-visible:ring-2 focus-visible:ring-seafoam')).toBeCloseTo(
+            contrastRatio(palette.seafoam, palette.white),
+            10,
+        );
+    });
+
+    it('IGNORES the element’s own fill, because a ring is drawn OUTSIDE the border box', () => {
+        // This is the whole reason the reader exists. A selected filter chip is `bg-seafoam`; its ring is a
+        // spread box-shadow on the PAGE, so the page is the backdrop. Scoring it like a border would compare
+        // seafoam against seafoam (1:1) and a passing focus ring would look broken — or, with the fill and the
+        // ring reversed, a broken one would look fine.
+        const chip = 'bg-seafoam text-white focus-visible:ring-2 focus-visible:ring-seafoam';
+
+        expect(ringContrast(chip, { surface: palette.sand })).toBeCloseTo(
+            contrastRatio(palette.seafoam, palette.sand),
+            10,
+        );
+        expect(ringContrast(chip, { surface: palette.sand })).toBeGreaterThan(3);
+    });
+
+    it('reads the ring whichever focus variant carries it', () => {
+        const expected = contrastRatio(palette.seafoam, palette.white);
+
+        expect(ringContrast('focus:ring-2 focus:ring-seafoam')).toBeCloseTo(expected, 10);
+        expect(ringContrast('focus-within:ring-2 focus-within:ring-seafoam')).toBeCloseTo(expected, 10);
+        expect(ringContrast('ring-2 ring-seafoam')).toBeCloseTo(expected, 10);
+    });
+
+    it('COMPOSITES a translucent backdrop, so a nested tint is not measured against the card', () => {
+        // The chip-remove control's ring sits on the chip's own `bg-seafoam/10` over the white field — two
+        // surfaces deep. Measuring it against a nominal white overstates the ratio.
+        const tinted = compositeOver(`${palette.seafoam}1a`, palette.white);
+
+        expect(ringContrast('focus-visible:ring-2 focus-visible:ring-seafoam', { surface: tinted })).toBeCloseTo(
+            contrastRatio(palette.seafoam, tinted),
+            10,
+        );
+        expect(ringContrast('focus-visible:ring-2 focus-visible:ring-seafoam', { surface: tinted })).toBeLessThan(
+            ringContrast('focus-visible:ring-2 focus-visible:ring-seafoam'),
+        );
+    });
+
+    it('applies a `/NN` suffix to the ring token', () => {
+        expect(ringContrast('ring-2 ring-seafoam/50')).toBeCloseTo(
+            contrastRatio(compositeOver(`${palette.seafoam}80`, palette.white), palette.white),
+            10,
+        );
+    });
+
+    it('does not mistake ring geometry utilities for a colour', () => {
+        // `ring-2` and `ring-offset-2` carry digits; `ring-inset` and `ring-ring` name no palette key. If any
+        // resolved, the measurement would silently move — or the single-ring check would spuriously throw.
+        expect(ringContrast('ring-2 ring-offset-2 ring-inset ring-ring ring-seafoam')).toBeCloseTo(
+            contrastRatio(palette.seafoam, palette.white),
+            10,
+        );
+    });
+
+    it('fails loudly when a control has NO ring, rather than measuring the surface against itself', () => {
+        // `focus:outline-none` with no ring is a control with no focus indicator at all — a defect in its own
+        // right, so it must throw instead of returning a comfortable 1:1-free number.
+        expect(() => ringContrast('rounded-full focus:outline-none')).toThrow(/`ring-\*`/);
+        expect(() => ringContrast('focus:ring-seafoam hover:ring-coral')).toThrow(/exactly ONE/);
     });
 });
 

@@ -24,6 +24,11 @@
  * whose `hover:bg-…` tint pushes it back under the floor is still an inaccessible chip, and that is exactly
  * the defect this module first caught.
  *
+ * {@link ringContrast} is the third reader, and it exists because a FOCUS RING is not a border: Tailwind draws
+ * `ring-*` as a spread box-shadow OUTSIDE the border box, so its backdrop is the surface the control sits on
+ * and never the control's own fill. Scoring it like a border is how a focus indicator measures "fine" while
+ * being invisible on the page.
+ *
  * Every function here is pure apart from reading the DOM, which {@link computedContrast} documents.
  */
 import { parse } from 'culori';
@@ -32,13 +37,15 @@ import { palette } from '@commise/ui/colors';
 import { compositeOver, contrastRatio } from './contrast.js';
 
 /**
- * A `text-…` / `bg-…` / `border-…` utility with an optional leading variant and an optional `/NN` opacity
- * suffix — `bg-coral/10`, `text-slate`, `hover:bg-coral/25`, `border-mist`.
+ * A `text-…` / `bg-…` / `border-…` / `ring-…` utility with an optional leading variant and an optional `/NN`
+ * opacity suffix — `bg-coral/10`, `text-slate`, `hover:bg-coral/25`, `border-mist`,
+ * `focus-visible:ring-seafoam`.
  *
- * Sizing and side variants fall out naturally: `border-2` and `border-b-2` carry digits, which `[a-z-]+?`
- * cannot match, and `border-border` names no palette entry — so neither is mistaken for a colour.
+ * Sizing, side and geometry variants fall out naturally: `border-2`, `border-b-2`, `ring-2` and
+ * `ring-offset-2` all carry digits, which `[a-z-]+?` cannot match, and `border-border` / `ring-inset` name no
+ * palette entry — so none of them is mistaken for a colour.
  */
-const COLOR_UTILITY = /^(?:([a-z-]+):)?(text|bg|border)-([a-z-]+?)(?:\/(\d{1,3}))?$/;
+const COLOR_UTILITY = /^(?:([a-z-]+):)?(text|bg|border|ring)-([a-z-]+?)(?:\/(\d{1,3}))?$/;
 
 /** The CSS notation jsdom reports for "no background painted here". */
 const TRANSPARENT = 'rgba(0, 0, 0, 0)';
@@ -64,24 +71,49 @@ export interface ComputedContrastOptions {
     readonly surface?: string;
 }
 
+/** How to read a rendered FOCUS RING: the opaque colour of the surface the ring is drawn on. */
+export interface RingContrastOptions {
+    /**
+     * The opaque colour the ring is painted OVER — the element's backdrop, NOT the element's own fill.
+     * Defaults to white. See {@link ringContrast} for why the element's own `bg-*` is deliberately ignored.
+     */
+    readonly surface?: string;
+}
+
+/** One parsed colour utility: the variant it is scoped to, the palette key, and its `/NN` alpha suffix. */
+interface ColorUtility {
+    readonly variant: string | undefined;
+    readonly name: string;
+    readonly alphaPercent: string | undefined;
+}
+
 /**
- * Find the utilities of one role in `className` that name a PALETTE colour, preferring the ones carrying
- * `variant` when a variant is requested.
+ * Every utility of one role in `className` that names a PALETTE colour, in source order, each keeping the
+ * variant it is scoped to.
  *
- * Non-colour utilities that share a prefix (`text-body-sm`, `text-caption`, `border-2`, `border-border`)
- * resolve to no palette entry and are skipped, which is what lets one regex serve every role. Pure.
+ * Non-colour utilities that share a prefix (`text-body-sm`, `text-caption`, `border-2`, `border-border`,
+ * `ring-2`, `ring-offset-2`) resolve to no palette entry and are skipped, which is what lets one regex serve
+ * every role. Pure.
  */
-function candidates(
-    className: string,
-    prefix: 'text' | 'bg' | 'border',
-    variant: string | undefined,
-): readonly { readonly name: string; readonly alphaPercent: string | undefined }[] {
-    const all = className
+function colorUtilities(className: string, prefix: 'text' | 'bg' | 'border' | 'ring'): readonly ColorUtility[] {
+    return className
         .split(/\s+/)
         .map((token) => COLOR_UTILITY.exec(token))
         .filter((match): match is RegExpExecArray => match !== null && match[2] === prefix)
         .map((match) => ({ variant: match[1], name: match[3] as string, alphaPercent: match[4] }))
         .filter(({ name }) => name in palette);
+}
+
+/**
+ * Find the utilities of one role in `className` that name a PALETTE colour, preferring the ones carrying
+ * `variant` when a variant is requested. Pure.
+ */
+function candidates(
+    className: string,
+    prefix: 'text' | 'bg' | 'border',
+    variant: string | undefined,
+): readonly ColorUtility[] {
+    const all = colorUtilities(className, prefix);
 
     // A requested variant WINS where it exists; otherwise the state inherits the base utility.
     const scoped = all.filter((candidate) => candidate.variant === variant);
@@ -90,7 +122,7 @@ function candidates(
 }
 
 /** The palette colour a resolved utility names, with its `/NN` suffix applied as hex alpha. Pure. */
-function colorOf({ name, alphaPercent }: { name: string; alphaPercent: string | undefined }): string {
+function colorOf({ name, alphaPercent }: ColorUtility): string {
     const color = palette[name as keyof typeof palette];
 
     return alphaPercent === undefined ? color : `${color}${toHexAlpha(Number.parseInt(alphaPercent, 10) / 100)}`;
@@ -112,7 +144,7 @@ function foreground(className: string, role: 'text' | 'border', variant: string 
         );
     }
 
-    return colorOf(found[0] as { name: string; alphaPercent: string | undefined });
+    return colorOf(found[0] as ColorUtility);
 }
 
 /**
@@ -133,9 +165,7 @@ function background(className: string, variant: string | undefined, surface: str
         );
     }
 
-    return found.length === 0
-        ? surface
-        : compositeOver(colorOf(found[0] as { name: string; alphaPercent: string | undefined }), surface);
+    return found.length === 0 ? surface : compositeOver(colorOf(found[0] as ColorUtility), surface);
 }
 
 /**
@@ -154,6 +184,46 @@ export function utilityContrast(className: string, options: UtilityContrastOptio
         compositeOver(foreground(className, role, variant), surface),
         background(className, variant, surface),
     );
+}
+
+/**
+ * The WCAG contrast ratio of a rendered element's FOCUS RING against the surface the ring is drawn on. Pure.
+ *
+ * ## Why a ring needs its own reader instead of `utilityContrast(…, { foreground: 'border' })`
+ *
+ * A `border-*` is INSIDE the element's box, so its backdrop is the element's own `bg-*`. A Tailwind `ring-*`
+ * is a spread `box-shadow` drawn OUTSIDE the border box (`--tw-ring-offset-width` is 0 by default), so its
+ * backdrop is whatever the element is sitting ON — the card, the page, the tinted chip around it. Measuring a
+ * ring against the element's own fill therefore scores a pair no reader ever sees, which is exactly how a
+ * focus indicator can measure "fine" while being invisible on the page. So the element's `bg-*` utilities are
+ * deliberately ignored here and the backdrop is stated by the caller.
+ *
+ * Variants are ignored on purpose: a focus ring only ever exists inside `focus:` / `focus-visible:` /
+ * `focus-within:`, and which of those triggers it does not change the colour. What matters is that the class
+ * list carries exactly ONE ring colour, so the measurement is unambiguous.
+ *
+ * A focus indicator is a non-text UI component boundary, so compare the result against the **3:1** floor of
+ * SC 1.4.11 — not 4.5:1.
+ *
+ * @param className - The element's ACTUAL rendered class list (read it off the DOM, never re-spell it).
+ * @param options - The opaque backdrop the ring is painted over. Defaults to white.
+ * @returns The ratio, 1..21.
+ * @throws Error when the class list carries no palette-coloured `ring-*` utility, or more than one — an
+ *   ambiguous measurement is worse than none, and a MISSING ring is a defect in its own right (a control with
+ *   `focus:outline-none` and no ring has no focus indicator at all), so it must fail loudly rather than
+ *   silently measure the surface against itself.
+ */
+export function ringContrast(className: string, options: RingContrastOptions = {}): number {
+    const { surface = palette.white } = options;
+    const found = colorUtilities(className, 'ring');
+
+    if (found.length !== 1) {
+        throw new Error(
+            `Expected exactly ONE palette-coloured \`ring-*\` utility in "${className}", found ${found.length}.`,
+        );
+    }
+
+    return contrastRatio(compositeOver(colorOf(found[0] as ColorUtility), surface), surface);
 }
 
 /**

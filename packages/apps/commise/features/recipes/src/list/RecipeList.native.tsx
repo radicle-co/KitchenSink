@@ -154,10 +154,21 @@ export const RecipeList: FC<RecipeListViewProps> = ({
 
             {filters !== undefined && filters.available.length > 0 && (
                 <View accessibilityLabel={list.filtersLabel} style={styles.chips}>
-                    {/* Leading "All" chip (mockup L4) resets every quick-filter; active when nothing is selected. */}
+                    {/* Leading "All" chip (mockup L4) resets every quick-filter; active when nothing is selected.
+                        Both state forms are deliberate, and neither is redundant (#114): `accessibilityState`
+                        is the DEVICE channel (React Native has no `pressed` state, so `selected` is the trait
+                        VoiceOver/TalkBack read for a selected chip), while `aria-pressed` is the only one that
+                        reaches the DOM — react-native-web forwards literal `aria-*` props and projects
+                        `accessibilityState` for NOTHING, so the object form alone left the selected state
+                        unannounced on the web build and unassertable everywhere. `aria-pressed` rather than
+                        `aria-selected` because these are `role="button"` toggles, which is also exactly what
+                        the web leaf and the sibling `RecipeFilterBar.native` chips render. Do not "simplify"
+                        by dropping either: RN maps `aria-selected`/`checked`/`busy`/`expanded`/`disabled` into
+                        `accessibilityState` but NOT `aria-pressed`, so the object form is load-bearing. */}
                     <Pressable
                         accessibilityRole="button"
                         accessibilityState={{ selected: filters.active.length === 0 }}
+                        aria-pressed={filters.active.length === 0}
                         onPress={filters.onClear}
                         style={[styles.chip, filters.active.length === 0 && styles.chipActive]}
                     >
@@ -172,7 +183,9 @@ export const RecipeList: FC<RecipeListViewProps> = ({
                             <Pressable
                                 key={value}
                                 accessibilityRole="button"
+                                // Device trait + the DOM-observable toggle state — see the "All" chip above.
                                 accessibilityState={{ selected: active }}
+                                aria-pressed={active}
                                 onPress={() => filters.onToggle(value)}
                                 style={[styles.chip, active && styles.chipActive]}
                             >

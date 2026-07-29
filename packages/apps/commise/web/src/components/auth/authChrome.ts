@@ -29,7 +29,7 @@ export const fieldLabel = 'text-body-sm font-medium text-slate';
 
 /** A text input / control surface — full-width, tokenised, seafoam focus ring (the recipe-form field). */
 export const field =
-    'w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam-light';
+    'w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam';
 
 /** Inline error / alert text tone. */
 export const errorText = 'text-body-sm text-error-dark';

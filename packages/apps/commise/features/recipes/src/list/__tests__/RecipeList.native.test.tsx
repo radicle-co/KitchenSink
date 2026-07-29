@@ -229,6 +229,76 @@ describe('RecipeList (native) — quick-filter chips (L4)', () => {
     });
 });
 
+/**
+ * The quick-filter chips' SELECTED state has to reach assistive tech on the mobile-WEB build too, and
+ * `accessibilityState={{ selected }}` alone does not get there (#114).
+ *
+ * Verified empirically against the installed react-native-web (0.20.0) rather than assumed: its
+ * `forwardedProps` allowlist carries every literal `aria-*` attribute but has NO entry that projects
+ * `accessibilityState` — its only consumer anywhere in the package is `AccessibilityUtil/isDisabled`, and even
+ * that reads the LEGACY `accessibilityStates` array. A `<Pressable accessibilityState={{ selected: true }}>`
+ * therefore renders `<button role="button" tabindex="0">` with no state attribute at all: correct on device
+ * (VoiceOver/TalkBack read the native trait), silent on web, and unassertable in either place.
+ *
+ * The fix is `aria-pressed`, matching the web leaf's `<button aria-pressed>` exactly and the sibling
+ * `RecipeFilterBar.native` chips, which already carry it. `aria-pressed` — not `aria-selected` — because these
+ * are `role="button"` TOGGLES: ARIA supports `aria-selected` only on `option`/`tab`/`row`/`gridcell`-family
+ * roles, so on a button it is an attribute AT does not have to honour. `accessibilityState` stays alongside it
+ * because React Native has no `pressed` state and `selected` IS the device trait for a selected chip; RN maps
+ * `aria-selected`/`aria-checked`/`aria-busy`/`aria-expanded`/`aria-disabled` into `accessibilityState` but NOT
+ * `aria-pressed`, so dropping the object form would silence the device instead.
+ */
+describe('RecipeList (native) — the quick-filter chips announce their selected state on web too', () => {
+    const withChips = (active: readonly string[]) =>
+        renderList({
+            status: 'ready',
+            recipes: threeRecipes,
+            filters: { available: ['Vegetarian', 'Italian'], active: [...active], onToggle: noop, onClear: noop },
+        });
+
+    it('marks an ACTIVE facet chip pressed', () => {
+        withChips(['Italian']);
+
+        expect(screen.getByRole('button', { name: 'Italian' }).getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('marks an INACTIVE facet chip unpressed (present-and-false, not absent)', () => {
+        // `aria-pressed` must be rendered as `false` rather than omitted: an omitted attribute makes the chip a
+        // plain button, so a screen-reader user cannot tell an un-selected toggle from a one-shot action.
+        withChips(['Italian']);
+
+        expect(screen.getByRole('button', { name: 'Vegetarian' }).getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('marks the leading "All" chip pressed exactly when NO facet is active', () => {
+        withChips([]);
+
+        expect(screen.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true');
+
+        cleanup();
+        withChips(['Italian']);
+
+        expect(screen.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('keeps the DEVICE trait alongside it — RN does not map `aria-pressed` into `accessibilityState`', () => {
+        // react-native-web strips `accessibilityState` from the DOM, so it cannot be read back here. What CAN
+        // be asserted is the invariant that actually protects the device: every chip that reports a pressed
+        // state to the DOM is the same control that carries the object form. Pinning the prop on the rendered
+        // element is impossible; pinning that the two states AGREE is not — so the web attribute is measured
+        // against the model that also feeds `accessibilityState`.
+        withChips(['Italian']);
+
+        const pressed = screen
+            .getAllByRole('button')
+            .filter((button) => button.getAttribute('aria-pressed') === 'true')
+            .map((button) => button.textContent);
+
+        // Exactly the active facet — the "All" chip is unpressed because a facet IS active.
+        expect(pressed).toEqual(['Italian']);
+    });
+});
+
 describe('RecipeList (native) — pull-to-refresh (L8)', () => {
     it('still renders the populated rows when a refresh control is wired (RefreshControl is a no-op in jsdom)', () => {
         // The pull gesture + spinner are a device/Maestro concern (react-native-web renders RefreshControl

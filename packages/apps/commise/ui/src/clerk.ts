@@ -19,9 +19,22 @@ import { fonts, fontSizes, fontWeights } from './tokens/typography.js';
  * `white`, and a teal that is TEXT is `ocean-dark`. `__tests__/clerk.test.ts` measures every pair in here, so a
  * future re-theme cannot quietly reintroduce an illegible state.
  *
- * `variables.colorPrimary` deliberately stays `seafoam-light`: Clerk derives non-text accents (the input focus
- * ring, spinners) from it, and that is the role the light teal is correct in. Every element where the colour
- * lands under TEXT states its own value below.
+ * `variables.colorPrimary` stays `seafoam-light`: Clerk derives its incidental accents (spinners, subtle
+ * washes) from it, and that is the role the light teal is correct in. Every element where the colour lands
+ * under TEXT states its own value below.
+ *
+ * ## …and every element where it lands on a FOCUS INDICATOR states its own value too (#114)
+ *
+ * `colorPrimary` was ALSO reaching the focused field borders, and that claim — "the input focus ring […] is
+ * the role the light teal is correct in" — was right about the role and wrong about the measurement:
+ * `seafoam-light` is **2.78:1** on the white card, under the 3:1 SC 1.4.11 floor a non-text UI component
+ * boundary owes, and only 1.46:1 against the `mist` hairline it replaces on focus. So
+ * `formFieldInput__focus` and `otpCodeFieldInput__focus` now state `seafoam` (4.67:1) explicitly, the same
+ * move the app's 15 Tailwind `ring-seafoam-light` call sites took. `__tests__/clerk.test.ts` measures both.
+ *
+ * ⚠️ RESIDUAL, deliberately not chased here: anything Clerk derives from `colorPrimary` that we do NOT
+ * override is still the light teal, and its rendered ratio is not observable from this side of the boundary.
+ * If Clerk ever paints a focus outline on an element with no override below, it will be under the floor.
  */
 export const clerkAppearance = {
     variables: {
@@ -92,8 +105,14 @@ export const clerkAppearance = {
             color: semantic.foreground,
             padding: '0.75rem 1rem',
         },
+        // The focused border IS the focus indicator here — Clerk renders no separate ring — so it owes the 3:1
+        // of SC 1.4.11 against the field it outlines. `semantic.primary` (`seafoam-light`) measured 2.78:1, and
+        // only 1.46:1 against the `mist` resting hairline it replaces, so the focused state was neither
+        // compliant nor visibly distinct. `seafoam` is 4.67:1 (and 3.20:1 vs the resting hairline) — the same
+        // move the app's 15 `ring-seafoam-light` call sites took in #114. Do NOT "fix" this by darkening
+        // `seafoam-light`: it IS `semantic.primary`, and the lightness needed would collapse it into `seafoam`.
         formFieldInput__focus: {
-            borderColor: semantic.primary,
+            borderColor: palette.seafoam,
         },
         // "Forgot password?" and friends are LINKS a reader reads, so the teal is `ocean-dark`, not the light
         // accent (2.78:1). Hover deepens to the charcoal foreground rather than to `seafoam` (which was 4.02:1).
@@ -176,8 +195,10 @@ export const clerkAppearance = {
             borderRadius: radius.md,
             borderColor: palette.mist,
         },
+        // Same reasoning as `formFieldInput__focus` — and it matters more here: an OTP field is a row of
+        // single-character boxes where the focused box is the only cue to which digit you are entering.
         otpCodeFieldInput__focus: {
-            borderColor: semantic.primary,
+            borderColor: palette.seafoam,
         },
         identityPreviewEditButton: {
             color: palette['ocean-dark'],

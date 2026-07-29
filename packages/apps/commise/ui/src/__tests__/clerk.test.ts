@@ -20,10 +20,13 @@ import { wcagContrast } from 'culori';
 import { describe, expect, it } from 'vitest';
 
 import { clerkAppearance } from '../clerk.js';
-import { palette } from '../tokens/colors.js';
+import { palette, semantic } from '../tokens/colors.js';
 
 /** WCAG 2.1 AA, SC 1.4.3 — every string measured here is body-size auth copy or a button label. */
 const AA_NORMAL_TEXT = 4.5;
+
+/** WCAG 2.1 AA, SC 1.4.11 — a focus indicator or control boundary is a non-text UI component, not text. */
+const AA_UI_COMPONENT = 3;
 
 const { variables, elements } = clerkAppearance;
 
@@ -103,5 +106,58 @@ describe('clerkAppearance contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
         // the auth form's primary control resolving to some OTHER teal would be a second primary button.
         expect([palette.seafoam, palette['ocean-dark']]).toContain(elements.formButtonPrimary.backgroundColor);
         expect([palette.seafoam, palette['ocean-dark']]).toContain(elements.formButtonPrimary__hover.backgroundColor);
+    });
+});
+
+/**
+ * SC 1.4.11 (non-text contrast) for the auth form's FOCUS INDICATORS — the same defect #114 fixed across the
+ * app's 15 Tailwind `ring-seafoam-light` call sites, reproduced here in the one place no rendered-contrast
+ * helper can reach.
+ *
+ * The focused field's border IS the focus indicator: Clerk renders no separate ring, and this is the FIRST
+ * screen every user sees. It spent `semantic.primary` (the light teal `seafoam-light`), which measures 2.78:1
+ * against the white card behind it — under the 3:1 floor a non-text UI component boundary owes. The module's
+ * own note that `colorPrimary` "deliberately stays `seafoam-light` [because] Clerk derives non-text accents
+ * (the input focus ring, spinners) from it, and that is the role the light teal is correct in" was true of the
+ * ROLE and wrong about the MEASUREMENT: 2.78:1 is not a compliant focus indicator anywhere.
+ *
+ * The fix is the same one the app took — `seafoam` (4.67:1) — and NOT darkening `seafoam-light`, which is
+ * `semantic.primary` itself and would collapse into `seafoam` at the lightness a ring needs.
+ */
+describe('clerkAppearance focus indicators (WCAG 2.1 AA, SC 1.4.11)', () => {
+    /** Each element whose FOCUSED border is the whole of its focus indicator, with the surface behind it. */
+    const FOCUS_INDICATORS: readonly { readonly what: string; readonly color: string; readonly surface: string }[] = [
+        {
+            what: 'text field',
+            color: elements.formFieldInput__focus.borderColor,
+            surface: elements.formFieldInput.backgroundColor,
+        },
+        {
+            what: 'OTP code field',
+            color: elements.otpCodeFieldInput__focus.borderColor,
+            surface: elements.card.backgroundColor,
+        },
+    ];
+
+    it.each(FOCUS_INDICATORS)('marks the focused $what against the surface behind it', ({ color, surface }) => {
+        expect(wcagContrast(color, surface)).toBeGreaterThanOrEqual(AA_UI_COMPONENT);
+    });
+
+    it.each(FOCUS_INDICATORS)('makes the focused $what DISTINGUISHABLE from its resting border', ({ what, color }) => {
+        // A ratio alone is not enough: a focus border that measures 3:1 against the card but is the same tone
+        // as the resting hairline announces nothing. `mist` is the resting tone on both fields.
+        expect(color, `${what} focus border must differ from its resting hairline`).not.toBe(palette.mist);
+        expect(wcagContrast(color, palette.mist), `${what} focus border vs its resting hairline`).toBeGreaterThan(1.5);
+    });
+
+    it('fixes the CALL SITES, not the token — `seafoam-light` is still too light to be a focus indicator', () => {
+        // Asserting that the accent still FAILS the floor is what keeps someone from "fixing" the palette
+        // instead: `seafoam-light` IS `semantic.primary`, and the lightness a 3:1 indicator needs would
+        // collapse it into `seafoam`.
+        expect(palette['seafoam-light'], 'seafoam-light IS semantic.primary').toBe(semantic.primary);
+        expect(
+            wcagContrast(palette['seafoam-light'], elements.card.backgroundColor),
+            'seafoam-light must remain an accent, not a focus indicator',
+        ).toBeLessThan(AA_UI_COMPONENT);
     });
 });

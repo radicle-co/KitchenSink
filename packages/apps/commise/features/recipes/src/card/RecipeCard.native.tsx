@@ -10,7 +10,7 @@
  * "not yet rated"; the cover is the full-size original (FOLLOW-UP-CR-001-A).
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { glass, palette, toNativeGlass } from '@commise/ui';
+import { glass, palette, tint, toNativeGlass } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { PressScale } from '@commise/ui/press-scale';
 import { GlassCard, isBlurSupported } from '@commise/ui/surface';
@@ -62,8 +62,13 @@ function useCardModel(): RecipeCardModel {
     return model;
 }
 
+/**
+ * Difficulty pill tone → fill + label. The native mirror of the web leaf's `TONE_CLASS`: the LIGHT tones
+ * (`success` 4.67:1, `warning` 6.74:1) take `charcoal`, the dark `error` fill (5.00:1) takes `white`. `success`
+ * used to pair a pastel fill with a white label at 2.72:1 on both platforms.
+ */
 const TONE_COLOR: Record<DifficultyTone, { readonly bg: string; readonly fg: string }> = {
-    success: { bg: palette.success, fg: palette.white },
+    success: { bg: palette.success, fg: palette.charcoal },
     warning: { bg: palette.warning, fg: palette.charcoal },
     error: { bg: palette.error, fg: palette.white },
 };
@@ -347,7 +352,9 @@ const styles = StyleSheet.create({
         top: nativeTokens.spacing[2],
         right: nativeTokens.spacing[2],
         backgroundColor: palette.premium,
-        color: palette.white,
+        // The brand GOLD keeps a dark label (5.70:1): white on it is 2.23:1, and a gold dark enough to carry
+        // white is a bronze. Mirrors the web leaf's `text-charcoal` on the same badge.
+        color: palette.charcoal,
         fontSize: nativeTokens.fontSize.overline,
         fontWeight: '600',
         paddingHorizontal: nativeTokens.spacing[2],
@@ -374,7 +381,7 @@ const styles = StyleSheet.create({
         fontSize: nativeTokens.fontSize.overline,
         fontWeight: '500',
         color: palette['ocean-dark'],
-        backgroundColor: 'rgba(61, 139, 133, 0.1)',
+        backgroundColor: tint(palette.seafoam, 0.1),
         paddingHorizontal: nativeTokens.spacing[2],
         paddingVertical: 2,
         borderRadius: nativeTokens.radius.full,
@@ -407,7 +414,7 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         // Contrast (U4 / WCAG AA): coral-as-text is 2.2:1 — demote to slate (5:1); the coral tint bg stays.
         color: palette.slate,
-        backgroundColor: 'rgba(232, 145, 122, 0.1)',
+        backgroundColor: tint(palette.coral, 0.1),
         paddingHorizontal: nativeTokens.spacing[2],
         paddingVertical: 2,
         borderRadius: nativeTokens.radius.full,

@@ -64,9 +64,16 @@ function useCardModel(): RecipeCardModel {
     return model;
 }
 
-/** Difficulty pill tone → Tailwind classes (warning is a light tone, so it needs dark text for contrast). */
+/**
+ * Difficulty pill tone → Tailwind classes.
+ *
+ * `success` and `warning` are LIGHT tones, so their label is `charcoal` (4.67:1 / 6.74:1); `error` is a dark
+ * fill and carries `white` (5.00:1). `success` used to carry `white` at 2.72:1 — the only tone in the map
+ * pairing a pastel fill with a white label, which is precisely why it read as a local choice rather than a
+ * defect. See the filled-accent contract in `@commise/ui`'s `tokens/colors.ts` for the one statement of it.
+ */
 const TONE_CLASS: Record<DifficultyTone, string> = {
-    success: 'bg-success text-white',
+    success: 'bg-success text-charcoal',
     warning: 'bg-warning text-charcoal',
     error: 'bg-error text-white',
 };
@@ -142,7 +149,10 @@ const CardCover: FC = () => {
             {recipe.usesPremiumCapability && (
                 <span
                     aria-label={card.proBadgeLabel}
-                    className="absolute right-2 top-2 rounded-full bg-premium px-2 py-1 text-caption font-semibold text-white"
+                    // `premium` is the brand GOLD. A white label on it is 2.23:1, and darkening the gold far
+                    // enough to carry one turns it bronze — so the badge takes `charcoal` (5.70:1) and the
+                    // gold survives intact. Same pairing on the native leaf's `pro` style.
+                    className="absolute right-2 top-2 rounded-full bg-premium px-2 py-1 text-caption font-semibold text-charcoal"
                 >
                     {card.proBadge}
                 </span>

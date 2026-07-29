@@ -100,7 +100,11 @@ export function HomeSidebar({
                                 type="button"
                                 aria-disabled="true"
                                 aria-label={`${label}, ${chrome.comingSoonSuffix}`}
-                                className="flex w-full cursor-not-allowed items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-left text-slate/60"
+                                // Contrast (WCAG 2.1 AA, #113): opaque `slate` (5.24:1). `text-slate/60` composited to
+                                // 2.41:1 — the token passed while the pixel did not. Inactive is communicated by
+                                // `cursor-not-allowed` + the announced "coming soon" name, not by dimming the text
+                                // below legibility.
+                                className="flex w-full cursor-not-allowed items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-left text-slate"
                             >
                                 <HomeIcon name={item.id} className="size-6 shrink-0" />
                                 {!collapsed && <span className="font-medium">{label}</span>}

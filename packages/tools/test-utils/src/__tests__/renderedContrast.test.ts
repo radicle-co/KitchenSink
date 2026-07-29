@@ -36,7 +36,10 @@ describe('utilityContrast', () => {
     });
 
     it('COMPOSITES a translucent background instead of scoring against the raw token', () => {
-        const composited = contrastRatio(palette['ocean-dark'], compositeOver('#3D8B851a', palette.white));
+        // The tint is DERIVED from the token (`/10` → `1a` hex alpha), not re-spelled: a literal `#3D8B851a`
+        // froze this expectation at the pre-#113 seafoam, so the token move broke a test of the READER rather
+        // than of the palette.
+        const composited = contrastRatio(palette['ocean-dark'], compositeOver(`${palette.seafoam}1a`, palette.white));
 
         expect(utilityContrast('text-ocean-dark bg-seafoam/10')).toBeCloseTo(composited, 10);
         // The un-composited reading is materially different — proof the composite step is doing work.
@@ -49,7 +52,7 @@ describe('utilityContrast', () => {
     it('prefers the requested variant and falls back to the base utility for the other half', () => {
         const hover = utilityContrast('text-slate bg-coral/10 hover:bg-coral/25', { variant: 'hover' });
 
-        expect(hover).toBeCloseTo(contrastRatio(palette.slate, compositeOver('#E8917A40', palette.white)), 10);
+        expect(hover).toBeCloseTo(contrastRatio(palette.slate, compositeOver(`${palette.coral}40`, palette.white)), 10);
         // The text has no `hover:` utility, so the hover state inherits the base label colour — a variant read
         // that silently dropped the base would measure nothing at all.
         expect(hover).not.toBeCloseTo(utilityContrast('text-slate bg-coral/10 hover:bg-coral/25'), 2);

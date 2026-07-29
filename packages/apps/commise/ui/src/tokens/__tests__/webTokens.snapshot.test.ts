@@ -67,7 +67,7 @@ describe('web tokens — byte-identical values and order', () => {
             md: '0 4px 6px -1px rgba(45,52,54,0.07)',
             lg: '0 10px 15px -3px rgba(45,52,54,0.08)',
             xl: '0 20px 25px -5px rgba(45,52,54,0.09)',
-            glow: '0 0 32px rgba(61,139,133,0.25)',
+            glow: '0 0 32px rgba(49,128,122,0.25)',
         });
     });
 
@@ -153,7 +153,7 @@ describe('web tokens — generated theme.css artifact', () => {
           "@import "tailwindcss";
 
           @theme {
-              --color-seafoam: #3D8B85;
+              --color-seafoam: #31807A;
               --color-seafoam-light: #5BA8A0;
               --color-coral: #E8917A;
               --color-sky: #8ECAE6;
@@ -166,7 +166,7 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-white: #FFFFFF;
               --color-success: #4CAF7C;
               --color-warning: #F5B041;
-              --color-error: #E17055;
+              --color-error: #BA4D34;
               --color-premium: #D4A574;
               --color-background: #FAF6F0;
               --color-foreground: #2D3436;
@@ -175,7 +175,7 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-secondary: #E8917A;
               --color-muted: #F5F5F5;
               --color-accent: #8ECAE6;
-              --color-destructive: #E17055;
+              --color-destructive: #BA4D34;
               --color-border: rgba(178, 190, 195, 0.3);
               --color-ring: #5BA8A0;
               --font-display: "Playfair Display", Georgia, serif;
@@ -208,7 +208,7 @@ describe('web tokens — generated theme.css artifact', () => {
               --shadow-md: 0 4px 6px -1px rgba(45,52,54,0.07);
               --shadow-lg: 0 10px 15px -3px rgba(45,52,54,0.08);
               --shadow-xl: 0 20px 25px -5px rgba(45,52,54,0.09);
-              --shadow-glow: 0 0 32px rgba(61,139,133,0.25);
+              --shadow-glow: 0 0 32px rgba(49,128,122,0.25);
               --color-glass-card-edge: rgba(255, 255, 255, 0.3);
               --color-glass-subtle-edge: rgba(255, 255, 255, 0.3);
           }

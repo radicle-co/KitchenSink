@@ -129,7 +129,11 @@ export const elevation = {
     md: { offsetX: 0, offsetY: 4, blur: 6, spread: -1, color: '45,52,54', opacity: 0.07 },
     lg: { offsetX: 0, offsetY: 10, blur: 15, spread: -3, color: '45,52,54', opacity: 0.08 },
     xl: { offsetX: 0, offsetY: 20, blur: 25, spread: -5, color: '45,52,54', opacity: 0.09 },
-    glow: { offsetX: 0, offsetY: 0, blur: 32, spread: 0, color: '61,139,133', opacity: 0.25 },
+    // `glow` is the seafoam halo. Its triplet is `palette.seafoam` re-spelled in decimal, because `colors.ts`
+    // imports THIS module (`borderSubtle`) and the reverse import would be a cycle. It is therefore the one
+    // place a palette colour lives twice — kept in agreement by `__tests__/scale.test.ts`, which asserts the
+    // triplet against the token. Move `seafoam` and that test fails until this follows.
+    glow: { offsetX: 0, offsetY: 0, blur: 32, spread: 0, color: '49,128,122', opacity: 0.25 },
 } as const;
 
 /** The subtle border colour — single source for the web `semantic.border` and the native theme. */

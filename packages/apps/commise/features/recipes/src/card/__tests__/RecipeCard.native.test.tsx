@@ -9,6 +9,8 @@ import { fireEvent } from '@testing-library/dom';
 
 import { LocaleProvider } from '@commise/i18n/react';
 import { computedContrast } from '@commise/test-utils';
+import { palette, tint } from '@commise/ui';
+import { RecipeDifficulty } from '@kitchensink/recipe-core';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { toRecipeCardModel } from '../model.js';
@@ -317,5 +319,54 @@ describe('RecipeCard (native) — relative timestamp (CR-002 / recipe-list wiref
 
         expect(screen.getByText('Created 1w ago')).toBeTruthy();
         expect(screen.queryByText(/^Edited/)).toBeNull();
+    });
+});
+
+/** Each difficulty and the semantic tone whose FILL its pill paints — the map both platform leaves share. */
+const DIFFICULTY_PILLS: readonly {
+    readonly difficulty: RecipeDifficulty;
+    readonly label: string;
+    readonly tone: string;
+}[] = [
+    { difficulty: RecipeDifficulty.EASY, label: 'Easy', tone: 'success' },
+    { difficulty: RecipeDifficulty.MEDIUM, label: 'Medium', tone: 'warning' },
+    { difficulty: RecipeDifficulty.HARD, label: 'Hard', tone: 'error' },
+];
+
+describe('RecipeCard (native) — labels on FILLED accents (WCAG 2.1 AA, #113)', () => {
+    // The native mirror of the web card's filled-accent assertions. Both platforms had `palette.white` on
+    // `palette.success` (2.72:1) and on `palette.premium` (2.23:1); measuring both leaves is what keeps a fix
+    // to one platform from silently leaving the other behind — the divergence class this issue also found in
+    // the step marker.
+    it.each(DIFFICULTY_PILLS)(
+        'reads the $label difficulty pill on its own filled $tone fill',
+        ({ difficulty, label }) => {
+            renderCard(<RecipeCard recipe={model({ difficulty })} />);
+
+            expect(computedContrast(screen.getByText(label)), `${label} difficulty pill`).toBeGreaterThanOrEqual(4.5);
+        },
+    );
+
+    it('reads the PRO badge on its filled premium fill', () => {
+        renderCard(<RecipeCard recipe={model({ usesPremiumCapability: true })} />);
+
+        expect(computedContrast(screen.getByText('PRO')), 'PRO badge').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('paints the cuisine chip tint from the seafoam TOKEN, not a frozen rgba() literal', () => {
+        renderCard(<RecipeCard recipe={model({ cuisine: 'Mediterranean' })} />);
+
+        // The tint used to be spelled `rgba(61, 139, 133, 0.1)` by hand. That is the pre-#113 seafoam, so the
+        // token move left web's `bg-seafoam/10` and this chip painting two DIFFERENT teals — a divergence no
+        // ratio assertion catches, because both still cleared the floor.
+        expect(window.getComputedStyle(screen.getByText('Mediterranean')).backgroundColor).toBe(
+            tint(palette.seafoam, 0.1),
+        );
+    });
+
+    it('paints the tag chip tint from the coral TOKEN', () => {
+        renderCard(<RecipeCard recipe={model({ tags: ['grill'] })} />);
+
+        expect(window.getComputedStyle(screen.getByText('grill')).backgroundColor).toBe(tint(palette.coral, 0.1));
     });
 });

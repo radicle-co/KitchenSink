@@ -68,3 +68,21 @@ describe('HomeTabBar', () => {
         expect(nav.className).toContain('lg:hidden');
     });
 });
+
+describe('HomeTabBar — gated destination labels stay legible (#113)', () => {
+    it('names a gated destination in an OPAQUE tone, not an alpha-dimmed one', () => {
+        renderTabBar();
+
+        // `text-slate/50` measures 2.28:1 once composited onto the surface: the TOKEN passes (slate is
+        // 5.24:1 on white) and the rendered pixel does not, which is exactly why an alpha suffix on a text
+        // colour is unauditable by inspection. These controls are deliberately focusable and announced (so a
+        // user can discover what is coming), which is what puts them past SC 1.4.3's "inactive component"
+        // exemption in spirit — and the NATIVE tab bar already resolved this to the opaque `palette.slate`,
+        // carrying a comment saying so. The web half was never brought along.
+        const gated = screen.getByRole('button', {
+            name: `${chrome.destinations.nutrition}, ${chrome.comingSoonSuffix}`,
+        });
+
+        expect(utilityContrast(gated.className), 'gated destination label').toBeGreaterThanOrEqual(4.5);
+    });
+});

@@ -74,7 +74,10 @@ export const MoreActionsMenu: FC<MoreActionsMenuProps> = ({ children }) => {
                 <div
                     role="menu"
                     aria-label={moreMenu.trigger}
-                    className="absolute right-0 top-full z-10 mt-2 flex min-w-48 flex-col items-start gap-2 rounded-2xl border border-mist bg-card p-3 shadow-lg"
+                    // The DS hairline (`border-border`), not the off-tier `border-mist`: `mist` is the palette's
+                    // divider TONE and every other panel edge in the product spells this token. The popover is
+                    // identified by its content and `shadow-lg`, so the rim is decoration under SC 1.4.11.
+                    className="absolute right-0 top-full z-10 mt-2 flex min-w-48 flex-col items-start gap-2 rounded-2xl border border-border bg-card p-3 shadow-lg"
                 >
                     {children}
                 </div>

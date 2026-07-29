@@ -63,7 +63,12 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId }: HomeT
                             type="button"
                             aria-disabled="true"
                             aria-label={`${label}, ${chrome.comingSoonSuffix}`}
-                            className="flex flex-1 cursor-not-allowed flex-col items-center gap-1 py-2 text-slate/50"
+                            // Contrast (WCAG 2.1 AA, #113): the OPAQUE `slate` (5.24:1), not `text-slate/50` — that
+                            // composited to 2.05:1 on the frosted bar. The control still reads as inactive from
+                            // `cursor-not-allowed`, `aria-disabled` and the "coming soon" name, and the ACTIVE tab
+                            // stays distinct because it is `text-ocean-dark`. Matches the native tab bar, which
+                            // already used the opaque tone.
+                            className="flex flex-1 cursor-not-allowed flex-col items-center gap-1 py-2 text-slate"
                         >
                             <HomeIcon name={item.id} className="size-6" />
                             <span className="text-xs">{label}</span>

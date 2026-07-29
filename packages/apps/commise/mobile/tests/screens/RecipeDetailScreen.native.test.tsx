@@ -349,8 +349,10 @@ describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', 
 
         const pill = pillOf(mobileMessages.en.recipes.deleteAction);
         const style = window.getComputedStyle(pill);
-        // `palette.error` (#E17055) border on a real white surface — the destructive tier's flat pill.
-        expect(style.borderTopColor).toBe('rgb(225, 112, 85)');
+        // The `palette.error` border on a real white surface — the destructive tier's flat pill. Read from the
+        // TOKEN: the literal `rgb(225, 112, 85)` froze this at the pre-#113 error and made a palette move look
+        // like a regression in the button tier.
+        expect(style.borderTopColor).toBe(rgb(palette.error));
         expect(style.backgroundColor).toBe('rgb(255, 255, 255)');
         // Not the gradient tier.
         expect(
@@ -482,3 +484,10 @@ describe('RecipeDetailScreen — clone', () => {
         expect(screen.queryByRole('button', { name: 'Clone' })).toBeNull();
     });
 });
+
+/** A design-token hex (`#RRGGBB`) as the `rgb(r, g, b)` string a resolved computed style reports. */
+function rgb(hex: string): string {
+    const channels = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+
+    return `rgb(${channels.join(', ')})`;
+}

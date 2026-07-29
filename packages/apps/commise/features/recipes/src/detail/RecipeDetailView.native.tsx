@@ -11,7 +11,7 @@
  * detail reads as branded as the web leaf.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { palette, tint } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 import { GradientSurface } from '@commise/ui/surface';
 import { hasUserEnteredIngredients, RecipeVisibility } from '@kitchensink/recipe-core';
@@ -156,7 +156,9 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                                 style={styles.stepMarkerTouch}
                             >
                                 <View style={[styles.stepMarker, done && styles.stepMarkerDone]}>
-                                    <Text style={styles.stepMarkerLabel}>{done ? '✓' : step.stepNumber}</Text>
+                                    <Text style={[styles.stepMarkerLabel, done && styles.stepMarkerLabelDone]}>
+                                        {done ? '✓' : step.stepNumber}
+                                    </Text>
                                 </View>
                             </Pressable>
                             <View style={styles.stepBody}>
@@ -248,10 +250,10 @@ const styles = StyleSheet.create({
     // Contrast (WCAG AA): a tint-on-tint badge labels itself in a DARKENED relative of its own hue, never the
     // hue itself. Seafoam-on-seafoam/10 is 3.57:1 — the U4 pass demoted only the coral half and left this one
     // under the 4.5:1 floor; `ocean-dark` is 5.51:1 and keeps the badge in its hue family.
-    badgeSeafoam: { backgroundColor: 'rgba(61, 139, 133, 0.1)', color: palette['ocean-dark'] },
+    badgeSeafoam: { backgroundColor: tint(palette.seafoam, 0.1), color: palette['ocean-dark'] },
     // Coral-as-text on the coral tint is 2.06:1 — demote the tag text to slate (4.67:1) while keeping the
     // warm tint background. The brand coral-on-darker-coral treatment is U8's.
-    badgeCoral: { backgroundColor: 'rgba(232, 145, 122, 0.15)', color: palette.slate },
+    badgeCoral: { backgroundColor: tint(palette.coral, 0.15), color: palette.slate },
     badgeNeutral: { backgroundColor: palette.pearl, color: palette.slate },
     description: { fontSize: nativeTokens.fontSize.bodyMd, lineHeight: 24, color: palette.slate },
     sourceNote: { fontSize: nativeTokens.fontSize.overline, lineHeight: 16, color: palette.slate },
@@ -322,17 +324,29 @@ const styles = StyleSheet.create({
     stepRow: { flexDirection: 'row', gap: nativeTokens.spacing[3], alignItems: 'flex-start' },
     // 44pt tap target (RC-3) around the compact 32px numbered marker circle.
     stepMarkerTouch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    // PENDING is an outline, DONE is a filled disc — the same two states the web leaf paints as
+    // `border-2 border-seafoam text-ocean-dark` / `bg-seafoam text-white`.
+    //
+    // This base style used to paint `backgroundColor: palette.seafoam`, which made `stepMarkerDone`'s identical
+    // override a NO-OP: both states rendered the same filled seafoam disc, so a completed step was tellable
+    // from a pending one only by the glyph inside it — and that glyph was white on a fill it could not be read
+    // against. Web and native therefore disagreed about what a pending step even looks like (#113).
     stepMarker: {
         width: 32,
         height: 32,
         borderRadius: nativeTokens.radius.full,
-        backgroundColor: palette.seafoam,
+        backgroundColor: palette.white,
+        borderWidth: 2,
+        borderColor: palette.seafoam,
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
     },
-    stepMarkerDone: { backgroundColor: palette.seafoam },
-    stepMarkerLabel: { color: palette.white, fontWeight: '600' },
+    stepMarkerDone: { backgroundColor: palette.seafoam, borderColor: palette.seafoam },
+    // Pending, the numeral is the only thing in the circle and a reader reads it, so it takes `ocean-dark`
+    // (6.20:1 on the white disc); the seafoam ring is a non-text boundary and clears the 3:1 of SC 1.4.11.
+    stepMarkerLabel: { color: palette['ocean-dark'], fontWeight: '600' },
+    stepMarkerLabelDone: { color: palette.white },
     stepBody: { flex: 1, gap: 2, paddingTop: nativeTokens.spacing[1] },
     stepText: { fontSize: 15, lineHeight: 22, color: palette.charcoal },
     stepTextDone: { textDecorationLine: 'line-through', opacity: 0.6 },

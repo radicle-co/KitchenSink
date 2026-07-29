@@ -29,7 +29,7 @@ import {
     type RecipeWizardStep,
 } from '@commise/features-recipes';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { palette, tint } from '@commise/ui';
 import type { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { JSX, ReactNode } from 'react';
 import { useCallback } from 'react';
@@ -205,9 +205,9 @@ const styles = StyleSheet.create({
     guidance: {
         gap: 4,
         borderRadius: 12,
-        backgroundColor: 'rgba(46, 196, 182, 0.10)',
+        backgroundColor: tint(palette.seafoam, 0.1),
         borderWidth: 1,
-        borderColor: 'rgba(46, 196, 182, 0.25)',
+        borderColor: tint(palette.seafoam, 0.25),
         paddingVertical: 12,
         paddingHorizontal: 16,
     },

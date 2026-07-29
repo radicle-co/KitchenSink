@@ -127,7 +127,8 @@ export function HomeMobileNav({
                                         role="link"
                                         aria-disabled="true"
                                         aria-label={`${label}, ${chrome.comingSoonSuffix}`}
-                                        className="flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-slate/60"
+                                        // Contrast (WCAG 2.1 AA, #113): opaque `slate` (5.24:1); `text-slate/60` was 2.41:1.
+                                        className="flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-slate"
                                     >
                                         <HomeIcon name={item.id} className="size-6 shrink-0" />
                                         <span className="font-medium">{label}</span>

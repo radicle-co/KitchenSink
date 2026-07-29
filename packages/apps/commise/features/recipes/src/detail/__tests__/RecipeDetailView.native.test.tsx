@@ -571,3 +571,58 @@ function appliedFontFamily(element: Element): string | undefined {
 
     return undefined;
 }
+
+describe('RecipeDetailView (native) — step marker done/not-done parity (#113)', () => {
+    /** The visible 32px marker circle inside the step's 44pt tap target. */
+    const markerOf = (step: number): Element => {
+        const visual = screen.getByLabelText(`Mark step ${step} complete`).firstElementChild;
+
+        if (visual === null) {
+            throw new Error('Expected the step toggle to wrap a visible marker circle.');
+        }
+
+        return visual;
+    };
+
+    const renderStep = (checked: readonly number[]) =>
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({ steps: [makeStepView({ stepNumber: 1, instruction: 'Rub the lamb.' })] })}
+                checkedSteps={new Set(checked)}
+                onToggleStep={vi.fn()}
+            />,
+        );
+
+    it('paints the two states DIFFERENTLY — a done step must be tellable from a pending one', () => {
+        // `stepMarkerDone` set `backgroundColor: palette.seafoam` on a base style that ALREADY did, so the
+        // done-state override was a no-op and both states rendered the identical filled seafoam disc. The
+        // checkmark-vs-numeral glyph was the only difference, on a fill neither state could be read against.
+        renderStep([]);
+        const pending = window.getComputedStyle(markerOf(1)).backgroundColor;
+
+        cleanup();
+        renderStep([1]);
+        const done = window.getComputedStyle(markerOf(1)).backgroundColor;
+
+        expect(done, 'the done marker paints the seafoam fill').toBe(cssColor(palette.seafoam));
+        expect(pending, 'the pending marker must NOT paint that same fill').not.toBe(done);
+    });
+
+    it('mirrors the web leaf: pending is an OUTLINE with a dark numeral, done is a filled disc with a white tick', () => {
+        // Web renders `border-2 border-seafoam text-ocean-dark` pending and `bg-seafoam text-white` done. Native
+        // rendered white-on-seafoam for BOTH, so the platforms disagreed on the state's whole appearance.
+        renderStep([]);
+        const numeral = within(screen.getByLabelText('Mark step 1 complete')).getByText('1');
+
+        expect(window.getComputedStyle(numeral).color, 'pending numeral tone').toBe(cssColor(palette['ocean-dark']));
+        expect(computedContrast(numeral), 'pending step numeral').toBeGreaterThanOrEqual(4.5);
+        // Pending, the ring IS the affordance, so it owes the 3:1 of SC 1.4.11 on its own.
+        expect(window.getComputedStyle(markerOf(1)).borderTopColor).toBe(cssColor(palette.seafoam));
+
+        cleanup();
+        renderStep([1]);
+        const tick = within(screen.getByLabelText('Mark step 1 complete')).getByText('✓');
+
+        expect(computedContrast(tick, { surface: palette.seafoam }), 'done step tick').toBeGreaterThanOrEqual(4.5);
+    });
+});

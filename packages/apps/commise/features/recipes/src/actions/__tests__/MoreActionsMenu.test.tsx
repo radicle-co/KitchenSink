@@ -129,4 +129,23 @@ describe('MoreActionsMenu (web)', () => {
         // it applies the shared DS surface recipe instead, which is what keeps it from drifting.
         expect(screen.getByRole('button', { name: 'More' }).className).toBe(buttonSurfaceClass('secondary'));
     });
+
+    it('rims the popover with the DESIGN-SYSTEM border token, not an off-tier palette colour (#113)', async () => {
+        const user = userEvent.setup();
+        render(
+            <MoreActionsMenu>
+                <button type="button">Version history</button>
+            </MoreActionsMenu>,
+        );
+        await user.click(screen.getByRole('button', { name: 'More' }));
+
+        // `border-mist` names the palette's divider TONE directly. Every other panel edge in the product spells
+        // the semantic `border-border` (mist at 30%), so this one call site was the drift — a rim one step
+        // heavier than its neighbours. jsdom loads no stylesheet, so the token is asserted from the class list
+        // (the same way the sidebar's gradient stops are pinned).
+        const menu = screen.getByRole('menu');
+
+        expect(menu.className).toContain('border-border');
+        expect(menu.className).not.toContain('border-mist');
+    });
 });

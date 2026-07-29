@@ -9,7 +9,7 @@
  * is surfaced through a polite live region; an add failure is an alert that does not hide the rows.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { palette, tint } from '@commise/ui';
 import type { FC, ReactElement } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
     // `rgba(232, 145, 122, 0.1)`, which is `palette.coral` (#E8917A) — a brand ACCENT filling an alert whose
     // own text is `palette.error`. Because the literal is opaque to a `palette.coral` grep, the test asserts
     // it against a tint DERIVED from the token (`tintOf(palette.error, 0.1)`) rather than a second literal.
-    alert: { backgroundColor: 'rgba(225, 112, 85, 0.1)', borderRadius: 10, padding: 12 },
+    alert: { backgroundColor: tint(palette.error, 0.1), borderRadius: 10, padding: 12 },
     alertLabel: { color: palette.error, fontSize: 14 },
     announcement: { color: palette.slate, fontSize: 14 },
     stateCard: {

@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { palette } from '../colors.js';
 import {
     borderSubtle,
     elevation,
@@ -83,8 +84,17 @@ describe('scale — elevation', () => {
             md: { offsetX: 0, offsetY: 4, blur: 6, spread: -1, color: '45,52,54', opacity: 0.07 },
             lg: { offsetX: 0, offsetY: 10, blur: 15, spread: -3, color: '45,52,54', opacity: 0.08 },
             xl: { offsetX: 0, offsetY: 20, blur: 25, spread: -5, color: '45,52,54', opacity: 0.09 },
-            glow: { offsetX: 0, offsetY: 0, blur: 32, spread: 0, color: '61,139,133', opacity: 0.25 },
+            glow: { offsetX: 0, offsetY: 0, blur: 32, spread: 0, color: '49,128,122', opacity: 0.25 },
         });
+    });
+
+    it('keeps the glow halo pointed at the seafoam TOKEN, which it can only re-spell in decimal', () => {
+        // `colors.ts` imports this module for `borderSubtle`, so `scale.ts` cannot import the palette back —
+        // which makes `glow.color` the one place a palette colour is written twice. The #113 lightness move to
+        // `seafoam` left it stale (a halo one hue-step off its own button) until this assertion existed.
+        const channels = [1, 3, 5].map((at) => Number.parseInt(palette.seafoam.slice(at, at + 2), 16));
+
+        expect(elevation.glow.color).toBe(channels.join(','));
     });
 });
 

@@ -7,7 +7,7 @@
  * commits ONE chip (trim + case-insensitive de-dupe) via the draft field's submit or the explicit Add control.
  */
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { palette, tint } from '@commise/ui';
 import { Feather } from '@expo/vector-icons';
 import type { FC } from 'react';
 import { useState } from 'react';
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 4,
         borderRadius: 999,
-        backgroundColor: 'rgba(46, 196, 182, 0.12)',
+        backgroundColor: tint(palette.seafoam, 0.12),
         paddingVertical: 4,
         paddingLeft: 12,
         paddingRight: 6,

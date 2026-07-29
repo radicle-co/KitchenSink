@@ -6,7 +6,7 @@
  * rendered with RN primitives.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { palette, tint } from '@commise/ui';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     badge: {
         // 10%-alpha tint of `palette.seafoam` (#3D8B85 → rgb(61, 139, 133)) — mirrors the web leaf's
         // `bg-seafoam/10` Tailwind utility; RN has no alpha-suffix color syntax, so it is spelled out here.
-        backgroundColor: 'rgba(61, 139, 133, 0.1)',
+        backgroundColor: tint(palette.seafoam, 0.1),
         color: palette['ocean-dark'],
         fontWeight: '500',
         fontSize: 12,

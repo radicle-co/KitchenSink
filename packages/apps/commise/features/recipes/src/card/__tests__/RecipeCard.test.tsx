@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event';
 import { LocaleProvider } from '@commise/i18n/react';
 import { utilityContrast } from '@commise/test-utils';
 import { glass, glassBackdropCss, palette, toWebGlass } from '@commise/ui';
+import { RecipeDifficulty } from '@kitchensink/recipe-core';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 import { toRecipeCardModel } from '../model.js';
@@ -368,5 +369,40 @@ describe('RecipeCard (web) — non-text graphics stay legible (WCAG 2.1 AA)', ()
             utilityContrast(placeholder.className, { surface: palette.pearl }),
             'no-cover placeholder glyph on the pearl cover tile',
         ).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+/** Each difficulty and the semantic tone whose FILL its pill paints — the map both platform leaves share. */
+const DIFFICULTY_PILLS: readonly {
+    readonly difficulty: RecipeDifficulty;
+    readonly label: string;
+    readonly tone: string;
+}[] = [
+    { difficulty: RecipeDifficulty.EASY, label: 'Easy', tone: 'success' },
+    { difficulty: RecipeDifficulty.MEDIUM, label: 'Medium', tone: 'warning' },
+    { difficulty: RecipeDifficulty.HARD, label: 'Hard', tone: 'error' },
+];
+
+describe('RecipeCard (web) — labels on FILLED accents (WCAG 2.1 AA, #113)', () => {
+    // Every one of these is a label on an OPAQUE brand fill, which is the pairing #113 found broken across ~35
+    // call sites: `text-white` reads 2.72:1 on `bg-success`, 2.23:1 on `bg-premium` and 1.88:1 on `bg-warning`.
+    // The three difficulty tones share ONE map, so measuring all three is what stops a "fix" that repairs the
+    // tone under test and leaves its neighbours illegible.
+    it.each(DIFFICULTY_PILLS)('reads the $label difficulty pill on its filled $tone fill', ({ difficulty, label }) => {
+        renderCard(<RecipeCard recipe={model({ difficulty })} />);
+
+        expect(utilityContrast(screen.getByText(label).className), `${label} difficulty pill`).toBeGreaterThanOrEqual(
+            4.5,
+        );
+    });
+
+    it('reads the PRO badge on its filled premium fill', () => {
+        renderCard(<RecipeCard recipe={model({ usesPremiumCapability: true })} />);
+
+        // `premium` is a GOLD. Darkening it enough to carry a white label turns it bronze, so the badge takes a
+        // dark label (5.70:1) and the gold survives — see the filled-accent contract in `tokens/colors.ts`.
+        expect(utilityContrast(screen.getByLabelText('Premium recipe').className), 'PRO badge').toBeGreaterThanOrEqual(
+            4.5,
+        );
     });
 });

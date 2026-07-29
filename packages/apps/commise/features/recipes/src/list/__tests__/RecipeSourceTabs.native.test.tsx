@@ -16,6 +16,8 @@ import { compositeOver, computedContrast, contrastRatio } from '@commise/test-ut
 import { palette } from '@commise/ui';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { cssColor } from '../../__tests__/cssColor.js';
+
 import { RecipeSourceTabs } from '../RecipeSourceTabs.native.js';
 import type { RecipeListTabControl } from '../model.js';
 
@@ -108,7 +110,9 @@ describe('RecipeSourceTabs (native) — the ACTIVE tab', () => {
             contrastRatio(compositeOver(style.borderBottomColor, fillOf(active)), fillOf(active)),
             'active source-tab underline',
         ).toBeGreaterThanOrEqual(3);
-        expect(style.borderBottomColor, 'the seafoam selection underline must survive').toBe('rgb(61, 139, 133)');
+        // Derived from the token, not re-spelled: a literal `rgb(61, 139, 133)` froze this at the pre-#113
+        // seafoam and turned a palette move into a failure of the TAB.
+        expect(style.borderBottomColor, 'the seafoam selection underline must survive').toBe(cssColor(palette.seafoam));
     });
 });
 

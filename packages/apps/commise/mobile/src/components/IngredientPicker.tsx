@@ -31,7 +31,7 @@ import { fillTemplate } from '@commise/features-recipes';
 import type { RecipeFormIngredient } from '@commise/features-recipes';
 import { useIngredientResolver } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
+import { palette, tint } from '@commise/ui';
 import { PressScale } from '@commise/ui/press-scale';
 import { Feather } from '@expo/vector-icons';
 import { suggestionKey } from '@commise/features-recipes/hooks';
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
     searchInput: { flex: 1, fontSize: 16, color: palette.charcoal, padding: 0 },
     badge: {
         borderRadius: 999,
-        backgroundColor: 'rgba(46, 196, 182, 0.12)',
+        backgroundColor: tint(palette.seafoam, 0.12),
         paddingVertical: 2,
         paddingHorizontal: 8,
     },
@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
     primaryActionLabel: { fontSize: 14, fontWeight: '600', color: palette.white },
     fallbackAction: {
         borderRadius: 999,
-        backgroundColor: 'rgba(46, 196, 182, 0.12)',
+        backgroundColor: tint(palette.seafoam, 0.12),
         paddingVertical: 10,
         paddingHorizontal: 16,
     },

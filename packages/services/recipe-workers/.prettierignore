@@ -1,4 +1,12 @@
 # Build output is not source. Prettier resolves .prettierignore from its CWD, and turbo runs each
 # package's `format:check` with CWD = the package — so the ROOT .prettierignore does not apply here.
-# Without this file, `npm run lint` fails on emitted dist/ the moment a build has run.
+# Without this file, `npm run lint` fails on emitted output the moment a build or a `cdk synth` has run.
+#
+# `cdk.out` / `dist-lambda` matter as much as `dist`: they are written by `npm run infra:synth`, which is
+# exactly what you run while verifying an infra change — so omitting them turns a local synth into a RED
+# format:check that CI (a clean checkout) never reproduces. Mirrors packages/services/identity.
+node_modules
 dist
+cdk.out
+cdk.context.json
+*.tsbuildinfo

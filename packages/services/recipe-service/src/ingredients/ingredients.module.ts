@@ -1,41 +1,54 @@
 /**
  * `IngredientsModule` — the ingredients vertical (US1 MVP + Stage-2 blended typeahead). Wires the
  * `/v1/ingredients` controller, the picker business logic ({@link IngredientsService}), the catalog DAL
- * ({@link IngredientsDal}, built over the global Drizzle provider), and the TWO food-service seams it reads
+ * ({@link IngredientsDal}, built over the global Drizzle provider), and the food-service seam it reads
  * nutrition and catalog suggestions through — the service NEVER queries USDA directly (data-model R5 / FR-007).
  *
- * **Two food-service clients, deliberately.** Both point at the same origin with the same M2M token; they
- * differ ONLY in their transport timeout, because their callers have opposite latency contracts:
+ * ## Patterns in force here
  *
- *  - {@link FoodServiceClient} (the default 8s) backs `addByName` / `getStatus` / `resolve` — user-initiated
- *    writes and polls where waiting several seconds for a real answer beats failing.
- *  - {@link FoodCatalogGateway}'s private client uses {@link TYPEAHEAD_TIMEOUT_MS} (sub-second) because it
- *    runs on a PER-KEYSTROKE path (Stage 2 / F2). Sharing the 8s client here would let a degraded food service
- *    stall the typeahead for 8s per keystroke and pile up in-flight requests — the exact failure the short
- *    timeout plus the gateway's local-only fallback exists to prevent.
+ * **Factory (`FoodServiceClients`) over singleton clients — because the credential is per request.** Food's
+ * `FoodAuthGuard` verifies a *Clerk* token, so the only credential that can satisfy it is the CALLER's own
+ * (issue #120). This module therefore provides no long-lived client at all: it provides one **Factory**, and
+ * the controller threads an opaque {@link CallerToken} (a redacting **Value Object**, `auth/caller-token.ts`)
+ * down to it, where it is exchanged for a client bound to that caller and to the ONE config-supplied origin.
+ * The alternative — a `Scope.REQUEST` provider — was rejected because request scope bubbles up the whole
+ * injection chain (gateway, service, controller) to buy an implicit version of a value that reads better
+ * explicit: every food call now NAMES the authority it acts under, which is what makes a forwarded user
+ * credential reviewable rather than ambient. The pre-#120 wiring was two singleton clients sharing a static
+ * `FOOD_SERVICE_TOKEN` env string — a value that was never set anywhere and could not have worked if it were.
  *
- * The timeout is enforced at the transport (a real `AbortSignal` inside the client), NOT by racing a timer in
+ * **The two latency contracts survive the change — do NOT collapse them.** They now live as the factory's two
+ * methods rather than two providers:
+ *
+ *  - `standard()` (the client's default 8s) backs `addByName` / `getStatus` / `getCandidates` / `resolve` —
+ *    user-initiated writes and polls where waiting several seconds for a real answer beats failing.
+ *  - `typeahead()` uses {@link TYPEAHEAD_TIMEOUT_MS} (sub-second) because {@link FoodCatalogGateway} runs on a
+ *    PER-KEYSTROKE path (Stage 2 / F2). Sharing the 8s budget there would let a degraded food service stall
+ *    the typeahead for 8s per keystroke and pile up in-flight requests — the exact failure the short timeout
+ *    plus the gateway's local-only fallback exists to prevent.
+ *
+ * Both bounds are enforced at the transport (a real `AbortSignal` inside the client), NOT by racing a timer in
  * the caller — a race would return early while leaving the underlying request pending, leaking a socket per
  * keystroke during an outage.
  *
+ * **Gateway (`FoodCatalogGateway`)** still owns the availability discipline for the blend, and is now the
+ * place a caller with NO credential degrades honestly instead of issuing a call that could only 401.
+ *
  * Configuration comes from the Zod-validated config (`foodServiceConfigSchema`) rather than raw
- * `process.env`, so boot-time validation actually governs the values used: `FOOD_SERVICE_URL` (origin),
- * `FOOD_SERVICE_TOKEN` (M2M bearer, re-read per request via the client's `getToken` callback so a rotated
- * token is always current), `FOOD_CATALOG_BLEND_ENABLED` (Stage-2 rollout switch) and
+ * `process.env`, so boot-time validation governs the values used: `FOOD_SERVICE_URL` (origin — REQUIRED, with
+ * no default anywhere, so a stage that was not told the food origin fails the boot instead of silently
+ * calling `localhost`), `FOOD_CATALOG_BLEND_ENABLED` (Stage-2 rollout switch) and
  * `FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS` (the per-keystroke bound).
  */
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { FoodServiceClient } from '@kitchensink/food-service-client';
 
 import { DrizzleProvider, type RecipeDrizzle } from '../database/database.module.js';
 import { IngredientsController } from './ingredients.controller.js';
 import { IngredientsService } from './ingredients.service.js';
 import { FoodCatalogGateway } from './food-catalog.gateway.js';
+import { FoodServiceClients } from './food-service-clients.factory.js';
 import { IngredientsDal } from './dal/ingredients.dal.js';
-
-/** Default food-service origin for local dev when `FOOD_SERVICE_URL` is unset. */
-const DEFAULT_FOOD_SERVICE_URL = 'http://localhost:3002';
 
 /**
  * Default per-keystroke bound on the catalog-blend request (ms).
@@ -48,22 +61,6 @@ const DEFAULT_FOOD_SERVICE_URL = 'http://localhost:3002';
  */
 const TYPEAHEAD_TIMEOUT_MS = 600;
 
-/** Read the M2M token source, re-reading `process.env` per request so a rotated secret takes effect live. */
-function tokenSource(config: ConfigService): (() => string) | undefined {
-    const token = config.get<string>('FOOD_SERVICE_TOKEN');
-
-    return token !== undefined ? (): string => process.env['FOOD_SERVICE_TOKEN'] ?? token : undefined;
-}
-
-/** Build a food-service client for the configured origin with an explicit timeout. */
-function createFoodServiceClient(config: ConfigService, timeoutMs?: number): FoodServiceClient {
-    return new FoodServiceClient({
-        baseUrl: config.get<string>('FOOD_SERVICE_URL') ?? DEFAULT_FOOD_SERVICE_URL,
-        token: tokenSource(config),
-        ...(timeoutMs === undefined ? {} : { timeoutMs }),
-    });
-}
-
 @Module({
     controllers: [IngredientsController],
     providers: [
@@ -73,22 +70,23 @@ function createFoodServiceClient(config: ConfigService, timeoutMs?: number): Foo
             useFactory: (db: RecipeDrizzle): IngredientsDal => new IngredientsDal(db),
         },
         {
-            provide: FoodServiceClient,
+            provide: FoodServiceClients,
             inject: [ConfigService],
-            useFactory: (config: ConfigService): FoodServiceClient => createFoodServiceClient(config),
+            useFactory: (config: ConfigService): FoodServiceClients =>
+                new FoodServiceClients({
+                    // `getOrThrow` states the invariant locally too: there is no default, at any layer.
+                    baseUrl: config.getOrThrow<string>('FOOD_SERVICE_URL'),
+                    typeaheadTimeoutMs: config.get<number>('FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS') ?? TYPEAHEAD_TIMEOUT_MS,
+                }),
         },
         {
             provide: FoodCatalogGateway,
-            inject: [ConfigService],
-            useFactory: (config: ConfigService): FoodCatalogGateway =>
-                new FoodCatalogGateway(
-                    createFoodServiceClient(
-                        config,
-                        config.get<number>('FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS') ?? TYPEAHEAD_TIMEOUT_MS,
-                    ),
+            inject: [FoodServiceClients, ConfigService],
+            useFactory: (clients: FoodServiceClients, config: ConfigService): FoodCatalogGateway =>
+                new FoodCatalogGateway(clients, {
                     // Enabled unless an operator explicitly switches the blend off.
-                    { enabled: config.get<boolean>('FOOD_CATALOG_BLEND_ENABLED') !== false },
-                ),
+                    enabled: config.get<boolean>('FOOD_CATALOG_BLEND_ENABLED') !== false,
+                }),
         },
         IngredientsService,
     ],

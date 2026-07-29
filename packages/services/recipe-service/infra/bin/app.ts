@@ -38,6 +38,7 @@ const region = process.env['CDK_DEFAULT_REGION'] ?? process.env['DEFAULT_AWS_REG
 const account = process.env['CDK_DEFAULT_ACCOUNT'] ?? process.env['AWS_ACCOUNT_ID'];
 const domainName = process.env['DOMAIN_NAME'];
 const vpcId = process.env['RECIPE_VPC_ID'] ?? process.env['IDENTITY_VPC_ID'] ?? process.env['FOOD_VPC_ID'];
+const foodServiceUrl = process.env['RECIPE_FOOD_SERVICE_URL'];
 
 if (!domainName) {
     throw new Error('DOMAIN_NAME env var is required');
@@ -45,6 +46,18 @@ if (!domainName) {
 
 if (!vpcId) {
     throw new Error('RECIPE_VPC_ID (or IDENTITY_VPC_ID) env var is required');
+}
+
+// REQUIRED (issue #120). This variable existed in the code and in NO workflow, so the conditional prop it fed
+// never fired and every deployed recipe task ran with no food origin — falling back to `http://localhost:3002`
+// inside its own container, where nothing listens. The service's config now requires the value, and the deploy
+// refuses to synth without it: the CI step derives it from the food stack's own DNS-label helper
+// (`packages/services/food-service/infra/bin/print-food-host.ts`), so the host shape has ONE definition.
+if (!foodServiceUrl) {
+    throw new Error(
+        'RECIPE_FOOD_SERVICE_URL env var is required — the recipe service cannot boot without a food origin. ' +
+            'Derive it with `npx tsx packages/services/food-service/infra/bin/print-food-host.ts $STAGE $DOMAIN_NAME`.',
+    );
 }
 
 const env = account ? { account, region } : { region };
@@ -64,8 +77,8 @@ new RecipeServiceStack(app, `RecipeService-${stage}`, {
     // Optional (HAZ-051/067/039): no distribution is provisioned by this repo's CDK yet, so this is
     // simply unset until one exists — the service degrades to a logged CDN-invalidation no-op.
     cloudfrontDistributionId: process.env['RECIPE_CLOUDFRONT_DISTRIBUTION_ID'],
-    // Food service origin is optional (ingredient nutrition resolution degrades gracefully if unset).
-    foodServiceUrl: process.env['RECIPE_FOOD_SERVICE_URL'],
+    // Food service origin — REQUIRED, validated above and again at synth (see `assertFoodServiceUrl`).
+    foodServiceUrl,
 });
 
 app.synth();

@@ -20,7 +20,7 @@ import type { IngredientsService } from '../ingredients.service.js';
 import type { AddIngredientByFoodDto } from '../dto/add-ingredient-by-food.dto.js';
 import type { CreateIngredientDto } from '../dto/create-ingredient.dto.js';
 import type { ResolveIngredientDto } from '../dto/resolve-ingredient.dto.js';
-import { makeCandidateView, makeIngredient } from '../__fixtures__/ingredients.fixtures.js';
+import { CALLER_TOKEN as TOKEN, makeCandidateView, makeIngredient } from '../__fixtures__/ingredients.fixtures.js';
 
 /** The verified caller ULID the `@OwnerId()` decorator would inject (an auth assertion; unused downstream). */
 const CALLER = '01J0USER';
@@ -90,9 +90,9 @@ describe('IngredientsController', () => {
             const envelope = { suggestions: [], catalogAvailability: 'ok' as const };
             mocks.suggest.mockResolvedValue(envelope);
 
-            const result = await controller.suggest(CALLER, '  chicken  ', '5');
+            const result = await controller.suggest(CALLER, TOKEN, '  chicken  ', '5');
 
-            expect(mocks.suggest).toHaveBeenCalledWith('chicken', 5);
+            expect(mocks.suggest).toHaveBeenCalledWith(TOKEN, 'chicken', 5);
             // Mutation guard: routing /suggest at the local-only search would silently un-blend the typeahead.
             expect(mocks.search).not.toHaveBeenCalled();
             expect(result).toBe(envelope);
@@ -101,19 +101,21 @@ describe('IngredientsController', () => {
         it('defaults the limit to undefined (service default) when omitted', async () => {
             mocks.suggest.mockResolvedValue({ suggestions: [], catalogAvailability: 'ok' });
 
-            await controller.suggest(CALLER, 'chicken');
+            await controller.suggest(CALLER, TOKEN, 'chicken');
 
-            expect(mocks.suggest).toHaveBeenCalledWith('chicken', undefined);
+            expect(mocks.suggest).toHaveBeenCalledWith(TOKEN, 'chicken', undefined);
         });
 
         it('rejects a missing/blank q with 400', async () => {
-            await expect(controller.suggest(CALLER, '   ')).rejects.toBeInstanceOf(BadRequestException);
-            await expect(controller.suggest(CALLER, undefined)).rejects.toBeInstanceOf(BadRequestException);
+            await expect(controller.suggest(CALLER, TOKEN, '   ')).rejects.toBeInstanceOf(BadRequestException);
+            await expect(controller.suggest(CALLER, TOKEN, undefined)).rejects.toBeInstanceOf(BadRequestException);
             expect(mocks.suggest).not.toHaveBeenCalled();
         });
 
         it('rejects a non-numeric limit with 400', async () => {
-            await expect(controller.suggest(CALLER, 'chicken', 'abc')).rejects.toBeInstanceOf(BadRequestException);
+            await expect(controller.suggest(CALLER, TOKEN, 'chicken', 'abc')).rejects.toBeInstanceOf(
+                BadRequestException,
+            );
         });
     });
 
@@ -127,13 +129,62 @@ describe('IngredientsController', () => {
             });
             mocks.addByFoodId.mockResolvedValue(admitted);
 
-            const result = await controller.addByFood(CALLER, { foodId: '01J0FOOD' } as AddIngredientByFoodDto);
+            const result = await controller.addByFood(CALLER, TOKEN, { foodId: '01J0FOOD' } as AddIngredientByFoodDto);
 
-            expect(mocks.addByFoodId).toHaveBeenCalledWith('01J0FOOD');
+            expect(mocks.addByFoodId).toHaveBeenCalledWith(TOKEN, '01J0FOOD');
             // Mutation guards: the pick must not fall through to the by-name or freeform paths.
             expect(mocks.addByName).not.toHaveBeenCalled();
             expect(mocks.createFreeform).not.toHaveBeenCalled();
             expect(result).toBe(admitted);
+        });
+    });
+
+    describe('forwarded caller credential (issue #120)', () => {
+        it('hands the caller credential to every food-touching route, as the FIRST service argument', async () => {
+            mocks.suggest.mockResolvedValue({ suggestions: [], catalogAvailability: 'ok' });
+            mocks.addByName.mockResolvedValue(makeIngredient({ id: 'i1' }));
+            mocks.addByFoodId.mockResolvedValue(makeIngredient({ id: 'i2' }));
+            mocks.refreshStatus.mockResolvedValue(makeIngredient({ id: ID }));
+            mocks.getCandidates.mockResolvedValue([]);
+            mocks.resolve.mockResolvedValue(makeIngredient({ id: ID }));
+
+            await controller.suggest(CALLER, TOKEN, 'chicken');
+            await controller.addByName(CALLER, TOKEN, { name: 'Quinoa' } as CreateIngredientDto);
+            await controller.addByFood(CALLER, TOKEN, { foodId: 'F1' } as AddIngredientByFoodDto);
+            await controller.status(CALLER, TOKEN, ID);
+            await controller.candidates(CALLER, TOKEN, ID);
+            await controller.resolve(CALLER, TOKEN, ID, { candidateIds: ['c1'] } as ResolveIngredientDto);
+
+            for (const spy of [
+                mocks.suggest,
+                mocks.addByName,
+                mocks.addByFoodId,
+                mocks.refreshStatus,
+                mocks.getCandidates,
+                mocks.resolve,
+            ]) {
+                expect(spy.mock.calls[0]?.[0]).toBe(TOKEN);
+            }
+        });
+
+        it('passes an ABSENT credential through unchanged — the service decides how to degrade', async () => {
+            mocks.suggest.mockResolvedValue({ suggestions: [], catalogAvailability: 'unavailable' });
+
+            await controller.suggest(CALLER, undefined, 'chicken');
+
+            // Not a 401 here and not a substituted credential: the controller forwards what the request had.
+            expect(mocks.suggest).toHaveBeenCalledWith(undefined, 'chicken', undefined);
+        });
+
+        it('does NOT take a credential on the local-only routes (no cross-service call to authorize)', async () => {
+            mocks.search.mockResolvedValue([]);
+            mocks.createFreeform.mockResolvedValue(makeIngredient({ id: 'f1' }));
+
+            await controller.search(CALLER, 'flour');
+            await controller.create(CALLER, { name: 'Grandma spice' } as CreateIngredientDto);
+
+            expect(mocks.search).toHaveBeenCalledWith('flour', undefined);
+            expect(mocks.createFreeform).toHaveBeenCalledWith('Grandma spice');
         });
     });
 
@@ -158,11 +209,11 @@ describe('IngredientsController', () => {
             });
             mocks.addByName.mockResolvedValue(added);
 
-            const result = await controller.addByName(CALLER, { name: 'Quinoa' } as CreateIngredientDto);
+            const result = await controller.addByName(CALLER, TOKEN, { name: 'Quinoa' } as CreateIngredientDto);
 
             // Mutation guard: the ADD path must delegate to addByName — a regression routing it to the plain
             // freeform create would fail here (createFreeform must stay untouched).
-            expect(mocks.addByName).toHaveBeenCalledWith('Quinoa');
+            expect(mocks.addByName).toHaveBeenCalledWith(TOKEN, 'Quinoa');
             expect(mocks.createFreeform).not.toHaveBeenCalled();
             expect(result).toBe(added);
         });
@@ -173,9 +224,9 @@ describe('IngredientsController', () => {
             const refreshed = makeIngredient({ id: ID, foodResolutionStatus: FoodResolutionStatus.RESOLVED });
             mocks.refreshStatus.mockResolvedValue(refreshed);
 
-            const result = await controller.status(CALLER, ID);
+            const result = await controller.status(CALLER, TOKEN, ID);
 
-            expect(mocks.refreshStatus).toHaveBeenCalledWith(ID);
+            expect(mocks.refreshStatus).toHaveBeenCalledWith(TOKEN, ID);
             expect(result).toBe(refreshed);
         });
     });
@@ -185,9 +236,9 @@ describe('IngredientsController', () => {
             const candidates = [makeCandidateView({ candidateId: 'c1' })];
             mocks.getCandidates.mockResolvedValue(candidates);
 
-            const result = await controller.candidates(CALLER, ID);
+            const result = await controller.candidates(CALLER, TOKEN, ID);
 
-            expect(mocks.getCandidates).toHaveBeenCalledWith(ID);
+            expect(mocks.getCandidates).toHaveBeenCalledWith(TOKEN, ID);
             expect(result).toBe(candidates);
         });
     });
@@ -197,12 +248,12 @@ describe('IngredientsController', () => {
             const resolved = makeIngredient({ id: ID, foodResolutionStatus: FoodResolutionStatus.RESOLVED });
             mocks.resolve.mockResolvedValue(resolved);
 
-            const result = await controller.resolve(CALLER, ID, {
+            const result = await controller.resolve(CALLER, TOKEN, ID, {
                 candidateIds: ['cand-1', 'cand-2'],
             } as ResolveIngredientDto);
 
             // Mutation guard: the EXACT picks must reach the service — a wrong/dropped id fails here.
-            expect(mocks.resolve).toHaveBeenCalledWith(ID, ['cand-1', 'cand-2']);
+            expect(mocks.resolve).toHaveBeenCalledWith(TOKEN, ID, ['cand-1', 'cand-2']);
             expect(result).toBe(resolved);
         });
     });

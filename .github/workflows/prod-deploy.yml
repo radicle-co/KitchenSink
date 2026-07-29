@@ -322,6 +322,26 @@ jobs:
                     echo "handle_sync_topic_arn=$(lookup "kitchensink-data-${STAGE}:HandleSyncTopicArn")"
                   } >> "$GITHUB_OUTPUT"
 
+            # The food origin the recipe service reads ingredient nutrition + catalog suggestions from
+            # (issue #120). `RECIPE_FOOD_SERVICE_URL` appeared in NO workflow, so the prod recipe task would
+            # boot with no food origin at all and every ingredient call would hit `http://localhost:3002` —
+            # itself, on food's port — with `FoodCatalogGateway` swallowing the failures.
+            #
+            # Derived by RUNNING the food stack's own host helper (`foodServiceOriginForStage`) rather than
+            # re-typing `food.${DOMAIN_NAME}` here, so prod and every preview share ONE definition of the host
+            # shape. Ordering needs no `needs:`: this is a single sequential job and the food deploy steps above
+            # already ran. Prod's food service is persistent, so the host exists even when this run did not
+            # redeploy food.
+            - name: Resolve the food service origin (prod)
+              id: food
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: |
+                  set -euo pipefail
+                  food_url=$(npx tsx packages/services/food-service/infra/bin/print-food-host.ts \
+                    "${STAGE}" "${{ vars.DOMAIN_NAME }}")
+                  echo "url=${food_url}" >> "$GITHUB_OUTPUT"
+                  echo "recipe will call food at ${food_url}"
+
             - name: Ensure recipe ECR repository exists
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: aws ecr describe-repositories --repository-names kitchensink-recipes || aws ecr create-repository --repository-name kitchensink-recipes
@@ -361,6 +381,7 @@ jobs:
                   DOMAIN_NAME=${{ vars.DOMAIN_NAME }} \
                   RECIPE_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} \
                   RECIPE_IMAGE_TAG=${{ github.sha }} \
+                  RECIPE_FOOD_SERVICE_URL=${{ steps.food.outputs.url }} \
                   npx cdk deploy --app "node packages/services/recipe-service/infra/dist/bin/app.js" \
                     --all --require-approval never
 

@@ -23,16 +23,26 @@
  *     the caller surfaces an error, offers a freeform fallback ({@link IngredientsService.createFreeform},
  *     `is_user_entered = true`), and allows removal. A terminal food never throws out of the poll.
  *
- * @implements FR-007 FR-007a
+ * **Every food call is made AS THE CALLER** (issue #120). Food-service verifies a Clerk token, so the only
+ * credential that can satisfy it is the requesting user's own. It is therefore threaded explicitly through
+ * every food-touching operation as the FIRST parameter — the authority the operation acts under, stated at
+ * each call site rather than picked up ambiently — and exchanged for a per-request client via
+ * {@link FoodServiceClients}. `undefined` means the request carried no bearer (the non-production dev-auth
+ * bypass); it is never substituted with another credential. `search` and `createFreeform` take no caller
+ * because they touch nothing but the local catalog.
+ *
+ * @implements FR-007 FR-007a FR-047
  */
 import { Injectable } from '@nestjs/common';
 import { FoodResolutionStatus, normalizeUnit } from '@kitchensink/recipe-core';
 import type { Ingredient, IngredientPortion } from '@kitchensink/recipe-core';
-import { FoodServiceClient, isNotFoundError } from '@kitchensink/food-service-client';
+import { isNotFoundError } from '@kitchensink/food-service-client';
 import type { CandidateView, FoodStatus, FoodView, StatusResult } from '@kitchensink/food-service-client';
 
+import type { CallerToken } from '../auth/caller-token.js';
 import { clampLimit, IngredientsDal, type IngredientNutrition } from './dal/ingredients.dal.js';
 import { FoodCatalogGateway } from './food-catalog.gateway.js';
+import { FoodServiceClients } from './food-service-clients.factory.js';
 import { blendIngredientSuggestions } from './ingredient-suggestion.js';
 import type { IngredientSuggestions } from './ingredient-suggestion.js';
 import { foodNotAdmissible, ingredientNotFound } from '../recipes/recipe.error.js';
@@ -128,7 +138,7 @@ export function extractNutrition(food: FoodView): IngredientNutrition {
 export class IngredientsService {
     public constructor(
         private readonly dal: IngredientsDal,
-        private readonly foodClient: FoodServiceClient,
+        private readonly foodClients: FoodServiceClients,
         private readonly catalog: FoodCatalogGateway,
     ) {}
 
@@ -167,12 +177,18 @@ export class IngredientsService {
      * into the familiar section rather than shown as a catalog hit (it is pickable with no round-trip). The
      * dedup is therefore exact, not dependent on whether the local `limit` window happened to include the row.
      *
+     * @param caller - The requesting user's credential, forwarded to food-service. `undefined` degrades the
+     *   catalog half to `unavailable` (see {@link FoodCatalogGateway}); the local section still renders.
      * @param query - The raw user query (trimmed here). Blank yields an empty envelope.
      * @param limit - Optional max hits PER SECTION (clamped to `[1, 50]`, default 10).
      * @returns The sectioned, deduped suggestions plus whether the food catalog contributed.
      * @sideEffect Reads `ingredients` (twice at most) and performs one short-timeout food-service request.
      */
-    public async suggest(query: string, limit?: number): Promise<IngredientSuggestions> {
+    public async suggest(
+        caller: CallerToken | undefined,
+        query: string,
+        limit?: number,
+    ): Promise<IngredientSuggestions> {
         const trimmed = query.trim();
         const perSection = clampLimit(limit);
 
@@ -181,7 +197,7 @@ export class IngredientsService {
             // The gateway is total by contract; this guard exists so a future regression there degrades the
             // typeahead rather than 500-ing a keystroke.
             this.catalog
-                .search(trimmed, perSection)
+                .search(caller, trimmed, perSection)
                 .catch(() => ({ hits: [] as const, availability: 'unavailable' as const })),
         ]);
 
@@ -221,13 +237,14 @@ export class IngredientsService {
      * Poll-free in TIMING (a Stage-1 seeded food is already `RESOLVED`, so the read returns immediately) but it
      * IS one cross-service round-trip — not "already has nutrition, no call".
      *
+     * @param caller - The requesting user's credential, forwarded to food-service.
      * @param foodId - The opaque food-service id from a `catalog` suggestion (trimmed here).
      * @returns The food-backed ingredient, `RESOLVED` and carrying its per-100g nutrition + portions.
      * @throws {RecipeError} `UNKNOWN_INGREDIENT` (→ 400) when the food cannot back an ingredient — unknown,
      *   terminal, still mid-resolution, or nameless — and no row already exists to advance.
      * @sideEffect One food-service read, then inserts/updates `ingredients`.
      */
-    public async addByFoodId(foodId: string): Promise<Ingredient> {
+    public async addByFoodId(caller: CallerToken | undefined, foodId: string): Promise<Ingredient> {
         const id = foodId.trim();
         const existing = await this.dal.findByFoodId(id);
 
@@ -240,7 +257,7 @@ export class IngredientsService {
             return existing;
         }
 
-        const status = await this.readFoodStatus(id, existing);
+        const status = await this.readFoodStatus(caller, id, existing);
         const resolved = status.status === 'RESOLVED' ? status.food : undefined;
         const name = resolved?.name?.trim();
 
@@ -282,15 +299,20 @@ export class IngredientsService {
      * Read a food's status for the pick path, translating a food-service `404` (unknown row, or a terminal
      * `NOT_FOUND`/`FAILED`) into the terminal status the caller then records or rejects on.
      *
+     * @param caller - The requesting user's credential, forwarded to food-service.
      * @param id - The opaque food id.
      * @param existing - The pre-existing ingredient row, when there is one (drives the reject-vs-advance choice).
      * @returns The observed status result.
      * @throws {RecipeError} `UNKNOWN_INGREDIENT` when the food is unknown/terminal and no row exists to advance.
      * @sideEffect Performs one authenticated food-service HTTP request.
      */
-    private async readFoodStatus(id: string, existing: Ingredient | undefined): Promise<StatusResult> {
+    private async readFoodStatus(
+        caller: CallerToken | undefined,
+        id: string,
+        existing: Ingredient | undefined,
+    ): Promise<StatusResult> {
         try {
-            return await this.foodClient.getStatus(id);
+            return await this.foodClients.standard(caller).getStatus(id);
         } catch (error) {
             if (!isNotFoundError(error)) {
                 throw error;
@@ -311,13 +333,14 @@ export class IngredientsService {
      * (`PENDING` / `UNRESOLVED`); we persist a food-backed catalog row (deduped on the opaque `food_id`)
      * and return it immediately so the picker renders a "nutrition pending" state and polls later.
      *
+     * @param caller - The requesting user's credential, forwarded to food-service.
      * @param name - The display name (trimmed here).
      * @returns The created (or deduped) food-backed ingredient with its current resolution status.
      * @sideEffect Calls the food service, then reads/writes `ingredients`.
      */
-    public async addByName(name: string): Promise<Ingredient> {
+    public async addByName(caller: CallerToken | undefined, name: string): Promise<Ingredient> {
         const trimmed = name.trim();
-        const added = await this.foodClient.addByName(trimmed);
+        const added = await this.foodClients.standard(caller).addByName(trimmed);
         const existing = await this.dal.findByFoodId(added.id);
 
         if (existing) {
@@ -336,12 +359,13 @@ export class IngredientsService {
      * golden-record per-100g nutrition is written back; a terminal `NOT_FOUND` / `FAILED` is recorded as
      * the ingredient's status (never thrown — the picker surfaces it and offers a freeform fallback).
      *
+     * @param caller - The requesting user's credential, forwarded to food-service.
      * @param id - The 001 ingredient id.
      * @returns The refreshed ingredient.
      * @throws {RecipeError} `RECIPE_NOT_FOUND` (→ 404) when no such ingredient exists.
      * @sideEffect Calls the food service, then updates `ingredients`.
      */
-    public async refreshStatus(id: string): Promise<Ingredient> {
+    public async refreshStatus(caller: CallerToken | undefined, id: string): Promise<Ingredient> {
         const ingredient = await this.requireIngredient(id);
 
         // Freeform / user-entered ingredients carry no food reference — nothing to poll.
@@ -350,7 +374,7 @@ export class IngredientsService {
         }
 
         try {
-            const status = await this.foodClient.getStatus(ingredient.foodId);
+            const status = await this.foodClients.standard(caller).getStatus(ingredient.foodId);
             const resolved = status.status === 'RESOLVED' && status.food !== undefined ? status.food : undefined;
             const updated = await this.dal.updateResolution(id, {
                 foodResolutionStatus: toResolutionStatus(status.status),
@@ -377,19 +401,20 @@ export class IngredientsService {
     /**
      * The disambiguation candidate set for an `UNRESOLVED` food-backed ingredient.
      *
+     * @param caller - The requesting user's credential, forwarded to food-service.
      * @param id - The 001 ingredient id.
      * @returns The (non-expired) candidate set; empty for a freeform or non-`UNRESOLVED` ingredient.
      * @throws {RecipeError} `RECIPE_NOT_FOUND` (→ 404) when no such ingredient exists.
      * @sideEffect Calls the food service.
      */
-    public async getCandidates(id: string): Promise<readonly CandidateView[]> {
+    public async getCandidates(caller: CallerToken | undefined, id: string): Promise<readonly CandidateView[]> {
         const ingredient = await this.requireIngredient(id);
 
         if (ingredient.foodId === undefined) {
             return [];
         }
 
-        const result = await this.foodClient.getCandidates(ingredient.foodId);
+        const result = await this.foodClients.standard(caller).getCandidates(ingredient.foodId);
 
         return result.candidates;
     }
@@ -407,6 +432,7 @@ export class IngredientsService {
      * calling the food service or writing; only a still-open (non-terminal-resolved) ingredient may be
      * driven to a resolution.
      *
+     * @param caller - The requesting user's credential, forwarded to food-service.
      * @param id - The 001 ingredient id.
      * @param candidateIds - The picked candidate row ids (validated to the food's own set by the service).
      * @returns The refreshed, resolved ingredient (or the existing resolution, unchanged, when already `RESOLVED`).
@@ -414,7 +440,11 @@ export class IngredientsService {
      * @sideEffect Calls the food service (resolve + status), then updates `ingredients` — SKIPPED entirely
      *   for a freeform or already-`RESOLVED` ingredient.
      */
-    public async resolve(id: string, candidateIds: readonly string[]): Promise<Ingredient> {
+    public async resolve(
+        caller: CallerToken | undefined,
+        id: string,
+        candidateIds: readonly string[],
+    ): Promise<Ingredient> {
         const ingredient = await this.requireIngredient(id);
 
         // Freeform / user-entered ingredients carry no food reference — nothing to resolve.
@@ -428,9 +458,9 @@ export class IngredientsService {
             return ingredient;
         }
 
-        await this.foodClient.resolve(ingredient.foodId, candidateIds);
+        await this.foodClients.standard(caller).resolve(ingredient.foodId, candidateIds);
 
-        return this.refreshStatus(id);
+        return this.refreshStatus(caller, id);
     }
 
     /**

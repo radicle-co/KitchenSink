@@ -21,7 +21,11 @@ import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/c
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
 import type { FoodCatalogGateway } from '../../../src/ingredients/food-catalog.gateway.js';
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
-import { makeAddResult } from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
+import {
+    CALLER_TOKEN as CALLER,
+    foodClientsOf,
+    makeAddResult,
+} from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 const hasDatabaseUrl = Boolean(DATABASE_URL);
@@ -61,7 +65,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient addByName (integration: service + r
     beforeEach(async () => {
         await pool.query('DELETE FROM ingredients WHERE food_id = ANY($1)', [[PENDING_FOOD_ID, UNRESOLVED_FOOD_ID]]);
         food = makeFoodClientStub();
-        service = new IngredientsService(dal, food, makeCatalogStub());
+        service = new IngredientsService(dal, foodClientsOf(food), makeCatalogStub());
     });
 
     /** Re-read the persisted row's status + food link straight from the DB (not the service's return value). */
@@ -82,7 +86,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient addByName (integration: service + r
             makeAddResult({ id: PENDING_FOOD_ID, status: FoodResolutionStatus.PENDING }),
         );
 
-        const ingredient = await service.addByName('  Quinoa integration  ');
+        const ingredient = await service.addByName(CALLER, '  Quinoa integration  ');
 
         // The food client saw the TRIMMED name; the returned row is the non-terminal, food-linked catalog row.
         expect(food.addByName).toHaveBeenCalledWith('Quinoa integration');
@@ -99,7 +103,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient addByName (integration: service + r
             makeAddResult({ id: UNRESOLVED_FOOD_ID, status: FoodResolutionStatus.UNRESOLVED }),
         );
 
-        const ingredient = await service.addByName('Ambiguous integration');
+        const ingredient = await service.addByName(CALLER, 'Ambiguous integration');
 
         expect(ingredient.foodResolutionStatus).toBe(FoodResolutionStatus.UNRESOLVED);
         expect(await readRow(UNRESOLVED_FOOD_ID)).toEqual({ status: 'UNRESOLVED', is_user_entered: false });
@@ -110,8 +114,8 @@ describe.skipIf(!hasDatabaseUrl)('ingredient addByName (integration: service + r
             makeAddResult({ id: PENDING_FOOD_ID, status: FoodResolutionStatus.PENDING }),
         );
 
-        const first = await service.addByName('Quinoa integration');
-        const second = await service.addByName('Quinoa integration again');
+        const first = await service.addByName(CALLER, 'Quinoa integration');
+        const second = await service.addByName(CALLER, 'Quinoa integration again');
 
         expect(second.id).toBe(first.id);
         const { rows } = await pool.query<{ n: string }>(

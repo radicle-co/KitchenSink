@@ -1,14 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FoodResolutionStatus, RecipeErrorCode, isRecipeError } from '@kitchensink/recipe-core';
 import { NotFoundError } from '@kitchensink/food-service-client';
-import type { FoodServiceClient } from '@kitchensink/food-service-client';
 
 import type { FoodCatalogGateway } from '../food-catalog.gateway.js';
+import type { FoodServiceClients } from '../food-service-clients.factory.js';
 import type { IngredientsDal } from '../dal/ingredients.dal.js';
 import { IngredientsService, extractNutrition, extractPortions, parsePortion } from '../ingredients.service.js';
 import {
+    CALLER_TOKEN as CALLER,
     makeAddResult,
     makeCandidateView,
+    makeFoodClients,
     makeFoodView,
     makeIngredient,
     makeStatusResult,
@@ -27,21 +29,6 @@ function makeDal(): { dal: IngredientsDal; mocks: Record<string, ReturnType<type
     };
 
     return { dal: mocks as unknown as IngredientsDal, mocks };
-}
-
-/** A fully mocked `FoodServiceClient`. */
-function makeFoodClient(): { client: FoodServiceClient; mocks: Record<string, ReturnType<typeof vi.fn>> } {
-    const mocks = {
-        search: vi.fn(),
-        addByName: vi.fn(),
-        getById: vi.fn(),
-        getStatus: vi.fn(),
-        getCandidates: vi.fn(),
-        resolve: vi.fn(),
-        batch: vi.fn(),
-    };
-
-    return { client: mocks as unknown as FoodServiceClient, mocks };
 }
 
 /** A no-op catalog gateway — these suites cover the paths that never blend (see the Stage-2 suite for those). */
@@ -118,13 +105,38 @@ describe('IngredientsService', () => {
     let service: IngredientsService;
     let dal: IngredientsDal;
     let dalMocks: Record<string, ReturnType<typeof vi.fn>>;
-    let client: FoodServiceClient;
+    let clients: FoodServiceClients;
     let clientMocks: Record<string, ReturnType<typeof vi.fn>>;
+    let standard: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
         ({ dal, mocks: dalMocks } = makeDal());
-        ({ client, mocks: clientMocks } = makeFoodClient());
-        service = new IngredientsService(dal, client, makeCatalogGateway());
+        ({ clients, mocks: clientMocks, standard } = makeFoodClients());
+        service = new IngredientsService(dal, clients, makeCatalogGateway());
+    });
+
+    describe('caller-credential forwarding (issue #120)', () => {
+        it('mints the 8s standard client for THIS caller on every food-touching path', async () => {
+            clientMocks['addByName']!.mockResolvedValue(makeAddResult({ id: 'F1' }));
+            dalMocks['findByFoodId']!.mockResolvedValue(undefined);
+            dalMocks['createFoodBacked']!.mockResolvedValue(makeIngredient({ id: 'i1', foodId: 'F1' }));
+
+            await service.addByName(CALLER, 'Quinoa');
+
+            // The credential the user presented is the one the food call is made under — not a service token,
+            // and not an ambient value: the factory is asked for a client for exactly this caller.
+            expect(standard).toHaveBeenCalledWith(CALLER);
+        });
+
+        it('does NOT reach the food service at all on the local-only paths (no credential use)', async () => {
+            dalMocks['search']!.mockResolvedValue([]);
+            dalMocks['createFreeform']!.mockResolvedValue(makeIngredient({ id: 'f1' }));
+
+            await service.search('flour');
+            await service.createFreeform('Grandma spice');
+
+            expect(standard).not.toHaveBeenCalled();
+        });
     });
 
     describe('search (local catalog)', () => {
@@ -155,7 +167,7 @@ describe('IngredientsService', () => {
             });
             dalMocks['createFoodBacked']!.mockResolvedValue(created);
 
-            const result = await service.addByName('  Quinoa  ');
+            const result = await service.addByName(CALLER, '  Quinoa  ');
 
             expect(clientMocks['addByName']).toHaveBeenCalledWith('Quinoa');
             expect(dalMocks['createFoodBacked']).toHaveBeenCalledWith({
@@ -171,7 +183,7 @@ describe('IngredientsService', () => {
             const existing = makeIngredient({ id: 'dup', foodId: 'F1' });
             dalMocks['findByFoodId']!.mockResolvedValue(existing);
 
-            const result = await service.addByName('Quinoa');
+            const result = await service.addByName(CALLER, 'Quinoa');
 
             expect(result).toBe(existing);
             expect(dalMocks['createFoodBacked']).not.toHaveBeenCalled();
@@ -186,7 +198,7 @@ describe('IngredientsService', () => {
                 Promise.resolve(makeIngredient(input as object)),
             );
 
-            const result = await service.addByName('Ambiguous thing');
+            const result = await service.addByName(CALLER, 'Ambiguous thing');
 
             expect(result.foodResolutionStatus).toBe(FoodResolutionStatus.UNRESOLVED);
         });
@@ -208,7 +220,7 @@ describe('IngredientsService', () => {
             });
             dalMocks['updateResolution']!.mockResolvedValue(resolved);
 
-            const result = await service.refreshStatus('i1');
+            const result = await service.refreshStatus(CALLER, 'i1');
 
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
                 foodResolutionStatus: FoodResolutionStatus.RESOLVED,
@@ -227,7 +239,7 @@ describe('IngredientsService', () => {
                 makeIngredient({ id: 'i1', foodId: 'F1', foodResolutionStatus: FoodResolutionStatus.PENDING }),
             );
 
-            await service.refreshStatus('i1');
+            await service.refreshStatus(CALLER, 'i1');
 
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
                 foodResolutionStatus: FoodResolutionStatus.PENDING,
@@ -242,7 +254,7 @@ describe('IngredientsService', () => {
                 makeIngredient({ id: 'i1', foodId: 'F1', foodResolutionStatus: FoodResolutionStatus.NOT_FOUND }),
             );
 
-            const result = await service.refreshStatus('i1');
+            const result = await service.refreshStatus(CALLER, 'i1');
 
             expect(dalMocks['updateResolution']).toHaveBeenCalledWith('i1', {
                 foodResolutionStatus: FoodResolutionStatus.NOT_FOUND,
@@ -254,7 +266,7 @@ describe('IngredientsService', () => {
             const freeform = makeIngredient({ id: 'f1', isUserEntered: true });
             dalMocks['findById']!.mockResolvedValue(freeform);
 
-            const result = await service.refreshStatus('f1');
+            const result = await service.refreshStatus(CALLER, 'f1');
 
             expect(result).toBe(freeform);
             expect(clientMocks['getStatus']).not.toHaveBeenCalled();
@@ -265,7 +277,7 @@ describe('IngredientsService', () => {
 
             // Must be a real stack-bearing Error carrying the domain code (not a bare object literal),
             // so it egresses the shared `{ code, message, details }` envelope with a usable stack.
-            await expect(service.refreshStatus('missing')).rejects.toSatisfy(
+            await expect(service.refreshStatus(CALLER, 'missing')).rejects.toSatisfy(
                 (e: unknown) => e instanceof Error && isRecipeError(e) && e.code === RecipeErrorCode.RECIPE_NOT_FOUND,
             );
         });
@@ -279,7 +291,7 @@ describe('IngredientsService', () => {
             const candidate = makeCandidateView();
             clientMocks['getCandidates']!.mockResolvedValue({ id: 'F1', candidates: [candidate] });
 
-            const result = await service.getCandidates('i1');
+            const result = await service.getCandidates(CALLER, 'i1');
 
             expect(clientMocks['getCandidates']).toHaveBeenCalledWith('F1');
             expect(result).toEqual([candidate]);
@@ -288,7 +300,7 @@ describe('IngredientsService', () => {
         it('getCandidates returns empty for a freeform ingredient', async () => {
             dalMocks['findById']!.mockResolvedValue(makeIngredient({ id: 'f1', isUserEntered: true }));
 
-            expect(await service.getCandidates('f1')).toEqual([]);
+            expect(await service.getCandidates(CALLER, 'f1')).toEqual([]);
             expect(clientMocks['getCandidates']).not.toHaveBeenCalled();
         });
 
@@ -307,7 +319,7 @@ describe('IngredientsService', () => {
             });
             dalMocks['updateResolution']!.mockResolvedValue(resolved);
 
-            const result = await service.resolve('i1', ['cand-1']);
+            const result = await service.resolve(CALLER, 'i1', ['cand-1']);
 
             expect(clientMocks['resolve']).toHaveBeenCalledWith('F1', ['cand-1']);
             expect(result).toBe(resolved);
@@ -325,7 +337,7 @@ describe('IngredientsService', () => {
             });
             dalMocks['findById']!.mockResolvedValue(alreadyResolved);
 
-            const result = await service.resolve('i1', ['a-different-candidate']);
+            const result = await service.resolve(CALLER, 'i1', ['a-different-candidate']);
 
             expect(result).toBe(alreadyResolved);
             expect(clientMocks['resolve']).not.toHaveBeenCalled();

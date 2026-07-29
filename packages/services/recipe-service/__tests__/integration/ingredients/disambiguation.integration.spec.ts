@@ -23,6 +23,8 @@ import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js'
 import type { FoodCatalogGateway } from '../../../src/ingredients/food-catalog.gateway.js';
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
 import {
+    CALLER_TOKEN as CALLER,
+    foodClientsOf,
     makeCandidateView,
     makeFoodView,
     makeStatusResult,
@@ -71,7 +73,7 @@ describe.skipIf(!hasDatabaseUrl)(
         beforeEach(async () => {
             await pool.query('DELETE FROM ingredients WHERE food_id = $1', [FOOD_ID]);
             food = makeFoodClientStub();
-            service = new IngredientsService(dal, food, makeCatalogStub());
+            service = new IngredientsService(dal, foodClientsOf(food), makeCatalogStub());
         });
 
         /** Seed a food-backed catalog row in the given non-terminal status and return its 001 id. */
@@ -90,7 +92,7 @@ describe.skipIf(!hasDatabaseUrl)(
             const candidate = makeCandidateView({ candidateId: 'cand-a', name: 'Quinoa, cooked' });
             vi.mocked(food.getCandidates).mockResolvedValue({ id: FOOD_ID, candidates: [candidate] });
 
-            const result = await service.getCandidates(id);
+            const result = await service.getCandidates(CALLER, id);
 
             expect(food.getCandidates).toHaveBeenCalledWith(FOOD_ID);
             expect(result).toEqual([candidate]);
@@ -110,7 +112,7 @@ describe.skipIf(!hasDatabaseUrl)(
                 }),
             );
 
-            const resolved = await service.resolve(id, ['cand-a']);
+            const resolved = await service.resolve(CALLER, id, ['cand-a']);
 
             // The exact pick reaches the food client (mutation guard: a wrong id would fail here).
             expect(food.resolve).toHaveBeenCalledWith(FOOD_ID, ['cand-a']);
@@ -136,7 +138,7 @@ describe.skipIf(!hasDatabaseUrl)(
                 }),
             );
 
-            await service.resolve(id, ['cand-a']);
+            await service.resolve(CALLER, id, ['cand-a']);
             const afterFirst = await dal.findById(id);
             expect(afterFirst?.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
             expect(afterFirst?.caloriesPer100g).toBe(364);
@@ -147,7 +149,7 @@ describe.skipIf(!hasDatabaseUrl)(
             vi.mocked(food.resolve).mockClear();
             vi.mocked(food.getStatus).mockClear();
 
-            const returned = await service.resolve(id, ['cand-b']);
+            const returned = await service.resolve(CALLER, id, ['cand-b']);
 
             expect(food.resolve).not.toHaveBeenCalled();
             expect(food.getStatus).not.toHaveBeenCalled();
@@ -166,7 +168,7 @@ describe.skipIf(!hasDatabaseUrl)(
                 }),
             );
 
-            const refreshed = await service.refreshStatus(id);
+            const refreshed = await service.refreshStatus(CALLER, id);
 
             expect(refreshed.foodResolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
             expect((await dal.findById(id))?.caloriesPer100g).toBe(364);
@@ -176,7 +178,7 @@ describe.skipIf(!hasDatabaseUrl)(
             const id = await seedFoodBacked(FoodResolutionStatus.PENDING);
             vi.mocked(food.getStatus).mockRejectedValue(new NotFoundError(FOOD_ID, FoodResolutionStatus.NOT_FOUND));
 
-            const refreshed = await service.refreshStatus(id);
+            const refreshed = await service.refreshStatus(CALLER, id);
 
             expect(refreshed.foodResolutionStatus).toBe(FoodResolutionStatus.NOT_FOUND);
             expect((await dal.findById(id))?.foodResolutionStatus).toBe(FoodResolutionStatus.NOT_FOUND);

@@ -6,6 +6,7 @@ import {
     FoodServiceStack,
     foodDatabaseNameForStage,
     foodListenerPriorityForStage,
+    foodServiceOriginForStage,
     foodSubdomainForStage,
     BASE_FOOD_LISTENER_PRIORITY,
     PER_PR_PRIORITY_BASE,
@@ -645,6 +646,27 @@ describe('Base-stage platform imports (ADR-0006)', () => {
                 }),
             ]),
         });
+    });
+});
+
+describe('foodServiceOriginForStage (the ONE definition the recipe deploy consumes — issue #120)', () => {
+    it('composes the stage label with the apex into an https origin', () => {
+        expect(foodServiceOriginForStage('prod', 'commise.app')).toBe('https://food.commise.app');
+        expect(foodServiceOriginForStage('pr-73', 'commise.app')).toBe('https://food-pr-73.commise.app');
+    });
+
+    it('never emits a trailing slash (the food client strips one, but callers embed this verbatim)', () => {
+        expect(foodServiceOriginForStage('pr-1', 'commise.app').endsWith('/')).toBe(false);
+    });
+
+    it('stays SINGLE-label under the apex for every non-prod stage (the wildcard-cert constraint)', () => {
+        // `https://food.pr-7.commise.app` would match neither `*.commise.app` nor `*.sandbox.commise.app`
+        // and would fail the TLS handshake — so recipe would be pointed at a host it can never reach.
+        for (const stage of ['pr-7', 'pr-123', 'sandbox']) {
+            const host = new URL(foodServiceOriginForStage(stage, 'commise.app')).hostname;
+
+            expect(host.split('.')).toHaveLength(3);
+        }
     });
 });
 

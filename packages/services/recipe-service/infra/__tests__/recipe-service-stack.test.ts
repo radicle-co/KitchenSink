@@ -47,7 +47,7 @@ const VPC_LOOKUP_CONTEXT = {
     },
 };
 
-function synthTemplate(stage: string, baseStage: string): Template {
+function synthTemplate(stage: string, baseStage: string, foodServiceUrl?: string): Template {
     const app = new App({ context: { ...VPC_LOOKUP_CONTEXT } });
     const stack = new RecipeServiceStack(app, `Recipe-${stage}`, {
         env: { account: '123456789012', region: 'us-east-1' },
@@ -58,6 +58,7 @@ function synthTemplate(stage: string, baseStage: string): Template {
         desiredCount: 1,
         vpcId: 'vpc-12345678',
         cloudfrontUrl: 'https://cdn.example.com',
+        foodServiceUrl: foodServiceUrl ?? `https://food-${stage}.example.com`,
     });
 
     return Template.fromStack(stack);
@@ -194,6 +195,25 @@ describe('Account-erasure queue wiring', () => {
         );
     };
 
+    it('supplies FOOD_SERVICE_URL to the API task, with the value the deploy passed in (issue #120)', () => {
+        // THE regression this pins. The prop used to be optional and set behind
+        // `if (props.foodServiceUrl !== undefined)`, and nothing in `.github/` ever supplied
+        // `RECIPE_FOOD_SERVICE_URL` — so the live pr-73 task definition carried ZERO `FOOD_*` variables and
+        // the service fell back to `http://localhost:3002`: itself, on food's port. Every cross-service call
+        // was connection-refused, and `FoodCatalogGateway` being total meant nothing ever said so. The prop is
+        // now REQUIRED, so a deploy cannot synthesize a task that has not been told where food is.
+        const foodEnv = apiEnvironment(template).find((entry) => entry.Name === 'FOOD_SERVICE_URL');
+
+        expect(foodEnv).toBeDefined();
+        expect(foodEnv?.Value).toBe('https://food-pr-73.example.com');
+    });
+
+    it('does NOT supply a FOOD_SERVICE_TOKEN — food is called with the caller’s own Clerk token', () => {
+        // A static env bearer cannot satisfy food's Clerk verifier, so there is no service credential to
+        // inject. Re-introducing one here would be a step back toward the seam #120 removed.
+        expect(apiEnvironment(template).map((entry) => entry.Name)).not.toContain('FOOD_SERVICE_TOKEN');
+    });
+
     it('supplies ACCOUNT_ERASURE_QUEUE_URL to the API task', () => {
         // Without this the container crash-loops on boot: the config schema rejects the missing key.
         expect(apiEnvironment(template).map((entry) => entry.Name)).toContain('ACCOUNT_ERASURE_QUEUE_URL');
@@ -262,5 +282,32 @@ describe('Account-erasure queue wiring', () => {
         );
         expect(serialized).not.toContain('sqs:ReceiveMessage');
         expect(serialized).not.toContain('sqs:DeleteMessage');
+    });
+});
+
+/**
+ * The food-service origin the ingredients vertical calls (issue #120).
+ *
+ * `RECIPE_FOOD_SERVICE_URL` reaches this stack through `infra/bin/app.ts` and is written straight into the
+ * task definition, so a blank or relative value is a misconfiguration that would otherwise surface as
+ * crash-looping tasks and a CloudFormation rollback several minutes later. A GitHub Actions expression that
+ * resolves to nothing (an unset step output, a renamed step id) produces exactly that blank. Failing at
+ * SYNTH instead names the variable while the deploy log is still on screen.
+ */
+describe('foodServiceUrl validation', () => {
+    it.each([
+        ['an empty string', ''],
+        ['whitespace', '   '],
+        ['a bare host', 'food-pr-73.example.com'],
+    ])('refuses to synthesize with %s', (_label, value) => {
+        expect(() => synthTemplate('pr-73', 'sandbox', value)).toThrow(/RECIPE_FOOD_SERVICE_URL/);
+    });
+
+    it('accepts an absolute https origin', () => {
+        expect(() => synthTemplate('pr-73', 'sandbox', 'https://food-pr-73.example.com')).not.toThrow();
+    });
+
+    it('accepts an absolute http origin (a local/dev-style target is not this layer’s business)', () => {
+        expect(() => synthTemplate('pr-73', 'sandbox', 'http://food.internal:3002')).not.toThrow();
     });
 });

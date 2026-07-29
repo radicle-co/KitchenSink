@@ -2,15 +2,65 @@
  * Fixture factories for the ingredients domain (`make*` accepting `Partial<T>`, per CODING_STANDARDS).
  * Used by the ingredient DAL / service / controller unit tests.
  */
+import { vi } from 'vitest';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { Ingredient } from '@kitchensink/recipe-core';
 import type {
     AddResult,
     CandidateView,
-    FoodView,
+    FoodServiceClient,
     SearchResultView,
+    FoodView,
     StatusResult,
 } from '@kitchensink/food-service-client';
+
+import { CallerToken } from '../../auth/caller-token.js';
+import type { FoodServiceClients } from '../food-service-clients.factory.js';
+
+/**
+ * The caller credential the ingredient tests forward to the food service (issue #120). A real request
+ * carries the user's verified Clerk bearer; the tests only need a distinct, redacting {@link CallerToken}.
+ */
+export const CALLER_TOKEN = CallerToken.fromAuthorizationHeader('Bearer caller-session-jwt') as CallerToken;
+
+/** The mocked food-client methods a {@link makeFoodClients} double exposes. */
+export type FoodClientMocks = Record<string, ReturnType<typeof vi.fn>>;
+
+/**
+ * A {@link FoodServiceClients} double: ONE underlying mocked client, returned by both `standard()` and
+ * `typeahead()`, plus the spies on those factory methods so a test can assert WHICH caller a client was
+ * minted for and which budget was used.
+ */
+export function makeFoodClients(): {
+    clients: FoodServiceClients;
+    mocks: FoodClientMocks;
+    standard: ReturnType<typeof vi.fn>;
+    typeahead: ReturnType<typeof vi.fn>;
+} {
+    const mocks: FoodClientMocks = {
+        search: vi.fn(),
+        addByName: vi.fn(),
+        getById: vi.fn(),
+        getStatus: vi.fn(),
+        getCandidates: vi.fn(),
+        resolve: vi.fn(),
+        batch: vi.fn(),
+    };
+    const client = mocks as unknown as FoodServiceClient;
+    const standard = vi.fn(() => client);
+    const typeahead = vi.fn(() => client);
+
+    return { clients: { standard, typeahead } as unknown as FoodServiceClients, mocks, standard, typeahead };
+}
+
+/**
+ * Present an existing stubbed `FoodServiceClient` as the per-request client factory the service now takes
+ * (issue #120) — for suites whose subject is the DAL/SQL rather than the credential seam, so they keep
+ * asserting against the client double they already had.
+ */
+export function foodClientsOf(client: FoodServiceClient): FoodServiceClients {
+    return { standard: () => client, typeahead: () => client } as unknown as FoodServiceClients;
+}
 
 /** A canonical `Ingredient` domain object with overridable fields. */
 export function makeIngredient(overrides: Partial<Ingredient> = {}): Ingredient {

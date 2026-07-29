@@ -37,7 +37,14 @@
  * Input is validated at the boundary and delegated to {@link IngredientsService}; domain errors are
  * surfaced via thrown `RecipeError`s mapped by the global `ApiExceptionFilter`.
  *
- * @implements FR-007 FR-007a
+ * **Forwarded caller credential (issue #120).** Every route that reaches the food service also takes
+ * `@CallerBearerToken()`: food verifies a Clerk token, so recipe calls it AS the authenticated user rather
+ * than with a service credential. The decorator yields `undefined` when the request carried no bearer (the
+ * non-production dev-auth bypass) and the ingredient paths degrade rather than substitute a credential — see
+ * `auth/caller-token.ts` for why the credential is an opaque value object and never a `string`. The
+ * local-only routes (`/search`, `POST /`) take no credential because they make no cross-service call.
+ *
+ * @implements FR-007 FR-007a FR-047
  */
 import {
     BadRequestException,
@@ -56,6 +63,8 @@ import {
 import type { Ingredient } from '@kitchensink/recipe-core';
 import type { CandidateView } from '@kitchensink/food-service-client';
 
+import { CallerBearerToken } from '../auth/caller-token.decorator.js';
+import type { CallerToken } from '../auth/caller-token.js';
 import { OwnerId } from '../auth/current-principal.decorator.js';
 import { IngredientsService } from './ingredients.service.js';
 import type { IngredientSuggestions } from './ingredient-suggestion.js';
@@ -132,6 +141,7 @@ export class IngredientsController {
      * user the catalog is degraded instead of silently showing fewer results.
      *
      * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
+     * @param caller - The caller's own bearer, forwarded to the food service (see the class doc).
      * @param q - The name query (required, non-blank).
      * @param limit - Optional max hits PER SECTION (1–50, default 10).
      * @returns The blended suggestions plus whether the food catalog contributed.
@@ -141,6 +151,7 @@ export class IngredientsController {
     @SearchRateLimit()
     public async suggest(
         @OwnerId() _ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
         @Query('q') q?: string,
         @Query('limit') limit?: string,
     ): Promise<IngredientSuggestions> {
@@ -150,7 +161,7 @@ export class IngredientsController {
             throw new BadRequestException('q is required');
         }
 
-        return this.ingredients.suggest(query, parseLimit(limit));
+        return this.ingredients.suggest(caller, query, parseLimit(limit));
     }
 
     /**
@@ -181,14 +192,19 @@ export class IngredientsController {
      * A mutation (food-service add + DB write) → the write rate limit.
      *
      * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
+     * @param caller - The caller's own bearer, forwarded to the food service (see the class doc).
      * @param body - `{ name }` (non-blank, ≤120 chars), validated by {@link CreateIngredientDto}.
      * @returns The created (or deduped) food-backed ingredient with its current non-terminal resolution status.
      */
     @Post('by-name')
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
-    public async addByName(@OwnerId() _ownerId: string, @Body() body: CreateIngredientDto): Promise<Ingredient> {
-        return this.ingredients.addByName(body.name);
+    public async addByName(
+        @OwnerId() _ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Body() body: CreateIngredientDto,
+    ): Promise<Ingredient> {
+        return this.ingredients.addByName(caller, body.name);
     }
 
     /**
@@ -206,6 +222,7 @@ export class IngredientsController {
      * A mutation (food-service read + DB write) → the write rate limit.
      *
      * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
+     * @param caller - The caller's own bearer, forwarded to the food service (see the class doc).
      * @param body - `{ foodId }` (non-blank, ≤64 chars), validated by {@link AddIngredientByFoodDto}. Any
      *   caller-supplied `name` is stripped by the whitelist — the display name comes from the food service.
      * @returns The food-backed ingredient with its golden-record nutrition.
@@ -215,8 +232,12 @@ export class IngredientsController {
     @Post('by-food')
     @HttpCode(HttpStatus.OK)
     @WriteRateLimit()
-    public async addByFood(@OwnerId() _ownerId: string, @Body() body: AddIngredientByFoodDto): Promise<Ingredient> {
-        return this.ingredients.addByFoodId(body.foodId);
+    public async addByFood(
+        @OwnerId() _ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Body() body: AddIngredientByFoodDto,
+    ): Promise<Ingredient> {
+        return this.ingredients.addByFoodId(caller, body.foodId);
     }
 
     /**
@@ -228,13 +249,18 @@ export class IngredientsController {
      * tighter write/search limits would 429 a caller mid-resolution.
      *
      * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
+     * @param caller - The caller's own bearer, forwarded to the food service (see the class doc).
      * @param id - The 001 ingredient id (UUID; a malformed id is a `400` via `ParseUUIDPipe`).
      * @returns The refreshed ingredient (with its current `foodResolutionStatus`).
      * @throws {RecipeError} `RECIPE_NOT_FOUND` (→ 404) when no such ingredient exists.
      */
     @Get(':id/status')
-    public async status(@OwnerId() _ownerId: string, @Param('id', ParseUUIDPipe) id: string): Promise<Ingredient> {
-        return this.ingredients.refreshStatus(id);
+    public async status(
+        @OwnerId() _ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Param('id', ParseUUIDPipe) id: string,
+    ): Promise<Ingredient> {
+        return this.ingredients.refreshStatus(caller, id);
     }
 
     /**
@@ -242,6 +268,7 @@ export class IngredientsController {
      * food-backed ingredient. A read (no throttle decorator). Empty for a freeform or non-`UNRESOLVED` row.
      *
      * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
+     * @param caller - The caller's own bearer, forwarded to the food service (see the class doc).
      * @param id - The 001 ingredient id (UUID).
      * @returns The (non-expired) candidate set the caller can pick from to resolve the ingredient.
      * @throws {RecipeError} `RECIPE_NOT_FOUND` (→ 404) when no such ingredient exists.
@@ -249,9 +276,10 @@ export class IngredientsController {
     @Get(':id/candidates')
     public async candidates(
         @OwnerId() _ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<readonly CandidateView[]> {
-        return this.ingredients.getCandidates(id);
+        return this.ingredients.getCandidates(caller, id);
     }
 
     /**
@@ -260,6 +288,7 @@ export class IngredientsController {
      * the resolved ingredient (an update, not a creation). A mutation → the write rate limit.
      *
      * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
+     * @param caller - The caller's own bearer, forwarded to the food service (see the class doc).
      * @param id - The 001 ingredient id (UUID).
      * @param body - `{ candidateIds }` (non-empty, ≤20, each non-blank), validated by {@link ResolveIngredientDto}.
      * @returns The refreshed, resolved ingredient.
@@ -270,9 +299,10 @@ export class IngredientsController {
     @WriteRateLimit()
     public async resolve(
         @OwnerId() _ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
         @Body() body: ResolveIngredientDto,
     ): Promise<Ingredient> {
-        return this.ingredients.resolve(id, body.candidateIds);
+        return this.ingredients.resolve(caller, id, body.candidateIds);
     }
 }

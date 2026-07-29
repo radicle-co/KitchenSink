@@ -33,6 +33,7 @@ const validEnv = (): Record<string, string> => ({
     CLOUDFRONT_URL: 'https://cdn.commise.app',
     DATABASE_URL: 'postgres://recipe_app@localhost:5432/kitchensink_recipes',
     ACCOUNT_ERASURE_QUEUE_URL: 'https://sqs.us-east-1.amazonaws.com/000000000000/account-erasure',
+    FOOD_SERVICE_URL: 'https://food.commise.app',
 });
 
 describe('loadConfig', () => {
@@ -77,6 +78,32 @@ describe('loadConfig', () => {
 
         expect(() => loadConfig(apiConfigSchema, env)).toThrow(ConfigValidationError);
         expect(() => loadConfig(apiConfigSchema, env)).toThrow(/ACCOUNT_ERASURE_QUEUE_URL/);
+    });
+
+    it('requires FOOD_SERVICE_URL — a stage must not boot pointed at nothing (issue #120)', () => {
+        // There is deliberately NO in-code default. The old `?? 'http://localhost:3002'` fallback meant a
+        // deploy that forgot the variable shipped a service calling ITSELF on food's port, and the failure was
+        // invisible: the gateway is total, so every ingredient typeahead silently degraded to local-only.
+        const env = validEnv();
+        delete env['FOOD_SERVICE_URL'];
+
+        expect(() => loadConfig(apiConfigSchema, env)).toThrow(ConfigValidationError);
+        expect(() => loadConfig(apiConfigSchema, env)).toThrow(/FOOD_SERVICE_URL/);
+    });
+
+    it('rejects a FOOD_SERVICE_URL that is not an absolute URL', () => {
+        const env = validEnv();
+        env['FOOD_SERVICE_URL'] = 'food-pr-73.commise.app';
+
+        expect(() => loadConfig(apiConfigSchema, env)).toThrow(/FOOD_SERVICE_URL/);
+    });
+
+    it('has NO FOOD_SERVICE_TOKEN concept — food is called with the caller’s own Clerk token', () => {
+        // A static env bearer cannot satisfy food's Clerk verifier (session tokens live ~60s), so the variable
+        // is gone rather than left as a decoy for someone to "wire up". Setting it is simply ignored.
+        const config = loadConfig(apiConfigSchema, { ...validEnv(), FOOD_SERVICE_TOKEN: 'static-token' });
+
+        expect('FOOD_SERVICE_TOKEN' in config).toBe(false);
     });
 
     it('throws ConfigValidationError on an invalid value', () => {

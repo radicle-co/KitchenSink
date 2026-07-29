@@ -177,6 +177,22 @@ export function foodSubdomainForStage(stage: string): string {
     return stage === 'prod' ? 'food' : `food-${stage}`;
 }
 
+/**
+ * The food service's full public ORIGIN for a stage — the one authoritative composition of
+ * {@link foodSubdomainForStage} with the apex domain.
+ *
+ * Used by this stack for its own `serviceUrl`/DNS record AND by `infra/bin/print-food-host.ts`, which is how
+ * the recipe deploy learns which food service to point `RECIPE_FOOD_SERVICE_URL` at (issue #120). One
+ * function so a pipeline can never grow a second, drifting copy of the host shape in YAML. Pure, total.
+ *
+ * @param stage - The deploy stage.
+ * @param domainName - The apex domain.
+ * @returns The `https://` origin, no trailing slash.
+ */
+export function foodServiceOriginForStage(stage: string, domainName: string): string {
+    return `https://${foodSubdomainForStage(stage)}.${domainName}`;
+}
+
 /** Props for {@link FoodServiceStack}. */
 export interface FoodServiceStackProps extends StackProps {
     /** Deploy stage (`prod`, `sandbox`, `pr-{N}`, …) — drives naming, tagging, routing, DB isolation. */
@@ -701,7 +717,7 @@ export class FoodServiceStack extends Stack {
             target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(sharedAlb)),
         });
 
-        this.serviceUrl = `https://${serviceDomain}`;
+        this.serviceUrl = foodServiceOriginForStage(stage, domainName);
 
         // ── Observability: SNS + alarms (T-183) + dashboard (T-182) ─────────────────────────────
         // Food-specific alarms read the EMF metrics the worker emits (Commise/Food namespace, no extra

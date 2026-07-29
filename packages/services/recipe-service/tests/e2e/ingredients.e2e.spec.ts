@@ -112,9 +112,15 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
 
     // ── Search Stage 2 — the blended typeahead + the catalog pick ─────────────────────────────────────
     //
-    // These are the STRONGEST available F2 proof, and they get it for free from the harness: the food service
-    // (003) genuinely is not running here, so `GET /v1/ingredients/suggest` is exercised against a real
-    // assembled app with a real, actually-absent cross-service dependency — not a stub pretending to be one.
+    // These exercise F2 through the real assembled app with a genuinely absent food service (`FOOD_SERVICE_URL`
+    // points at a port nothing listens on — see `harness.ts`), not a stub pretending to be one.
+    //
+    // Two degradations reach the same honest outcome here, and it is worth knowing WHICH: the harness
+    // authenticates via the dev-auth bypass, so requests carry NO bearer, and since issue #120 recipe calls
+    // food AS THE CALLER. With no credential to forward, `FoodCatalogGateway` degrades WITHOUT issuing a
+    // request — so what these assert is "the client-visible contract holds when the catalog cannot
+    // contribute", which is the point. The transport-timeout half of F2 is proven where a real bearer and a
+    // real (hung, then real) HTTP server are available: the ingredient integration specs.
 
     it('GET /suggest still returns 200 with the LOCAL section when the food service is ABSENT (F2)', async () => {
         await createFreeform();
@@ -135,7 +141,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
         expect(body.suggestions.some((suggestion) => suggestion.ingredient?.name === FREEFORM_NAME)).toBe(true);
     });
 
-    it('GET /suggest degrades within a BOUNDED time (the short typeahead timeout, not the 8s default)', async () => {
+    it('GET /suggest degrades within a BOUNDED time (never the 8s default, whichever degradation applies)', async () => {
         const startedAt = Date.now();
 
         const res = await fetch(`${booted.baseUrl}/v1/ingredients/suggest?q=${encodeURIComponent(FREEFORM_NAME)}`);

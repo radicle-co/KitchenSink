@@ -27,7 +27,12 @@ import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/c
 import { IngredientsDal } from '../../../src/ingredients/dal/ingredients.dal.js';
 import { FoodCatalogGateway } from '../../../src/ingredients/food-catalog.gateway.js';
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
-import { makeFoodView, makeStatusResult } from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
+import {
+    CALLER_TOKEN as CALLER,
+    foodClientsOf,
+    makeFoodView,
+    makeStatusResult,
+} from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 const hasDatabaseUrl = Boolean(DATABASE_URL);
@@ -95,7 +100,7 @@ describe.skipIf(!hasDatabaseUrl)(
             await cleanup();
             catalog = makeCatalogStub();
             food = makeFoodClientStub();
-            service = new IngredientsService(dal, food, catalog);
+            service = new IngredientsService(dal, foodClientsOf(food), catalog);
         });
 
         /** Remove every row this suite could have created (by food id OR by its unique name stem). */
@@ -125,7 +130,7 @@ describe.skipIf(!hasDatabaseUrl)(
                     availability: 'ok',
                 });
 
-                const result = await service.suggest(STEM);
+                const result = await service.suggest(CALLER, STEM);
 
                 expect(result.catalogAvailability).toBe('ok');
                 expect(result.suggestions).toEqual([
@@ -145,7 +150,7 @@ describe.skipIf(!hasDatabaseUrl)(
                     availability: 'ok',
                 });
 
-                const result = await service.suggest(STEM);
+                const result = await service.suggest(CALLER, STEM);
 
                 expect(result.suggestions).toHaveLength(1);
                 expect(result.suggestions[0]?.provenance).toBe('local');
@@ -164,7 +169,7 @@ describe.skipIf(!hasDatabaseUrl)(
                     availability: 'ok',
                 });
 
-                const result = await service.suggest(STEM);
+                const result = await service.suggest(CALLER, STEM);
 
                 expect(result.suggestions).toEqual([{ provenance: 'local', ingredient: promoted }]);
             });
@@ -173,7 +178,7 @@ describe.skipIf(!hasDatabaseUrl)(
                 const local = await dal.createFreeform(`${STEM} my own ingredient`);
                 vi.mocked(catalog.search).mockResolvedValue({ hits: [], availability: 'unavailable' });
 
-                const result = await service.suggest(STEM);
+                const result = await service.suggest(CALLER, STEM);
 
                 expect(result.catalogAvailability).toBe('unavailable');
                 expect(result.suggestions).toEqual([{ provenance: 'local', ingredient: local }]);
@@ -194,13 +199,20 @@ describe.skipIf(!hasDatabaseUrl)(
                         });
                     });
                 const realGateway = new FoodCatalogGateway(
-                    new FoodServiceClient({ baseUrl: 'http://food.invalid', fetch: neverResolves, timeoutMs }),
+                    // A real client behind the per-request factory shape: the transport (and therefore the
+                    // AbortSignal being asserted) is genuine, only the socket is a double.
+                    foodClientsOf(
+                        new FoodServiceClient({ baseUrl: 'http://food.invalid', fetch: neverResolves, timeoutMs }),
+                    ),
                     { enabled: true },
                 );
                 const local = await dal.createFreeform(`${STEM} survives the timeout`);
 
                 const startedAt = Date.now();
-                const result = await new IngredientsService(dal, food, realGateway).suggest(STEM);
+                const result = await new IngredientsService(dal, foodClientsOf(food), realGateway).suggest(
+                    CALLER,
+                    STEM,
+                );
                 const elapsed = Date.now() - startedAt;
 
                 expect(result.catalogAvailability).toBe('unavailable');
@@ -217,7 +229,7 @@ describe.skipIf(!hasDatabaseUrl)(
                     seededGoldenRecord(SEEDED_FOOD_ID, `${STEM} chicken breast`),
                 );
 
-                const ingredient = await service.addByFoodId(SEEDED_FOOD_ID);
+                const ingredient = await service.addByFoodId(CALLER, SEEDED_FOOD_ID);
 
                 // The returned object is nourished…
                 expect(ingredient.caloriesPer100g).toBe(165);
@@ -241,7 +253,7 @@ describe.skipIf(!hasDatabaseUrl)(
                     seededGoldenRecord(SEEDED_FOOD_ID, `${STEM} authoritative`),
                 );
 
-                await service.addByFoodId(SEEDED_FOOD_ID);
+                await service.addByFoodId(CALLER, SEEDED_FOOD_ID);
 
                 expect((await readNutrition(SEEDED_FOOD_ID))?.['name']).toBe(`${STEM} authoritative`);
             });
@@ -251,8 +263,8 @@ describe.skipIf(!hasDatabaseUrl)(
                     seededGoldenRecord(SEEDED_FOOD_ID, `${STEM} chicken breast`),
                 );
 
-                const first = await service.addByFoodId(SEEDED_FOOD_ID);
-                const second = await service.addByFoodId(SEEDED_FOOD_ID);
+                const first = await service.addByFoodId(CALLER, SEEDED_FOOD_ID);
+                const second = await service.addByFoodId(CALLER, SEEDED_FOOD_ID);
 
                 expect(second.id).toBe(first.id);
                 const { rows } = await pool.query<{ n: number }>(
@@ -273,7 +285,7 @@ describe.skipIf(!hasDatabaseUrl)(
                 expect(Number((await readNutrition(SEEDED_FOOD_ID))?.['calories_per_100g'] ?? NaN)).toBeNaN();
                 vi.mocked(food.getStatus).mockResolvedValue(seededGoldenRecord(SEEDED_FOOD_ID, `${STEM} golden`));
 
-                const ingredient = await service.addByFoodId(SEEDED_FOOD_ID);
+                const ingredient = await service.addByFoodId(CALLER, SEEDED_FOOD_ID);
 
                 expect(ingredient.id).toBe(stale.id);
                 const row = await readNutrition(SEEDED_FOOD_ID);
@@ -286,13 +298,13 @@ describe.skipIf(!hasDatabaseUrl)(
                 vi.mocked(food.getStatus).mockResolvedValue(
                     seededGoldenRecord(SEEDED_FOOD_ID, `${STEM} chicken breast`),
                 );
-                await service.addByFoodId(SEEDED_FOOD_ID);
+                await service.addByFoodId(CALLER, SEEDED_FOOD_ID);
                 vi.mocked(catalog.search).mockResolvedValue({
                     hits: [{ foodId: SEEDED_FOOD_ID, name: `${STEM} chicken breast`, score: 0.9 }],
                     availability: 'ok',
                 });
 
-                const result = await service.suggest(STEM);
+                const result = await service.suggest(CALLER, STEM);
 
                 expect(result.suggestions).toHaveLength(1);
                 const [only] = result.suggestions;
@@ -303,7 +315,7 @@ describe.skipIf(!hasDatabaseUrl)(
             it('writes NOTHING when the food cannot back an ingredient (no half-admitted row)', async () => {
                 vi.mocked(food.getStatus).mockRejectedValue(new NotFoundError(UNSEEDED_FOOD_ID, 'NOT_FOUND'));
 
-                await expect(service.addByFoodId(UNSEEDED_FOOD_ID)).rejects.toThrow();
+                await expect(service.addByFoodId(CALLER, UNSEEDED_FOOD_ID)).rejects.toThrow();
                 expect(await readNutrition(UNSEEDED_FOOD_ID)).toBeUndefined();
             });
         });

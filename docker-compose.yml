@@ -10,6 +10,12 @@
 #   DATABASE_URL=postgresql://commise:commise@localhost:5432/commise
 #   S3_ENDPOINT=http://localhost:4566   S3_FORCE_PATH_STYLE=true
 #
+# It also REQUIRES a food-service origin (FOOD_SERVICE_URL) — there is no in-code default, deliberately
+# (issue #120). `npm run dev --workspace=packages/services/recipe-service` sets NODE_ENV=development, which
+# is what makes the committed `packages/services/recipe-service/.env.development` supply `localhost:3002`;
+# override it in `.env.local` to develop against a deployed food service. Nothing needs to be listening on
+# :3002 — the ingredient typeahead degrades to recipe-local-only and says so (`catalogAvailability`).
+#
 # Buckets are created by the app / by hand in local dev (see quickstart "LocalStack S3 Setup"); the CI
 # variant (docker-compose.test.yml) auto-provisions them instead.
 

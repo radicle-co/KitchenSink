@@ -405,9 +405,17 @@ jobs:
     #
     # Every infra input is RESOLVED from CloudFormation exports rather than hardcoded or carried in repo
     # variables, so a platform change cannot leave this job pointing at something stale.
+    #
+    # `needs: deploy-food` makes the food-before-recipe ordering EXPLICIT (issue #120). The recipe service reads
+    # food's `/v1/foods/*` API on the per-keystroke ingredient path, and its `RECIPE_FOOD_SERVICE_URL` names
+    # THIS PR's food host — which only exists once the food stack has created its listener rule + A-record. The
+    # two jobs previously ran concurrently, so any ordering was luck. `deploy-food`'s own `if:` is true for every
+    # pull_request event (its per-step `paths-filter` gate is what skips the work), so this dependency never
+    # skips the recipe deploy — it only sequences it.
     deploy-recipe:
         name: Deploy recipe sandbox (pr-${{ github.event.pull_request.number }})
         runs-on: ubuntu-latest
+        needs: deploy-food
         if: |
             (github.event_name == 'pull_request' && github.event.action != 'closed') ||
             (github.event_name == 'workflow_dispatch' && github.event.inputs.service == 'recipe')
@@ -489,6 +497,31 @@ jobs:
                     echo "media_bucket=$(lookup "kitchensink-data-${BASE_STAGE}:MediaBucketName")"
                     echo "handle_sync_topic_arn=$(lookup "kitchensink-data-${BASE_STAGE}:HandleSyncTopicArn")"
                   } >> "$GITHUB_OUTPUT"
+            # The food origin the recipe service reads ingredient nutrition + catalog suggestions from
+            # (issue #120). Keyed on the DEPLOY stage, NOT the base stage: every PR stands up its own food
+            # service, and there is no persistent sandbox one to fall back to.
+            #
+            # Derived by RUNNING the food stack's own host helper (`foodServiceOriginForStage`), never by
+            # re-typing `food-pr-{N}.${DOMAIN_NAME}` here: the dash form is a TLS constraint (a 3-label
+            # `food.pr-7...` matches no wildcard on the shared ALB cert — ADR-0003/0006), and a second copy of
+            # that rule in YAML is exactly the kind of thing that drifts silently. One definition, imported.
+            - name: Resolve the food service origin for this stage
+              id: food
+              if: steps.changes.outputs.recipe == 'true'
+              run: |
+                  set -euo pipefail
+                  food_url=$(npx tsx packages/services/food-service/infra/bin/print-food-host.ts \
+                    "${STAGE}" "${{ vars.DOMAIN_NAME }}")
+                  echo "url=${food_url}" >> "$GITHUB_OUTPUT"
+                  echo "recipe will call food at ${food_url}"
+                  # Non-fatal, but say it out loud: a recipe-only PR deploys no food service (deploy-food is
+                  # gated on `packages/services/food-service/**`), so this host will not resolve and the
+                  # ingredient typeahead will report `catalogAvailability: 'unavailable'` for the whole preview.
+                  # That degradation is by design; being unaware of it is not.
+                  if ! aws cloudformation describe-stacks --region "${{ vars.DEFAULT_AWS_REGION }}" \
+                      --stack-name "kitchensink-food-service-${STAGE}" >/dev/null 2>&1; then
+                    echo "::warning::No food service is deployed at stage ${STAGE}, so ${food_url} will not resolve. The recipe preview's ingredient typeahead will degrade to recipe-local-only (catalogAvailability: unavailable). Touch packages/services/food-service/** on this PR to get a per-PR food service."
+                  fi
             - name: Login to Amazon ECR
               id: login-ecr
               if: steps.changes.outputs.recipe == 'true'
@@ -535,6 +568,7 @@ jobs:
                   DOMAIN_NAME=${{ vars.DOMAIN_NAME }} \
                   RECIPE_VPC_ID=${{ steps.infra.outputs.vpc_id }} \
                   RECIPE_IMAGE_TAG=${{ env.IMAGE_TAG }} \
+                  RECIPE_FOOD_SERVICE_URL=${{ steps.food.outputs.url }} \
                   npx cdk deploy \
                     --app "node packages/services/recipe-service/infra/dist/bin/app.js" \
                     --all --require-approval never

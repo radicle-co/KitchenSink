@@ -15,12 +15,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FoodResolutionStatus, RecipeErrorCode, isRecipeError } from '@kitchensink/recipe-core';
 import { NotFoundError } from '@kitchensink/food-service-client';
-import type { FoodServiceClient } from '@kitchensink/food-service-client';
 
 import type { FoodCatalogGateway } from '../food-catalog.gateway.js';
 import type { IngredientsDal } from '../dal/ingredients.dal.js';
 import { IngredientsService } from '../ingredients.service.js';
-import { makeFoodView, makeIngredient, makeStatusResult } from '../__fixtures__/ingredients.fixtures.js';
+import {
+    CALLER_TOKEN as CALLER,
+    makeFoodClients,
+    makeFoodView,
+    makeIngredient,
+    makeStatusResult,
+} from '../__fixtures__/ingredients.fixtures.js';
 
 /** A fully mocked `IngredientsDal` (every method the Stage-2 paths may touch). */
 function makeDal(): { dal: IngredientsDal; mocks: Record<string, ReturnType<typeof vi.fn>> } {
@@ -36,13 +41,6 @@ function makeDal(): { dal: IngredientsDal; mocks: Record<string, ReturnType<type
     };
 
     return { dal: mocks as unknown as IngredientsDal, mocks };
-}
-
-/** A mocked food client (only `getStatus` matters for the pick path). */
-function makeFoodClient(): { client: FoodServiceClient; getStatus: ReturnType<typeof vi.fn> } {
-    const getStatus = vi.fn();
-
-    return { client: { getStatus } as unknown as FoodServiceClient, getStatus };
 }
 
 /** A mocked catalog gateway; defaults to "food-service answered with nothing". */
@@ -62,26 +60,26 @@ describe('IngredientsService.suggest', () => {
     beforeEach(() => {
         ({ dal, mocks } = makeDal());
         ({ catalog, search: catalogSearch } = makeCatalog());
-        service = new IngredientsService(dal, makeFoodClient().client, catalog);
+        service = new IngredientsService(dal, makeFoodClients().clients, catalog);
     });
 
     it('trims the query before it reaches EITHER catalog', async () => {
-        await service.suggest('  chicken  ');
+        await service.suggest(CALLER, '  chicken  ');
 
         expect(mocks['search']).toHaveBeenCalledWith('chicken', 10);
-        expect(catalogSearch).toHaveBeenCalledWith('chicken', 10);
+        expect(catalogSearch).toHaveBeenCalledWith(CALLER, 'chicken', 10);
     });
 
     it('clamps the per-section limit the same way the local DAL does', async () => {
-        await service.suggest('chicken', 999);
+        await service.suggest(CALLER, 'chicken', 999);
 
-        expect(catalogSearch).toHaveBeenCalledWith('chicken', 50);
+        expect(catalogSearch).toHaveBeenCalledWith(CALLER, 'chicken', 50);
     });
 
     it('defaults the per-section limit when the caller supplies none', async () => {
-        await service.suggest('chicken');
+        await service.suggest(CALLER, 'chicken');
 
-        expect(catalogSearch).toHaveBeenCalledWith('chicken', 10);
+        expect(catalogSearch).toHaveBeenCalledWith(CALLER, 'chicken', 10);
     });
 
     it('blends both catalogs into one sectioned envelope', async () => {
@@ -92,7 +90,7 @@ describe('IngredientsService.suggest', () => {
             availability: 'ok',
         });
 
-        const result = await service.suggest('chicken');
+        const result = await service.suggest(CALLER, 'chicken');
 
         expect(result).toEqual({
             suggestions: [
@@ -119,7 +117,7 @@ describe('IngredientsService.suggest', () => {
             return { hits: [], availability: 'ok' };
         });
 
-        await service.suggest('chicken');
+        await service.suggest(CALLER, 'chicken');
 
         // The catalog read starts before the local read finishes — i.e. they overlap, they are not sequential.
         expect(order.indexOf('catalog:start')).toBeLessThan(order.indexOf('local:end'));
@@ -136,13 +134,13 @@ describe('IngredientsService.suggest', () => {
                 availability: 'ok',
             });
 
-            await service.suggest('chicken');
+            await service.suggest(CALLER, 'chicken');
 
             expect(mocks['findByFoodIds']).toHaveBeenCalledWith(['food-new']);
         });
 
         it('skips the crosswalk read entirely when there are no catalog hits', async () => {
-            await service.suggest('chicken');
+            await service.suggest(CALLER, 'chicken');
 
             expect(mocks['findByFoodIds']).not.toHaveBeenCalled();
         });
@@ -155,7 +153,7 @@ describe('IngredientsService.suggest', () => {
                 availability: 'ok',
             });
 
-            const result = await service.suggest('chicken');
+            const result = await service.suggest(CALLER, 'chicken');
 
             expect(result.suggestions).toEqual([{ provenance: 'local', ingredient: promoted }]);
         });
@@ -167,7 +165,7 @@ describe('IngredientsService.suggest', () => {
             mocks['search']!.mockResolvedValue([local]);
             catalogSearch.mockResolvedValue({ hits: [], availability: 'unavailable' });
 
-            const result = await service.suggest('chicken');
+            const result = await service.suggest(CALLER, 'chicken');
 
             expect(result).toEqual({
                 suggestions: [{ provenance: 'local', ingredient: local }],
@@ -178,7 +176,7 @@ describe('IngredientsService.suggest', () => {
         it('propagates `disabled` distinctly from `unavailable` (an operator switch is not an error)', async () => {
             catalogSearch.mockResolvedValue({ hits: [], availability: 'disabled' });
 
-            expect((await service.suggest('chicken')).catalogAvailability).toBe('disabled');
+            expect((await service.suggest(CALLER, 'chicken')).catalogAvailability).toBe('disabled');
         });
 
         it('still degrades gracefully if the gateway itself rejects (belt AND braces)', async () => {
@@ -186,7 +184,7 @@ describe('IngredientsService.suggest', () => {
             mocks['search']!.mockResolvedValue([local]);
             catalogSearch.mockRejectedValue(new Error('gateway contract violated'));
 
-            const result = await service.suggest('chicken');
+            const result = await service.suggest(CALLER, 'chicken');
 
             expect(result.suggestions).toEqual([{ provenance: 'local', ingredient: local }]);
             expect(result.catalogAvailability).toBe('unavailable');
@@ -195,7 +193,7 @@ describe('IngredientsService.suggest', () => {
         it('does NOT swallow a local database failure — the local section is the floor, not optional', async () => {
             mocks['search']!.mockRejectedValue(new Error('db down'));
 
-            await expect(service.suggest('chicken')).rejects.toThrow('db down');
+            await expect(service.suggest(CALLER, 'chicken')).rejects.toThrow('db down');
         });
     });
 });
@@ -210,9 +208,9 @@ describe('IngredientsService.addByFoodId', () => {
 
     beforeEach(() => {
         ({ dal, mocks } = makeDal());
-        const food = makeFoodClient();
-        getStatus = food.getStatus;
-        service = new IngredientsService(dal, food.client, makeCatalog().catalog);
+        const food = makeFoodClients();
+        getStatus = food.mocks['getStatus']!;
+        service = new IngredientsService(dal, food.clients, makeCatalog().catalog);
     });
 
     /** The seeded, already-RESOLVED golden record a Stage-2 catalog hit points at. */
@@ -245,7 +243,7 @@ describe('IngredientsService.addByFoodId', () => {
             mocks['createFoodBacked']!.mockResolvedValue(created);
             mocks['updateResolution']!.mockResolvedValue(backfilled);
 
-            const ingredient = await service.addByFoodId(FOOD_ID);
+            const ingredient = await service.addByFoodId(CALLER, FOOD_ID);
 
             // Exactly ONE cross-service read for the whole pick.
             expect(getStatus).toHaveBeenCalledTimes(1);
@@ -270,7 +268,7 @@ describe('IngredientsService.addByFoodId', () => {
             mocks['createFoodBacked']!.mockResolvedValue(makeIngredient({ id: 'ing-new' }));
             mocks['updateResolution']!.mockResolvedValue(makeIngredient({ id: 'ing-new' }));
 
-            await service.addByFoodId(FOOD_ID);
+            await service.addByFoodId(CALLER, FOOD_ID);
 
             expect(mocks['createFoodBacked']).toHaveBeenCalledWith({
                 name: 'Chicken breast, raw',
@@ -289,7 +287,7 @@ describe('IngredientsService.addByFoodId', () => {
             getStatus.mockResolvedValue(resolvedStatus());
             mocks['updateResolution']!.mockResolvedValue({ ...stale, caloriesPer100g: 165 });
 
-            const ingredient = await service.addByFoodId(FOOD_ID);
+            const ingredient = await service.addByFoodId(CALLER, FOOD_ID);
 
             expect(mocks['createFoodBacked']).not.toHaveBeenCalled();
             expect(ingredient.caloriesPer100g).toBe(165);
@@ -301,7 +299,7 @@ describe('IngredientsService.addByFoodId', () => {
             mocks['createFoodBacked']!.mockResolvedValue(created);
             mocks['updateResolution']!.mockResolvedValue(undefined);
 
-            expect(await service.addByFoodId(FOOD_ID)).toEqual(created);
+            expect(await service.addByFoodId(CALLER, FOOD_ID)).toEqual(created);
         });
     });
 
@@ -315,7 +313,7 @@ describe('IngredientsService.addByFoodId', () => {
             });
             mocks['findByFoodId']!.mockResolvedValue(settled);
 
-            expect(await service.addByFoodId(FOOD_ID)).toEqual(settled);
+            expect(await service.addByFoodId(CALLER, FOOD_ID)).toEqual(settled);
             expect(getStatus).not.toHaveBeenCalled();
             expect(mocks['updateResolution']).not.toHaveBeenCalled();
         });
@@ -327,7 +325,7 @@ describe('IngredientsService.addByFoodId', () => {
             getStatus.mockResolvedValue(resolvedStatus());
             mocks['updateResolution']!.mockResolvedValue(makeIngredient({ id: 'ing-1', caloriesPer100g: 165 }));
 
-            expect((await service.addByFoodId(FOOD_ID)).caloriesPer100g).toBe(165);
+            expect((await service.addByFoodId(CALLER, FOOD_ID)).caloriesPer100g).toBe(165);
             expect(getStatus).toHaveBeenCalledTimes(1);
         });
 
@@ -339,7 +337,7 @@ describe('IngredientsService.addByFoodId', () => {
             });
             mocks['findByFoodId']!.mockResolvedValue(settled);
 
-            await service.addByFoodId(`  ${FOOD_ID}  `);
+            await service.addByFoodId(CALLER, `  ${FOOD_ID}  `);
 
             expect(mocks['findByFoodId']).toHaveBeenCalledWith(FOOD_ID);
         });
@@ -349,7 +347,7 @@ describe('IngredientsService.addByFoodId', () => {
         it('rejects a PENDING food with no existing row — and writes NOTHING', async () => {
             getStatus.mockResolvedValue(makeStatusResult({ id: FOOD_ID, status: FoodResolutionStatus.PENDING }));
 
-            await expect(service.addByFoodId(FOOD_ID)).rejects.toSatisfy(
+            await expect(service.addByFoodId(CALLER, FOOD_ID)).rejects.toSatisfy(
                 (error: unknown) => isRecipeError(error) && error.code === RecipeErrorCode.UNKNOWN_INGREDIENT,
             );
             expect(mocks['createFoodBacked']).not.toHaveBeenCalled();
@@ -365,7 +363,7 @@ describe('IngredientsService.addByFoodId', () => {
                 }),
             );
 
-            await expect(service.addByFoodId(FOOD_ID)).rejects.toSatisfy(
+            await expect(service.addByFoodId(CALLER, FOOD_ID)).rejects.toSatisfy(
                 (error: unknown) => isRecipeError(error) && error.code === RecipeErrorCode.UNKNOWN_INGREDIENT,
             );
             expect(mocks['createFoodBacked']).not.toHaveBeenCalled();
@@ -374,7 +372,7 @@ describe('IngredientsService.addByFoodId', () => {
         it('rejects an unknown/terminal food id (food-service 404) with no existing row', async () => {
             getStatus.mockRejectedValue(new NotFoundError(FOOD_ID, 'NOT_FOUND'));
 
-            await expect(service.addByFoodId(FOOD_ID)).rejects.toSatisfy(
+            await expect(service.addByFoodId(CALLER, FOOD_ID)).rejects.toSatisfy(
                 (error: unknown) => isRecipeError(error) && error.code === RecipeErrorCode.UNKNOWN_INGREDIENT,
             );
             expect(mocks['createFoodBacked']).not.toHaveBeenCalled();
@@ -393,7 +391,7 @@ describe('IngredientsService.addByFoodId', () => {
                 foodResolutionStatus: FoodResolutionStatus.FAILED,
             });
 
-            const ingredient = await service.addByFoodId(FOOD_ID);
+            const ingredient = await service.addByFoodId(CALLER, FOOD_ID);
 
             expect(ingredient.foodResolutionStatus).toBe(FoodResolutionStatus.FAILED);
             expect(mocks['updateResolution']).toHaveBeenCalledWith('ing-1', {
@@ -414,7 +412,7 @@ describe('IngredientsService.addByFoodId', () => {
                 foodResolutionStatus: FoodResolutionStatus.UNRESOLVED,
             });
 
-            const ingredient = await service.addByFoodId(FOOD_ID);
+            const ingredient = await service.addByFoodId(CALLER, FOOD_ID);
 
             expect(ingredient.foodResolutionStatus).toBe(FoodResolutionStatus.UNRESOLVED);
         });
@@ -422,7 +420,7 @@ describe('IngredientsService.addByFoodId', () => {
         it('propagates a non-404 food-service failure (a 5xx is not a client error)', async () => {
             getStatus.mockRejectedValue(new Error('food service exploded'));
 
-            await expect(service.addByFoodId(FOOD_ID)).rejects.toThrow('food service exploded');
+            await expect(service.addByFoodId(CALLER, FOOD_ID)).rejects.toThrow('food service exploded');
         });
     });
 });

@@ -85,6 +85,10 @@ export async function bootRecipeApp(options: BootRecipeAppOptions = {}): Promise
             // The queue the global setup actually provisions — one definition, so the booted app and the
             // specs draining the queue can never address different queues.
             ACCOUNT_ERASURE_QUEUE_URL: SEED_ERASURE_QUEUE_URL,
+            // REQUIRED since issue #120 — the app refuses to boot without a food origin, deliberately (the old
+            // in-code `http://localhost:3002` default is what silently pointed the deployed service at itself).
+            // Nothing listens here, which is what makes the F2 specs below a real absent-dependency proof.
+            FOOD_SERVICE_URL: 'http://localhost:3002',
         },
     });
 }

@@ -387,17 +387,28 @@ export type RateLimitConfig = z.infer<typeof rateLimitConfigSchema>;
 
 /**
  * Config for the outbound call to the food service (003) that the ingredients vertical resolves
- * nutrition through (`@kitchensink/food-service-client`). Both are optional: `FOOD_SERVICE_URL` falls
- * back to a local-dev default in `IngredientsModule` when unset, and `FOOD_SERVICE_TOKEN` is only
- * present where the food service requires an M2M bearer. Declaring them here means the env is validated
+ * nutrition through (`@kitchensink/food-service-client`). Declaring it here means the env is validated
  * at boot instead of being read as unchecked raw `process.env` (T043b).
+ *
+ * **`FOOD_SERVICE_URL` is REQUIRED, with no in-code default (issue #120).** It used to fall back to
+ * `http://localhost:3002` inside `IngredientsModule`, which is the failure mode `web/src/config/env.ts` and
+ * `mobile/src/config/env.ts` were rewritten to eliminate, and it did exactly what those defaults did: the
+ * deployed task was never given the variable, so it called `localhost:3002` — itself, on food's port — and
+ * every cross-service call was connection-refused. The failure was INVISIBLE because `FoodCatalogGateway` is
+ * total: the ingredient typeahead silently degraded to recipe-local-only forever. A missing endpoint must
+ * fail the boot loudly instead. Local development keeps a zero-config localhost value the same way those apps
+ * do — the committed `.env.development`, loaded ONLY when `NODE_ENV=development` (see `config.module.ts`), so
+ * it is invisible to every deployed stage.
+ *
+ * **There is deliberately NO `FOOD_SERVICE_TOKEN`.** Food's `FoodAuthGuard` verifies a *Clerk* token, and a
+ * long-lived static env string cannot satisfy that verifier (session tokens live ~60s) — the variable was
+ * read as a static bearer and was never set anywhere in the repo. Recipe now forwards the CALLER's own
+ * verified token instead (`auth/caller-token.ts` → `ingredients/food-service-clients.factory.ts`), so there
+ * is no service credential to configure here.
  */
 export const foodServiceConfigSchema = z.object({
-    /** Food-service origin the ingredients vertical resolves against. Local-dev default applied downstream. */
-    FOOD_SERVICE_URL: z.string().url().optional(),
-
-    /** Optional service/M2M bearer token for the food service. */
-    FOOD_SERVICE_TOKEN: z.string().min(1).optional(),
+    /** Food-service origin the ingredients vertical resolves against. REQUIRED — no default anywhere. */
+    FOOD_SERVICE_URL: z.string().url(),
 
     /**
      * Stage-2 rollout switch for the blended ingredient typeahead. Absent (or anything but `false`) means the
@@ -421,8 +432,7 @@ export type FoodServiceConfig = z.infer<typeof foodServiceConfigSchema>;
 
 /** Secret/non-secret metadata for food-service config fields. */
 export const foodServiceConfigMeta: Record<keyof FoodServiceConfig, ConfigFieldMeta> = {
-    FOOD_SERVICE_URL: { secret: false, description: 'Food service (003) origin' },
-    FOOD_SERVICE_TOKEN: { secret: true, description: 'Food service M2M bearer token' },
+    FOOD_SERVICE_URL: { secret: false, description: 'Food service (003) origin — REQUIRED, no default' },
     FOOD_CATALOG_BLEND_ENABLED: {
         secret: false,
         description: 'Stage-2 blended ingredient typeahead switch (default on)',

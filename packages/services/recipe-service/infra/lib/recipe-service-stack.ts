@@ -154,11 +154,46 @@ export interface RecipeServiceStackProps extends StackProps {
      * CloudFront distribution id, for invalidations on photo delete + GDPR erasure (HAZ-051/067/039).
      * OPTIONAL — no `Distribution` construct exists in this repo's CDK (see `cloudfrontUrl` above); a
      * stage without one yet passes nothing through, and the service degrades to a logged no-op rather
-     * than failing to boot. Matches `foodServiceUrl`'s optional-passthrough shape below.
+     * than failing to boot. Contrast `foodServiceUrl` below, which is REQUIRED.
      */
     readonly cloudfrontDistributionId?: string;
-    /** Optional food service origin (ingredient nutrition resolution; optional — degrades if absent). */
-    readonly foodServiceUrl?: string;
+    /**
+     * The food service (003) origin the ingredients vertical reads nutrition and catalog suggestions from.
+     *
+     * **REQUIRED (issue #120).** It was optional, and passed through behind an `if (… !== undefined)` fed by
+     * `RECIPE_FOOD_SERVICE_URL` — a variable no workflow ever set. The live pr-73 task definition therefore
+     * carried no `FOOD_*` variables at all and the service fell back to an in-code `http://localhost:3002`,
+     * i.e. the container itself on food's port: every cross-service call was connection-refused, silently,
+     * because `FoodCatalogGateway` is a total function. Required-and-validated means a deploy that has not
+     * been told where food lives fails at synth, not in production.
+     */
+    readonly foodServiceUrl: string;
+}
+
+/**
+ * Assert `foodServiceUrl` is an absolute http(s) origin, or throw naming the deploy variable that supplies it.
+ *
+ * The value is written verbatim into the task definition, so a blank (an unset workflow step output) or a bare
+ * host would otherwise surface minutes later as crash-looping tasks and a rollback, with the actual cause
+ * three layers down. Pure.
+ *
+ * @param foodServiceUrl - The candidate origin.
+ * @throws {Error} When it is blank, relative, or not http(s).
+ */
+export function assertFoodServiceUrl(foodServiceUrl: string): void {
+    let parsed: URL;
+
+    try {
+        parsed = new URL(foodServiceUrl);
+    } catch {
+        throw new Error(
+            `RECIPE_FOOD_SERVICE_URL must be an absolute http(s) origin (e.g. https://food-pr-7.commise.app); got '${foodServiceUrl}'`,
+        );
+    }
+
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        throw new Error(`RECIPE_FOOD_SERVICE_URL must use http(s); got '${foodServiceUrl}'`);
+    }
 }
 
 /**
@@ -178,8 +213,11 @@ export class RecipeServiceStack extends Stack {
     public constructor(scope: Construct, id: string, props: RecipeServiceStackProps) {
         super(scope, id, props);
 
-        const { stage, imageTag, desiredCount, vpcId, domainName, cloudfrontUrl } = props;
+        const { stage, imageTag, desiredCount, vpcId, domainName, cloudfrontUrl, foodServiceUrl } = props;
         const baseStage = props.baseStage ?? stage;
+
+        // Fail at synth, in the deploy log, rather than as crash-looping tasks minutes later.
+        assertFoodServiceUrl(foodServiceUrl);
 
         const useSpot = stage !== 'prod';
         const capacityProviderStrategies = useSpot ? [{ capacityProvider: 'FARGATE_SPOT', weight: 1 }] : undefined;
@@ -292,11 +330,14 @@ export class RecipeServiceStack extends Stack {
                 this,
                 `/kitchensink/${stage}/recipe/account-erasure-queue-url`,
             ),
+            // The food service (003) this stage's ingredients vertical reads through (issue #120).
+            // UNCONDITIONAL: the service's config requires it, so an absent value is a boot failure, and the
+            // previous conditional passthrough is precisely how the live task ended up with no food origin at
+            // all. Keyed on the DEPLOY stage by the caller (a pr-{N} recipe must read the pr-{N} food service,
+            // not a shared one), and there is no service token to inject — recipe forwards the CALLER's own
+            // Clerk bearer (see `src/ingredients/food-service-clients.factory.ts`).
+            FOOD_SERVICE_URL: foodServiceUrl,
         };
-
-        if (props.foodServiceUrl !== undefined) {
-            recipeDbEnvironment['FOOD_SERVICE_URL'] = props.foodServiceUrl;
-        }
 
         if (props.cloudfrontDistributionId !== undefined) {
             recipeDbEnvironment['CLOUDFRONT_DISTRIBUTION_ID'] = props.cloudfrontDistributionId;

@@ -155,11 +155,11 @@ describe('resolveBuildEndpoints', () => {
         // its preview template MUST carry `{pr}`. A fixed value can only be some OTHER PR's service or a
         // persistent instance that is not supposed to exist.
         //
-        // `https://recipe.sandbox.commise.app` — the exact literal the mobile `preview` profile shipped — is
-        // the motivating case, and it is why a hostname check is not enough on its own: that host RESOLVES
-        // (the `*.sandbox.commise.app` wildcard points at the shared ALB) and answers a well-formed 404 on
-        // every request, so it looks configured and fails like an application bug.
-        for (const fixed of ['https://recipe.sandbox.commise.app', 'https://recipe-pr-73.commise.app']) {
+        // A stage-qualified host is the motivating case, and it is why a hostname check is not enough on its
+        // own: the `*.sandbox.commise.app` wildcard points at the shared ALB, so such a host RESOLVES and
+        // answers a well-formed 404 on every request — it looks configured and fails like an application bug.
+        // A fixed PER-PR host is just as wrong: it is some other PR's live service.
+        for (const fixed of ['https://recipe.some-stage.commise.app', 'https://recipe-pr-73.commise.app']) {
             expect(() => resolveBuildEndpoints({ ...PREVIEW, NEXT_PUBLIC_RECIPE_API_URL_TEMPLATE: fixed })).toThrow(
                 /\{pr\}/,
             );

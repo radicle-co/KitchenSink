@@ -81,35 +81,26 @@ describe('recipeListenerPriorityForStage', () => {
 });
 
 describe('recipeSubdomainForStage', () => {
-    it('prod → recipe; pr-{N} → recipe-pr-{N} (dash form, so `*.commise.app` covers it)', () => {
-        expect(recipeSubdomainForStage('prod', 'prod')).toBe('recipe');
-        expect(recipeSubdomainForStage('pr-73', 'sandbox')).toBe('recipe-pr-73');
-        expect(recipeSubdomainForStage('team-feature-x', 'sandbox')).toBe('recipe-team-feature-x');
-    });
-
     /**
-     * The recipe service has exactly TWO legitimate shapes: the single persistent PRODUCTION deploy, and an
-     * ephemeral per-PR preview. There is deliberately no persistent non-prod instance — every PR stands up
-     * its own (only identity and `packages/infra/global` are shared and persistent).
+     * Total by construction. The recipe service is deployed at exactly two kinds of stage — the one
+     * persistent PRODUCTION deploy and an ephemeral per-PR preview — so there is no third form for this
+     * helper to express, and it takes no `baseStage` to compare against.
      *
-     * This used to return `recipe.sandbox`, which is the one host the whole scheme must never produce. It
-     * would not have failed loudly either: `*.sandbox.commise.app` is a live wildcard pointing at the shared
-     * ALB, so `recipe.sandbox.commise.app` RESOLVES and answers the listener's default fixed-response 404.
-     * Anything built against it — the mobile `preview` profile did exactly this — gets a well-formed 404 on
-     * every call rather than a DNS error, which reads as an application bug for as long as it takes someone
-     * to check DNS. Rejecting the stage at synth is the only place this is cheap to catch.
+     * The dash form is load-bearing: the shared ALB cert covers only single-label wildcards, so a 3-label
+     * host fails the TLS handshake. Deploy-stage validity is asserted in `infra/bin/app.ts`, not here.
      */
-    it('REFUSES a base non-prod stage — there is no persistent recipe instance to name', () => {
-        expect(() => recipeSubdomainForStage('sandbox', 'sandbox')).toThrow(/persistent/i);
-        expect(() => recipeSubdomainForStage('sandbox', 'sandbox')).toThrow(/recipe\.sandbox/);
-        // The rule is "stage IS the base stage", not "stage is literally sandbox" — a repo that renamed its
-        // base stage must inherit the same refusal.
-        expect(() => recipeSubdomainForStage('staging', 'staging')).toThrow(/persistent/i);
+    it('prod → recipe; every other stage → recipe-{stage} (dash form, covered by *.commise.app)', () => {
+        expect(recipeSubdomainForStage('prod')).toBe('recipe');
+        expect(recipeSubdomainForStage('pr-73')).toBe('recipe-pr-73');
+        expect(recipeSubdomainForStage('team-feature-x')).toBe('recipe-team-feature-x');
     });
 
-    it('still allows a per-PR stage that merely CONTAINS the base stage name', () => {
-        // Guards an over-broad fix (e.g. a substring test) that would break a legitimately ephemeral stage.
-        expect(recipeSubdomainForStage('pr-73-sandbox', 'sandbox')).toBe('recipe-pr-73-sandbox');
+    it('never emits a dot after the service label, for ANY stage', () => {
+        // The one shape the scheme must never produce: a stage-qualified `recipe.{stage}` host. It is not
+        // guarded against — it is unrepresentable, since the only separator this function writes is a dash.
+        for (const stage of ['prod', 'sandbox', 'staging', 'pr-1', 'pr-73', 'team-x', 'a.b']) {
+            expect(recipeSubdomainForStage(stage)).not.toMatch(/^recipe\./);
+        }
     });
 });
 

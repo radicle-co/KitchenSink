@@ -160,40 +160,21 @@ export function foodListenerPriorityForStage(stage: string, baseStage: string): 
 /**
  * Resolve the food service's DNS label (the `Host` header + A-record name) for a stage.
  *
- * The shared ALB certificate covers `commise.app`, `*.commise.app`, and `*.sandbox.commise.app`
- * (ADR-0003 / DomainStack) — all **single-label** wildcards. prod is the bare label `food`
- * (`food.commise.app`); every other stage must NOT use `food.pr-{N}`, because that 3-label host
- * (`food.pr-7.commise.app`) is uncovered by any wildcard and fails the TLS handshake — so it flips the
- * separator to a dash: `food-{stage}` → `food-pr-7.commise.app`, a single label covered by
- * `*.commise.app` (ADR-0006; matches the `{service}-pr-{N}.commise.app` convention in
- * `sandbox-deploy.yml`). Pure.
+ * The shared ALB certificate covers `commise.app`, `*.commise.app`, and `*.sandbox.commise.app` (ADR-0003 /
+ * DomainStack) — all **single-label** wildcards. prod is the bare label `food` (`food.commise.app`); every
+ * other stage uses the DASH form, `food-{stage}` → `food-pr-7.commise.app`, because a 3-label
+ * `food.pr-7.commise.app` matches no wildcard and fails the TLS handshake (ADR-0006; matches the
+ * `{service}-pr-{N}.commise.app` convention in `sandbox-deploy.yml`). Pure, total.
  *
- * A base non-prod stage (`stage === baseStage`, i.e. `sandbox`) is REJECTED: the food service has no
- * persistent non-prod instance — every PR deploys its own. See {@link recipeSubdomainForStage} in the
- * recipe service for the full reasoning, including why `food.sandbox` fails SILENTLY (the live
- * `*.sandbox.commise.app` wildcard resolves it to the shared ALB's default fixed-response 404) rather than
- * with a DNS error.
+ * There is deliberately NO way to produce a stage-qualified `food.{stage}` host — every PR deploys its own
+ * food service and prod is the only persistent one, so that label has no referent and this function takes no
+ * `baseStage` to compare against. Which stages may be deployed is decided in `infra/bin/app.ts`.
  *
  * @param stage - The deploy stage.
- * @param baseStage - The resolved base stage (prod → prod, else → sandbox).
  * @returns The subdomain label to prefix onto the apex domain.
- * @throws If `stage` is the base non-prod stage, which would name a persistent instance that must not exist.
  */
-export function foodSubdomainForStage(stage: string, baseStage: string): string {
-    if (stage === 'prod') {
-        return 'food';
-    }
-
-    if (stage === baseStage) {
-        throw new Error(
-            `Refusing to deploy the food service at the base stage '${stage}': that would create the ` +
-                `persistent host 'food.${stage}', and the food service has no persistent non-prod instance — ` +
-                'every PR deploys its own (stage `pr-{N}`). Only identity and packages/infra/global are ' +
-                'shared and persistent.',
-        );
-    }
-
-    return `food-${stage}`;
+export function foodSubdomainForStage(stage: string): string {
+    return stage === 'prod' ? 'food' : `food-${stage}`;
 }
 
 /** Props for {@link FoodServiceStack}. */
@@ -658,7 +639,7 @@ export class FoodServiceStack extends Stack {
         // listener (owned by the global infra — kitchensink-alb-${stage}) and attaches a host-based
         // rule for its subdomain. See docs/architecture/decisions/0003-shared-alb-per-stage.md.
         const isProd = stage === 'prod';
-        const subdomain = foodSubdomainForStage(stage, baseStage);
+        const subdomain = foodSubdomainForStage(stage);
         const serviceDomain = `${subdomain}.${domainName}`;
 
         const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'ImportedHostedZone', {

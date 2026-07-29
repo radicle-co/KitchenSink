@@ -649,29 +649,19 @@ describe('Base-stage platform imports (ADR-0006)', () => {
 });
 
 describe('foodSubdomainForStage (ADR-0006 — cert-safe per-PR host)', () => {
-    it('uses the bare label for prod (covered by the wildcard cert)', () => {
-        expect(foodSubdomainForStage('prod', 'prod')).toBe('food');
+    it('prod → food; every other stage → food-{stage} (dash form, covered by *.commise.app)', () => {
+        expect(foodSubdomainForStage('prod')).toBe('food');
+        expect(foodSubdomainForStage('pr-7')).toBe('food-pr-7');
+        expect(foodSubdomainForStage('pr-123')).toBe('food-pr-123');
     });
 
-    it('uses the dash form for a per-PR stage so `*.commise.app` covers it (no 3-label host)', () => {
-        expect(foodSubdomainForStage('pr-7', 'sandbox')).toBe('food-pr-7');
-        expect(foodSubdomainForStage('pr-123', 'sandbox')).toBe('food-pr-123');
-    });
-
-    /**
-     * Mirrors `recipeSubdomainForStage`: the food service has no persistent non-prod instance — every PR
-     * deploys its own, and only identity + `packages/infra/global` are shared and persistent. See the
-     * companion test in the recipe suite for why `food.sandbox` is a SILENT failure rather than a loud one
-     * (the `*.sandbox.commise.app` wildcard resolves it to the shared ALB's default 404).
-     */
-    it('REFUSES a base non-prod stage — there is no persistent food instance to name', () => {
-        expect(() => foodSubdomainForStage('sandbox', 'sandbox')).toThrow(/persistent/i);
-        expect(() => foodSubdomainForStage('sandbox', 'sandbox')).toThrow(/food\.sandbox/);
-        expect(() => foodSubdomainForStage('staging', 'staging')).toThrow(/persistent/i);
-    });
-
-    it('still allows a per-PR stage that merely CONTAINS the base stage name', () => {
-        expect(foodSubdomainForStage('pr-7-sandbox', 'sandbox')).toBe('food-pr-7-sandbox');
+    it('never emits a dot after the service label, for ANY stage', () => {
+        // Mirrors the recipe assertion: a stage-qualified `food.{stage}` host is unrepresentable rather than
+        // guarded, because the only separator this function writes is a dash. A 3-label host would also fail
+        // the TLS handshake — no wildcard on the shared cert covers it.
+        for (const stage of ['prod', 'sandbox', 'staging', 'pr-7', 'team-x']) {
+            expect(foodSubdomainForStage(stage)).not.toMatch(/^food\./);
+        }
     });
 });
 

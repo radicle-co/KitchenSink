@@ -17,9 +17,9 @@
  * service** (`kitchensink-recipe-service-pr-{N}` → `recipe-pr-{N}.commise.app`) — so there is no persistent
  * non-prod recipe host to hardcode, and a build profile that names one is wrong by construction.
  *
- * `preview` used to hardcode `https://recipe.sandbox.commise.app`. That host does not exist and never should,
- * yet it does not fail loudly either: the live `*.sandbox.commise.app` wildcard points at the shared ALB, so
- * it RESOLVES and answers the listener's default fixed-response 404. A preview binary built against it would
+ * `preview` used to hardcode a stage-qualified recipe host. Such a host does not exist and never should, yet
+ * it does not fail loudly either: the live `*.sandbox.commise.app` wildcard points at the shared ALB, so it
+ * RESOLVES and answers the listener's default fixed-response 404. A preview binary built against one would
  * have failed every single request while looking perfectly configured — indistinguishable from an application
  * bug until someone thought to check DNS. So the profile now carries NO endpoint literals and declares
  * `environment: "preview"`, which makes EAS resolve them from the environment variables set for that build:
@@ -87,8 +87,8 @@ describe('eas.json build profiles', () => {
     });
 
     it('names no persistent non-prod service host in ANY profile', () => {
-        // Belt-and-braces across the whole file: `recipe.sandbox` / `food.sandbox` resolve to the shared
-        // ALB's default 404, so they can never be caught by "does it resolve" — only by refusing the name.
+        // Belt-and-braces across the whole file: a stage-qualified service host resolves to the shared ALB's
+        // default 404, so it can never be caught by "does it resolve" — only by refusing the name.
         //
         // The forbidden shape is the STAGE-QUALIFIED one: `{service}.{stage}.{apex}` — a service label
         // followed by three or more labels. Both legitimate forms are narrowly excluded by that count:
@@ -103,8 +103,9 @@ describe('eas.json build profiles', () => {
             );
         }
 
-        // Prove the matcher is not vacuous — an assertion that can never fire is not a guard.
-        expect('https://recipe.sandbox.commise.app').toMatch(stageQualifiedServiceHost);
+        // Prove the matcher is not vacuous — an assertion that can never fire is not a guard. The positive
+        // case is synthesized here rather than named as a real host, because no such host is a real thing.
+        expect(`https://recipe.${'some-stage'}.commise.app`).toMatch(stageQualifiedServiceHost);
         expect('https://recipe.commise.app').not.toMatch(stageQualifiedServiceHost);
         expect('https://recipe-pr-73.commise.app').not.toMatch(stageQualifiedServiceHost);
     });

@@ -5,11 +5,18 @@ name: CI (reusable)
 # action, which reads kitchensink/<stage>/identity/keys — so PR pipelines use sandbox secrets and the
 # main pipeline uses prod secrets, with no duplicated secret-fetch logic.
 #
-# TIERS. `install` always runs; the BASE tier (lint/format/typecheck/test/integration/build/e2e) runs
-# unless a caller passes `run_base_jobs: false`; the HEAVY tier (Maestro, k6) runs only when a caller
-# opts in. Heavy-only callers (heavy-e2e.yml, recipe-loadtest.yml) therefore no longer re-run the base
-# tier a same-commit ci-pr.yml already ran — which also removes the DOUBLE concurrent `e2e-web` that
-# made two Playwright runs fight over the shared sandbox Clerk fixtures.
+# TIERS. This file is the BASE tier in full: install, then lint/format/typecheck/test/integration/
+# build/e2e. The HEAVY tier (mobile Maestro + the recipe/food k6 load tests) lives in its own reusable
+# workflow, `_ci-heavy.yml`, called only by heavy-e2e.yml / recipe-loadtest.yml / ci-full.yml.
+#
+# Those jobs used to live HERE behind `run_mobile_maestro` / `run_load_test` inputs, with a
+# `run_base_jobs` input so a heavy-only caller could switch this tier off. Two reasons that is gone:
+# GitHub renders every job of a called workflow in every caller's run graph regardless of `if:`, so each
+# PR run showed three permanently-`skipped` jobs that read as a broken pipeline; and tier membership is
+# better expressed by WHICH workflow a caller invokes than by booleans threaded through ~16 `if:` gates.
+# The collision that `run_base_jobs` originally fixed — heavy-e2e.yml starting a SECOND concurrent
+# `e2e-web` on the same commit, two Playwright suites tearing down each other's shared sandbox Clerk
+# sign-in fixture — is now structurally impossible: heavy-e2e.yml no longer calls this file at all.
 #
 # Hardening path (requires repo/IAM setup, see docs/CI_ARCHITECTURE.md): move AWS auth to OIDC with
 # two stage-scoped roles and adopt GitHub Environments so prod secrets are unreachable from PR runs.
@@ -21,35 +28,6 @@ on:
                 description: Deployment stage — 'sandbox' (PRs) or 'prod' (main)
                 required: true
                 type: string
-            run_load_test:
-                description: >-
-                    Run the recipe-service k6 load-test job. Off by default so the heavy load run never
-                    fires on ordinary PR / push pipelines; a caller opts in with `run_load_test: true`.
-                required: false
-                type: boolean
-                default: false
-            run_mobile_maestro:
-                description: >-
-                    Run the mobile Maestro e2e job (boots an Android emulator + installs the app). Off by
-                    default until the Expo dev-build + emulator app-install wiring lands; opt in with
-                    `run_mobile_maestro: true`.
-                required: false
-                type: boolean
-                default: false
-            run_base_jobs:
-                description: >-
-                    Run the BASE tiers (lint/format/typecheck/test/integration/build/e2e). On by default,
-                    so ci-pr.yml, ci-main.yml and ci-full.yml are unchanged. A HEAVY-ONLY caller
-                    (heavy-e2e.yml, recipe-loadtest.yml) passes `false`: those callers exist purely to
-                    switch on `run_mobile_maestro` / `run_load_test`, and on a PR the base tiers have
-                    ALREADY run on the same commit via ci-pr.yml. Re-running them was not just duplicated
-                    compute — it started a SECOND concurrent `e2e-web` on the same commit against the
-                    shared sandbox Clerk instance, which is what made the two runs delete each other's
-                    sign-in fixture (see packages/apps/commise/web/tests/e2e/utils/runFixtureIdentity.ts).
-                    `install` is NEVER gated: it seeds the dependency cache the heavy jobs restore.
-                required: false
-                type: boolean
-                default: true
 
 permissions:
     contents: read
@@ -61,8 +39,8 @@ jobs:
     install:
         name: Install dependencies
         runs-on: ubuntu-latest
-        # Deliberately NOT gated on `run_base_jobs`: every heavy job restores the dependency cache this
-        # job saves, so a heavy-only caller still needs it.
+        # Seeds the `actions/cache` entry every job below restores. `_ci-heavy.yml` keeps its own copy of
+        # this job: a reusable workflow cannot `needs:` a job in another workflow.
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -85,8 +63,6 @@ jobs:
         name: Build @commise/ui
         runs-on: ubuntu-latest
         needs: [install]
-        # Base tier — skipped for a heavy-only caller (see the `run_base_jobs` input).
-        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -114,7 +90,6 @@ jobs:
         name: Lint
         runs-on: ubuntu-latest
         needs: [install]
-        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -137,7 +112,6 @@ jobs:
         name: Format check
         runs-on: ubuntu-latest
         needs: [install]
-        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -160,7 +134,6 @@ jobs:
         name: Typecheck
         runs-on: ubuntu-latest
         needs: [install]
-        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -183,7 +156,6 @@ jobs:
         name: Test
         runs-on: ubuntu-latest
         needs: [install]
-        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -206,7 +178,6 @@ jobs:
         name: Integration (identity — Postgres)
         runs-on: ubuntu-latest
         needs: [install]
-        if: ${{ inputs.run_base_jobs }}
         services:
             postgres:
                 image: postgres:16
@@ -248,7 +219,6 @@ jobs:
         name: Integration (food — Postgres)
         runs-on: ubuntu-latest
         needs: [install]
-        if: ${{ inputs.run_base_jobs }}
         services:
             postgres:
                 image: postgres:16
@@ -291,7 +261,6 @@ jobs:
         name: Integration (recipe — Postgres + LocalStack)
         runs-on: ubuntu-latest
         needs: [install]
-        if: ${{ inputs.run_base_jobs }}
         # Feature 001 recipe-service. Postgres backs the relational data; LocalStack provides the AWS
         # services recipe-service uses (S3 photo/version archive, SQS archive queue) so the integration
         # suite can exercise them without real AWS. recipe-service is still a skeleton (only /health is
@@ -363,7 +332,6 @@ jobs:
         name: Integration (recipe-workers — Postgres + LocalStack)
         runs-on: ubuntu-latest
         needs: [install]
-        if: ${{ inputs.run_base_jobs }}
         # Feature 001 recipe-workers. The GDPR account-erasure worker and the version-archive drain make
         # DESTRUCTIVE, compliance-critical guarantees (FK/cascade behaviour, the `cloned_from_id` NO-ACTION
         # detach, "no deleted_at filter", the dual-bucket owner-prefix S3 sweep, the archive-resurrection
@@ -460,7 +428,6 @@ jobs:
         name: E2E (food — booted app + Postgres + LocalStack)
         runs-on: ubuntu-latest
         needs: [install]
-        if: ${{ inputs.run_base_jobs }}
         # Two service containers mirror infra/localstack/docker-compose.yml: a plain Postgres (the DB,
         # NOT LocalStack RDS) and a LocalStack container for the AWS services food-service will use from
         # Phase 3 (EventBridge=`events`, SQS, Secrets Manager). The CURRENT E2E only boots the Nest app
@@ -524,7 +491,6 @@ jobs:
         name: Build ${{ matrix.workspace }}
         runs-on: ubuntu-latest
         needs: [install, build-ui]
-        if: ${{ inputs.run_base_jobs }}
         strategy:
             fail-fast: false
             matrix:
@@ -592,7 +558,6 @@ jobs:
         name: E2E (backend services)
         runs-on: ubuntu-latest
         needs: build
-        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -630,7 +595,6 @@ jobs:
         needs: build
         # Base tier. Gating this is what stops a labelled PR from running TWO concurrent Playwright suites
         # on the same commit (ci-pr.yml + heavy-e2e.yml) against the shared sandbox Clerk instance.
-        if: ${{ inputs.run_base_jobs }}
         # Pin BOTH API origins the web app resolves from env. `src/config/env.ts` declares them with NO
         # default and validates at load, so an unset variable is a loud build failure rather than a silent
         # localhost fallback — which means CI must state them. Locally the same two values come from the
@@ -727,7 +691,6 @@ jobs:
         name: E2E (mobile — Vitest)
         runs-on: ubuntu-latest
         needs: build
-        if: ${{ inputs.run_base_jobs }}
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -756,563 +719,3 @@ jobs:
             - name: Run mobile e2e tests
               if: steps.secrets.outcome == 'success'
               run: npm run test:e2e --workspace=@commise/mobile
-
-    e2e-mobile-maestro:
-        name: E2E (mobile — Maestro) · heavy tier
-        runs-on: ubuntu-latest
-        needs: [install]
-        # Cross-platform mandate: the Vitest mobile e2e (above) covers logic; Maestro drives the real UI
-        # flows in packages/apps/commise/mobile/.maestro on an Android emulator. SELF-CONTAINED: it boots
-        # the real recipe-service (the proven Docker image, dev-auth bypass) against a Postgres service on
-        # the runner, provisions the shared Clerk sign-in test user, builds the Expo debug APK pointed at
-        # the runner service via the emulator host alias (10.0.2.2), boots the emulator, installs the APK,
-        # and runs the flows. The app still does REAL Clerk sign-in (sandbox dev instance); the service
-        # ignores its token under the dev bypass, so no native-token verification is needed here.
-        # Behind `run_mobile_maestro` (default false) purely for COST/DURATION (emulator + Gradle build).
-        if: ${{ inputs.run_mobile_maestro }}
-        services:
-            postgres:
-                image: postgres:16
-                env:
-                    POSTGRES_USER: postgres
-                    POSTGRES_PASSWORD: postgres
-                    POSTGRES_DB: recipe_maestro
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd pg_isready
-                    --health-interval 10s
-                    --health-timeout 5s
-                    --health-retries 5
-        steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
-              with:
-                  node-version: 24
-                  cache: npm
-            - name: Restore dependencies
-              uses: actions/cache/restore@v5
-              with:
-                  path: |
-                      node_modules
-                      packages/*/node_modules
-                      packages/*/*/node_modules
-                      packages/*/*/*/node_modules
-                      packages/*/*/*/*/node_modules
-                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            # Clerk dev-instance keys (publishable for the APK, secret for provisioning the test user).
-            - name: Load ${{ inputs.stage }} Clerk secrets
-              id: secrets
-              continue-on-error: true
-              uses: ./.github/actions/load-secrets
-              with:
-                  stage: ${{ inputs.stage }}
-                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  aws-region: ${{ env.DEFAULT_AWS_REGION }}
-            # Idempotently ensure the shared sign-in test user exists in the Clerk dev instance (the flow
-            # signs in with it; `+clerk_test` verifies with the fixed code 424242 — no real mailbox).
-            - name: Provision Clerk sign-in test user
-              if: steps.secrets.outcome == 'success'
-              run: node packages/apps/commise/mobile/tests/e2e/ensure-signin-user.mjs
-            - name: Install Maestro CLI
-              if: steps.secrets.outcome == 'success'
-              run: |
-                  curl -Ls https://get.maestro.mobile.dev | bash
-                  echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-            - name: Set up JDK 17
-              if: steps.secrets.outcome == 'success'
-              uses: actions/setup-java@v4
-              with:
-                  distribution: temurin
-                  java-version: '17'
-            # Build the recipe service (+ shared deps) and the PROVEN Docker image — the reliable boot (a
-            # plain `node` boot can't resolve the workspace bare specifiers outside the image).
-            # Build the recipe-service image AND the mobile app's dependency closure: the release JS bundle
-            # (built at APK-build time) imports `@commise/ui/tokens/*`, which resolves to that package's
-            # built `dist` — so its dist (and any other dist-exporting workspace dep) must exist first.
-            - name: Build recipe-service image + mobile deps
-              if: steps.secrets.outcome == 'success'
-              run: |
-                  npx turbo run build --filter=@kitchensink/recipe-service --filter=@commise/mobile^...
-                  docker build -f packages/services/recipe-service/Dockerfile -t recipe-maestro:ci .
-            # Migrations + seed the catalog ingredients the create flows attach by id (T043b).
-            # Migrations + catalog ingredients (prepare-db), THEN the recipe seed (the 5 fixture recipes +
-            # a collection the flows reference, e.g. "Mediterranean Grilled Lamb"). The flows expect the
-            # signer to be the seed's FREE owner, so the dev-bypass user below is that owner's ULID.
-            - name: Prepare recipe database (migrate + seed)
-              if: steps.secrets.outcome == 'success'
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_maestro
-              run: |
-                  node packages/services/recipe-service/tests/load/prepare-db.mjs
-                  npm run seed --workspace=@kitchensink/recipe-service
-            # Boot the service with the dev-auth bypass + raised rate limits (the flows all run as one dev
-            # user = the seed's FREE owner, so they see the seeded recipes). Bound to the runner's
-            # localhost:3000; the emulator reaches it at http://10.0.2.2:3000.
-            - name: Boot recipe-service (Docker, dev-bypass)
-              if: steps.secrets.outcome == 'success'
-              run: |
-                  docker run -d --name recipe-maestro --network host \
-                      -e NODE_ENV=development \
-                      -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_maestro \
-                      -e PORT=3000 \
-                      -e CLERK_JWT_KEY=maestro-placeholder-key \
-                      -e CLERK_AUTHORIZED_PARTIES=http://localhost:3000 \
-                      -e S3_ENDPOINT=http://localhost:4566 -e S3_FORCE_PATH_STYLE=true \
-                      -e S3_BUCKET_PHOTOS=commise-photos -e S3_BUCKET_VERSIONS=commise-versions \
-                      -e CLOUDFRONT_URL=http://localhost:4566/commise-photos \
-                      -e SQS_ENDPOINT=http://localhost:4566 \
-                      -e ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/erasure \
-                      -e RECIPE_DEV_AUTH_USER_ID=01J0K6000000000000000000K6 \
-                      -e RATE_LIMIT_READ=1000000 -e RATE_LIMIT_WRITE=1000000 \
-                      -e RATE_LIMIT_SEARCH=1000000 -e RATE_LIMIT_PHOTO_UPLOAD=1000000 \
-                      recipe-maestro:ci
-                  for i in $(seq 1 40); do
-                      if curl -sf http://localhost:3000/health > /dev/null; then echo "service up"; break; fi
-                      sleep 2
-                  done
-                  curl -sf http://localhost:3000/health || { echo "service did not boot"; docker logs recipe-maestro; exit 1; }
-            # Build a standalone RELEASE APK (JS bundle EMBEDDED). A debug APK loads its JS from a Metro
-            # bundler at runtime — absent in CI, so the app renders nothing. The release build bundles the
-            # JS in-APK (with EXPO_PUBLIC_* inlined at build time → the emulator host alias for the
-            # runner-local service), so it runs Metro-free. Expo prebuild signs `release` with the debug
-            # keystore by default, so the APK installs without any keystore setup. Minification is disabled
-            # to avoid proguard stripping something the E2E needs.
-            - name: Build Android release APK
-              if: steps.secrets.outcome == 'success'
-              working-directory: packages/apps/commise/mobile
-              env:
-                  # 10.0.2.2 is the Android emulator's host loopback. Both endpoints are REQUIRED —
-                  # `mobile/src/config/env.ts` declares them with no default, so the APK build fails
-                  # outright if either is absent (that is the point: `localhost` on a phone is the phone).
-                  EXPO_PUBLIC_RECIPE_API_URL: http://10.0.2.2:3000
-                  # The app fetches the viewer PROFILE (viewerId → client-side ownership, tier) from the
-                  # identity service; this job runs a stub for it on :4000 (see the stub step below).
-                  EXPO_PUBLIC_IDENTITY_API_URL: http://10.0.2.2:4000
-                  EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: ${{ env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY }}
-                  # The release build runs the @sentry/react-native gradle hook, which uploads source maps
-                  # via sentry-cli; there is no Sentry auth token in E2E, so disable the upload.
-                  SENTRY_DISABLE_AUTO_UPLOAD: 'true'
-              run: |
-                  npx expo prebuild --platform android --no-install
-                  # Allow cleartext HTTP so the release APK can reach the runner-local recipe service at
-                  # http://10.0.2.2:3000 (release blocks cleartext by default; debug allows it). This patch
-                  # lives only in the CI working copy — it is NOT committed, so prod builds from app.json
-                  # stay cleartext-free. (Clerk sign-in itself is HTTPS and unaffected.)
-                  sed -i 's/<application /<application android:usesCleartextTraffic="true" /' \
-                      android/app/src/main/AndroidManifest.xml
-                  cd android && ./gradlew :app:assembleRelease --no-daemon \
-                      -PenableProguardInReleaseBuilds=false -PenableShrinkResourcesInReleaseBuilds=false
-            # The app's client-side ownership (Edit/Delete/clone) + tier come from the identity service's
-            # profile endpoint, which this recipe-only job does not run — serve a fixed FREE profile whose
-            # user.id equals the seed owner + dev-bypass user (01J0K6…) so ownership/tier resolve. Runs in
-            # the background; the emulator reaches it at http://10.0.2.2:4000.
-            - name: Start profile stub
-              if: steps.secrets.outcome == 'success'
-              run: |
-                  PORT=4000 node packages/apps/commise/mobile/tests/e2e/profile-stub-server.mjs > /tmp/profile-stub.log 2>&1 &
-                  for i in $(seq 1 15); do
-                      if curl -sf http://localhost:4000/v1/users/me > /dev/null; then echo "stub up"; break; fi
-                      sleep 1
-                  done
-                  curl -sf http://localhost:4000/v1/users/me || { echo "stub failed to start"; cat /tmp/profile-stub.log; exit 1; }
-            # Hardware-accelerate the emulator (KVM). Without this the emulator falls back to slow software
-            # rendering (a ~7min boot + ~4min APK install), which starves the Maestro Android driver and
-            # times it out ("driver did not start up in time"). GitHub's Linux runners expose /dev/kvm but
-            # need the group/permissions opened for the emulator process.
-            - name: Enable KVM
-              if: steps.secrets.outcome == 'success'
-              run: |
-                  echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-                      | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-                  sudo udevadm control --reload-rules
-                  sudo udevadm trigger --name-match=kvm
-            # The emulator-runner installs a ~3 GB x86_64 system image; once the recipe-service Docker image,
-            # mobile deps, and release APK are on disk the runner's ~14 GB budget is nearly spent, and the
-            # install can abort with "No space left on device" (the emulator then never boots). The APK is
-            # already built by this point, so reclaim the large toolchains this job never uses — but NOT
-            # Docker (the recipe-service container is live) nor the Android platform-tools/emulator/system
-            # images. This makes the emulator boot robust to runner-to-runner free-space variance.
-            - name: Free disk space for the emulator system image
-              if: steps.secrets.outcome == 'success'
-              run: |
-                  df -h /
-                  sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/share/swift \
-                      /usr/local/share/powershell /opt/hostedtoolcache/CodeQL \
-                      /usr/local/lib/android/sdk/ndk || true
-                  df -h /
-            # Boot the emulator, install the APK, and run the flows. Install + test run INSIDE the
-            # emulator-runner `script` (the emulator is only up there). `adb reverse` also maps the
-            # emulator's own localhost:3000 to the runner, a belt-and-suspenders alongside 10.0.2.2.
-            # A generous MAESTRO_DRIVER_STARTUP_TIMEOUT absorbs first-run driver-install latency.
-            - name: Run Maestro flows on emulator
-              if: steps.secrets.outcome == 'success'
-              uses: reactivecircus/android-emulator-runner@v2
-              env:
-                  MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
-              with:
-                  api-level: 34
-                  arch: x86_64
-                  profile: pixel_6
-                  cores: 3
-                  ram-size: 4096M
-                  emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -camera-back none
-                  disable-animations: true
-                  # Use a hardware keyboard so text fields never raise the SOFT keyboard. Maestro's
-                  # `hideKeyboard` sends a BACK keypress, which — when no soft keyboard is actually open —
-                  # pops the navigation stack (and eventually exits the app to the launcher). With the soft
-                  # keyboard suppressed there is nothing to hide, so the flows drop `hideKeyboard` entirely
-                  # and BACK is never spuriously fired. (run-maestro-flows.sh also sets
-                  # show_ime_with_hard_keyboard=0 as belt-and-suspenders.)
-                  enable-hardware-keyboard: true
-                  # The emulator-runner executes each `script` LINE as its own `sh -c`, so the per-flow loop
-                  # (reseed → run one flow, in isolation) lives in a committed script invoked in one line.
-                  script: bash packages/apps/commise/mobile/tests/e2e/run-maestro-flows.sh
-            - name: Upload Maestro artifacts
-              if: failure() && steps.secrets.outcome == 'success'
-              uses: actions/upload-artifact@v4
-              with:
-                  name: maestro-report-${{ inputs.stage }}
-                  path: ~/.maestro/tests
-                  retention-days: 7
-                  if-no-files-found: ignore
-            - name: Recipe-service error logs on failure
-              if: failure()
-              run: |
-                  echo "--- recipe-service: NestJS error/exception lines ---"
-                  docker logs recipe-maestro 2>&1 | grep -iE "error|exception|warn|400|422|500|Bad Request|Unprocessable|validation|ingredient|POST /v1/recipes" | tail -80 || true
-            - name: Recipe-service logs on failure
-              if: failure() && steps.secrets.outcome == 'success'
-              run: docker logs recipe-maestro 2>&1 | tail -100 || true
-
-    load-test:
-        name: Load test (recipe — k6) · heavy tier
-        runs-on: ubuntu-latest
-        needs: [install]
-        # T081/SC-009 performance gate. Gated behind `run_load_test` (default false) so the heavy k6 run
-        # never fires on ordinary PR / push pipelines; a caller opts in with `run_load_test: true`
-        # (`heavy-e2e.yml` — nightly schedule, manual dispatch, or the `heavy-e2e` PR label). Boots the
-        # recipe-service against a Postgres + LocalStack service pair and runs ALL SEVEN tests/load k6
-        # scripts; a threshold breach exits k6 non-zero and fails the job.
-        if: ${{ inputs.run_load_test }}
-        services:
-            postgres:
-                image: postgres:16
-                env:
-                    POSTGRES_USER: postgres
-                    POSTGRES_PASSWORD: postgres
-                    POSTGRES_DB: recipe_load
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd pg_isready
-                    --health-interval 10s
-                    --health-timeout 5s
-                    --health-retries 5
-            # Three of the seven scripts need REAL AWS-side state that a placeholder endpoint cannot provide:
-            # `service-erasure` enqueues to SQS on its accept path (a dead endpoint would 500 the 202),
-            # `version-archive-read` reads a snapshot the fixture PUTs to S3, and `save-under-archive`
-            # measures save latency *while the archive is queued*. LocalStack Community covers S3 + SQS.
-            localstack:
-                image: localstack/localstack:4.4.0
-                env:
-                    SERVICES: s3,sqs
-                    # Path-style SQS URLs (http://localhost:4566/000000000000/<name>) so the queue the
-                    # bootstrap step creates is addressable at the exact ACCOUNT_ERASURE_QUEUE_URL the
-                    # service is booted with. The default `standard` strategy would hand back a
-                    # sqs.<region>.localhost.localstack.cloud host instead.
-                    SQS_ENDPOINT_STRATEGY: path
-                ports:
-                    - 4566:4566
-                options: >-
-                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
-                    --health-interval 5s
-                    --health-timeout 5s
-                    --health-retries 20
-        steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
-              with:
-                  node-version: 24
-                  cache: npm
-            - name: Restore dependencies
-              uses: actions/cache/restore@v5
-              with:
-                  path: |
-                      node_modules
-                      packages/*/node_modules
-                      packages/*/*/node_modules
-                      packages/*/*/*/node_modules
-                      packages/*/*/*/*/node_modules
-                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            - name: Install k6
-              run: |
-                  sudo gpg -k
-                  sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
-                      --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-                  echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
-                      | sudo tee /etc/apt/sources.list.d/k6.list
-                  sudo apt-get update
-                  sudo apt-get install -y k6
-            # Build the service AND its shared deps (turbo `^build`), so the Dockerfile can COPY their
-            # dist + prod.package.json. A plain `node dist/src/main.js` boot cannot resolve the workspace
-            # `@kitchensink/*` bare specifiers outside the image (the src-exports/.js tangle), so we boot the
-            # PROVEN Docker image instead — the same artifact prod runs.
-            - name: Build recipe-service (+ shared deps)
-              run: npx turbo run build --filter=@kitchensink/recipe-service
-            - name: Build recipe-service image
-              run: docker build -f packages/services/recipe-service/Dockerfile -t recipe-load:ci .
-            # Apply migrations + seed the catalog ingredients the load payloads attach by id. MANDATORY:
-            # since T043b every create validates each line's ingredientId, so without these every write 400s
-            # and trips the k6 failure-rate threshold.
-            - name: Prepare load database
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_load
-              run: node packages/services/recipe-service/tests/load/prepare-db.mjs
-            # The S3 buckets + the account-erasure SQS queue the booted service and the fixture step address.
-            # LocalStack starts with an EMPTY account, so without this the erasure accept path's SendMessage
-            # fails (NonExistentQueue → 500, not the asserted 202) and the archive PUT fails (NoSuchBucket).
-            - name: Bootstrap LocalStack (S3 buckets + account-erasure queue)
-              env:
-                  AWS_ACCESS_KEY_ID: test
-                  AWS_SECRET_ACCESS_KEY: test
-                  AWS_DEFAULT_REGION: us-east-1
-              run: |
-                  aws --endpoint-url=http://localhost:4566 s3 mb s3://commise-photos
-                  aws --endpoint-url=http://localhost:4566 s3 mb s3://commise-versions
-                  aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name erasure
-                  # Fail loudly HERE (with the actual URL in the log) rather than as an opaque k6 threshold
-                  # breach if the queue is not addressable where the service is pointed. Asserted on the PATH
-                  # only, deliberately: the SQS client overrides the host via SQS_ENDPOINT and uses just the
-                  # queue URL's account/name path, so the host LocalStack echoes back is immaterial.
-                  QUEUE_URL=$(aws --endpoint-url=http://localhost:4566 sqs get-queue-url \
-                      --queue-name erasure --query QueueUrl --output text)
-                  echo "erasure queue: ${QUEUE_URL}"
-                  case "${QUEUE_URL}" in
-                      */000000000000/erasure) ;;
-                      *) echo "queue path does not match ACCOUNT_ERASURE_QUEUE_URL's /000000000000/erasure"; exit 1 ;;
-                  esac
-            # W8-a.7 fixture for `version-archive-read.load.js`: a public recipe whose version 1 exists ONLY
-            # in the S3 archive (its recipe_versions row is deliberately absent), so every GET is forced down
-            # the transparent S3-fallback branch the script measures. k6 cannot seed Postgres or S3 itself.
-            # Idempotent (fixed ids, ON CONFLICT DO NOTHING); needs the migrated DB + the versions bucket.
-            - name: Seed the version-archive fixture
-              env:
-                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_load
-                  S3_ENDPOINT: http://localhost:4566
-                  S3_FORCE_PATH_STYLE: 'true'
-                  S3_BUCKET_VERSIONS: commise-versions
-              run: npx tsx packages/services/recipe-service/tests/load/prepare-version-archive-fixture.ts
-            # CR-002 / U4a: mint the EdDSA service-erasure token pool + a THROWAWAY keypair. k6's goja runtime
-            # cannot sign Ed25519, so the tokens are minted here and loaded by the script via `open()`.
-            #
-            # ORDERING IS LOAD-BEARING: this step generates a fresh keypair and writes the SPKI public key the
-            # service must be booted trusting, so it MUST precede the boot step. The minted tokens are
-            # single-target and short-lived (120s — the verifier's contract max, deliberately not extendable),
-            # which is why the erasure script runs FIRST among the k6 scripts, on a shortened shape (see the
-            # k6 step). Owners are synthetic, ULID-shaped and non-existent, so every erase is a harmless
-            # no-op that touches no real data.
-            - name: Mint the service-erasure token pool
-              run: npx tsx packages/services/recipe-service/tests/load/prepare-erasure-tokens.ts
-            # Boot the image with the dev-auth bypass (RECIPE_DEV_AUTH_USER_ID) so the load needs no live
-            # Clerk token, and with the per-user rate limits raised — the whole load is ONE dev user, so the
-            # default RATE_LIMIT_* (120/30/60) would 429 under concurrency and fail the status checks. S3/SQS
-            # now point at the LocalStack service container (real buckets + a real queue), and
-            # RECIPE_SERVICE_PRINCIPAL_JWT_KEY carries the public half of the keypair minted above so the
-            # ServiceErasureGuard trusts the load's tokens (and still fails closed on the expired one).
-            - name: Boot recipe-service (Docker, dev-bypass)
-              run: |
-                  docker run -d --name recipe-load --network host \
-                      -e NODE_ENV=development \
-                      -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_load \
-                      -e PORT=3000 \
-                      -e CLERK_JWT_KEY=load-test-placeholder-key \
-                      -e CLERK_AUTHORIZED_PARTIES=http://localhost:3000 \
-                      -e AWS_REGION=us-east-1 \
-                      -e S3_ENDPOINT=http://localhost:4566 -e S3_FORCE_PATH_STYLE=true \
-                      -e S3_BUCKET_PHOTOS=commise-photos -e S3_BUCKET_VERSIONS=commise-versions \
-                      -e CLOUDFRONT_URL=http://localhost:4566/commise-photos \
-                      -e SQS_ENDPOINT=http://localhost:4566 \
-                      -e ACCOUNT_ERASURE_QUEUE_URL=http://localhost:4566/000000000000/erasure \
-                      -e RECIPE_SERVICE_PRINCIPAL_JWT_KEY="$(cat packages/services/recipe-service/tests/load/erasure-public-key.pem)" \
-                      -e RECIPE_DEV_AUTH_USER_ID=01JLOAD000000000000000000A \
-                      -e RATE_LIMIT_READ=1000000 -e RATE_LIMIT_WRITE=1000000 \
-                      -e RATE_LIMIT_SEARCH=1000000 -e RATE_LIMIT_PHOTO_UPLOAD=1000000 \
-                      recipe-load:ci
-                  for i in $(seq 1 40); do
-                      if curl -sf http://localhost:3000/health > /dev/null; then echo "service up"; break; fi
-                      sleep 2
-                  done
-                  curl -sf http://localhost:3000/health || { echo "service did not boot"; docker logs recipe-load; exit 1; }
-            # The erasure scenario runs FIRST and on a SHORTENED shape (15s ramp + 25s hold + 10s down = 50s
-            # against the tokens' 120s TTL, ~25s of which the boot above already consumed). The thresholds are
-            # unchanged by the shape — per tests/load/README.md the peak/duration are env-driven precisely so
-            # a CI smoke shape and a distributed full-scale run share one pass/fail bar — so this trades only
-            # sample count, never strictness, and it removes the token-expiry flake class entirely. Running it
-            # last on the default 105s shape would expire the pool mid-run and fail on 401s.
-            - name: Run k6 service-erasure load script (CR-002 / U4a)
-              working-directory: packages/services/recipe-service
-              env:
-                  RECIPE_API_BASE_URL: http://localhost:3000
-                  RECIPE_LOAD_RAMP_UP: 15s
-                  RECIPE_LOAD_HOLD: 25s
-                  RECIPE_LOAD_RAMP_DOWN: 10s
-              run: k6 run --summary-export=k6-erasure-summary.json tests/load/service-erasure.load.js
-            # `ingredient-suggest-latency` (search Stage 2 / F2) needs NO prepare step of its own: the catalog
-            # ingredients `prepare-db.mjs` already seeded are the local half of the blend, and the food-catalog
-            # half is deliberately left UNREACHABLE here — no food service is booted, so `FOOD_SERVICE_URL`
-            # keeps its local-dev default (http://localhost:3002) with nothing listening. That is the exact
-            # worst case the script exists to defend: the blend must bound the failing catalog read and degrade
-            # to local-only (`catalogAvailability: 'unavailable'`) while still answering 200, so its strict
-            # `http_req_failed` threshold is what proves the F2 fallback never leaks the dependency's failure to
-            # the caller. Do NOT set FOOD_CATALOG_BLEND_ENABLED=false here — that reports 'disabled' and skips
-            # the cross-service call entirely, silently retiring the very behavior under test.
-            - name: Run k6 load scripts
-              working-directory: packages/services/recipe-service
-              env:
-                  RECIPE_API_BASE_URL: http://localhost:3000
-              run: |
-                  k6 run --summary-export=k6-sc009-summary.json tests/load/sc009-read-write.load.js
-                  k6 run --summary-export=k6-search-summary.json tests/load/search-latency.load.js
-                  k6 run --summary-export=k6-suggest-summary.json tests/load/ingredient-suggest-latency.load.js
-                  k6 run --summary-export=k6-save-summary.json tests/load/save-under-archive.load.js
-                  k6 run --summary-export=k6-pull-summary.json tests/load/pull-from-source.load.js
-                  k6 run --summary-export=k6-version-archive-summary.json tests/load/version-archive-read.load.js
-            - name: Upload k6 summaries
-              if: always()
-              uses: actions/upload-artifact@v4
-              with:
-                  name: recipe-k6-summaries-${{ inputs.stage }}
-                  path: packages/services/recipe-service/k6-*-summary.json
-                  retention-days: 7
-                  if-no-files-found: warn
-            # A k6 threshold breach reports only latency/status aggregates; the service-side exception that
-            # caused a 500 (a missing queue, an S3 error, a rejected token) is only in the container log.
-            - name: Recipe-service logs on failure
-              if: failure()
-              run: docker logs recipe-load 2>&1 | tail -150 || true
-
-    load-test-food:
-        name: Load test (food — k6) · heavy tier
-        runs-on: ubuntu-latest
-        needs: [install]
-        # CR-002 / U4b performance gate for food's internal service-principal erasure route — the food mirror
-        # of the recipe `load-test` job, gated behind the SAME `run_load_test` input so both heavy k6 runs
-        # fire together (nightly / manual / `heavy-e2e` PR label) and never on an ordinary PR push.
-        #
-        # SIMPLER than the recipe job by design: food's erase is a SYNCHRONOUS indexed DELETE on
-        # `fetch_requesters` with no SQS hand-off and no S3, so this needs only a migrated Postgres — no
-        # LocalStack (see packages/services/food-service/tests/load/README.md).
-        if: ${{ inputs.run_load_test }}
-        services:
-            postgres:
-                image: postgres:16
-                env:
-                    POSTGRES_USER: postgres
-                    POSTGRES_PASSWORD: postgres
-                    POSTGRES_DB: food_load
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd pg_isready
-                    --health-interval 10s
-                    --health-timeout 5s
-                    --health-retries 5
-        steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
-              with:
-                  node-version: 24
-                  cache: npm
-            - name: Restore dependencies
-              uses: actions/cache/restore@v5
-              with:
-                  path: |
-                      node_modules
-                      packages/*/node_modules
-                      packages/*/*/node_modules
-                      packages/*/*/*/node_modules
-                      packages/*/*/*/*/node_modules
-                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            - name: Install k6
-              run: |
-                  sudo gpg -k
-                  sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
-                      --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-                  echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
-                      | sudo tee /etc/apt/sources.list.d/k6.list
-                  sudo apt-get update
-                  sudo apt-get install -y k6
-            # Build the service AND its shared deps (turbo `^build`) so the Dockerfile can COPY their dist +
-            # prod.package.json, then build the PROVEN image — a plain `node dist/src/main.js` boot cannot
-            # resolve the workspace `@kitchensink/*` bare specifiers outside the image. Mirrors the recipe job.
-            - name: Build food-service (+ shared deps)
-              run: npx turbo run build --filter=@kitchensink/food-service
-            # Rewrite the food package.json exports/main to ./dist — the image COPYs prod.package.json over
-            # the committed package.json (which exports ./src). Mirrors sandbox-deploy.yml's food image build.
-            - name: Prepare food-service prod manifest
-              run: npm run docker:prepare --workspace=packages/services/food-service
-            - name: Build food-service image
-              run: docker build -f packages/services/food-service/Dockerfile -t food-load:ci .
-            # Apply the hand-authored, ordered food schema DDL (src/db/migrations/*.sql — the same source of
-            # truth tests/support/db.ts applies) to the throwaway DB. The erasure route DELETEs from
-            # `fetch_requesters`, so without the schema every request 500s instead of returning 200.
-            - name: Apply food schema migrations
-              env:
-                  PGHOST: localhost
-                  PGPORT: '5432'
-                  PGUSER: postgres
-                  PGPASSWORD: postgres
-                  PGDATABASE: food_load
-              run: |
-                  psql -v ON_ERROR_STOP=1 -c 'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'
-                  for f in packages/services/food-service/src/db/migrations/*.sql; do
-                      echo "applying $f"
-                      psql -v ON_ERROR_STOP=1 -f "$f"
-                  done
-            # Mint the EdDSA token pool + a throwaway keypair BEFORE the boot, which must trust the public
-            # half. Same ordering constraint (and same 120s contract-max TTL) as the recipe job.
-            - name: Mint the food service-erasure token pool
-              run: npx tsx packages/services/food-service/tests/load/prepare-erasure-tokens.ts
-            # PORT=3000 (not food's 3002 default) so the script's FOOD_API_BASE_URL default host:port applies.
-            # USDA_API_KEY is schema-required but never called on the erasure path, so a dummy satisfies boot.
-            # No CLERK_JWT_KEY: the internal erasure route is guarded by FoodServiceErasureGuard (EdDSA), not
-            # Clerk, and leaving the Clerk key unset keeps every *user* route failing closed at 401.
-            - name: Boot food-service (Docker)
-              run: |
-                  docker run -d --name food-load --network host \
-                      -e NODE_ENV=development \
-                      -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/food_load \
-                      -e PORT=3000 \
-                      -e STAGE=load \
-                      -e USDA_API_KEY=load-test-dummy-key \
-                      -e FOOD_SERVICE_PRINCIPAL_JWT_KEY="$(cat packages/services/food-service/tests/load/erasure-public-key.pem)" \
-                      food-load:ci
-                  for i in $(seq 1 40); do
-                      if curl -sf http://localhost:3000/health > /dev/null; then echo "service up"; break; fi
-                      sleep 2
-                  done
-                  curl -sf http://localhost:3000/health || { echo "service did not boot"; docker logs food-load; exit 1; }
-            # Shortened shape for the same reason as the recipe erasure run: the minted tokens live 120s (the
-            # verifier's contract max), so a 50s run started right after boot never races the TTL. Thresholds
-            # are shape-independent (see tests/load/README.md), so strictness is unchanged.
-            - name: Run k6 food service-erasure load script (CR-002 / U4b)
-              working-directory: packages/services/food-service
-              env:
-                  FOOD_API_BASE_URL: http://localhost:3000
-                  FOOD_LOAD_RAMP_UP: 15s
-                  FOOD_LOAD_HOLD: 25s
-                  FOOD_LOAD_RAMP_DOWN: 10s
-              run: k6 run --summary-export=k6-erasure-summary.json tests/load/service-erasure.load.js
-            - name: Upload k6 summaries
-              if: always()
-              uses: actions/upload-artifact@v4
-              with:
-                  name: food-k6-summaries-${{ inputs.stage }}
-                  path: packages/services/food-service/k6-*-summary.json
-                  retention-days: 7
-                  if-no-files-found: warn
-            - name: Food-service logs on failure
-              if: failure()
-              run: docker logs food-load 2>&1 | tail -150 || true

@@ -161,26 +161,39 @@ export function foodListenerPriorityForStage(stage: string, baseStage: string): 
  * Resolve the food service's DNS label (the `Host` header + A-record name) for a stage.
  *
  * The shared ALB certificate covers `commise.app`, `*.commise.app`, and `*.sandbox.commise.app`
- * (ADR-0003 / DomainStack) — all **single-label** wildcards. A base stage therefore uses a dotted host
- * that the cert covers: prod → `food` (`food.commise.app`), sandbox → `food.sandbox`
- * (`food.sandbox.commise.app`). A per-PR stage must NOT use `food.pr-{N}` — that 3-label host
+ * (ADR-0003 / DomainStack) — all **single-label** wildcards. prod is the bare label `food`
+ * (`food.commise.app`); every other stage must NOT use `food.pr-{N}`, because that 3-label host
  * (`food.pr-7.commise.app`) is uncovered by any wildcard and fails the TLS handshake — so it flips the
  * separator to a dash: `food-{stage}` → `food-pr-7.commise.app`, a single label covered by
  * `*.commise.app` (ADR-0006; matches the `{service}-pr-{N}.commise.app` convention in
  * `sandbox-deploy.yml`). Pure.
  *
+ * A base non-prod stage (`stage === baseStage`, i.e. `sandbox`) is REJECTED: the food service has no
+ * persistent non-prod instance — every PR deploys its own. See {@link recipeSubdomainForStage} in the
+ * recipe service for the full reasoning, including why `food.sandbox` fails SILENTLY (the live
+ * `*.sandbox.commise.app` wildcard resolves it to the shared ALB's default fixed-response 404) rather than
+ * with a DNS error.
+ *
  * @param stage - The deploy stage.
  * @param baseStage - The resolved base stage (prod → prod, else → sandbox).
  * @returns The subdomain label to prefix onto the apex domain.
+ * @throws If `stage` is the base non-prod stage, which would name a persistent instance that must not exist.
  */
 export function foodSubdomainForStage(stage: string, baseStage: string): string {
     if (stage === 'prod') {
         return 'food';
     }
 
-    // A base stage (sandbox) is a single label under the apex, covered by `*.sandbox.commise.app`; a
-    // per-PR stage rides `*.commise.app` via the dash form so the shared cert covers the preview host.
-    return stage === baseStage ? `food.${stage}` : `food-${stage}`;
+    if (stage === baseStage) {
+        throw new Error(
+            `Refusing to deploy the food service at the base stage '${stage}': that would create the ` +
+                `persistent host 'food.${stage}', and the food service has no persistent non-prod instance — ` +
+                'every PR deploys its own (stage `pr-{N}`). Only identity and packages/infra/global are ' +
+                'shared and persistent.',
+        );
+    }
+
+    return `food-${stage}`;
 }
 
 /** Props for {@link FoodServiceStack}. */

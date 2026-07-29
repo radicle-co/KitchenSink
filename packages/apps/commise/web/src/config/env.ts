@@ -19,8 +19,12 @@
  * | stage | source                                                                 |
  * |-------|------------------------------------------------------------------------|
  * | local | the committed `.env.development` — loaded by Next ONLY when `NODE_ENV` is `development` (i.e. `next dev`), never during `next build` |
- * | PR    | the preview build's environment: the PR-scoped recipe host plus the shared sandbox identity host |
+ * | PR    | resolved PER DEPLOYMENT by `scripts/previewEndpoints.ts` from the `*_TEMPLATE` variables and the build's PR number: this PR's own recipe service plus the shared sandbox identity host |
  * | prod  | the production pipeline's environment                                   |
+ *
+ * The PR row is per-DEPLOYMENT, not per-environment, and that distinction is the point: every PR deploys its
+ * own recipe service, while a Vercel variable is scoped to the Preview environment as a whole. A single
+ * project-wide value therefore names one PR's backend for all of them. See `scripts/previewEndpoints.ts`.
  *
  * That split is what lets local development stay zero-config while a deployed build still cannot silently
  * fall back to a developer's laptop: `.env.development` is invisible to `next build`, so the only way a

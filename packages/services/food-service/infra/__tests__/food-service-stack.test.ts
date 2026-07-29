@@ -139,6 +139,11 @@ beforeAll(() => {
     const service = new FoodServiceStack(app, 'TestFoodService', {
         env,
         stage: 'test',
+        // `baseStage` is now REQUIRED in practice for any non-prod stage: the stack defaults it to `stage`,
+        // and `foodSubdomainForStage` refuses `stage === baseStage` outside prod because that names a
+        // persistent non-prod instance, which the food service does not have. So this suite synthesizes the
+        // real ephemeral shape — a named stage riding the shared sandbox platform, exactly like `pr-{N}`.
+        baseStage: 'sandbox',
         domainName: 'example.com',
         imageTag: 'test',
         desiredCount: 1,
@@ -154,15 +159,19 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 0);
     });
 
-    it('attaches exactly one host-based listener rule to the shared HTTPS listener (priority 200)', () => {
+    it('attaches exactly one host-based listener rule to the shared HTTPS listener', () => {
         serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerRule', 1);
         serviceTemplate.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
-            Priority: 200,
+            // Derived, not the literal 200: `test` is an EPHEMERAL named stage riding the sandbox platform,
+            // so it draws from the named-stage band. 200 is prod's base priority, and asserting it here
+            // would only have held while this suite synthesized the forbidden `stage === baseStage` shape.
+            Priority: foodListenerPriorityForStage('test', 'sandbox'),
             Conditions: Match.arrayWith([
                 Match.objectLike({
                     Field: 'host-header',
                     HostHeaderConfig: Match.objectLike({
-                        Values: ['food.test.example.com'],
+                        // The DASH form — a 3-label `food.test.example.com` matches no wildcard cert.
+                        Values: ['food-test.example.com'],
                     }),
                 }),
             ]),
@@ -177,7 +186,7 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         serviceTemplate.resourceCountIs('AWS::Route53::RecordSet', 1);
         serviceTemplate.hasResourceProperties('AWS::Route53::RecordSet', {
             Type: 'A',
-            Name: 'food.test.example.com.',
+            Name: 'food-test.example.com.',
         });
     });
 
@@ -288,7 +297,7 @@ describe('USDA API-key secret grant (regression: suffix-less GetSecretValue neve
             [
                 'arn:',
                 { Ref: 'AWS::Partition' },
-                ':secretsmanager:us-east-1:123456789012:secret:kitchensink/test/food/usda-api-key-??????',
+                ':secretsmanager:us-east-1:123456789012:secret:kitchensink/sandbox/food/usda-api-key-??????',
             ],
         ],
     };
@@ -640,14 +649,29 @@ describe('Base-stage platform imports (ADR-0006)', () => {
 });
 
 describe('foodSubdomainForStage (ADR-0006 — cert-safe per-PR host)', () => {
-    it('uses the dotted host for base stages (covered by the wildcard certs)', () => {
+    it('uses the bare label for prod (covered by the wildcard cert)', () => {
         expect(foodSubdomainForStage('prod', 'prod')).toBe('food');
-        expect(foodSubdomainForStage('sandbox', 'sandbox')).toBe('food.sandbox');
     });
 
     it('uses the dash form for a per-PR stage so `*.commise.app` covers it (no 3-label host)', () => {
         expect(foodSubdomainForStage('pr-7', 'sandbox')).toBe('food-pr-7');
         expect(foodSubdomainForStage('pr-123', 'sandbox')).toBe('food-pr-123');
+    });
+
+    /**
+     * Mirrors `recipeSubdomainForStage`: the food service has no persistent non-prod instance — every PR
+     * deploys its own, and only identity + `packages/infra/global` are shared and persistent. See the
+     * companion test in the recipe suite for why `food.sandbox` is a SILENT failure rather than a loud one
+     * (the `*.sandbox.commise.app` wildcard resolves it to the shared ALB's default 404).
+     */
+    it('REFUSES a base non-prod stage — there is no persistent food instance to name', () => {
+        expect(() => foodSubdomainForStage('sandbox', 'sandbox')).toThrow(/persistent/i);
+        expect(() => foodSubdomainForStage('sandbox', 'sandbox')).toThrow(/food\.sandbox/);
+        expect(() => foodSubdomainForStage('staging', 'staging')).toThrow(/persistent/i);
+    });
+
+    it('still allows a per-PR stage that merely CONTAINS the base stage name', () => {
+        expect(foodSubdomainForStage('pr-7-sandbox', 'sandbox')).toBe('food-pr-7-sandbox');
     });
 });
 

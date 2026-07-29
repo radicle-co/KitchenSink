@@ -45,8 +45,18 @@ preview (allocate from a per-PR band; unmatched → the listener's default 404).
 `*.sandbox.commise.app` — all **single-label** wildcards. A per-PR host must therefore be a single
 label under the apex: `foodSubdomainForStage` emits **`food-{stage}`** (→ `food-pr-7.commise.app`,
 covered by `*.commise.app`), NOT `food.{stage}` (→ `food.pr-7.commise.app`, a 3-label host no
-wildcard covers, which fails the TLS handshake). Base stages keep the dotted host they already use
-(prod `food`, sandbox `food.sandbox`), so their templates are unchanged.
+wildcard covers, which fails the TLS handshake). Prod keeps the bare label `food`, so its template is
+unchanged.
+
+**Amendment (2026-07-29) — there is no persistent non-prod instance of a feature service.** Both
+`foodSubdomainForStage` and `recipeSubdomainForStage` now **throw** for `stage === baseStage` outside
+prod, instead of emitting `food.sandbox` / `recipe.sandbox`. Per owner directive, every PR deploys its
+own instance of every feature service; only identity and `packages/infra/global` are shared and
+persistent. Live AWS already matched this (there has never been a `kitchensink-{food,recipe}-service-sandbox`
+stack), so the guard is a fence, not a migration — but the removed branch was not harmless: `*.sandbox.commise.app`
+resolves to the shared ALB, so a build pointed at `recipe.sandbox.commise.app` gets the listener's
+default **404 on every request** rather than a DNS error, and looks like an application bug. The mobile
+`preview` EAS profile shipped exactly that literal.
 
 **`food_app` needs `CREATEDB` on the sandbox instance.** The per-PR database is created by the
 migration runner connected AS `food_app`, so the non-prod bootstrap SQL (DataStack) grants

@@ -18,10 +18,7 @@
         },
         "preview": {
             "distribution": "internal",
-            "env": {
-                "EXPO_PUBLIC_RECIPE_API_URL": "https://recipe.sandbox.commise.app",
-                "EXPO_PUBLIC_IDENTITY_API_URL": "https://identity.sandbox.commise.app"
-            }
+            "environment": "preview"
         },
         "production": {
             "autoIncrement": true,

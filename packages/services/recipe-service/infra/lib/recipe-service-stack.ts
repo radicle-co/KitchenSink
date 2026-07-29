@@ -117,20 +117,40 @@ export function recipeListenerPriorityForStage(stage: string, baseStage: string)
 }
 
 /**
- * Resolve the recipe service's DNS label for a stage. prod → `recipe`; a base stage (sandbox) →
- * `recipe.sandbox` (covered by `*.sandbox.commise.app`); a per-PR stage → `recipe-{stage}` (single label
- * covered by `*.commise.app`, so the shared cert covers the preview host). Mirrors food. Pure.
+ * Resolve the recipe service's DNS label for a stage. prod → `recipe`; any other stage → `recipe-{stage}`
+ * (a SINGLE label, so `*.commise.app` covers it — a 3-label `recipe.pr-7.commise.app` matches no wildcard
+ * and fails the TLS handshake). Mirrors {@link foodSubdomainForStage}. Pure.
+ *
+ * There are exactly two legitimate shapes: the one persistent PRODUCTION deploy, and an ephemeral per-PR
+ * preview. A base non-prod stage (`stage === baseStage`, i.e. `sandbox`) is REJECTED — the recipe service
+ * has no persistent non-prod instance, because every PR stands up its own. Only identity and
+ * `packages/infra/global` are shared and persistent.
+ *
+ * Rejecting rather than returning `recipe.sandbox` matters because that host does not fail loudly:
+ * `*.sandbox.commise.app` is a live wildcard pointing at the shared ALB, so it RESOLVES and answers the
+ * listener's default fixed-response 404. Anything built against it gets a well-formed 404 on every request
+ * instead of a DNS error — indistinguishable from an application bug until someone thinks to check DNS.
  *
  * @param stage - The deploy stage.
  * @param baseStage - The resolved base stage.
  * @returns The subdomain label to prefix onto the apex domain.
+ * @throws If `stage` is the base non-prod stage, which would name a persistent instance that must not exist.
  */
 export function recipeSubdomainForStage(stage: string, baseStage: string): string {
     if (stage === 'prod') {
         return 'recipe';
     }
 
-    return stage === baseStage ? `recipe.${stage}` : `recipe-${stage}`;
+    if (stage === baseStage) {
+        throw new Error(
+            `Refusing to deploy the recipe service at the base stage '${stage}': that would create the ` +
+                `persistent host 'recipe.${stage}', and the recipe service has no persistent non-prod ` +
+                'instance — every PR deploys its own (stage `pr-{N}`). Only identity and packages/infra/global ' +
+                'are shared and persistent.',
+        );
+    }
+
+    return `recipe-${stage}`;
 }
 
 /** Props for {@link RecipeServiceStack}. */

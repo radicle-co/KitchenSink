@@ -79,10 +79,35 @@ describe('recipeListenerPriorityForStage', () => {
 });
 
 describe('recipeSubdomainForStage', () => {
-    it('prod → recipe; sandbox → recipe.sandbox; pr-{N} → recipe-pr-{N} (dash form)', () => {
+    it('prod → recipe; pr-{N} → recipe-pr-{N} (dash form, so `*.commise.app` covers it)', () => {
         expect(recipeSubdomainForStage('prod', 'prod')).toBe('recipe');
-        expect(recipeSubdomainForStage('sandbox', 'sandbox')).toBe('recipe.sandbox');
         expect(recipeSubdomainForStage('pr-73', 'sandbox')).toBe('recipe-pr-73');
+        expect(recipeSubdomainForStage('team-feature-x', 'sandbox')).toBe('recipe-team-feature-x');
+    });
+
+    /**
+     * The recipe service has exactly TWO legitimate shapes: the single persistent PRODUCTION deploy, and an
+     * ephemeral per-PR preview. There is deliberately no persistent non-prod instance — every PR stands up
+     * its own (only identity and `packages/infra/global` are shared and persistent).
+     *
+     * This used to return `recipe.sandbox`, which is the one host the whole scheme must never produce. It
+     * would not have failed loudly either: `*.sandbox.commise.app` is a live wildcard pointing at the shared
+     * ALB, so `recipe.sandbox.commise.app` RESOLVES and answers the listener's default fixed-response 404.
+     * Anything built against it — the mobile `preview` profile did exactly this — gets a well-formed 404 on
+     * every call rather than a DNS error, which reads as an application bug for as long as it takes someone
+     * to check DNS. Rejecting the stage at synth is the only place this is cheap to catch.
+     */
+    it('REFUSES a base non-prod stage — there is no persistent recipe instance to name', () => {
+        expect(() => recipeSubdomainForStage('sandbox', 'sandbox')).toThrow(/persistent/i);
+        expect(() => recipeSubdomainForStage('sandbox', 'sandbox')).toThrow(/recipe\.sandbox/);
+        // The rule is "stage IS the base stage", not "stage is literally sandbox" — a repo that renamed its
+        // base stage must inherit the same refusal.
+        expect(() => recipeSubdomainForStage('staging', 'staging')).toThrow(/persistent/i);
+    });
+
+    it('still allows a per-PR stage that merely CONTAINS the base stage name', () => {
+        // Guards an over-broad fix (e.g. a substring test) that would break a legitimately ephemeral stage.
+        expect(recipeSubdomainForStage('pr-73-sandbox', 'sandbox')).toBe('recipe-pr-73-sandbox');
     });
 });
 
@@ -158,7 +183,11 @@ describe('Account-erasure queue wiring', () => {
     let template: Template;
 
     beforeAll(() => {
-        template = synthTemplate('sandbox', 'sandbox');
+        // `pr-73` riding `sandbox`, not `sandbox/sandbox`. Two reasons: the recipe service has no persistent
+        // non-prod instance (`recipeSubdomainForStage` now refuses that pair), and the base-stage assertion
+        // below — that the service-principal key is read from the BASE stage — was VACUOUS while stage and
+        // baseStage were the same string. This is also the only non-prod shape CI ever deploys.
+        template = synthTemplate('pr-73', 'sandbox');
     });
 
     const apiEnvironment = (t: Template): { Name: string; Value: unknown }[] => {

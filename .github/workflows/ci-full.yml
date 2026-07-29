@@ -1,9 +1,11 @@
 # CI — full pipeline (all jobs, on demand).
 #
-# The ordinary PR/main pipelines (`ci-pr.yml` / `ci-main.yml`) run every job EXCEPT the two heavyweight
-# tiers — the k6 SC-009 load gate and the Maestro mobile-emulator flows — which are gated off by default
-# purely for cost/duration. This workflow is the manual entry point that runs the COMPLETE pipeline end to
-# end (T116): it invokes the shared `_ci.yml` with both `run_load_test` and `run_mobile_maestro` enabled.
+# The ordinary PR/main pipelines (`ci-pr.yml` / `ci-main.yml`) call `_ci.yml` only — the BASE tier. The two
+# heavyweight tiers (the k6 SC-009 load gate and the Maestro mobile-emulator flows) live in `_ci-heavy.yml`
+# and are opt-in purely for cost/duration. This workflow is the manual entry point that runs the COMPLETE
+# pipeline end to end (T116) by calling BOTH reusable workflows. The two run CONCURRENTLY and independently
+# — `heavy` does not `needs: base`, so a lint failure does not cancel a 50-minute emulator run that would
+# have told you something different.
 #
 # Trigger: Actions → "CI — full (all jobs, on demand)" → Run workflow (pick a branch), or
 #   `gh workflow run ci-full.yml --ref <branch> [-f run_mobile_maestro=false] [-f run_load_test=false]`.
@@ -36,8 +38,17 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
-    ci:
+    base:
         uses: ./.github/workflows/_ci.yml
+        with:
+            stage: ${{ inputs.stage }}
+        secrets: inherit
+
+    heavy:
+        # Skipped entirely when the dispatcher turns both tiers off, rather than starting a job whose
+        # only work would be to skip its own two children.
+        if: ${{ inputs.run_load_test || inputs.run_mobile_maestro }}
+        uses: ./.github/workflows/_ci-heavy.yml
         with:
             stage: ${{ inputs.stage }}
             run_load_test: ${{ inputs.run_load_test }}

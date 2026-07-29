@@ -64,8 +64,10 @@ function synthTemplate(stage: string, baseStage: string): Template {
 }
 
 describe('recipeListenerPriorityForStage', () => {
-    it('uses the fixed recipe priority (300) on a base stage', () => {
-        expect(recipeListenerPriorityForStage('sandbox', 'sandbox')).toBe(BASE_RECIPE_LISTENER_PRIORITY);
+    it('uses the fixed recipe priority (300) on the base stage (prod — the only one)', () => {
+        // Not `('sandbox', 'sandbox')`: `recipeSubdomainForStage` refuses that pair, because the recipe
+        // service has no persistent non-prod instance. Prod is the one reachable base stage.
+        expect(recipeListenerPriorityForStage('prod', 'prod')).toBe(BASE_RECIPE_LISTENER_PRIORITY);
         expect(BASE_RECIPE_LISTENER_PRIORITY).toBe(300);
     });
 
@@ -113,7 +115,8 @@ describe('recipeSubdomainForStage', () => {
 
 describe('recipeDatabaseNameForStage', () => {
     it('base stage uses the imported shared name; per-PR derives an isolated logical DB', () => {
-        expect(recipeDatabaseNameForStage('sandbox', 'sandbox', 'kitchensink_recipes')).toBe('kitchensink_recipes');
+        // The base-stage branch is exercised through PROD, the only base stage this service can deploy at.
+        expect(recipeDatabaseNameForStage('prod', 'prod', 'kitchensink_recipes')).toBe('kitchensink_recipes');
         expect(recipeDatabaseNameForStage('pr-73', 'sandbox', 'kitchensink_recipes')).toBe('kitchensink_recipes_pr_73');
     });
 });

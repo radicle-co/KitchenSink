@@ -677,8 +677,10 @@ describe('foodSubdomainForStage (ADR-0006 — cert-safe per-PR host)', () => {
 
 describe('foodDatabaseNameForStage', () => {
     it('returns the imported base name for a base (stage === baseStage) stage', () => {
+        // PROD is the only reachable base stage for this service: `foodSubdomainForStage` refuses
+        // `stage === baseStage` outside prod, because there is no persistent non-prod food instance. Asserting
+        // `('sandbox', 'sandbox')` here would pin behaviour for a deploy shape that can no longer exist.
         expect(foodDatabaseNameForStage('prod', 'prod', '<imported-token>')).toBe('<imported-token>');
-        expect(foodDatabaseNameForStage('sandbox', 'sandbox', '<imported-token>')).toBe('<imported-token>');
     });
 
     it('derives a sanitized per-PR database name from the stage', () => {
@@ -699,9 +701,8 @@ describe('foodDatabaseNameForStage', () => {
 });
 
 describe('foodListenerPriorityForStage', () => {
-    it('keeps the fixed food priority for a base stage', () => {
+    it('keeps the fixed food priority for the base stage (prod — the only one)', () => {
         expect(foodListenerPriorityForStage('prod', 'prod')).toBe(BASE_FOOD_LISTENER_PRIORITY);
-        expect(foodListenerPriorityForStage('sandbox', 'sandbox')).toBe(BASE_FOOD_LISTENER_PRIORITY);
     });
 
     it('allocates pr-{N} into the per-PR band as PER_PR_PRIORITY_BASE + N', () => {

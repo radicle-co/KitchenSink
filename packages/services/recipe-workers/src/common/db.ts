@@ -6,7 +6,10 @@ import { Pool } from 'pg';
 import { requireEnv } from './config.js';
 
 /**
- * Passwordless connection to the shared RDS instance's `kitchensink_recipes` logical database.
+ * Passwordless connection to this stage's recipe logical database on the shared RDS instance — the base
+ * `kitchensink_recipes` on a base stage, or the preview's own `kitchensink_recipes_pr_{N}` (ADR-0006). Which
+ * one is NOT decided here: `RECIPE_DB_NAME` is set by `RecipeWorkersStack`, which derives it from the same
+ * `recipeDatabaseNameForStage` authority the recipe service uses, and is required rather than defaulted.
  *
  * Auth is RDS-IAM: the `recipe_app` role has no password secret — instead each new pooled
  * connection mints a short-lived IAM auth token (~15 min TTL) via `@aws-sdk/rds-signer`, passed as
@@ -24,7 +27,6 @@ import { requireEnv } from './config.js';
  */
 
 const DEFAULT_DB_PORT = 5432;
-const DEFAULT_DB_NAME = 'kitchensink_recipes';
 const DEFAULT_DB_USER = 'recipe_app';
 const DEFAULT_POOL_MAX = 5;
 
@@ -44,7 +46,11 @@ export const getRecipeDb = (): NodePgDatabase<Record<string, never>> => {
 
     const host = requireEnv('RECIPE_DB_HOST');
     const port = Number(process.env['RECIPE_DB_PORT'] ?? String(DEFAULT_DB_PORT));
-    const database = process.env['RECIPE_DB_NAME'] ?? DEFAULT_DB_NAME;
+    // REQUIRED, never defaulted (#119). A default here reads as harmless but is the second copy of the
+    // footgun that pointed all six workers at the SHARED `kitchensink_recipes` while the API used the
+    // preview's own `kitchensink_recipes_pr_73` — with three destructive scheduled sweepers among them.
+    // Which database a worker mutates is not a value with a sensible fallback: unset must stop the worker.
+    const database = requireEnv('RECIPE_DB_NAME');
     const user = process.env['RECIPE_DB_USER'] ?? DEFAULT_DB_USER;
     const region = requireEnv('AWS_REGION');
 

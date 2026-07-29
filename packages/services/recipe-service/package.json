@@ -55,6 +55,7 @@
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/recipe-service-client": "*",
+        "@kitchensink/recipe-workers": "*",
         "@kitchensink/service-test-harness": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",

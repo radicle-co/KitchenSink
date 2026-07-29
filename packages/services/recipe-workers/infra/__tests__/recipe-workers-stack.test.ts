@@ -47,25 +47,94 @@ const VPC_LOOKUP_CONTEXT = {
     },
 };
 
-function synth(stage = 'sandbox'): Template {
+/**
+ * The DbiResourceId the `rds-db:connect` ARN must be keyed on — NOT the instance name. CI resolves it
+ * from `kitchensink-data-{base}:DatabaseResourceId`, and the fixture uses the `db-…` shape deliberately so
+ * the assertions read like the real ARN rather than like a hostname.
+ */
+const DB_RESOURCE_ID = 'db-EXAMPLERESOURCEID12345';
+
+function synth(stage = 'sandbox', baseStage = 'sandbox'): Template {
     const app = new App({ context: VPC_LOOKUP_CONTEXT });
     const stack = new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
         env: { account: '123456789012', region: 'us-east-1' },
         stackName: `kitchensink-recipe-workers-${stage}`,
         stage,
+        baseStage,
         vpcId: 'vpc-12345678',
         lambdaSecurityGroupId: 'sg-12345678',
         dbEndpoint: 'db.example.internal',
         dbPort: 5432,
-        dbName: 'kitchensink_recipes',
+        // The BASE name (the platform's CFN export value). The per-stage name is derived INSIDE the stack
+        // from the one shared authority, exactly as `RecipeServiceStack` does — see the parity test in
+        // `packages/services/recipe-service/infra/__tests__/recipe-database-name-parity.test.ts`.
+        dbBaseName: 'kitchensink_recipes',
         dbUser: 'recipe_app',
-        dbInstanceIdentifier: 'kitchensink-db-sandbox',
+        dbInstanceIdentifier: DB_RESOURCE_ID,
         archiveBucketName: 'commise-versions-sandbox',
         mediaBucketName: 'commise-photos-sandbox',
         handleSyncTopicArn: 'arn:aws:sns:us-east-1:123456789012:kitchensink-handle-sync-sandbox',
     });
 
     return Template.fromStack(stack);
+}
+
+/**
+ * Flatten a synthesized ARN into the literal string CloudFormation will resolve it to. CDK emits
+ * `formatArn` output as `Fn::Join` around the `AWS::Partition` pseudo-parameter, so comparing the raw
+ * template value would compare structure instead of the ARN that actually reaches IAM — and this defect
+ * lives entirely in one separator INSIDE that string.
+ */
+function resolveArn(value: unknown): string {
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    const join = (value as { 'Fn::Join'?: [string, unknown[]] })?.['Fn::Join'];
+
+    if (!join) {
+        return JSON.stringify(value);
+    }
+
+    const [delimiter, parts] = join;
+
+    return parts
+        .map((part) =>
+            typeof part === 'string'
+                ? part
+                : (part as { Ref?: string }).Ref === 'AWS::Partition'
+                  ? 'aws'
+                  : JSON.stringify(part),
+        )
+        .join(delimiter);
+}
+
+/** Every `rds-db:connect` resource ARN the template grants, across all six per-function roles. */
+function rdsConnectResources(template: Template): string[] {
+    const resources: string[] = [];
+
+    for (const policy of Object.values(template.findResources('AWS::IAM::Policy'))) {
+        const statements: unknown = policy.Properties?.PolicyDocument?.Statement;
+
+        if (!Array.isArray(statements)) {
+            continue;
+        }
+
+        for (const statement of statements as { Action?: unknown; Resource?: unknown }[]) {
+            if (statement.Action === 'rds-db:connect') {
+                resources.push(resolveArn(statement.Resource));
+            }
+        }
+    }
+
+    return resources;
+}
+
+/** The `RECIPE_DB_NAME` every Lambda in the template is configured with. */
+function recipeDbNames(template: Template): string[] {
+    return Object.values(template.findResources('AWS::Lambda::Function')).map(
+        (fn) => fn.Properties?.Environment?.Variables?.RECIPE_DB_NAME,
+    );
 }
 
 describe('RecipeWorkersStack', () => {
@@ -223,6 +292,59 @@ describe('RecipeWorkersStack', () => {
         prTemplate.hasResourceProperties('AWS::Events::Rule', {
             Name: 'kitchensink-recipe-archive-sweep-pr-73',
         });
+    });
+});
+
+/**
+ * RDS-IAM authentication (#121) and per-stage database targeting (#119).
+ *
+ * These two are asserted together on purpose, because they are the same failure seen from two angles: for
+ * three hours on the live `pr-73` preview EVERY invocation of all six workers died with
+ * `PAM authentication failed for user "recipe_app"` (28000) before running a single query, and the auth
+ * failure was MASKING the fact that the workers were pointed at the SHARED `kitchensink_recipes` database
+ * rather than the preview's own. Fixing auth first would have armed three destructive scheduled sweepers
+ * (archive prune, GDPR erasure, orphan deletion) against another stage's data.
+ */
+describe('RecipeWorkersStack — RDS IAM auth + per-stage database', () => {
+    it('grants rds-db:connect on a COLON-separated dbuser ARN, on every one of the six roles', () => {
+        // THE #121 root cause, pinned. `Stack.formatArn` defaults to `ArnFormat.SLASH_RESOURCE_NAME`, which
+        // emits `…:dbuser/{resourceId}/{user}` — an ARN that matches NO real resource, so `rds-db:connect`
+        // is implicitly denied and RDS reports the denial as `PAM authentication failed`. The required
+        // shape is COLON-separated (`…:dbuser:{DbiResourceId}/{dbUser}`), which is exactly what CDK's own
+        // `IDatabaseInstance.grantConnect` builds — and why the recipe API task and the migration Lambda
+        // (both granted via `grantConnect`) authenticate fine as the same `recipe_app` role from the same
+        // VPC. The difference was never Lambda-vs-Fargate; it was one character.
+        const template = synth();
+        const resources = rdsConnectResources(template);
+        const expected = `arn:aws:rds-db:us-east-1:123456789012:dbuser:${DB_RESOURCE_ID}/recipe_app`;
+
+        // One grant per least-privilege function role (ARCH-IT-7) — `grantRdsIam` is called six times, and
+        // a partial fix that repaired some roles would leave those workers silently dead.
+        expect(resources).toHaveLength(6);
+
+        for (const resource of resources) {
+            expect(resource).toBe(expected);
+            // Explicit, because this is the whole defect: a slash here is the deny.
+            expect(resource).not.toContain('dbuser/');
+        }
+    });
+
+    it('points every Lambda at the PER-PR logical database, never the shared base one', () => {
+        // #119: the six workers ran with `RECIPE_DB_NAME=kitchensink_recipes` (the SHARED sandbox database)
+        // while the recipe API on the same preview used `kitchensink_recipes_pr_73`. Three of these workers
+        // are scheduled and destructive, so this is not a read-side inconsistency — it is a cross-stage
+        // data-loss path. Derived in the stack from the shared authority so the workers cannot drift again.
+        const template = synth('pr-73', 'sandbox');
+        const names = recipeDbNames(template);
+
+        expect(names).toHaveLength(6);
+        expect(new Set(names)).toEqual(new Set(['kitchensink_recipes_pr_73']));
+    });
+
+    it('uses the imported BASE database name unchanged on a base platform stage', () => {
+        const template = synth('prod', 'prod');
+
+        expect(new Set(recipeDbNames(template))).toEqual(new Set(['kitchensink_recipes']));
     });
 });
 

@@ -493,6 +493,14 @@ jobs:
                     echo "db_port=$(lookup "kitchensink-data-${BASE_STAGE}:DatabasePort")"
                     # `rds-db:connect` ARNs are keyed on the DbiResourceId (db-XXXX…), NOT the instance name.
                     echo "db_resource_id=$(lookup "kitchensink-data-${BASE_STAGE}:DatabaseResourceId")"
+                    # The BASE logical database name (#119). The recipe SERVICE stack imports this same
+                    # export inside CDK; the WORKERS app is a separate `cdk deploy` that cannot, so CI hands
+                    # it the resolved value and the workers stack derives the per-stage name from it with the
+                    # SAME shared function. Omitting it was the whole of #119: every other platform input was
+                    # passed, and the missing NAME silently left six Lambdas — three of them destructive
+                    # scheduled sweepers — pointed at the shared `kitchensink_recipes` database while the API
+                    # used `kitchensink_recipes_pr_{N}`. The workers app now REFUSES to synth without it.
+                    echo "db_base_name=$(lookup "kitchensink-data-${BASE_STAGE}:RecipeDatabaseName")"
                     echo "archive_bucket=$(lookup "kitchensink-data-${BASE_STAGE}:ArchiveBucketName")"
                     echo "media_bucket=$(lookup "kitchensink-data-${BASE_STAGE}:MediaBucketName")"
                     echo "handle_sync_topic_arn=$(lookup "kitchensink-data-${BASE_STAGE}:HandleSyncTopicArn")"
@@ -554,6 +562,7 @@ jobs:
                   RECIPE_DB_ENDPOINT=${{ steps.infra.outputs.db_endpoint }} \
                   RECIPE_DB_PORT=${{ steps.infra.outputs.db_port }} \
                   RECIPE_DB_INSTANCE_ID=${{ steps.infra.outputs.db_resource_id }} \
+                  RECIPE_DB_BASE_NAME=${{ steps.infra.outputs.db_base_name }} \
                   RECIPE_ARCHIVE_BUCKET=${{ steps.infra.outputs.archive_bucket }} \
                   RECIPE_MEDIA_BUCKET=${{ steps.infra.outputs.media_bucket }} \
                   HANDLE_SYNC_TOPIC_ARN=${{ steps.infra.outputs.handle_sync_topic_arn }} \

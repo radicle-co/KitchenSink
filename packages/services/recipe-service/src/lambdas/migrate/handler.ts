@@ -20,6 +20,8 @@ import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import pg from 'pg';
 
+import { BASE_RECIPE_DATABASE_NAME } from '@kitchensink/recipe-core/database-name';
+
 import { RECIPE_DB_USERNAME, recipePoolConfig } from '../../database/pool-config.js';
 import * as schema from '../../database/schema/index.js';
 
@@ -150,14 +152,13 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<Migr
     }
 }
 
-/** The single shared base logical database (ADR-0006) — the migration runner never CREATEs this one. */
-export const BASE_RECIPE_DATABASE_NAME = 'kitchensink_recipes';
-
 /**
  * Valid recipe logical-database names: the base name, or a per-PR name `kitchensink_recipes_{suffix}`
- * where the suffix is lowercase alphanumerics/underscores (mirrors {@link recipeDatabaseNameForStage} in
- * the CDK stack). Because the name is validated against this pattern, it is safe to quote directly into a
- * `CREATE DATABASE "<name>"` statement (which cannot be parameterized).
+ * where the suffix is lowercase alphanumerics/underscores. This is the ACCEPTING side of
+ * `recipeDatabaseNameForStage` (`@kitchensink/recipe-core`), which is the only producer of these names —
+ * the two are one contract, pinned from the producing side by that function's "always produces a name the
+ * migration runner will accept" test. Because the name is validated against this pattern, it is safe to
+ * quote directly into a `CREATE DATABASE "<name>"` statement (which cannot be parameterized).
  */
 const RECIPE_DATABASE_NAME_PATTERN = /^kitchensink_recipes(_[a-z0-9_]+)?$/;
 

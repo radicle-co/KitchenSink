@@ -1,4 +1,5 @@
 import {
+    ArnFormat,
     CfnOutput,
     Duration,
     Stack,
@@ -22,6 +23,8 @@ import { existsSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
+
+import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -99,13 +102,34 @@ const ORPHAN_METRIC_NAME = 'ErasureOrphansDeleted';
 
 export interface RecipeWorkersStackProps extends StackProps {
     readonly stage: string;
+    /**
+     * The persistent platform stage this deploy rides (ADR-0006) — `prod` for prod, `sandbox` for every
+     * ephemeral stage. Required, because it is what distinguishes "this deploy OWNS the shared database"
+     * from "this deploy gets an isolated per-stage one".
+     */
+    readonly baseStage: string;
     readonly vpcId: string;
     /** The shared lambda SG (already has egress to PostgreSQL) — owned by NetworkStack. */
     readonly lambdaSecurityGroupId: string;
     readonly dbEndpoint: string;
     readonly dbPort: number;
-    readonly dbName: string;
+    /**
+     * The BASE logical database name — i.e. the platform's `kitchensink-data-{baseStage}:RecipeDatabaseName`
+     * export value, NOT the name these Lambdas connect to. The per-stage name is derived from it inside the
+     * stack via {@link recipeDatabaseNameForStage}, exactly as `RecipeServiceStack` does.
+     *
+     * This prop is deliberately the base name rather than the final one (#119). When the workers' CDK app
+     * took the final name from `RECIPE_DB_NAME` with a `?? 'kitchensink_recipes'` fallback, a CI step that
+     * simply did not pass the variable produced six Lambdas silently pointed at the SHARED database while
+     * the API used the preview's own — including three destructive scheduled sweepers. Deriving here means
+     * a preview cannot target the shared database without `stage === baseStage` actually being true.
+     */
+    readonly dbBaseName: string;
     readonly dbUser: string;
+    /**
+     * The RDS **DbiResourceId** (`db-XXXX…`), NOT the instance name — `rds-db:connect` ARNs are keyed on
+     * the immutable resource id. CI resolves it from `kitchensink-data-{baseStage}:DatabaseResourceId`.
+     */
     readonly dbInstanceIdentifier: string;
     readonly archiveBucketName: string;
     readonly mediaBucketName: string;
@@ -233,7 +257,20 @@ export class RecipeWorkersStack extends Stack {
 
         // RDS-IAM: the recipe_app role is passwordless, so each function mints a short-lived auth token
         // (`@aws-sdk/rds-signer`) instead of reading a password secret. Grant is per-DB-user.
+        //
+        // ⚠️ `arnFormat: COLON_RESOURCE_NAME` IS THE FIX FOR #121 — DO NOT DROP IT. `Stack.formatArn`
+        // defaults to `ArnFormat.SLASH_RESOURCE_NAME`, which emits `…:dbuser/{resourceId}/{dbUser}`. That
+        // ARN matches no real resource, so `rds-db:connect` is implicitly DENIED — and RDS surfaces the
+        // denial as `PAM authentication failed for user "recipe_app"` (SQLSTATE 28000) thrown before any
+        // query runs, which reads like a credentials problem rather than an IAM one. Measured consequence:
+        // every invocation of all six workers failed 100% of the time on the live pr-73 preview (540/540
+        // archive sweeps in three hours), so version archive, GDPR erasure and orphan reconciliation had
+        // never once run in a preview. The required shape is COLON-separated, which is precisely what CDK's
+        // own `IDatabaseInstance.grantConnect` builds — and why the recipe API task and the in-VPC
+        // migration Lambda (both granted through `grantConnect`) authenticate fine as this same role from
+        // these same subnets. The delta was never Lambda-vs-Fargate; it was one separator.
         const rdsConnectArn = Stack.of(this).formatArn({
+            arnFormat: ArnFormat.COLON_RESOURCE_NAME,
             service: 'rds-db',
             resource: 'dbuser',
             resourceName: `${props.dbInstanceIdentifier}/${props.dbUser}`,
@@ -242,10 +279,17 @@ export class RecipeWorkersStack extends Stack {
             role.addToPolicy(new iam.PolicyStatement({ actions: ['rds-db:connect'], resources: [rdsConnectArn] }));
         };
 
+        // ONE derivation, shared with `RecipeServiceStack` via `@kitchensink/recipe-core` (#119). Both
+        // stacks call this same function with the same (stage, baseStage), so a preview's Lambdas and its
+        // API cannot disagree about which logical database they are talking to — the divergence that put
+        // three destructive scheduled sweepers on the SHARED database. Pinned by the cross-stack parity
+        // test in `packages/services/recipe-service/infra/__tests__/recipe-database-name-parity.test.ts`.
+        const dbName = recipeDatabaseNameForStage(props.stage, props.baseStage, props.dbBaseName);
+
         const commonDbEnv: Record<string, string> = {
             RECIPE_DB_HOST: props.dbEndpoint,
             RECIPE_DB_PORT: String(props.dbPort),
-            RECIPE_DB_NAME: props.dbName,
+            RECIPE_DB_NAME: dbName,
             RECIPE_DB_USER: props.dbUser,
         };
 

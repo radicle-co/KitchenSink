@@ -105,6 +105,8 @@ describe('getRecipeDb', () => {
 
     it('throws MissingConfigError when AWS_REGION is absent', async () => {
         process.env['RECIPE_DB_HOST'] = 'db.internal';
+        // RECIPE_DB_NAME is required too, so it is set here: this case must fail on the REGION.
+        process.env['RECIPE_DB_NAME'] = 'kitchensink_recipes';
         const { getRecipeDb } = await import('../db.js');
         const { isMissingConfigError } = await import('../config.js');
 
@@ -120,9 +122,33 @@ describe('getRecipeDb', () => {
         expect((caught as { variableName: string }).variableName).toBe('AWS_REGION');
     });
 
-    it('wires the pool + signer from env, defaulting port/name/user/pool-size', async () => {
+    it('throws MissingConfigError when RECIPE_DB_NAME is absent, rather than defaulting to the SHARED db', async () => {
+        // #119: `?? 'kitchensink_recipes'` here was a second copy of the footgun that put six workers —
+        // three of them destructive scheduled sweepers — on the SHARED sandbox database while the API used
+        // the preview's own. The database a worker connects to is never a sensible default: an unset value
+        // must stop the worker, not silently redirect it at another stage's data.
         process.env['RECIPE_DB_HOST'] = 'db.internal';
         process.env['AWS_REGION'] = 'eu-west-2';
+        const { getRecipeDb } = await import('../db.js');
+        const { isMissingConfigError } = await import('../config.js');
+
+        let caught: unknown;
+
+        try {
+            getRecipeDb();
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(isMissingConfigError(caught)).toBe(true);
+        expect((caught as { variableName: string }).variableName).toBe('RECIPE_DB_NAME');
+        expect(PoolMock).not.toHaveBeenCalled();
+    });
+
+    it('wires the pool + signer from env, defaulting port/user/pool-size', async () => {
+        process.env['RECIPE_DB_HOST'] = 'db.internal';
+        process.env['AWS_REGION'] = 'eu-west-2';
+        process.env['RECIPE_DB_NAME'] = 'kitchensink_recipes';
         const { getRecipeDb } = await import('../db.js');
 
         const db = getRecipeDb();
@@ -163,6 +189,7 @@ describe('getRecipeDb', () => {
 
     it('supplies a password function that mints a fresh IAM token per physical connection', async () => {
         process.env['RECIPE_DB_HOST'] = 'db.internal';
+        process.env['RECIPE_DB_NAME'] = 'kitchensink_recipes';
         process.env['AWS_REGION'] = 'us-east-1';
         const { getRecipeDb } = await import('../db.js');
 
@@ -178,6 +205,7 @@ describe('getRecipeDb', () => {
 
     it('caches the handle across warm invocations (one pool per container)', async () => {
         process.env['RECIPE_DB_HOST'] = 'db.internal';
+        process.env['RECIPE_DB_NAME'] = 'kitchensink_recipes';
         process.env['AWS_REGION'] = 'us-east-1';
         const { getRecipeDb } = await import('../db.js');
 

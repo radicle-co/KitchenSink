@@ -22,8 +22,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-/** The single shared base logical database on the persistent platform instance (ADR-0006). */
-export const BASE_RECIPE_DATABASE_NAME = 'kitchensink_recipes';
+import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
 /**
  * Per-PR listener-rule priority band on the shared sandbox ALB (ADR-0003 + ADR-0006).
@@ -48,35 +47,6 @@ export const NAMED_STAGE_PRIORITY_BASE = 40_000;
  * identity = 100, food = 200, recipe = 300 (priorities must be unique across the shared listener).
  */
 export const BASE_RECIPE_LISTENER_PRIORITY = 300;
-
-/**
- * Resolve the recipe service's logical database name for a stage. Base stages use the imported shared
- * `kitchensink_recipes`; a per-PR stage gets an isolated `kitchensink_recipes_{suffix}` on the SAME shared
- * instance (ADR-0006). Mirrors {@link foodDatabaseNameForStage}.
- *
- * @param stage - The deploy stage.
- * @param baseStage - The persistent platform stage the deploy rides.
- * @param importedBaseName - The `Fn.importValue` token for the base stage's `RecipeDatabaseName` export.
- * @returns The imported base name for a base stage, else the derived per-PR database name.
- */
-export function recipeDatabaseNameForStage(stage: string, baseStage: string, importedBaseName: string): string {
-    if (stage === baseStage) {
-        return importedBaseName;
-    }
-
-    const suffix = stage
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '');
-
-    if (suffix === '') {
-        throw new Error(
-            `Cannot derive a per-PR recipe database name from stage '${stage}': it sanitizes to an empty suffix.`,
-        );
-    }
-
-    return `${BASE_RECIPE_DATABASE_NAME}_${suffix}`;
-}
 
 /**
  * Resolve the shared-ALB listener-rule priority for a stage (base = 300; per-PR = 10000+N; named =

@@ -2,10 +2,11 @@ import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { beforeAll, describe, expect, it } from 'vitest';
 
+import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
+
 import {
     BASE_RECIPE_LISTENER_PRIORITY,
     PER_PR_PRIORITY_BASE,
-    recipeDatabaseNameForStage,
     recipeListenerPriorityForStage,
     recipeSubdomainForStage,
     RecipeServiceStack,
@@ -105,11 +106,31 @@ describe('recipeSubdomainForStage', () => {
     });
 });
 
-describe('recipeDatabaseNameForStage', () => {
-    it('base stage uses the imported shared name; per-PR derives an isolated logical DB', () => {
-        // The base-stage branch is exercised through PROD, the only base stage this service can deploy at.
-        expect(recipeDatabaseNameForStage('prod', 'prod', 'kitchensink_recipes')).toBe('kitchensink_recipes');
-        expect(recipeDatabaseNameForStage('pr-73', 'sandbox', 'kitchensink_recipes')).toBe('kitchensink_recipes_pr_73');
+describe('recipe database name (ADR-0006)', () => {
+    /**
+     * The RULE itself now lives in `@kitchensink/recipe-core` and is unit-tested there — it had to move so
+     * `RecipeWorkersStack` could consume the same authority (#119: the workers previously defaulted to the
+     * SHARED database while this stack used the per-PR one). What belongs HERE is the assertion that this
+     * stack's synthesized configuration is the rule's output; the cross-stack agreement is pinned by
+     * `recipe-database-name-parity.test.ts`.
+     */
+    it('lands the derived per-PR database on the API task definition AND the migration runner', () => {
+        const template = synthTemplate('pr-73', 'sandbox');
+        const expected = recipeDatabaseNameForStage('pr-73', 'sandbox', 'kitchensink_recipes');
+
+        expect(expected).toBe('kitchensink_recipes_pr_73');
+        template.hasResourceProperties('AWS::ECS::TaskDefinition', {
+            ContainerDefinitions: Match.arrayWith([
+                Match.objectLike({
+                    Environment: Match.arrayWith([{ Name: 'DB_NAME', Value: expected }]),
+                }),
+            ]),
+        });
+        // The migration runner must target the SAME database, or a preview's schema is applied to the wrong
+        // one — the failure mode ADR-0006 exists to prevent.
+        template.hasResourceProperties('AWS::Lambda::Function', {
+            Environment: Match.objectLike({ Variables: Match.objectLike({ DB_NAME: expected }) }),
+        });
     });
 });
 

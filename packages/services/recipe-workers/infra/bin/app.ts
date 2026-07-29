@@ -10,6 +10,11 @@ import { RecipeWorkersStack } from '../lib/recipe-workers-stack.js';
 
 const app = new App();
 const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
+// ADR-0006: a feature deploy imports the PERSISTENT platform tier, which exists only for `prod` and
+// `sandbox`. Prod rides prod; every other stage rides the shared `sandbox` platform. Identical to the
+// recipe SERVICE app's rule, and it must stay identical: it is half of the (stage, baseStage) pair that
+// decides whether this deploy gets the shared recipe database or its own isolated one (#119).
+const baseStage = stage === 'prod' ? 'prod' : 'sandbox';
 
 // ADR-0005: recipe-workers is a non-global FEATURE deploy. A per-PR stack (stage = pr-{N}) is ephemeral
 // and MUST tag Environment=pr-{N} so the PR-close cleanup deletes it — that job matches by tag OR
@@ -41,13 +46,22 @@ new RecipeWorkersStack(app, `RecipeWorkers-${stage}`, {
     env,
     stackName: `kitchensink-recipe-workers-${stage}`,
     stage,
+    baseStage,
     vpcId,
     lambdaSecurityGroupId: requireEnv('RECIPE_LAMBDA_SG_ID'),
     dbEndpoint: requireEnv('RECIPE_DB_ENDPOINT'),
     dbPort: Number(process.env['RECIPE_DB_PORT'] ?? 5432),
-    dbName: process.env['RECIPE_DB_NAME'] ?? 'kitchensink_recipes',
+    // REQUIRED, and deliberately the BASE name (the `kitchensink-data-{baseStage}:RecipeDatabaseName`
+    // export) rather than the final one — the stack derives the per-stage name from it. This used to be
+    // `process.env['RECIPE_DB_NAME'] ?? 'kitchensink_recipes'`, and because CI passed the endpoint, port and
+    // resource id but never the NAME, that fallback silently pointed all six workers — including three
+    // destructive scheduled sweepers — at the SHARED database while the API used the preview's own (#119).
+    // `requireEnv` is the point: a CI step that forgets this variable now fails the deploy instead of
+    // quietly targeting another stage's data.
+    dbBaseName: requireEnv('RECIPE_DB_BASE_NAME'),
     // Passwordless RDS-IAM role (no password secret) — see DataStack's RecipeDbBootstrap.
     dbUser: process.env['RECIPE_DB_USER'] ?? 'recipe_app',
+    // The RDS DbiResourceId (`db-XXXX…`), not the instance name — see the prop's doc comment.
     dbInstanceIdentifier: requireEnv('RECIPE_DB_INSTANCE_ID'),
     archiveBucketName: requireEnv('RECIPE_ARCHIVE_BUCKET'),
     mediaBucketName: requireEnv('RECIPE_MEDIA_BUCKET'),

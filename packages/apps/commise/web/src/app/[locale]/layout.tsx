@@ -1,5 +1,6 @@
 import { ClerkProvider } from '@clerk/nextjs';
 import { LocaleProvider } from '@commise/i18n/react';
+import { Analytics } from '@vercel/analytics/next';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
@@ -36,6 +37,18 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
  *    path (locale-prefixed, no basePath).
  * `withBasePath` is a no-op under subdomain serving (empty basePath) and prepends `/pr-{N}` under the
  * legacy path-routed preview.
+ *
+ * `<Analytics />` (Vercel Web Analytics, `@vercel/analytics/next` — the App Router entry point) is the one
+ * document-level side-effect leaf. It is mounted HERE, and only here, because this layout owns
+ * `<html>`/`<body>`: one instance per document means one page view per navigation. It is a **Null Object**
+ * render-wise (returns `null`, adds no DOM, no landmark, no focusable node) and consumes no app context —
+ * only Next's router hooks, already wrapped in the package's own `<Suspense>` — so it hangs off `<body>`
+ * beside the provider chain rather than inside it. Off Vercel it is inert-by-omission rather than
+ * inert-by-design: `next build`/SSR never reach it (`inject` bails when there is no `window`), but in the
+ * browser it always appends its script tag, which resolves to nothing outside a Vercel deployment (dev
+ * mode fetches Vercel's debug script; a self-hosted production build 404s on
+ * `/_vercel/insights/script.js` and logs one console line). No `beforeSend` redaction or consent gate is
+ * wired yet — see the PR discussion; that is an owner decision, not a default.
  */
 export default async function LocaleLayout({
     children,
@@ -63,6 +76,7 @@ export default async function LocaleLayout({
                     <LocaleProvider locale={locale}>
                         <RecipeProviders>{children}</RecipeProviders>
                     </LocaleProvider>
+                    <Analytics />
                 </body>
             </html>
         </ClerkProvider>

@@ -101,7 +101,7 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
                         </span>
                     )}
                     {error && !deleting && (
-                        <p role="alert" className="text-body-sm text-error">
+                        <p role="alert" className="text-body-sm text-error-dark">
                             {deleteDialog.error}
                         </p>
                     )}

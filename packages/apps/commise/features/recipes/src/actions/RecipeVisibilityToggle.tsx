@@ -79,7 +79,7 @@ export const RecipeVisibilityToggle: FC<RecipeVisibilityToggleProps> = ({
                 </p>
             )}
             {error && (
-                <p role="alert" className="text-body-sm text-error">
+                <p role="alert" className="text-body-sm text-error-dark">
                     {messages.error}
                 </p>
             )}

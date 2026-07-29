@@ -88,7 +88,7 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
         <section aria-label={versionList.heading} className="mx-auto flex max-w-2xl flex-col gap-4 px-4 py-8">
             <VersionListHeader heading={versionList.heading} backLabel={versionList.backToRecipe} onBack={onBack} />
             {restoreErrorMessage !== undefined && (
-                <p role="alert" className="rounded-2xl bg-error/10 px-4 py-3 text-body-sm text-error">
+                <p role="alert" className="rounded-2xl bg-error/10 px-4 py-3 text-body-sm text-error-dark">
                     {restoreErrorMessage}
                 </p>
             )}

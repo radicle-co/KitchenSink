@@ -7,8 +7,11 @@
  *
  * Two U8 corrections are baked in here. (1) Every colour is a `palette`/`nativeTokens` value: the banners
  * previously carried six raw Material hex codes belonging to no Commise token. (2) The accent tone — not the
- * text — carries the colour, and the copy stays `charcoal`/`slate`: `palette.error` on white is ~3:1, which
- * fails WCAG AA for body text, so tinting the words would have traded one defect for another.
+ * text — carries the colour, and the copy stays `charcoal`/`slate`. The accent is the FILL half of each tier
+ * (`palette.error`, `palette.warning`), which is correct for a 4px bar under SC 1.4.11 but is not a text
+ * colour: `palette.warning` as copy is 1.88:1 on white, and `palette.error` 4.66:1 only because it was
+ * darkened for exactly that role. Keeping the words neutral means neither tier's bar has to double as a
+ * legible foreground — the tone is communicated by the accent and the heading, not by tinting the sentence.
  */
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';

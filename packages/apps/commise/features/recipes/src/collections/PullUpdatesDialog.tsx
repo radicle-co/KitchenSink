@@ -101,7 +101,7 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
                     )}
 
                     {!showLoading && error !== undefined && (
-                        <p role="alert" className="text-body-md text-error">
+                        <p role="alert" className="text-body-md text-error-dark">
                             {error === 'drift' ? pull.driftMessage : pull.genericErrorMessage}
                         </p>
                     )}

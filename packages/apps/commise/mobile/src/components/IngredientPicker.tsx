@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
     rowText: { fontSize: 16, color: palette.charcoal },
     rowSubText: { fontSize: 13, color: palette.slate },
     muted: { fontSize: 13, color: palette.slate },
-    error: { fontSize: 13, color: palette.error },
+    error: { fontSize: 13, color: palette['error-dark'] },
     actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
     primaryAction: { borderRadius: 999, backgroundColor: palette.seafoam, paddingVertical: 10, paddingHorizontal: 16 },
     primaryActionLabel: { fontSize: 14, fontWeight: '600', color: palette.white },

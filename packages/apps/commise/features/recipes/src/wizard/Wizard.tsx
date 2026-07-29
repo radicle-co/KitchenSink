@@ -461,7 +461,7 @@ const WizardActionsMenu: FC = () => {
                                 type="button"
                                 role="menuitem"
                                 onClick={() => runAndClose(model.requestCancel)}
-                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-body-sm font-medium text-error transition hover:bg-error/10"
+                                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-body-sm font-medium text-error-dark transition hover:bg-error/10"
                             >
                                 <XIcon />
                                 {m.cancel}
@@ -513,7 +513,7 @@ const WizardControls: FC = () => {
             {blocking.length > 0 && (
                 <div role="alert" className="flex flex-col gap-1">
                     {blocking.map((code) => (
-                        <p key={code} className="text-body-sm text-error">
+                        <p key={code} className="text-body-sm text-error-dark">
                             {f.errors[code]}
                         </p>
                     ))}

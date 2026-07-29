@@ -55,9 +55,9 @@ export const CollectionMemberRow: FC<CollectionMemberRowProps> = ({ member, onSe
                         type="button"
                         onClick={() => onRemove(member.id)}
                         // The tint is the ERROR token, not coral — see `CollectionHeader.tsx`'s Delete for the
-                        // same web-only drift: `text-error` (#E17055) paired with a `bg-coral/10` (#E8917A)
+                        // same web-only drift: `text-error-dark` (#B1442B) paired with a `bg-coral/10` (#E8917A)
                         // hover put a brand accent in the destructive register.
-                        className="shrink-0 rounded-full px-3 py-1 text-body-sm font-medium text-error transition hover:bg-error/10"
+                        className="shrink-0 rounded-full px-3 py-1 text-body-sm font-medium text-error-dark transition hover:bg-error/10"
                     >
                         {removeLabel}
                     </button>

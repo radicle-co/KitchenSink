@@ -100,7 +100,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                     )}
 
                     {showError && (
-                        <p role="alert" className="text-body-md text-error">
+                        <p role="alert" className="text-body-md text-error-dark">
                             {preview.error}
                         </p>
                     )}

@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     previewLabel: { color: palette.slate, fontWeight: '500', fontSize: 14 },
     restoreButton: { borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14 },
     restoreLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
-    restoreError: { fontSize: 13, color: palette.error },
+    restoreError: { fontSize: 13, color: palette['error-dark'] },
     compareButton: { alignSelf: 'flex-start', borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 },
     compareLabel: { color: palette.slate, fontWeight: '500', fontSize: 13 },
 });

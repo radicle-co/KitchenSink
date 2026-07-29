@@ -76,7 +76,7 @@ const VARIANT: Record<ButtonVariant, string> = {
     secondary:
         'border-2 border-coral bg-gradient-to-br from-white/80 to-white/60 backdrop-blur-[12px] ' +
         'backdrop-saturate-[1.3] text-slate hover:from-coral hover:to-coral/90 hover:text-charcoal',
-    destructive: 'border border-error/40 bg-white text-error shadow-sm hover:bg-error/10',
+    destructive: 'border border-error/40 bg-white text-error-dark shadow-sm hover:bg-error/10',
 };
 
 /**

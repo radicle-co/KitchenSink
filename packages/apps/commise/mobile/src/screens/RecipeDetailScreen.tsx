@@ -271,7 +271,7 @@ export function RecipeDetailScreen({
                             />
                             <Button
                                 variant="destructive"
-                                icon={<Feather name="trash-2" size={16} color={palette.error} />}
+                                icon={<Feather name="trash-2" size={16} color={palette['error-dark']} />}
                                 onPress={() => setDeleteOpen(true)}
                             >
                                 {t.deleteAction}

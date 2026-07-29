@@ -32,7 +32,7 @@ export const field =
     'w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam-light';
 
 /** Inline error / alert text tone. */
-export const errorText = 'text-body-sm text-error';
+export const errorText = 'text-body-sm text-error-dark';
 
 /** A definition list rendering resolved identity facts (term + value rows). */
 export const detailList = 'grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-body-md';

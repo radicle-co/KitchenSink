@@ -159,11 +159,11 @@ export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
                 />
             </label>
 
-            {/* The alert's fill is the ERROR token, not coral: the banner labels itself `text-error`
-                (#E17055) and used to fill with `bg-coral/10` (#E8917A) — a brand accent standing in for the
+            {/* The alert's fill is the ERROR token, not coral: the banner labels itself `text-error-dark`
+                (#B1442B) and used to fill with `bg-coral/10` (#E8917A) — a brand accent standing in for the
                 failure register, in the same element as the error-toned text. */}
             {addFailed && status === 'ready' && (
-                <div role="alert" className="rounded-lg bg-error/10 px-4 py-3 text-body-sm text-error">
+                <div role="alert" className="rounded-lg bg-error/10 px-4 py-3 text-body-sm text-error-dark">
                     {picker.addFailed}
                 </div>
             )}

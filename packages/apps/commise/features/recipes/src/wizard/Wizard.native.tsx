@@ -357,7 +357,7 @@ const WizardActionsMenu: FC = () => {
                                 onPress={() => runAndClose(model.requestCancel)}
                                 style={styles.menuItem}
                             >
-                                <Feather name="x" size={16} color={palette.error} />
+                                <Feather name="x" size={16} color={palette['error-dark']} />
                                 <Text style={styles.menuItemDestructiveLabel}>{m.cancel}</Text>
                             </Pressable>
                         </View>
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
     },
     controls: { gap: 4 },
     blockedNotice: { gap: 2, paddingHorizontal: 16, paddingTop: 12 },
-    blockedText: { fontSize: 13, color: palette.error },
+    blockedText: { fontSize: 13, color: palette['error-dark'] },
     controlsRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
     },
     menuItemDisabled: { opacity: 0.6 },
     menuItemLabel: { fontSize: 15, fontWeight: '500', color: palette.charcoal },
-    menuItemDestructiveLabel: { fontSize: 15, fontWeight: '500', color: palette.error },
+    menuItemDestructiveLabel: { fontSize: 15, fontWeight: '500', color: palette['error-dark'] },
     previewBackdrop: {
         position: 'absolute',
         top: 0,

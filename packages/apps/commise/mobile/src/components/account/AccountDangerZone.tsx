@@ -158,7 +158,7 @@ export function AccountDangerZone(): JSX.Element {
                 own in-flight state belongs to that dialog's confirm control, not to this trigger. */}
             <Button
                 variant="destructive"
-                icon={<Feather name="trash-2" size={TRIGGER_ICON_SIZE} color={palette.error} />}
+                icon={<Feather name="trash-2" size={TRIGGER_ICON_SIZE} color={palette['error-dark']} />}
                 onPress={() => setEraseOpen(true)}
             >
                 {erase.trigger}
@@ -197,5 +197,5 @@ export function AccountDangerZone(): JSX.Element {
 const styles = StyleSheet.create({
     // Spacing from the shared scale — the buttons own their own surface, padding, and touch floor.
     container: { gap: nativeTokens.spacing[3], marginTop: nativeTokens.spacing[5] },
-    error: { fontSize: nativeTokens.fontSize.bodySm, color: palette.error },
+    error: { fontSize: nativeTokens.fontSize.bodySm, color: palette['error-dark'] },
 });

@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
     titleWrap: { flex: 1 },
     removeButton: { flexShrink: 0, paddingVertical: 6, paddingHorizontal: 10 },
-    removeLabel: { color: palette.error, fontWeight: '500', fontSize: 14 },
+    removeLabel: { color: palette['error-dark'], fontWeight: '500', fontSize: 14 },
     sourceIndicator: { fontSize: 12, fontWeight: '600', color: palette.slate, alignSelf: 'flex-start' },
     attribution: { fontSize: 13, color: palette.slate },
 });

@@ -166,7 +166,8 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-white: #FFFFFF;
               --color-success: #4CAF7C;
               --color-warning: #F5B041;
-              --color-error: #BA4D34;
+              --color-error: #C05238;
+              --color-error-dark: #B1442B;
               --color-premium: #D4A574;
               --color-background: #FAF6F0;
               --color-foreground: #2D3436;
@@ -175,7 +176,7 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-secondary: #E8917A;
               --color-muted: #F5F5F5;
               --color-accent: #8ECAE6;
-              --color-destructive: #BA4D34;
+              --color-destructive: #C05238;
               --color-border: rgba(178, 190, 195, 0.3);
               --color-ring: #5BA8A0;
               --font-display: "Playfair Display", Georgia, serif;

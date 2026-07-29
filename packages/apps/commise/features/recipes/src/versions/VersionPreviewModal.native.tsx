@@ -176,7 +176,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
 const styles = StyleSheet.create({
     title: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
     body: { fontSize: 15, lineHeight: 22, color: palette.slate },
-    error: { fontSize: 15, color: palette.error },
+    error: { fontSize: 15, color: palette['error-dark'] },
     scroll: { flex: 1 },
     scrollContent: { gap: 16 },
     fields: { gap: 6 },

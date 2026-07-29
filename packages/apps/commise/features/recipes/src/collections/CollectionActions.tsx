@@ -18,7 +18,7 @@
  * button coral (their coral button form is `border-2 border-coral text-coral` over glass, filling only on
  * hover). Coral's documented role is the danger register ("Destructive/secondary actions, highlights, warm
  * accents"), which the mockups spend on the Danger Zone and the allergy warning, and `palette.coral` (#E8917A)
- * sits one hue from `palette.error` (#E17055) — so a filled-coral pill announced a safe, additive, reversible
+ * sits one hue from `palette.error` (#C05238) — so a filled-coral pill announced a safe, additive, reversible
  * action in the language of destruction. Clone is a quiet SECONDARY action, so all three call sites now wear
  * the DS `secondary` tier and cannot drift apart again.
  *

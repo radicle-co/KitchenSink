@@ -98,6 +98,6 @@ const styles = StyleSheet.create({
     inputDisabled: { backgroundColor: palette.pearl, color: palette.slate },
     errorText: {
         fontSize: nativeTokens.fontSize.caption,
-        color: palette.error,
+        color: palette['error-dark'],
     },
 });

@@ -55,7 +55,7 @@ export const CollectionForm: FC<CollectionFormProps> = ({
                 />
             </label>
             {hasError && (
-                <p role="alert" className="text-body-sm text-error">
+                <p role="alert" className="text-body-sm text-error-dark">
                     {error}
                 </p>
             )}

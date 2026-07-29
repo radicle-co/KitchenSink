@@ -209,17 +209,17 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
             </div>
 
             {addByNameStatus.isError && (
-                <p role="alert" className="px-2 py-1 text-body-sm text-error">
+                <p role="alert" className="px-2 py-1 text-body-sm text-error-dark">
                     {picker.addByNameError}
                 </p>
             )}
             {createStatus.isError && (
-                <p role="alert" className="px-2 py-1 text-body-sm text-error">
+                <p role="alert" className="px-2 py-1 text-body-sm text-error-dark">
                     {picker.createError}
                 </p>
             )}
             {addByFoodStatus.isError && (
-                <p role="alert" className="px-2 py-1 text-body-sm text-error">
+                <p role="alert" className="px-2 py-1 text-body-sm text-error-dark">
                     {picker.catalogAddError}
                 </p>
             )}
@@ -266,7 +266,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                     )}
 
                     {viewState.kind === 'disambiguating' && viewState.isError && (
-                        <p role="alert" className="px-2 py-1 text-body-sm text-error">
+                        <p role="alert" className="px-2 py-1 text-body-sm text-error-dark">
                             {picker.disambiguateError}
                         </p>
                     )}
@@ -305,7 +305,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
                     )}
 
                     {viewState.kind === 'disambiguating' && resolveError && (
-                        <p role="alert" className="px-2 py-1 text-body-sm text-error">
+                        <p role="alert" className="px-2 py-1 text-body-sm text-error-dark">
                             {picker.resolveError}
                         </p>
                     )}
@@ -352,7 +352,7 @@ export const IngredientPicker: FC<IngredientPickerProps> = ({ onSelect }) => {
             {viewState.kind === 'results' && (
                 <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-2 shadow-sm">
                     {viewState.isError && (
-                        <p role="alert" className="px-2 py-1 text-body-sm text-error">
+                        <p role="alert" className="px-2 py-1 text-body-sm text-error-dark">
                             {picker.errorTitle}
                         </p>
                     )}

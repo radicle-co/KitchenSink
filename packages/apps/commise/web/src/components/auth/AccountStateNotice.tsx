@@ -17,7 +17,7 @@ export function AccountStateNotice({ message }: AccountStateNoticeProps) {
             aria-labelledby="account-state-title"
             className="flex flex-col gap-2 rounded-2xl border border-error/40 bg-error/10 p-6"
         >
-            <h2 id="account-state-title" className="font-display text-heading-md font-semibold text-error">
+            <h2 id="account-state-title" className="font-display text-heading-md font-semibold text-error-dark">
                 {message.title}
             </h2>
             <p className="text-body-md text-charcoal">{message.body}</p>

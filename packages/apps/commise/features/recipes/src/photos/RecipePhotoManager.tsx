@@ -69,7 +69,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                 </p>
             ) : null}
             {errorMessage !== undefined ? (
-                <p role="alert" className="text-body-sm text-error">
+                <p role="alert" className="text-body-sm text-error-dark">
                     {errorMessage}
                 </p>
             ) : null}
@@ -179,7 +179,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     {statusWord}
                                 </span>
                                 {item.status === 'failed' && item.errorMessage !== undefined ? (
-                                    <p className="relative px-2 text-center text-caption text-error">
+                                    <p className="relative px-2 text-center text-caption text-error-dark">
                                         {item.errorMessage}
                                     </p>
                                 ) : null}

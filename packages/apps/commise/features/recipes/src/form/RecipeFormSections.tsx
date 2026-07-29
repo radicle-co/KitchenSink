@@ -59,7 +59,7 @@ const fieldLabel = 'text-body-sm font-medium text-slate';
 const field =
     'w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam-light';
 const rowField = `${field} min-w-0 flex-1`;
-const errorText = 'text-body-sm text-error';
+const errorText = 'text-body-sm text-error-dark';
 const difficultyChip =
     'relative flex cursor-pointer items-center rounded-full border border-border bg-white px-4 py-1.5 text-body-sm text-charcoal transition focus-within:ring-2 focus-within:ring-seafoam-light';
 // The radio input is a transparent overlay covering its whole chip (not `sr-only`), so the semantic control

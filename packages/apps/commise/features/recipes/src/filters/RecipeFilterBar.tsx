@@ -203,7 +203,7 @@ export const RecipeFilterBar: FC<RecipeFilterBarProps> = ({
                     )}
 
                     {viewState.kind === 'results' && viewState.isError && (
-                        <p role="alert" className="text-body-sm text-error">
+                        <p role="alert" className="text-body-sm text-error-dark">
                             {m.ingredientSearchError}
                         </p>
                     )}

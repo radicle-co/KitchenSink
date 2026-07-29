@@ -125,7 +125,7 @@ describe('AccountDangerZone (native) — design-system surfaces (U4b)', () => {
         const trigger = screen.getByRole('button', { name: erase.trigger });
 
         // `palette.error`, NOT the off-palette `#E74C3C`.
-        expect(window.getComputedStyle(screen.getByText(erase.trigger)).color).toBe(rgb(palette.error));
+        expect(window.getComputedStyle(screen.getByText(erase.trigger)).color).toBe(rgb(palette['error-dark']));
         expect(borderColours(trigger)).toContain(rgb(palette.error));
     });
 

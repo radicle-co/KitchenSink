@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     membersHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
     addButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
     addLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
-    errorBanner: { fontSize: 13, color: palette.error },
+    errorBanner: { fontSize: 13, color: palette['error-dark'] },
     card: {
         backgroundColor: palette.white,
         borderRadius: 16,

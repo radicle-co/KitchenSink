@@ -321,7 +321,7 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
         });
 
         expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
-        expect(document.querySelector('p.text-error')).toBeNull();
+        expect(document.querySelector('p.text-error-dark')).toBeNull();
     });
 
     it('invokes onRetryQueueItem with the fileId when Retry is clicked', async () => {

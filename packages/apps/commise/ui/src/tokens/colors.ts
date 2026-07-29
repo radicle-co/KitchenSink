@@ -13,28 +13,41 @@ import { borderSubtle } from './scale.js';
  *
  * The tiers split into two families, by lightness:
  *
- *  - **Dark fills take `white`** — `seafoam` (4.67:1), `ocean-dark` (6.20:1), `error` (5.00:1), `charcoal`
- *    (12.68:1). These are the CTA, its pressed end, the destructive action, and photo-overlay chrome.
+ *  - **Dark fills take `white`** — `seafoam` (4.67:1), `ocean-dark` (6.20:1), `error` (4.66:1), `error-dark`
+ *    (5.63:1), `charcoal` (12.68:1). These are the CTA, its pressed end, the destructive action, and
+ *    photo-overlay chrome.
  *  - **Light/pastel fills take `charcoal`** — `success` (4.67:1), `warning` (6.74:1), `premium` (5.70:1),
- *    `coral` (5.29:1). A white label on any of them is far under the floor (`warning` is 1.88:1, `coral`
- *    2.40:1), and darkening them enough to carry white would cost each tone its identity: an amber that can
- *    hold white text is a brown.
+ *    `coral` (5.29:1), `sky` (7.09:1). A white label on any of them is far under the floor (`warning` is
+ *    1.88:1, `coral` 2.40:1), and darkening them enough to carry white would cost each tone its identity: an
+ *    amber that can hold white text is a brown.
  *
  * `seafoam` and `error` were both DARKENED to land in the first family (#113). Before that, `seafoam` measured
  * 4.02:1 under white and 3.16:1 under charcoal, and `error` 3.16:1 under white and 4.02:1 under charcoal — two
  * fills with NO legible label, so no call site could be correct. Each moved in OKLCH lightness only, at
- * constant hue and chroma (`seafoam` #3D8B85 → #31807A, ΔL 0.036; `error` #E17055 → #BA4D34, ΔL 0.112), so the
+ * constant hue and chroma (`seafoam` #3D8B85 → #31807A, ΔL 0.036; `error` #E17055 → #C05238, ΔL 0.096), so the
  * hue family is unchanged. `seafoam-light` was deliberately NOT darkened: it is the light teal of
  * `semantic.primary`, and the lightness needed to carry white text (ΔL 0.125) would collapse it into `seafoam`.
  * It is therefore an accent only, never a fill under a white label.
  *
- * ### 2. Some tokens are ACCENTS, never text
+ * ### 2. Some tokens are ACCENTS or FILLS, never text — and each has a designated text sibling
+ *
+ * Two tiers carry both jobs, and a single hex cannot satisfy both: a FILL is measured against the white label
+ * on top of it, while TEXT is measured against the near-white surface beneath it. The two constraints pull in
+ * opposite directions, so each of those tiers is a PAIR — the fill, and a darker sibling for foreground use.
  *
  *  - **`seafoam-light` as a FOREGROUND on any light surface fails SC 1.4.3** — 2.78:1 on white. So does
  *    `seafoam` on its own tints (4.10:1 on `seafoam/10`). Where a teal is the colour of text a reader must
  *    READ — a tertiary/text button, a badge label on a tinted chip, a selected tab, a step numeral — use
  *    **`ocean-dark`** (6.20:1 on white, 5.45:1 on `seafoam/10`), which keeps the control in its own hue family
  *    instead of flattening it to grey.
+ *  - **`error` is the destructive FILL and nothing else** — 4.66:1 under a white label, but only 4.33:1 as
+ *    text on `sand` and 3.82:1 on its own `error/10` alert tint. Where the red is the colour of text a reader
+ *    must READ — validation copy, an alert banner's message, the flat destructive button's label and the icon
+ *    beside it — use **`error-dark`** (5.63:1 on white, 5.23:1 on `sand`, 4.95:1 on `error/10` over white).
+ *    `error-dark` is `error` moved in OKLCH lightness only, so the two are the same red.
+ *  - On a DARK surface the pairing INVERTS: `seafoam` is 2.72:1 on `charcoal` and `slate` is 2.42:1, so
+ *    cook-mode-style chrome over a charcoal fill takes `white` (12.68:1), `mist` (6.67:1) or `seafoam-light`
+ *    (4.56:1) instead.
  *  - **`mist` is a HAIRLINE/divider tone, never a text tone.** It is 1.90:1 on white — below even the 3:1
  *    floor SC 1.4.11 sets for a meaningful graphic. Text, placeholder text, empty rating pips and labelled
  *    `role="img"` placeholders take **`slate`** (5.24:1 on white).
@@ -63,10 +76,17 @@ export const palette = {
     white: '#FFFFFF',
     success: '#4CAF7C',
     warning: '#F5B041',
-    // Darkened from #E17055 for #113. That token was failing in BOTH of its roles at once: 3.16:1 as the
-    // label-bearing fill of a destructive button, and 3.16:1 again as `text-error` alert copy on white (2.93:1
-    // on the `sand` app background) across ~60 call sites. One lightness move (0.672 → 0.560) fixes both.
-    error: '#BA4D34',
+    // The destructive FILL. Darkened from #E17055 in OKLCH lightness only (0.672 → 0.576) so a white label
+    // clears 4.5:1 (3.16 → 4.66). This is as close to the mockups' brand red as AA allows for a filled
+    // control; it is NOT a text colour — see `error-dark`.
+    error: '#C05238',
+    // The destructive FOREGROUND, one lightness step below `error` (0.576 → 0.531) at the same hue/chroma.
+    // Text has the harder constraint of the two: it is measured against the near-white surface BENEATH it, and
+    // the surfaces are `white`, `sand`, `pearl` and the `error/10` alert tint over each. The tint is what makes
+    // this token necessary rather than merely tidy — the previous single-token red measured 4.36:1 on
+    // `bg-error/10` over white and 4.07:1 over `sand`, so the most common error surface in the product was
+    // failing while only the flat backgrounds were being checked.
+    'error-dark': '#B1442B',
     premium: '#D4A574',
 } as const;
 

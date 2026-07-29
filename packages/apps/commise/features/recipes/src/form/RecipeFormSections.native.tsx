@@ -266,7 +266,7 @@ export const RecipeIngredientsFields: FC<RecipeFormSectionProps> = ({ values, er
                 <View style={styles.rowAction}>
                     <Button
                         variant="destructive"
-                        icon={<Feather name="trash-2" size={16} color={palette.error} />}
+                        icon={<Feather name="trash-2" size={16} color={palette['error-dark']} />}
                         onPress={() => onChange(removeIngredientAt(values, index))}
                     >
                         {fillTemplate(m.removeIngredient, { number })}
@@ -350,7 +350,7 @@ export const RecipeInstructionsFields: FC<RecipeFormSectionProps> = ({ values, e
                 <View style={styles.rowAction}>
                     <Button
                         variant="destructive"
-                        icon={<Feather name="trash-2" size={16} color={palette.error} />}
+                        icon={<Feather name="trash-2" size={16} color={palette['error-dark']} />}
                         onPress={() => onChange(removeStepAt(values, index))}
                     >
                         {fillTemplate(m.removeStep, { number })}
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     // seafoam (4.02:1). Mirrors the web leaf's `text-ocean-dark`. The visibility Switch's `trackColor` above
     // stays seafoam — a control track is a 3:1 graphic, not text.
     caloriesBadge: { fontSize: 12, fontWeight: '600', color: palette['ocean-dark'] },
-    error: { color: palette.error, fontSize: 13 },
+    error: { color: palette['error-dark'], fontSize: 13 },
     emptyText: { color: palette.slate, fontSize: 13 },
     charCounter: { color: palette.slate, fontSize: 12 },
     totalTime: { color: palette.slate, fontSize: 13 },

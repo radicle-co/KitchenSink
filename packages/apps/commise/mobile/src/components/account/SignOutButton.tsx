@@ -79,5 +79,5 @@ export function SignOutButton(): JSX.Element {
 
 const styles = StyleSheet.create({
     container: { gap: nativeTokens.spacing[2] },
-    error: { fontSize: nativeTokens.fontSize.bodySm, color: palette.error },
+    error: { fontSize: nativeTokens.fontSize.bodySm, color: palette['error-dark'] },
 });

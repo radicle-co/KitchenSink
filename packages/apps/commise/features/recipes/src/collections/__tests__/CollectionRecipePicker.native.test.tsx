@@ -230,7 +230,7 @@ describe('CollectionRecipePicker (native) — adding', () => {
         expect(window.getComputedStyle(alert).backgroundColor).toBe(tintOf(palette.error, 0.1));
         expect(window.getComputedStyle(alert).backgroundColor).not.toBe(tintOf(palette.coral, 0.1));
         expect(window.getComputedStyle(within(alert).getByText(/couldn’t add that recipe/)).color).toBe(
-            cssColor(palette.error),
+            cssColor(palette['error-dark']),
         );
     });
 });

@@ -16,7 +16,7 @@
  * a button coral (their coral button form is `border-2 border-coral text-coral` over glass, filling only on
  * hover). Coral's documented role is the danger register — `Commise-Figma-Make-Prompt.md` line 38,
  * "Destructive/secondary actions, highlights, warm accents", which the mockups spend on the Danger Zone and the
- * allergy warning — and `palette.coral` (#E8917A) sits one hue from `palette.error` (#E17055). Clone is a safe,
+ * allergy warning — and `palette.coral` (#E8917A) sits one hue from `palette.error` (#C05238). Clone is a safe,
  * additive, reversible action, so it belongs on the DS `secondary` tier, not in the danger register.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';

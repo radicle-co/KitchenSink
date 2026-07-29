@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     },
     error: {
         fontSize: nativeTokens.fontSize.bodySm,
-        color: palette.error,
+        color: palette['error-dark'],
         textAlign: 'center',
     },
     toggle: { alignItems: 'center', gap: nativeTokens.spacing[2] },

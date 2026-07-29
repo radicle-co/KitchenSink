@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: palette.charcoal,
     },
-    error: { color: palette.error, fontSize: 13 },
+    error: { color: palette['error-dark'], fontSize: 13 },
     actions: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
     primaryButton: { backgroundColor: palette.seafoam, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 24 },
     disabled: { opacity: 0.6 },

@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     body: { fontSize: 15, lineHeight: 22, color: palette.slate },
     counts: { gap: 8 },
     note: { fontSize: 13, fontStyle: 'italic', color: palette.slate },
-    error: { fontSize: 15, color: palette.error },
+    error: { fontSize: 15, color: palette['error-dark'] },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
     cancelButton: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 },
     cancelLabel: { color: palette.slate, fontWeight: '500', fontSize: 14 },

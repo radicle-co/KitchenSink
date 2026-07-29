@@ -112,11 +112,11 @@ const styles = StyleSheet.create({
     heading: { flexShrink: 1, fontSize: 28, fontWeight: '700', color: palette.charcoal },
     actions: { flexDirection: 'row', flexShrink: 0, gap: 8 },
     editLabel: { color: palette['ocean-dark'], fontWeight: '500', fontSize: 14 },
-    deleteLabel: { color: palette.error, fontWeight: '500', fontSize: 14 },
+    deleteLabel: { color: palette['error-dark'], fontWeight: '500', fontSize: 14 },
     description: { fontSize: 15, color: palette.slate },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     badge: {
-        // 10%-alpha tint of `palette.seafoam` (#3D8B85 → rgb(61, 139, 133)) — mirrors the web leaf's
+        // 10%-alpha tint of `palette.seafoam` (#31807A → rgb(49, 128, 122)) — mirrors the web leaf's
         // `bg-seafoam/10` Tailwind utility; RN has no alpha-suffix color syntax, so it is spelled out here.
         backgroundColor: tint(palette.seafoam, 0.1),
         color: palette['ocean-dark'],

@@ -128,9 +128,13 @@ const flatSurface: Record<Exclude<ButtonVariant, 'primary'>, object> = {
  * `secondary` is SLATE, not the coral the mockups put on this tier's label: coral-as-text is 2.40:1 against
  * the glass, below WCAG AA's 4.5:1, while slate is 5.24:1. The web leaf makes the identical substitution
  * (`text-slate`), so a screen-reader-invisible colour choice cannot diverge across platforms.
+ *
+ * `destructive` is `error-dark`, the FOREGROUND half of the destructive red — `error` is the fill this tier
+ * deliberately does NOT paint (the flat pill is white with an error hairline), and as text it is only 4.33:1
+ * on `sand`. The web leaf's `text-error-dark` is the same substitution.
  */
 const labelColor: Record<ButtonVariant, string> = {
     primary: palette.white,
     secondary: palette.slate,
-    destructive: palette.error,
+    destructive: palette['error-dark'],
 };

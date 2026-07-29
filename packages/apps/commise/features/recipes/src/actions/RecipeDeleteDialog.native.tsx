@@ -64,7 +64,7 @@ export const RecipeDeleteDialog: FC<RecipeDeleteDialogProps> = ({
                 {/* `busy` supplies the spinner, the disabled in-flight guard, and the busy announcement. */}
                 <Button
                     variant="destructive"
-                    icon={<Feather name="trash-2" size={ACTION_ICON_SIZE} color={palette.error} />}
+                    icon={<Feather name="trash-2" size={ACTION_ICON_SIZE} color={palette['error-dark']} />}
                     busy={deleting}
                     onPress={onConfirm}
                 >
@@ -91,5 +91,5 @@ const styles = StyleSheet.create({
     body: { fontSize: nativeTokens.fontSize.bodyMd, lineHeight: 22, color: palette.slate },
     // The buttons own their own surface, padding, and touch floor — this row only spaces them.
     actions: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[3] },
-    error: { fontSize: 13, color: palette.error },
+    error: { fontSize: 13, color: palette['error-dark'] },
 });

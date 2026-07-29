@@ -30,7 +30,7 @@ export const clerkAppearance = {
         colorText: palette.charcoal,
         colorTextSecondary: palette.slate,
         colorTextOnPrimaryBackground: palette.white,
-        colorDanger: palette.error,
+        colorDanger: palette['error-dark'],
         colorSuccess: palette.success,
         colorInputBackground: palette.white,
         colorInputText: palette.charcoal,

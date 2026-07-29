@@ -17,6 +17,18 @@
  *     legible choice. (1) alone would let a re-theme reintroduce an unlabelable fill for as long as no
  *     component happened to use it yet.
  *
+ * ## Why the red is TWO tokens (`error` fills, `error-dark` writes)
+ *
+ * The destructive red carries two jobs with OPPOSING contrast requirements: as a FILL it must be dark enough
+ * for a white label (SC 1.4.3 against white), and as TEXT it must be dark enough against near-white surfaces
+ * — `white` cards, the `sand` app background, `pearl`, and its own `error/10` alert tint. The text job is
+ * strictly the harder one, so one hex serving both is pinned to the text constraint and ends up darker than
+ * the brand red the mockups draw. Measured: the lightest single hex satisfying both is `#BB4E34`, which is
+ * 2.6% of the way from `#BA4D34` to the mockups' `#E17055` and leaves 0.03 of slack on `pearl` — i.e. one
+ * token buys essentially nothing. Splitting the roles lets the FILL sit where the design wants it while the
+ * FOREGROUND red is sized by measurement. The invariant that keeps the two from being swapped or merged is
+ * asserted below: same hue, `error-dark` strictly darker, each clearing the floor of its own role.
+ *
  * Hue is pinned alongside the ratios: the fix for a failing tier is to move its LIGHTNESS, never to re-hue the
  * brand, and the hue assertion is what makes "seafoam was darkened" distinguishable from "seafoam was
  * replaced" — a green button that passes AA is still a regression.
@@ -65,6 +77,8 @@ const FILLED_ACCENTS: readonly FilledAccent[] = [
     { fill: 'ocean-dark', label: 'white' },
     // Destructive buttons, the wizard's invalid step, failed-upload badges.
     { fill: 'error', label: 'white' },
+    // The FOREGROUND red is also a legal fill (the pressed end of a destructive control), same as `ocean-dark`.
+    { fill: 'error-dark', label: 'white' },
     // Photo-overlay chrome.
     { fill: 'charcoal', label: 'white' },
     // Light/pastel fills. A white label on any of these is FAR below the floor (1.88:1 on warning), so they
@@ -85,6 +99,7 @@ const ACCENT_TIERS = [
     'success',
     'warning',
     'error',
+    'error-dark',
     'premium',
     'charcoal',
     'slate',
@@ -103,6 +118,7 @@ const BRAND_HUE: Readonly<Record<(typeof ACCENT_TIERS)[number], number>> = {
     success: 158.2,
     warning: 75.3,
     error: 34.6,
+    'error-dark': 34.6,
     premium: 67.1,
     charcoal: 216.8,
     slate: 221.6,
@@ -133,21 +149,45 @@ describe('filled-accent label contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
 });
 
 describe('accent-as-text contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
-    // `error` is not only a fill: it is the colour of alert copy, field-validation messages and the flat
-    // destructive button's label, over `white` cards and the `sand` app background alike. It read 3.16:1 in
-    // that role, so ONE token was failing in both directions at once — which is why the fix is the token and
-    // not a per-site label swap.
-    it.each(['white', 'sand', 'pearl'] as const)('error reads as text on %s', (surface) => {
-        expect(wcagContrast(palette.error, palette[surface])).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+    // `error-dark` is the red in FOREGROUND position: alert copy, field-validation messages, the flat
+    // destructive button's label and the icon beside it. Every surface the product paints that copy on is
+    // measured, INCLUDING the `error/10` alert tint the copy most often sits inside — a pairing that shipped
+    // at 4.36:1 while the single-token `error` was believed to pass, because only the flat surfaces were ever
+    // measured. The tint is derived from the FILL token (`bg-error/10` is what the markup says), so a re-theme
+    // of either half moves this assertion.
+    it.each(['white', 'sand', 'pearl'] as const)('error-dark reads as text on %s', (surface) => {
+        expect(wcagContrast(palette['error-dark'], palette[surface])).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+    });
+
+    it.each(['white', 'sand', 'pearl'] as const)(
+        'error-dark reads as text on a 10%-alpha error tint over %s',
+        (surface) => {
+            expect(
+                wcagContrast(palette['error-dark'], over(tint(palette.error, 0.1), palette[surface])),
+            ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+        },
+    );
+
+    // The two reds must stay ONE hue apart in LIGHTNESS only, with the foreground one darker. Without this a
+    // re-theme could swap them (every ratio above would still pass, while every `bg-error` fill lost its white
+    // label and every `text-error-dark` label went light), or collapse them back to one token.
+    it('error-dark is the same red as error, strictly darker', () => {
+        const fill = toOklch(palette.error);
+        const foreground = toOklch(palette['error-dark']);
+
+        expect(Math.abs((foreground?.h ?? Number.NaN) - (fill?.h ?? Number.NaN))).toBeLessThanOrEqual(
+            HUE_TOLERANCE_DEGREES,
+        );
+        expect(foreground?.l).toBeLessThan(fill?.l ?? 0);
     });
 
     // The tint rule the palette JSDoc states, kept measured: a label on a 10%-alpha seafoam chip takes
     // `ocean-dark`. Darkening `seafoam` darkens that tint too, which is exactly how moving one token can push
     // an already-PASSING pair back under the floor.
     it('ocean-dark reads on a 10%-alpha seafoam tint over white', () => {
-        expect(wcagContrast(palette['ocean-dark'], overWhite(tint(palette.seafoam, 0.1)))).toBeGreaterThanOrEqual(
-            AA_NORMAL_TEXT,
-        );
+        expect(
+            wcagContrast(palette['ocean-dark'], over(tint(palette.seafoam, 0.1), palette.white)),
+        ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
 });
 
@@ -175,16 +215,17 @@ describe('tint', () => {
     });
 });
 
-/** Flatten a translucent `rgba(...)` onto white, as the `rgb(...)` a reader sees. Pure. */
-function overWhite(color: string): string {
+/** Flatten a translucent `rgba(...)` onto an opaque backdrop, as the `rgb(...)` a reader sees. Pure. */
+function over(color: string, backdrop: string): string {
     const rgb = toRgb(color);
+    const beneath = toRgb(backdrop);
 
-    if (rgb === undefined) {
-        throw new Error(`Expected a parsable colour, received "${color}".`);
+    if (rgb === undefined || beneath === undefined) {
+        throw new Error(`Expected parsable colours, received "${color}" over "${backdrop}".`);
     }
 
     const alpha = rgb.alpha ?? 1;
-    const channel = (value: number): number => Math.round((value * alpha + (1 - alpha)) * 255);
+    const channel = (value: number, under: number): number => Math.round((value * alpha + under * (1 - alpha)) * 255);
 
-    return `rgb(${channel(rgb.r)}, ${channel(rgb.g)}, ${channel(rgb.b)})`;
+    return `rgb(${channel(rgb.r, beneath.r)}, ${channel(rgb.g, beneath.g)}, ${channel(rgb.b, beneath.b)})`;
 }

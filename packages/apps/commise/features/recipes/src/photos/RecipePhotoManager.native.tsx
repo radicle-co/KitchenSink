@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     heading: { fontSize: 18, fontWeight: '600', color: palette.charcoal },
     muted: { fontSize: 13, color: palette.slate },
     formatHint: { fontSize: 11, color: palette.slate },
-    error: { fontSize: 13, color: palette.error },
+    error: { fontSize: 13, color: palette['error-dark'] },
     // Fixed 3-column grid (wireframe): each cell claims a third of the row, minus the inter-cell gap.
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     cell: { position: 'relative', width: '31%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden' },

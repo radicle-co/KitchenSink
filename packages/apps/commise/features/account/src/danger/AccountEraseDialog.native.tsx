@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     content: { padding: 20, gap: 12 },
     title: { fontSize: 20, fontWeight: '600', color: palette.charcoal },
     sectionHeading: { fontSize: 16, fontWeight: '600', color: palette.charcoal, marginTop: 4 },
-    warning: { fontSize: 15, lineHeight: 22, color: palette.error },
+    warning: { fontSize: 15, lineHeight: 22, color: palette['error-dark'] },
     body: { fontSize: 14, lineHeight: 20, color: palette.slate },
     recipeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
     checkbox: { fontSize: 18, color: palette.charcoal },
@@ -170,5 +170,5 @@ const styles = StyleSheet.create({
     confirmButton: { backgroundColor: palette.error, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 20 },
     confirmButtonDisabled: { opacity: 0.5 },
     confirmLabel: { color: palette.white, fontWeight: '600', fontSize: 14 },
-    error: { fontSize: 13, color: palette.error },
+    error: { fontSize: 13, color: palette['error-dark'] },
 });

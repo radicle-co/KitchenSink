@@ -188,7 +188,7 @@ export const RecipeRatingInput: FC<RecipeRatingInputProps> = ({
                         type="button"
                         disabled={pending}
                         onClick={onRemove}
-                        className="w-fit text-body-sm font-medium text-error disabled:opacity-60"
+                        className="w-fit text-body-sm font-medium text-error-dark disabled:opacity-60"
                     >
                         {rating.removeLabel}
                     </button>
@@ -201,7 +201,7 @@ export const RecipeRatingInput: FC<RecipeRatingInputProps> = ({
                 )}
 
                 {error !== undefined && (
-                    <p role="alert" className="text-body-sm text-error">
+                    <p role="alert" className="text-body-sm text-error-dark">
                         {error === 'notAvailable' ? rating.errorNotAvailable : rating.errorGeneric}
                     </p>
                 )}

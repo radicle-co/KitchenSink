@@ -139,7 +139,7 @@ describe('CollectionMemberRow (web) — select / remove', () => {
 /**
  * Remove is painted in the ERROR register — with the error hue, not coral.
  *
- * The control already labelled itself `text-error` (#E17055) but tinted its hover with `bg-coral/10`
+ * The control already labelled itself `text-error-dark` (#B1442B) but tinted its hover with `bg-coral/10`
  * (#E8917A) — two adjacent-but-different hues inside one control, and the wrong one for a destructive action:
  * coral is a brand accent (the mockups spend it on tags and warm highlights), `error` is the destructive
  * token, and the design system's own `destructive` Button tier already tints with `hover:bg-error/10`. The
@@ -150,7 +150,7 @@ describe('CollectionMemberRow (web) — Remove stays in the error register', () 
         renderRow({ member: makeCollectionMemberRecipe({ id: 'rec_1', title: 'Weeknight Pasta' }) });
         const className = screen.getByRole('button', { name: 'Remove Weeknight Pasta' }).className;
 
-        expect(className).toContain('text-error');
+        expect(className).toContain('text-error-dark');
         expect(className).toContain('hover:bg-error/10');
         expect(className).not.toContain('coral');
     });

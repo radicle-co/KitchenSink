@@ -231,9 +231,9 @@ describe('CollectionRecipePicker (web) — adding', () => {
         renderPicker({ addFailed: true });
         const className = screen.getByRole('alert').className;
 
-        // The banner labelled itself `text-error` (#E17055) but filled with `bg-coral/10` (#E8917A): two
+        // The banner labelled itself `text-error-dark` (#B1442B) but filled with `bg-coral/10` (#E8917A): two
         // adjacent-but-different hues in one element, and coral is a brand ACCENT, not the failure register.
-        expect(className).toContain('text-error');
+        expect(className).toContain('text-error-dark');
         expect(className).toContain('bg-error/10');
         expect(className).not.toContain('coral');
     });

@@ -179,6 +179,6 @@ const styles = StyleSheet.create({
     },
     error: {
         fontSize: nativeTokens.fontSize.caption,
-        color: palette.error,
+        color: palette['error-dark'],
     },
 });

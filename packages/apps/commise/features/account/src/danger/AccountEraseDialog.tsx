@@ -45,7 +45,7 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                     <Dialog.Title className="font-display text-heading-lg font-semibold text-charcoal">
                         {erase.title}
                     </Dialog.Title>
-                    <Dialog.Description className="text-body-md leading-relaxed text-error">
+                    <Dialog.Description className="text-body-md leading-relaxed text-error-dark">
                         {erase.warning}
                     </Dialog.Description>
                     <p className="text-body-sm leading-relaxed text-slate">{erase.distinction}</p>
@@ -121,7 +121,7 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
 
                     {submitting && <p className="text-body-sm text-slate">{erase.busyLabel}</p>}
                     {submitError && !submitting && (
-                        <p role="alert" className="text-body-sm text-error">
+                        <p role="alert" className="text-body-sm text-error-dark">
                             {erase.error}
                         </p>
                     )}

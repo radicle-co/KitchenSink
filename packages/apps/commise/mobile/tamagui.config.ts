@@ -34,6 +34,7 @@ const tokens = createTokens({
         success: palette.success,
         warning: palette.warning,
         error: palette.error,
+        errorDark: palette['error-dark'],
         premium: palette.premium,
     },
     space: { ...spaceScale },

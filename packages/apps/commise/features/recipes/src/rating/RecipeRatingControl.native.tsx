@@ -187,8 +187,8 @@ const styles = StyleSheet.create({
     // B10 — a ≥44×44 touch target around the 30px glyph (WCAG 2.5.5 / Apple + Android minimums).
     starOption: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     optionDisabled: { opacity: 0.6 },
-    removeLabel: { fontSize: 14, fontWeight: '600', color: palette.error },
+    removeLabel: { fontSize: 14, fontWeight: '600', color: palette['error-dark'] },
     status: { fontSize: 13, color: palette.slate },
-    error: { fontSize: 13, color: palette.error },
+    error: { fontSize: 13, color: palette['error-dark'] },
     note: { fontSize: 13, color: palette.slate },
 });

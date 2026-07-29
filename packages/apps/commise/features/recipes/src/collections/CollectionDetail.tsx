@@ -48,7 +48,7 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
     return (
         <section aria-label={detail.membersHeading} className="flex flex-col gap-3">
             {errorMessage !== undefined && (
-                <p role="alert" className="rounded-2xl bg-error/10 px-4 py-3 text-body-sm text-error">
+                <p role="alert" className="rounded-2xl bg-error/10 px-4 py-3 text-body-sm text-error-dark">
                     {errorMessage}
                 </p>
             )}

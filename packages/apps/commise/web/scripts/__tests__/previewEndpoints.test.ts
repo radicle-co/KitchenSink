@@ -90,9 +90,30 @@ describe('resolveBuildEndpoints', () => {
         );
     });
 
-    it('THROWS on a preview build whose PR number is unknown', () => {
-        // Better a failed build than a preview pointed at whatever `{pr}` happened to interpolate to. A
-        // branch deployment that is not a PR has no per-PR backend to talk to, so it is not deployable.
+    it('is INERT when no template is configured, even on a preview build', () => {
+        // Two failure modes in one assertion, both about not breaking things this module has no business
+        // touching:
+        //
+        //  1. The rollout. Until the `*_TEMPLATE` variables exist in the Vercel dashboard there is nothing to
+        //     resolve, so every existing preview must keep building exactly as before from whatever the
+        //     project supplies. Shipping a resolver that fails closed on absent config would have taken every
+        //     preview down at merge.
+        //  2. A branch deployment. Vercel sets `VERCEL_GIT_PULL_REQUEST_ID` only for a deployment that belongs
+        //     to a PR, so a plain branch preview has none — and must not be failed for a template it was
+        //     never given.
+        expect(resolveBuildEndpoints({ VERCEL_ENV: 'preview' })).toEqual({});
+        expect(resolveBuildEndpoints({ VERCEL_ENV: 'preview', VERCEL_GIT_PULL_REQUEST_ID: undefined })).toEqual({});
+        expect(
+            resolveBuildEndpoints({
+                VERCEL_ENV: 'preview',
+                NEXT_PUBLIC_RECIPE_API_URL: 'https://recipe-pr-73.commise.app',
+            }),
+        ).toEqual({});
+    });
+
+    it('THROWS on a preview build that HAS a template but no PR number', () => {
+        // Once a per-PR template is configured, the PR number is load-bearing: better a failed build than a
+        // preview pointed at whatever `{pr}` happened to interpolate to.
         expect(() => resolveBuildEndpoints({ ...PREVIEW, VERCEL_GIT_PULL_REQUEST_ID: undefined })).toThrow(
             /VERCEL_GIT_PULL_REQUEST_ID/,
         );

@@ -118,17 +118,25 @@ export function resolveBuildEndpoints(environment: BuildEnvironment): Readonly<R
         return {};
     }
 
+    const templates = ENDPOINTS.map(({ key, perPr }) => ({
+        key,
+        perPr,
+        name: `${key}_TEMPLATE`,
+        template: environment[`${key}_TEMPLATE`]?.trim() ?? '',
+    })).filter(({ template }) => template !== '');
+
+    // Nothing configured to resolve, so nothing to demand. Checking this BEFORE the PR number matters twice:
+    // it keeps this module inert until the `*_TEMPLATE` variables are actually set (so adding it broke no
+    // existing preview), and Vercel only sets `VERCEL_GIT_PULL_REQUEST_ID` for a deployment that belongs to a
+    // PR — a plain branch deployment has none, and must not be failed for a template it was never given.
+    if (templates.length === 0) {
+        return {};
+    }
+
     const prNumber = requirePrNumber(environment);
     const resolved: Record<string, string> = {};
 
-    for (const { key, perPr } of ENDPOINTS) {
-        const name = `${key}_TEMPLATE`;
-        const template = environment[name]?.trim() ?? '';
-
-        if (template === '') {
-            continue;
-        }
-
+    for (const { key, perPr, name, template } of templates) {
         if (perPr && !template.includes(PR_PLACEHOLDER)) {
             throw new Error(
                 `${name} must contain '${PR_PLACEHOLDER}' but was '${template}'. That service is deployed ` +

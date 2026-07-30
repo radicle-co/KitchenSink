@@ -83,7 +83,15 @@ export const CollectionList: FC<CollectionListViewProps> = ({
                         <Pressable
                             accessibilityRole="button"
                             accessibilityLabel={isFetchingNextPage ? list.loadingMore : list.loadMore}
+                            // The `disabled` half already reaches the DOM (react-native-web derives
+                            // `aria-disabled` from the `disabled` PROP below); `busy` did not, because RNW
+                            // projects `accessibilityState` for nothing (#123) — so the in-flight page fetch was
+                            // announced as "unavailable" rather than "working", and a name change is not a
+                            // state. `aria-busy` is RN's own first-class ALIAS for `accessibilityState.busy`, so
+                            // it is device-correct too; omitted when idle, since ARIA already defaults it to
+                            // false.
                             accessibilityState={{ busy: isFetchingNextPage, disabled: isFetchingNextPage }}
+                            aria-busy={isFetchingNextPage || undefined}
                             disabled={isFetchingNextPage}
                             onPress={() => loadMore?.onLoadMore()}
                             style={[styles.loadMore, isFetchingNextPage && styles.loadMoreBusy]}

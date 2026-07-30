@@ -5,11 +5,12 @@
  * error + retry, no-recipes empty + create CTA, no-matches search), and adding (row per candidate, add id
  * reported upward, member marker + suppressed re-add, in-flight busy + suppressed duplicate, the polite
  * success announcement, and the add-failure alert). The member/in-flight controls stay MOUNTED (never
- * unmounted on activation) and mark themselves inert via `accessibilityState.disabled` (which RN announces to
- * screen readers) while suppressing re-activation in the handler — the parallel to the web leaf's
- * `aria-disabled` decision. react-native-web under jsdom does not surface `accessibilityState` as a DOM
- * attribute, so these assert the BEHAVIOR (the inert text marker, the busy label, that the row is still there,
- * and that no `onAdd` fires) rather than the attribute, which a control that merely LOOKED inert would fail.
+ * unmounted on activation) and carry their inert state in the accessible NAME plus the `accessibilityState`
+ * device trait, while suppressing re-activation in the handler. react-native-web projects `accessibilityState`
+ * to no DOM attribute (#123) and offers no focusable-but-`aria-disabled` button, so — unlike the rest of that
+ * sweep — this leaf takes no ARIA sibling; the ⚠️ cases below pin that constraint and the name-carried state.
+ * The remaining cases assert the BEHAVIOR (the inert text marker, the busy label, that the row is still there,
+ * and that no `onAdd` fires), which a control that merely LOOKED inert would fail.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -197,6 +198,44 @@ describe('CollectionRecipePicker (native) — adding', () => {
         // Other rows stay live while one add is in flight.
         fireEvent.click(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' }));
         expect(onAdd).toHaveBeenCalledWith('rec_2');
+    });
+
+    /**
+     * ⚠️ This leaf is the ONE site in the #123 `accessibilityState` sweep that could not take an ARIA sibling,
+     * and these cases pin WHY so that neither obvious "fix" is applied blind. Both were measured against the
+     * installed react-native-web (0.20.0):
+     *
+     *   • `aria-disabled` is DISCARDED on a `Pressable`. RNW's `Pressable` renders
+     *     `<View {...rest} aria-disabled={disabled}>` — its OWN `disabled` prop overwrites the caller's, and
+     *     this control passes none, so the attribute never reaches the DOM. Measured: `<Pressable aria-disabled>`
+     *     renders `<button role="button" tabindex="0">`, entirely unmarked.
+     *   • the `disabled` PROP does reach the DOM, but RNW emits `aria-disabled="true"` AND the native
+     *     `disabled` attribute AND `tabindex="-1"` together — which is exactly what the web leaf REFUSES, for a
+     *     stated reason: a `disabled` button leaves the tab order, so a keyboard user who just added this recipe
+     *     is blurred and loses their place. RNW offers no focusable-but-inert button at all, so the web leaf's
+     *     `aria-disabled`-without-`disabled` semantics are INEXPRESSIBLE here.
+     *
+     * So the state travels the one channel that works on both platforms — the accessible NAME — plus the
+     * `accessibilityState` device trait, which RN itself honours even though RNW drops it. These assert that the
+     * name really does carry it, and that the control stays focusable, so a later change cannot quietly trade
+     * focusability for an attribute.
+     */
+    it('carries a MEMBER row’s inert state in its accessible NAME, not only in sighted text', () => {
+        renderPicker({ memberRecipeIds: ['rec_1'] });
+
+        // The visible "In this collection" text is sighted-only: the explicit `accessibilityLabel` overrides the
+        // control's text content for assistive tech. So the NAME is what has to say it.
+        const control = screen.getByRole('button', { name: 'Weeknight Pasta is in this collection' });
+        expect(control.getAttribute('aria-label')).toContain('is in this collection');
+    });
+
+    it('keeps every inert row focusable and free of the native disabled attribute', () => {
+        renderPicker({ memberRecipeIds: ['rec_1'], pendingRecipeId: 'rec_2' });
+
+        screen.getAllByRole('button').forEach((button) => {
+            expect(button.hasAttribute('disabled')).toBe(false);
+            expect(button.getAttribute('tabindex')).not.toBe('-1');
+        });
     });
 
     it('announces a successful add', () => {

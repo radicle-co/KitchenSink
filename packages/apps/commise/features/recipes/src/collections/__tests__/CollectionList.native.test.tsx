@@ -164,4 +164,53 @@ describe('CollectionList (native) — server-paged load-more (W5/C7)', () => {
         expect(button.hasAttribute('disabled')).toBe(true);
         expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
     });
+
+    /**
+     * The load-more control's BUSY state has to reach the DOM as well as the device (#123).
+     *
+     * Verified against the installed react-native-web (0.20.0): its `forwardedProps` allowlist carries every
+     * literal `aria-*` attribute but has NO entry that projects `accessibilityState` — the only consumer
+     * anywhere in the package is `AccessibilityUtil/isDisabled`, and even that reads the LEGACY
+     * `accessibilityStates` array. The `disabled` half already reached the DOM (RNW derives `aria-disabled` from
+     * the `disabled` PROP, asserted above), so the in-flight page fetch was announced as "unavailable" rather
+     * than "working". The label does swap to "Loading…", which IS announced here (this control has no explicit
+     * `accessibilityLabel` override on its text) — but a name change is not a state, and it does not tell a
+     * screen reader the region is mid-update.
+     *
+     * `aria-busy` is RN's own first-class ALIAS for `accessibilityState.busy` (`ViewAccessibility.d.ts`), so it
+     * is device-correct too, and the object form stays (RN reverse-maps `aria-busy` into
+     * `accessibilityState.busy`). It is omitted when idle, since ARIA already defaults `aria-busy` to false.
+     */
+    it('marks the fetching load-more control busy in the DOM, not only disabled', () => {
+        renderList({
+            status: 'ready',
+            collections: threeCollections,
+            loadMore: { hasMore: true, loading: true, onLoadMore: noop },
+        });
+
+        expect(screen.getByRole('button', { name: 'Loading…' }).getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('leaves the idle load-more control unmarked, and distinguishable from disabled', () => {
+        renderList({
+            status: 'ready',
+            collections: threeCollections,
+            loadMore: { hasMore: true, loading: false, onLoadMore: noop },
+        });
+
+        const button = screen.getByRole('button', { name: 'Load more' });
+        expect(button.getAttribute('aria-busy')).toBeNull();
+        expect(button.hasAttribute('disabled')).toBe(false);
+    });
+
+    it('never busies the New collection action while a page is fetching', () => {
+        // Mutation guard: an unconditional `aria-busy` across the view's controls would pass the case above.
+        renderList({
+            status: 'ready',
+            collections: threeCollections,
+            loadMore: { hasMore: true, loading: true, onLoadMore: noop },
+        });
+
+        expect(screen.getByRole('button', { name: 'New collection' }).getAttribute('aria-busy')).toBeNull();
+    });
 });

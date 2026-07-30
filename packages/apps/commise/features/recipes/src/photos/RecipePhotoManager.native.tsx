@@ -96,7 +96,16 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                 <Pressable
                                     accessibilityRole="button"
                                     accessibilityLabel={fillTemplate(m.removeLabel, { index: index + 1 })}
+                                    // The `disabled` half already reaches the DOM (react-native-web derives
+                                    // `aria-disabled` from the `disabled` PROP below); `busy` did not, because
+                                    // RNW projects `accessibilityState` for nothing (#123). The "Removing…"
+                                    // swap is sighted-only — the explicit `accessibilityLabel` above overrides
+                                    // this control's text content for assistive tech — so `aria-busy` is the
+                                    // ONLY channel distinguishing "working" from "unavailable". It is RN's own
+                                    // first-class ALIAS for `accessibilityState.busy`, so it is device-correct
+                                    // too; omitted when idle, since ARIA already defaults it to false.
                                     accessibilityState={{ busy: removing, disabled: removing }}
+                                    aria-busy={removing || undefined}
                                     disabled={removing}
                                     onPress={() => onRemovePhoto(photo.id)}
                                     style={[styles.removeButton, removing && styles.removeButtonBusy]}

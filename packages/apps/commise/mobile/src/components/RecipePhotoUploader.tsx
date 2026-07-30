@@ -201,7 +201,14 @@ export function RecipePhotoUploader({ recipeId }: RecipePhotoUploaderProps): JSX
         <Pressable
             accessibilityRole="button"
             accessibilityLabel={t.addLabel}
+            // The `disabled` half already reaches the DOM (react-native-web derives `aria-disabled` from the
+            // `disabled` PROP below); `busy` did not, because RNW projects `accessibilityState` for nothing
+            // (#123). That matters most here: the pick window has NO other affordance at all — the label never
+            // changes, no spinner renders, and the picker is a system sheet — so `aria-busy` is the only thing
+            // separating "the picker is opening" from "this button is dead". It is RN's own first-class ALIAS
+            // for `accessibilityState.busy`, so it is device-correct too; omitted when idle.
             accessibilityState={{ busy: picking, disabled: picking }}
+            aria-busy={picking || undefined}
             disabled={picking}
             onPress={() => void addPhoto()}
         >

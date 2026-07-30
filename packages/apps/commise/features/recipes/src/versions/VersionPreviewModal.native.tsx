@@ -157,7 +157,15 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                         <Pressable
                             accessibilityRole="button"
                             accessibilityLabel={isRestoring ? preview.restoringThis : preview.restoreThis}
+                            // The `disabled` half already reaches the DOM (react-native-web derives
+                            // `aria-disabled` from the `disabled` PROP below); `busy` did not, because RNW
+                            // projects `accessibilityState` for nothing (#123) — so the in-flight restore was
+                            // announced as "unavailable" where the truth was "working". `aria-busy` is RN's own
+                            // first-class ALIAS for `accessibilityState.busy`, so it is device-correct too, and
+                            // RN reverse-maps it back into the object form. Omitted when idle, since ARIA
+                            // already defaults `aria-busy` to false.
                             accessibilityState={{ disabled: isRestoring, busy: isRestoring }}
+                            aria-busy={isRestoring || undefined}
                             disabled={isRestoring}
                             onPress={() => onRestore(version.versionNumber)}
                             style={styles.restoreButton}

@@ -218,6 +218,51 @@ describe('VersionPreviewModal (native) — restoring (W6 Task 5)', () => {
 
         expect(screen.getByRole('button', { name: 'Restore this version' })).toBeTruthy();
     });
+
+    /**
+     * The in-flight Restore control's BUSY state has to reach the DOM, not only the device (#123).
+     *
+     * Verified against the installed react-native-web (0.20.0): its `forwardedProps` allowlist carries every
+     * literal `aria-*` attribute but has NO entry that projects `accessibilityState` — the only consumer
+     * anywhere in the package is `AccessibilityUtil/isDisabled`, and even that reads the LEGACY
+     * `accessibilityStates` array. The control's `disabled` half already reached the DOM (RNW derives
+     * `aria-disabled` from the `disabled` PROP), but `busy` went nowhere, so a screen reader on the mobile-web
+     * build heard "unavailable" where the truth was "working". The label swap to "Restoring…" is the only other
+     * signal, and this sheet has no live region carrying it.
+     *
+     * `aria-busy` is RN's own first-class ALIAS for `accessibilityState.busy` (`ViewAccessibility.d.ts`), so it
+     * is device-correct too, and `accessibilityState` stays alongside it (RN reverse-maps `aria-busy` into
+     * `accessibilityState.busy`). The `|| undefined` shape omits it when idle, matching this package's other
+     * busy controls, since ARIA already defaults `aria-busy` to false.
+     */
+    it('marks the in-flight Restore control busy in the DOM', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff, isRestoring: true })}
+            />,
+        );
+
+        expect(screen.getByRole('button', { name: 'Restoring…' }).getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('leaves the idle Restore control unmarked, and distinguishable from disabled', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        const restore = screen.getByRole('button', { name: 'Restore this version' });
+        expect(restore.getAttribute('aria-busy')).toBeNull();
+        expect(restore.hasAttribute('disabled')).toBe(false);
+    });
+
+    it('never busies the Keep-current escape hatch, even mid-restore', () => {
+        // Mutation guard: an unconditional `aria-busy` on every action in the row would pass the case above.
+        render(
+            <VersionPreviewModal
+                {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff, isRestoring: true })}
+            />,
+        );
+
+        expect(screen.getByRole('button', { name: 'Keep current version' }).getAttribute('aria-busy')).toBeNull();
+    });
 });
 
 describe('VersionPreviewModal (native) — error', () => {

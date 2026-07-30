@@ -326,7 +326,17 @@ const WizardActionsMenu: FC = () => {
             <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={m.actionsMenu}
+                // Both state forms are load-bearing, neither is redundant (#123). `accessibilityState.expanded`
+                // is the DEVICE trait VoiceOver/TalkBack read; `aria-expanded` is the only one that reaches the
+                // DOM — react-native-web forwards literal `aria-*` props and projects `accessibilityState` for
+                // NOTHING, so the object form alone left this disclosure trigger with no state attribute at all
+                // on the web build, and the ⋮ glyph is a SIGHTED affordance. Both sibling disclosure triggers
+                // (`MoreActionsMenu.native`, `CuisineSelect.native`) already carry the alias. Keep both: RN
+                // reverse-maps `aria-expanded` into `accessibilityState.expanded`. Unlike `aria-busy` this is
+                // NOT omitted when false — for a disclosure, `aria-expanded="false"` is what announces that
+                // the control reveals something at all.
                 accessibilityState={{ expanded: open }}
+                aria-expanded={open}
                 onPress={() => setOpen(true)}
                 style={styles.menuTrigger}
             >
@@ -343,7 +353,15 @@ const WizardActionsMenu: FC = () => {
                             <Pressable
                                 accessibilityRole="button"
                                 accessibilityLabel={m.saveDraft}
+                                // The `disabled` half already reaches the DOM (react-native-web derives
+                                // `aria-disabled` from the `disabled` PROP below); `busy` did not, because RNW
+                                // projects `accessibilityState` for nothing (#123) — so the in-flight item was
+                                // announced as merely unavailable rather than working, with no label change or
+                                // live region to say otherwise. `aria-busy` is RN's own first-class ALIAS for
+                                // `accessibilityState.busy`, so it is device-correct too; omitted when idle,
+                                // since ARIA already defaults it to false.
                                 accessibilityState={{ disabled: model.submitting, busy: model.submitting }}
+                                aria-busy={model.submitting || undefined}
                                 disabled={model.submitting}
                                 onPress={() => runAndClose(model.saveDraft)}
                                 style={[styles.menuItem, model.submitting && styles.menuItemDisabled]}

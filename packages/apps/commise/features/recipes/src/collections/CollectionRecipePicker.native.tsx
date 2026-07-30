@@ -4,8 +4,10 @@
  * The React Native leaf of {@link import('./CollectionRecipePicker.js').CollectionRecipePicker} — same
  * controlled, presentational contract: it lists the caller's OWN recipes and adds them, one at a time, to a
  * single named collection, fetching nothing. Multi-membership is expressed per row (membership scoped to THIS
- * collection); a member or in-flight row's control stays MOUNTED and non-interactive via `accessibilityState`
- * (`disabled`), with re-activation suppressed in the handler so it cannot merely look inert. A successful add
+ * collection); a member or in-flight row's control stays MOUNTED and focusable, carrying its inert state in its
+ * accessible NAME plus the `accessibilityState` device trait — never the `disabled` prop, which would drop it out
+ * of the tab order (see the ⚠️ note at the control) — with re-activation suppressed in the handler so it cannot
+ * merely look inert. A successful add
  * is surfaced through a polite live region; an add failure is an alert that does not hide the rows.
  */
 import { useMessages } from '@commise/i18n/react';
@@ -93,6 +95,30 @@ export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
                             <Pressable
                                 accessibilityRole="button"
                                 accessibilityLabel={controlLabel}
+                                // ⚠️ DELIBERATE, and the ONE site in the #123 sweep that could NOT take an ARIA
+                                // sibling. Do not "fix" it with either obvious prop — both were tried and
+                                // measured against the installed react-native-web (0.20.0):
+                                //
+                                //   • `aria-disabled` is DISCARDED here. RNW's `Pressable` renders
+                                //     `<View {...rest} aria-disabled={disabled}>` — its own `disabled` prop
+                                //     OVERWRITES whatever the caller passed, and this control passes none, so
+                                //     the attribute never reaches the DOM. Measured: `<Pressable aria-disabled>`
+                                //     renders `<button role="button" tabindex="0">`, unmarked. A dead prop is
+                                //     worse than none — it reads as fixed.
+                                //   • the `disabled` PROP does reach the DOM, but RNW emits `aria-disabled` AND
+                                //     the native `disabled` attribute AND `tabIndex={-1}` together (measured),
+                                //     which is exactly what the web leaf REFUSES: a `disabled` button leaves the
+                                //     tab order, so a keyboard user who just added this recipe would be blurred
+                                //     and lose their place. RNW offers no focusable-but-inert button at all.
+                                //
+                                // So the web leaf's semantics are inexpressible here, and the state is carried
+                                // the one way that works on BOTH platforms: in the accessible NAME
+                                // (`memberControlLabel` — "{title} is in this collection"), plus the
+                                // `accessibilityState` device trait below, which RN itself honours even though
+                                // RNW drops it. Re-activation is suppressed in the handler, so the control
+                                // cannot merely LOOK inert. Residual, tracked: the PENDING row's name does not
+                                // say it is in flight ("Adding…" is sighted-only, since this label overrides the
+                                // text content) — closing that needs a new localized label on both leaves.
                                 accessibilityState={inert ? { disabled: true } : undefined}
                                 onPress={() => {
                                     if (!inert) {

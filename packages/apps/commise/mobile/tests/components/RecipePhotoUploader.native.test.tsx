@@ -406,6 +406,47 @@ describe('RecipePhotoUploader — pick re-entrancy (regression)', () => {
         expect(createMutateAsync).toHaveBeenCalledTimes(1);
         expect(fetchMock).toHaveBeenCalledTimes(2);
     });
+
+    /**
+     * The case above proved the DISABLED half of the pick window reaches the DOM — and it does so for free,
+     * because RNW derives `aria-disabled` from the `disabled` PROP. The BUSY half did not (#123):
+     * react-native-web 0.20.0's `forwardedProps` allowlist carries every literal `aria-*` attribute but has NO
+     * entry that projects `accessibilityState` (its only consumer anywhere in the package,
+     * `AccessibilityUtil/isDisabled`, reads `props.disabled` and the LEGACY `accessibilityStates` array).
+     *
+     * That matters most on exactly this control. The pick window is a period where the app is doing work with NO
+     * other affordance at all — the label never changes, no spinner is rendered, and the native picker is a
+     * system sheet — so `aria-busy` is the only channel that distinguishes "the picker is opening" from "this
+     * button is dead". Without it a screen-reader user got "Add photo, unavailable" and nothing else.
+     *
+     * `aria-busy` is RN's own first-class ALIAS for `accessibilityState.busy` (`ViewAccessibility.d.ts`), so it
+     * is device-correct too, and the object form stays (RN reverse-maps `aria-busy` into
+     * `accessibilityState.busy`).
+     */
+    it('marks the add control busy — not merely disabled — for the pick + blob-read window', async () => {
+        let resolvePick: (result: { canceled: boolean; assets: (typeof pickedAsset)[] | null }) => void = () => {};
+
+        const pickPromise = new Promise<{ canceled: boolean; assets: (typeof pickedAsset)[] | null }>((resolve) => {
+            resolvePick = resolve;
+        });
+        launchImageLibraryAsyncMock.mockReturnValue(pickPromise as never);
+
+        render(<RecipePhotoUploader recipeId="rec_1" />);
+        const addButton = screen.getByRole('button', { name: 'Add photo' });
+
+        // Idle: unmarked, and distinguishable from disabled.
+        expect(addButton.getAttribute('aria-busy')).toBeNull();
+        expect(addButton.hasAttribute('disabled')).toBe(false);
+
+        fireEvent.click(addButton);
+        await waitFor(() => expect(launchImageLibraryAsyncMock).toHaveBeenCalledTimes(1));
+
+        expect(addButton.getAttribute('aria-busy')).toBe('true');
+
+        // Settle the pick so the test does not leave the picker promise dangling.
+        resolvePick({ canceled: true, assets: null });
+        await waitFor(() => expect(addButton.getAttribute('aria-busy')).toBeNull());
+    });
 });
 
 describe('RecipePhotoUploader — queueing a second pick while uploading (w3/e4)', () => {

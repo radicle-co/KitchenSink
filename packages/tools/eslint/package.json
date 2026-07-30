@@ -7,6 +7,9 @@
         ".": "./index.js",
         "./*": "./*.js"
     },
+    "scripts": {
+        "test": "vitest run"
+    },
     "peerDependencies": {
         "@eslint/js": "^10.0.0",
         "eslint": "^10.0.3",

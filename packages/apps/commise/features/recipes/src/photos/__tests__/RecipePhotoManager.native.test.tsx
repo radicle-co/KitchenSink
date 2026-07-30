@@ -70,6 +70,46 @@ describe('RecipePhotoManager (native) — populated', () => {
         expect(screen.getByRole('button', { name: 'Remove photo 2' }).getAttribute('aria-disabled')).toBe('true');
         expect(screen.getByRole('button', { name: 'Remove photo 1' }).getAttribute('aria-disabled')).not.toBe('true');
     });
+
+    /**
+     * The case above only proved the DISABLED half reaches the DOM — and it does so for free, because RNW
+     * derives `aria-disabled` from the `disabled` PROP. The BUSY half did not (#123): react-native-web 0.20.0's
+     * `forwardedProps` allowlist carries every literal `aria-*` attribute but has NO entry that projects
+     * `accessibilityState` (its only consumer anywhere in the package, `AccessibilityUtil/isDisabled`, reads the
+     * LEGACY `accessibilityStates` array). So the in-flight remove was announced as merely unavailable, not as
+     * working — and "unavailable" and "working" are different things for a control the user just pressed. The
+     * "Removing…" label swap is inside the button, but the button carries an explicit `accessibilityLabel`
+     * ("Remove photo N"), which OVERRIDES its text content for assistive tech — so that swap is sighted-only.
+     *
+     * `aria-busy` is RN's own first-class ALIAS for `accessibilityState.busy` (`ViewAccessibility.d.ts`), so it
+     * is device-correct too, and the object form stays (RN reverse-maps `aria-busy` into
+     * `accessibilityState.busy`).
+     */
+    it('marks the in-flight remove control busy in the DOM, not only disabled', () => {
+        renderManager({ photos: threePhotos, removingPhotoId: 'ph_2' });
+
+        expect(screen.getByRole('button', { name: 'Remove photo 2' }).getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('busies ONLY the removing row — its siblings are disabled, not busy', () => {
+        // Mutation guard: an unconditional `aria-busy` would pass the case above. Exactly one row is busy.
+        renderManager({ photos: threePhotos, removingPhotoId: 'ph_2' });
+
+        const busy = screen
+            .getAllByRole('button', { name: /^Remove photo/ })
+            .filter((button) => button.getAttribute('aria-busy') === 'true')
+            .map((button) => button.getAttribute('aria-label'));
+
+        expect(busy).toEqual(['Remove photo 2']);
+    });
+
+    it('leaves every remove control unmarked when no removal is in flight', () => {
+        renderManager({ photos: threePhotos });
+
+        screen.getAllByRole('button', { name: /^Remove photo/ }).forEach((button) => {
+            expect(button.getAttribute('aria-busy')).toBeNull();
+        });
+    });
 });
 
 describe('RecipePhotoManager (native) — upload + error states', () => {

@@ -2,6 +2,8 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import checkFile from 'eslint-plugin-check-file';
 
+import { nativeA11yPlugin } from './nativeA11y.js';
+
 /**
  * Picks the file-naming regime for a package from its root directory (§1 of
  * docs/CODING_STANDARDS.md). The two regimes follow different ecosystem norms:
@@ -158,6 +160,20 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
             },
         },
         ...filenameConventionConfig(namingRegimeForRoot(tsconfigRootDir)),
+        {
+            // Web/native accessibility PARITY (#123). `accessibilityState` reaches no DOM attribute on
+            // react-native-web, so any key of it that lacks a projecting sibling prop is announced on device and
+            // silent on the web build. Applied to every JSX file rather than only `*.native.tsx`: the prop is
+            // meaningless outside React Native, so the false-positive surface elsewhere is nil, and scoping it
+            // by filename would miss shared `.tsx` leaves and mobile screens that carry it. See
+            // `nativeA11y.js` for why this is hand-rolled (no published plugin covers it — the obvious
+            // candidate closed the request as `not_planned` and peer-caps at ESLint 8).
+            files: ['**/*.{tsx,jsx}'],
+            plugins: { 'native-a11y': nativeA11yPlugin },
+            rules: {
+                'native-a11y/accessibility-state-needs-aria-sibling': 'error',
+            },
+        },
         {
             files: ['**/__tests__/**/*.ts', '**/*.test.ts'],
             rules: {

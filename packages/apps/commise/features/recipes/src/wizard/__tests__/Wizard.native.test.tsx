@@ -106,6 +106,14 @@ const Harness: FC<HarnessProps> = ({
     );
 };
 
+/**
+ * The header's overflow ("More actions") disclosure TRIGGER, scoped to the toolbar. The open menu's backdrop
+ * carries the same accessible name, so an unscoped `getByLabelText('More actions')` is ambiguous once the menu
+ * is open — this stays unambiguous in both states.
+ */
+const actionsTrigger = (): HTMLElement =>
+    within(screen.getByLabelText('Recipe wizard actions')).getByRole('button', { name: 'More actions' });
+
 /** Open the header's overflow ("More actions") menu, disclosing the Save Draft / Cancel items. */
 const openActionsMenu = (): void => {
     fireEvent.click(screen.getByLabelText('More actions'));
@@ -331,6 +339,84 @@ describe('Wizard (native) — header overflow menu (U6: Save Draft + Cancel demo
         expect(onSaveDraft).toHaveBeenCalledTimes(1);
         // Choosing an item closes the menu.
         expect(screen.queryByLabelText('Save Draft')).toBeFalsy();
+    });
+});
+
+/**
+ * The overflow trigger is a DISCLOSURE, and its expanded state has to reach assistive tech on the mobile-WEB
+ * build too — `accessibilityState={{ expanded }}` alone does not get there (#123).
+ *
+ * Verified against the installed react-native-web (0.20.0): its `forwardedProps` allowlist carries every
+ * literal `aria-*` attribute but has NO entry that projects `accessibilityState` — the only consumer anywhere
+ * in the package is `AccessibilityUtil/isDisabled`, and even that reads the LEGACY `accessibilityStates` array.
+ * So this trigger rendered `<button role="button">` with no state attribute at all: a kebab that announces
+ * neither that pressing it will reveal something, nor that the menu is now open. The chevron swap in
+ * `CuisineSelect.native` and the ⋮ glyph here are SIGHTED affordances only. Both sibling disclosure triggers in
+ * this feature (`MoreActionsMenu.native`, `CuisineSelect.native`) already carried `aria-expanded`; this one was
+ * the outlier.
+ *
+ * `accessibilityState` stays alongside it: RN reverse-maps `aria-expanded` into `accessibilityState.expanded`
+ * (`Pressable.js`: `expanded: ariaExpanded ?? accessibilityState?.expanded`), so the dual form is correct on
+ * both platforms and dropping either one silences one of them.
+ *
+ * BOTH polarities are asserted, and for a disclosure the FALSE one is the load-bearing case:
+ * `aria-expanded="false"` is what tells a screen-reader user the control reveals something. An absent
+ * attribute says nothing at all — which is exactly the defect.
+ */
+describe('Wizard (native) — the overflow trigger announces its expanded state on web too', () => {
+    it('reports collapsed (present-and-false, not absent) while the menu is closed', () => {
+        render(<Harness />);
+
+        expect(actionsTrigger().getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('reports expanded once the menu is open', () => {
+        render(<Harness />);
+
+        openActionsMenu();
+
+        expect(actionsTrigger().getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('reports collapsed again once an item closes the menu', () => {
+        // Mutation guard: a hard-coded `aria-expanded="true"` would pass the case above. The attribute has to
+        // track the disclosure back down again.
+        render(<Harness />);
+
+        openActionsMenu();
+        fireEvent.click(screen.getByLabelText('Cancel'));
+
+        expect(actionsTrigger().getAttribute('aria-expanded')).toBe('false');
+    });
+});
+
+/**
+ * The overflow menu's Save Draft item busies while a save is in flight, and that state has to reach the DOM too
+ * (#123). Its `disabled` half already does — RNW derives `aria-disabled` from the `disabled` PROP — but the
+ * `busy` half went nowhere, so the control was announced as merely unavailable rather than working. The label
+ * does not change and no live region covers it, so `aria-busy` was the only channel and it was silent.
+ *
+ * `aria-busy` is RN's own first-class ALIAS for `accessibilityState.busy` (`ViewAccessibility.d.ts`), so it is
+ * device-correct as well; the `|| undefined` shape (matching `PressScale.native`, `RecipeVersionList.native`
+ * and `AccountEraseDialog.native`) omits it when idle, since ARIA already defaults `aria-busy` to false.
+ */
+describe('Wizard (native) — the overflow Save Draft item announces its busy state on web too', () => {
+    it('marks the in-flight Save Draft item busy', () => {
+        render(<Harness submitting />);
+
+        openActionsMenu();
+
+        expect(screen.getByLabelText('Save Draft').getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('leaves an idle Save Draft item unmarked, and distinguishable from disabled', () => {
+        render(<Harness />);
+
+        openActionsMenu();
+
+        const item = screen.getByLabelText('Save Draft');
+        expect(item.getAttribute('aria-busy')).toBeNull();
+        expect(item.hasAttribute('disabled')).toBe(false);
     });
 });
 

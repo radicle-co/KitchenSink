@@ -108,6 +108,29 @@ jobs:
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npx turbo run lint
 
+            # Workflow files get NO coverage from `turbo run lint` — eslint does not read YAML. GitHub
+            # validates them only at dispatch time, and an invalid one does not fail a check: it produces a
+            # zero-job `startup_failure` attributed to the PUSH event, so the workflow that should have run
+            # SILENTLY DOES NOT. That is how a broken `sandbox-deploy.yml` shipped and the per-PR deploy
+            # simply never started (issue #124's first run) — every local gate was green, YAML parsed, and
+            # even the official Actions JSON schema validated it.
+            #
+            # The defect was a literal `${{` `}}` written as PROSE inside a `run:` block comment. GitHub
+            # interpolates expressions in `run:` bodies BEFORE the shell sees them, comments included, so an
+            # empty interpolation is a syntax error. Only an expression-aware linter catches that class.
+            #
+            # actionlint is pinned: it is the validator, so an unpinned upgrade could change what passes.
+            - name: Lint GitHub workflow files (actionlint — expression + context checks)
+              run: |
+                  set -euo pipefail
+                  version=1.7.12
+                  curl -sSfL -o /tmp/actionlint.tar.gz \
+                    "https://github.com/rhysd/actionlint/releases/download/v${version}/actionlint_${version}_linux_amd64.tar.gz"
+                  tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+                  # shellcheck/pyflakes are off: this gate is about workflow VALIDITY, and the runner has
+                  # neither tool, which would otherwise be reported as errors on every embedded script.
+                  /tmp/actionlint -shellcheck= -pyflakes= .github/workflows/*.yml
+
     format:
         name: Format check
         runs-on: ubuntu-latest

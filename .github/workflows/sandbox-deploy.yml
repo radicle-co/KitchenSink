@@ -723,7 +723,8 @@ jobs:
               run: |
                   set -euo pipefail
                   # Currency is only assertable when THIS run pushed an image; an empty flag skips that one
-                  # check and leaves the other four in force. Computed in shell, not in a `${{ }}` ternary, so
+                  # check and leaves the other four in force. Computed in shell, not in a GitHub-expression
+                  # ternary (do NOT write an empty interpolation here even as prose — see below), so
                   # it does not depend on the `env` context being available to a `run:` expression.
                   expected_image_tag=''
                   [ "$DEPLOYED" = 'true' ] && expected_image_tag="${IMAGE_TAG}"

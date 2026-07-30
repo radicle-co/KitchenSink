@@ -206,6 +206,36 @@ describe('RecipeDiscoveryList (native) — populated state', () => {
         expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
     });
 
+    /**
+     * The SAME react-native-web gap as the sort radios below (#123), on this leaf's other `accessibilityState`
+     * key: `busy` is projected to no DOM attribute either, so the in-flight load-more control announced nothing
+     * beyond its own relabel. `aria-busy` is RN's own first-class ALIAS for `accessibilityState.busy`
+     * (`ViewAccessibility.d.ts`), so it is device-correct too; the `|| undefined` shape (matching
+     * `PressScale.native` and `AccountEraseDialog.native`) omits it while idle, since ARIA already defaults
+     * `aria-busy` to false.
+     */
+    it('marks the load-more control busy in the DOM while the next page is in flight', () => {
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            loadMore: { hasMore: true, loading: true, onLoadMore: noop },
+        });
+
+        const loadMore = screen.getByRole('button', { name: 'Loading…' });
+        expect(loadMore.getAttribute('aria-busy')).toBe('true');
+        expect(loadMore.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('leaves the load-more control unmarked while idle', () => {
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            loadMore: { hasMore: true, loading: false, onLoadMore: noop },
+        });
+
+        expect(screen.getByRole('button', { name: 'Load more' }).getAttribute('aria-busy')).toBeNull();
+    });
+
     it('renders the sort options and reports a change (S3)', () => {
         const onChange = vi.fn();
         renderDiscovery({
@@ -218,6 +248,61 @@ describe('RecipeDiscoveryList (native) — populated state', () => {
         fireEvent.click(screen.getByText('Quickest'));
 
         expect(onChange).toHaveBeenCalledWith('quickest');
+    });
+
+    /**
+     * The sort strip's SELECTED option has to reach assistive tech on the mobile-WEB build too, and
+     * `accessibilityState={{ checked }}` alone does not get there (#123).
+     *
+     * react-native-web 0.20.0 forwards literal `aria-*` props but projects `accessibilityState` for NOTHING
+     * (its sole consumer in the package, `AccessibilityUtil/isDisabled`, reads the LEGACY
+     * `accessibilityStates` array), so every chip rendered `<button role="radio">` with no state attribute at
+     * all. On a radio that is the whole meaning of the control: a `radiogroup` of four radios, none of which
+     * reports a checked state, tells a screen-reader user nothing about which sort is in force — and the only
+     * other signal this leaf gives (`sortChipActive`'s fill) is COLOUR, which is sighted-only and would itself
+     * be an SC 1.4.1 failure as the sole channel.
+     *
+     * `aria-checked` is the correct attribute for `role="radio"` — not `aria-selected` (ARIA supports that
+     * only on `option`/`tab`/`row`/`gridcell`-family roles) and not `aria-pressed` (a toggle-BUTTON attribute,
+     * which is what the #114 `selected` chips correctly took). `accessibilityState` stays alongside it because
+     * RN reverse-maps `aria-checked` into `accessibilityState.checked`, so the device keeps its native trait.
+     */
+    it('marks the ACTIVE sort option checked and every other one unchecked (present-and-false)', () => {
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            sort: { active: RecipeSearchSortBy.MOST_CLONED, onChange: noop },
+        });
+
+        const states = within(screen.getByRole('radiogroup', { name: 'Sort by' }))
+            .getAllByRole('radio')
+            .map((radio) => [radio.textContent, radio.getAttribute('aria-checked')]);
+
+        // Present-and-false on the three inactive options, not absent: an omitted `aria-checked` makes a radio
+        // stateless, so a reader cannot tell "not this one" from "unknown".
+        expect(states).toEqual([
+            ['Relevance', 'false'],
+            ['Newest', 'false'],
+            ['Most cloned', 'true'],
+            ['Quickest', 'false'],
+        ]);
+    });
+
+    it('moves the checked state when a different sort becomes active', () => {
+        // Mutation guard: a hard-coded `aria-checked` — or one wired to the wrong option — cannot satisfy both
+        // this and the case above.
+        renderDiscovery({
+            status: 'ready',
+            results: threeResults,
+            sort: { active: RecipeSearchSortBy.QUICKEST, onChange: noop },
+        });
+
+        const checked = within(screen.getByRole('radiogroup', { name: 'Sort by' }))
+            .getAllByRole('radio')
+            .filter((radio) => radio.getAttribute('aria-checked') === 'true')
+            .map((radio) => radio.textContent);
+
+        expect(checked).toEqual(['Quickest']);
     });
 
     it('renders one row per result and reports selection upward', () => {

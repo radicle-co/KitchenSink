@@ -116,7 +116,18 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                                 18px box centered inside it, so the checklist reads tight but taps large. */}
                             <Pressable
                                 accessibilityRole="checkbox"
+                                // Both state forms are load-bearing, neither is redundant (#123).
+                                // `accessibilityState.checked` is the DEVICE trait VoiceOver/TalkBack read;
+                                // `aria-checked` is the only one that reaches the DOM — react-native-web
+                                // forwards literal `aria-*` props and projects `accessibilityState` for
+                                // NOTHING, so the object form alone left this `role="checkbox"` with no state
+                                // attribute at all on the web build (the ✓ is sighted-only), which is also the
+                                // parity the web leaf already had. `aria-checked` — not `aria-selected` (ARIA
+                                // allows it only on `option`/`tab`/`row`/`gridcell`-family roles) and not
+                                // `aria-pressed` (a toggle-BUTTON attribute). Keep both: RN reverse-maps
+                                // `aria-checked` into `accessibilityState.checked`.
                                 accessibilityState={{ checked }}
+                                aria-checked={checked}
                                 accessibilityLabel={`${qty} ${ingredient.name}`.trim()}
                                 onPress={() => onToggleIngredient?.(ingredient.ingredientId)}
                                 style={styles.checkboxTouch}
@@ -150,7 +161,11 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = ({
                             {/* 44pt tap target (RC-3) wrapping the compact 32px numbered marker circle. */}
                             <Pressable
                                 accessibilityRole="checkbox"
+                                // Device trait + the DOM-observable checked state — see the ingredient
+                                // checkbox above (#123). The numbered-marker/✓ swap and the struck-through
+                                // step text are SIGHTED affordances; `aria-checked` is the announced one.
                                 accessibilityState={{ checked: done }}
+                                aria-checked={done}
                                 accessibilityLabel={fillTemplate(detail.stepToggleLabel, { step: step.stepNumber })}
                                 onPress={() => onToggleStep?.(step.stepNumber)}
                                 style={styles.stepMarkerTouch}

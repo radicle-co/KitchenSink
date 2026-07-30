@@ -211,7 +211,7 @@ describe('RecipeDetailView (native) — interactivity (D4/D5/D6)', () => {
             />,
         );
 
-        // react-native-web renders role="checkbox" but not aria-checked, so assert the checked ✓ affordance.
+        // The ✓ glyph is the SIGHTED affordance; `aria-checked` is the assistive-tech one (asserted below).
         expect(screen.getByLabelText(/Olive oil/).getAttribute('role')).toBe('checkbox');
         expect(within(screen.getByLabelText(/Olive oil/)).queryByText('✓')).not.toBeNull();
         expect(within(screen.getByLabelText(/Garlic/)).queryByText('✓')).toBeNull();
@@ -248,6 +248,89 @@ describe('RecipeDetailView (native) — interactivity (D4/D5/D6)', () => {
         await user.click(screen.getByLabelText('Mark step 1 complete'));
 
         expect(onToggleStep).toHaveBeenCalledWith(1);
+    });
+
+    /**
+     * The cook-mode checklists' CHECKED state has to reach assistive tech on the mobile-WEB build too, and
+     * `accessibilityState={{ checked }}` alone does not get there (#123).
+     *
+     * Verified against the installed react-native-web (0.20.0): its `forwardedProps` allowlist carries every
+     * literal `aria-*` attribute but has NO entry projecting `accessibilityState` — the only consumer anywhere
+     * in the package, `AccessibilityUtil/isDisabled`, reads the LEGACY `accessibilityStates` array. Both
+     * checklists therefore rendered `<button role="checkbox">` with no state attribute at all: correct on
+     * device, silent on web. For a checkbox that is the whole control — the ✓ / numbered-marker swap and the
+     * struck-through step text are SIGHTED affordances, so a screen-reader user cooking from this page had no
+     * way to tell which ingredients they had gathered or which steps they had finished.
+     *
+     * `aria-checked` is what `role="checkbox"` takes — not `aria-selected` (valid only on
+     * `option`/`tab`/`row`/`gridcell`-family roles) and not `aria-pressed` (a toggle-button attribute).
+     * `accessibilityState` stays alongside it: RN reverse-maps `aria-checked` into `accessibilityState.checked`
+     * (`Pressable.js`: `checked: ariaChecked ?? accessibilityState?.checked`), so the device trait survives.
+     * This also restores parity with the web leaf, which already renders `role="checkbox" aria-checked` on both
+     * checklists.
+     */
+    it('announces each INGREDIENT checkbox’s checked state to assistive tech (present-and-false, D5)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil' }),
+                        makeIngredientView({ ingredientId: 'ing_2', name: 'Garlic' }),
+                    ],
+                })}
+                checkedIngredients={new Set(['ing_1'])}
+            />,
+        );
+
+        expect(screen.getByLabelText(/Olive oil/).getAttribute('aria-checked')).toBe('true');
+        // `false`, not absent: an omitted attribute leaves an un-gathered ingredient's state unknowable.
+        expect(screen.getByLabelText(/Garlic/).getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('announces each STEP checkbox’s checked state to assistive tech (present-and-false, D4)', () => {
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    steps: [
+                        makeStepView({ stepNumber: 1, instruction: 'Rub the lamb.' }),
+                        makeStepView({ stepNumber: 2, instruction: 'Grill the lamb.' }),
+                    ],
+                })}
+                checkedSteps={new Set([1])}
+            />,
+        );
+
+        expect(screen.getByLabelText('Mark step 1 complete').getAttribute('aria-checked')).toBe('true');
+        expect(screen.getByLabelText('Mark step 2 complete').getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('keeps the announced state in lockstep with the sighted ✓ / struck-through affordances', () => {
+        // Mutation guard: a hard-coded or mis-wired attribute cannot keep BOTH channels naming the same row.
+        render(
+            <RecipeDetailView
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil' }),
+                        makeIngredientView({ ingredientId: 'ing_2', name: 'Garlic' }),
+                    ],
+                    steps: [
+                        makeStepView({ stepNumber: 1, instruction: 'Rub the lamb.' }),
+                        makeStepView({ stepNumber: 2, instruction: 'Grill the lamb.' }),
+                    ],
+                })}
+                checkedIngredients={new Set(['ing_2'])}
+                checkedSteps={new Set([2])}
+            />,
+        );
+
+        const checked = screen
+            .getAllByRole('checkbox')
+            .filter((box) => box.getAttribute('aria-checked') === 'true')
+            .map((box) => box.getAttribute('aria-label'));
+
+        expect(checked).toEqual([expect.stringContaining('Garlic'), 'Mark step 2 complete']);
+        expect(within(screen.getByLabelText(/Garlic/)).queryByText('✓')).not.toBeNull();
+        expect(within(screen.getByLabelText('Mark step 2 complete')).queryByText('✓')).not.toBeNull();
     });
 
     it('invokes onFilterByTag when a tag chip is pressed (D6)', async () => {

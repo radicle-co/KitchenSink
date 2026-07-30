@@ -118,6 +118,41 @@ describe('RecipeVersionList (native) — restoring state', () => {
 
         expect(onRestore).not.toHaveBeenCalled();
     });
+
+    /**
+     * The SAME react-native-web gap as the compare checkbox below (#123), on this leaf's other
+     * `accessibilityState` key: `busy` is projected to no DOM attribute either. The live-region "Restoring
+     * version N" text does announce the transition, but the CONTROL itself stayed unmarked, so anything that
+     * inspects the button — AT reading it directly, or a test — could not tell it was mid-flight.
+     *
+     * `aria-busy` is RN's own first-class ALIAS for `accessibilityState.busy` (`ViewAccessibility.d.ts`), so it
+     * is device-correct too; the `|| undefined` shape (matching `PressScale.native` and
+     * `AccountEraseDialog.native`) omits it when idle, since ARIA already defaults `aria-busy` to false and an
+     * always-present `aria-busy="false"` on every row would be noise, not information.
+     */
+    it('marks the in-flight restore control busy in the DOM, not just in the live region', () => {
+        renderList({ versions: threeVersions, currentVersion: 3, restoringVersion: 2 });
+
+        expect(screen.getByRole('button', { name: 'Restore version 2' }).getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('marks only the restoring row busy — the other rows are disabled, not busy', () => {
+        renderList({ versions: threeVersions, currentVersion: 3, restoringVersion: 2 });
+
+        const restoreOne = screen.getByRole('button', { name: 'Restore version 1' });
+        expect(restoreOne.getAttribute('aria-busy')).toBeNull();
+        // They ARE disabled while a restore is in flight, and that state already reaches the DOM (RNW derives
+        // `aria-disabled` from the `disabled` prop) — so the two states stay distinguishable.
+        expect(restoreOne.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('leaves every restore control unmarked when nothing is restoring', () => {
+        renderList({ versions: threeVersions, currentVersion: 3, restoringVersion: null });
+
+        screen.getAllByRole('button', { name: /^Restore version/ }).forEach((button) => {
+            expect(button.getAttribute('aria-busy')).toBeNull();
+        });
+    });
 });
 
 describe('RecipeVersionList (native) — editor/device attribution', () => {
@@ -243,8 +278,7 @@ describe('RecipeVersionList (native) — compare selection (W6 Task 5)', () => {
             selectedForCompare: [2],
         });
 
-        // react-native-web renders role="checkbox" but not `aria-checked` — assert the checked glyph
-        // (mirrors `RecipeDetailView.native.test.tsx`'s ingredient-checkbox convention).
+        // The ☑/☐ glyph is the SIGHTED signal; `aria-checked` is the assistive-tech one (asserted below).
         expect(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }).textContent).toContain('☑');
     });
 
@@ -280,6 +314,70 @@ describe('RecipeVersionList (native) — compare selection (W6 Task 5)', () => {
         fireEvent.click(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }));
 
         expect(onToggleCompare).toHaveBeenCalledWith(2);
+    });
+});
+
+/**
+ * The compare control's CHECKED state has to reach assistive tech on the mobile-WEB build too, and
+ * `accessibilityState={{ checked }}` alone does not get there (#123).
+ *
+ * Verified against the installed react-native-web (0.20.0): its `forwardedProps` allowlist carries every
+ * literal `aria-*` attribute but has NO entry that projects `accessibilityState` — the only consumer anywhere
+ * in the package is `AccessibilityUtil/isDisabled`, and even that reads the LEGACY `accessibilityStates` array.
+ * A `<Pressable accessibilityRole="checkbox" accessibilityState={{ checked: true }}>` therefore renders
+ * `<button role="checkbox">` with NO state attribute at all: correct on device (VoiceOver/TalkBack read the
+ * native trait), silent on web. That is worse here than for the `selected` chips fixed in #114, because for a
+ * `checkbox` the checked state IS the control's purpose — a `role="checkbox"` with no `aria-checked` is an
+ * invalid, meaningless control to a screen reader, and the ☑/☐ glyph is a SIGHTED affordance only.
+ *
+ * The fix is `aria-checked` — the correct and valid attribute for `checkbox`/`radio`, unlike `aria-selected`
+ * (which ARIA supports only on `option`/`tab`/`row`/`gridcell`-family roles) and unlike `aria-pressed` (a
+ * toggle-BUTTON attribute). `accessibilityState` stays alongside it: RN reverse-maps `aria-checked` into
+ * `accessibilityState.checked` (`Pressable.js`: `checked: ariaChecked ?? accessibilityState?.checked`), so the
+ * dual form is correct on both platforms and dropping either one silences one of them.
+ *
+ * BOTH polarities are asserted: `aria-checked="false"` is meaningfully different from the attribute being
+ * absent, which is exactly the defect — an absent attribute leaves the control's state unknowable.
+ */
+describe('RecipeVersionList (native) — the compare checkbox announces its checked state on web too', () => {
+    const withCompare = (selectedForCompare: readonly number[]) =>
+        renderList({
+            versions: threeVersions,
+            currentVersion: 3,
+            onToggleCompare: noop,
+            selectedForCompare: [...selectedForCompare],
+        });
+
+    it('marks a SELECTED version checked', () => {
+        withCompare([2]);
+
+        expect(screen.getByRole('checkbox', { name: 'Select version 2 to compare' }).getAttribute('aria-checked')).toBe(
+            'true',
+        );
+    });
+
+    it('marks an UNSELECTED version unchecked (present-and-false, not absent)', () => {
+        withCompare([2]);
+
+        expect(screen.getByRole('checkbox', { name: 'Select version 1 to compare' }).getAttribute('aria-checked')).toBe(
+            'false',
+        );
+    });
+
+    it('keeps the ARIA state in lockstep with the ☑/☐ glyph across a re-render', () => {
+        // Mutation guard: a hard-coded attribute would pass the two cases above. Exactly the selected versions
+        // report `aria-checked="true"`, and the same controls are the ones showing ☑.
+        withCompare([1, 3]);
+
+        const checked = screen
+            .getAllByRole('checkbox')
+            .filter((box) => box.getAttribute('aria-checked') === 'true')
+            .map((box) => box.getAttribute('aria-label'));
+
+        expect(checked).toEqual(['Select version 3 to compare', 'Select version 1 to compare']);
+        checked.forEach((name) => {
+            expect(screen.getByRole('checkbox', { name: name ?? '' }).textContent).toContain('☑');
+        });
     });
 });
 

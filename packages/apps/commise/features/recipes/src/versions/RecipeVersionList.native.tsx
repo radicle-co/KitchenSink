@@ -100,7 +100,15 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                         accessibilityLabel={fillTemplate(versionList.restoreAction, {
                                             version: version.versionNumber,
                                         })}
+                                        // `disabled` already reaches the DOM (RNW derives `aria-disabled` from
+                                        // the `disabled` prop below), but `busy` does not — react-native-web
+                                        // projects `accessibilityState` to no attribute at all (#123). RN
+                                        // declares `aria-busy` as a first-class ALIAS for
+                                        // `accessibilityState.busy`, so the alias is device-correct as well as
+                                        // DOM-observable. Omitted while idle: ARIA already defaults `aria-busy`
+                                        // to false, so an always-present `false` on every row is noise.
                                         accessibilityState={{ disabled: isRestoring, busy: isBusy }}
+                                        aria-busy={isBusy || undefined}
                                         disabled={isRestoring}
                                         onPress={() => onRestore(version.versionNumber)}
                                         style={styles.restoreButton}
@@ -121,14 +129,27 @@ export const RecipeVersionList: FC<RecipeVersionListProps> = ({
                                         accessibilityLabel={fillTemplate(versionList.compareAction, {
                                             version: version.versionNumber,
                                         })}
+                                        // Both state forms are load-bearing, neither is redundant (#123).
+                                        // `accessibilityState.checked` is the DEVICE trait VoiceOver/TalkBack
+                                        // read; `aria-checked` is the only one that reaches the DOM —
+                                        // react-native-web forwards literal `aria-*` props and projects
+                                        // `accessibilityState` for NOTHING, so the object form alone left this
+                                        // `role="checkbox"` with no state attribute at all on the web build,
+                                        // which for a checkbox is its whole meaning. `aria-checked` (not
+                                        // `aria-selected`, which ARIA allows only on
+                                        // `option`/`tab`/`row`/`gridcell`-family roles, and not `aria-pressed`,
+                                        // a toggle-BUTTON attribute) is the correct attribute here. Do not
+                                        // "simplify" either away: RN reverse-maps `aria-checked` into
+                                        // `accessibilityState.checked`, so dropping the object form would only
+                                        // silence the device instead.
                                         accessibilityState={{ checked: isSelected, disabled: isCapped }}
+                                        aria-checked={isSelected}
                                         disabled={isCapped}
                                         onPress={() => onToggleCompare(version.versionNumber)}
                                         style={styles.compareButton}
                                     >
-                                        {/* react-native-web renders role="checkbox" but not `aria-checked` — the
-                                            check glyph is the assertable "is it checked" signal for tests
-                                            (mirrors `RecipeDetailView.native.tsx`'s ingredient-checkbox pattern). */}
+                                        {/* The ☑/☐ glyph is the SIGHTED signal (never colour alone); the
+                                            announced state is `aria-checked` above. */}
                                         <Text style={styles.compareLabel}>
                                             {isSelected ? '☑' : '☐'} {versionList.compare}
                                         </Text>

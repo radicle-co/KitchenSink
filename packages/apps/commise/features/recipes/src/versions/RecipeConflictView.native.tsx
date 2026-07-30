@@ -121,8 +121,8 @@ const MergeOption: FC<{
  * The stale-base warning + explicit confirm checkbox (W7 Task 5 / X6) — shared, unchanged markup between the
  * options view (gates Overwrite) and the merge panel (gates Save merged version). `accessibilityRole="alert"`
  * mirrors `RecipeDeleteDialog.native`'s own alert-role warning surface; the checkbox mirrors
- * `RecipeVersionList.native`'s ☑/☐-glyph checkbox convention (react-native-web renders `role="checkbox"` but
- * not a reliable `aria-checked`).
+ * `RecipeVersionList.native`'s convention — a ☑/☐ glyph for sighted readers PLUS an explicit `aria-checked`
+ * for assistive tech, since react-native-web projects `accessibilityState` to nothing (#123).
  */
 const StaleBaseWarning: FC<{
     readonly warning: string;
@@ -135,7 +135,12 @@ const StaleBaseWarning: FC<{
         <Pressable
             accessibilityRole="checkbox"
             accessibilityLabel={confirmLabel}
+            // Device trait + the DOM-observable checked state; both are load-bearing (#123) — react-native-web
+            // projects `accessibilityState` to no attribute, and RN reverse-maps `aria-checked` back into it,
+            // so neither form is redundant. `aria-checked` is `role="checkbox"`'s own attribute (the sibling
+            // `MergeOption` radios already carry it), unlike `aria-selected`/`aria-pressed`.
             accessibilityState={{ checked: confirmed }}
+            aria-checked={confirmed}
             onPress={() => onConfirmedChange(!confirmed)}
             style={styles.option}
         >

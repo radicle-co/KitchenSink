@@ -852,3 +852,67 @@ describe('RecipeConflictView (native) — stale-base warning + confirm gate (W7 
         expect(onOverwrite).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * The stale-base confirm checkbox's CHECKED state has to reach assistive tech on the mobile-WEB build too, and
+ * `accessibilityState={{ checked }}` alone does not get there (#123).
+ *
+ * react-native-web 0.20.0 forwards literal `aria-*` props but projects `accessibilityState` for NOTHING (its
+ * sole consumer in the package, `AccessibilityUtil/isDisabled`, reads the LEGACY `accessibilityStates` array),
+ * so this control rendered `<button role="checkbox">` with no state attribute at all. That is a gating control:
+ * a screen-reader user could not tell whether they had already acknowledged the stale base, and the ☑/☐ glyph
+ * the older assertions read is a SIGHTED affordance only.
+ *
+ * `aria-checked` — not `aria-selected` (valid only on `option`/`tab`/`row`/`gridcell` roles) and not
+ * `aria-pressed` (a toggle-button attribute). `accessibilityState` stays alongside it because RN reverse-maps
+ * `aria-checked` into `accessibilityState.checked`, keeping the device path intact. The sibling `MergeOption`
+ * radios already carried `aria-checked` (asserted above) — this checkbox was the one that did not.
+ */
+describe('RecipeConflictView (native) — the stale-base confirm announces its checked state on web too', () => {
+    const confirmBox = () => screen.getByRole('checkbox', { name: 'I understand — continue anyway' });
+
+    it('starts unchecked with `aria-checked="false"` present, not absent', () => {
+        freezeClock();
+        renderConflict({ versionsBehind: 11 });
+
+        expect(confirmBox().getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('reports `aria-checked="true"` once acknowledged', () => {
+        freezeClock();
+        renderConflict({ versionsBehind: 11 });
+
+        fireEvent.click(confirmBox());
+
+        expect(confirmBox().getAttribute('aria-checked')).toBe('true');
+        // Lockstep with the sighted glyph — neither channel may drift from the other.
+        expect(confirmBox().textContent).toContain('☑');
+    });
+
+    it('reports `aria-checked="false"` again when a NEW conflict resets the acknowledgment', () => {
+        // The X6 reset is a state change AT does have to be told about: silently re-arming the gate while the
+        // announced state stayed "checked" would be worse than never announcing it.
+        freezeClock();
+        const firstProps: RecipeConflictViewProps = {
+            server,
+            base,
+            diff,
+            versionsBehind: 11,
+            isResolving: false,
+            selections: {},
+            onSelectionsChange: noop,
+            onKeepServer: noop,
+            onOverwrite: noop,
+            onMerge: noop,
+            onDiscardAndClose: noop,
+        };
+        const { rerender } = render(<RecipeConflictView {...firstProps} />);
+        fireEvent.click(confirmBox());
+        expect(confirmBox().getAttribute('aria-checked')).toBe('true');
+
+        const secondServer = makeVersionConflictSide({ versionNumber: 9, updatedAt: '2026-05-09T15:00:00.000Z' });
+        rerender(<RecipeConflictView {...firstProps} server={secondServer} />);
+
+        expect(confirmBox().getAttribute('aria-checked')).toBe('false');
+    });
+});

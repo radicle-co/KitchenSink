@@ -195,7 +195,13 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                         <Pressable
                             accessibilityRole="button"
                             accessibilityLabel={loadMore.loading ? discovery.loadingMore : discovery.loadMore}
+                            // `disabled` already reaches the DOM (RNW derives `aria-disabled` from the
+                            // `disabled` prop below), but `busy` does not — react-native-web projects
+                            // `accessibilityState` to no attribute at all (#123). `aria-busy` is RN's own
+                            // first-class ALIAS for `accessibilityState.busy`, so it is device-correct too;
+                            // omitted while idle because ARIA already defaults it to false.
                             accessibilityState={{ busy: loadMore.loading, disabled: loadMore.loading }}
+                            aria-busy={loadMore.loading || undefined}
                             disabled={loadMore.loading}
                             onPress={loadMore.onLoadMore}
                             style={[styles.loadMore, loadMore.loading && styles.loadMoreBusy]}
@@ -278,7 +284,18 @@ export const RecipeDiscoveryList: FC<RecipeDiscoveryListProps> = ({
                             <Pressable
                                 key={option}
                                 accessibilityRole="radio"
+                                // Both state forms are load-bearing, neither is redundant (#123).
+                                // `accessibilityState.checked` is the DEVICE trait; `aria-checked` is the only
+                                // one that reaches the DOM — react-native-web forwards literal `aria-*` props
+                                // and projects `accessibilityState` for NOTHING, so this `radiogroup` announced
+                                // four stateless radios on the web build and the ACTIVE sort was carried by
+                                // `sortChipActive`'s fill alone (colour only). `aria-checked` is `role="radio"`'s
+                                // own attribute — not `aria-selected` (ARIA allows it only on
+                                // `option`/`tab`/`row`/`gridcell`-family roles) and not `aria-pressed` (a
+                                // toggle-BUTTON attribute). Keep both: RN reverse-maps `aria-checked` into
+                                // `accessibilityState.checked`, so dropping the object form silences the device.
                                 accessibilityState={{ checked }}
+                                aria-checked={checked}
                                 onPress={() => sort.onChange(option)}
                                 style={[styles.sortChip, checked && styles.sortChipActive]}
                             >

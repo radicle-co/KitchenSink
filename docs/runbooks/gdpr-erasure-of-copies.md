@@ -17,15 +17,16 @@
 All windows below are **bounded** — the residual self-expires. That bounded residual is the accepted
 Art. 17 posture; the only unbounded hazard is a **manual RDS snapshot** (§4).
 
-| Copy                                              | Retention (verified)                                 | Source                                                                                       |
-| ------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| **RDS automated backups** (point-in-time)         | **7 days**                                           | `packages/infra/global/lib/platform/data-stack.ts:148` (`backupRetention: Duration.days(7)`) |
-| **RDS manual snapshots**                          | **UNBOUNDED** until deleted                          | operator-created; **not** governed by `backupRetention` — see §4                             |
-| **SQS deletion / erasure queues**                 | 14 days (message retention) / 4 days (DLQ)           | `data-stack.ts:257,263`; `recipe-workers-stack.ts:184,206`                                   |
-| **S3 versioned buckets** (recipe media/versions)  | non-current versions expire per lifecycle (≈30 days) | `data-stack.ts:296` (`expiration: Duration.days(30)`) — verify per bucket                    |
-| **CloudWatch logs** — identity, identity-webhooks | 1 month                                              | `identity-service-stack.ts:176`, `webhooks-stack.ts:167,344,350`                             |
-| **CloudWatch logs** — recipe-workers              | 2 weeks                                              | `recipe-workers-stack.ts:175`                                                                |
-| **Sentry**                                        | per project retention (Sentry-side setting)          | out-of-repo; confirm in the Sentry org settings                                              |
+| Copy                                              | Retention (verified)                                 | Source                                                                                          |
+| ------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **RDS automated backups** (point-in-time)         | **7 days**                                           | `packages/infra/global/lib/platform/data-stack.ts:148` (`backupRetention: Duration.days(7)`)    |
+| **RDS manual snapshots**                          | **UNBOUNDED** until deleted                          | operator-created; **not** governed by `backupRetention` — see §4                                |
+| **SQS deletion / erasure queues**                 | 14 days (message retention) / 4 days (DLQ)           | `data-stack.ts:257,263`; `recipe-workers-stack.ts:184,206`                                      |
+| **S3 versioned buckets** (recipe media/versions)  | non-current versions expire per lifecycle (≈30 days) | `data-stack.ts:296` (`expiration: Duration.days(30)`) — verify per bucket                       |
+| **CloudWatch logs** — identity, identity-webhooks | 1 month                                              | `identity-service-stack.ts:176`, `webhooks-stack.ts:167,344,350`                                |
+| **CloudWatch logs** — recipe-workers              | 2 weeks                                              | `recipe-workers-stack.ts:175`                                                                   |
+| **Sentry**                                        | per project retention (Sentry-side setting)          | out-of-repo; confirm in the Sentry org settings                                                 |
+| **Vercel Web Analytics** (web page views)         | **24 h** visitor hash, then aggregate-only — see §1a | `packages/apps/commise/web/src/lib/analyticsRedaction.ts` (redaction); retention is Vercel-side |
 
 **Logs already minimize going forward.** As of the observability-scrub change, person-linked ids
 (Clerk `sub`, app ULID) are **pseudonymized** at the log/Sentry boundary (`anon_<hash>`), so _new_
@@ -33,6 +34,44 @@ log/Sentry entries do not carry a raw re-identifier. The residual is limited to 
 aging out** within the windows above — no action required; they expire automatically. (Free-text
 error messages remain scrubbed for email/bearer/`sub`; ULIDs embedded in free text are the known
 residual — see the scrubber's `scrubText` note.)
+
+### 1a. Vercel Web Analytics — a sink that is OUTSIDE the Art. 17 erasure surface (reasoned, not assumed)
+
+`<RedactedAnalytics />` (mounted once, in `packages/apps/commise/web/src/app/[locale]/layout.tsx`) reports a
+page view per navigation to Vercel Web Analytics. It is listed here because it is a copy of behavioural data
+living outside the primary database — but it does **not** carry a per-data-subject record we could erase, for
+three stacked reasons. **All three are conditions, not permanent facts** — see the invalidating changes below.
+
+1. **What it collects, after redaction.** The `beforeSend` interceptor
+   (`web/src/lib/analyticsRedaction.ts`) projects every event URL onto `origin + pathname` and nothing else:
+   the **entire query string is dropped** (default-deny — no allowlist, no denylist), along with the fragment
+   and any URL userinfo, and email/bearer-shaped substrings are scrubbed out of the path. That is what keeps
+   `/[locale]/discover`'s free-text `query` and its `dietaryFlags` — vegan / gluten-free / kosher, i.e.
+   plausibly health-condition or religious-observance data and therefore **Art. 9 special category** — off
+   the wire entirely, together with the credential-shaped `__clerk_handshake` / `__clerk_ticket`. What
+   remains: host, locale, route path, and opaque **content** ULIDs (a recipe/collection id). Vercel adds its
+   own request-derived attributes (referrer, device/OS/browser, coarse geography).
+2. **No identifier we hold is ever sent.** The app passes no app ULID, no Clerk `sub`, and no email to
+   analytics — it calls no `track()` at all, and the redacted URL cannot contain one. The visitor is
+   identified only by a **hash Vercel computes from the incoming request** (cookieless), which Vercel
+   discards after **24 hours**; only aggregate counts survive. So for a given data subject there is **no key
+   to search by** — not for us, and not for Vercel on a forwarded request. A content ULID in a path is the
+   id of a _recipe_, not of a viewer: joining it back to our database reveals an owner, not who did the
+   viewing, so it yields no viewer-level record either.
+3. **The residual is bounded and self-expiring.** Within the ≤24 h window the pseudonymous hash makes those
+   page views arguably personal data; past it, what is left is anonymous statistics (recital 26) and outside
+   the GDPR entirely. That is the same bounded-residual posture as every other row in §1, at the shortest
+   window of any of them.
+
+**Conclusion: OUTSIDE the Art. 17 surface — no erasure action on a deletion request, and no manual step.**
+The residual expires on its own within 24 h.
+
+**What would invalidate this and pull analytics INSIDE the surface** (treat any of these as a privacy change
+needing its own review, not a refactor): removing or weakening the `beforeSend` interceptor; mounting
+`@vercel/analytics` anywhere other than `<RedactedAnalytics />`; calling `track()` with an app ULID, Clerk
+`sub`, email, or any other user identifier in the event name or properties; putting a user identifier into a
+URL **path** segment (paths survive redaction by design — only the query string is dropped); or enabling a
+Vercel feature that persists a durable per-visitor identifier beyond the 24 h hash.
 
 ---
 
@@ -43,6 +82,8 @@ residual — see the scrubber's `scrubText` note.)
 - **S3.** The erasure worker deletes the owner's objects; the orphan-sweeper (hourly, both buckets)
   reclaims late writes. Non-current **versions** expire per the bucket lifecycle. No manual step.
 - **Logs.** Minimized at write (pseudonymized) + bounded retention. No manual scrub.
+- **Vercel Web Analytics.** Nothing to erase and nothing to search by — see §1a for the reasoning and for
+  the changes that would invalidate it.
 
 The **only** manual GDPR action tied to erasure is a **database restore that predates it** (§3), plus
 the standing **manual-snapshot discipline** (§4).

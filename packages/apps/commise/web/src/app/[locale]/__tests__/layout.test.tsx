@@ -7,17 +7,22 @@
  * "exactly once" a property worth asserting rather than assuming: a second `<Analytics />` added lower in
  * the tree would double-count every page view, and one added outside `<body>` would not ship at all.
  *
- * Pattern: the layout is a **Composite** of providers (Clerk → Locale → Recipe) with Analytics as a
+ * Pattern: the layout is a **Composite** of providers (Clerk → Locale → Recipe) with analytics as a
  * **Null Object** leaf — it renders no DOM, only a document-level effect. The provider ORDER is a
  * contract, not an accident (`RecipeProviders` calls `useAuth`, so it must sit inside `ClerkProvider`;
  * `LocaleProvider` feeds `useMessages` beneath both), so this suite pins the whole chain: an
  * "insert the analytics tag" edit that reshuffles the providers fails here rather than at runtime.
  *
+ * The leaf is `<RedactedAnalytics />`, never the vendor's `<Analytics />` directly — the wrapper is what
+ * binds the `beforeSend` URL redaction (`src/lib/analyticsRedaction.ts`), so mounting the raw leaf here
+ * would ship every page view's full query string. Both facts are asserted below: the wrapper is present
+ * AND the raw leaf is absent, so a revert to `<Analytics />` fails here rather than in production traffic.
+ *
  * The layout is invoked as the plain async function a Next server component is, and the returned ELEMENT
  * TREE is inspected (the `appShellRoutes` / `dataPagePrefetch` precedent) — no framework runtime, no
  * mounting, and therefore no chance of a real analytics beacon. `@vercel/analytics/next` is mocked
- * regardless, both to keep the network unreachable and because comparing against the mocked export is
- * what proves the layout imports the App-Router entry point (`/next`) rather than `/react`.
+ * regardless, both to keep the network unreachable and so the raw-leaf absence check compares against a
+ * known export identity.
  */
 import { assert, describe, expect, it, vi } from 'vitest';
 import type { ReactElement, ReactNode } from 'react';
@@ -36,6 +41,7 @@ vi.mock('next/navigation', () => ({
 const { Analytics } = await import('@vercel/analytics/next');
 const { ClerkProvider } = await import('@clerk/nextjs');
 const { LocaleProvider } = await import('@commise/i18n/react');
+const { RedactedAnalytics } = await import('@/components/app/RedactedAnalytics');
 const { RecipeProviders } = await import('@/components/recipes/RecipeProviders');
 const { default: LocaleLayout, generateStaticParams } = await import('../layout.js');
 
@@ -96,29 +102,36 @@ function pathToType(node: ReactNode, type: unknown): readonly unknown[] {
 }
 
 describe('the locale root layout mounts Vercel Web Analytics', () => {
-    it('renders the Analytics component from the App-Router entry point', async () => {
+    it('renders the REDACTING analytics wrapper, never the raw vendor leaf', async () => {
+        // The raw leaf reports the full URL, query string included. Only the wrapper binds `beforeSend`.
         const element = await renderLayout('en');
 
-        expect(collectElementsByType(element, Analytics)).toHaveLength(1);
+        expect(collectElementsByType(element, RedactedAnalytics)).toHaveLength(1);
+        expect(collectElementsByType(element, Analytics)).toHaveLength(0);
     });
 
     it('renders it exactly once per document, inside <body>', async () => {
         // Two instances double-count every page view; one outside `<body>` never reaches the document.
         const element = await renderLayout('en');
-        const path = pathToType(element, Analytics);
+        const path = pathToType(element, RedactedAnalytics);
 
         expect(path).toContain('body');
-        expect(path.filter((type) => type === Analytics)).toHaveLength(1);
-        expect(collectElementsByType(element, Analytics)).toHaveLength(1);
+        expect(path.filter((type) => type === RedactedAnalytics)).toHaveLength(1);
+        expect(collectElementsByType(element, RedactedAnalytics)).toHaveLength(1);
     });
 
     it('mounts it for EVERY supported locale, not just the default', async () => {
         // The layout is per-locale, and `generateStaticParams` renders one tree per locale — a guard placed
-        // behind a locale check would silently leave other locales untracked.
+        // behind a locale check would silently leave other locales untracked (or, worse, leave one locale on
+        // the unredacted leaf).
         for (const locale of SUPPORTED_LOCALES) {
             const element = await renderLayout(locale);
 
-            expect(collectElementsByType(element, Analytics), `locale ${locale} mounts no Analytics`).toHaveLength(1);
+            expect(
+                collectElementsByType(element, RedactedAnalytics),
+                `locale ${locale} mounts no redacted Analytics`,
+            ).toHaveLength(1);
+            expect(collectElementsByType(element, Analytics), `locale ${locale} mounts the RAW leaf`).toHaveLength(0);
         }
 
         expect(generateStaticParams().map(({ locale }) => locale)).toEqual([...SUPPORTED_LOCALES]);
@@ -146,7 +159,7 @@ describe('the locale root layout preserves its provider composition', () => {
         // document-level side effect to state it does not use, and would make it route content.
         const element = await renderLayout('en');
 
-        expect(pathToType(element, Analytics)).toEqual([ClerkProvider, 'html', 'body', Analytics]);
+        expect(pathToType(element, RedactedAnalytics)).toEqual([ClerkProvider, 'html', 'body', RedactedAnalytics]);
     });
 
     it('still renders the route content it was handed, beside the analytics leaf', async () => {
@@ -159,7 +172,7 @@ describe('the locale root layout preserves its provider composition', () => {
         const children = (recipeProviders.props as { children?: ReactNode }).children;
 
         expect(collectElementsByType(children, 'span')).toHaveLength(1);
-        expect(collectElementsByType(children, Analytics)).toHaveLength(0);
+        expect(collectElementsByType(children, RedactedAnalytics)).toHaveLength(0);
     });
 
     it('rejects an unsupported locale before rendering anything', async () => {

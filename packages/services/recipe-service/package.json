@@ -43,12 +43,12 @@
         "class-validator": "^0.14.0",
         "constructs": "^10.0.0",
         "drizzle-orm": "^0.45.2",
-        "file-type": "^19.6.0",
+        "file-type": "^22.0.1",
         "jose": "^6.2.3",
         "pg": "^8.21.0",
         "reflect-metadata": "^0.2.0",
         "rxjs": "^7.8.0",
-        "sharp": "^0.34.5",
+        "sharp": "^0.35.3",
         "zod": "^4.4.3"
     },
     "devDependencies": {

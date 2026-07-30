@@ -70,7 +70,7 @@
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "tsx": "*",
-        "typescript": "^5.9.3",
+        "typescript": "^7.0.2",
         "vitest": "^4.0.0",
         "@types/debug": "^4.1.12"
     },

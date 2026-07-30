@@ -76,7 +76,7 @@
         "prettier": "^3.0.0",
         "react-dom": "^19.2.7",
         "react-test-renderer": "^19.2.7",
-        "typescript": "^5.9.3",
+        "typescript": "^7.0.2",
         "vitest": "^4.0.0"
     },
     "engines": {

@@ -698,13 +698,13 @@ jobs:
                   echo "image_tag=${image##*:}" >> "$GITHUB_OUTPUT"
                   # `|| [0]` yields the string `None` when the variable is absent — which is exactly the
                   # defect this asserts against, so it is passed through as-is and classified, not swallowed.
+                  # ⚠️ LOWERCASE `name`/`value`. ECS `KeyValuePair` is one of the few AWS shapes that is
+                  # not PascalCase, unlike the `Exports[?Name==…].Value` queries elsewhere in this file.
+                  # Filtering on `Name` matches NOTHING and yields `None`, which this step maps to an empty
+                  # string — indistinguishable from the variable genuinely being unset. That produced a
+                  # FALSE smoke failure claiming the recipe task could not reach food, while revision 18
+                  # carried FOOD_SERVICE_URL=https://food-pr-73.commise.app the whole time.
                   food_url=$(aws ecs describe-task-definition --task-definition "$task_def" \
-                    # ⚠️ LOWERCASE `name`/`value`. ECS `KeyValuePair` is one of the few AWS shapes that is
-                    # not PascalCase, unlike the `Exports[?Name==…].Value` queries elsewhere in this file.
-                    # Filtering on `Name` matches NOTHING and yields `None`, which this step maps to an empty
-                    # string — indistinguishable from the variable genuinely being unset. That produced a
-                    # FALSE smoke failure claiming the recipe task could not reach food, while revision 18
-                    # carried FOOD_SERVICE_URL=https://food-pr-73.commise.app the whole time.
                     --query "taskDefinition.containerDefinitions[0].environment[?name=='FOOD_SERVICE_URL'].value | [0]" \
                     --output text)
                   [ "$food_url" = 'None' ] && food_url=''

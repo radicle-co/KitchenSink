@@ -411,6 +411,19 @@ jobs:
             # Drives the erasure/archive integration specs against the real, migrated Postgres + LocalStack
             # S3. The S3 clients hardcode `test`/`test` creds and force path-style addressing, so only the
             # endpoint + bucket names come from env; both are set for parity with `integration-recipe`.
+            # The lambda BUNDLE must exist before the integration tier. `workers-app-synth.integration.spec.ts`
+            # spawns the real CDK app, and `RecipeWorkersStack` refuses to synth without `dist/` — it asserts
+            # the bundle is present rather than deploying a phantom `lambda.Code.fromAsset`. That check is
+            # correct; what was missing is that this job never built it, so the spec passed locally (where a
+            # previous build had left `dist/` lying around) and failed in CI's clean checkout. Same class as
+            # the `cdk.out` format:check and the incremental-tsc-skips-emit traps: a build artifact that
+            # exists locally by accident is not a dependency that exists.
+            #
+            # Run through turbo, not the bare npm script, so `^build` drags in the shared packages the bundle
+            # needs (`@kitchensink/recipe-core`) instead of assuming they are already built.
+            - name: Build the recipe-workers lambda bundle (the synth spec needs it)
+              run: npx turbo run build --filter=@kitchensink/recipe-workers
+
             - name: Run recipe-workers integration tests
               env:
                   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/recipe_workers_test

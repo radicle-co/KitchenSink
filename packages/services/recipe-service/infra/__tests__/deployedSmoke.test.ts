@@ -22,12 +22,36 @@
  *      from every browser while remaining perfectly healthy to curl. This is the exact observed failure.
  *   3. `classifyImageCurrency` — what is running is what we just built. Staleness is invisible to both of
  *      the above: a correct, healthy, CORS-enabled OLD build passes them and is still wrong.
+ *
+ * ## The fourth and fifth blind spots (issue #124): the service is fine, the ECOSYSTEM is not
+ *
+ * All three checks above interrogate ONE service in isolation, so all three stay green on a preview whose
+ * cross-service wiring is broken — which is what `pr-73` shipped: `RECIPE_FOOD_SERVICE_URL` is a REQUIRED
+ * prop naming `https://food-pr-{N}.commise.app`, but the food deploy job was gated on food paths, so a
+ * recipe-only PR pointed a healthy recipe service at a host that did not exist. Everything answered 200
+ * except the blended USDA catalog, which degraded to `catalogAvailability: 'unavailable'` in silence.
+ *
+ *   4. `classifyDependencyWiring`      — the RUNNING recipe task is configured for THIS PR's food service.
+ *   5. `classifyDependencyReachability`— that food origin actually answers.
+ *
+ * Check 5 is the one with a trap: `food-pr-{N}.commise.app/v1/foods/search` answers **401 by design** (it
+ * requires a Clerk-verified token). So "200 or bust" is exactly the wrong assertion — a 401 from the real
+ * host is PROOF of reachability (DNS → shared-ALB host rule → the food service's own auth layer all had to
+ * work to produce it), whereas a transport failure or the shared ALB's default `404 text/plain` proves the
+ * opposite. Both directions are asserted below.
  */
 import { describe, expect, it } from 'vitest';
 
-import { classifyHealth, classifyImageCurrency, classifyPreflight } from '../smoke/deployedSmoke.js';
+import {
+    classifyDependencyReachability,
+    classifyDependencyWiring,
+    classifyHealth,
+    classifyImageCurrency,
+    classifyPreflight,
+} from '../smoke/deployedSmoke.js';
 
 const ORIGIN = 'https://pr-73.sandbox.commise.app';
+const FOOD_ORIGIN = 'https://food-pr-73.commise.app';
 
 describe('classifyHealth', () => {
     it('passes on 200', () => {
@@ -98,5 +122,149 @@ describe('classifyImageCurrency', () => {
 
     it('fails when the running tag cannot be determined', () => {
         expect(classifyImageCurrency(undefined, 'pr-73-ceca226f').ok).toBe(false);
+    });
+});
+
+describe("classifyDependencyWiring — the RUNNING recipe task points at THIS PR's food service", () => {
+    it('passes when the configured origin is the expected one', () => {
+        expect(classifyDependencyWiring(FOOD_ORIGIN, FOOD_ORIGIN).ok).toBe(true);
+    });
+
+    it('tolerates a trailing slash and host casing, which name the same origin', () => {
+        expect(classifyDependencyWiring(FOOD_ORIGIN, `${FOOD_ORIGIN}/`).ok).toBe(true);
+        expect(classifyDependencyWiring(FOOD_ORIGIN, 'https://FOOD-PR-73.commise.app').ok).toBe(true);
+    });
+
+    // The defect that shipped: `props.foodServiceUrl` was optional and no workflow set
+    // RECIPE_FOOD_SERVICE_URL, so the live task definition carried no FOOD_* variables at all.
+    it('FAILS when the running task carries no food origin at all', () => {
+        const verdict = classifyDependencyWiring(FOOD_ORIGIN, undefined);
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toMatch(/FOOD_SERVICE_URL/);
+    });
+
+    it('fails on an empty configured origin', () => {
+        expect(classifyDependencyWiring(FOOD_ORIGIN, '').ok).toBe(false);
+    });
+
+    // Cross-wiring is worse than no wiring: a preview reading the SHARED sandbox/prod catalog looks like it
+    // works while testing someone else's data, and writes its typeahead load onto another stage.
+    it("FAILS when the task points at another stage's food service, naming both origins", () => {
+        const verdict = classifyDependencyWiring(FOOD_ORIGIN, 'https://food.commise.app');
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toContain('https://food.commise.app');
+        expect(verdict.reason).toContain(FOOD_ORIGIN);
+    });
+
+    it("fails when a different PR's food service is configured", () => {
+        expect(classifyDependencyWiring(FOOD_ORIGIN, 'https://food-pr-59.commise.app').ok).toBe(false);
+    });
+
+    it('fails when the configured value is not an absolute origin', () => {
+        expect(classifyDependencyWiring(FOOD_ORIGIN, 'food-pr-73.commise.app').ok).toBe(false);
+    });
+});
+
+describe('classifyDependencyReachability — 401 proves reachability; unreachable and the ALB 404 do not', () => {
+    // ⛔ The trap. `GET /v1/foods/search` without a Clerk token is SUPPOSED to be rejected, so demanding a
+    // 200 here would fail every correctly-wired preview. What the probe proves is that the request reached
+    // the food service at all: DNS resolved, the shared ALB matched this PR's host rule, and food's auth
+    // layer ran. That is the whole assertion.
+    it('PASSES on 401 — the correct rejection of an unauthenticated probe', () => {
+        const verdict = classifyDependencyReachability(FOOD_ORIGIN, {
+            outcome: 'responded',
+            status: 401,
+            contentType: 'application/json',
+        });
+
+        expect(verdict.ok).toBe(true);
+        expect(verdict.reason).toMatch(/401/);
+    });
+
+    it('passes on 403 as well — also an auth decision, so also proof the service answered', () => {
+        expect(classifyDependencyReachability(FOOD_ORIGIN, { outcome: 'responded', status: 403 }).ok).toBe(true);
+    });
+
+    // Only the food service itself can rate-limit (the shared ALB has no such action), so a 429 is still
+    // proof the request arrived — and food deliberately sheds repeated 401s per source (FR-052).
+    it('passes on 429 — only the service itself can shed load, so the request arrived', () => {
+        expect(classifyDependencyReachability(FOOD_ORIGIN, { outcome: 'responded', status: 429 }).ok).toBe(true);
+    });
+
+    // The other direction. This is the state a recipe-only PR was left in before issue #124: the host has
+    // no DNS record, so nothing answers.
+    it('FAILS when nothing answered at all, and says the per-PR food service is missing', () => {
+        const verdict = classifyDependencyReachability(FOOD_ORIGIN, {
+            outcome: 'no-response',
+            detail: 'getaddrinfo ENOTFOUND food-pr-73.commise.app',
+        });
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toContain('ENOTFOUND');
+        expect(verdict.reason).toMatch(/food/i);
+    });
+
+    // The shared ALB answers every unmatched host with a fixed `404 text/plain` "Not Found" (ADR-0003), so
+    // this is the signature of "DNS resolves but this PR's listener rule was never created" — a DIFFERENT
+    // failure from an absent host, and the message must not conflate them.
+    it('FAILS on the shared ALB default 404 (text/plain), and names the missing listener rule', () => {
+        const verdict = classifyDependencyReachability(FOOD_ORIGIN, {
+            outcome: 'responded',
+            status: 404,
+            contentType: 'text/plain; charset=utf-8',
+        });
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toMatch(/listener rule|not routed/i);
+    });
+
+    // A JSON 404 came from a Nest app, so the host IS routed — the route is missing, i.e. a version skew
+    // between the deployed food service and the API recipe expects.
+    it('fails on a JSON 404 with a different reason — routed, but the endpoint is gone', () => {
+        const verdict = classifyDependencyReachability(FOOD_ORIGIN, {
+            outcome: 'responded',
+            status: 404,
+            contentType: 'application/json; charset=utf-8',
+        });
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toMatch(/route|endpoint/i);
+        expect(verdict.reason).not.toMatch(/listener rule/i);
+    });
+
+    // An UNAUTHENTICATED 200 is not good news: the catalog requires a Clerk-verified token, so either the
+    // auth guard is gone or something other than the food service is answering this host.
+    it('FAILS on a 2xx to an unauthenticated probe — the auth boundary is open', () => {
+        const verdict = classifyDependencyReachability(FOOD_ORIGIN, { outcome: 'responded', status: 200 });
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toMatch(/unauthenticated/i);
+    });
+
+    it('fails on a 5xx — routed, but the food service is erroring', () => {
+        const verdict = classifyDependencyReachability(FOOD_ORIGIN, { outcome: 'responded', status: 503 });
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toContain('503');
+    });
+
+    it('fails on a redirect, which no API client follows blindly', () => {
+        expect(classifyDependencyReachability(FOOD_ORIGIN, { outcome: 'responded', status: 302 }).ok).toBe(false);
+    });
+
+    it('names the dependency origin in every verdict, so the log says WHICH host was probed', () => {
+        const observations = [
+            { outcome: 'no-response', detail: 'boom' },
+            { outcome: 'responded', status: 401 },
+            { outcome: 'responded', status: 404, contentType: 'text/plain' },
+            { outcome: 'responded', status: 200 },
+            { outcome: 'responded', status: 500 },
+        ] as const;
+
+        for (const observation of observations) {
+            expect(classifyDependencyReachability(FOOD_ORIGIN, observation).reason).toContain(FOOD_ORIGIN);
+        }
     });
 });

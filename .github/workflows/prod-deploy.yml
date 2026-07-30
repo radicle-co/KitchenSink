@@ -407,8 +407,12 @@ jobs:
 
             # Health alone would not have caught the sandbox outage: the service was healthy to curl while
             # every BROWSER was blocked, because a CORS preflight carries no credentials and the auth layer
-            # answered it with 401. This asserts live + browser-reachable + running the image we just built.
-            - name: Smoke test — recipe service live, browser-reachable and CURRENT (prod)
+            # answered it with 401. This asserts live + browser-reachable + running the image we just built +
+            # WIRED to the food service (issue #124): the running task must carry the right FOOD_SERVICE_URL,
+            # and that origin must answer. `food.<domain>/v1/foods/search` answers 401 BY DESIGN (it needs a
+            # Clerk token), and the smoke treats that 401 as the PASS — only a transport failure or the shared
+            # ALB's default 404 is a failure.
+            - name: Smoke test — recipe service live, browser-reachable, CURRENT and WIRED to food (prod)
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: |
                   set -euo pipefail
@@ -419,11 +423,17 @@ jobs:
                     --query 'services[0].taskDefinition' --output text)
                   image=$(aws ecs describe-task-definition --task-definition "$task_def" \
                     --query 'taskDefinition.containerDefinitions[0].image' --output text)
+                  food_url=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                    --query "taskDefinition.containerDefinitions[0].environment[?Name=='FOOD_SERVICE_URL'].Value | [0]" \
+                    --output text)
+                  [ "$food_url" = 'None' ] && food_url=''
                   npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
-                    "https://recipe.${{ vars.DOMAIN_NAME }}" \
-                    "https://${{ vars.DOMAIN_NAME }}" \
-                    "${{ github.sha }}" \
-                    "${image##*:}"
+                    --base-url "https://recipe.${{ vars.DOMAIN_NAME }}" \
+                    --web-origin "https://${{ vars.DOMAIN_NAME }}" \
+                    --expected-image-tag "${{ github.sha }}" \
+                    --running-image-tag "${image##*:}" \
+                    --food-origin "${{ steps.food.outputs.url }}" \
+                    --configured-food-origin "${food_url}"
 
             - name: Smoke test — food service live & reachable (prod)
               if: steps.flags.outputs.deploy_food == 'true'

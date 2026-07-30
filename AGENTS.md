@@ -37,5 +37,6 @@ TypeScript 5.x, Node.js 22.x (Lambda runtime): Follow standard conventions
 Before "simplifying" one of these, read the linked ADR and confirm you're not reintroducing the failure it prevents:
 
 - **Sandbox front-ends use path routing (`sandbox.commise.app/pr-{N}`), NOT per-PR subdomains.** Clerk's `azp` check is exact-string (no wildcards) and the sandbox identity service is shared, so per-PR origins would 401 every preview. See `docs/architecture/decisions/0001-sandbox-front-end-addressing.md`.
+- **A PR's deploy jobs are gated ENSURE-EXISTS, not on changed paths.** `deploy-food` / `deploy-recipe` run when the sources changed **or** the `pr-{N}` stack is absent/wedged **or** the origin does not answer — so a docs-only PR still gets food + recipe-workers + recipe-service. Don't restore the `paths-filter`-only gate (it left recipe-only previews with no food service and a dead `RECIPE_FOOD_SERVICE_URL`), and don't replace it with an unconditional redeploy (two Docker images per push). The deployed smoke treats food's **401** as the PASS: a transport failure or the shared ALB's default `404 text/plain` is the failure. See `docs/architecture/decisions/0010-ensure-exists-per-pr-deploy-gate.md`.
 
 <!-- MANUAL ADDITIONS END -->

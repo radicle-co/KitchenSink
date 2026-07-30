@@ -13,7 +13,7 @@
  */
 import 'reflect-metadata';
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -67,17 +67,35 @@ const mockVerify = vi.mocked(verifyClerkToken);
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../src/db/migrations');
 
+/**
+ * App-user ULIDs (from each user token's `external_id`) — THE requester key post-CR-002/U1. A user
+ * principal keys `fetch_requesters` on its ULID; a service (`svc_*`) principal keys on its `svc_*` id.
+ */
+const USER_ULID = '01J9ZK8N7QF3B2X4M6T0V5C1AB';
+const ADMIN_ULID = '01J9ZK8N7QF3B2X4M6T0V5C1AD';
+const FLOODER_ULID = '01J9ZK8N7QF3B2X4M6T0V5C1AF';
+
 /** Token → principal map for the deterministic auth matrix; an unknown token throws (→ 401). */
-function principalFor(token: string): { sub: string; azp?: string; scopes: string[]; permissions: string[] } {
+function principalFor(token: string): {
+    sub: string;
+    userId?: string;
+    azp?: string;
+    scopes: string[];
+    permissions: string[];
+} {
     switch (token) {
         case 'user':
-            return { sub: 'user_1', scopes: [], permissions: [] };
+            return { sub: 'user_1', userId: USER_ULID, scopes: [], permissions: [] };
         case 'admin':
-            return { sub: 'admin_1', scopes: ['food:admin'], permissions: [] };
+            return { sub: 'admin_1', userId: ADMIN_ULID, scopes: ['food:admin'], permissions: [] };
         case 'm2m':
             return { sub: 'svc_import', azp: 'svc-client', scopes: [], permissions: [] };
         case 'flooder':
-            return { sub: 'flooder', scopes: [], permissions: [] };
+            return { sub: 'flooder_clerk', userId: FLOODER_ULID, scopes: [], permissions: [] };
+        case 'user_nosync':
+            // A verified user token whose external_id has not been backfilled yet (first-token race):
+            // no `userId`, and the sub is not `svc_*` → the enqueue paths DEFER (CR-002/U1).
+            return { sub: 'user_2', scopes: [], permissions: [] };
         default:
             throw new ClerkVerificationError();
     }
@@ -171,19 +189,25 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         return { id, candidateIds: [c1, c2] };
     }
 
-    /** Seed `count` pending queue rows all requested by `sub` (backpressure fixtures). */
-    async function seedPendingQueue(count: number, sub: string): Promise<void> {
+    /** Seed `count` pending queue rows all requested by `requesterId` (backpressure fixtures). */
+    async function seedPendingQueue(count: number, requesterId: string): Promise<void> {
         for (let i = 0; i < count; i += 1) {
-            const id = await seedFood('PENDING', `pending food ${sub} ${i}`);
+            const id = await seedFood('PENDING', `pending food ${requesterId} ${i}`);
             await pool.query(`INSERT INTO fetch_queue (food_id, status) VALUES ($1, 'pending')`, [id]);
-            await pool.query(`INSERT INTO fetch_requesters (food_id, sub) VALUES ($1, $2)`, [id, sub]);
+            await pool.query(`INSERT INTO fetch_requesters (food_id, requester_id) VALUES ($1, $2)`, [id, requesterId]);
         }
     }
 
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-        for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
+        // DISCOVER the ordered migration set — never a hardcoded list. A hardcoded list has now silently
+        // rotted TWICE (it predated 0002's `fetch_requesters` rekey, and then 0003's `food.origin`), and each
+        // time the symptom was every route 500'ing against a schema the app expects but the test never
+        // applied. Discovery makes a new `.sql` file self-applying here, exactly as the real runner does.
+        for (const file of readdirSync(migrationsDir)
+            .filter((name) => name.endsWith('.sql'))
+            .sort()) {
             await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
         }
 
@@ -240,7 +264,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
             expect(queue.rows[0].n).toBe(0);
         });
 
-        it('ignores a forged x-debug-sub / x-authorizer-context and uses the verified sub for provenance', async () => {
+        it('ignores a forged x-debug-sub / x-authorizer-context and keys provenance on the app-user ULID', async () => {
             const res = await call('POST', '/v1/foods', {
                 token: 'user',
                 body: { name: 'forge test' },
@@ -248,16 +272,28 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
             });
             expect(res.status).toBe(202);
 
-            const requesters = await pool.query('SELECT sub FROM fetch_requesters');
-            expect(requesters.rows.map((r) => r.sub)).toEqual(['user_1']);
+            // CR-002/U1: the requester is the verified app-user ULID (external_id), NEVER the Clerk sub.
+            const requesters = await pool.query('SELECT requester_id FROM fetch_requesters');
+            expect(requesters.rows.map((r) => r.requester_id)).toEqual([USER_ULID]);
         });
 
-        it('accepts an azp-allowlisted M2M token (not 401) (FR-047)', async () => {
+        it('accepts an azp-allowlisted M2M token and keys provenance on its svc_* id (FR-047)', async () => {
             const res = await call('POST', '/v1/foods', { token: 'm2m', body: { name: 'service add' } });
             expect(res.status).toBe(202);
 
-            const requesters = await pool.query('SELECT sub FROM fetch_requesters');
-            expect(requesters.rows.map((r) => r.sub)).toEqual(['svc_import']);
+            const requesters = await pool.query('SELECT requester_id FROM fetch_requesters');
+            expect(requesters.rows.map((r) => r.requester_id)).toEqual(['svc_import']);
+        });
+
+        it('DEFERS a user enqueue with 401 when external_id has not synced yet, recording no row (CR-002/U1)', async () => {
+            const res = await call('POST', '/v1/foods', { token: 'user_nosync', body: { name: 'pre-sync add' } });
+            expect(res.status).toBe(401);
+
+            // No food, no queue row, no requester — the raw sub is NEVER recorded.
+            const foods = await pool.query('SELECT count(*)::int AS n FROM food');
+            expect(foods.rows[0].n).toBe(0);
+            const requesters = await pool.query('SELECT count(*)::int AS n FROM fetch_requesters');
+            expect(requesters.rows[0].n).toBe(0);
         });
 
         it('enforces precedence 401 > 400: a malformed id with a bad token → 401 (not 400)', async () => {
@@ -341,7 +377,14 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
             expect(res.status).toBe(200);
             const body = res.body as { status: string; food?: unknown };
             expect(body.status).toBe('RESOLVED');
-            expect(body.food).toBeDefined();
+            expect(body.food).toMatchObject({
+                id,
+                status: 'RESOLVED',
+                name: 'Broccoli, raw',
+                nutrients: [{ nutrient: 'Protein', amount: 2.8, unit: 'g', basis: 'per_100g', source: 'usda' }],
+                portions: [],
+                provenance: { name: 'usda' },
+            });
         });
 
         it('returns the status (no food) for a PENDING food and 404 for an unknown id', async () => {
@@ -641,7 +684,8 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         });
 
         it('flood-sheds a heavy sub near the ceiling while a light sub is unaffected', async () => {
-            await seedPendingQueue(9, 'flooder'); // near ceiling (>=9), flooder pending=9 > threshold(2)
+            // Seed keyed by the flooder's app-user ULID — the same requester id its token now resolves to.
+            await seedPendingQueue(9, FLOODER_ULID); // near ceiling (>=9), flooder pending=9 > threshold(2)
 
             const shed = await call('POST', '/v1/foods', { token: 'flooder', body: { name: 'flooder add' } });
             expect(shed.status).toBe(503);

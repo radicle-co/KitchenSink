@@ -1,0 +1,41 @@
+appId: io.commise.mobile
+---
+# First-run recipe library (US1) — the very first screen a brand-new account opens on, and the state a
+# reported defect shipped broken: the list hung on a permanent loading skeleton, so BOTH the empty branch
+# and the error branch were unreachable.
+#
+# No mobile flow could have caught that. `list-detail.yaml` asserted `New recipe` (the pinned FAB), which
+# renders while loading and while erroring too — it passes against a hung load — and its comment's claim to
+# tolerate an empty library was never true, since every other assertion in it is populated-only.
+#
+# This flow runs against an EMPTY recipe database: the per-flow reset truncates for every flow, and for THIS
+# flow only it skips the re-seed (`RESEED_MODE=empty`, see tests/e2e/run-maestro-flows.sh and reseed.mjs).
+# Every other flow keeps the seeded fixture unchanged. Read-only — it opens the create wizard but never
+# saves — and the next flow's reset re-seeds regardless, so it is order-independent.
+#
+# Mobile mirror of the web Playwright `recipeListEmptyStates.spec.ts` (cross-platform mandate).
+- runFlow: ../auth/signin.yaml
+
+# The empty library's OWN copy (recipe i18n `list.emptyTitle` / `emptyBody` / `emptyCreateCta`) — asserted
+# positively, so this flow can only pass in the state it names. The wait must outlast the recipe-service
+# fetch on first paint.
+- extendedWaitUntil:
+      visible: 'No recipes yet'
+      timeout: 40000
+- assertVisible: 'Create your first recipe to see it here.'
+- assertVisible: 'Create your first recipe'
+
+# The three ABSENCES that make this a real assertion instead of a tolerant one:
+#   - the loading skeleton's live region is GONE — the reported bug leaves it up for the life of the screen;
+#   - the pinned FAB is SUPPRESSED (L1: exactly one create control per state). Since the FAB renders in
+#     every OTHER state, including loading, its absence is precisely what tells first-run from a stuck wait;
+#   - nothing was typed and no chip pressed, so this is not the narrowed no-match state either.
+- assertNotVisible: 'Loading recipes'
+- assertNotVisible: 'New recipe'
+- assertNotVisible: 'No matching recipes'
+
+# The empty state is not a dead end: its CTA is a real control that opens the create wizard (step 1 of 4).
+- tapOn: 'Create your first recipe'
+- extendedWaitUntil:
+      visible: 'Step 1 of 4'
+      timeout: 30000

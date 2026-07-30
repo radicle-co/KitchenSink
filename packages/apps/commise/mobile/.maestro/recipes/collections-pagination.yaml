@@ -1,0 +1,110 @@
+appId: io.commise.mobile
+---
+# Collections pagination (W8-b Task 5, W5/C7) — the mobile mirror of the server-paged "Load more" collection
+# list: no sibling flow yet drove the list past a single page, so this is the first mobile E2E proof that
+# `useCollectionsInfinite` actually fetches a SECOND page rather than merely rendering the control.
+#
+# HERMETIC BY DESIGN, same reasoning as `collections.yaml`: the FREE-tier Maestro signer sees an EMPTY
+# collections list (the seeded collection is owned by the PRO subject), so this flow creates every row it
+# needs and deletes them all at the end. `collections.dal.ts`'s `listByOwner` orders `desc(createdAt)`
+# (newest first) and `collections.schemas.ts` defaults the server `pageSize` to 20, so reaching a second page
+# needs 21 owned collections: ONE named target created FIRST (oldest → pushed to position 21 once the 20
+# newer rows exist) plus 20 newer, identically-named fillers created after it. The fillers share one name
+# instead of 20 uniquely-numbered ones because nothing here — the page-1 assertion or cleanup — needs to
+# address a SPECIFIC filler, only "a row of this name"; that is also what keeps filler creation/cleanup a
+# `repeat` loop rather than 20 near-identical copy-pasted create/delete blocks (DRY).
+#
+# `CollectionList.native.tsx` wraps its populated state in a `ScrollView` (this flow is also the reason that
+# wrapper exists — a full page of 20 rows plus the load-more control does not fit one screen, and without a
+# scroll container the control was unreachable by touch); `scrollUntilVisible` reaches it below the fold.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+# SEED the eventual PAGE-2 row FIRST, while it is still the caller's only collection.
+#
+# WAITING ON THE FORM TO CLOSE (`notVisible: 'Collection name'`) BEFORE asserting the row is not belt-and-
+# braces — it is what makes these waits mean anything. The name was just TYPED INTO the form's own name input,
+# so `visible: 'Maestro pagination …'` is already satisfied BY THE FORM ITSELF, whether or not the collection
+# was ever created: a self-fulfilling assertion that proves nothing. Worse, it let the loop race the form's
+# dismissal — the next iteration's `tapOn: 'New collection'` then matched the still-open FORM's own region
+# label (accessibility label "New collection") and tapped inert space inside it, and by the time the following
+# `assertVisible: 'Collection name'` ran the create had landed and the form had closed, so it failed. That is
+# exactly how this flow died on filler #6 of 20. Gating on the form being GONE first makes each iteration
+# observe the real post-create state, and keeps the row assertion a genuine assertion about the LIST.
+- tapOn: 'New collection'
+- assertVisible: 'Collection name'
+- tapOn: 'Collection name'
+- inputText: 'Maestro pagination target'
+- tapOn: 'Create'
+- extendedWaitUntil:
+      notVisible: 'Collection name'
+      timeout: 40000
+- extendedWaitUntil:
+      visible: 'Maestro pagination target'
+      timeout: 40000
+
+# Fill exactly one full page (20) of NEWER collections ahead of the target, pushing it to position 21.
+- repeat:
+      times: 20
+      commands:
+          - tapOn: 'New collection'
+          - assertVisible: 'Collection name'
+          - tapOn: 'Collection name'
+          - inputText: 'Maestro pagination filler'
+          - tapOn: 'Create'
+          - extendedWaitUntil:
+                notVisible: 'Collection name'
+                timeout: 40000
+          - extendedWaitUntil:
+                visible: 'Maestro pagination filler'
+                timeout: 40000
+
+# PAGE 1: the 20 fillers are visible before any "load more" activation; the target (row 21) is proven ABSENT
+# — the assertion that a later "target visible" would otherwise prove nothing (it could just be un-paginated).
+- assertVisible: 'Maestro pagination filler'
+- assertNotVisible: 'Maestro pagination target'
+
+# PAGINATE. The load-more control (W5/C7 — server-paged, no infinite scroll) renders below the 20th row.
+- scrollUntilVisible:
+      element: 'Load more'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Load more'
+
+# The one row that was NEVER on page 1 is now visible — proof the second page actually loaded, not merely
+# that the button was pressed.
+- extendedWaitUntil:
+      visible: 'Maestro pagination target'
+      timeout: 40000
+
+# Row 21 was the last; the control disappears once there is no further page.
+- assertNotVisible: 'Load more'
+
+# CLEANUP (hermetic). Delete the target first (already on screen), then drain the 20 identically-named
+# fillers: each is deleted from the TOP of the (newest-first) list, which — unlike the load-more control — is
+# always on screen without scrolling, so removing the topmost match repeatedly surfaces the next one.
+- tapOn: 'Maestro pagination target'
+- assertVisible: 'Rename'
+- tapOn: 'Delete'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+- repeat:
+      while:
+          visible: 'Maestro pagination filler'
+      commands:
+          - tapOn: 'Maestro pagination filler'
+          - assertVisible: 'Rename'
+          - tapOn: 'Delete'
+          - extendedWaitUntil:
+                visible: 'New collection'
+                timeout: 40000
+
+- assertNotVisible: 'Maestro pagination filler'
+- assertNotVisible: 'Maestro pagination target'

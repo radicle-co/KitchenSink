@@ -1,36 +1,10 @@
 import { useAuth as useIdpAuth, useUser } from '@clerk/expo';
+import { deriveAuthState, type AuthState } from '@commise/features-account';
 import { useMemo } from 'react';
-import { type AuthState, IMPERSONATION_BLOCK, SUSPENDED_BLOCK } from '../types/auth';
 
-export function deriveAuthState(input: {
-    isLoaded: boolean;
-    isSignedIn: boolean | null | undefined;
-    userId: string | null | undefined;
-    sessionClaims: Record<string, unknown> | null | undefined;
-    userPublicMetadata: Record<string, unknown> | null | undefined;
-}): AuthState {
-    const { isLoaded, isSignedIn, userId, sessionClaims, userPublicMetadata } = input;
-
-    if (!isLoaded) {
-        return { status: 'loading' };
-    }
-
-    if (!isSignedIn || !userId) {
-        return { status: 'unauthenticated' };
-    }
-
-    if (sessionClaims && 'act' in sessionClaims && sessionClaims.act) {
-        return { status: 'blocked', reason: IMPERSONATION_BLOCK };
-    }
-
-    const status = userPublicMetadata?.status as string | undefined;
-
-    if (status === 'suspended') {
-        return { status: 'blocked', reason: SUSPENDED_BLOCK };
-    }
-
-    return { status: 'authenticated', userId };
-}
+// Re-exported so existing mobile imports (`from '../hooks/useAuth'`) keep resolving the shared
+// derivation; the logic itself lives in @commise/features-account (shared with web).
+export { deriveAuthState };
 
 export function useAuth(): {
     state: AuthState;

@@ -56,6 +56,12 @@ jobs:
                         - 'Dockerfile'
                       webhooks:
                         - 'packages/services/identity-webhooks/**'
+                      food:
+                        - 'packages/services/food-service/**'
+                      recipe:
+                        - 'packages/services/recipe-service/**'
+                        - 'packages/services/recipe-workers/**'
+                        - 'packages/shared/recipe-core/**'
 
             - name: Compute deploy flags
               id: flags
@@ -70,13 +76,22 @@ jobs:
                   if [ "${{ steps.changes.outputs.webhooks }}" = "true" ]; then deploy_webhooks=true; fi
                   run_migrations=false
                   if [ "$deploy_service" = "true" ] || [ "$deploy_webhooks" = "true" ]; then run_migrations=true; fi
+                  # Feature services deploy ONLY when their own paths changed. Unlike identity they are not
+                  # implied by a `global` change, so an infra-only commit cannot roll a feature service to
+                  # prod as a side effect.
+                  deploy_food=false
+                  deploy_recipe=false
+                  if [ "${{ steps.changes.outputs.food }}" = "true" ]; then deploy_food=true; fi
+                  if [ "${{ steps.changes.outputs.recipe }}" = "true" ]; then deploy_recipe=true; fi
                   {
                     echo "deploy_global=$deploy_global"
                     echo "deploy_service=$deploy_service"
                     echo "deploy_webhooks=$deploy_webhooks"
                     echo "run_migrations=$run_migrations"
+                    echo "deploy_food=$deploy_food"
+                    echo "deploy_recipe=$deploy_recipe"
                   } >> "$GITHUB_OUTPUT"
-                  echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks migrations=$run_migrations"
+                  echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks migrations=$run_migrations food=$deploy_food recipe=$deploy_recipe"
 
             - name: Setup Node.js
               uses: actions/setup-node@v6
@@ -145,9 +160,15 @@ jobs:
               run: |
                   echo "id=$(aws sts get-caller-identity --query Account --output text)" >> "$GITHUB_OUTPUT"
 
+            # Gated on ANY image-pushing deploy, not just identity: a food- or recipe-only change still
+            # needs the registry, and without this the push step would receive an empty
+            # `steps.login-ecr.outputs.registry` and tag the image against a bare `/kitchensink-…` path.
             - name: Login to Amazon ECR
               id: login-ecr
-              if: steps.flags.outputs.deploy_service == 'true'
+              if: |
+                  steps.flags.outputs.deploy_service == 'true' ||
+                  steps.flags.outputs.deploy_food == 'true' ||
+                  steps.flags.outputs.deploy_recipe == 'true'
               uses: aws-actions/amazon-ecr-login@v2
 
             - name: Ensure ECR repository exists
@@ -224,4 +245,215 @@ jobs:
                     sleep "$delay"
                   done
                   echo "::error::identity not serving HTTP 200 at $HEALTH_URL after ~$((attempts * delay))s (last=$code)"
+                  exit 1
+
+            # ────────────────────────────────────────────────────────────────────────────────────────
+            # Feature services (food, recipe). Until now prod-deploy handled only global infra +
+            # identity + identity-webhooks, so NEITHER feature service had any production deploy path —
+            # feature 001's own backend could not reach prod at all. Each is gated on its own paths, so
+            # an identity or infra change never rolls a feature service to prod as a side effect.
+            #
+            # NOTE: the first successful run CREATES production infrastructure for these services
+            # (ECS services, queues, lambdas, DNS). That is intended, but it is not a no-op deploy.
+            # ────────────────────────────────────────────────────────────────────────────────────────
+
+            - name: Ensure food ECR repository exists
+              if: steps.flags.outputs.deploy_food == 'true'
+              run: aws ecr describe-repositories --repository-names kitchensink-food || aws ecr create-repository --repository-name kitchensink-food
+
+            - name: Build, tag, and push food service Docker image
+              if: steps.flags.outputs.deploy_food == 'true'
+              env:
+                  ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+                  IMAGE_TAG: ${{ github.sha }}
+              run: |
+                  npx turbo run build --filter=@kitchensink/food-service
+                  npm run docker:prepare --workspace=packages/services/food-service
+                  npm run infra:build --workspace=packages/services/food-service
+                  npm run bundle:lambda --workspace=packages/services/food-service
+                  docker buildx build --platform linux/amd64 -f packages/services/food-service/Dockerfile \
+                    -t ${ECR_REGISTRY}/kitchensink-food:${IMAGE_TAG} --push .
+
+            - name: CDK Deploy (food service)
+              if: steps.flags.outputs.deploy_food == 'true'
+              run: |
+                  STAGE=${{ env.STAGE }} \
+                  FOOD_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} \
+                  FOOD_IMAGE_TAG=${{ github.sha }} \
+                  npx cdk deploy --app "node packages/services/food-service/infra/dist/bin/app.js" \
+                    --all --require-approval never
+
+            - name: Run food DB migrations
+              if: steps.flags.outputs.deploy_food == 'true'
+              run: |
+                  set -euo pipefail
+                  FN=$(aws cloudformation describe-stacks --stack-name "kitchensink-food-service-${STAGE}" \
+                      --query "Stacks[0].Outputs[?OutputKey=='FoodMigrationFunctionName'].OutputValue | [0]" --output text)
+                  ERR=$(aws lambda invoke --function-name "$FN" --query 'FunctionError' --output text /tmp/food-migrate.json)
+                  echo "Result: $(cat /tmp/food-migrate.json)"
+                  if [ "$ERR" != "None" ]; then echo "::error::food DB migration failed"; exit 1; fi
+
+            # Recipe: WORKERS BEFORE SERVICE. recipe-workers owns the account-erasure queue and publishes
+            # its URL/ARN to SSM (/kitchensink/{stage}/recipe/account-erasure-queue-*), which the service
+            # reads at DEPLOY time — service-first fails with "Unable to fetch parameters …". Every input
+            # is resolved from the prod platform tier's CloudFormation exports rather than hardcoded.
+            - name: Resolve recipe platform inputs (prod exports)
+              id: recipe-infra
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: |
+                  set -euo pipefail
+                  lookup() {
+                    local name="$1" value
+                    value=$(aws cloudformation list-exports --query "Exports[?Name=='${name}'].Value" --output text)
+                    if [ -z "$value" ] || [ "$value" = "None" ]; then
+                      echo "::error::CloudFormation export '${name}' not found — is the prod platform tier deployed?"
+                      exit 1
+                    fi
+                    echo "$value"
+                  }
+                  {
+                    echo "lambda_sg_id=$(lookup "kitchensink-network-${STAGE}:LambdaSecurityGroupId")"
+                    echo "db_endpoint=$(lookup "kitchensink-data-${STAGE}:DatabaseEndpoint")"
+                    echo "db_port=$(lookup "kitchensink-data-${STAGE}:DatabasePort")"
+                    # rds-db:connect ARNs key on the DbiResourceId (db-XXXX…), not the instance name.
+                    echo "db_resource_id=$(lookup "kitchensink-data-${STAGE}:DatabaseResourceId")"
+                    # The BASE logical database name (#119) — the workers app is a separate `cdk deploy` and
+                    # cannot `Fn.importValue` this export the way the recipe SERVICE stack does, so CI hands
+                    # it the resolved value and both stacks derive from ONE shared function. On prod
+                    # stage == baseStage, so this IS the name the workers use.
+                    echo "db_base_name=$(lookup "kitchensink-data-${STAGE}:RecipeDatabaseName")"
+                    echo "archive_bucket=$(lookup "kitchensink-data-${STAGE}:ArchiveBucketName")"
+                    echo "media_bucket=$(lookup "kitchensink-data-${STAGE}:MediaBucketName")"
+                    echo "handle_sync_topic_arn=$(lookup "kitchensink-data-${STAGE}:HandleSyncTopicArn")"
+                  } >> "$GITHUB_OUTPUT"
+
+            # The food origin the recipe service reads ingredient nutrition + catalog suggestions from
+            # (issue #120). `RECIPE_FOOD_SERVICE_URL` appeared in NO workflow, so the prod recipe task would
+            # boot with no food origin at all and every ingredient call would hit `http://localhost:3002` —
+            # itself, on food's port — with `FoodCatalogGateway` swallowing the failures.
+            #
+            # Derived by RUNNING the food stack's own host helper (`foodServiceOriginForStage`) rather than
+            # re-typing `food.${DOMAIN_NAME}` here, so prod and every preview share ONE definition of the host
+            # shape. Ordering needs no `needs:`: this is a single sequential job and the food deploy steps above
+            # already ran. Prod's food service is persistent, so the host exists even when this run did not
+            # redeploy food.
+            - name: Resolve the food service origin (prod)
+              id: food
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: |
+                  set -euo pipefail
+                  food_url=$(npx tsx packages/services/food-service/infra/bin/print-food-host.ts \
+                    "${STAGE}" "${{ vars.DOMAIN_NAME }}")
+                  echo "url=${food_url}" >> "$GITHUB_OUTPUT"
+                  echo "recipe will call food at ${food_url}"
+
+            - name: Ensure recipe ECR repository exists
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: aws ecr describe-repositories --repository-names kitchensink-recipes || aws ecr create-repository --repository-name kitchensink-recipes
+
+            - name: Build, tag, and push recipe service Docker image
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              env:
+                  ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+                  IMAGE_TAG: ${{ github.sha }}
+              run: |
+                  npx turbo run build --filter=@kitchensink/recipe-service --filter=@kitchensink/recipe-workers
+                  npm run infra:build --workspace=packages/services/recipe-service
+                  npm run bundle:lambda --workspace=packages/services/recipe-service
+                  docker buildx build --platform linux/amd64 -f packages/services/recipe-service/Dockerfile \
+                    -t ${ECR_REGISTRY}/kitchensink-recipes:${IMAGE_TAG} --push .
+
+            - name: CDK Deploy (recipe workers — publishes the erasure-queue SSM params)
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: |
+                  STAGE=${{ env.STAGE }} \
+                  DOMAIN_NAME=${{ vars.DOMAIN_NAME }} \
+                  RECIPE_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} \
+                  RECIPE_LAMBDA_SG_ID=${{ steps.recipe-infra.outputs.lambda_sg_id }} \
+                  RECIPE_DB_ENDPOINT=${{ steps.recipe-infra.outputs.db_endpoint }} \
+                  RECIPE_DB_PORT=${{ steps.recipe-infra.outputs.db_port }} \
+                  RECIPE_DB_INSTANCE_ID=${{ steps.recipe-infra.outputs.db_resource_id }} \
+                  RECIPE_DB_BASE_NAME=${{ steps.recipe-infra.outputs.db_base_name }} \
+                  RECIPE_ARCHIVE_BUCKET=${{ steps.recipe-infra.outputs.archive_bucket }} \
+                  RECIPE_MEDIA_BUCKET=${{ steps.recipe-infra.outputs.media_bucket }} \
+                  HANDLE_SYNC_TOPIC_ARN=${{ steps.recipe-infra.outputs.handle_sync_topic_arn }} \
+                  npx cdk deploy --app "npx tsx packages/services/recipe-workers/infra/bin/app.ts" \
+                    --all --require-approval never
+
+            - name: CDK Deploy (recipe service)
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: |
+                  STAGE=${{ env.STAGE }} \
+                  DOMAIN_NAME=${{ vars.DOMAIN_NAME }} \
+                  RECIPE_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} \
+                  RECIPE_IMAGE_TAG=${{ github.sha }} \
+                  RECIPE_FOOD_SERVICE_URL=${{ steps.food.outputs.url }} \
+                  npx cdk deploy --app "node packages/services/recipe-service/infra/dist/bin/app.js" \
+                    --all --require-approval never
+
+            # Omitting this is NOT a no-op: the tasks boot, /health answers 200 and the stack converges,
+            # because none of those touch the database — only real queries 500. That exact gap shipped to
+            # the sandbox preview.
+            - name: Run recipe DB migrations
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: |
+                  set -euo pipefail
+                  FN=$(aws cloudformation describe-stacks --stack-name "kitchensink-recipe-service-${STAGE}" \
+                      --query "Stacks[0].Outputs[?OutputKey=='RecipeMigrationFunctionName'].OutputValue | [0]" --output text)
+                  ERR=$(aws lambda invoke --function-name "$FN" --payload '{"action":"migrate"}' \
+                      --cli-binary-format raw-in-base64-out --query 'FunctionError' --output text /tmp/recipe-migrate.json)
+                  echo "Result: $(cat /tmp/recipe-migrate.json)"
+                  if [ "$ERR" != "None" ]; then echo "::error::recipe DB migration failed"; exit 1; fi
+
+            # Health alone would not have caught the sandbox outage: the service was healthy to curl while
+            # every BROWSER was blocked, because a CORS preflight carries no credentials and the auth layer
+            # answered it with 401. This asserts live + browser-reachable + running the image we just built +
+            # WIRED to the food service (issue #124): the running task must carry the right FOOD_SERVICE_URL,
+            # and that origin must answer. `food.<domain>/v1/foods/search` answers 401 BY DESIGN (it needs a
+            # Clerk token), and the smoke treats that 401 as the PASS — only a transport failure or the shared
+            # ALB's default 404 is a failure.
+            - name: Smoke test — recipe service live, browser-reachable, CURRENT and WIRED to food (prod)
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: |
+                  set -euo pipefail
+                  cluster=$(aws ecs list-clusters --query 'clusterArns[]' --output text \
+                    | tr '\t' '\n' | grep "recipe-service-${STAGE}-" | head -1)
+                  service=$(aws ecs list-services --cluster "$cluster" --query 'serviceArns[0]' --output text)
+                  task_def=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+                    --query 'services[0].taskDefinition' --output text)
+                  image=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                    --query 'taskDefinition.containerDefinitions[0].image' --output text)
+                  # ⚠️ LOWERCASE `name`/`value`. ECS `KeyValuePair` is one of the few AWS shapes that is
+                  # not PascalCase, unlike the `Exports[?Name==…].Value` queries elsewhere in this file.
+                  # Filtering on `Name` matches NOTHING and yields `None`, which this step maps to an empty
+                  # string — indistinguishable from the variable genuinely being unset. That produced a
+                  # FALSE smoke failure claiming the recipe task could not reach food, while revision 18
+                  # carried FOOD_SERVICE_URL=https://food-pr-73.commise.app the whole time.
+                  food_url=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                    --query "taskDefinition.containerDefinitions[0].environment[?name=='FOOD_SERVICE_URL'].value | [0]" \
+                    --output text)
+                  [ "$food_url" = 'None' ] && food_url=''
+                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                    --base-url "https://recipe.${{ vars.DOMAIN_NAME }}" \
+                    --web-origin "https://${{ vars.DOMAIN_NAME }}" \
+                    --expected-image-tag "${{ github.sha }}" \
+                    --running-image-tag "${image##*:}" \
+                    --food-origin "${{ steps.food.outputs.url }}" \
+                    --configured-food-origin "${food_url}"
+
+            - name: Smoke test — food service live & reachable (prod)
+              if: steps.flags.outputs.deploy_food == 'true'
+              env:
+                  HEALTH_URL: https://food.${{ vars.DOMAIN_NAME }}/health
+              run: |
+                  set -uo pipefail
+                  attempts=20; delay=15; code=000
+                  for i in $(seq 1 "$attempts"); do
+                    code=$(curl -s -o /tmp/food-health.out -w '%{http_code}' --max-time 10 "$HEALTH_URL" || true)
+                    [ -z "$code" ] && code=000
+                    if [ "$code" = "200" ]; then echo "✅ food healthy on attempt $i"; exit 0; fi
+                    echo "attempt $i/$attempts: HTTP $code at $HEALTH_URL — retrying in ${delay}s"
+                    sleep "$delay"
+                  done
+                  echo "::error::food not serving HTTP 200 at $HEALTH_URL after ~$((attempts * delay))s (last=$code)"
                   exit 1

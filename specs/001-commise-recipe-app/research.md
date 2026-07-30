@@ -3,6 +3,19 @@
 **Branch**: `001-commise-recipe-app` | **Date**: 2026-04-18
 **Spec**: [spec.md](./spec.md) | **Status**: Complete
 
+> **⚠️ SUPERSEDED (Phase-0 snapshot — routes/layout/package names frozen 2026-04-18).**
+> This is a frozen research artifact; its illustrative identifiers were **not** updated when the design
+> was finalized. Wherever this document shows the following, the **canonical** value (see spec.md, plan.md,
+> data-model.md, and contracts/) governs — treat every such occurrence below as superseded history, not
+> current guidance:
+>
+> - API route prefix `/api/v1/...` → **`/v1/...`** (e.g. `POST /api/v1/recipes/{id}/photos/...` → `POST /v1/recipes/{id}/photos/...`).
+> - Service layout `apps/api/v1/*` (and generic `apps/api`) → **`packages/services/recipe-service`** (NestJS recipe service).
+> - Shared-types package `@kitchensink/recipe-core` → **`@kitchensink/recipe-core`**.
+>
+> The technical findings (FTS, versioning, photo pipeline, framework/ORM choices) remain valid; only the
+> naming/routing scaffolding above was renamed downstream.
+
 ## Research Questions
 
 | #    | Question                                                                    | Status      |

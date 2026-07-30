@@ -1,0 +1,70 @@
+# Alert policies — feature 001-commise-recipe-app
+# Produced by Product Forge Phase 9 (release-readiness), 2026-07-16.
+#
+# Two tiers:
+#   A. SHIPPED — CloudWatch alarms already defined in
+#      packages/services/recipe-workers/infra/lib/recipe-workers-stack.ts and
+#      created per stage. These fire to the per-stage recipe-workers SNS topic.
+#      ACTION before ship: subscribe a human/pager to that SNS topic per stage
+#      (the topic exists; a subscription does not — see release-readiness.md).
+#   B. PROPOSED — API-tier SLI alerts for SC-009 (p95 ≤ 500ms) and error rate.
+#      These are NOT yet implemented; they are logged as action items because the
+#      recipe-service does not yet emit a request-latency/error CloudWatch metric.
+
+shipped:
+    # ── version-archive path (FR-007b-i) ──────────────────────────────────────
+    - name: recipe-archive-backlog
+      alarm_name: 'kitchensink-recipe-archive-backlog-{stage}'
+      condition: 'PendingArchiveBacklog (Commise/RecipeArchive) > 100 for 15m (3×5m)'
+      severity: P2
+      channel: 'recipe-workers SNS topic (per stage)'
+      rationale: 'S3 archiving falling behind; count-based.'
+    - name: recipe-archive-age
+      alarm_name: 'kitchensink-recipe-archive-age-{stage}'
+      condition: 'OldestPendingArchiveAgeSeconds (Commise/RecipeArchive) > 1h (1×5m)'
+      severity: P2
+      channel: 'recipe-workers SNS topic (per stage)'
+      rationale: 'A single row stuck past SLA that the count alarm cannot see.'
+    - name: recipe-archive-dlq
+      alarm_name: 'kitchensink-recipe-archive-dlq-{stage}'
+      condition: 'archiveDlq ApproximateNumberOfMessagesVisible > 0 (1×5m)'
+      severity: P1
+      channel: 'recipe-workers SNS topic (per stage)'
+      rationale: 'A version exhausted retries; row un-pruned, snapshot not in S3.'
+    # ── account-erasure path (GDPR) ───────────────────────────────────────────
+    - name: recipe-erasure-age
+      alarm_name: 'kitchensink-recipe-erasure-age-{stage}'
+      condition: 'OldestErasureJobAgeSeconds (Commise/RecipeErasure) > 1h (1×5m)'
+      severity: P1
+      channel: 'recipe-workers SNS topic (per stage)'
+      rationale: 'Right-to-erasure job stuck past an hour — compliance incident.'
+    - name: recipe-account-erasure-dlq
+      alarm_name: 'kitchensink-recipe-account-erasure-dlq-{stage}'
+      condition: 'erasureDlq ApproximateNumberOfMessagesVisible > 0 (1×5m)'
+      severity: P1
+      channel: 'recipe-workers SNS topic (per stage)'
+      rationale: 'Erasure request exhausted retries — compliance incident.'
+    - name: recipe-erasure-orphan
+      alarm_name: 'kitchensink-recipe-erasure-orphan-{stage}'
+      condition: 'ArchiveOrphansDeleted (Commise/RecipeErasure) Sum > 0 (1×5m)'
+      severity: P2
+      channel: 'recipe-workers SNS topic (per stage)'
+      rationale: 'Archive-resurrection race fired and the backstop deleted an orphan under an erased owner.'
+
+proposed:
+    # NOT YET IMPLEMENTED — recipe-service emits no request-latency/error metric today.
+    - name: recipe-api-p95-latency
+      condition: 'p95 request latency > 500ms for 10m (SC-009 target)'
+      severity: P2
+      channel: 'recipe-service SNS / Sentry'
+      action_item: 'MUST — instrument a recipe-service request-latency metric (EMF or ALB target-response-time) and wire this alarm before claiming SC-009 is observable in prod.'
+    - name: recipe-api-error-rate
+      condition: 'HTTP 5xx rate > 2% for 5m'
+      severity: P1
+      channel: 'recipe-service SNS / Sentry'
+      action_item: 'MUST — wire an error-rate alarm on ALB 5xx (target group) or a recipe-service EMF error metric.'
+    - name: recipe-erasure-sla-breach
+      condition: 'Erasure not completed within the GDPR SLA window (30d) — reconciliation signal'
+      severity: P2
+      channel: 'recipe-workers SNS topic'
+      action_item: 'SHOULD — the age alarm (1h) covers stuck jobs; a long-horizon SLA-window signal is a nice-to-have belt-and-suspenders.'

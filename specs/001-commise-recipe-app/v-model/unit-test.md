@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-commise-recipe-app`
 **Created**: 2026-05-02
-**Last Updated**: 2026-05-08 (PRF-UTP-001 remediation: added coverage adequacy note to MOD-027, MOD-028; updated peer-review date)
+**Last Updated**: 2026-07-06 (reconciliation pass: realigned Target Source File paths to the canonical `packages/<category>/<name>` layout — recipe backend → `packages/services/recipe-service`, worker Lambdas → `packages/services/recipe-workers/src/{photo-processor,version-archive-worker}`; prior: 2026-05-08 PRF-UTP-001 remediation)
 **Status**: Draft
 **Source**: `specs/001-commise-recipe-app/v-model/module-design.md`
 
@@ -38,7 +38,7 @@ isolation, and state transitions where applicable). They do not verify user jour
 ### Module: MOD-001 (Clerk Auth Service)
 
 **Parent Architecture Modules**: ARCH-001
-**Target Source File(s)**: `packages/api/src/auth/clerk-auth.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/auth/clerk-auth.service.ts`
 
 #### Test Case: UTP-001-A (session token verification branch paths)
 
@@ -96,7 +96,7 @@ isolation, and state transitions where applicable). They do not verify user jour
 ### Module: MOD-002 (Owner & Tier Authorization Guard)
 
 **Parent Architecture Modules**: ARCH-002
-**Target Source File(s)**: `packages/api/src/auth/owner-tier.guard.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/auth/owner-tier.guard.ts`
 
 #### Test Case: UTP-002-A (authorization decision branches)
 
@@ -110,7 +110,7 @@ isolation, and state transitions where applicable). They do not verify user jour
 | `repository.loadByKind` | MOD-002 Algorithmic View | Stub resource rows | Drive owner/public/action branches |
 
 - **Unit Scenario: UTS-002-A1**
-    - **Arrange**: Set `resourceRef.action="delete"`, `resource.ownerId != principal.sub`.
+    - **Arrange**: Set `resourceRef.action="delete"`, `resource.ownerId != principal.userId`.
     - **Act**: Call `authorize(principal, resourceRef)`.
     - **Assert**: Throws `FORBIDDEN_OWNER` with `ruleId="OWNER_ONLY_WRITE"`.
 
@@ -167,7 +167,7 @@ isolation, and state transitions where applicable). They do not verify user jour
 ### Module: MOD-003 (Recipe HTTP Controller)
 
 **Parent Architecture Modules**: ARCH-003
-**Target Source File(s)**: `packages/api/src/recipes/recipes.controller.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/recipes.controller.ts`
 
 #### Test Case: UTP-003-A (route delegation branches)
 
@@ -228,7 +228,7 @@ isolation, and state transitions where applicable). They do not verify user jour
 ### Module: MOD-004 (Recipe Command Service)
 
 **Parent Architecture Modules**: ARCH-004
-**Target Source File(s)**: `packages/api/src/recipes/recipes.command.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/recipes.command.service.ts`
 
 #### Test Case: UTP-004-A (command-match branch coverage)
 
@@ -312,7 +312,7 @@ None — module is self-contained
 ### Module: MOD-005 (Recipe DTO Validator)
 
 **Parent Architecture Modules**: ARCH-005
-**Target Source File(s)**: `packages/api/src/recipes/recipes.dto.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/recipes.dto.ts`
 
 #### Test Case: UTP-005-A (validation success/failure branches)
 
@@ -367,7 +367,7 @@ None — module is self-contained
 ### Module: MOD-006 (Visibility Policy Engine)
 
 **Parent Architecture Modules**: ARCH-006
-**Target Source File(s)**: `packages/api/src/recipes/visibility.policy.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/visibility.policy.ts`
 
 #### Test Case: UTP-006-A (policy branch logic)
 
@@ -430,7 +430,7 @@ None — module is self-contained
 ### Module: MOD-007 (Substantive Edit Detector)
 
 **Parent Architecture Modules**: ARCH-007
-**Target Source File(s)**: `packages/api/src/recipes/substantive-edit.detector.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/substantive-edit.detector.ts`
 
 #### Test Case: UTP-007-A (diff detection branches)
 
@@ -479,7 +479,7 @@ None — module is self-contained
 ### Module: MOD-008 (Ingredient Resolver Service)
 
 **Parent Architecture Modules**: ARCH-008
-**Target Source File(s)**: `packages/api/src/ingredients/ingredient.resolver.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/ingredients/ingredient.resolver.service.ts`
 
 #### Test Case: UTP-008-A (resolver branch coverage)
 
@@ -556,7 +556,7 @@ None — module is self-contained
 ### Module: MOD-009 (Nutrition Calculator)
 
 **Parent Architecture Modules**: ARCH-009
-**Target Source File(s)**: `packages/api/src/nutrition/nutrition.calculator.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/nutrition/nutrition.calculator.ts`
 
 #### Test Case: UTP-009-A (nutrition accumulation branches)
 
@@ -611,7 +611,7 @@ None — module is self-contained
 ### Module: MOD-010 (Recipe Search Service)
 
 **Parent Architecture Modules**: ARCH-010
-**Target Source File(s)**: `packages/api/src/recipes/recipes.search.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/recipes.search.service.ts`
 
 #### Test Case: UTP-010-A (search validation and pagination branches)
 
@@ -683,7 +683,7 @@ None — module is self-contained
 ### Module: MOD-011 (Search Query Builder)
 
 **Parent Architecture Modules**: ARCH-011
-**Target Source File(s)**: `packages/api/src/recipes/search-query.builder.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/search-query.builder.ts`
 
 #### Test Case: UTP-011-A (query string assembly branches)
 
@@ -720,7 +720,7 @@ None — module is self-contained
 ### Module: MOD-012 (Photo Presign Service)
 
 **Parent Architecture Modules**: ARCH-012
-**Target Source File(s)**: `packages/api/src/photos/photo.presign.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/photos/photo.presign.service.ts`
 
 #### Test Case: UTP-012-A (presign workflow branches)
 
@@ -794,7 +794,7 @@ None — module is self-contained
 ### Module: MOD-013 (Photo Confirm Service)
 
 **Parent Architecture Modules**: ARCH-013
-**Target Source File(s)**: `packages/api/src/photos/photo.confirm.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/photos/photo.confirm.service.ts`
 
 #### Test Case: UTP-013-A (confirm flow branch coverage)
 
@@ -869,7 +869,7 @@ None — module is self-contained
 ### Module: MOD-014 (Photo Processing Lambda Handler)
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File(s)**: `packages/photo-processor/src/handler.ts`
+**Target Source File(s)**: `packages/services/recipe-workers/src/photo-processor/handler.ts`
 
 #### Test Case: UTP-014-A (processing branch coverage)
 
@@ -943,7 +943,7 @@ None — module is self-contained
 ### Module: MOD-015 (Version Snapshot Writer)
 
 **Parent Architecture Modules**: ARCH-015
-**Target Source File(s)**: `packages/api/src/recipes/version-snapshot.writer.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/recipes/version-snapshot.writer.ts`
 
 #### Test Case: UTP-015-A (write path branches)
 
@@ -998,7 +998,7 @@ None — module is self-contained
 ### Module: MOD-016 (Optimistic Concurrency Guard)
 
 **Parent Architecture Modules**: ARCH-016
-**Target Source File(s)**: `packages/api/src/persistence/concurrency.guard.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/persistence/concurrency.guard.ts`
 
 #### Test Case: UTP-016-A (guard branch coverage)
 
@@ -1069,7 +1069,7 @@ None — module is self-contained
 ### Module: MOD-017 (Archive Queue Producer)
 
 **Parent Architecture Modules**: ARCH-017
-**Target Source File(s)**: `packages/api/src/archive/archive-queue.producer.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/archive/archive-queue.producer.ts`
 
 #### Test Case: UTP-017-A (enqueue branch coverage)
 
@@ -1141,7 +1141,7 @@ None — module is self-contained
 ### Module: MOD-018 (Archive Worker Lambda)
 
 **Parent Architecture Modules**: ARCH-018
-**Target Source File(s)**: `packages/archive-worker/src/handler.ts`
+**Target Source File(s)**: `packages/services/recipe-workers/src/version-archive-worker/handler.ts`
 
 #### Test Case: UTP-018-A (batch record branch coverage)
 
@@ -1217,7 +1217,7 @@ None — module is self-contained
 ### Module: MOD-019 (Pending Archive Reconciler)
 
 **Parent Architecture Modules**: ARCH-019
-**Target Source File(s)**: `packages/api/src/archive/pending-archive.reconciler.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/archive/pending-archive.reconciler.ts`
 
 #### Test Case: UTP-019-A (reconciler loop branch coverage)
 
@@ -1291,7 +1291,7 @@ None — module is self-contained
 ### Module: MOD-020 (Collection Service)
 
 **Parent Architecture Modules**: ARCH-020
-**Target Source File(s)**: `packages/api/src/collections/collections.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/collections/collections.service.ts`
 
 #### Test Case: UTP-020-A (collection command branches)
 
@@ -1365,7 +1365,7 @@ None — module is self-contained
 ### Module: MOD-021 (Collection Clone & Pull Service)
 
 **Parent Architecture Modules**: ARCH-021
-**Target Source File(s)**: `packages/api/src/collections/collections.clone.service.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/collections/collections.clone.service.ts`
 
 #### Test Case: UTP-021-A (clone/pull branch coverage)
 
@@ -1440,7 +1440,7 @@ None — module is self-contained
 ### Module: MOD-022 (GDPR Erasure Orchestrator)
 
 **Parent Architecture Modules**: ARCH-022
-**Target Source File(s)**: `packages/api/src/gdpr/erasure.orchestrator.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/gdpr/erasure.orchestrator.ts`
 
 #### Test Case: UTP-022-A (erasure flow branch coverage)
 
@@ -1549,7 +1549,7 @@ None — module is self-contained
 ### Module: MOD-023 (Erasure Storage Purger)
 
 **Parent Architecture Modules**: ARCH-023
-**Target Source File(s)**: `packages/api/src/gdpr/erasure.storage-purger.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/gdpr/erasure.storage-purger.ts`
 
 #### Test Case: UTP-023-A (purge branch coverage)
 
@@ -1623,7 +1623,7 @@ None — module is self-contained
 ### Module: MOD-024 (Drizzle Repository Layer)
 
 **Parent Architecture Modules**: ARCH-024
-**Target Source File(s)**: `packages/api/src/persistence/*.repository.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/persistence/*.repository.ts`
 
 #### Test Case: UTP-024-A (repository branch coverage)
 
@@ -1827,7 +1827,7 @@ None — module is self-contained
 ### Module: MOD-028 (API Error Mapper)
 
 **Parent Architecture Modules**: ARCH-028
-**Target Source File(s)**: `packages/api/src/errors/api-error.filter.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/errors/api-error.filter.ts`
 **Coverage Adequacy**: UTP-028-A/B/C/D provide full branch, partition, isolation, and error-guessing coverage per module-design.md Algorithmic/Logic View and Error Handling table — no additional techniques required.
 
 #### Test Case: UTP-028-A (error mapping branch coverage)
@@ -1900,7 +1900,7 @@ None — module is self-contained
 ### Module: MOD-029 (Config Loader)
 
 **Parent Architecture Modules**: ARCH-029
-**Target Source File(s)**: `packages/api/src/config/config.module.ts`, `…/config.schema.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/config/config.module.ts`, `…/config.schema.ts`
 
 #### Test Case: UTP-029-A (config load branch coverage)
 
@@ -1955,7 +1955,7 @@ None — module is self-contained
 ### Module: MOD-030 (Telemetry & Logger `[CROSS-CUTTING]`)
 
 **Parent Architecture Modules**: ARCH-030
-**Target Source File(s)**: `packages/api/src/observability/logger.ts`, `…/metrics.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/observability/logger.ts`, `…/metrics.ts`
 
 #### Test Case: UTP-030-A (telemetry branch coverage)
 
@@ -2124,7 +2124,7 @@ None — module is self-contained
 ### Module: MOD-033 (NestJS Module Wiring `[CROSS-CUTTING]`)
 
 **Parent Architecture Modules**: ARCH-033
-**Target Source File(s)**: `packages/api/src/app.module.ts`, `…/main.ts`
+**Target Source File(s)**: `packages/services/recipe-service/src/app.module.ts`, `…/main.ts`
 
 #### Test Case: UTP-033-A (bootstrap branch coverage)
 

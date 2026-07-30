@@ -1,0 +1,15 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        // Re-pin to `src` (the base tsconfig widened rootDir to `.` so it can typecheck out-of-`src`
+        // tests). The emitted dist layout — `dist/handlers/*.js`, consumed by esbuild's outbase:src bundle
+        // and the CDK `handlers/<name>.handler` strings — depends on this staying `src`.
+        "rootDir": "src"
+    },
+    // Override include (not just exclude) so the base project's `__tests__/**` never becomes a build input.
+    "include": ["src/**/*.ts"],
+    // `src/**/__fixtures__` is excluded for the same reason as the specs: the message factories are test-only,
+    // and `Code.fromAsset(dist)` ships everything emitted here into the deployed Lambda.
+    "exclude": ["node_modules", "dist", "src/**/__tests__", "src/**/*.test.ts", "src/**/__fixtures__", "tests"]
+}

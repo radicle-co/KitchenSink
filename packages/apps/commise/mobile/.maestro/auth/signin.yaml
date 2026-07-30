@@ -1,0 +1,33 @@
+# Reusable, idempotent sign-in sub-flow that lands on the RECIPES surface — the shape every recipe flow
+# expects. It wraps the login CORE (`signin-home.yaml`, which signs in and lands on the Home widget surface)
+# and then crosses into the recipes surface via the recipe widget's "See all recipes" entry.
+#
+# This split keeps "sign in" (→ Home, the real post-login landing, T104-mobile) separate from "navigate to a
+# feature". The recipe flows `runFlow: ../auth/signin.yaml` as their first step and then
+# `assertVisible: 'Recipes'` — so they keep working unchanged. A Home-surface E2E instead uses the core
+# `signin-home.yaml` directly, so it stays on Home.
+#
+# The login form lives in mobile/src/screens/login.tsx. Credentials mirror the web Playwright suite's
+# TEST_USER_* (cross-platform parity).
+
+appId: io.commise.mobile
+---
+# Sign in and land on Home (idempotent — skips the login form when a session is already persisted).
+- runFlow: signin-home.yaml
+
+# Cross from Home into the recipes surface via the recipe widget's "See all recipes" entry (accessibility
+# label from the mobile i18n `home.seeAllRecipes`). Done here, in the shared sub-flow, because EVERY consumer
+# (the login-chrome flow + all five recipe flows) wants the recipe list next, so each keeps its existing
+# `assertVisible: 'Recipes'` with no per-flow change.
+# The recipe widget sits at the bottom of the Home surface (below the roadmap placeholder widgets), so its
+# "See all recipes" entry is below the fold — scroll it into view before tapping.
+- scrollUntilVisible:
+      element: 'See all recipes'
+      direction: DOWN
+- tapOn: 'See all recipes'
+
+# The recipes surface: RecipesScreen renders the "Recipes" list heading (it then fetches from the recipe
+# service — slow on first paint under the Metro dev bundler, hence the generous wait).
+- extendedWaitUntil:
+      visible: 'Recipes'
+      timeout: 40000

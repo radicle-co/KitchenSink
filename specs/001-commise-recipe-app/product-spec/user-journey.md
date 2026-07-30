@@ -209,7 +209,7 @@ sequenceDiagram
 
     Note over M, API: GDPR Hard Purge (optional future action)
 
-    M->>API: POST /api/v1/account/erasure
+    M->>API: POST /v1/account/erasure
     Note right: C-007: hard purge, irreversible
 
     API-->>M: 202 Accepted { erasure_job_id }

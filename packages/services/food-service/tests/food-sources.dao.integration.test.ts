@@ -45,7 +45,7 @@ describe.skipIf(!DATABASE_URL)('FoodSourcesDao (integration)', () => {
                  VALUES ('fn_x', $1, 'nut_x', '10', $2)`,
                 [foodId, src.id],
             ),
-        ).resolves.toBeDefined();
+        ).resolves.toMatchObject({ command: 'INSERT', rowCount: 1 });
     });
 
     it('upsertSource on an existing (source, external_key) updates item_version, keeping the same id', async () => {

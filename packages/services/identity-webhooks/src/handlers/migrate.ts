@@ -2,14 +2,16 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { Context } from 'aws-lambda';
 import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { Pool } from 'pg';
 
-import * as schema from '@kitchensink/identity-service/database/schema';
+import * as schema from '@kitchensink/identity-db';
 
-import { requireEnv } from '../common/config.js';
+import { getConfig } from '../config/env.js';
 import { getJsonSecret } from '../common/secrets.js';
+import { withObservability } from '../common/observability.js';
 
 // Migrations are plain ordered .sql (not drizzle-kit's journal). identity-service owns the files;
 // esbuild copies them into dist/migrations/ at build (see esbuild.mjs) and they're read here at
@@ -40,7 +42,7 @@ interface DbSecret {
     database?: string;
 }
 
-interface MigrateResult {
+export interface MigrateResult {
     applied: string[];
     skipped: string[];
     validated: { migrations: number; tables: number };
@@ -53,13 +55,15 @@ interface MigrateResult {
  *
  * @sideEffect Connects to PostgreSQL and executes DDL.
  */
-export const handler = async (): Promise<MigrateResult> => {
-    const dbSecretArn = requireEnv('DB_SECRET_ARN');
-    const secret = (await getJsonSecret(dbSecretArn)) as unknown as DbSecret;
+const migrateCore = async (_event: unknown, _context: Context): Promise<MigrateResult> => {
+    // Resolved (and cached) via the typed config as the first statement — S-I5: a missing DB_SECRET_ARN
+    // now fails fast on the first invocation of a cold container, rather than a hand-rolled requireEnv.
+    const { DB_SECRET_ARN, STAGE } = getConfig();
+    const secret = (await getJsonSecret(DB_SECRET_ARN)) as unknown as DbSecret;
     const database = secret.dbname ?? secret.database;
 
     if (!database) {
-        throw new Error(`Database secret '${dbSecretArn}' missing dbname/database`);
+        throw new Error(`Database secret '${DB_SECRET_ARN}' missing dbname/database`);
     }
 
     const pool = new Pool({
@@ -68,7 +72,7 @@ export const handler = async (): Promise<MigrateResult> => {
         host: secret.host,
         port: Number(secret.port),
         database,
-        ssl: process.env['STAGE'] === 'local' ? false : { rejectUnauthorized: false },
+        ssl: STAGE === 'local' ? false : { rejectUnauthorized: false },
         max: 1,
     });
 
@@ -136,3 +140,6 @@ export const handler = async (): Promise<MigrateResult> => {
         await pool.end();
     }
 };
+
+/** @implements S-I7 — parity with the other three handlers (identityWebhook, deletion-worker, reconciliation). */
+export const handler = withObservability(migrateCore);

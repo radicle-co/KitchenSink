@@ -15,6 +15,7 @@ import {
     aws_rds as rds,
     aws_s3 as s3,
     aws_secretsmanager as secretsmanager,
+    aws_sns as sns,
     aws_sqs as sqs,
     custom_resources as cr,
 } from 'aws-cdk-lib';
@@ -33,6 +34,14 @@ export interface DataStackProps extends StackProps {
 export class DataStack extends Stack {
     public readonly database: rds.DatabaseInstance;
     public readonly deletionQueue: sqs.Queue;
+    /**
+     * The handle-sync SNS topic (W8-a.2 / decision 6). Owned by GLOBAL infra (never swept by per-PR
+     * cleanup): the identity service (`PATCH /v1/users/me`) and the Clerk `user.updated` webhook both
+     * publish `{ userId, displayName, sourceTimestamp }` here, and each recipe-workers deployment subscribes
+     * its OWN per-stack SQS queue — SNS fan-out, not one shared queue (which would deliver each rename to
+     * exactly one of N preview consumers). Its ARN is exported for the producer + subscriber stacks.
+     */
+    public readonly handleSyncTopic: sns.Topic;
     public readonly deletionDlq: sqs.Queue;
     public readonly mediaBucket: s3.Bucket;
     public readonly archiveBucket: s3.Bucket;
@@ -46,6 +55,13 @@ export class DataStack extends Stack {
      * master-connected custom resource — `food_app` has no password and cannot bootstrap itself.
      */
     public readonly foodDatabaseName: string;
+
+    /**
+     * Name of the third logical database provisioned on the shared instance (feature 001). The database
+     * + its owning IAM-auth `recipe_app` role are created by {@link RecipeDbBootstrap}, a master-connected
+     * custom resource — `recipe_app` has no password and cannot bootstrap itself.
+     */
+    public readonly recipeDatabaseName: string;
 
     public constructor(scope: Construct, id: string, props: DataStackProps) {
         super(scope, id, props);
@@ -95,6 +111,11 @@ export class DataStack extends Stack {
         // the bootstrap SQL that creates the database and role. `pg_trgm` is already bootstrapped on
         // the instance (see `migrationPlanSecret`), so FR-008 search needs no extra extension here.
         this.foodDatabaseName = 'kitchensink_food';
+
+        // Feature 001 — third logical database `kitchensink_recipes` on this SAME shared instance. Same
+        // additive pattern as food (ADR-0006): an extra IAM-auth `recipe_app` role + base database created
+        // by the master-connected {@link RecipeDbBootstrap} below. No new instance/cluster.
+        this.recipeDatabaseName = 'kitchensink_recipes';
 
         const dbSubnetGroup = new rds.SubnetGroup(this, 'DatabaseSubnetGroup', {
             description: 'Isolated subnets for identity PostgreSQL',
@@ -187,6 +208,50 @@ export class DataStack extends Stack {
         // deploy (e.g. prod's first apply of this change) cannot race the instance update.
         foodBootstrap.node.addDependency(this.database);
 
+        // ── Recipe role + base database bootstrap (feature 001, ADR-0006) ────────────────────────────
+        // Identical additive pattern to the food bootstrap above: a master-connected custom resource that
+        // idempotently creates the IAM-auth `recipe_app` LOGIN role, grants it `rds_iam`, creates the base
+        // `kitchensink_recipes` database, and (non-prod only) grants CREATEDB so the recipe migrate lambda
+        // can make per-PR databases. Reuses the same bundled `dist-lambda/` asset dir (the esbuild build
+        // emits `recipe-db-bootstrap/handler`); a bare `cdk synth` (no bundle) falls back to an inline no-op.
+        const recipeBootstrapFn = new lambda.Function(this, 'RecipeDbBootstrapFunction', {
+            runtime: lambda.Runtime.NODEJS_22_X,
+            architecture: lambda.Architecture.ARM_64,
+            handler: hasLambdaAsset ? 'recipe-db-bootstrap/handler.handler' : 'index.handler',
+            code: hasLambdaAsset
+                ? lambda.Code.fromAsset(lambdaAssetDir)
+                : lambda.Code.fromInline(
+                      'exports.handler = async (e) => ({ PhysicalResourceId: e.PhysicalResourceId ?? "recipe-db-bootstrap" });',
+                  ),
+            timeout: Duration.seconds(300),
+            memorySize: 256,
+            description: `Bootstrap recipe_app role + base database (${stageTag})`,
+            vpc: props.network.vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [props.network.lambdaSecurityGroup],
+            environment: {
+                DB_SECRET_ARN: this.dbCredentialsSecret.secretArn,
+                DB_ENDPOINT: this.database.dbInstanceEndpointAddress,
+                DB_PORT: this.database.dbInstanceEndpointPort,
+                RECIPE_DATABASE_NAME: this.recipeDatabaseName,
+                STAGE: stageTag,
+            },
+        });
+        this.dbCredentialsSecret.grantRead(recipeBootstrapFn);
+
+        const recipeBootstrapProvider = new cr.Provider(this, 'RecipeDbBootstrapProvider', {
+            onEventHandler: recipeBootstrapFn,
+        });
+
+        const recipeBootstrap = new CustomResource(this, 'RecipeDbBootstrap', {
+            serviceToken: recipeBootstrapProvider.serviceToken,
+            // Re-runs the (idempotent) bootstrap whenever the target database or stage changes.
+            properties: { recipeDatabaseName: this.recipeDatabaseName, stage: stageTag },
+        });
+        // Same explicit ordering as the food bootstrap: `GRANT rds_iam` needs the instance's IAM-auth
+        // modify applied first, so depend on the instance rather than race a fresh deploy.
+        recipeBootstrap.node.addDependency(this.database);
+
         this.deletionDlq = new sqs.Queue(this, 'DeletionDlq', {
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(14),
@@ -201,6 +266,14 @@ export class DataStack extends Stack {
                 queue: this.deletionDlq,
                 maxReceiveCount: 5,
             },
+        });
+
+        // Handle-sync fan-out topic (W8-a.2). A plain topic: the payload is transient and non-secret at the
+        // topic; the PII (a display name) is bounded by each subscriber SQS queue's retention + SSE. Named
+        // per-stage but tagged Environment=global (prod/sandbox baseline only, never pr-{N}).
+        this.handleSyncTopic = new sns.Topic(this, 'HandleSyncTopic', {
+            topicName: `kitchensink-handle-sync-${stageTag}`,
+            displayName: 'Recipe author/editor handle sync',
         });
 
         this.mediaBucket = new s3.Bucket(this, 'MediaBucket', {
@@ -227,6 +300,10 @@ export class DataStack extends Stack {
             autoDeleteObjects: true,
         });
 
+        new CfnOutput(this, 'HandleSyncTopicArn', {
+            value: this.handleSyncTopic.topicArn,
+            exportName: `${this.stackName}:HandleSyncTopicArn`,
+        });
         new CfnOutput(this, 'DatabaseEndpoint', {
             value: this.database.dbInstanceEndpointAddress,
             exportName: `${this.stackName}:DatabaseEndpoint`,
@@ -254,6 +331,10 @@ export class DataStack extends Stack {
         new CfnOutput(this, 'FoodDatabaseName', {
             value: this.foodDatabaseName,
             exportName: `${this.stackName}:FoodDatabaseName`,
+        });
+        new CfnOutput(this, 'RecipeDatabaseName', {
+            value: this.recipeDatabaseName,
+            exportName: `${this.stackName}:RecipeDatabaseName`,
         });
         // RDS instance resource id (dbi-…), needed to scope `rds-db:connect` IAM to the food_app db-user.
         // Always present on an owned instance (only `undefined` for some imports), so guard for the type.

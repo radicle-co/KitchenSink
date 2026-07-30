@@ -1,0 +1,15 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "./tsconfig.json",
+    "comment": "The `.` barrel (tokens + clerk) is what the dist artifact serves. The component exports ship as raw src (bundler-transpiled by consumers, like the feature packages); button/pressScale/input import react-native (an optional peer), so they are excluded from emit alongside all tests.",
+    "exclude": [
+        "node_modules",
+        "dist",
+        "src/button",
+        "src/pressScale",
+        "src/input",
+        "src/**/__tests__",
+        "src/**/*.test.ts",
+        "src/**/*.test.tsx"
+    ]
+}

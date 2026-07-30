@@ -10,6 +10,15 @@
 
 ---
 
+> **SUPERSEDED where noted (2026-07-06)** per the 2026-07-06 reconciliation. This is a **historical revalidation log** — its revision entries are preserved as-written and **not rewritten**. Two classes of reference below are stale and have been overtaken by the reconciliation pass:
+>
+> - **API prefix.** Every `/api/*` and `/api/v1/*` (and the never-adopted `/api/v1/v{N}/*`) reference is **SUPERSEDED → bare `/v1/*`**. Shipped identity (002) and food (003) services expose `@Controller('v1/...')`, so the canonical public prefix is `/v1/*`. The Revision 1/2 push to add an `/api/v1` segment is **REVERSED**.
+> - **Shared types package.** Every `@kitchensink/shared-recipe-core` (a.k.a. `shared/recipe-core`) reference is **SUPERSEDED → `@kitchensink/recipe-core`** (folder `packages/shared/recipe-core`, `@kitchensink` scope) — the rename was `shared-recipe-core` → `recipe-core`, a **name** change, **not** a scope change (it stays under `@kitchensink`).
+>
+> Each affected section carries an inline SUPERSEDED note repeating these mappings. History is annotated, not deleted.
+
+---
+
 ## Purpose
 
 This file records the iterative revalidation cycle for the Product Forge layer of feature 001. Each revision captures user feedback, the corrections applied, and an explicit approval marker.
@@ -83,6 +92,8 @@ This feature was **retroactively bootstrapped** — the SpecKit + V-Model artifa
 
 ## Revision 1 — Cross-Feature Consistency Fold-In (2026-05-09)
 
+> **SUPERSEDED (2026-07-06).** The CR-001 rows and correction checklist below standardize the public API on an `/api/v1/*` prefix — that is **REVERSED**: the canonical prefix is bare **`/v1/*`**. Likewise every `@kitchensink/shared-recipe-core` reference here is **SUPERSEDED → `@kitchensink/recipe-core`**. Entries preserved verbatim as history.
+
 **Source**: [cross-feature-consistency-report.md](../cross-feature-consistency-report.md)
 
 | ID     | Severity | Issue                                                                           | Decision for 001                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
@@ -107,6 +118,8 @@ This feature was **retroactively bootstrapped** — the SpecKit + V-Model artifa
 
 **Author**: Senior Product Owner (cross-feature governance)
 **Trigger**: Director review rejection — release audits contradicted their own data; CR-001 decision in Revision 1 was incorrect.
+
+> **SUPERSEDED (2026-07-06).** This revision adopts the `/api/v1/v{N}/*` portfolio pattern and the `@kitchensink/shared-recipe-core` package name — both **overtaken by the reconciliation pass**: canonical prefix is bare **`/v1/*`** and the package is **`@kitchensink/recipe-core`**. The corrections below are retained as history; do not treat the `/api/v1` handoff items as open work.
 
 ### Corrections Applied
 

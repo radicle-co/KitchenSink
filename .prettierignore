@@ -7,3 +7,12 @@ bun.lock
 .turbo
 cdk.out
 cdk.context.json
+
+# The archived Figma-Make wireframes are a BUILD ARTIFACT of another tool (minified Tailwind in a single
+# `<style>` block, one enormous `:root` token declaration, hand-authored-looking markup that is generated).
+# They are feature 001's visual contract, and reformatting them reflows every line — which both destroys the
+# archive's fidelity to what Figma exported and buries the colour/label-class edits the design system actually
+# needs in a whole-file rewrite. Their design tokens and label pairings are guarded by measurement instead:
+# `packages/tools/test-utils/src/__tests__/mockupContrast.test.ts`. The README beside them is NOT ignored.
+docs/mockups/screens
+docs/mockups/_assets

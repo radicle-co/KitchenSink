@@ -5,6 +5,19 @@ name: CI (reusable)
 # action, which reads kitchensink/<stage>/identity/keys — so PR pipelines use sandbox secrets and the
 # main pipeline uses prod secrets, with no duplicated secret-fetch logic.
 #
+# TIERS. This file is the BASE tier in full: install, then lint/format/typecheck/test/integration/
+# build/e2e. The HEAVY tier (mobile Maestro + the recipe/food k6 load tests) lives in its own reusable
+# workflow, `_ci-heavy.yml`, called only by heavy-e2e.yml / recipe-loadtest.yml / ci-full.yml.
+#
+# Those jobs used to live HERE behind `run_mobile_maestro` / `run_load_test` inputs, with a
+# `run_base_jobs` input so a heavy-only caller could switch this tier off. Two reasons that is gone:
+# GitHub renders every job of a called workflow in every caller's run graph regardless of `if:`, so each
+# PR run showed three permanently-`skipped` jobs that read as a broken pipeline; and tier membership is
+# better expressed by WHICH workflow a caller invokes than by booleans threaded through ~16 `if:` gates.
+# The collision that `run_base_jobs` originally fixed — heavy-e2e.yml starting a SECOND concurrent
+# `e2e-web` on the same commit, two Playwright suites tearing down each other's shared sandbox Clerk
+# sign-in fixture — is now structurally impossible: heavy-e2e.yml no longer calls this file at all.
+#
 # Hardening path (requires repo/IAM setup, see docs/CI_ARCHITECTURE.md): move AWS auth to OIDC with
 # two stage-scoped roles and adopt GitHub Environments so prod secrets are unreachable from PR runs.
 
@@ -26,6 +39,8 @@ jobs:
     install:
         name: Install dependencies
         runs-on: ubuntu-latest
+        # Seeds the `actions/cache` entry every job below restores. `_ci-heavy.yml` keeps its own copy of
+        # this job: a reusable workflow cannot `needs:` a job in another workflow.
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -40,6 +55,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
 
     build-ui:
@@ -59,6 +76,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npm run build --workspace=@commise/ui
             - name: Cache UI build artifacts
@@ -84,8 +103,33 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npx turbo run lint
+
+            # Workflow files get NO coverage from `turbo run lint` — eslint does not read YAML. GitHub
+            # validates them only at dispatch time, and an invalid one does not fail a check: it produces a
+            # zero-job `startup_failure` attributed to the PUSH event, so the workflow that should have run
+            # SILENTLY DOES NOT. That is how a broken `sandbox-deploy.yml` shipped and the per-PR deploy
+            # simply never started (issue #124's first run) — every local gate was green, YAML parsed, and
+            # even the official Actions JSON schema validated it.
+            #
+            # The defect was a literal `${{` `}}` written as PROSE inside a `run:` block comment. GitHub
+            # interpolates expressions in `run:` bodies BEFORE the shell sees them, comments included, so an
+            # empty interpolation is a syntax error. Only an expression-aware linter catches that class.
+            #
+            # actionlint is pinned: it is the validator, so an unpinned upgrade could change what passes.
+            - name: Lint GitHub workflow files (actionlint — expression + context checks)
+              run: |
+                  set -euo pipefail
+                  version=1.7.12
+                  curl -sSfL -o /tmp/actionlint.tar.gz \
+                    "https://github.com/rhysd/actionlint/releases/download/v${version}/actionlint_${version}_linux_amd64.tar.gz"
+                  tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+                  # shellcheck/pyflakes are off: this gate is about workflow VALIDITY, and the runner has
+                  # neither tool, which would otherwise be reported as errors on every embedded script.
+                  /tmp/actionlint -shellcheck= -pyflakes= .github/workflows/*.yml
 
     format:
         name: Format check
@@ -104,6 +148,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npx turbo run format:check
 
@@ -124,6 +170,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npx turbo run typecheck
 
@@ -144,6 +192,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npx turbo run test
 
@@ -178,6 +228,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             # Self-contained: the integration suite bootstraps the schema from migrations against the
             # Postgres service and proves create-user idempotency. No AWS/Clerk secrets required.
@@ -217,6 +269,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             # Self-contained: the integration suite bootstraps the kitchensink_food schema from the
             # ordered migration SQL against the Postgres service and validates the FR-028 CHECK,
@@ -225,6 +279,186 @@ jobs:
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_test
               run: npm run test:integration --workspace=packages/services/food-service
+
+    integration-recipe:
+        name: Integration (recipe — Postgres + LocalStack)
+        runs-on: ubuntu-latest
+        needs: [install]
+        # Feature 001 recipe-service. Postgres backs the relational data; LocalStack provides the AWS
+        # services recipe-service uses (S3 photo/version archive, SQS archive queue) so the integration
+        # suite can exercise them without real AWS. recipe-service is still a skeleton (only /health is
+        # wired), so `--if-present` keeps this green until the `test:integration` script + suite land;
+        # the job shape is ready so the suite plugs straight in. Mirrors `integration-food`.
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: recipe_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+            localstack:
+                image: localstack/localstack:4.4.0
+                env:
+                    # Community tier — no auth token. recipe-service's AWS surface (S3 archive, SQS,
+                    # EventBridge=`events`, Secrets Manager, SSM) is all free/Community.
+                    SERVICES: s3,sqs,sns,events,secretsmanager,sts,iam,logs,cloudwatch,ssm
+                ports:
+                    - 4566:4566
+                options: >-
+                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 20
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@v5
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # The suite bootstraps the schema from src/database/migrations against the Postgres service
+            # and seeds its own fixtures (same pattern as identity/food). No AWS/Clerk secrets required.
+            - name: Run recipe integration tests
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/recipe_test
+                  AWS_ENDPOINT_URL: http://localhost:4566
+                  AWS_ACCESS_KEY_ID: test
+                  AWS_SECRET_ACCESS_KEY: test
+                  AWS_REGION: us-east-1
+                  # recipe-service reads S3 config via its own env keys (config/config.types.ts), not the
+                  # generic AWS_* ones — LocalStack needs path-style addressing, so both are required or
+                  # the photos/versions S3 clients emit virtual-host URLs that don't resolve.
+                  S3_ENDPOINT: http://localhost:4566
+                  S3_FORCE_PATH_STYLE: 'true'
+                  S3_BUCKET_PHOTOS: commise-photos
+                  S3_BUCKET_VERSIONS: commise-versions
+                  CLOUDFRONT_URL: http://localhost:4566/commise-photos
+              run: npm run test:integration --workspace=@kitchensink/recipe-service --if-present
+
+    integration-recipe-workers:
+        name: Integration (recipe-workers — Postgres + LocalStack)
+        runs-on: ubuntu-latest
+        needs: [install]
+        # Feature 001 recipe-workers. The GDPR account-erasure worker and the version-archive drain make
+        # DESTRUCTIVE, compliance-critical guarantees (FK/cascade behaviour, the `cloned_from_id` NO-ACTION
+        # detach, "no deleted_at filter", the dual-bucket owner-prefix S3 sweep, the archive-resurrection
+        # guard) that a fake db/mocked S3 CANNOT prove — only real Postgres + real S3 can. Those specs live
+        # in packages/services/recipe-workers/__tests__/integration and had NO CI job, so the guarantees
+        # passed only on a developer's machine; this job puts them under CI. Mirrors `integration-recipe`:
+        # Postgres backs the relational cascades, LocalStack provides the S3 the sweep/guard exercise.
+        #
+        # UNLIKE recipe-service, the workers integration suite has NO vitest globalSetup that migrates the
+        # schema — it deliberately drives the exported `db`-taking seams over a caller-supplied pool and
+        # ASSUMES the recipe schema already exists (see the spec headers). So this job applies the SAME
+        # ordered, hand-authored recipe-service migrations (src/database/migrations/000*_*.sql — the single
+        # source of truth for the schema, applied exactly as recipe-service's tests/global-setup.ts does:
+        # a clean `public`, then each file in filename order) to the throwaway DB BEFORE the run. Without
+        # this step every spec errors with `relation "recipes" does not exist` (verified). The specs
+        # self-provision their S3 buckets via CreateBucket, so no bucket-init step is needed here.
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: recipe_workers_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+            localstack:
+                image: localstack/localstack:4.4.0
+                env:
+                    # Community tier — no auth token. The workers' AWS surface is S3 only (SQS is driven
+                    # via the exported seams, not a live queue), but the S3 family is free/Community.
+                    SERVICES: s3,sqs
+                ports:
+                    - 4566:4566
+                options: >-
+                    --health-cmd "curl -sf http://localhost:4566/_localstack/health | grep -q available"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 20
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@v5
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # Apply the recipe schema to the throwaway DB FIRST — the workers integration specs have no
+            # globalSetup and assume the schema is present. This is the SAME set of ordered migration SQL
+            # files recipe-service's tests/global-setup.ts applies (drop `public`, then each file in
+            # filename order), so the schema under test is byte-identical to the recipe-service run.
+            - name: Apply recipe schema migrations to the throwaway DB
+              env:
+                  PGHOST: localhost
+                  PGPORT: '5432'
+                  PGUSER: postgres
+                  PGPASSWORD: postgres
+                  PGDATABASE: recipe_workers_test
+              run: |
+                  psql -v ON_ERROR_STOP=1 -c 'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'
+                  for f in packages/services/recipe-service/src/database/migrations/*.sql; do
+                      echo "applying $f"
+                      psql -v ON_ERROR_STOP=1 -f "$f"
+                  done
+            # Drives the erasure/archive integration specs against the real, migrated Postgres + LocalStack
+            # S3. The S3 clients hardcode `test`/`test` creds and force path-style addressing, so only the
+            # endpoint + bucket names come from env; both are set for parity with `integration-recipe`.
+            # The lambda BUNDLE must exist before the integration tier. `workers-app-synth.integration.spec.ts`
+            # spawns the real CDK app, and `RecipeWorkersStack` refuses to synth without `dist/` — it asserts
+            # the bundle is present rather than deploying a phantom `lambda.Code.fromAsset`. That check is
+            # correct; what was missing is that this job never built it, so the spec passed locally (where a
+            # previous build had left `dist/` lying around) and failed in CI's clean checkout. Same class as
+            # the `cdk.out` format:check and the incremental-tsc-skips-emit traps: a build artifact that
+            # exists locally by accident is not a dependency that exists.
+            #
+            # Run through turbo, not the bare npm script, so `^build` drags in the shared packages the bundle
+            # needs (`@kitchensink/recipe-core`) instead of assuming they are already built.
+            - name: Build the recipe-workers lambda bundle (the synth spec needs it)
+              run: npx turbo run build --filter=@kitchensink/recipe-workers
+
+            - name: Run recipe-workers integration tests
+              env:
+                  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/recipe_workers_test
+                  AWS_ENDPOINT_URL: http://localhost:4566
+                  AWS_ACCESS_KEY_ID: test
+                  AWS_SECRET_ACCESS_KEY: test
+                  AWS_REGION: us-east-1
+                  S3_ENDPOINT: http://localhost:4566
+                  S3_FORCE_PATH_STYLE: 'true'
+                  S3_BUCKET_PHOTOS: commise-photos
+                  S3_BUCKET_VERSIONS: commise-versions
+              run: npm run test:integration --workspace=@kitchensink/recipe-workers
 
     e2e-food:
         name: E2E (food — booted app + Postgres + LocalStack)
@@ -278,6 +512,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             # Boots the real food-service Nest app against the Postgres service, applies the
             # kitchensink_food migration, and asserts GET /health + DB reachability end to end.
@@ -311,6 +547,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - name: Restore UI build artifacts
               uses: actions/cache/restore@v5
@@ -338,6 +576,17 @@ jobs:
             - name: Build
               if: matrix.workspace != '@commise/web' || steps.secrets.outcome == 'success'
               run: npm run build --workspace=${{ matrix.workspace }}
+              # The web app's endpoints are declared with NO default and validated at build time
+              # (src/config/env.ts), so `next build` FAILS unless they are supplied — by design: that is
+              # what stops an unconfigured build from inlining `http://localhost:3000` into a bundle it
+              # ships to real browsers, which is exactly what reached the sandbox preview.
+              #
+              # This job only proves the app COMPILES; its output is never deployed (Vercel builds the
+              # preview, the prod pipeline builds prod). So localhost is the honest value here — it makes
+              # the build hermetic and needs no cloud endpoint. Harmless for the other workspaces.
+              env:
+                  NEXT_PUBLIC_RECIPE_API_URL: http://localhost:3000
+                  NEXT_PUBLIC_IDENTITY_API_URL: http://localhost:4000
 
     e2e-backend:
         # Static name (not a matrix) so a skipped run still shows a clean title instead of a raw
@@ -358,6 +607,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - name: Load ${{ inputs.stage }} secrets
               id: secrets
@@ -378,6 +629,26 @@ jobs:
         name: E2E (web — Playwright)
         runs-on: ubuntu-latest
         needs: build
+        # Base tier. Gating this is what stops a labelled PR from running TWO concurrent Playwright suites
+        # on the same commit (ci-pr.yml + heavy-e2e.yml) against the shared sandbox Clerk instance.
+        # Pin BOTH API origins the web app resolves from env. `src/config/env.ts` declares them with NO
+        # default and validates at load, so an unset variable is a loud build failure rather than a silent
+        # localhost fallback — which means CI must state them. Locally the same two values come from the
+        # COMMITTED `.env.development`, which Next loads only for `next dev`; the Playwright webServer runs
+        # `npm run dev`, so a developer machine and CI resolve identical origins.
+        #
+        # These localhost values are the CORRECT ones for this suite, not a placeholder: every spec mocks the
+        # API with the ORIGIN-AGNOSTIC glob `page.route('**/v1/**')` (tests/e2e/utils/recipeApi.ts, plus the
+        # two narrower `**/v1/...` routes in accountDangerZone/ingredientCatalogPick), and no spec ever builds
+        # a URL out of these vars — so the browser-side origin only has to be a valid absolute URL. Port 3000
+        # is the Playwright dev server itself and nothing listens on 4000, which means the SERVER-side SSR
+        # prefetch (which `page.route` cannot intercept) fails and each page degrades to its client fetch —
+        # exactly the behavior `tests/e2e/ssrPrefetch.spec.ts` asserts. Pointing these at a live backend would
+        # make the suite non-hermetic, not more correct (that path is the opt-in `recipeLive.spec.ts`, gated on
+        # E2E_LIVE_BACKEND=1, which stays skipped here).
+        env:
+            NEXT_PUBLIC_RECIPE_API_URL: http://localhost:3000
+            NEXT_PUBLIC_IDENTITY_API_URL: http://localhost:4000
         steps:
             - uses: actions/checkout@v6
             - uses: actions/setup-node@v6
@@ -391,6 +662,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             # The Playwright dev server imports @commise/ui/theme.css, so the built UI dist must
             # be present (mirrors the build job).
@@ -418,12 +691,37 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ env.DEFAULT_AWS_REGION }}
-            - name: Install Playwright browsers
+            # Cache the Playwright browser binaries (~/.cache/ms-playwright) keyed on the lockfile so
+            # the Chromium download only happens when the Playwright version changes.
+            - name: Cache Playwright browsers
+              id: playwright-cache
               if: steps.secrets.outcome == 'success'
-              run: npx playwright install chromium
+              uses: actions/cache@v5
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+            # Cache miss: download the browser + OS deps. Cache hit: browsers are restored, so only the
+            # OS-level system dependencies still need installing.
+            - name: Install Playwright browsers (cache miss)
+              if: steps.secrets.outcome == 'success' && steps.playwright-cache.outputs.cache-hit != 'true'
+              run: npx playwright install --with-deps chromium
+            - name: Install Playwright system deps (cache hit)
+              if: steps.secrets.outcome == 'success' && steps.playwright-cache.outputs.cache-hit == 'true'
+              run: npx playwright install-deps chromium
             - name: Run web e2e tests
               if: steps.secrets.outcome == 'success'
               run: npm run test:e2e --workspace=@commise/web
+            # Failure-only: upload the Playwright HTML report + traces so a red run is debuggable.
+            - name: Upload Playwright report + traces
+              if: failure() && steps.secrets.outcome == 'success'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: playwright-report-${{ inputs.stage }}
+                  path: |
+                      packages/apps/commise/web/playwright-report
+                      packages/apps/commise/web/test-results
+                  retention-days: 7
+                  if-no-files-found: ignore
 
     e2e-mobile:
         name: E2E (mobile — Vitest)
@@ -442,6 +740,8 @@ jobs:
                       node_modules
                       packages/*/node_modules
                       packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - name: Load ${{ inputs.stage }} secrets
               id: secrets

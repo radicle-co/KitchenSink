@@ -1,0 +1,41 @@
+# Account danger-zone flow (CR-002 / U4b): the mobile account surface must present CLOSE (recoverable) and
+# ERASE (irreversible) as two DISTINCT, non-conflatable actions, and the erasure must be phrase-gated.
+#
+# This flow DELIBERATELY stops before confirming either destructive action: it verifies the distinction and
+# the erase gate, then cancels. Actually confirming would erase/close the shared test user against the live
+# local backend and break every subsequent run — so the reachable, repeatable assertion is the UX contract
+# (copy + gate), not the irreversible mutation. The confirm→sign-out happy path is covered by the web
+# Playwright spec (against a mocked erasure endpoint) and by the component/native tests.
+#
+# Reaches the account hub via the Home "Profile" destination (the avatar/Profile tab → ProfileScreen), then
+# its "Account settings" entry — the U2 rebuild moved the shared AccountDangerZone off the profile-editing
+# surface into the AccountSettings hub (single home for account-level + destructive actions).
+
+appId: io.commise.mobile
+---
+# Sign in (idempotent) and land on the Home widget surface.
+- runFlow: auth/signin-home.yaml
+
+# Cross into the profile surface, then into the account hub that owns the danger zone.
+- tapOn: 'Profile'
+- scrollUntilVisible:
+      element: 'Account settings'
+      direction: DOWN
+- tapOn: 'Account settings'
+
+# The danger zone presents BOTH actions, distinctly.
+- assertVisible: 'Close account'
+- assertVisible: 'Erase my data'
+
+# CLOSE reads as recoverable — never permanent deletion.
+- tapOn: 'Close account'
+- assertVisible: '.*not permanent deletion.*'
+- tapOn: 'Cancel'
+
+# ERASE reads as irreversible and explicitly distinct from closing, and is phrase-gated.
+- tapOn: 'Erase my data'
+- assertVisible: '.*cannot be undone.*'
+- assertVisible: '.*not the same as closing your account.*'
+- assertVisible: 'Confirmation phrase'
+# Stop here — do NOT confirm the irreversible erasure. Dismiss the flow.
+- tapOn: 'Cancel'

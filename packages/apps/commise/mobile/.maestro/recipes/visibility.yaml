@@ -1,0 +1,86 @@
+appId: io.commise.mobile
+---
+# Recipe visibility toggle (US2, T113/T074/C-004). The clone half of T113 is covered by discover-clone.yaml;
+# this closes the visibility half. Signs in, opens an OWNED recipe, and asserts the visibility control's real,
+# machine-checkable semantics: the current visibility is exposed as the CHECKED radio, and the tier gate
+# (C-004) disables the private option for a free-tier account and says why.
+#
+# WHY THIS FLOW ASSERTS THE GATE RATHER THAN PERFORMING A TOGGLE — read before "fixing" it:
+#
+#   The Maestro signer (`commise-e2e-signin+clerk_test@example.com`) is read-through-created by the identity
+#   service, whose accounts default to `subscription_tier = 'free'` (identity `accounts` schema). Mobile gates
+#   the private option on `subscriptionTier === 'premium'` (RecipeDetailScreen), so this account can go
+#   public but NEVER back to private. A flow that flipped a seed recipe to public would therefore corrupt the
+#   shared seed IRREVERSIBLY (no UI path back) and leak it into the public Discover feed for every later run.
+#   So the honest, hermetic assertion for the identity we actually have is the tier-gated STATE MACHINE, not a
+#   mutation. Covering the successful public->private transition needs a PREMIUM e2e identity; until one
+#   exists that transition is verified only by the component tests, not end-to-end.
+#
+# Uses "Mediterranean Grilled Lamb" (seeded PRIVATE, owned by the FREE subject) — the one owned recipe no
+# other flow destroys (delete.yaml removes "Gourmet Garden Salad"). edit.yaml may have suffixed its title with
+# " (edited)"; Maestro's text matching is substring-based, so the guard and tap below match either way.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+
+# The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the owned recipe rather
+# than a `when: visible` guard that would silently SKIP when it is below the fold (the list scrolls).
+- scrollUntilVisible:
+      element: 'Mediterranean Grilled Lamb'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Mediterranean Grilled Lamb'
+# Owner-only actions confirm we are the owner — the visibility control renders only for the owner, so without
+# this the assertions below could vacuously pass on a non-owned detail. The owner block is at the foot of the
+# (scrolling) detail; the same scroll continues down to the visibility control.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+# The visibility toggle is a secondary owner action, behind the "More" overflow menu (C4 wireframe parity).
+- scrollUntilVisible:
+      element: 'More'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'More'
+# Scroll to the "Public" radio (a VISIBLE label) rather than the toggle's group label "Recipe visibility",
+# which is only an accessibility label on the radiogroup container and so isn't a matchable scroll target.
+- scrollUntilVisible:
+      element:
+          text: '^Public$'
+      direction: DOWN
+      timeout: 20000
+
+# The current visibility is reported through the radios' CHECKED state (not colour/position alone). The
+# recipe is seeded private, so private is checked and public is not. These are anchored (`^…$`) because the
+# disabled-reason copy below also contains the word "private". Falsifiable: invert the visibility->checked
+# mapping and both assertions fail.
+- assertVisible:
+      text: '^Private$'
+      checked: true
+- assertVisible:
+      text: '^Public$'
+      checked: false
+
+# C-004 tier gate: a free-tier owner cannot select private, and the control says why in TEXT rather than by
+# appearance. Falsifiable: if the gate regressed to allow free accounts through, the option would report
+# enabled and the reason would not render.
+- assertVisible:
+      text: '^Private$'
+      enabled: false
+- assertVisible: 'Upgrade to premium to make a recipe private.'
+
+# The gate is enforced in the press handler too, not only via `disabled` (RecipeVisibilityToggle deliberately
+# re-checks `canGoPrivate` in `selectPrivate`). Tapping the gated option must be inert: no navigation, no
+# mutation, state unchanged.
+- tapOn:
+      text: '^Private$'
+- assertVisible:
+      text: '^Private$'
+      checked: true
+# Still on the owned detail (no navigation) — the owner action is now above the scrolled position, so scroll
+# back UP to it rather than asserting blind.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: UP
+      timeout: 10000

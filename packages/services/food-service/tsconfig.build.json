@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "./tsconfig.json",
+    // The EMIT project (`nest build` picks this up by default). `tsconfig.json` is the typecheck/editor/eslint
+    // project and deliberately INCLUDES every test — vitest transpiles without typechecking, so a test excluded
+    // there gets no static analysis at all. This project is the mirror image: production code only, because
+    // `dist` is copied wholesale into the runtime image (see `Dockerfile`), and because a test-only dependency
+    // must never be able to fail the production build (it already did once, via `undici`).
+    //
+    // `exclude` REPLACES the base list, so `infra` (its own CDK project) has to be repeated here.
+    "exclude": ["node_modules", "dist", "infra", "tests", "src/**/__tests__", "src/**/*.test.ts", "src/**/__fixtures__"]
+}

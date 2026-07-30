@@ -1,18 +1,43 @@
 # CI architecture — sandbox (PR) vs prod (main)
 
-CI is one **reusable workflow** invoked by two thin **callers**, with all secret loading funneled
-through one **composite action**. This is the GitHub-native equivalent of "extend a build template
-per run-type": the callers supply the only thing that differs — the `stage`.
+CI is **two reusable workflows** — a BASE tier and a HEAVY tier — invoked by thin **callers**, with all
+secret loading funneled through one **composite action**. This is the GitHub-native equivalent of "extend
+a build template per run-type": the callers supply the only thing that differs — the `stage`.
 
 ```
 .github/
   workflows/
-    ci-pr.yml      # pull_request → calls _ci.yml with stage=sandbox
-    ci-main.yml    # push: main    → calls _ci.yml with stage=prod
-    _ci.yml        # reusable (workflow_call, input: stage) — the whole pipeline
+    ci-pr.yml         # pull_request → _ci.yml       (stage=sandbox)
+    ci-main.yml       # push: main   → _ci.yml       (stage=prod)
+    heavy-e2e.yml     # nightly / dispatch / `heavy-e2e`-labelled PR → _ci-heavy.yml
+    recipe-loadtest.yml # weekly / dispatch → _ci-heavy.yml (k6 only)
+    ci-full.yml       # dispatch → BOTH, concurrently
+    _ci.yml           # reusable: BASE tier — install, lint, format, typecheck, test,
+                      #   integration, build matrix, e2e (backend / web / food / mobile-vitest)
+    _ci-heavy.yml     # reusable: HEAVY tier — mobile Maestro (~50 min emulator + APK),
+                      #   recipe k6, food k6
   actions/
     load-secrets/  # composite: configure AWS creds + load kitchensink/<stage>/identity/keys
 ```
+
+## Why the tiers are two FILES and not two flags
+
+The heavy jobs used to live in `_ci.yml` behind `run_mobile_maestro` / `run_load_test` inputs defaulting
+to false. That worked, but **GitHub renders every job of a called workflow in every caller's run graph
+regardless of its `if:`** — so each ordinary PR run displayed three permanently-`skipped` jobs. Clicking
+one shows a job that never runs, with no explanation, which reads as a broken pipeline rather than a
+deliberate tier. No `if:` can hide it; only moving the jobs to a workflow those callers do not call.
+
+The split also deleted a third input, `run_base_jobs`, which existed so a heavy-only caller could switch
+the base tier off. That was not merely duplicated compute: re-running the base tier from `heavy-e2e.yml`
+started a **second concurrent `e2e-web`** on the same commit, and two Playwright suites against the shared
+sandbox Clerk instance tear down each other's sign-in fixture (proof: commit `bbf7ea7c`, where ci-pr's
+`e2e-web` passed 78/1 while the identical job in the other workflow failed). That collision is now
+structurally impossible — `heavy-e2e.yml` cannot re-run a job that is not in the file it calls.
+
+`_ci-heavy.yml` keeps its own copy of the `install` job, because a reusable workflow cannot `needs:` a job
+in another workflow. On a labelled PR both files run `install` concurrently against the same cache key,
+which is a benign no-op for whichever loses.
 
 ## How the split works
 
@@ -29,8 +54,8 @@ their production domain. The web E2E runs ClerkJS in a browser against the Playw
 `e2e-web` job pins `load-secrets` to `stage: sandbox` regardless of pipeline stage. Backend/mobile E2E
 don't run ClerkJS in a localhost browser, so they keep using the stage's own secrets.
 
-The pipeline jobs (install, build-ui, lint, format, typecheck, test, build matrix, e2e) are defined
-once in `_ci.yml`. There is no duplicated AWS/Clerk fetch logic — the composite is the single source
+The base pipeline jobs (install, build-ui, lint, format, typecheck, test, build matrix, e2e) are defined
+once in `_ci.yml`, and the heavy ones once in `_ci-heavy.yml`. There is no duplicated AWS/Clerk fetch logic — the composite is the single source
 of truth and exports every alias the apps/tests consume (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
 `EXPO_PUBLIC_IDP_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `IDP_*`, webhook secret) from one secret.
 

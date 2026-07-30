@@ -12,7 +12,8 @@
         "incremental": true,
         "paths": {
             "@kitchensink/identity-service": ["../../services/identity/src/index.ts"],
-            "@kitchensink/identity-service/*": ["../../services/identity/src/*"]
+            "@kitchensink/identity-service/*": ["../../services/identity/src/*"],
+            "@commise/features-account": ["../features/account/src/index.ts"]
         }
     },
     "include": ["src/**/*", "app/**/*", "tests/**/*", "App.tsx", "tamagui.config.ts"],

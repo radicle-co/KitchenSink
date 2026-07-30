@@ -1,8 +1,41 @@
-import { palette, semantic } from './tokens/colors.js';
+import { palette, semantic, tint } from './tokens/colors.js';
 import { radius } from './tokens/radius.js';
 import { shadows } from './tokens/shadows.js';
 import { fonts, fontSizes, fontWeights } from './tokens/typography.js';
 
+/**
+ * @module @commise/ui/clerk — the appearance object Clerk's hosted components render the auth surface with.
+ *
+ * ## Contrast here is invisible to every other test in the repo (#113)
+ *
+ * These values are consumed by a THIRD-PARTY renderer, so no jsdom component test ever measures what they
+ * paint — and this object had no test at all. It therefore shipped the auth form's primary button with a white
+ * label on `seafoam-light` (2.78:1) hovering to `seafoam` (4.02:1): both states under the 4.5:1 body floor, on
+ * the first screen every user sees. Its link/action TEXT spent the same light teal at 2.78:1, and the secondary
+ * button's label spent `coral` at 2.40:1 — the accent-as-text failure `colors.ts` documents, reproduced inside
+ * the auth form.
+ *
+ * The corrected pairings follow the palette's ONE rule rather than restating it: a filled teal CTA carries
+ * `white`, and a teal that is TEXT is `ocean-dark`. `__tests__/clerk.test.ts` measures every pair in here, so a
+ * future re-theme cannot quietly reintroduce an illegible state.
+ *
+ * `variables.colorPrimary` stays `seafoam-light`: Clerk derives its incidental accents (spinners, subtle
+ * washes) from it, and that is the role the light teal is correct in. Every element where the colour lands
+ * under TEXT states its own value below.
+ *
+ * ## …and every element where it lands on a FOCUS INDICATOR states its own value too (#114)
+ *
+ * `colorPrimary` was ALSO reaching the focused field borders, and that claim — "the input focus ring […] is
+ * the role the light teal is correct in" — was right about the role and wrong about the measurement:
+ * `seafoam-light` is **2.78:1** on the white card, under the 3:1 SC 1.4.11 floor a non-text UI component
+ * boundary owes, and only 1.46:1 against the `mist` hairline it replaces on focus. So
+ * `formFieldInput__focus` and `otpCodeFieldInput__focus` now state `seafoam` (4.67:1) explicitly, the same
+ * move the app's 15 Tailwind `ring-seafoam-light` call sites took. `__tests__/clerk.test.ts` measures both.
+ *
+ * ⚠️ RESIDUAL, deliberately not chased here: anything Clerk derives from `colorPrimary` that we do NOT
+ * override is still the light teal, and its rendered ratio is not observable from this side of the boundary.
+ * If Clerk ever paints a focus outline on an element with no override below, it will be under the floor.
+ */
 export const clerkAppearance = {
     variables: {
         colorPrimary: palette['seafoam-light'],
@@ -10,7 +43,7 @@ export const clerkAppearance = {
         colorText: palette.charcoal,
         colorTextSecondary: palette.slate,
         colorTextOnPrimaryBackground: palette.white,
-        colorDanger: palette.error,
+        colorDanger: palette['error-dark'],
         colorSuccess: palette.success,
         colorInputBackground: palette.white,
         colorInputText: palette.charcoal,
@@ -72,19 +105,30 @@ export const clerkAppearance = {
             color: semantic.foreground,
             padding: '0.75rem 1rem',
         },
+        // The focused border IS the focus indicator here — Clerk renders no separate ring — so it owes the 3:1
+        // of SC 1.4.11 against the field it outlines. `semantic.primary` (`seafoam-light`) measured 2.78:1, and
+        // only 1.46:1 against the `mist` resting hairline it replaces, so the focused state was neither
+        // compliant nor visibly distinct. `seafoam` is 4.67:1 (and 3.20:1 vs the resting hairline) — the same
+        // move the app's 15 `ring-seafoam-light` call sites took in #114. Do NOT "fix" this by darkening
+        // `seafoam-light`: it IS `semantic.primary`, and the lightness needed would collapse it into `seafoam`.
         formFieldInput__focus: {
-            borderColor: semantic.primary,
+            borderColor: palette.seafoam,
         },
+        // "Forgot password?" and friends are LINKS a reader reads, so the teal is `ocean-dark`, not the light
+        // accent (2.78:1). Hover deepens to the charcoal foreground rather than to `seafoam` (which was 4.02:1).
         formFieldAction: {
-            color: semantic.primary,
+            color: palette['ocean-dark'],
             fontSize: fontSizes['body-sm'],
             fontWeight: fontWeights.medium,
         },
         formFieldAction__hover: {
-            color: palette.seafoam,
+            color: semantic.foreground,
         },
+        // The FILLED CTA — `seafoam` → `ocean-dark`, the same ramp the design-system `Button` primary tier
+        // paints as `from-seafoam to-ocean-dark`. Under `colorTextOnPrimaryBackground` (white) that is 4.67:1
+        // resting and 6.20:1 hovered. It used to be `semantic.primary` (2.78:1) hovering to `seafoam` (4.02:1).
         formButtonPrimary: {
-            backgroundColor: semantic.primary,
+            backgroundColor: palette.seafoam,
             borderRadius: radius.full,
             fontSize: fontSizes['body-md'],
             fontWeight: fontWeights.semibold,
@@ -92,19 +136,21 @@ export const clerkAppearance = {
             padding: '0.75rem 1.5rem',
         },
         formButtonPrimary__hover: {
-            backgroundColor: palette.seafoam,
+            backgroundColor: palette['ocean-dark'],
         },
+        // Coral survives on the BORDER (an accent, 3:1 territory) and is demoted on the LABEL, which was
+        // 2.40:1 — the identical split `buttonSurfaceClass`'s `secondary` tier already makes on web.
         formButtonSecondary: {
             borderColor: semantic.secondary,
             borderWidth: '1px',
             borderRadius: radius.full,
-            color: semantic.secondary,
+            color: palette.slate,
             fontSize: fontSizes['body-md'],
             fontWeight: fontWeights.medium,
             textTransform: 'none' as const,
         },
         formButtonSecondary__hover: {
-            backgroundColor: 'rgba(232,145,122,0.08)',
+            backgroundColor: tint(palette.coral, 0.08),
         },
         socialButtonsBlockButton: {
             borderRadius: radius.full,
@@ -123,13 +169,15 @@ export const clerkAppearance = {
             borderRadius: radius.full,
             borderColor: palette.mist,
         },
+        // The "Sign up" / "Sign in" cross-link — the ONLY route to registration (see the no-landing-screen
+        // decision), so it is load-bearing text and takes the text-grade teal.
         footerActionLink: {
-            color: semantic.primary,
+            color: palette['ocean-dark'],
             fontSize: fontSizes['body-sm'],
             fontWeight: fontWeights.medium,
         },
         footerActionLink__hover: {
-            color: palette.seafoam,
+            color: semantic.foreground,
             textDecoration: 'underline',
         },
         footerActionText: {
@@ -147,21 +195,23 @@ export const clerkAppearance = {
             borderRadius: radius.md,
             borderColor: palette.mist,
         },
+        // Same reasoning as `formFieldInput__focus` — and it matters more here: an OTP field is a row of
+        // single-character boxes where the focused box is the only cue to which digit you are entering.
         otpCodeFieldInput__focus: {
-            borderColor: semantic.primary,
+            borderColor: palette.seafoam,
         },
         identityPreviewEditButton: {
-            color: semantic.primary,
+            color: palette['ocean-dark'],
         },
         formResendCodeLink: {
-            color: semantic.primary,
+            color: palette['ocean-dark'],
         },
         userButtonPopoverCard: {
             borderRadius: radius.lg,
             boxShadow: shadows.md,
         },
         userButtonPopoverActionButton__hover: {
-            backgroundColor: 'rgba(91,168,160,0.08)',
+            backgroundColor: tint(palette['seafoam-light'], 0.08),
         },
         userButtonPopoverActionButtonText: {
             color: semantic.foreground,

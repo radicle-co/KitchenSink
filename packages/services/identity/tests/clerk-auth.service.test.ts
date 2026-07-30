@@ -25,6 +25,8 @@ describe('ClerkAuthService', () => {
     afterEach(() => {
         delete process.env['CLERK_JWT_KEY'];
         delete process.env['CLERK_AUTHORIZED_PARTIES'];
+        delete process.env['CLERK_AZP_PATTERN'];
+        delete process.env['CLERK_AZP_PREVIEW_MODE'];
     });
 
     // Uses the BARE-payload shape @clerk/backend (>= 1.34) actually resolves on success — the regression
@@ -154,5 +156,48 @@ describe('ClerkAuthService', () => {
         const service = await makeService();
         await expect(service.verify('t')).rejects.toMatchObject({ status: 401 });
         expect(mockVerifyToken).not.toHaveBeenCalled();
+    });
+
+    // ── ADR-0001 subdomain-cutover wiring: CLERK_AZP_PREVIEW_MODE threads into the shared resolver ──
+    describe('azp preview-mode wiring (subdomain cutover)', () => {
+        beforeEach(() => {
+            // Pattern mode: the base domain drives a self-enforced azp pattern; the list is unset.
+            delete process.env['CLERK_AUTHORIZED_PARTIES'];
+            process.env['CLERK_AZP_PATTERN'] = 'sandbox.commise.app';
+        });
+
+        it('accepts the path-routed apex origin under CLERK_AZP_PREVIEW_MODE=transition (no in-flight 401)', async () => {
+            process.env['CLERK_AZP_PREVIEW_MODE'] = 'transition';
+            mockVerifyToken.mockResolvedValueOnce({ sub: 'u', azp: 'https://sandbox.commise.app' });
+
+            const service = await makeService();
+            const claims = await service.verify('t');
+
+            expect(claims.sub).toBe('u');
+            // Pattern mode enforces azp itself, so the SDK azp check is skipped.
+            expect(mockVerifyToken).toHaveBeenCalledWith('t', { jwtKey: JWT_KEY, authorizedParties: undefined });
+        });
+
+        it('accepts a per-PR subdomain origin under transition mode', async () => {
+            process.env['CLERK_AZP_PREVIEW_MODE'] = 'transition';
+            mockVerifyToken.mockResolvedValueOnce({ sub: 'u', azp: 'https://pr-42.sandbox.commise.app' });
+
+            const service = await makeService();
+            await expect(service.verify('t')).resolves.toMatchObject({ sub: 'u' });
+        });
+
+        it('REJECTS the apex origin in strict mode (CLERK_AZP_PREVIEW_MODE unset) — subdomains only', async () => {
+            mockVerifyToken.mockResolvedValueOnce({ sub: 'u', azp: 'https://sandbox.commise.app' });
+
+            const service = await makeService();
+            await expect(service.verify('t')).rejects.toMatchObject({ status: 401 });
+        });
+
+        it('still accepts a per-PR subdomain in strict mode', async () => {
+            mockVerifyToken.mockResolvedValueOnce({ sub: 'u', azp: 'https://pr-42.sandbox.commise.app' });
+
+            const service = await makeService();
+            await expect(service.verify('t')).resolves.toMatchObject({ sub: 'u' });
+        });
     });
 });

@@ -44,6 +44,29 @@ export const deleteUser = async (userId: string): Promise<void> => {
     await client.users.deleteUser(userId);
 };
 
+/**
+ * Ban the Clerk identity (CR-002 closure). Durable and admin-reversible: it PRESERVES the user record and
+ * `sub` and blocks sign-in — deliberately NOT `deleteUser` (irreversible) and NOT `lockUser` (auto-expiring).
+ * `@clerk/backend` exposes `POST /users/{id}/ban` with no duration param.
+ *
+ * @sideEffect bans the user via the Clerk admin API.
+ */
+export const banUser = async (userId: string): Promise<void> => {
+    const client = await getClient();
+    await client.users.banUser(userId);
+};
+
+/**
+ * Un-ban the Clerk identity (CR-002 admin-mediated recovery). Restores sign-in for a tombstoned user; the
+ * `sub` survived the ban, so the same app ULID resolves.
+ *
+ * @sideEffect un-bans the user via the Clerk admin API.
+ */
+export const unbanUser = async (userId: string): Promise<void> => {
+    const client = await getClient();
+    await client.users.unbanUser(userId);
+};
+
 export const listUsers = async () => {
     const client = await getClient();
     const pageSize = 100;

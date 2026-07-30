@@ -1,55 +1,45 @@
+import { borderSubtle, fontFamily } from '@commise/ui/scale';
+import { palette } from '@commise/ui/tokens/colors';
 import { createTamagui, createTokens, createFont } from 'tamagui';
 
+import {
+    bodyFontSize,
+    bodyLineHeight,
+    displayFontSize,
+    displayLineHeight,
+    fontWeightRamp,
+    radiusScale,
+    sizeScale,
+    spaceScale,
+} from './src/theme/scaleTokens.js';
+
+// Values have ONE authoritative source: the @commise/ui design scale (shared with the web design tokens).
+// Colours derive from the `palette`; the space/size/radius ramps and BOTH font ramps derive from
+// `@commise/ui/scale` via `./src/theme/scaleTokens` — Tamagui keeps its positional numeric keys (required
+// by `$token`/`$size` accessors and the theme references below), but the numbers are derived, never
+// re-declared, so web and mobile cannot drift. The drift guard is `tests/theme/scaleTokens.test.ts`.
 const tokens = createTokens({
     color: {
-        seafoam: '#3D8B85',
-        seafoamLight: '#5BA8A0',
-        coral: '#E8917A',
-        sky: '#8ECAE6',
-        sand: '#FAF6F0',
-        oceanDark: '#2A6B65',
-        charcoal: '#2D3436',
-        slate: '#636E72',
-        mist: '#B2BEC3',
-        pearl: '#F5F5F5',
-        white: '#FFFFFF',
-        success: '#4CAF7C',
-        warning: '#F5B041',
-        error: '#E17055',
-        premium: '#D4A574',
+        seafoam: palette.seafoam,
+        seafoamLight: palette['seafoam-light'],
+        coral: palette.coral,
+        sky: palette.sky,
+        sand: palette.sand,
+        oceanDark: palette['ocean-dark'],
+        charcoal: palette.charcoal,
+        slate: palette.slate,
+        mist: palette.mist,
+        pearl: palette.pearl,
+        white: palette.white,
+        success: palette.success,
+        warning: palette.warning,
+        error: palette.error,
+        errorDark: palette['error-dark'],
+        premium: palette.premium,
     },
-    space: {
-        0: 0,
-        1: 4,
-        2: 8,
-        3: 12,
-        4: 16,
-        5: 24,
-        6: 32,
-        7: 48,
-        8: 64,
-        9: 96,
-    },
-    size: {
-        0: 0,
-        1: 4,
-        2: 8,
-        3: 12,
-        4: 16,
-        5: 24,
-        6: 32,
-        7: 48,
-        8: 64,
-        9: 96,
-    },
-    radius: {
-        0: 0,
-        1: 6,
-        2: 12,
-        3: 20,
-        4: 28,
-        5: 9999,
-    },
+    space: { ...spaceScale },
+    size: { ...sizeScale },
+    radius: { ...radiusScale },
     zIndex: {
         0: 0,
         1: 100,
@@ -58,35 +48,10 @@ const tokens = createTokens({
 });
 
 const bodyFont = createFont({
-    family: 'Inter, system-ui, sans-serif',
-    size: {
-        1: 14,
-        2: 16,
-        3: 18,
-        4: 18,
-        5: 20,
-        6: 24,
-        7: 28,
-        8: 36,
-        9: 48,
-    },
-    lineHeight: {
-        1: 21,
-        2: 24,
-        3: 27,
-        4: 21.6,
-        5: 24,
-        6: 28.8,
-        7: 33.6,
-        8: 43.2,
-        9: 57.6,
-    },
-    weight: {
-        1: '400',
-        2: '500',
-        3: '600',
-        4: '700',
-    },
+    family: fontFamily.body,
+    size: { ...bodyFontSize },
+    lineHeight: { ...bodyLineHeight },
+    weight: { ...fontWeightRamp },
     letterSpacing: {
         1: 0,
         2: 0,
@@ -107,35 +72,10 @@ const bodyFont = createFont({
 });
 
 const displayFont = createFont({
-    family: '"Playfair Display", Georgia, serif',
-    size: {
-        1: 16,
-        2: 20,
-        3: 24,
-        4: 28,
-        5: 36,
-        6: 48,
-        7: 28,
-        8: 36,
-        9: 48,
-    },
-    lineHeight: {
-        1: 19.2,
-        2: 24,
-        3: 28.8,
-        4: 33.6,
-        5: 43.2,
-        6: 57.6,
-        7: 33.6,
-        8: 43.2,
-        9: 57.6,
-    },
-    weight: {
-        1: '400',
-        2: '500',
-        3: '600',
-        4: '700',
-    },
+    family: fontFamily.display,
+    size: { ...displayFontSize },
+    lineHeight: { ...displayLineHeight },
+    weight: { ...fontWeightRamp },
     letterSpacing: {
         1: 0,
         2: 0,
@@ -171,7 +111,7 @@ const config = createTamagui({
             muted: tokens.color.pearl,
             accent: tokens.color.sky,
             destructive: tokens.color.error,
-            borderColor: 'rgba(178, 190, 195, 0.3)',
+            borderColor: borderSubtle,
             focusRing: tokens.color.seafoamLight,
         },
     },

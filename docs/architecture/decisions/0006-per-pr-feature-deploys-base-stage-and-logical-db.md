@@ -45,8 +45,28 @@ preview (allocate from a per-PR band; unmatched → the listener's default 404).
 `*.sandbox.commise.app` — all **single-label** wildcards. A per-PR host must therefore be a single
 label under the apex: `foodSubdomainForStage` emits **`food-{stage}`** (→ `food-pr-7.commise.app`,
 covered by `*.commise.app`), NOT `food.{stage}` (→ `food.pr-7.commise.app`, a 3-label host no
-wildcard covers, which fails the TLS handshake). Base stages keep the dotted host they already use
-(prod `food`, sandbox `food.sandbox`), so their templates are unchanged.
+wildcard covers, which fails the TLS handshake). Prod keeps the bare label `food`, so its template is
+unchanged.
+
+**Amendment (2026-07-29) — a feature service has NO persistent non-prod instance, and the
+stage-qualified host is now unrepresentable.** Per owner directive, every PR deploys its own instance
+of every feature service; only identity and `packages/infra/global` are shared and persistent. Two
+consequences:
+
+- `foodSubdomainForStage` / `recipeSubdomainForStage` take only `stage` and are **total**: prod → the
+  bare label, every other stage → the dash form. They no longer accept a `baseStage` to compare
+  against, so a stage-qualified `{service}.{stage}` label cannot be constructed at all — it is
+  unrepresentable rather than merely rejected.
+- Deploying a feature service at the platform's own base stage is refused in `infra/bin/app.ts`, where
+  deploy-stage validity belongs. A DNS-label helper is the wrong place to decide which environments
+  exist.
+
+Live AWS already matched this (there has never been a `kitchensink-{food,recipe}-service-sandbox`
+stack), so nothing was migrated. Note the failure mode this closes was quiet, not loud: the
+`*.sandbox.commise.app` wildcard resolves to the shared ALB, so a stage-qualified service host answers
+the listener's default **404 on every request** rather than failing DNS. That wildcard still exists (the
+per-PR web previews need it), so such a host will always resolve — what has been removed is any code or
+configuration that can produce or name one.
 
 **`food_app` needs `CREATEDB` on the sandbox instance.** The per-PR database is created by the
 migration runner connected AS `food_app`, so the non-prod bootstrap SQL (DataStack) grants

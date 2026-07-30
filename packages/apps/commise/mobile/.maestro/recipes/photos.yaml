@@ -1,0 +1,129 @@
+appId: io.commise.mobile
+---
+# Recipe photo manager surface (T067, CP-6/P3 photo-upload user story). Assumes an authenticated session
+# (auth flow runs first in CI) and a seeded recipe API. Drives list -> detail -> edit, and asserts the shared
+# photo-manager block (`RecipePhotoManager.native.tsx`, mounted by `RecipeEditScreen`) renders its accessible
+# "Photos" section, the empty state, and the add-photo control. Mobile counterpart to the web Playwright spec
+# `recipePhotos.spec.ts`.
+#
+# LIMITATION — the picker itself is deliberately NOT driven here. `expo-image-picker`'s
+# `launchImageLibraryAsync` opens native OS chrome (the system photo library / permission sheet); Maestro
+# cannot reliably drive that (OS version/locale/permission-state dependent), and no flow in this suite taps
+# OS chrome — there is no precedent for it here, and starting one would make this flow flaky by construction.
+# Tapping "Add photo" is intentionally skipped for the same reason: it would leave the OS picker open with no
+# scripted way to dismiss it, stranding every flow that runs after this one in CI.
+#
+# The recommended path to close this gap end-to-end is a build-flag test double for `expo-image-picker` (an
+# E2E-only Expo config swaps in a fake that returns a fixed asset without opening the real picker), which
+# would let a future flow complete the presign -> PUT -> confirm sequence on-device. Until then, the
+# picker-launch tap + the resulting upload sequence are covered by `RecipePhotoUploader.native.test.tsx`
+# (mocked picker + mocked mutations) and by the web Playwright spec (`recipePhotos.spec.ts`, a real
+# `<input type="file">` — Playwright CAN drive that, unlike Maestro + native OS chrome); together those ARE
+# this story's upload-path integration coverage. This flow covers what IS deterministically drivable
+# on-device: the surface renders, and its accessible controls are present.
+#
+# REMOVE — also not covered here. `recipe-service`'s seed data seeds no recipe with an existing photo (see
+# `packages/services/recipe-service/src/database/seed.ts`), so there is nothing to remove; removal needs no
+# picker, so the moment a seeded recipe carries at least one photo this flow should gain a
+# `tapOn: 'Remove photo 1'` + `assertNotVisible` step.
+#
+# CLIENT-SIDE PRE-VALIDATION (REQ-011 5 MB size cap, REQ-012 MIME allowlist) — also not expressible here,
+# for the SAME reason as the picker/upload path above: there is no scripted way to hand the (real, OS-level)
+# picker an oversized or wrong-type fixture, so there is nothing new this flow could assertably drive. The
+# guard itself (rejection + the localized per-file error + presign never firing) is covered by
+# `RecipePhotoUploader.native.test.tsx` (mocked picker, an oversized/GIF asset) and the pure
+# `photoValidation.test.ts` unit tests; the web Playwright spec (`recipePhotos.spec.ts`) is this story's
+# on-device-equivalent integration coverage, since Playwright CAN drive a real file input unlike Maestro +
+# native OS chrome.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+
+# The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
+# `when: visible` guard that would silently SKIP if it were below the fold.
+- scrollUntilVisible:
+      element: 'Mediterranean Grilled Lamb'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Mediterranean Grilled Lamb'
+# RecipeDetailScreen: the owner's edit entry point sits in the owner-action block at the foot of the detail.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+
+# The wizard opens on step 1 and has NO page heading of its own — that "Edit recipe" copy belonged to the
+# retired flat `RecipeForm`, and this flow's old `assertVisible: 'Edit recipe'` here was asserting the detail
+# screen's own button label from inside the editor that replaced it. The step-progress label is the entry
+# checkpoint instead (the same checkpoint `create.yaml`, `edit.yaml` and `versions.yaml` already use).
+- assertVisible: 'Step 1 of 4'
+
+# The photo manager is STEP 4's body (`RecipeEditScreen` passes `RecipePhotoUploader` as `photosSlot`), not a
+# block at the foot of one long scrolling form — w3 replaced that flat form with the screen-per-step wizard.
+# Walk forward through the footer `Next: …` primaries to reach it.
+#
+# Steps 2 and 3 CANNOT be passed through untouched (this flow's previous assumption, which stranded it on step
+# 2): each `Next: …` is gated by `canAdvanceFromStep`, and `recipe-service`'s seed inserts the recipe row
+# directly via SQL with NO ingredients and NO steps (see `database/seed.ts`, and the same note in
+# `versions.yaml`). So step 2 refuses to advance until the draft has an ingredient and step 3 until it has an
+# instruction. Both are added here exactly as `versions.yaml` does — the freeform "Create …" path, whose name
+# is deliberately OUTSIDE the seeded catalog so it cannot collide with `search-navigation.yaml`'s "Flour"
+# ingredient filter. Nothing is saved (this flow never publishes), so the recipe itself is left untouched.
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+- inputText: 'Tomato'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Tomato.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Tomato.*'
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Marinate for two hours.'
+- scrollUntilVisible:
+      element: 'Next: Photos'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Photos'
+- assertVisible: 'Step 4 of 4'
+
+# A freshly-seeded recipe carries no photos, so the manager renders its empty state + the add control. This
+# recipe IS persisted (an edit, not a create), so step 4 is the real manager rather than the "save first"
+# guidance notice a create shows.
+#
+# Anchored on "Add photo" — the LAST element of the manager block — not on "Photos": the step RAIL renders a
+# "Photos" marker of its own at the top of every step, so a scroll anchored there settles on try 0 without
+# ever moving (the same wrong-anchor trap `rating.yaml` fell into). Reaching "Add photo" puts the whole
+# manager, empty state included, on screen.
+- scrollUntilVisible:
+      element: 'Add photo'
+      direction: DOWN
+      timeout: 20000
+- assertVisible: 'No photos yet.'
+- assertVisible: 'Add photo'

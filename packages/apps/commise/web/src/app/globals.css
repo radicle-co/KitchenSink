@@ -1,5 +1,13 @@
 @import '@commise/ui/theme.css';
 
+/* Tailwind v4 auto-scans THIS app's files but not workspace packages. The recipe UI (list, detail, form,
+   discovery, collections, …) is rendered from the shared @commise/features-recipes building blocks, so
+   scan their source too — otherwise the utility classes they use are never generated. */
+@source "../../../features/recipes/src/**/*.{ts,tsx}";
+/* The shared design-system components (e.g. @commise/ui/button) carry their own utility classes — scan
+   their source too, or the Button's tier/surface classes are never generated. */
+@source "../../../ui/src/**/*.{ts,tsx}";
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
 
 @layer base {
@@ -7,5 +15,46 @@
         font-family: var(--font-body);
         background-color: var(--color-background);
         color: var(--color-foreground);
+    }
+}
+
+/* U8 — the Home gradient hero's subtle enter (a short rise + fade on mount). Registered as a theme
+   `--animate-*` token so it surfaces as the `animate-home-hero-enter` utility, applied ONLY behind the
+   `motion-safe:` variant: under `prefers-reduced-motion: reduce` the utility is never emitted, so there is
+   no transform/opacity animation at all (a clean gate, not an override fight). */
+@theme {
+    --animate-home-hero-enter: home-hero-enter 400ms ease-out both;
+}
+
+@keyframes home-hero-enter {
+    from {
+        opacity: 0;
+        transform: translateY(0.5rem);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* U8 motion pass — the same rise + fade, generalized for any SECTION that enters (the discovery browse
+   rails). Owned by the `@commise/ui/motion` `EnterTransition` primitive, which emits it only behind
+   `motion-safe:`; `both` keeps the from-state through an `animation-delay` so a run of sections can stagger.
+   Pure CSS by design: the gesture must not depend on hydration, or a no-JS viewer would see nothing. Values
+   are single-sourced with the native leaf's `ENTER_DURATION_MS` / `ENTER_RISE_PX`. */
+@theme {
+    --animate-section-enter: section-enter 400ms ease-out both;
+}
+
+@keyframes section-enter {
+    from {
+        opacity: 0;
+        transform: translateY(0.5rem);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
     }
 }

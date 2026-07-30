@@ -115,7 +115,7 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
 
     it('refuses a row whose recorded requester is the forbidden "system" shortcut', async () => {
         const id = await seedWithoutRequester('system enqueue');
-        await pool.query(`INSERT INTO fetch_requesters (food_id, sub) VALUES ($1, 'system')`, [id]);
+        await pool.query(`INSERT INTO fetch_requesters (food_id, requester_id) VALUES ($1, 'system')`, [id]);
         const { consumer, adapter } = build();
 
         expect(await consumer.processNext()).toBe('rejected_provenance');
@@ -123,9 +123,22 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
         expect((await queue.getByFoodId(id))?.status).toBe('tombstone');
     });
 
-    it('drains a row with a valid recorded requester (a real user sub) normally', async () => {
+    it('refuses a row keyed by a legacy raw Clerk sub (a pre-U1 row) — not a ULID, not svc_ (CR-002/U1)', async () => {
+        // A stranded pre-cutover row is keyed by a raw `user_*` Clerk sub; the tightened validator (U1)
+        // rejects it so a legacy row cannot drive a source call. The 0002 migration purges such rows, but
+        // the runtime guard must ALSO refuse them defensively.
+        const id = await seedWithoutRequester('legacy sub enqueue');
+        await pool.query(`INSERT INTO fetch_requesters (food_id, requester_id) VALUES ($1, 'user_2legacy')`, [id]);
+        const { consumer, adapter } = build();
+
+        expect(await consumer.processNext()).toBe('rejected_provenance');
+        expect(adapter.searchByName).not.toHaveBeenCalled();
+        expect((await queue.getByFoodId(id))?.status).toBe('tombstone');
+    });
+
+    it('drains a row with a valid recorded requester (an app-user ULID) normally', async () => {
         const id = await seedWithoutRequester('legit enqueue');
-        await requesters.add({ foodId: id, sub: 'user_legit' });
+        await requesters.add({ foodId: id, requesterId: '01J9ZK8N7QF3B2X4M6T0V5C1AB' });
         const { consumer, adapter } = build();
 
         const disposition = await consumer.processNext();
@@ -137,7 +150,7 @@ describe.skipIf(!DATABASE_URL)('async-producer provenance (integration, FR-048)'
 
     it('drains a refresh row enqueued by the allowlisted svc_change_refresh principal', async () => {
         const id = await seedWithoutRequester('svc refresh enqueue');
-        await requesters.add({ foodId: id, sub: 'svc_change_refresh' });
+        await requesters.add({ foodId: id, requesterId: 'svc_change_refresh' });
         const { consumer, adapter } = build();
 
         expect(await consumer.processNext()).toBe('resolved');

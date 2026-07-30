@@ -1,0 +1,115 @@
+appId: io.commise.mobile
+---
+# Recipe create happy path (US1, T067; rewritten w3/e8 for the 4-step SCREEN-PER-STEP wizard). Assumes an
+# authenticated session (the auth login flow runs first in CI ordering) and the app pointed at a seeded
+# recipe API (EXPO_PUBLIC_RECIPE_API_URL). Drives the recipe list -> new-recipe wizard, walks all 4 steps via the
+# `Next: …` footer nav, states a difficulty, resolves an ingredient via the freeform create, adds a step,
+# and Publishes — landing on the new recipe's detail. Mobile mirror of the web Playwright `recipeCrud.spec.ts`
+# create path.
+#
+# w3 replaced the old single tall Basics form with `Wizard.Step`s that each fill the viewport as their own
+# "screen". U6 then moved the chrome to ONE contextual footer primary: `Next: …` on steps 1-3 and `Publish`
+# on step 4 (Save Draft / Cancel now live in the header "More actions" overflow; Preview is a header icon).
+# So this flow walks the FOOTER `Next: …` nav to step 4, then taps the footer `Publish`. servings/prep/cook keep their
+# valid defaults (1 / 0 / 0 — see `defaultRecipeFormValues` + `validateRecipeForm`), so this flow deliberately
+# does NOT touch them, exactly as before.
+- runFlow: ../auth/signin.yaml
+
+# Recipe list surface, then into the create wizard.
+- assertVisible: 'Recipes'
+- tapOn: 'New recipe'
+
+# Step 1 of 4 (Basic). The wizard opens here — no page heading of its own (that copy belonged to the retired
+# flat `RecipeForm`), so the step-progress label is the entry checkpoint instead.
+- assertVisible: 'Step 1 of 4'
+- assertVisible: 'Title'
+- tapOn: 'Title'
+- inputText: 'Maestro Weeknight Soup'
+
+# State a difficulty (FR-001b): the picker is a radiogroup further down Basic (w3/e5 added a taller cuisine
+# picker above it), so scroll defensively rather than assume it is already on screen.
+- scrollUntilVisible:
+      element: 'Difficulty'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Hard'
+
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+# Step 2 of 4 (Ingredients). The picker sits at the TOP of this step's body (right below the rail), so scroll
+# UP to reach its search box regardless of where step 1's scroll left off. Type a name that is NOT in the
+# seeded catalog (Flour/Sugar/Butter) so only the freeform "Create …" affordance shows — the food service
+# that backs "Find nutrition"/disambiguation is not run in this job, but the freeform create
+# (POST /v1/ingredients) mints a real catalog id, which is exactly what Publish validation requires (every
+# ingredient line must resolve to a catalog id).
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+
+# REQ-057 — below the 2-character trigger, no suggestion (and no "Create …" affordance keyed on the
+# in-flight query) is offered yet for a single character.
+- inputText: 'T'
+- assertNotVisible: 'Create .*T.*'
+- inputText: 'omato'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Tomato.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Tomato.*'
+
+# The freeform create is async; the resolved line lands below the picker. Scrolling to its name field both
+# waits for it and is the falsifiable checkpoint — if the ingredient never resolved this scroll finds nothing
+# and the flow fails here rather than passing empty (an unresolved form can't Publish).
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+
+# Step 3 of 4 (Instructions). "Add step" sits at the top of this step's body.
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Combine everything and simmer.'
+- scrollUntilVisible:
+      element: 'Next: Photos'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Photos'
+
+# Step 4 of 4 (Photos). A fresh create has no recipe id yet, so this step is a guidance notice, not the photo
+# manager — no longer a dead-end (U6): Publish is the step-4 footer primary, so the flow publishes from here.
+- assertVisible: 'Step 4 of 4'
+- tapOn: 'Publish'
+
+# Landed on the new recipe's detail. The title assertion is a `…Soup.*` regex because Maestro's inputText
+# intermittently duplicates the final typed character on this emulator ("…Soupp") — an input artifact, not an
+# app bug.
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Weeknight Soup.*'
+      timeout: 40000
+
+# REQ-034 — this recipe's Tomato line was resolved via the FREEFORM create (not the food database), so the
+# partial-nutrition disclosure notice must render (the negative, all-catalog case is `list-detail.yaml`).
+- scrollUntilVisible:
+      element: 'Nutrition includes USDA database items; user-entered ingredients are marked Custom.'
+      direction: DOWN
+      timeout: 20000

@@ -1,6 +1,5 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { users, accounts, profiles } from '@kitchensink/identity-service/database/schema';
-import { newUserId } from '@kitchensink/identity-service/database/ulid';
+import { users, accounts, profiles, newUserId } from '@kitchensink/identity-db';
 import type { ProvisionDeps } from '@kitchensink/identity-utils';
 
 /**

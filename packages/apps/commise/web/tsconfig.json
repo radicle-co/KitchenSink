@@ -18,7 +18,8 @@
         "paths": {
             "@/*": ["./src/*"],
             "@kitchensink/identity-service": ["../../../../packages/services/identity/src/index.ts"],
-            "@kitchensink/identity-service/*": ["../../../../packages/services/identity/src/*"]
+            "@kitchensink/identity-service/*": ["../../../../packages/services/identity/src/*"],
+            "@commise/features-account": ["../../../../packages/apps/commise/features/account/src/index.ts"]
         }
     },
     "include": [

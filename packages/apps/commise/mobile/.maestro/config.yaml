@@ -1,0 +1,31 @@
+# Maestro workspace config (T087).
+#
+# This file exists for ONE load-bearing reason: flow DISCOVERY. Pointed at a folder, Maestro "only executes
+# Flow files located at the top level of that directory. It ignores subfolders to prevent accidental
+# execution of nested or utility Flows" — the `flows` key defaults to `*` (root only). CI runs
+# `maestro test packages/apps/commise/mobile/.maestro` (.github/workflows/_ci.yml, the e2e-mobile-maestro
+# job), so WITHOUT this file only `home.yaml` runs and every flow under `auth/` and `recipes/` is silently
+# skipped — a green job proving almost nothing. The patterns below are what actually make the suite execute.
+#
+# Deliberately NOT set here:
+#
+#   - `appId`. Maestro requires `appId` in every flow's own header regardless of the workspace config, so
+#     declaring it here would ADD a 10th copy rather than dedupe the 9 that exist — anti-DRY, not DRY. The
+#     per-flow `appId: io.commise.mobile` headers stay.
+#   - `executionOrder`. `flowsOrder` pins a PREFIX (listed flows run first, in order; everything else runs
+#     after in any order), so it cannot express the one ordering wish in the suite — delete.yaml's "run me
+#     last" note — without enumerating every other flow and re-enumerating on every addition. No flow
+#     currently depends on another's data (each is guarded and self-contained; collections.yaml creates and
+#     removes its own fixture), so pinning an order would be ceremony that rots. If a real cross-flow
+#     dependency ever appears, fix it by making the flow seed/clean its own data, not by ordering the suite.
+#
+# `auth/signin.yaml` and `auth/signin-home.yaml` are reusable SUB-flows (`runFlow` targets), not stories, so
+# they are excluded from discovery — listing `auth/login-flow.yaml` explicitly admits only the real auth
+# story. Adding a flow under `recipes/` needs no change here; adding one under a NEW subfolder does.
+#
+# `auth/welcome-flow.yaml` was removed with the welcome screen itself (owner decision 2026-07-28): the
+# signed-out app opens directly on the sign-in form, and `auth/login-flow.yaml` now covers that entry.
+flows:
+    - '*'
+    - 'auth/login-flow.yaml'
+    - 'recipes/*'

@@ -43,6 +43,13 @@
                     "project": "commise-mobile",
                     "url": "https://sentry.io/"
                 }
+            ],
+            "expo-image",
+            [
+                "@clerk/expo",
+                {
+                    "appleSignIn": false
+                }
             ]
         ],
         "experiments": {

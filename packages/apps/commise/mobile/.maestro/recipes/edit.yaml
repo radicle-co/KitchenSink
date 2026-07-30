@@ -1,0 +1,104 @@
+appId: io.commise.mobile
+---
+# Recipe edit happy path (US1, T067; rewritten w3/e8 for the 4-step SCREEN-PER-STEP wizard). Assumes an
+# authenticated session (auth flow runs first in CI) and a seeded recipe API. Drives list -> detail -> edit,
+# walks the wizard's 4 steps, changes the title, clears the stated difficulty, and Publishes. Mobile mirror of
+# the web Playwright `recipeCrud.spec.ts` edit path (cross-platform mandate).
+#
+# w3 replaced the editor's old single tall Basics form with `Wizard.Step`s that each fill the viewport as
+# their own "screen"; `Wizard.TopBar` (Save Draft / Preview / Cancel / Publish) is a STICKY header rendered
+# OUTSIDE the scrolling step body, so Publish never needs scrolling into view (unlike the old flow's
+# foot-of-form "Save changes"); only the FOOTER `Next: …` nav (inside each step's own scroll) does.
+#
+# The seed is guaranteed present (the CI loop reseeds the DB before every flow), so the target recipe is
+# reached by scrolling to it rather than a `when: visible` guard that would silently SKIP the whole flow when
+# the recipe is below the fold (the list scrolls; only ~1 tall cover card fits the viewport at a time). The
+# seed recipe itself carries no ingredients or steps, but a full Publish (whole-form validation, unchanged by
+# the wizard) needs >= 1 of each — added via the freeform create on steps 2/3, exactly as before the wizard.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+
+- scrollUntilVisible:
+      element: 'Mediterranean Grilled Lamb'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Mediterranean Grilled Lamb'
+# RecipeDetailScreen: the owner's edit entry point sits in the owner-action block at the foot of the detail,
+# which scrolls — reach it rather than asserting blind.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+
+# Step 1 of 4 (Basic) — the wizard opens here, seeded with the recipe's current title/difficulty. No page
+# heading of its own (that copy belonged to the retired flat `RecipeForm`), so the step-progress label is the
+# entry checkpoint instead.
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- eraseText
+- inputText: 'Mediterranean Grilled Lamb (edited)'
+# Clear the stated difficulty (FR-001b): choosing "Not stated" sends the three-state update's explicit clear
+# (null), not an omit. It sits further down Basic (w3/e5 added a taller cuisine picker above it), so scroll
+# defensively rather than assume it is already on screen.
+- scrollUntilVisible:
+      element: 'Difficulty'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Not stated'
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+
+# Step 2 of 4 (Ingredients) — the seed carries none; Publish requires >= 1. Add one via the freeform create
+# (no food-service dependency, same as before the wizard). The picker sits at the top of this step's body.
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+- inputText: 'Tomato'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Tomato.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Tomato.*'
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+
+# Step 3 of 4 (Instructions) — same reason, the seed carries no steps.
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Combine everything and simmer.'
+- scrollUntilVisible:
+      element: 'Next: Photos'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Photos'
+
+# Step 4 of 4 (Photos) — Publish is the sticky top-bar action, present on every step; no scroll needed.
+- assertVisible: 'Step 4 of 4'
+- tapOn: 'Publish'
+# Back on the detail with the new title (regex tolerates Maestro's occasional last-char input dup).
+- extendedWaitUntil:
+      visible:
+          text: 'Mediterranean Grilled Lamb .edited.*'
+      timeout: 40000

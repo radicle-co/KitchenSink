@@ -1,0 +1,34 @@
+appId: io.commise.mobile
+---
+# The recipe-SOURCE switcher round trip (L5) — mobile's half of the same story the web Playwright spec
+# `recipeSourceTabs.spec.ts` proves: My recipes -> Discover -> BACK to My recipes.
+#
+# Why it exists as its own flow: the web pair had drifted into a ONE-WAY TRIP (the community surface offered
+# no way back to the caller's own library), and no per-surface test could see it — only a round trip can. The
+# mobile shell has always kept its switcher persistent across both destinations, so this flow is the guard
+# that it stays that way, plus the assertion that the switcher's tabs are reachable FROM the far side.
+#
+# Read-only: it navigates only, mutating nothing, so it is order-independent.
+- runFlow: ../auth/signin.yaml
+
+# The recipes list is the initial destination, and the switcher offers BOTH other destinations from here.
+- assertVisible: 'Recipes'
+- assertVisible: 'Discover'
+- assertVisible: 'My recipes'
+
+# --- outbound ------------------------------------------------------------------------------------------
+- tapOn: 'Discover'
+- extendedWaitUntil:
+      visible: 'Discover recipes'
+      timeout: 40000
+
+# The switcher is STILL present on the far side — this is the assertion the web surface used to fail.
+- assertVisible: 'My recipes'
+
+# --- return --------------------------------------------------------------------------------------------
+- tapOn: 'My recipes'
+- extendedWaitUntil:
+      visible: 'Recipes'
+      timeout: 40000
+# Landed on the real library, not merely on a heading: its create affordance is back.
+- assertVisible: 'New recipe'

@@ -1,0 +1,40 @@
+appId: io.commise.mobile
+---
+# Recipe delete happy path (US1, T068). Assumes an authenticated session (auth flow runs first in CI) and
+# a seeded recipe API. Drives list -> detail -> delete-confirm dialog -> confirm, then asserts the return
+# to the list. Guarded on the seeded recipe. NOTE: this permanently removes the recipe it opens, so CI
+# must (re)seed before this flow or run it last relative to the other recipe flows that read that seed.
+# Mobile mirror of the web Playwright delete flow (cross-platform mandate).
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+
+# The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
+# `when: visible` guard that would silently SKIP if it were below the fold.
+- scrollUntilVisible:
+      element: 'Gourmet Garden Salad'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Gourmet Garden Salad'
+# RecipeDetailScreen: Edit + the "More" overflow trigger sit together at the foot of the scrolling detail
+# (C4 wireframe parity); the owner-only delete trigger lives behind "More".
+- scrollUntilVisible:
+      element: 'More'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'More'
+- scrollUntilVisible:
+      element: 'Delete recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Delete recipe'
+# RecipeDeleteDialog (shared with web) renders inline below the trigger; the detail scrolls, so scroll to the
+# confirm. 'Delete' is the confirm's exact text; the trigger/title are 'Delete recipe', which Maestro's
+# full-string match won't confuse with 'Delete'.
+- scrollUntilVisible:
+      element: 'Delete'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Delete'
+# Back on the recipe list.
+- assertVisible: 'Recipes'

@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ForbiddenException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 
-vi.mock('../src/database/dao/index.js', () => ({
+vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn(),
     AccountDAO: vi.fn(),
 }));
 vi.mock('@sentry/nestjs', () => ({ captureException: vi.fn() }));
 
 import { ResolveUserService } from '../src/users/resolveUser.js';
-import { AccountDAO, UserDAO } from '../src/database/dao/index.js';
+import { AccountDAO, UserDAO } from '@kitchensink/identity-db';
 import * as Sentry from '@sentry/nestjs';
 
 const activeUser = { id: '01USER00000000000000000000', email: 'a@b.com', status: 'active' };
@@ -49,6 +49,18 @@ describe('ResolveUserService.resolveUser', () => {
 
     it('throws 403 Forbidden for a suspended user', async () => {
         findById.mockResolvedValue({ ...activeUser, status: 'suspended' });
+
+        await expect(svc.resolveUser(activeUser.id)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('throws 403 Forbidden for a tombstoned (closed) account', async () => {
+        findById.mockResolvedValue({ ...activeUser, status: 'tombstoned' });
+
+        await expect(svc.resolveUser(activeUser.id)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('throws 403 Forbidden for an erased account', async () => {
+        findById.mockResolvedValue({ ...activeUser, status: 'erased' });
 
         await expect(svc.resolveUser(activeUser.id)).rejects.toBeInstanceOf(ForbiddenException);
     });

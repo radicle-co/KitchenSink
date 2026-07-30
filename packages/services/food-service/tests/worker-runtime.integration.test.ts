@@ -108,7 +108,7 @@ describe.skipIf(!DATABASE_URL)('WorkerRuntime (integration)', () => {
 
             // Enqueue AFTER start (queue was empty at start), then notify like the EnqueueEmitter would.
             const { id } = await foodDao.createByName({ normalizedName: 'notify food', displayName: 'Notify Food' });
-            await requesters.add({ foodId: id, sub: 'user_a' });
+            await requesters.add({ foodId: id, requesterId: '01J9ZK8N7QF3B2X4M6T0V5C1AB' });
             await queue.enqueue(id);
             await pool.query(`SELECT pg_notify('fetch_queued', $1)`, [id]);
 
@@ -158,7 +158,7 @@ describe.skipIf(!DATABASE_URL)('WorkerRuntime (integration)', () => {
 
     it('stop() releases in-flight leases so a replacement can re-claim them (FR-017)', async () => {
         const { id } = await foodDao.createByName({ normalizedName: 'inflight food' });
-        await requesters.add({ foodId: id, sub: 'user_a' });
+        await requesters.add({ foodId: id, requesterId: '01J9ZK8N7QF3B2X4M6T0V5C1AB' });
         await queue.enqueue(id);
         await queue.leaseNext(30); // now in_flight
 

@@ -9,8 +9,7 @@ import { eq } from 'drizzle-orm';
 
 import { provisionCompleteUser, type ProvisionDeps } from '@kitchensink/identity-utils';
 import { users, accounts, profiles } from '../src/database/index.js';
-import { UserDAO } from '../src/database/dao/index.js';
-import { newUserId } from '../src/database/ulid.js';
+import { UserDAO, newUserId } from '@kitchensink/identity-db';
 
 /**
  * Proves R3 against a real Postgres: the shared provisioning routine is idempotent and race-safe
@@ -98,7 +97,17 @@ describe.skipIf(!DATABASE_URL)('provisionCompleteUser — race-safety under conc
             const email = `${sub}@example.com`;
 
             // Both writers race on the same identity. No rejection (no 40P01, no escaped duplicate-key).
-            await expect(Promise.all([readThrough(sub, email), webhook(sub, email)])).resolves.toBeDefined();
+            // readThrough's 'placeholder' policy retries-to-completion on any collision, so it ALWAYS
+            // converges on 'complete'. webhook's 'signal-incomplete' policy does not retry: it is racy
+            // between resolving 'complete' (wins the row first) and 'incomplete'/'email-collision' (loses
+            // to readThrough's insert/retry on the shared email, even though both target the same
+            // identityId) — empirically observed both ways, never a rejection or any other shape.
+            const [readThroughResult, webhookResult] = await Promise.all([
+                readThrough(sub, email),
+                webhook(sub, email),
+            ]);
+            expect(readThroughResult).toMatchObject({ kind: 'complete' });
+            expect(['complete', 'incomplete']).toContain(webhookResult.kind);
 
             expect(await countsFor(sub)).toMatchObject({ users: 1, accounts: 1, profiles: 1 });
         }
@@ -109,9 +118,18 @@ describe.skipIf(!DATABASE_URL)('provisionCompleteUser — race-safety under conc
             const sub = `user_race3_${i}`;
             const email = `${sub}@example.com`;
 
-            await expect(
-                Promise.all([readThrough(sub, email), webhook(sub, email), reconcile(sub, email)]),
-            ).resolves.toBeDefined();
+            // readThrough and reconcile both use the 'placeholder' policy (retries-to-completion on any
+            // collision), so they ALWAYS converge on 'complete'. webhook's 'signal-incomplete' policy
+            // does not retry, so it is racy between 'complete' and 'incomplete'/'email-collision' —
+            // empirically observed both ways, never a rejection or any other shape.
+            const [readThroughResult, webhookResult, reconcileResult] = await Promise.all([
+                readThrough(sub, email),
+                webhook(sub, email),
+                reconcile(sub, email),
+            ]);
+            expect(readThroughResult).toMatchObject({ kind: 'complete' });
+            expect(reconcileResult).toMatchObject({ kind: 'complete' });
+            expect(['complete', 'incomplete']).toContain(webhookResult.kind);
 
             expect(await countsFor(sub)).toMatchObject({ users: 1, accounts: 1, profiles: 1 });
         }
@@ -123,10 +141,16 @@ describe.skipIf(!DATABASE_URL)('provisionCompleteUser — race-safety under conc
             const subA = `user_a_${i}`; // read-through (placeholder policy)
             const subB = `user_b_${i}`; // webhook (signal-incomplete policy)
 
-            // No rejection regardless of which writer commits the email first.
-            await expect(
-                Promise.all([readThrough(subA, sharedEmail), webhook(subB, sharedEmail)]),
-            ).resolves.toBeDefined();
+            // No rejection regardless of which writer commits the email first. readThrough's
+            // 'placeholder' policy retries-to-placeholder on collision, so it ALWAYS converges on
+            // 'complete' — order-invariant. webhook's 'signal-incomplete' policy is racy: 'complete' if
+            // it wins the email first, 'incomplete' (email-collision) if readThrough's retry wins first.
+            const [readThroughResult, webhookResult] = await Promise.all([
+                readThrough(subA, sharedEmail),
+                webhook(subB, sharedEmail),
+            ]);
+            expect(readThroughResult).toMatchObject({ kind: 'complete' });
+            expect(['complete', 'incomplete']).toContain(webhookResult.kind);
 
             // Exactly one user owns the real email, and that user is complete (has account + profile).
             const owners = await db.select().from(users).where(eq(users.email, sharedEmail));
@@ -190,9 +214,10 @@ describe.skipIf(!DATABASE_URL)('provisionCompleteUser — race-safety under conc
         const purged = await dao.purgePrivateDataByIdentityId(sub);
         expect(purged?.id).toBe(userId);
 
-        // PUBLIC attribution data is retained on a soft-deleted user row: id, email, name survive.
+        // PUBLIC attribution data is retained on a soft-deleted user row: id, email, name survive
+        // (the row itself is NOT hard-deleted — confirm the same user id still comes back).
         const [after] = await db.select().from(users).where(eq(users.id, userId));
-        expect(after).toBeDefined();
+        expect(after?.id).toBe(userId);
         expect(after!.email).toBe(email);
         expect(after!.name).toBe('Keep Me');
         expect(after!.deletedAt).not.toBeNull();

@@ -1,8 +1,8 @@
 /**
  * Integration guarantee for user-erasure (T-056, FR-043/FR-044) over REAL Postgres. On a Clerk
- * `user.deleted` event the food service must remove the deleted `sub`'s footprint. `fetch_requesters`
+ * `user.deleted` event the food service must remove the deleted user's footprint. `fetch_requesters`
  * is the ONLY per-user data this service stores (there are deliberately NO `user_fetch_quota`/
- * `global_fetch_quota` tables), so erasing a user = deleting that `sub`'s `fetch_requesters` rows; other
+ * `global_fetch_quota` tables), so erasing a user = deleting that user's `fetch_requesters` rows; other
  * users' demand rows survive, foods remain shared reference data. Idempotent.
  *
  * (The wiring to the actual Clerk `user.deleted` webhook / deletion fan-out is infrastructure and is
@@ -47,8 +47,8 @@ describe.skipIf(!DATABASE_URL)('user-erasure (integration, T-056/FR-044)', () =>
     /** Create a PENDING food + pending queue row, attach `subs` as requesters. */
     async function seed(normalizedName: string, subs: string[]): Promise<string> {
         const { id } = await foodDao.createByName({ normalizedName, displayName: normalizedName });
-        for (const sub of subs) {
-            await requesters.add({ foodId: id, sub });
+        for (const requesterId of subs) {
+            await requesters.add({ foodId: id, requesterId });
         }
         await queue.enqueue(id);
 
@@ -62,11 +62,13 @@ describe.skipIf(!DATABASE_URL)('user-erasure (integration, T-056/FR-044)', () =>
 
         const result = await erasure.eraseUser('user_doomed');
 
-        expect(result).toEqual({ sub: 'user_doomed', deletedRequesterRows: 2 });
+        expect(result).toEqual({ requesterId: 'user_doomed', deletedRequesterRows: 2 });
 
         // The deleted user is gone everywhere; the surviving user's rows remain.
-        const remaining = await db.execute<{ sub: string }>(sql`SELECT sub FROM fetch_requesters ORDER BY sub`);
-        expect(remaining.rows.map((row) => row.sub)).toEqual(['user_keep', 'user_keep']);
+        const remaining = await db.execute<{ requester_id: string }>(
+            sql`SELECT requester_id FROM fetch_requesters ORDER BY requester_id`,
+        );
+        expect(remaining.rows.map((row) => row.requester_id)).toEqual(['user_keep', 'user_keep']);
 
         // Demand recomputes to the surviving distinct-requester count when next enqueued.
         await queue.enqueue(apple);

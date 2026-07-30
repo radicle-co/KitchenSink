@@ -180,7 +180,7 @@ describe('mergeCandidates — field-level merge rules (FR-MRG-2/FR-MRG-3)', () =
         );
 
         const protein = result.goldenRecord?.nutrients.find((nutrient) => nutrient.code === 'PROCNT');
-        expect(protein).toBeDefined();
+        expect(protein).toMatchObject({ code: 'PROCNT', name: 'Protein', unit: 'g' });
         expect(protein?.amount).toBe('8');
         expect(protein?.basis).toBe('per_serving');
         expect(protein?.source).toBe('usda');

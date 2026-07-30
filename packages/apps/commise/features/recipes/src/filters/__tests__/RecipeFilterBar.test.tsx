@@ -1,0 +1,600 @@
+// @vitest-environment jsdom
+/**
+ * Component tests for the web recipe filter bar (FR-006). Covers EVERY branch the bar renders: no
+ * facets at all, one dimension, both dimensions, the time ladder, selected/unselected chip state, a
+ * selected-but-unfaceted value, zero-count buckets, the active-count summary, and clear-all
+ * (present/absent). Every query is by role/accessible-name and every state assertion reads the real
+ * `pressed` semantics, so a clickable `<div>`, a missing `aria-pressed`, or a dropped handler argument
+ * fails the test.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
+import { ringContrast, utilityContrast } from '@commise/test-utils';
+import { semantic } from '@commise/ui';
+
+import { RecipeFilterBar } from '../RecipeFilterBar.js';
+import { EMPTY_RECIPE_FILTERS } from '../model.js';
+import type { RecipeFilterBarProps, RecipeIngredientSearchState } from '../model.js';
+
+afterEach(cleanup);
+
+const noop = () => undefined;
+
+const idleIngredientSearch: RecipeIngredientSearchState = {
+    query: '',
+    onQueryChange: noop,
+    viewState: { kind: 'idle' },
+};
+
+function renderBar(overrides: Partial<RecipeFilterBarProps> = {}) {
+    const props: RecipeFilterBarProps = {
+        facets: {},
+        filters: EMPTY_RECIPE_FILTERS,
+        onToggleFacet: noop,
+        onSetCuisine: noop,
+        onSetMaxPrepTime: noop,
+        onSetMaxCookTime: noop,
+        onSetMaxTotalTime: noop,
+        ingredientSearch: idleIngredientSearch,
+        onAddIngredientFilter: noop,
+        onRemoveIngredientFilter: noop,
+        onClearAll: noop,
+        ...overrides,
+    };
+    render(<RecipeFilterBar {...props} />);
+
+    return props;
+}
+
+const facets = {
+    dietaryFlags: [
+        { value: 'vegan', count: 4 },
+        { value: 'gluten-free', count: 2 },
+    ],
+    tags: [{ value: 'quick', count: 3 }],
+};
+
+describe('RecipeFilterBar (web) — structure', () => {
+    it('exposes the bar as a named group', () => {
+        renderBar({ facets });
+
+        expect(screen.getByRole('group', { name: 'Filter recipes' })).toBeTruthy();
+    });
+
+    it('groups each facet dimension under its own accessible name', () => {
+        renderBar({ facets });
+
+        expect(screen.getByRole('group', { name: 'Dietary' })).toBeTruthy();
+        expect(screen.getByRole('group', { name: 'Tags' })).toBeTruthy();
+        expect(screen.getByRole('group', { name: 'Prep time' })).toBeTruthy();
+        expect(screen.getByRole('group', { name: 'Cook time' })).toBeTruthy();
+        expect(screen.getByRole('group', { name: 'Total time' })).toBeTruthy();
+        expect(screen.getByRole('group', { name: 'Ingredients' })).toBeTruthy();
+    });
+
+    it('renders the time ladders even with no facets, because they are bounds not value lists', () => {
+        renderBar({ facets: {} });
+
+        const total = within(screen.getByRole('group', { name: 'Total time' }));
+        expect(total.getByRole('button', { name: 'Under 15 min' })).toBeTruthy();
+        expect(total.getByRole('button', { name: 'Under 30 min' })).toBeTruthy();
+        expect(total.getByRole('button', { name: 'Under 60 min' })).toBeTruthy();
+    });
+
+    it('omits a facet dimension entirely when the server returns none and none is selected', () => {
+        renderBar({ facets: {} });
+
+        expect(screen.queryByRole('group', { name: 'Dietary' })).toBeNull();
+        expect(screen.queryByRole('group', { name: 'Tags' })).toBeNull();
+    });
+
+    it('renders only the dimension the server returned', () => {
+        renderBar({ facets: { dietaryFlags: [{ value: 'vegan', count: 4 }] } });
+
+        expect(screen.getByRole('group', { name: 'Dietary' })).toBeTruthy();
+        expect(screen.queryByRole('group', { name: 'Tags' })).toBeNull();
+    });
+});
+
+describe('RecipeFilterBar (web) — chips', () => {
+    it('names each chip with its value and count', () => {
+        renderBar({ facets });
+
+        expect(screen.getByRole('button', { name: 'vegan, 4 recipes' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'gluten-free, 2 recipes' })).toBeTruthy();
+    });
+
+    it('uses the singular count in a chip name when exactly one match', () => {
+        renderBar({ facets: { tags: [{ value: 'brunch', count: 1 }] } });
+
+        expect(screen.getByRole('button', { name: 'brunch, 1 recipe' })).toBeTruthy();
+    });
+
+    it('renders an unpressed chip when its value is not selected', () => {
+        renderBar({ facets });
+
+        expect(screen.getByRole('button', { name: 'vegan, 4 recipes' }).getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('renders a pressed chip when its value is selected', () => {
+        renderBar({ facets, filters: { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] } });
+
+        expect(screen.getByRole('button', { name: 'vegan, 4 recipes' }).getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('renders a selected value the facets omit, so an active filter is always clearable', () => {
+        renderBar({ facets, filters: { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['paleo'] } });
+
+        const chip = screen.getByRole('button', { name: 'paleo' });
+
+        expect(chip.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('toggles a dietary chip with its dimension and value', async () => {
+        const user = userEvent.setup();
+        const onToggleFacet = vi.fn();
+        renderBar({ facets, onToggleFacet });
+
+        await user.click(screen.getByRole('button', { name: 'vegan, 4 recipes' }));
+
+        expect(onToggleFacet).toHaveBeenCalledWith('dietaryFlags', 'vegan');
+    });
+
+    it('toggles a tag chip with its dimension and value', async () => {
+        const user = userEvent.setup();
+        const onToggleFacet = vi.fn();
+        renderBar({ facets, onToggleFacet });
+
+        await user.click(screen.getByRole('button', { name: 'quick, 3 recipes' }));
+
+        expect(onToggleFacet).toHaveBeenCalledWith('tags', 'quick');
+    });
+
+    it('renders every chip as a real button, not a clickable div', () => {
+        renderBar({ facets });
+
+        const dietary = screen.getByRole('group', { name: 'Dietary' });
+
+        for (const chip of within(dietary).getAllByRole('button')) {
+            expect(chip.tagName).toBe('BUTTON');
+            expect(chip.getAttribute('type')).toBe('button');
+        }
+    });
+});
+
+describe('RecipeFilterBar (web) — time ladder', () => {
+    it('presses only the active bound', () => {
+        renderBar({ filters: { ...EMPTY_RECIPE_FILTERS, maxTotalTime: 30 } });
+
+        const total = within(screen.getByRole('group', { name: 'Total time' }));
+        expect(total.getByRole('button', { name: 'Under 30 min' }).getAttribute('aria-pressed')).toBe('true');
+        expect(total.getByRole('button', { name: 'Under 15 min' }).getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('sets the bound when an inactive bucket is pressed', async () => {
+        const user = userEvent.setup();
+        const onSetMaxTotalTime = vi.fn();
+        renderBar({ onSetMaxTotalTime });
+
+        const total = within(screen.getByRole('group', { name: 'Total time' }));
+        await user.click(total.getByRole('button', { name: 'Under 30 min' }));
+
+        expect(onSetMaxTotalTime).toHaveBeenCalledWith(30);
+    });
+
+    it('clears the bound when the active bucket is pressed again', async () => {
+        const user = userEvent.setup();
+        const onSetMaxTotalTime = vi.fn();
+        renderBar({ filters: { ...EMPTY_RECIPE_FILTERS, maxTotalTime: 30 }, onSetMaxTotalTime });
+
+        const total = within(screen.getByRole('group', { name: 'Total time' }));
+        await user.click(total.getByRole('button', { name: 'Under 30 min' }));
+
+        expect(onSetMaxTotalTime).toHaveBeenCalledWith(undefined);
+    });
+});
+
+describe('RecipeFilterBar (web) — clear all', () => {
+    it('hides clear-all when no filter is active', () => {
+        renderBar({ facets });
+
+        expect(screen.queryByRole('button', { name: /Clear/ })).toBeNull();
+    });
+
+    it('shows clear-all with the active count when filters are active', () => {
+        renderBar({ facets, filters: { dietaryFlags: ['vegan'], tags: ['quick'], maxTotalTime: 30 } });
+
+        expect(screen.getByRole('button', { name: 'Clear 3 filters' })).toBeTruthy();
+    });
+
+    it('uses the singular clear-all label for exactly one active filter', () => {
+        renderBar({ facets, filters: { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] } });
+
+        expect(screen.getByRole('button', { name: 'Clear 1 filter' })).toBeTruthy();
+    });
+
+    it('invokes clear-all when pressed', async () => {
+        const user = userEvent.setup();
+        const onClearAll = vi.fn();
+        renderBar({ facets, filters: { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] }, onClearAll });
+
+        await user.click(screen.getByRole('button', { name: 'Clear 1 filter' }));
+
+        expect(onClearAll).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('RecipeFilterBar (web) — cuisine + prep facets (S2)', () => {
+    const s2Facets = {
+        cuisine: [
+            { value: 'Thai', count: 5 },
+            { value: 'Italian', count: 3 },
+        ],
+    };
+
+    it('renders the Cuisine group as single-select chips and reports a selection', async () => {
+        const user = userEvent.setup();
+        const onSetCuisine = vi.fn();
+        renderBar({ facets: s2Facets, onSetCuisine });
+
+        const group = screen.getByRole('group', { name: 'Cuisine' });
+        await user.click(within(group).getByRole('button', { name: /Thai/ }));
+
+        expect(onSetCuisine).toHaveBeenCalledWith('Thai');
+    });
+
+    it('marks only the active cuisine pressed (single-select)', () => {
+        renderBar({ facets: s2Facets, filters: { cuisine: 'Thai' } });
+
+        const group = screen.getByRole('group', { name: 'Cuisine' });
+        expect(within(group).getByRole('button', { name: /Thai/ }).getAttribute('aria-pressed')).toBe('true');
+        expect(
+            within(group)
+                .getByRole('button', { name: /Italian/ })
+                .getAttribute('aria-pressed'),
+        ).toBe('false');
+    });
+
+    it('omits the Cuisine group when the search returned no cuisines', () => {
+        renderBar({ facets: {} });
+
+        expect(screen.queryByRole('group', { name: 'Cuisine' })).toBeNull();
+    });
+
+    it('sets a prep-time bound from the Prep time ladder', async () => {
+        const user = userEvent.setup();
+        const onSetMaxPrepTime = vi.fn();
+        renderBar({ onSetMaxPrepTime });
+
+        const group = screen.getByRole('group', { name: 'Prep time' });
+        await user.click(within(group).getByRole('button', { name: 'Under 15 min' }));
+
+        expect(onSetMaxPrepTime).toHaveBeenCalledWith(15);
+    });
+
+    it('clears a prep bound by pressing the active bucket again', async () => {
+        const user = userEvent.setup();
+        const onSetMaxPrepTime = vi.fn();
+        renderBar({ filters: { maxPrepTime: 15 }, onSetMaxPrepTime });
+
+        const group = screen.getByRole('group', { name: 'Prep time' });
+        expect(within(group).getByRole('button', { name: 'Under 15 min' }).getAttribute('aria-pressed')).toBe('true');
+
+        await user.click(within(group).getByRole('button', { name: 'Under 15 min' }));
+        expect(onSetMaxPrepTime).toHaveBeenCalledWith(undefined);
+    });
+});
+
+describe('RecipeFilterBar (web) — cook-time bound (REQ-030f)', () => {
+    it('renders the Cook time ladder even with no facets, because it is a bound not a value list', () => {
+        renderBar({ facets: {} });
+
+        const group = within(screen.getByRole('group', { name: 'Cook time' }));
+        expect(group.getByRole('button', { name: 'Under 15 min' })).toBeTruthy();
+        expect(group.getByRole('button', { name: 'Under 30 min' })).toBeTruthy();
+        expect(group.getByRole('button', { name: 'Under 60 min' })).toBeTruthy();
+    });
+
+    it('sets a cook-time bound from the Cook time ladder', async () => {
+        const user = userEvent.setup();
+        const onSetMaxCookTime = vi.fn();
+        renderBar({ onSetMaxCookTime });
+
+        const group = screen.getByRole('group', { name: 'Cook time' });
+        await user.click(within(group).getByRole('button', { name: 'Under 30 min' }));
+
+        expect(onSetMaxCookTime).toHaveBeenCalledWith(30);
+    });
+
+    it('presses only the active cook bound', () => {
+        renderBar({ filters: { maxCookTime: 30 } });
+
+        const group = within(screen.getByRole('group', { name: 'Cook time' }));
+        expect(group.getByRole('button', { name: 'Under 30 min' }).getAttribute('aria-pressed')).toBe('true');
+        expect(group.getByRole('button', { name: 'Under 15 min' }).getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('clears a cook bound by pressing the active bucket again', async () => {
+        const user = userEvent.setup();
+        const onSetMaxCookTime = vi.fn();
+        renderBar({ filters: { maxCookTime: 30 }, onSetMaxCookTime });
+
+        const group = screen.getByRole('group', { name: 'Cook time' });
+        await user.click(within(group).getByRole('button', { name: 'Under 30 min' }));
+
+        expect(onSetMaxCookTime).toHaveBeenCalledWith(undefined);
+    });
+
+    it('counts an active cook bound in the clear-all summary', () => {
+        renderBar({ filters: { maxCookTime: 30 } });
+
+        expect(screen.getByRole('button', { name: 'Clear 1 filter' })).toBeTruthy();
+    });
+});
+
+describe('RecipeFilterBar (web) — ingredient filter typeahead (FR-006 gap #3)', () => {
+    it('renders the search box with an accessible name and placeholder', () => {
+        renderBar();
+
+        const input = screen.getByLabelText('Search ingredients');
+        expect(input).toBeTruthy();
+        expect(input.getAttribute('placeholder')).toBe('e.g. chicken');
+    });
+
+    it('renders no results list while idle', () => {
+        renderBar();
+
+        expect(screen.queryByRole('list')).toBeNull();
+    });
+
+    it('shows a loading state while searching, with its label as VISIBLE text', () => {
+        renderBar({
+            ingredientSearch: { query: 'chi', onQueryChange: noop, viewState: { kind: 'searching' } },
+        });
+
+        // The live region must carry its label as CONTENT, not only as `aria-label`: an empty `role="status"`
+        // node is zero-height (invisible to a sighted viewer, and Playwright resolves it as `hidden`) AND
+        // silent — a live region announces content CHANGES, and there is no content to change. Same doctrine
+        // as `RecipePhotoManager`'s upload status and the mobile `LoadingState`.
+        const status = screen.getByRole('status', { name: 'Searching ingredients…' });
+
+        expect(status.textContent).toBe('Searching ingredients…');
+    });
+
+    it('shows a no-matches message for an empty settled result set', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'zzz',
+                onQueryChange: noop,
+                viewState: { kind: 'results', results: [], isError: false },
+            },
+        });
+
+        expect(screen.getByText('No matching ingredients')).toBeTruthy();
+    });
+
+    it('shows an error message when the search failed', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'chi',
+                onQueryChange: noop,
+                viewState: { kind: 'results', results: [], isError: true },
+            },
+        });
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+    });
+
+    it('lists matching ingredients as buttons and reports a pick', async () => {
+        const user = userEvent.setup();
+        const onAddIngredientFilter = vi.fn();
+        renderBar({
+            ingredientSearch: {
+                query: 'chi',
+                onQueryChange: noop,
+                viewState: {
+                    kind: 'results',
+                    results: [
+                        { id: 'ing_1', name: 'Chicken', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' },
+                    ],
+                    isError: false,
+                },
+            },
+            onAddIngredientFilter,
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Filter by Chicken' }));
+
+        expect(onAddIngredientFilter).toHaveBeenCalledWith({ id: 'ing_1', name: 'Chicken' });
+    });
+
+    // Parity with the native leaf's same test: an option named by the bare ingredient name is
+    // indistinguishable from the query the sibling search box already holds, so any name-addressed
+    // activation (voice control, a switch-access menu, a UI harness) can resolve to the FIELD instead of the
+    // option. The name states the ACTION, exactly as the removal chip's "Remove {name}" already does.
+    it('names each option by its ACTION, so it cannot collide with the query the field already holds', () => {
+        renderBar({
+            ingredientSearch: {
+                query: 'Chicken',
+                onQueryChange: noop,
+                viewState: {
+                    kind: 'results',
+                    results: [
+                        { id: 'ing_1', name: 'Chicken', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' },
+                    ],
+                    isError: false,
+                },
+            },
+        });
+
+        expect((screen.getByLabelText('Search ingredients') as HTMLInputElement).value).toBe('Chicken');
+        expect(screen.getByRole('button', { name: 'Filter by Chicken' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Chicken' })).toBeNull();
+    });
+
+    it('excludes an already-selected ingredient from the suggestion list', () => {
+        renderBar({
+            filters: { ...EMPTY_RECIPE_FILTERS, ingredients: [{ id: 'ing_1', name: 'Chicken' }] },
+            ingredientSearch: {
+                query: 'chi',
+                onQueryChange: noop,
+                viewState: {
+                    kind: 'results',
+                    results: [
+                        { id: 'ing_1', name: 'Chicken', isUserEntered: false, createdAt: '2026-01-01T00:00:00Z' },
+                    ],
+                    isError: false,
+                },
+            },
+        });
+
+        expect(screen.queryByRole('button', { name: 'Filter by Chicken' })).toBeNull();
+    });
+
+    it('updates the search box via onQueryChange', async () => {
+        const user = userEvent.setup();
+        const onQueryChange = vi.fn();
+        renderBar({ ingredientSearch: { ...idleIngredientSearch, onQueryChange } });
+
+        await user.type(screen.getByLabelText('Search ingredients'), 'c');
+
+        expect(onQueryChange).toHaveBeenCalledWith('c');
+    });
+
+    it('renders selected ingredients as removable chips', () => {
+        renderBar({
+            filters: {
+                ...EMPTY_RECIPE_FILTERS,
+                ingredients: [
+                    { id: 'ing_1', name: 'Chicken' },
+                    { id: 'ing_2', name: 'Garlic' },
+                ],
+            },
+        });
+
+        expect(screen.getByRole('button', { name: 'Remove Chicken' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Remove Garlic' })).toBeTruthy();
+    });
+
+    it('removes an ingredient chip by id when pressed', async () => {
+        const user = userEvent.setup();
+        const onRemoveIngredientFilter = vi.fn();
+        renderBar({
+            filters: { ...EMPTY_RECIPE_FILTERS, ingredients: [{ id: 'ing_1', name: 'Chicken' }] },
+            onRemoveIngredientFilter,
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Remove Chicken' }));
+
+        expect(onRemoveIngredientFilter).toHaveBeenCalledWith('ing_1');
+    });
+
+    it('counts each selected ingredient in the clear-all summary', () => {
+        renderBar({
+            filters: {
+                ...EMPTY_RECIPE_FILTERS,
+                ingredients: [
+                    { id: 'ing_1', name: 'Chicken' },
+                    { id: 'ing_2', name: 'Garlic' },
+                ],
+            },
+        });
+
+        expect(screen.getByRole('button', { name: 'Clear 2 filters' })).toBeTruthy();
+    });
+});
+
+describe('RecipeFilterBar (web) — text contrast (WCAG 2.1 AA)', () => {
+    it('keeps the clear-all summary legible on the page it sits on, focus ring intact', () => {
+        renderBar({ facets, filters: { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] } });
+
+        // The clear-all summary is TEXT a reader reads, so it owes the 4.5:1 SC 1.4.3 floor, not the 3:1 an
+        // accent owes; `seafoam` is 3.73:1 on the page background the bar sits on. See the palette JSDoc in
+        // `@commise/ui`'s `tokens/colors.ts` for the one authoritative statement of the rule.
+        //
+        // The control paints no background of its own and its hover adds only an underline, so there is no
+        // second tint to measure here — unlike the discovery buttons, which hover to a `mist/20` wash.
+        const clear = screen.getByRole('button', { name: 'Clear 1 filter' });
+        expect(
+            utilityContrast(clear.className, { surface: semantic.background }),
+            'clear-all filters label',
+        ).toBeGreaterThanOrEqual(4.5);
+        // The seafoam FOCUS RING stays: a focus indicator is a non-text graphic on the 3:1 SC 1.4.11 floor,
+        // which seafoam clears. Demoting it too would be an over-correction, so it is pinned here — by
+        // MEASUREMENT, not by a class spelling, which passes just as happily after a re-theme.
+        expect(
+            ringContrast(clear.className, { surface: semantic.background }),
+            'the focus indicator must survive the text fix',
+        ).toBeGreaterThanOrEqual(3);
+    });
+
+    it('keeps the ingredient typeahead’s PLACEHOLDER text legible on the field', () => {
+        renderBar();
+
+        // Placeholder copy is TEXT a reader reads — the field's only visible instruction before they type — so
+        // it owes the same 4.5:1 as body copy; `mist` measured 1.90:1 on this `bg-white` field. `placeholder:`
+        // is just another Tailwind variant, measured as its own state (the base `text-charcoal` on the same
+        // element is the VALUE colour and would mask the defect).
+        const search = screen.getByLabelText('Search ingredients');
+
+        expect(
+            utilityContrast(search.className, { variant: 'placeholder' }),
+            'ingredient typeahead placeholder on its white field',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+/**
+ * The bar sits directly on the app background (the discovery `<section>` paints no surface of its own), so
+ * that is the backdrop every one of its focus rings is drawn on — a Tailwind `ring-*` is a spread box-shadow
+ * OUTSIDE the border box, so neither the field's white fill nor the selected chip's seafoam fill is what the
+ * reader sees the ring against.
+ *
+ * All three rings shipped as `ring-seafoam-light`, which measures 2.58:1 there — under the 3:1 SC 1.4.11 floor
+ * a focus indicator owes (#114). Keyboard-only viewers have nothing else telling them where they are, and the
+ * chips are the bar's primary control, so the ring is not decoration.
+ */
+describe('RecipeFilterBar (web) — focus rings clear the 3:1 SC 1.4.11 floor', () => {
+    const PAGE = semantic.background;
+
+    it('rings an UNSELECTED facet chip legibly against the page', () => {
+        renderBar({ facets, filters: EMPTY_RECIPE_FILTERS });
+
+        const chip = screen.getByRole('button', { name: 'vegan, 4 recipes' });
+
+        expect(chip.getAttribute('aria-pressed'), 'the chip measured must be the unselected one').toBe('false');
+        expect(ringContrast(chip.className, { surface: PAGE }), 'unselected facet chip focus ring') //
+            .toBeGreaterThanOrEqual(3);
+    });
+
+    it('rings a SELECTED facet chip legibly against the page (its own seafoam fill is NOT the backdrop)', () => {
+        renderBar({ facets, filters: { ...EMPTY_RECIPE_FILTERS, dietaryFlags: ['vegan'] } });
+
+        const chip = screen.getByRole('button', { name: 'vegan, 4 recipes' });
+
+        expect(chip.getAttribute('aria-pressed'), 'the chip measured must be the selected one').toBe('true');
+        expect(ringContrast(chip.className, { surface: PAGE }), 'selected facet chip focus ring') //
+            .toBeGreaterThanOrEqual(3);
+    });
+
+    it('rings the ingredient typeahead legibly', () => {
+        renderBar();
+
+        expect(
+            ringContrast(screen.getByLabelText('Search ingredients').className, { surface: PAGE }),
+            'ingredient typeahead focus ring',
+        ).toBeGreaterThanOrEqual(3);
+    });
+
+    it('out-measures the `seafoam-light` it replaced, so a re-theme cannot quietly restore the defect', () => {
+        renderBar({ facets });
+
+        const baseline = ringContrast('ring-2 ring-seafoam-light', { surface: PAGE });
+
+        expect(
+            ringContrast(screen.getByRole('button', { name: 'vegan, 4 recipes' }).className, { surface: PAGE }),
+        ).toBeGreaterThan(baseline);
+    });
+});

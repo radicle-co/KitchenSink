@@ -1,28 +1,36 @@
-import { Controller, Get, Post, Param, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service.js';
 import { CurrentAuthorizerContext } from '../auth/decorators/current-user.decorator.js';
 import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
+import { ScopesGuard } from '../auth/guards/scopes.guard.js';
+import { RequireScopes } from '../auth/decorators/require-scopes.decorator.js';
 import {
     AdminSuspendUserResponseDto,
     AdminUnsuspendUserResponseDto,
+    AdminReactivateUserResponseDto,
     ImpersonationStartResponseDto,
     ImpersonationStopResponseDto,
 } from './dto/admin.dto.js';
 
+// Controller-level (not global `APP_GUARD`): every route under `v1/admin/users` requires `admin:users`,
+// and scoping the guard here — rather than app-wide — keeps its blast radius to this controller instead
+// of gating every route in the service. See the Guard pattern JSDoc on `ScopesGuard` for why this
+// replaces the old imperative `assertAdmin(ctx)` call the service used to repeat per-method.
+@UseGuards(ScopesGuard)
+@RequireScopes('admin:users')
 @Controller('v1/admin/users')
 export class AdminController {
     constructor(private readonly adminService: AdminService) {}
 
     @Get()
     async listUsers(
-        @CurrentAuthorizerContext() ctx: AuthorizerContext,
         @Query('email') email?: string,
         @Query('name') name?: string,
         @Query('sub') sub?: string,
         @Query('limit') limit?: string,
         @Query('offset') offset?: string,
     ) {
-        return this.adminService.listUsers(ctx, {
+        return this.adminService.listUsers({
             email,
             name,
             sub,
@@ -47,6 +55,15 @@ export class AdminController {
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<AdminUnsuspendUserResponseDto> {
         return this.adminService.unsuspendUser(userId, ctx);
+    }
+
+    @Post(':userId/reactivate')
+    @HttpCode(HttpStatus.OK)
+    async reactivateUser(
+        @Param('userId') userId: string,
+        @CurrentAuthorizerContext() ctx: AuthorizerContext,
+    ): Promise<AdminReactivateUserResponseDto> {
+        return this.adminService.reactivateUser(userId, ctx);
     }
 
     @Post(':userId/impersonation/start')

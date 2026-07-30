@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Runs the Maestro mobile flows on the booted emulator with PER-FLOW DB isolation. Invoked as a single line
+# from the reactivecircus/android-emulator-runner `script:` (that runner executes each script LINE as its own
+# `sh -c`, so multi-line constructs like this loop must live in a file, not inline).
+#
+# For each flow: reset the recipe DB to the clean seed fixture (so a flow never inherits an earlier flow's
+# mutated state), then run just that flow. Every flow runs even if one fails; the job fails if any did.
+set -uo pipefail
+
+APK=packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-release.apk
+
+adb install -r "$APK"
+adb reverse tcp:3000 tcp:3000 || true
+# The soft-keyboard spell checker/suggestions mangle Maestro inputText (duplicated chars, e.g. "collectionn").
+adb shell settings put secure spell_checker_enabled 0 || true
+# With a hardware keyboard (see _ci.yml `enable-hardware-keyboard`), suppress the on-screen soft keyboard so
+# text fields never raise it. The flows therefore need no `hideKeyboard`, whose BACK keypress otherwise pops
+# the nav stack / exits the app whenever no soft keyboard is open.
+adb shell settings put secure show_ime_with_hard_keyboard 0 || true
+
+# Re-provision the shared sign-in user right before the flows: the parallel web-E2E job's globalTeardown
+# (deleteAllE2EUsers) deletes it ~45min earlier, so the job's early provision step is stale by now.
+node packages/apps/commise/mobile/tests/e2e/ensure-signin-user.mjs
+
+export DATABASE_URL=postgres://postgres:postgres@localhost:5432/recipe_maestro
+
+# Order is deliberate:
+#   - `auth/login-flow` FIRST: it is the only SIGNED-OUT flow — it launches with `clearState`, asserts the app
+#     opens directly on the sign-in form, walks the sign-up entry and back, then signs in. Running it first
+#     means it never has to tear down a session a later flow depends on, and it re-establishes one from cleared
+#     state for everything after it. (It absorbed `auth/welcome-flow`, deleted with the welcome screen itself by
+#     owner decision on 2026-07-28.)
+#   - `home` next, then the recipe stories.
+#   - `recipes/discover-browse` sits with the other read-only discovery flows (it types and clears a query but
+#     mutates nothing, so it is order-independent).
+#   - `account-danger-zone` late but BEFORE `delete`: it walks Profile → Account settings and CANCELS both
+#     destructive actions (it deliberately never confirms), so it must not run against a state a later flow
+#     assumes, and it must not be stranded after the delete flow's mutations.
+#   - `recipes/delete` last (its own "run me last" note).
+#   - `recipes/empty-library` sits next to `list-detail` (its populated sibling). It is the ONE flow that
+#     runs against an EMPTY library — see EMPTY_LIBRARY_FLOWS below — and it mutates nothing, so the next
+#     iteration's normal reset restores the seed for everything after it.
+FLOWS="auth/login-flow home recipes/rating recipes/list-detail recipes/empty-library recipes/search-navigation recipes/edit recipes/versions recipes/visibility recipes/discover-browse recipes/discover-recent-searches recipes/discover-clone recipes/conflict-merge recipes/collections recipes/collections-pagination recipes/collections-visibility recipes/collections-clone recipes/collections-pull recipes/create recipes/photos recipes/accessibility account-danger-zone recipes/delete"
+
+# Flows whose state under test is a GENUINELY EMPTY library (the first-run screen a new account opens on).
+# The reset truncates for every flow; for these it also SKIPS the re-seed, which is the only way to reach
+# that state — and the seeded fixture being universal is exactly what hid a first-run defect from this
+# suite. Space-padded on both sides so the membership test below matches whole names only.
+EMPTY_LIBRARY_FLOWS=" recipes/empty-library "
+
+RC=0
+for f in $FLOWS; do
+    echo "::group::maestro flow ${f}"
+    adb logcat -c || true # clear the ring buffer so a failing flow's dump is scoped to just this flow
+    case "$EMPTY_LIBRARY_FLOWS" in
+    *" ${f} "*) RESEED_MODE=empty ;;
+    *) RESEED_MODE=seeded ;;
+    esac
+    if ! RESEED_MODE="$RESEED_MODE" node packages/apps/commise/mobile/tests/e2e/reseed.mjs; then
+        echo "reseed failed before ${f}"
+        RC=1
+    fi
+    if ! maestro test "packages/apps/commise/mobile/.maestro/${f}.yaml"; then
+        echo "FLOW FAILED: ${f}"
+        # Native/Hermes crashes (app -> launcher) leave NO Java/AndroidRuntime trace and release builds strip
+        # the JS console, so a narrow filter shows nothing. Dump the full tail and grep every crash-carrying
+        # tag (native SIGSEGV/abort via libc/DEBUG, Hermes, Java via AndroidRuntime/FATAL, and our own app tag)
+        # so the CI log shows the ACTUAL fault rather than only the downstream "element not visible".
+        echo "--- logcat (crash tags) for ${f} ---"
+        adb logcat -d -t 4000 2>&1 | grep -aiE "FATAL|AndroidRuntime|hermes|SIGSEGV|SIGABRT|\blibc\b|DEBUG   |abort message|Exception|io\.commise|ReactNativeJS|ReactNative:|unhandled" | tail -160 || true
+        echo "--- end logcat for ${f} ---"
+        RC=1
+    fi
+    echo "::endgroup::"
+done
+
+exit "$RC"

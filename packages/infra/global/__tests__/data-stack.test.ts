@@ -22,6 +22,16 @@ const dataTemplate = (stage: string): Template => {
     return Template.fromStack(data);
 };
 
+describe('DataStack handle-sync topic (W8-a.2)', () => {
+    it('creates the global handle-sync SNS topic + exports its ARN for producers/subscribers', () => {
+        const template = dataTemplate('sandbox');
+        template.hasResourceProperties('AWS::SNS::Topic', {
+            TopicName: 'kitchensink-handle-sync-sandbox',
+        });
+        template.hasOutput('HandleSyncTopicArn', {});
+    });
+});
+
 describe('DataStack per-stage RDS instance class (ADR-0007)', () => {
     it('prod stays on db.t4g.small (unchanged sizing → no prod diff)', () => {
         dataTemplate('prod').hasResourceProperties('AWS::RDS::DBInstance', {
@@ -78,6 +88,101 @@ describe('DataStack per-stage RDS storage type (ADR-0008)', () => {
     });
 });
 
+describe('DataStack RDS teardown policy (ADR-0002: DESTROY, no snapshot)', () => {
+    // The instance is `removalPolicy: DESTROY` on purpose (per-stage ephemeral RDS, no orphaned prod
+    // snapshot). A regression to RETAIN/SNAPSHOT would silently leave paid resources behind on cleanup.
+    it.each(['prod', 'sandbox'])('deletes the RDS instance on stack removal (no snapshot) — %s', (stage) => {
+        dataTemplate(stage).hasResource('AWS::RDS::DBInstance', {
+            DeletionPolicy: 'Delete',
+            UpdateReplacePolicy: 'Delete',
+        });
+    });
+});
+
+/**
+ * Cross-stack contract: identity-service, identity-webhooks and food-service all
+ * `Fn.importValue('kitchensink-data-${stage}:<suffix>')`. Dropping/renaming any of these exports breaks
+ * a downstream synth at deploy time, not here — so this stack must be the guard. (In test the stack id
+ * is `Data-${stage}`, not `kitchensink-data-${stage}`, so assert on the export-name SUFFIX, exactly as
+ * the pre-existing DatabaseResourceId test does.)
+ */
+const CONSUMED_DATA_EXPORT_SUFFIXES = [
+    'DatabaseEndpoint',
+    'DatabasePort',
+    'DatabaseName',
+    'DatabaseSecretArn',
+    'SecretArn',
+    'MigrationPlanSecretArn',
+    'FoodDatabaseName',
+    'DatabaseResourceId',
+    'DeletionQueueArn',
+    'MediaBucketName',
+    'ArchiveBucketName',
+] as const;
+
+const outputByExportSuffix = (template: Template, suffix: string): { Value: any; Export?: { Name?: string } } => {
+    const match = Object.values(template.findOutputs('*')).find((output: any) =>
+        String(output.Export?.Name ?? '').endsWith(`:${suffix}`),
+    ) as any;
+
+    return match;
+};
+
+describe('DataStack cross-stack CfnOutput exports (consumer contract)', () => {
+    it.each(CONSUMED_DATA_EXPORT_SUFFIXES)('produces the %s export consumers import', (suffix) => {
+        // The stack id under test is `Data-prod` and exportName is `${this.stackName}:<suffix>` (no
+        // `stackName` override in DataStackProps), so the full export name is deterministic.
+        expect(outputByExportSuffix(dataTemplate('prod'), suffix)).toMatchObject({
+            Export: { Name: `Data-prod:${suffix}` },
+        });
+    });
+
+    // A recent bug came from a consumer mis-handling the suffix-LESS Clerk auth-secret ARN. These two
+    // groups MUST resolve differently and the test must fail if either flips:
+    //   • DatabaseSecretArn / MigrationPlanSecretArn are CDK-CREATED secrets → export is a Ref to the
+    //     secret resource, i.e. the FULL ARN including the random 6-char suffix (secretCompleteArn).
+    //   • SecretArn is imported by NAME (fromSecretNameV2) → export is a by-name Fn::Join ARN with NO
+    //     suffix (secretPartialArn). Consumers must NOT treat it as a complete ARN.
+    it.each(['DatabaseSecretArn', 'MigrationPlanSecretArn'])(
+        '%s exports the full ARN of a CDK-created secret (Ref, suffix-ful)',
+        (suffix) => {
+            const template = dataTemplate('prod');
+            const output = outputByExportSuffix(template, suffix);
+            const refTarget = output.Value?.Ref;
+
+            // The Ref's logical id is CDK's own construct-id + 8-char hash convention, so it must be a
+            // Ref to THIS suffix's specific secret construct (`DatabaseCredentialsSecret` /
+            // `MigrationPlanSecret`), not merely "some" defined value.
+            const constructIdBySuffix: Record<string, string> = {
+                DatabaseSecretArn: 'DatabaseCredentialsSecret',
+                MigrationPlanSecretArn: 'MigrationPlanSecret',
+            };
+            expect(refTarget).toMatch(new RegExp(`^${constructIdBySuffix[suffix]}[0-9A-F]{8}$`));
+            expect(output.Value['Fn::Join']).toBeUndefined();
+            // The Ref must point at a Secret resource this stack owns (a real complete ARN with suffix).
+            expect(Object.keys(template.findResources('AWS::SecretsManager::Secret'))).toContain(refTarget);
+        },
+    );
+
+    it('SecretArn exports the suffix-LESS by-name ARN of the imported Clerk auth secret (not a Ref)', () => {
+        const output = outputByExportSuffix(dataTemplate('sandbox'), 'SecretArn');
+
+        // by-name (fromSecretNameV2) form: an Fn::Join, never a Ref to an owned Secret resource.
+        expect(output.Value.Ref).toBeUndefined();
+        expect(output.Value['Fn::Join']).toEqual([
+            '',
+            [
+                'arn:',
+                { Ref: 'AWS::Partition' },
+                ':secretsmanager:us-east-1:123456789012:secret:kitchensink/sandbox/identity/keys',
+            ],
+        ]);
+        // Ends at the plain secret NAME — no `-<6char>` Secrets Manager suffix appended.
+        expect(JSON.stringify(output.Value)).toContain(':secret:kitchensink/sandbox/identity/keys');
+        expect(JSON.stringify(output.Value)).not.toMatch(/kitchensink\/sandbox\/identity\/keys-[A-Za-z0-9]{6}/);
+    });
+});
+
 describe('Food DB IAM auth + role/database bootstrap (feature 003, ADR-0006)', () => {
     it('enables RDS IAM database authentication on the shared instance', () => {
         const instance = Object.values(dataTemplate('sandbox').findResources('AWS::RDS::DBInstance'))[0] as any;
@@ -92,12 +197,17 @@ describe('Food DB IAM auth + role/database bootstrap (feature 003, ADR-0006)', (
             String(fn.Properties.Description ?? '').includes('Bootstrap food_app role'),
         ) as any;
 
-        expect(bootstrap).toBeDefined();
+        expect(bootstrap.Properties.Description).toBe('Bootstrap food_app role + base database (sandbox)');
         // Connects as master (reads the instance credentials secret) and targets the base food database.
         expect(bootstrap.Properties.Environment.Variables.FOOD_DATABASE_NAME).toBe('kitchensink_food');
-        expect(bootstrap.Properties.Environment.Variables.DB_SECRET_ARN).toBeDefined();
-        // Must be VPC-attached to reach the PRIVATE_ISOLATED RDS.
-        expect(bootstrap.Properties.VpcConfig).toBeDefined();
+        // The env var is wired to the master credentials secret this stack owns (a Ref, not a literal ARN).
+        expect(bootstrap.Properties.Environment.Variables.DB_SECRET_ARN).toEqual({
+            Ref: expect.stringMatching(/^DatabaseCredentialsSecret[0-9A-F]{8}$/),
+        });
+        // Must be VPC-attached to reach the PRIVATE_ISOLATED RDS: the shared lambda SG plus both
+        // private-app subnets (one per AZ).
+        expect(bootstrap.Properties.VpcConfig.SecurityGroupIds).toHaveLength(1);
+        expect(bootstrap.Properties.VpcConfig.SubnetIds).toHaveLength(2);
     });
 
     it('grants the bootstrap lambda read on the master credentials secret', () => {
@@ -129,7 +239,7 @@ describe('Food DB bootstrap on prod (safety of the merge-time change)', () => {
         const bootstrap = Object.values(fns).find((fn: any) =>
             String(fn.Properties.Description ?? '').includes('Bootstrap food_app role'),
         ) as any;
-        expect(bootstrap).toBeDefined();
+        expect(bootstrap.Properties.Description).toBe('Bootstrap food_app role + base database (prod)');
         // STAGE=prod is what makes the runtime bootstrap skip the CREATEDB grant (asserted in the
         // handler unit test); per-PR databases never exist on prod.
         expect(bootstrap.Properties.Environment.Variables.STAGE).toBe('prod');

@@ -60,13 +60,17 @@ export type FetchQueueRow = InferSelectModel<typeof fetchQueue>;
 /** A `fetch_queue` row for insert. */
 export type NewFetchQueueRow = InferInsertModel<typeof fetchQueue>;
 
-// ── fetch_requesters: distinct-requester demand + per-sub pending count + WS targeting ───────────
+// ── fetch_requesters: distinct-requester demand + per-requester pending count + WS targeting ──────
 
 /**
- * Distinct-requester demand (FR-044) + per-`sub` pending-count source for fairness-by-demotion
- * (FR-043) and WebSocket targeting. The `(food_id, sub)` PK structurally caps each `sub` to one row
- * per food (so a `sub` cannot inflate priority by repeating). Pruned when the food leaves the queue
- * (DSN-10).
+ * Distinct-requester demand (FR-044) + per-requester pending-count source for fairness-by-demotion
+ * (FR-043) and WebSocket targeting. The `(food_id, requester_id)` PK structurally caps each requester
+ * to one row per food (so a requester cannot inflate priority by repeating). Pruned when the food
+ * leaves the queue (DSN-10).
+ *
+ * **CR-002/U1 rekey (R5).** `requester_id` is the app-user **ULID** (identity's `users.id`, from the
+ * token's `external_id`) for a user principal, or an allowlisted `svc_*` id for a service principal —
+ * an OPAQUE value with NO cross-service FK (D2). It replaced the Clerk-`sub` key (`0002_fetch_requesters_rekey.sql`).
  */
 export const fetchRequesters = pgTable(
     'fetch_requesters',
@@ -74,10 +78,13 @@ export const fetchRequesters = pgTable(
         foodId: text('food_id')
             .notNull()
             .references(() => food.id, { onDelete: 'cascade' }),
-        sub: text('sub').notNull(),
+        requesterId: text('requester_id').notNull(),
         requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
     },
-    (table) => [primaryKey({ columns: [table.foodId, table.sub] }), index('idx_fetch_requesters_sub').on(table.sub)],
+    (table) => [
+        primaryKey({ columns: [table.foodId, table.requesterId] }),
+        index('idx_fetch_requesters_requester_id').on(table.requesterId),
+    ],
 );
 
 /** A `fetch_requesters` row as selected. */

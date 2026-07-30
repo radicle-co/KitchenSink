@@ -1,6 +1,14 @@
 # dotenv environment variable files
 .env*
 
+# ...except the two that carry NO secrets and MUST be committed:
+#  - .env.template documents every variable the app reads.
+#  - .env.development supplies the LOCAL endpoint defaults; `src/config/env.ts` declares them with no
+#    fallback, so this file is what keeps local work zero-config while a device/EAS build still has to be
+#    told its endpoints explicitly.
+!.env.template
+!.env.development
+
 # expo
 .expo/
 dist/

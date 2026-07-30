@@ -11,6 +11,11 @@ on:
                 description: 'Sandbox stage name (e.g. pr-15, team-feature-x)'
                 required: true
                 type: string
+    schedule:
+        # Daily reaper (ADR-0005): sweep pr-{N} previews the on-close cleanup missed — closed PRs whose
+        # teardown failed/hung, and long-abandoned open PRs. Uses the same teardown-sandbox-pr.sh script,
+        # so it can never touch the shared global/identity/data infra (those never match pr-{N}).
+        - cron: '0 6 * * *'
     pull_request:
         types: [opened, synchronize, reopened, closed]
         # Runs for ALL PRs. Per-service path filters are on each job.
@@ -35,10 +40,14 @@ jobs:
     # ── Cleanup: on PR close, tear down THIS PR's ephemeral resources (ADR-0005) ──
     # Deletes everything tagged Environment=pr-{N} OR named `pr-{N}` / `pr-{N}-…` — the PR's feature
     # stacks (tagged via the App-level Environment tag), plus log groups + ECR repos the stacks don't
-    # own. There is deliberately NO denylist: persistent global infra is Environment=global and named
-    # kitchensink-*, so it can never match a pr-{N} tag or prefix — that precision IS the safety. The
-    # match is delimiter-aware (pr-{N} exactly or pr-{N}-…) so pr-1 != pr-15/pr-100. Static job name
-    # (no ${{ }}) so the open-PR skipped state shows a clean title.
+    # own, plus the preview's PUBLIC ADDRESS (the `pr-{N}.sandbox.<domain>` Route 53 record and the
+    # Vercel project-domain binding — ADR-0001 "Update (2026-07-28)"; a CNAME left pointing at Vercel
+    # after the domain is released is a subdomain-takeover vector). There is deliberately NO denylist:
+    # persistent global infra is Environment=global and named kitchensink-*, so it can never match a
+    # pr-{N} tag or prefix — that precision IS the safety. The match is delimiter-aware (pr-{N} exactly
+    # or pr-{N}-…) so pr-1 != pr-15/pr-100, and the DNS half is stricter still (the record's first label
+    # must be EXACTLY pr-{N}, so the apex, the *.sandbox wildcard and the shared identity.sandbox.… host
+    # can never be targets). Static job name (no ${{ }}) so the open-PR skipped state shows a clean title.
     cleanup:
         name: Destroy sandbox preview
         runs-on: ubuntu-latest
@@ -47,105 +56,156 @@ jobs:
             PR: pr-${{ github.event.pull_request.number }}
             REGION: ${{ vars.DEFAULT_AWS_REGION }}
         steps:
+            - uses: actions/checkout@v6
+            # The preview-domain step runs `npx tsx …/teardownPreviewDomain.ts`; the rest of the script
+            # is aws-cli only.
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - run: npm ci
             - name: Configure AWS credentials
               uses: aws-actions/configure-aws-credentials@v4
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Resolve the sandbox hosted zone
+              id: zone
+              run: |
+                  set -euo pipefail
+                  ZONE=$(aws cloudformation list-exports --region "$REGION" \
+                    --query "Exports[?Name=='kitchensink-domain-sandbox:HostedZoneId'].Value | [0]" --output text)
+                  if [ -z "$ZONE" ] || [ "$ZONE" = "None" ]; then
+                    echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — the preview DNS record cannot be removed"
+                    exit 1
+                  fi
+                  echo "hosted_zone_id=$ZONE" >> "$GITHUB_OUTPUT"
+            # All teardown logic lives in one script so the on-close cleanup and the scheduled reaper
+            # cannot drift. It is scoped hard to pr-{N} (name, Environment tag, or exact DNS label), so
+            # the shared global/identity/data infra can never match.
+            - name: Tear down ${{ env.PR }} sandbox resources
+              env:
+                  PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
+                  PREVIEW_HOSTED_ZONE_ID: ${{ steps.zone.outputs.hosted_zone_id }}
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+              run: |
+                  chmod +x .github/scripts/teardown-sandbox-pr.sh
+                  .github/scripts/teardown-sandbox-pr.sh "$PR" "$REGION"
 
-            # Drop the per-PR food logical database (ADR-0006) BEFORE the stacks are deleted — the
-            # in-VPC migration-runner Lambda is the only thing that can reach the PRIVATE_ISOLATED RDS,
-            # and it is torn down with the food stack in the next step. We invoke THIS PR's food
-            # migration function (which knows FOOD_DB_NAME=kitchensink_food_pr_{N}) with {action:'drop'};
-            # the handler refuses to drop the shared base `kitchensink_food` and DROPs … WITH (FORCE) so
-            # a still-draining preview's connections don't block it. Guarded: if this PR never deployed a
-            # food service (the common case until the deploy job below is switched on), the stack/output
-            # is absent and we skip. $PR is exactly `pr-{N}`, so the stack-name match is delimiter-safe.
-            - name: Drop per-PR food database for ${{ env.PR }}
+    # ── Reaper: daily sweep of pr-{N} previews the on-close cleanup missed (ADR-0005) ──
+    # Reaps resources whose PR is CLOSED (a close-cleanup that failed/hung) or long-abandoned (OPEN but
+    # no activity in STALE_DAYS). Uses the SAME teardown script → scoped to pr-{N}; the shared
+    # global/identity/data infra never matches. Only reaps on a confirmed PR state (skips on API error).
+    reap-abandoned:
+        name: Reap abandoned sandbox previews
+        runs-on: ubuntu-latest
+        if: github.event_name == 'schedule'
+        permissions:
+            contents: read
+            pull-requests: read
+        env:
+            REGION: ${{ vars.DEFAULT_AWS_REGION }}
+            GH_TOKEN: ${{ github.token }}
+            STALE_DAYS: '30'
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - run: npm ci
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Resolve the sandbox hosted zone
+              id: zone
+              run: |
+                  set -euo pipefail
+                  ZONE=$(aws cloudformation list-exports --region "$REGION" \
+                    --query "Exports[?Name=='kitchensink-domain-sandbox:HostedZoneId'].Value | [0]" --output text)
+                  if [ -z "$ZONE" ] || [ "$ZONE" = "None" ]; then
+                    echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — dangling preview DNS records cannot be reaped"
+                    exit 1
+                  fi
+                  echo "hosted_zone_id=$ZONE" >> "$GITHUB_OUTPUT"
+            - name: Reap pr-{N} resources whose PR is closed or long-stale
+              env:
+                  PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
+                  PREVIEW_HOSTED_ZONE_ID: ${{ steps.zone.outputs.hosted_zone_id }}
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
               run: |
                   set -uo pipefail
-                  STACK="kitchensink-food-service-$PR"
-                  FN=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK" \
-                      --query "Stacks[0].Outputs[?OutputKey=='FoodMigrationFunctionName'].OutputValue | [0]" \
-                      --output text 2>/dev/null) || FN=""
-                  if [ -z "$FN" ] || [ "$FN" = "None" ]; then
-                      echo "No food migration function for $PR (stack $STACK absent or no output) — nothing to drop."
-                      exit 0
-                  fi
+                  chmod +x .github/scripts/teardown-sandbox-pr.sh
 
-                  echo "[food-db] invoking $FN with {action:drop} to drop kitchensink_food_${PR//-/_}"
-                  if aws lambda invoke --region "$REGION" --function-name "$FN" \
-                      --payload '{"action":"drop"}' --cli-binary-format raw-in-base64-out \
-                      /tmp/food-drop-result.json >/tmp/food-drop-invoke.json 2>/dev/null; then
-                      if grep -q '"FunctionError"' /tmp/food-drop-invoke.json; then
-                          echo "::warning::food DB drop for $PR returned a FunctionError — inspect $FN logs"
+                  # Distinct pr-{N} tokens from CFN stack names, ECR repos, log groups, and Route 53
+                  # record names. Route 53 is load-bearing, not belt-and-braces: a PR that only ever had
+                  # a WEB preview owns no stack, repo or log group, so without this source its dangling
+                  # `pr-{N}.sandbox.<domain>` CNAME would be invisible to the reaper forever. This is
+                  # only CANDIDATE discovery — the teardown script re-applies the anchored pr-{N} match
+                  # (and the DNS half re-checks the exact record label), so an incidental "pr-5"
+                  # substring can never widen the blast radius.
+                  tokens=$(
+                      {
+                          aws cloudformation list-stacks --region "$REGION" \
+                              --stack-status-filter CREATE_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE ROLLBACK_FAILED UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED IMPORT_COMPLETE IMPORT_ROLLBACK_COMPLETE IMPORT_ROLLBACK_FAILED DELETE_FAILED \
+                              --query 'StackSummaries[].StackName' --output text 2>/dev/null | tr '\t' '\n'
+                          aws ecr describe-repositories --region "$REGION" \
+                              --query 'repositories[].repositoryName' --output text 2>/dev/null | tr '\t' '\n'
+                          aws logs describe-log-groups --region "$REGION" \
+                              --query 'logGroups[].logGroupName' --output text 2>/dev/null | tr '\t' '\n'
+                          aws route53 list-resource-record-sets --hosted-zone-id "$PREVIEW_HOSTED_ZONE_ID" \
+                              --query 'ResourceRecordSets[].Name' --output text 2>/dev/null | tr '\t' '\n'
+                      } | grep -oE 'pr-[0-9]+' | sort -u
+                  )
+                  if [ -z "$tokens" ]; then echo "No pr-{N} sandbox resources found."; exit 0; fi
+                  echo "Candidate previews: $(echo "$tokens" | tr '\n' ' ')"
+
+                  now=$(date -u +%s)
+                  reaper_failed=0
+                  for pr in $tokens; do
+                      n="${pr#pr-}"
+                      pr_json=$(gh api "repos/${{ github.repository }}/pulls/$n" 2>/dev/null) || pr_json=""
+                      if [ -z "$pr_json" ]; then
+                          echo "::warning::could not resolve PR #$n for $pr — skipping (verify manually)"
+                          continue
+                      fi
+                      state=$(printf '%s' "$pr_json" | jq -r '.state // "unknown"')
+                      updated=$(printf '%s' "$pr_json" | jq -r '.updated_at // empty')
+                      reason=""
+                      if [ "$state" = "closed" ]; then
+                          reason="PR #$n is closed"
+                      elif [ "$state" = "open" ] && [ -n "$updated" ]; then
+                          upd=$(date -u -d "$updated" +%s 2>/dev/null || echo 0)
+                          if [ "$upd" -gt 0 ] && [ "$(( (now - upd) / 86400 ))" -ge "$STALE_DAYS" ]; then
+                              reason="PR #$n open but stale (no activity since $updated, >${STALE_DAYS}d)"
+                          fi
+                      fi
+                      if [ -n "$reason" ]; then
+                          echo "::notice::reaping $pr — $reason"
+                          # A failed reap is an ERROR, not a warning: this job is the only thing left
+                          # that will notice a dangling `pr-{N}.sandbox.<domain>` CNAME, and a warning
+                          # keeps the run green so nobody looks. Keep sweeping the other tokens first.
+                          if ! .github/scripts/teardown-sandbox-pr.sh "$pr" "$REGION"; then
+                              echo "::error::teardown of $pr reported errors — inspect it by hand"
+                              reaper_failed=1
+                          fi
                       else
-                          echo "[food-db] drop result: $(cat /tmp/food-drop-result.json)"
+                          echo "keeping $pr (state=$state)"
                       fi
-                  else
-                      echo "::warning::could not invoke $FN to drop the per-PR food DB — drop it manually"
+                  done
+                  if [ "$reaper_failed" -ne 0 ]; then
+                      echo "::error::Reaper sweep finished with failures."
+                      exit 1
                   fi
-
-            - name: Delete ephemeral resources for ${{ env.PR }}
-              run: |
-                  set -uo pipefail
-                  echo "Tearing down ephemeral resources for: $PR (region $REGION)"
-
-                  # belongs <name>: true if <name> is exactly $PR or starts with "$PR-". The trailing
-                  # dash prevents pr-1 from matching pr-15 / pr-100.
-                  belongs() { case "$1" in "$PR" | "$PR"-*) return 0 ;; *) return 1 ;; esac; }
-                  # path_belongs: same, but also matches a "$PR" / "$PR-" segment inside a path (e.g. an
-                  # auto-created /aws/ecs/containerinsights/$PR-cluster.../performance group).
-                  path_belongs() {
-                      belongs "$1" && return 0
-                      case "$1" in *"/$PR" | *"/$PR-"* | *"/$PR/"*) return 0 ;; *) return 1 ;; esac
-                  }
-
-                  ## 1. CloudFormation stacks — tagged Environment=$PR OR name matches $PR.
-                  for s in $(aws cloudformation list-stacks --region "$REGION" \
-                      --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED DELETE_FAILED \
-                      --query 'StackSummaries[].StackName' --output text 2>/dev/null); do
-                      envtag=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$s" \
-                          --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text 2>/dev/null)
-                      # The feature-stack naming convention is the suffix kitchensink-{service}-pr-{N};
-                      # those are caught by the Environment=$PR tag (belongs() also catches any pr-{N}-prefixed stack).
-                      if belongs "$s" || [ "$envtag" = "$PR" ]; then
-                          echo "[stack] delete $s (Environment=$envtag)"
-                          aws cloudformation delete-stack --region "$REGION" --stack-name "$s"
-                          aws cloudformation wait stack-delete-complete --region "$REGION" --stack-name "$s" 2>/dev/null || \
-                              echo "::warning::stack $s did not finish deleting in time — check it"
-                      fi
-                  done
-
-                  ## 2. Tag sweep — anything else tagged Environment=$PR the stacks did not own.
-                  for arn in $(aws resourcegroupstaggingapi get-resources --region "$REGION" \
-                      --tag-filters "Key=Environment,Values=$PR" \
-                      --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null); do
-                      case "$arn" in
-                          *:log-group:*) lg="${arn##*:log-group:}"; lg="${lg%:\*}"
-                              echo "[logs/tag] delete $lg"; aws logs delete-log-group --region "$REGION" --log-group-name "$lg" || true ;;
-                          *:repository/*) repo="${arn##*:repository/}"
-                              echo "[ecr/tag] delete $repo"; aws ecr delete-repository --region "$REGION" --repository-name "$repo" --force || true ;;
-                          *) echo "::warning::tagged $PR but not auto-deleted (add a handler for its type): $arn" ;;
-                      esac
-                  done
-
-                  ## 3. Name-prefix sweep — auto-created resources that could not be tagged.
-                  for lg in $(aws logs describe-log-groups --region "$REGION" \
-                      --query 'logGroups[].logGroupName' --output text 2>/dev/null); do
-                      if path_belongs "$lg"; then
-                          echo "[logs/name] delete $lg"; aws logs delete-log-group --region "$REGION" --log-group-name "$lg" || true
-                      fi
-                  done
-                  for repo in $(aws ecr describe-repositories --region "$REGION" \
-                      --query 'repositories[].repositoryName' --output text 2>/dev/null); do
-                      if belongs "$repo"; then
-                          echo "[ecr/name] delete $repo (force)"; aws ecr delete-repository --region "$REGION" --repository-name "$repo" --force || true
-                      fi
-                  done
-
-                  echo "Cleanup for $PR complete."
+                  echo "Reaper sweep complete."
 
     # ═══════════════════════════════════════════════════════════════════
     # Per-service sandbox deploy jobs.
@@ -201,11 +261,18 @@ jobs:
     #                 --all --require-approval never
 
     # ═══════════════════════════════════════════════════════════════════
-    # per-PR FOOD preview deploy (ADR-0006) — ACTIVE, gated to food-only changes.
+    # per-PR FOOD preview deploy (ADR-0006) — ACTIVE, gated **ensure-exists** (ADR-0010, issue #124).
     #
-    # Runs only when `packages/services/food-service/**` changed on the PR (the `dorny/paths-filter`
-    # step gates every step). On PR close, the `Drop per-PR food database` cleanup step above reclaims
-    # the `kitchensink_food_pr_{N}` logical DB, and the `Environment=pr-{N}` cleanup deletes the stacks.
+    # ⚠️  DELIBERATE — see docs/architecture/decisions/0010-ensure-exists-per-pr-deploy-gate.md
+    #
+    # It runs when food changed, when the run was dispatched by hand, when `kitchensink-food-service-pr-{N}`
+    # is ABSENT or wedged, or when `food-pr-{N}.<domain>/health` does not answer 200 — and skips only when it
+    # is BOTH unchanged and already serving. Do NOT restore the old `steps.changes.outputs.food == 'true'`
+    # gate on every step: that is what left recipe-only PRs with no food service at all, pointing the
+    # REQUIRED `RECIPE_FOOD_SERVICE_URL` at a host that did not resolve. Do NOT replace it with an
+    # unconditional redeploy either — that rebuilds and pushes two Docker images for a README-only push.
+    # On PR close, the `Drop per-PR food database` cleanup step above reclaims the `kitchensink_food_pr_{N}`
+    # logical DB, and the `Environment=pr-{N}` cleanup deletes the stacks.
     #
     # How it works (ADR-0006): the food infra bin resolves baseStage internally (prod→prod, everything
     # else→sandbox), so a `STAGE=pr-{N}` deploy imports the SHARED sandbox platform (VPC/RDS/ALB/domain)
@@ -229,57 +296,84 @@ jobs:
         steps:
             - name: Checkout
               uses: actions/checkout@v6
-            # Gate: only proceed when the food service actually changed on this PR.
+            # One HALF of the gate: did this PR touch the food service? (No PR diff exists on a manual
+            # dispatch, which is why the step is skipped there and the gate is `forced` instead.)
             - name: Detect food changes
               id: changes
+              if: github.event_name == 'pull_request'
               uses: dorny/paths-filter@v3
               with:
                   filters: |
                       food:
                           - 'packages/services/food-service/**'
+            # Node + deps + credentials are UNCONDITIONAL: the gate needs the AWS CLI, and it derives the
+            # food host by RUNNING `print-food-host.ts` rather than re-typing `food-pr-{N}.<domain>` in YAML
+            # (that dash form is a TLS constraint — ADR-0003/0006 — and a second copy here is exactly what
+            # drifts). Cheap next to what the gate can now skip: a turbo build, a Docker build+push, and two
+            # `cdk deploy` passes.
             - name: Setup Node.js
-              if: steps.changes.outputs.food == 'true'
               uses: actions/setup-node@v6
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
             - name: Install dependencies
-              if: steps.changes.outputs.food == 'true'
               run: npm ci
-            # turbo (not a bare workspace build) so `^build` compiles the shared @kitchensink/clerk-verify
-            # and @kitchensink/usda-client dist first — the image copies those dists and crash-loops on
-            # the bare specifiers without them.
-            - name: Build food package (+ shared dist)
-              if: steps.changes.outputs.food == 'true'
-              run: npx turbo run build --filter=@kitchensink/food-service
-            # Rewrite the food package.json exports/main to ./dist (prod.package.json) for the image.
-            - name: Prepare food service Docker image (prod manifest)
-              if: steps.changes.outputs.food == 'true'
-              run: npm run docker:prepare --workspace=packages/services/food-service
-            - name: Build food infra
-              if: steps.changes.outputs.food == 'true'
-              run: npm run infra:build --workspace=packages/services/food-service
-            - name: Bundle migration Lambda
-              if: steps.changes.outputs.food == 'true'
-              run: npm run bundle:lambda --workspace=packages/services/food-service
             - name: Configure AWS credentials
-              if: steps.changes.outputs.food == 'true'
               uses: aws-actions/configure-aws-credentials@v4
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            - name: Resolve this stage's food origin
+              id: host
+              run: |
+                  set -euo pipefail
+                  url=$(npx tsx packages/services/food-service/infra/bin/print-food-host.ts \
+                    "${STAGE}" "${{ vars.DOMAIN_NAME }}")
+                  echo "url=${url}" >>"$GITHUB_OUTPUT"
+                  echo "food preview origin: ${url}"
+            # THE gate (ADR-0010). Deploy when changed, dispatched, absent/wedged, or not serving; skip only
+            # when unchanged AND already serving. The decision + its reason are printed and published as
+            # `steps.gate.outputs.deploy`.
+            - name: Ensure this PR has a food service (ensure-exists gate)
+              id: gate
+              env:
+                  CHANGED: ${{ steps.changes.outputs.food || 'false' }}
+                  FORCED: ${{ github.event_name == 'workflow_dispatch' }}
+              run: |
+                  set -euo pipefail
+                  chmod +x .github/scripts/deploy-gate.sh
+                  .github/scripts/deploy-gate.sh evaluate food "$CHANGED" "$FORCED" \
+                    "${{ steps.host.outputs.url }}/health" \
+                    "${{ vars.DEFAULT_AWS_REGION }}" \
+                    "kitchensink-food-service-${STAGE}"
+            # turbo (not a bare workspace build) so `^build` compiles the shared @kitchensink/clerk-verify
+            # and @kitchensink/usda-client dist first — the image copies those dists and crash-loops on
+            # the bare specifiers without them.
+            - name: Build food package (+ shared dist)
+              if: steps.gate.outputs.deploy == 'true'
+              run: npx turbo run build --filter=@kitchensink/food-service
+            # Rewrite the food package.json exports/main to ./dist (prod.package.json) for the image.
+            - name: Prepare food service Docker image (prod manifest)
+              if: steps.gate.outputs.deploy == 'true'
+              run: npm run docker:prepare --workspace=packages/services/food-service
+            - name: Build food infra
+              if: steps.gate.outputs.deploy == 'true'
+              run: npm run infra:build --workspace=packages/services/food-service
+            - name: Bundle migration Lambda
+              if: steps.gate.outputs.deploy == 'true'
+              run: npm run bundle:lambda --workspace=packages/services/food-service
             - name: Login to Amazon ECR
               id: login-ecr
-              if: steps.changes.outputs.food == 'true'
+              if: steps.gate.outputs.deploy == 'true'
               uses: aws-actions/amazon-ecr-login@v2
             # The food stack imports the repo by name (ecr.Repository.fromRepositoryName); create it on
             # first deploy so the image push + ECS pull have somewhere to go.
             - name: Ensure ECR repository exists
-              if: steps.changes.outputs.food == 'true'
+              if: steps.gate.outputs.deploy == 'true'
               run: aws ecr describe-repositories --repository-names kitchensink-food || aws ecr create-repository --repository-name kitchensink-food
             - name: Build, tag, and push food Docker image
-              if: steps.changes.outputs.food == 'true'
+              if: steps.gate.outputs.deploy == 'true'
               env:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
                   IMAGE_TAG: sandbox-${{ github.sha }}
@@ -292,7 +386,7 @@ jobs:
             # back a failed service — which is what previously wedged the Fargate-Spot capacity-provider
             # association in ROLLBACK_FAILED.
             - name: CDK Deploy — pass 1 (scale 0, provision infra + migration Lambda)
-              if: steps.changes.outputs.food == 'true'
+              if: steps.gate.outputs.deploy == 'true'
               run: |
                   STAGE=${{ env.STAGE }} \
                   FOOD_VPC_ID=${{ env.FOOD_VPC_ID }} \
@@ -305,7 +399,7 @@ jobs:
             # Apply migrations into the per-PR DB. The runner CREATEs kitchensink_food_pr_{N} if absent
             # (ADR-0006) before migrating, so a fresh preview self-provisions its isolated database.
             - name: Run food migrations (creates the per-PR DB if absent)
-              if: steps.changes.outputs.food == 'true'
+              if: steps.gate.outputs.deploy == 'true'
               run: |
                   FN=$(aws cloudformation describe-stacks --region "${{ vars.DEFAULT_AWS_REGION }}" \
                       --stack-name "kitchensink-food-service-${{ env.STAGE }}" \
@@ -315,15 +409,335 @@ jobs:
                       --payload '{"action":"migrate"}' --cli-binary-format raw-in-base64-out /tmp/migrate.json
                   cat /tmp/migrate.json
             # Pass 2 — scale the API + worker up now that the image is in ECR and the per-PR DB exists, so
-            # tasks boot healthy. (Defaults are 2 / 1; set explicitly for clarity.)
+            # tasks boot healthy.
+            #
+            # ONE API task, not the stack default of two (ADR-0010 / ADR-0008). Every PR now carries a food
+            # service 24/7 (per-PR clusters are NOT in the sandbox nightly-shutdown selector — see ADR-0010's
+            # residual note), so the second task is pure carry cost for a preview with no availability
+            # requirement: 0.5 vCPU + 1 GB on Fargate Spot ≈ $5.50/mo each. Prod is untouched — it deploys
+            # from prod-deploy.yml and keeps the two-task default.
             - name: CDK Deploy — pass 2 (scale services up)
-              if: steps.changes.outputs.food == 'true'
+              if: steps.gate.outputs.deploy == 'true'
               run: |
                   STAGE=${{ env.STAGE }} \
                   FOOD_VPC_ID=${{ env.FOOD_VPC_ID }} \
                   FOOD_IMAGE_TAG=sandbox-${{ github.sha }} \
-                  FOOD_DESIRED_COUNT=2 \
+                  FOOD_DESIRED_COUNT=1 \
                   FOOD_WORKER_DESIRED_COUNT=1 \
                   npx cdk deploy \
                     --app "node packages/services/food-service/infra/dist/bin/app.js" \
                     --all --require-approval never
+
+    # ------------------------------------------------------------------------------------------------
+    # Recipe (feature 001). This job exists because its ABSENCE was itself the defect: the recipe service
+    # was hand-deployed once (2026-07-13) and never again, so it silently drifted fifteen days behind
+    # `main` — missing the CORS support added in 1bba364f — while every existing signal stayed green
+    # (`/health` 200, `cdk synth` 0, and k6/Playwright/Maestro/integration all boot or mock their OWN
+    # backend). Nothing in the pipeline ever exercised the deployed artifact. See ADR-0005 / ADR-0006.
+    #
+    # Ordering is load-bearing: recipe-WORKERS owns the account-erasure queue and publishes its URL/ARN to
+    # SSM (`/kitchensink/{stage}/recipe/account-erasure-queue-*`), which recipe-SERVICE reads at deploy
+    # time. Deploying the service first fails with "Unable to fetch parameters ... from parameter store".
+    # SSM (rather than a CFN export) is deliberate — see the comment in recipe-service-stack.ts: an
+    # `Fn.importValue` would lock the workers export while the service imports it, and ADR-0005's PR-close
+    # cleanup deletes a PR's stacks in no fixed order, so workers-first would hit the ADR-0002
+    # export-in-use deadlock unattended.
+    #
+    # Every infra input is RESOLVED from CloudFormation exports rather than hardcoded or carried in repo
+    # variables, so a platform change cannot leave this job pointing at something stale.
+    #
+    # `needs: deploy-food` makes the food-before-recipe ordering EXPLICIT (issue #120). The recipe service reads
+    # food's `/v1/foods/*` API on the per-keystroke ingredient path, and its `RECIPE_FOOD_SERVICE_URL` names
+    # THIS PR's food host — which only exists once the food stack has created its listener rule + A-record. The
+    # two jobs previously ran concurrently, so any ordering was luck.
+    #
+    # The ordering guarantee has TWO independent belts, because a skipped dependency skips its dependents:
+    #   1. `deploy-food`'s own job-level `if:` is true for EVERY non-closed `pull_request` event (its
+    #      ensure-exists gate is what skips the WORK, per-step), so on a PR it always reaches a conclusion.
+    #   2. `!cancelled() && needs.deploy-food.result != 'failure'` below, which also lets a
+    #      `workflow_dispatch` of `service: recipe` run — there `deploy-food` IS skipped, and the old
+    #      unqualified `if:` therefore skipped the recipe deploy along with it.
+    # A food deploy that FAILS still blocks recipe on purpose: recipe requires a working food origin
+    # (ADR-0010), and half-wiring a preview behind a green check is the failure this whole change removes.
+    deploy-recipe:
+        name: Deploy recipe sandbox (pr-${{ github.event.pull_request.number }})
+        runs-on: ubuntu-latest
+        needs: deploy-food
+        if: |
+            !cancelled() && needs.deploy-food.result != 'failure' && (
+              (github.event_name == 'pull_request' && github.event.action != 'closed') ||
+              (github.event_name == 'workflow_dispatch' && github.event.inputs.service == 'recipe')
+            )
+        env:
+            STAGE: ${{ github.event.inputs.stage || format('pr-{0}', github.event.pull_request.number) }}
+            # A per-PR feature deploy rides the SHARED sandbox platform tier (ADR-0006), so every export
+            # below is read from the `sandbox` base stage, never from `pr-{N}`.
+            BASE_STAGE: sandbox
+            IMAGE_TAG: pr-${{ github.event.pull_request.number }}-${{ github.sha }}
+            # This stage's recipe origin, in ONE place — the gate probes it and the smoke step verifies it.
+            # The shape is owned by `recipeSubdomainForStage` (recipe-service-stack.ts): a SINGLE label, so
+            # the `*.<domain>` ALB cert covers it; a 3-label `recipe.pr-7.<domain>` fails the TLS handshake.
+            RECIPE_ORIGIN: https://recipe-${{ github.event.inputs.stage || format('pr-{0}', github.event.pull_request.number) }}.${{ vars.DOMAIN_NAME }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+            # One HALF of the gate: did this PR touch the recipe tier? `recipe-core` is in the image, so a
+            # change there ships too. Skipped on a manual dispatch, which has no PR diff (the gate is
+            # `forced` there instead).
+            - name: Detect recipe changes
+              id: changes
+              if: github.event_name == 'pull_request'
+              uses: dorny/paths-filter@v3
+              with:
+                  filters: |
+                      recipe:
+                          - 'packages/services/recipe-service/**'
+                          - 'packages/services/recipe-workers/**'
+                          - 'packages/shared/recipe-core/**'
+            # Node + deps + credentials are UNCONDITIONAL — the ensure-exists gate (ADR-0010) needs the AWS
+            # CLI and `npx tsx`, and the post-deploy smoke below now runs on EVERY event so a preview that
+            # was left half-wired is reported even on a push that deploys nothing.
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - name: Install dependencies
+              run: npm ci
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            # THE gate (ADR-0010). BOTH recipe stacks must be present and the service must be serving, or the
+            # job deploys even with nothing changed — that is how a docs-only PR ends up with a complete
+            # ecosystem, and how a reaped or half-rolled-back preview self-heals. Do NOT put
+            # `steps.changes.outputs.recipe == 'true'` back on the steps below.
+            - name: Ensure this PR has a recipe tier (ensure-exists gate)
+              id: gate
+              env:
+                  CHANGED: ${{ steps.changes.outputs.recipe || 'false' }}
+                  FORCED: ${{ github.event_name == 'workflow_dispatch' }}
+              run: |
+                  set -euo pipefail
+                  chmod +x .github/scripts/deploy-gate.sh
+                  .github/scripts/deploy-gate.sh evaluate recipe "$CHANGED" "$FORCED" \
+                    "${RECIPE_ORIGIN}/health" \
+                    "${{ vars.DEFAULT_AWS_REGION }}" \
+                    "kitchensink-recipe-workers-${STAGE}" \
+                    "kitchensink-recipe-service-${STAGE}"
+            # turbo (not a bare workspace build) so `^build` compiles the shared dists the image COPYs
+            # (recipe-core, food-service-client, clerk-verify, identity-core). Without them the container
+            # crash-loops at boot on the bare @kitchensink/* specifiers.
+            - name: Build recipe packages (+ shared dists)
+              if: steps.gate.outputs.deploy == 'true'
+              run: npx turbo run build --filter=@kitchensink/recipe-service --filter=@kitchensink/recipe-workers
+            - name: Build recipe infra
+              if: steps.gate.outputs.deploy == 'true'
+              run: npm run infra:build --workspace=packages/services/recipe-service
+            - name: Bundle recipe lambdas
+              if: steps.gate.outputs.deploy == 'true'
+              run: npm run bundle:lambda --workspace=packages/services/recipe-service
+            # Resolve every platform input from the shared tier's CloudFormation exports. `set -euo
+            # pipefail` plus the empty-check means a renamed or missing export fails HERE, with the export
+            # name in the log, instead of surfacing as an opaque CDK error later.
+            - name: Resolve platform inputs from CloudFormation exports
+              id: infra
+              if: steps.gate.outputs.deploy == 'true'
+              run: |
+                  set -euo pipefail
+                  lookup() {
+                    local name="$1"
+                    local value
+                    value=$(aws cloudformation list-exports \
+                      --query "Exports[?Name=='${name}'].Value" --output text)
+                    if [ -z "$value" ] || [ "$value" = "None" ]; then
+                      echo "::error::CloudFormation export '${name}' not found — is the ${BASE_STAGE} platform tier deployed?"
+                      exit 1
+                    fi
+                    echo "$value"
+                  }
+                  {
+                    echo "vpc_id=$(lookup "kitchensink-network-${BASE_STAGE}:VpcId")"
+                    echo "lambda_sg_id=$(lookup "kitchensink-network-${BASE_STAGE}:LambdaSecurityGroupId")"
+                    echo "db_endpoint=$(lookup "kitchensink-data-${BASE_STAGE}:DatabaseEndpoint")"
+                    echo "db_port=$(lookup "kitchensink-data-${BASE_STAGE}:DatabasePort")"
+                    # `rds-db:connect` ARNs are keyed on the DbiResourceId (db-XXXX…), NOT the instance name.
+                    echo "db_resource_id=$(lookup "kitchensink-data-${BASE_STAGE}:DatabaseResourceId")"
+                    # The BASE logical database name (#119). The recipe SERVICE stack imports this same
+                    # export inside CDK; the WORKERS app is a separate `cdk deploy` that cannot, so CI hands
+                    # it the resolved value and the workers stack derives the per-stage name from it with the
+                    # SAME shared function. Omitting it was the whole of #119: every other platform input was
+                    # passed, and the missing NAME silently left six Lambdas — three of them destructive
+                    # scheduled sweepers — pointed at the shared `kitchensink_recipes` database while the API
+                    # used `kitchensink_recipes_pr_{N}`. The workers app now REFUSES to synth without it.
+                    echo "db_base_name=$(lookup "kitchensink-data-${BASE_STAGE}:RecipeDatabaseName")"
+                    echo "archive_bucket=$(lookup "kitchensink-data-${BASE_STAGE}:ArchiveBucketName")"
+                    echo "media_bucket=$(lookup "kitchensink-data-${BASE_STAGE}:MediaBucketName")"
+                    echo "handle_sync_topic_arn=$(lookup "kitchensink-data-${BASE_STAGE}:HandleSyncTopicArn")"
+                  } >> "$GITHUB_OUTPUT"
+            # The food origin the recipe service reads ingredient nutrition + catalog suggestions from
+            # (issue #120). Keyed on the DEPLOY stage, NOT the base stage: every PR stands up its own food
+            # service, and there is no persistent sandbox one to fall back to.
+            #
+            # Derived by RUNNING the food stack's own host helper (`foodServiceOriginForStage`), never by
+            # re-typing `food-pr-{N}.${DOMAIN_NAME}` here: the dash form is a TLS constraint (a 3-label
+            # `food.pr-7...` matches no wildcard on the shared ALB cert — ADR-0003/0006), and a second copy of
+            # that rule in YAML is exactly the kind of thing that drifts silently. One definition, imported.
+            - name: Resolve the food service origin for this stage
+              id: food
+              run: |
+                  set -euo pipefail
+                  food_url=$(npx tsx packages/services/food-service/infra/bin/print-food-host.ts \
+                    "${STAGE}" "${{ vars.DOMAIN_NAME }}")
+                  echo "url=${food_url}" >> "$GITHUB_OUTPUT"
+                  echo "recipe will call food at ${food_url}"
+                  # This used to be a ::warning:: describing an accepted degradation. It is now an ERROR,
+                  # because ensure-exists (ADR-0010) means `deploy-food` runs on every PR event and either
+                  # creates this stack or fails the run — so reaching here without it means the ecosystem is
+                  # genuinely incomplete, and baking an unresolvable host into RECIPE_FOOD_SERVICE_URL would
+                  # ship a preview whose ingredient typeahead can only ever report
+                  # `catalogAvailability: 'unavailable'`. Fail loudly instead of degrading quietly (#124).
+                  if ! aws cloudformation describe-stacks --region "${{ vars.DEFAULT_AWS_REGION }}" \
+                      --stack-name "kitchensink-food-service-${STAGE}" >/dev/null 2>&1; then
+                    echo "::error::No food service is deployed at stage ${STAGE}, so ${food_url} cannot resolve and this preview's ingredient catalog would be dead. On a pull_request the deploy-food job should have created kitchensink-food-service-${STAGE} — check that job. On a workflow_dispatch, dispatch service=food at this stage first."
+                    exit 1
+                  fi
+            - name: Login to Amazon ECR
+              id: login-ecr
+              if: steps.gate.outputs.deploy == 'true'
+              uses: aws-actions/amazon-ecr-login@v2
+            # The recipe stack imports the repo by name (ecr.Repository.fromRepositoryName), so create it
+            # on first deploy — the image push and the ECS pull both need it to exist.
+            - name: Ensure ECR repository exists
+              if: steps.gate.outputs.deploy == 'true'
+              run: aws ecr describe-repositories --repository-names kitchensink-recipes || aws ecr create-repository --repository-name kitchensink-recipes
+            # The tag carries the commit SHA and is therefore IMMUTABLE per deploy. That is what makes the
+            # currency assertion in the smoke step meaningful: a mutable `pr-{N}` tag would let ECS keep
+            # serving a cached older layer while the tag "matched".
+            - name: Build, tag, and push recipe Docker image
+              if: steps.gate.outputs.deploy == 'true'
+              env:
+                  ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+              run: |
+                  docker buildx build --platform linux/amd64 \
+                    -f packages/services/recipe-service/Dockerfile \
+                    -t ${ECR_REGISTRY}/kitchensink-recipes:${IMAGE_TAG} --push .
+            # Pass 1 — WORKERS first: this creates the account-erasure queue and writes the two SSM
+            # parameters the service reads. Skipping it is what makes the service undeployable.
+            - name: CDK Deploy — recipe workers (publishes the erasure-queue SSM params)
+              if: steps.gate.outputs.deploy == 'true'
+              run: |
+                  STAGE=${{ env.STAGE }} \
+                  DOMAIN_NAME=${{ vars.DOMAIN_NAME }} \
+                  RECIPE_VPC_ID=${{ steps.infra.outputs.vpc_id }} \
+                  RECIPE_LAMBDA_SG_ID=${{ steps.infra.outputs.lambda_sg_id }} \
+                  RECIPE_DB_ENDPOINT=${{ steps.infra.outputs.db_endpoint }} \
+                  RECIPE_DB_PORT=${{ steps.infra.outputs.db_port }} \
+                  RECIPE_DB_INSTANCE_ID=${{ steps.infra.outputs.db_resource_id }} \
+                  RECIPE_DB_BASE_NAME=${{ steps.infra.outputs.db_base_name }} \
+                  RECIPE_ARCHIVE_BUCKET=${{ steps.infra.outputs.archive_bucket }} \
+                  RECIPE_MEDIA_BUCKET=${{ steps.infra.outputs.media_bucket }} \
+                  HANDLE_SYNC_TOPIC_ARN=${{ steps.infra.outputs.handle_sync_topic_arn }} \
+                  npx cdk deploy \
+                    --app "npx tsx packages/services/recipe-workers/infra/bin/app.ts" \
+                    --all --require-approval never
+            # Pass 2 — the service, which can only synth once the SSM parameters above exist.
+            - name: CDK Deploy — recipe service
+              if: steps.gate.outputs.deploy == 'true'
+              run: |
+                  STAGE=${{ env.STAGE }} \
+                  DOMAIN_NAME=${{ vars.DOMAIN_NAME }} \
+                  RECIPE_VPC_ID=${{ steps.infra.outputs.vpc_id }} \
+                  RECIPE_IMAGE_TAG=${{ env.IMAGE_TAG }} \
+                  RECIPE_FOOD_SERVICE_URL=${{ steps.food.outputs.url }} \
+                  npx cdk deploy \
+                    --app "node packages/services/recipe-service/infra/dist/bin/app.js" \
+                    --all --require-approval never
+            # Apply migrations into the per-PR logical DB, creating `kitchensink_recipes_pr_{N}` if absent
+            # (ADR-0006), so a fresh preview self-provisions its isolated database. Omitting this is NOT a
+            # silent no-op: the tasks boot fine and `/health` answers 200 (it does not touch the DB), so the
+            # service looks healthy while every actual query 500s — which is exactly what the first run of
+            # this job produced.
+            - name: Run recipe migrations (creates the per-PR DB if absent)
+              if: steps.gate.outputs.deploy == 'true'
+              run: |
+                  set -euo pipefail
+                  FN=$(aws cloudformation describe-stacks --region "${{ vars.DEFAULT_AWS_REGION }}" \
+                      --stack-name "kitchensink-recipe-service-${{ env.STAGE }}" \
+                      --query "Stacks[0].Outputs[?OutputKey=='RecipeMigrationFunctionName'].OutputValue | [0]" \
+                      --output text)
+                  aws lambda invoke --region "${{ vars.DEFAULT_AWS_REGION }}" --function-name "$FN" \
+                      --payload '{"action":"migrate"}' --cli-binary-format raw-in-base64-out /tmp/recipe-migrate.json
+                  cat /tmp/recipe-migrate.json
+                  # `aws lambda invoke` exits 0 even when the FUNCTION threw, so inspect the payload.
+                  if grep -q '"errorType"' /tmp/recipe-migrate.json; then
+                    echo "::error::recipe migration lambda failed — see payload above"
+                    exit 1
+                  fi
+            # Read what the RUNNING task is actually configured with, so the smoke step can prove the
+            # deployment took effect rather than trusting that `cdk deploy` said "success". Two facts come
+            # from the live task definition: the image TAG (currency) and FOOD_SERVICE_URL (cross-service
+            # wiring — the value the container really holds, not the value CI meant to pass).
+            #
+            # Unconditional: when the gate skipped the deploy, the stacks exist and the service is serving,
+            # so this resolves fine — and the smoke below then still re-proves the ecosystem is wired on a
+            # push that deployed nothing.
+            - name: Resolve the running task's image tag and food origin
+              id: running
+              run: |
+                  set -euo pipefail
+                  cluster=$(aws ecs list-clusters --query 'clusterArns[]' --output text \
+                    | tr '\t' '\n' | grep "recipe-service-${STAGE}-" | head -1)
+                  service=$(aws ecs list-services --cluster "$cluster" --query 'serviceArns[0]' --output text)
+                  task_def=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+                    --query 'services[0].taskDefinition' --output text)
+                  image=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                    --query 'taskDefinition.containerDefinitions[0].image' --output text)
+                  echo "image_tag=${image##*:}" >> "$GITHUB_OUTPUT"
+                  # `|| [0]` yields the string `None` when the variable is absent — which is exactly the
+                  # defect this asserts against, so it is passed through as-is and classified, not swallowed.
+                  # ⚠️ LOWERCASE `name`/`value`. ECS `KeyValuePair` is one of the few AWS shapes that is
+                  # not PascalCase, unlike the `Exports[?Name==…].Value` queries elsewhere in this file.
+                  # Filtering on `Name` matches NOTHING and yields `None`, which this step maps to an empty
+                  # string — indistinguishable from the variable genuinely being unset. That produced a
+                  # FALSE smoke failure claiming the recipe task could not reach food, while revision 18
+                  # carried FOOD_SERVICE_URL=https://food-pr-73.commise.app the whole time.
+                  food_url=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                    --query "taskDefinition.containerDefinitions[0].environment[?name=='FOOD_SERVICE_URL'].value | [0]" \
+                    --output text)
+                  [ "$food_url" = 'None' ] && food_url=''
+                  echo "configured_food_url=${food_url}" >> "$GITHUB_OUTPUT"
+                  echo "running image tag: ${image##*:}; FOOD_SERVICE_URL: ${food_url:-<unset>}"
+            # THE check the pipeline was missing. `cdk deploy` succeeding proves the stack converged; it
+            # does not prove the service serves traffic, `/health` alone does not prove a BROWSER can reach
+            # it — a CORS preflight is sent without credentials, so a service whose auth runs first answers
+            # 401 and is unusable from every browser while staying 200 to curl — and none of that proves the
+            # ECOSYSTEM is wired. The last two flags add that (issue #124): the running task must be
+            # configured for THIS PR's food service, and that host must answer. `food-pr-{N}/v1/foods/search`
+            # answers 401 BY DESIGN (it needs a Clerk token), and the smoke treats that 401 as the PASS —
+            # only a transport failure or the shared ALB's default 404 is a failure. Runs on EVERY event, so
+            # a preview left half-wired is reported even by a push that deployed nothing; the image-currency
+            # flag is passed only when this run actually deployed.
+            - name: Smoke test — the deployed recipe service is live, browser-reachable, CURRENT and WIRED to food
+              env:
+                  DEPLOYED: ${{ steps.gate.outputs.deploy }}
+                  RUNNING_IMAGE_TAG: ${{ steps.running.outputs.image_tag }}
+                  FOOD_ORIGIN: ${{ steps.food.outputs.url }}
+                  CONFIGURED_FOOD_ORIGIN: ${{ steps.running.outputs.configured_food_url }}
+              run: |
+                  set -euo pipefail
+                  # Currency is only assertable when THIS run pushed an image; an empty flag skips that one
+                  # check and leaves the other four in force. Computed in shell, not in a GitHub-expression
+                  # ternary (do NOT write an empty interpolation here even as prose — see below), so
+                  # it does not depend on the `env` context being available to a `run:` expression.
+                  expected_image_tag=''
+                  [ "$DEPLOYED" = 'true' ] && expected_image_tag="${IMAGE_TAG}"
+                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                    --base-url "${RECIPE_ORIGIN}" \
+                    --web-origin "https://${STAGE}.sandbox.${{ vars.DOMAIN_NAME }}" \
+                    --expected-image-tag "${expected_image_tag}" \
+                    --running-image-tag "${RUNNING_IMAGE_TAG}" \
+                    --food-origin "${FOOD_ORIGIN}" \
+                    --configured-food-origin "${CONFIGURED_FOOD_ORIGIN}"

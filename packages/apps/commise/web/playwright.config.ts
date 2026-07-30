@@ -9,27 +9,46 @@ const { loadEnvConfig } = nextEnv;
 // (load-secrets) and there is no .env.local, so this is a no-op there.
 loadEnvConfig(process.cwd());
 
-// The auth flow's worst bug class is PREVIEW-ONLY: under a per-PR basePath, Clerk's post-auth redirect
-// double-prefixes to /pr-{N}/pr-{N}/ and strands the user. It does NOT reproduce without a basePath,
-// so the e2e suite runs the dev server UNDER one by default. Override with E2E_BASE_PATH='' to also
-// exercise the production (no-prefix) shape. When pointing at a deployed preview via
-// PLAYWRIGHT_BASE_URL, set E2E_BASE_PATH to that preview's prefix (e.g. /pr-39).
-const BASE_PATH = process.env.E2E_BASE_PATH ?? '/pr-e2e';
+// Since the ADR-0001 subdomain cutover, previews serve at the ROOT (empty basePath) with the locale in
+// the path (`/{locale}/…`). The suite runs the dev server in that live shape by default: no basePath, so
+// the middleware locale redirect isn't fighting a basePath, and every route lives under `/{locale}`. The
+// legacy per-PR basePath double-prefix bug class is retired with path routing.
+const BASE_PATH = process.env.E2E_BASE_PATH ?? '';
+const LOCALE = process.env.E2E_LOCALE ?? 'en';
 const PORT = Number(process.env.PORT ?? 3000);
 const ORIGIN = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
 export default defineConfig({
     testDir: './tests/e2e',
-    // Serial (single worker), not parallel: these auth flows share ONE Clerk test user and ONE Next
-    // dev server, and concurrent sign-ins / on-demand route compilation under load flake intermittently.
-    // Reliability matters more than wall-clock for a red-alert auth suite (~40s serially).
+    // Only `*.spec.ts` are Playwright specs (project convention). The default testMatch also grabs
+    // `*.test.ts`, which would wrongly try to run co-located VITEST unit tests (e.g. the e2e utils'
+    // readViewerAppId.test.ts) as Playwright specs and crash the run on their `vitest` imports.
+    testMatch: '**/*.spec.ts',
+    // Serial (single worker), not parallel: this run's specs share ONE Clerk test user (run-scoped — see
+    // tests/e2e/utils/runFixtureIdentity.ts) and ONE Next dev server, and concurrent sign-ins / on-demand
+    // route compilation under load flake intermittently. Reliability matters more than wall-clock for a
+    // red-alert auth suite. NOTE: this says nothing about two SEPARATE runs — those are isolated by the
+    // per-run fixture identity, not by the worker count.
     fullyParallel: false,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 1,
     workers: 1,
+    // 60s, not Playwright's 30s default. Almost every spec here opens with `signInWithTicket`, whose own
+    // landing poll budgets 30s to absorb Next dev's on-demand route compilation — i.e. EXACTLY the default
+    // per-test budget. A step whose timeout equals the whole test's budget can never report its own
+    // failure: the test dies of a generic 30s timeout first, which is how the `signInWithTicket` flake
+    // presents (a bare timeout on the sign-in step, with no indication of which precondition missed).
+    // Raising the cap makes that inner poll strictly smaller than the enclosing budget, so the helper's
+    // diagnostic is reachable, and leaves headroom for the Clerk round-trips that follow. It is not a
+    // licence for slow tests: the suite averages ~4s per test, so 60s only bites on genuine pathology,
+    // and `test.slow()` still triples it for the two flows that legitimately need more.
+    timeout: 60_000,
     reporter: 'html',
+    // globalSetup resolves this run's fixture identity, PINS it into process.env (the workers inherit it),
+    // and provisions the run's Clerk user.
     globalSetup: './tests/e2e/global.setup.ts',
-    // Delete the e2e users from Clerk after the run (cascades to a DB purge via the user.deleted webhook).
+    // Deletes THIS RUN's Clerk users (cascades to a DB purge via the user.deleted webhook) plus an
+    // age-gated sweep of leaks from crashed runs — never a concurrent run's live fixture.
     globalTeardown: './tests/e2e/global.teardown.ts',
     use: {
         baseURL: ORIGIN,
@@ -45,10 +64,11 @@ export default defineConfig({
         ? undefined
         : {
               command: 'npm run dev',
-              // Serve the dev server under the same basePath the tests navigate against.
-              env: { PREVIEW_BASE_PATH: BASE_PATH, PORT: String(PORT) },
-              // Readiness probe: the sign-in page lives under the basePath and returns 200.
-              url: `http://localhost:${PORT}${BASE_PATH}/sign-in`,
+              // Empty basePath (subdomain shape) unless E2E_BASE_PATH pins a legacy prefix; the locale
+              // lives in the path. PREVIEW_BASE_PATH is only set when exercising the legacy path shape.
+              env: BASE_PATH ? { PREVIEW_BASE_PATH: BASE_PATH, PORT: String(PORT) } : { PORT: String(PORT) },
+              // Readiness probe: the localized sign-in page returns 200 (`/sign-in` 307s to `/{locale}`).
+              url: `http://localhost:${PORT}${BASE_PATH}/${LOCALE}/sign-in`,
               reuseExistingServer: !process.env.CI,
               timeout: 120_000,
           },

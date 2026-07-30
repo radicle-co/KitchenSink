@@ -12,12 +12,19 @@ const kvs = cf.kvs();
 
 const notFound = { statusCode: 404, statusDescription: 'Not Found' };
 
+// CloudFront Functions 2.0 invokes this top-level `handler` by name; it is intentionally unreferenced in
+// the module (locked by the cffShape contract test), so the unused-vars rule is silenced on the next line.
+// eslint-disable-next-line no-unused-vars
 async function handler(event) {
     const request = event.request;
 
-    // Decide via the unit-tested core. KVS.get throws on a missing key; normalize that to undefined so
-    // resolveRoute treats unknown/closed PRs (and malformed paths) uniformly as a 404.
-    const decision = await resolveRoute(request.uri, (key) => kvs.get(key).catch(() => undefined));
+    // Decide via the unit-tested core. The PR key comes from the Host's leftmost label first (subdomain
+    // routing) and falls back to the /pr-{N} path segment (legacy path routing) — both resolve against the
+    // same KVS, so BOTH addressing modes work during the shared-sandbox cutover. KVS.get throws on a
+    // missing key; normalize that to undefined so resolveRoute treats unknown/closed PRs (and malformed
+    // requests) uniformly as a 404.
+    const host = request.headers.host && request.headers.host.value;
+    const decision = await resolveRoute({ uri: request.uri, host }, (key) => kvs.get(key).catch(() => undefined));
 
     if (decision.kind === 'notfound') {
         return notFound;
@@ -44,6 +51,9 @@ async function handler(event) {
         if (bypass) {
             request.headers['x-vercel-protection-bypass'] = { value: bypass };
         }
+        // CFF JS 2.0 forbids the optional catch binding, so the parameter is mandatory here even though
+        // unused (see the NOTE below). Silence unused-vars on the next line.
+        // eslint-disable-next-line no-unused-vars
     } catch (_err) {
         // No bypass seeded (e.g. post-Vercel) — forward without it.
         // NOTE: the catch MUST bind a parameter. CloudFront Functions JS 2.0 does not support the

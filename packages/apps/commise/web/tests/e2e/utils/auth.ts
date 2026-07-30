@@ -2,8 +2,8 @@ import { createClerkClient } from '@clerk/backend';
 import { setupClerkTestingToken } from '@clerk/testing/playwright';
 import { expect, type Page } from '@playwright/test';
 
-import { isHome, pathnameOf, route } from './base-path';
-import { TEST_USER_EMAIL } from './test-user';
+import { isHome, pathnameOf, route } from './basePath';
+import { RUN_KEY, TEST_USER_EMAIL } from './testUser';
 
 function client() {
     const secretKey = process.env['CLERK_SECRET_KEY'];
@@ -28,7 +28,13 @@ export async function signInWithTicket(page: Page): Promise<void> {
     const userId = data[0]?.id;
 
     if (!userId) {
-        throw new Error('test sign-in user is missing — globalSetup should have created it');
+        // The fixture is RUN-SCOPED (runFixtureIdentity.ts), so this can no longer mean "a concurrent run
+        // deleted it". It means this process derived a DIFFERENT run key than globalSetup did — i.e. the
+        // pinned COMMISE_E2E_RUN_KEY did not reach this worker — or globalSetup never ran.
+        throw new Error(
+            `test sign-in user ${TEST_USER_EMAIL} is missing — globalSetup should have created it ` +
+                `(run key=${RUN_KEY}; COMMISE_E2E_RUN_KEY=${process.env['COMMISE_E2E_RUN_KEY'] ?? '<unset>'})`,
+        );
     }
 
     const { token } = await clerk.signInTokens.createSignInToken({ userId, expiresInSeconds: 600 });

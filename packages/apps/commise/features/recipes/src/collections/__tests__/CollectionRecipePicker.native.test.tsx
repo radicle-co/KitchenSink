@@ -1,0 +1,275 @@
+/**
+ * Native component tests for the collection recipe-picker (rendered via react-native-web under jsdom) — the
+ * ADD half of FR-009 (T072). Mirrors the web leaf across EVERY branch so the two platform renders cannot
+ * drift: chrome (heading names the collection, search reports upward, done), the fetch states (loading, load
+ * error + retry, no-recipes empty + create CTA, no-matches search), and adding (row per candidate, add id
+ * reported upward, member marker + suppressed re-add, in-flight busy + suppressed duplicate, the polite
+ * success announcement, and the add-failure alert). The member/in-flight controls stay MOUNTED (never
+ * unmounted on activation) and carry their inert state in the accessible NAME plus the `accessibilityState`
+ * device trait, while suppressing re-activation in the handler. react-native-web projects `accessibilityState`
+ * to no DOM attribute (#123) and offers no focusable-but-`aria-disabled` button, so — unlike the rest of that
+ * sweep — this leaf takes no ARIA sibling; the ⚠️ cases below pin that constraint and the name-carried state.
+ * The remaining cases assert the BEHAVIOR (the inert text marker, the busy label, that the row is still there,
+ * and that no `onAdd` fires), which a control that merely LOOKED inert would fail.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import { fireEvent } from '@testing-library/dom';
+
+import { computedContrast, placeholderContrast } from '@commise/test-utils';
+import { palette } from '@commise/ui';
+
+import { cssColor, tintOf } from '../../__tests__/cssColor.js';
+// Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { CollectionRecipePicker } from '../CollectionRecipePicker.native.js';
+import type { CollectionRecipePickerProps } from '../model.js';
+
+afterEach(cleanup);
+
+const noop = () => undefined;
+
+const RECIPES = [
+    { id: 'rec_1', title: 'Weeknight Pasta', totalTimeMinutes: 30, updatedAt: '2026-04-19T09:30:00.000Z' },
+    { id: 'rec_2', title: 'Sheet-Pan Chicken', totalTimeMinutes: 45, updatedAt: '2026-04-18T09:30:00.000Z' },
+] as const;
+
+function renderPicker(overrides: Partial<CollectionRecipePickerProps> = {}) {
+    const props: CollectionRecipePickerProps = {
+        collectionName: 'Weeknight Dinners',
+        status: 'ready',
+        recipes: RECIPES,
+        memberRecipeIds: [],
+        query: '',
+        onQueryChange: noop,
+        onAdd: noop,
+        onRetry: noop,
+        onCreateRecipe: noop,
+        onDone: noop,
+        ...overrides,
+    };
+    render(<CollectionRecipePicker {...props} />);
+
+    return props;
+}
+
+describe('CollectionRecipePicker (native) — chrome', () => {
+    it('names the collection it adds to in the heading', () => {
+        renderPicker({ collectionName: 'Holiday Baking' });
+
+        expect(screen.getByRole('heading', { name: 'Add recipes to Holiday Baking' })).toBeTruthy();
+    });
+
+    it('reports search input upward', () => {
+        const onQueryChange = vi.fn();
+        renderPicker({ onQueryChange });
+
+        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'pasta' } });
+
+        expect(onQueryChange).toHaveBeenCalledWith('pasta');
+    });
+
+    it('reports done upward', () => {
+        const onDone = vi.fn();
+        renderPicker({ onDone });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+
+        expect(onDone).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * Cross-platform parity for the web leaf's seafoam-as-text fix. One shared `linkLabel` style paints both bare
+ * TEXT controls in this leaf — Done in the chrome and Try again in the load-error card — and it was
+ * `palette.seafoam`: 4.02:1 on white, under the 4.5:1 body-text floor. Both call sites are measured, so a fix
+ * that reached only one of them would still fail.
+ */
+describe('CollectionRecipePicker (native) — text controls clear the AA body-text floor', () => {
+    it('keeps the Done label legible', () => {
+        renderPicker();
+
+        expect(computedContrast(screen.getByText('Done')), 'Done').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the load-error Try again label legible on its white card', () => {
+        renderPicker({ status: 'error', recipes: [] });
+
+        expect(computedContrast(screen.getByText('Try again')), 'Try again').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the search field’s PLACEHOLDER text legible', () => {
+        renderPicker();
+
+        // Placeholder copy is TEXT a reader reads — the field's only visible instruction before they type — so
+        // it owes the same 4.5:1; `placeholderTextColor={palette.mist}` measured 1.77:1 here. This field paints
+        // NO background of its own, so the backdrop is the picker's own surface: the app's `sand` screen.
+        // `placeholderContrast` reads the colour react-native-web actually paints, so this fails if the token
+        // drifts AND if the prop stops being passed.
+        expect(
+            placeholderContrast(screen.getByLabelText('Search your recipes'), { surface: palette.sand }),
+            'picker search placeholder on the sand screen background',
+        ).toBeGreaterThanOrEqual(4.5);
+    });
+});
+
+describe('CollectionRecipePicker (native) — fetch states', () => {
+    it('shows the loading label and no rows while loading', () => {
+        renderPicker({ status: 'loading', recipes: [] });
+
+        expect(screen.getByLabelText('Loading your recipes')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Add Weeknight Pasta' })).toBeNull();
+    });
+
+    it('shows an alert and retries on request when the load fails', () => {
+        const onRetry = vi.fn();
+        renderPicker({ status: 'error', recipes: [], onRetry });
+
+        expect(screen.getByRole('alert')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('offers to create a recipe when the caller owns none', () => {
+        const onCreateRecipe = vi.fn();
+        renderPicker({ recipes: [], query: '', onCreateRecipe });
+
+        expect(screen.getByText('No recipes yet')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+
+        expect(onCreateRecipe).toHaveBeenCalledTimes(1);
+    });
+
+    it('distinguishes a search with no matches from owning no recipes', () => {
+        renderPicker({ recipes: [], query: 'zzz' });
+
+        expect(screen.getByText('No recipes match your search')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
+        expect(screen.queryByText('No recipes yet')).toBeNull();
+    });
+});
+
+describe('CollectionRecipePicker (native) — adding', () => {
+    it('renders one add control per candidate recipe', () => {
+        renderPicker();
+
+        expect(screen.getByRole('button', { name: 'Add Weeknight Pasta' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' })).toBeTruthy();
+    });
+
+    it('reports the added recipe id upward', () => {
+        const onAdd = vi.fn();
+        renderPicker({ onAdd });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' }));
+
+        expect(onAdd).toHaveBeenCalledWith('rec_2');
+    });
+
+    it('marks a member row in text and keeps its control mounted and re-add-suppressed', () => {
+        const onAdd = vi.fn();
+        renderPicker({ memberRecipeIds: ['rec_1'], onAdd });
+
+        expect(screen.getByText('In this collection')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Add Weeknight Pasta' })).toBeNull();
+        // The non-member row is unaffected — membership is per row, not per screen.
+        expect(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' })).toBeTruthy();
+
+        // The control is present and NAMED (not unmounted); activating it adds nothing.
+        const control = screen.getByRole('button', { name: 'Weeknight Pasta is in this collection' });
+
+        fireEvent.click(control);
+        expect(onAdd).not.toHaveBeenCalled();
+    });
+
+    it('marks the in-flight row as busy and suppresses duplicate submissions', () => {
+        const onAdd = vi.fn();
+        renderPicker({ pendingRecipeId: 'rec_1', onAdd });
+
+        const control = screen.getByRole('button', { name: 'Add Weeknight Pasta' });
+
+        expect(within(control).getByText('Adding…')).toBeTruthy();
+
+        fireEvent.click(control);
+        expect(onAdd).not.toHaveBeenCalled();
+
+        // Other rows stay live while one add is in flight.
+        fireEvent.click(screen.getByRole('button', { name: 'Add Sheet-Pan Chicken' }));
+        expect(onAdd).toHaveBeenCalledWith('rec_2');
+    });
+
+    /**
+     * ⚠️ This leaf is the ONE site in the #123 `accessibilityState` sweep that could not take an ARIA sibling,
+     * and these cases pin WHY so that neither obvious "fix" is applied blind. Both were measured against the
+     * installed react-native-web (0.20.0):
+     *
+     *   • `aria-disabled` is DISCARDED on a `Pressable`. RNW's `Pressable` renders
+     *     `<View {...rest} aria-disabled={disabled}>` — its OWN `disabled` prop overwrites the caller's, and
+     *     this control passes none, so the attribute never reaches the DOM. Measured: `<Pressable aria-disabled>`
+     *     renders `<button role="button" tabindex="0">`, entirely unmarked.
+     *   • the `disabled` PROP does reach the DOM, but RNW emits `aria-disabled="true"` AND the native
+     *     `disabled` attribute AND `tabindex="-1"` together — which is exactly what the web leaf REFUSES, for a
+     *     stated reason: a `disabled` button leaves the tab order, so a keyboard user who just added this recipe
+     *     is blurred and loses their place. RNW offers no focusable-but-inert button at all, so the web leaf's
+     *     `aria-disabled`-without-`disabled` semantics are INEXPRESSIBLE here.
+     *
+     * So the state travels the one channel that works on both platforms — the accessible NAME — plus the
+     * `accessibilityState` device trait, which RN itself honours even though RNW drops it. These assert that the
+     * name really does carry it, and that the control stays focusable, so a later change cannot quietly trade
+     * focusability for an attribute.
+     */
+    it('carries a MEMBER row’s inert state in its accessible NAME, not only in sighted text', () => {
+        renderPicker({ memberRecipeIds: ['rec_1'] });
+
+        // The visible "In this collection" text is sighted-only: the explicit `accessibilityLabel` overrides the
+        // control's text content for assistive tech. So the NAME is what has to say it.
+        const control = screen.getByRole('button', { name: 'Weeknight Pasta is in this collection' });
+        expect(control.getAttribute('aria-label')).toContain('is in this collection');
+    });
+
+    it('keeps every inert row focusable and free of the native disabled attribute', () => {
+        renderPicker({ memberRecipeIds: ['rec_1'], pendingRecipeId: 'rec_2' });
+
+        screen.getAllByRole('button').forEach((button) => {
+            expect(button.hasAttribute('disabled')).toBe(false);
+            expect(button.getAttribute('tabindex')).not.toBe('-1');
+        });
+    });
+
+    it('announces a successful add', () => {
+        renderPicker({ memberRecipeIds: ['rec_1'], lastAddedRecipeId: 'rec_1' });
+
+        expect(screen.getByText('Added Weeknight Pasta')).toBeTruthy();
+    });
+
+    it('announces nothing when no add has succeeded', () => {
+        renderPicker();
+
+        expect(screen.queryByText('Added Weeknight Pasta')).toBeNull();
+    });
+
+    it('surfaces an add failure as an alert without hiding the rows', () => {
+        renderPicker({ addFailed: true });
+
+        expect(screen.getByRole('alert').textContent).toContain('We couldn’t add that recipe. Please try again.');
+        expect(screen.getByRole('button', { name: 'Add Weeknight Pasta' })).toBeTruthy();
+    });
+
+    it('tints the add-failure alert with the error token, never coral', () => {
+        renderPicker({ addFailed: true });
+        const alert = screen.getByRole('alert');
+
+        // RN has no alpha-suffix colour syntax, so this leaf spells its tint out as an `rgba(...)` literal —
+        // and it spelled out CORAL (#E8917A → 232,145,122) under `palette.error` text: two adjacent-but-
+        // different hues in one element, with coral (a brand ACCENT) standing in for the failure register.
+        // Deriving the expectation FROM the token is what keeps this assertion pointed at the token: a
+        // re-theme of `palette.error` moves the test with it, and a literal that agrees by luck cannot pass.
+        expect(window.getComputedStyle(alert).backgroundColor).toBe(tintOf(palette.error, 0.1));
+        expect(window.getComputedStyle(alert).backgroundColor).not.toBe(tintOf(palette.coral, 0.1));
+        expect(window.getComputedStyle(within(alert).getByText(/couldn’t add that recipe/)).color).toBe(
+            cssColor(palette['error-dark']),
+        );
+    });
+});

@@ -3,11 +3,12 @@
  * EventBridge: `publishFoodRequested` / `publishFoodBatchRequested` perform a direct
  * `INSERT … ON CONFLICT` into `fetch_queue` paired with `pg_notify('fetch_queued', food_id)` in one
  * transaction, recording the distinct requester in `fetch_requesters` (ON CONFLICT DO NOTHING) so
- * `request_count` counts distinct `sub`s (FR-044) — never a raw `+1`. The Fargate consumer wakes on
+ * `request_count` counts distinct requesters (FR-044) — never a raw `+1`. The Fargate consumer wakes on
  * `LISTEN fetch_queued`.
  *
- * The food `id` is the dedup target (created up front by the create API). `requestedBy` is the verified
- * Clerk `sub` or a named service principal — NEVER an unauthenticated `'system'` shortcut (FR-048). A
+ * The food `id` is the dedup target (created up front by the create API). `requestedBy` is the requester
+ * key (CR-002/U1: an app-user ULID for a user, or an allowlisted `svc_*` for a service) — NEVER the raw
+ * Clerk `sub`, and NEVER an unauthenticated `'system'` shortcut (FR-048). A
  * per-`id` advisory lock serializes concurrent enqueues for the same food so the distinct-requester
  * recompute cannot race. `reactivate` revives a tombstoned queue row (DSN-1): the guarded normal upsert
  * is a no-op on a non-`pending` row, so a terminal-state reactivation must reset it explicitly.
@@ -26,7 +27,7 @@ const NOTIFY_CHANNEL = 'fetch_queued';
 export interface FoodRequestedInput {
     /** Internal food id (the dedup target, created up front). */
     id: string;
-    /** Verified Clerk `sub` or named service principal (FR-048). */
+    /** The requester key — an app-user ULID or an allowlisted `svc_*` (CR-002/U1, FR-048). */
     requestedBy: string;
     /** When `true`, reset a tombstoned queue row to `pending` (terminal-state reactivation, DSN-1). */
     reactivate?: boolean;
@@ -44,7 +45,7 @@ export interface BatchFoodInput {
 export interface FoodBatchRequestedInput {
     /** The foods to enqueue (≤100; FR-045). */
     foods: BatchFoodInput[];
-    /** Verified Clerk `sub` or named service principal. */
+    /** The requester key — an app-user ULID or an allowlisted `svc_*` (CR-002/U1). */
     requestedBy: string;
 }
 
@@ -114,11 +115,11 @@ export class EnqueueEmitter {
 
     /**
      * Record the distinct requester and upsert (or reactivate) the queue row for one id, within a
-     * transaction. `request_count` is recomputed as the live distinct-`sub` count — never a raw `+1`.
+     * transaction. `request_count` is recomputed as the live distinct-requester count — never a raw `+1`.
      *
      * @param client - The transaction-scoped pg client.
      * @param id - Internal food id.
-     * @param requestedBy - The verified requester sub / service principal.
+     * @param requestedBy - The requester key (app-user ULID or `svc_*`).
      * @param reactivate - When `true`, reset a tombstoned row to `pending` (the guarded upsert skips it).
      * @sideEffect Takes a transaction-scoped advisory lock; writes `fetch_requesters` + `fetch_queue`.
      */
@@ -133,8 +134,8 @@ export class EnqueueEmitter {
         await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [id]);
 
         await client.query(
-            `INSERT INTO fetch_requesters (food_id, sub) VALUES ($1, $2)
-             ON CONFLICT (food_id, sub) DO NOTHING`,
+            `INSERT INTO fetch_requesters (food_id, requester_id) VALUES ($1, $2)
+             ON CONFLICT (food_id, requester_id) DO NOTHING`,
             [id, requestedBy],
         );
 

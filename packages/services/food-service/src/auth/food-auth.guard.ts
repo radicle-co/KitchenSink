@@ -29,7 +29,7 @@ import {
     UnauthorizedException,
     type NestMiddleware,
 } from '@nestjs/common';
-import { verifyClerkToken } from '@kitchensink/clerk-verify';
+import { resolveAzpEnforcement, verifyClerkToken } from '@kitchensink/clerk-verify';
 import type { NextFunction, Response } from 'express';
 
 import { AuthLoadShedder } from './auth-load-shedder.js';
@@ -53,14 +53,6 @@ function numberFromEnv(key: string): number | undefined {
     return Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
-/** Parse a comma-separated allowlist (the `azp` parties) into a trimmed, non-empty list. Pure. */
-function parseCommaList(value: string | undefined): string[] {
-    return (value ?? '')
-        .split(',')
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0);
-}
-
 /** Extract the bearer token from an `Authorization` header, else `undefined`. Pure. */
 function extractBearer(authorization: string | undefined): string | undefined {
     if (typeof authorization !== 'string') {
@@ -76,8 +68,8 @@ function extractBearer(authorization: string | undefined): string | undefined {
 export class FoodAuthGuard implements NestMiddleware {
     /** Public PEM verification key (non-secret); absence fails closed. Read once at construction. */
     private readonly jwtKey: string | undefined;
-    /** The `azp` allowlist (non-secret). Read once at construction. */
-    private readonly authorizedParties: string[];
+    /** Resolved `azp` enforcement — exact-match list OR a per-PR preview pattern. Read once. */
+    private readonly azp: ReturnType<typeof resolveAzpEnforcement>;
     /** Auth-layer DoS shedder (FR-052) — shared process-wide unless overridden for tests. */
     private readonly shedder: AuthLoadShedder;
 
@@ -88,7 +80,18 @@ export class FoodAuthGuard implements NestMiddleware {
      */
     public constructor(@Optional() shedder: AuthLoadShedder = defaultShedder) {
         this.jwtKey = process.env['CLERK_JWT_KEY'];
-        this.authorizedParties = parseCommaList(process.env['CLERK_AUTHORIZED_PARTIES']);
+        this.azp = resolveAzpEnforcement({
+            authorizedPartiesRaw: process.env['CLERK_AUTHORIZED_PARTIES'],
+            previewBaseDomain: process.env['CLERK_AZP_PATTERN'],
+            // Cutover selector (ADR-0001): `transition` also admits the path-routed apex origin while the
+            // shared sandbox migrates to per-PR subdomains; unset/anything-else stays strict (subdomain-only).
+            previewMode: process.env['CLERK_AZP_PREVIEW_MODE'],
+            // Admit azp-less native-app tokens (`client_type: 'native'`) in pattern mode — the mobile app
+            // mints them via the `commise-native` Clerk JWT template (no browser origin ⇒ no `azp`). Gated
+            // by env so only stages fronting a native client enable it; the security signal lives once in
+            // clerk-verify's `isNativeClientToken`, never on azp-absence alone.
+            admitNativeClient: process.env['CLERK_ADMIT_NATIVE_CLIENT'] === 'true',
+        });
         this.shedder = shedder;
     }
 
@@ -130,10 +133,7 @@ export class FoodAuthGuard implements NestMiddleware {
         let claims;
 
         try {
-            claims = await verifyClerkToken(bearer, {
-                jwtKey: this.jwtKey,
-                authorizedParties: this.authorizedParties,
-            });
+            claims = await verifyClerkToken(bearer, { jwtKey: this.jwtKey, ...this.azp });
         } catch {
             // Any failure (bad signature, expiry, wrong azp, missing key) → opaque 401 (never the reason).
             // Feed the per-source 401-rate cap so a sustained flood from this source starts shedding.
@@ -144,8 +144,12 @@ export class FoodAuthGuard implements NestMiddleware {
         }
 
         // Identity from the verified token ONLY — a forged x-debug-sub / x-authorizer-context is ignored.
+        // `userId` (the app-user ULID from `external_id`) is THE user requester key (CR-002/U1/R5); it is
+        // surfaced here but NOT enforced-present in the guard — reads work without it, and only the enqueue
+        // paths defer on its absence (see FoodsController.requireRequesterId). A `svc_*` principal has none.
         req.user = {
             sub: claims.sub,
+            userId: claims.userId,
             azp: claims.azp,
             scopes: claims.scopes,
             permissions: claims.permissions,

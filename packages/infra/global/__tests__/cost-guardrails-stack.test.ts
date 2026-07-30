@@ -5,6 +5,9 @@
  * both budgets.amazonaws.com and costalerts.amazonaws.com publish. Created ONCE (prod-only guard in
  * bin/app.ts), so this suite asserts the resources on the standalone stack directly.
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect } from 'vitest';
@@ -54,8 +57,13 @@ describe('CostGuardrailsStack (ADR-0008)', () => {
         });
     });
 
-    it('provisions a $300 monthly cost budget', () => {
-        guardrailsTemplate().hasResourceProperties('AWS::Budgets::Budget', {
+    it('provisions exactly ONE $300 monthly cost budget', () => {
+        const template = guardrailsTemplate();
+
+        // "Created ONCE": a single budget resource on this account-scoped stack (bin/app.ts prod-guard
+        // asserted separately below prevents a second copy per stage).
+        template.resourceCountIs('AWS::Budgets::Budget', 1);
+        template.hasResourceProperties('AWS::Budgets::Budget', {
             Budget: Match.objectLike({
                 BudgetType: 'COST',
                 TimeUnit: 'MONTHLY',
@@ -64,11 +72,18 @@ describe('CostGuardrailsStack (ADR-0008)', () => {
         });
     });
 
+    it('tags the alert topic Environment=global so per-PR cleanup (ADR-0005) never deletes it', () => {
+        guardrailsTemplate().hasResourceProperties('AWS::SNS::Topic', {
+            Tags: Match.arrayWith([Match.objectLike({ Key: 'Environment', Value: 'global' })]),
+        });
+    });
+
     it('notifies at 80% ACTUAL and 100% FORECASTED via SNS', () => {
         const budget = Object.values(guardrailsTemplate().findResources('AWS::Budgets::Budget'))[0] as any;
         const notifications = budget.Properties.Budget ? budget.Properties.NotificationsWithSubscribers : undefined;
 
-        expect(notifications).toBeDefined();
+        // Exactly the two notifications wired in the stack (ACTUAL 80% + FORECASTED 100%) — no more, no fewer.
+        expect(notifications).toHaveLength(2);
 
         const shapes = (notifications as any[]).map((entry) => ({
             type: entry.Notification.NotificationType,
@@ -115,5 +130,30 @@ describe('CostGuardrailsStack (ADR-0008)', () => {
         expect(threshold.Dimensions.Key).toBe('ANOMALY_TOTAL_IMPACT_ABSOLUTE');
         expect(threshold.Dimensions.Values).toEqual(['20']);
         expect(threshold.Dimensions.MatchOptions).toEqual(['GREATER_THAN_OR_EQUAL']);
+    });
+});
+
+/**
+ * The "created ONCE" invariant lives in bin/app.ts, not in the stack: the stack is only instantiated
+ * inside a `stage === 'prod'` guard, with a fixed (non-stage-suffixed) stack name, so the two persistent
+ * stages (prod + sandbox) don't each register a duplicate account-scoped budget/anomaly monitor. Assert
+ * on the app-entry source so removing the guard or stage-suffixing the name fails the suite.
+ */
+describe('CostGuardrailsStack is created once, prod-guarded (bin/app.ts)', () => {
+    const appSource = readFileSync(fileURLToPath(new URL('../bin/app.ts', import.meta.url)), 'utf8');
+
+    it('instantiates the stack exactly once', () => {
+        expect(appSource.match(/new CostGuardrailsStack\(/g) ?? []).toHaveLength(1);
+    });
+
+    it('guards the instantiation behind stage === "prod"', () => {
+        expect(appSource).toMatch(/if\s*\(\s*stage\s*===\s*'prod'\s*\)\s*\{[\s\S]*?new CostGuardrailsStack\(/);
+    });
+
+    it('uses a single fixed, non-stage-suffixed stack name (one per account, not per stage)', () => {
+        expect(appSource).toContain("stackName: 'kitchensink-cost-guardrails'");
+        // A `kitchensink-cost-guardrails-${stage}` / `-pr-…` name would create per-stage duplicates.
+        expect(appSource).not.toMatch(/kitchensink-cost-guardrails-/);
+        expect(appSource).not.toMatch(/kitchensink-cost-guardrails\$\{/);
     });
 });

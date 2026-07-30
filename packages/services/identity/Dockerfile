@@ -14,6 +14,23 @@ COPY packages/services/identity/dist ./packages/services/identity/dist
 # build, like identity-service does); the runtime needs the prod manifest's ./dist exports instead.
 COPY packages/utils/identity/prod.package.json ./packages/utils/identity/package.json
 COPY packages/utils/identity/dist ./packages/utils/identity/dist
+# Shared @kitchensink/clerk-verify — same pattern as identity-utils above. The root node_modules symlink
+# resolves to this path, so its built dist + dist-pointing prod manifest must be in the image, or the
+# bare-specifier import (auth/clerk-auth.service AND config/env.schema) crash-loops at boot with
+# ERR_MODULE_NOT_FOUND. (food-service already copies it the same way.)
+COPY packages/shared/clerk-verify/prod.package.json ./packages/shared/clerk-verify/package.json
+COPY packages/shared/clerk-verify/dist ./packages/shared/clerk-verify/dist
+# Shared @kitchensink/identity-db (S-I7) — same pattern as identity-utils/clerk-verify above. The
+# schema/DAO/ulid code that used to live in this service's own src/database (Nest-coupled path, no
+# COPY needed) now resolves via the root node_modules symlink, so its built dist + dist-pointing prod
+# manifest must be in the image or the bare-specifier import crash-loops at boot (KTD2a).
+COPY packages/shared/identity-db/prod.package.json ./packages/shared/identity-db/package.json
+COPY packages/shared/identity-db/dist ./packages/shared/identity-db/dist
+# Shared @kitchensink/identity-core — same pattern as identity-db/identity-utils/clerk-verify above. The
+# display-name derivation logic resolves via the root node_modules symlink, so its built dist + a
+# dist-pointing prod manifest must be in the image or the bare-specifier import crash-loops at boot.
+COPY packages/shared/identity-core/prod.package.json ./packages/shared/identity-core/package.json
+COPY packages/shared/identity-core/dist ./packages/shared/identity-core/dist
 
 EXPOSE 3000
 # Preload Sentry instrumentation before app modules (native ESM — a top-level import is not a

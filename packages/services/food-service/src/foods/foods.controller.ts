@@ -31,10 +31,20 @@ import {
     Req,
     Res,
     ServiceUnavailableException,
+    UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 
-import { FOOD_ADMIN_SCOPE, hasScope, type AuthenticatedRequest } from '../auth/authenticated-principal.js';
+import {
+    FOOD_ADMIN_SCOPE,
+    hasScope,
+    IDENTITY_SYNC_PENDING_CODE,
+    resolveRequesterId,
+    type AuthenticatedPrincipal,
+    type AuthenticatedRequest,
+} from '../auth/authenticated-principal.js';
+import type { Environment } from '../config/env.schema.js';
 import { isFoodId } from '../db/ulid.js';
 import {
     isCandidateMismatchError,
@@ -43,7 +53,7 @@ import {
     isFoodPendingError,
     isNotResolvableError,
 } from './foods.errors.js';
-import { FoodsService, MAX_BATCH_NAMES } from './foods.service.js';
+import { FoodsService } from './foods.service.js';
 import type {
     AddResponse,
     BatchResponse,
@@ -57,7 +67,10 @@ import type {
 
 @Controller('v1/foods')
 export class FoodsController {
-    public constructor(private readonly foodsService: FoodsService) {}
+    public constructor(
+        private readonly foodsService: FoodsService,
+        private readonly config: ConfigService<Environment, true>,
+    ) {}
 
     /** `GET /v1/foods/search?query=` — local fuzzy/crosswalk search (declared before `:id`). */
     @Get('search')
@@ -75,7 +88,7 @@ export class FoodsController {
         const name = this.requireName(body);
 
         try {
-            const result = await this.foodsService.addByName(name, this.sub(req));
+            const result = await this.foodsService.addByName(name, this.requireRequesterId(req));
             res.status(HttpStatus.ACCEPTED);
 
             return result;
@@ -94,7 +107,7 @@ export class FoodsController {
         const names = this.requireNames(body);
 
         try {
-            return await this.foodsService.batchAdd(names, this.sub(req));
+            return await this.foodsService.batchAdd(names, this.requireRequesterId(req));
         } catch (error) {
             throw this.mapWriteError(error, res);
         }
@@ -139,7 +152,7 @@ export class FoodsController {
         this.requireId(id);
 
         try {
-            const result = await this.foodsService.refetch(id, this.sub(req));
+            const result = await this.foodsService.refetch(id, this.requireRequesterId(req));
             res.status(HttpStatus.ACCEPTED);
 
             return result;
@@ -160,7 +173,7 @@ export class FoodsController {
         const candidateIds = this.requireCandidateIds(body);
 
         try {
-            const result = await this.foodsService.patchResolve(id, candidateIds, this.sub(req));
+            const result = await this.foodsService.patchResolve(id, candidateIds, this.requesterTrace(req));
             res.status(HttpStatus.OK);
 
             return result;
@@ -193,9 +206,48 @@ export class FoodsController {
         }
     }
 
-    /** Resolve the verified requester (the guard guarantees `req.user`; default never reached in prod). */
-    private sub(req: AuthenticatedRequest): string {
-        return req.user?.sub ?? 'unknown';
+    /**
+     * Resolve the requester key to record in `fetch_requesters` for an enqueue path (CR-002/U1/R5): the
+     * app-user ULID for a user principal, or the `svc_*` id for a service principal. DEFERS with a
+     * `401 { code: IDENTITY_SYNC_PENDING }` when a user token's `external_id` has not synced yet — the
+     * caller MUST retry with a refreshed token, and we NEVER fall back to the raw Clerk `sub` (which
+     * would re-introduce the pre-U1 keying and fail provenance downstream anyway).
+     *
+     * @param req - The guard-authenticated request.
+     * @returns The resolved requester key.
+     * @throws {UnauthorizedException} (→ 401) when `req.user` is absent (defensive) or the app-user ULID
+     *   is not yet available (first-token sync race).
+     */
+    private requireRequesterId(req: AuthenticatedRequest): string {
+        const principal = this.requirePrincipal(req);
+        const resolution = resolveRequesterId(principal);
+
+        if (resolution.status === IDENTITY_SYNC_PENDING_CODE) {
+            throw new UnauthorizedException({
+                code: IDENTITY_SYNC_PENDING_CODE,
+                message: 'App-user identity (external_id) not yet available; retry with a refreshed token.',
+            });
+        }
+
+        return resolution.requesterId;
+    }
+
+    /**
+     * A best-effort requester id for a NON-enqueue path (e.g. PATCH-resolve, which records no requester).
+     * Prefers the app-user ULID, falls back to the Clerk `sub` for trace only, and NEVER throws on a
+     * sync-race — resolving does not depend on `external_id`.
+     */
+    private requesterTrace(req: AuthenticatedRequest): string {
+        return req.user?.userId ?? req.user?.sub ?? 'unknown';
+    }
+
+    /** Narrow the guard-populated principal, failing closed with `401` if somehow absent. */
+    private requirePrincipal(req: AuthenticatedRequest): AuthenticatedPrincipal {
+        if (!req.user) {
+            throw new UnauthorizedException('Valid Clerk session or M2M token required');
+        }
+
+        return req.user;
     }
 
     /** Validate the `id` path param is a structurally valid ULID (FR-006) → else `400`. */
@@ -225,9 +277,10 @@ export class FoodsController {
         }
 
         const cleaned = (names as string[]).map((name) => name.trim()).filter((name) => name.length > 0);
+        const maxNames = this.config.get('FOOD_MAX_BATCH_NAMES', { infer: true });
 
-        if (cleaned.length > MAX_BATCH_NAMES) {
-            throw new BadRequestException({ error: 'Batch too large', maxNames: MAX_BATCH_NAMES });
+        if (cleaned.length > maxNames) {
+            throw new BadRequestException({ error: 'Batch too large', maxNames });
         }
 
         return cleaned;

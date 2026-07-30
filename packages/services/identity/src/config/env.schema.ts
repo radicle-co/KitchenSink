@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { hasExactlyOneAzpMode } from '@kitchensink/clerk-verify';
 
 /**
  * Parse a comma-separated env value into a trimmed, non-empty list. Shared by the
@@ -49,6 +50,10 @@ const ClerkConfigSchema = z.object({
         .string()
         .optional()
         .transform((value) => parseCommaList(value)),
+    // Preview-subdomain base domain (e.g. `sandbox.commise.app`). When set, azp is validated against an
+    // anchored per-PR pattern instead of the exact-match list. Mutually exclusive with the list; forbidden
+    // on prod (see superRefine). Non-prod only.
+    CLERK_AZP_PATTERN: z.string().optional(),
 });
 
 // Local/test sentinels where Clerk verification is not required (verification is mocked in tests
@@ -79,10 +84,22 @@ export const EnvironmentSchema = z
             });
         }
 
-        if (env.CLERK_AUTHORIZED_PARTIES.length === 0) {
+        const hasList = env.CLERK_AUTHORIZED_PARTIES.length > 0;
+        const hasPattern = (env.CLERK_AZP_PATTERN ?? '').trim().length > 0;
+
+        if (env.STAGE === 'prod' && hasPattern) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: `CLERK_AUTHORIZED_PARTIES must list at least one origin on deployed stage '${env.STAGE}'`,
+                message: `CLERK_AZP_PATTERN is not allowed on the 'prod' stage — prod uses exact-match CLERK_AUTHORIZED_PARTIES`,
+                path: ['CLERK_AZP_PATTERN'],
+            });
+        }
+
+        // Exactly one azp mode on a deployed stage: both is ambiguous, neither skips the azp check entirely.
+        if (!hasExactlyOneAzpMode(hasList, hasPattern)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `exactly one of CLERK_AUTHORIZED_PARTIES or CLERK_AZP_PATTERN must be set on deployed stage '${env.STAGE}'`,
                 path: ['CLERK_AUTHORIZED_PARTIES'],
             });
         }

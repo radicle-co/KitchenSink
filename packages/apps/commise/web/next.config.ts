@@ -3,7 +3,8 @@ import type { NextConfig } from 'next';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { derivePreviewBasePath } from './src/lib/base-path';
+import { derivePreviewBasePath } from './src/lib/basePath';
+import { derivePreviewAllowedOrigins } from './src/lib/serverActionOrigins';
 
 // ⚠️ DELIBERATE — see docs/architecture/decisions/0001-sandbox-front-end-addressing.md
 // Per-PR sandbox previews are served under /pr-{N} at one origin (single Clerk azp). basePath is
@@ -11,14 +12,75 @@ import { derivePreviewBasePath } from './src/lib/base-path';
 // or move to per-PR subdomains without reading the ADR.
 const previewBasePath = derivePreviewBasePath(process.env);
 
+// ⚠️ DELIBERATE — see docs/architecture/decisions/0001-sandbox-front-end-addressing.md
+// The sandbox router host-swaps the origin, so behind it the Host this app terminates is the Vercel
+// deployment host while the browser's Origin is the public preview host. Next 15 rejects that mismatch
+// with a 500 on every Server Action; this is the documented reverse-proxy escape hatch. `undefined` in
+// production, which keeps the prod config free of any CSRF allowlist. See serverActionOrigins.ts.
+const previewAllowedOrigins = derivePreviewAllowedOrigins(process.env);
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 const nextConfig: NextConfig = {
     reactStrictMode: true,
     typedRoutes: true,
+
+    /**
+     * The second half of the analytics query-string redaction — and the half `beforeSend` cannot do.
+     *
+     * `src/lib/analyticsRedaction.ts` strips the query string from the Vercel Analytics event body, because
+     * `/[locale]/discover` carries a free-text `query` plus `dietaryFlags` that plausibly reveal health or
+     * religious information (GDPR Art. 9). But Vercel's collection endpoint is the RELATIVE, same-origin
+     * `/_vercel/insights/*`, and the browser default `strict-origin-when-cross-origin` sends the FULL URL —
+     * query string included — as `Referer` on a SAME-ORIGIN request. So the beacon handed Vercel exactly the
+     * values the redaction had just removed, in a header no application hook can intercept.
+     *
+     * `strict-origin` drops path and query everywhere (same-origin included) while still sending the bare
+     * origin, so genuine external referrer attribution survives. `no-referrer` would also work but throws
+     * that away for nothing. Do NOT relax this to `same-origin` or back to the default: both send the full
+     * URL same-origin, which reopens the leak. `tests/nextConfig.test.ts` fails on any such value.
+     *
+     * Nothing in this repo reads `Referer` (grepped across the web app and every service), so tightening it
+     * breaks no behaviour. It also narrows the same exposure on Sentry's same-origin tunnel route.
+     *
+     * @returns The universal security headers applied to every route.
+     */
+    headers: async () => [
+        {
+            source: '/:path*',
+            headers: [{ key: 'Referrer-Policy', value: 'strict-origin' }],
+        },
+    ],
+    // These workspace packages ship TypeScript source (not pre-built JS), so Next must transpile them
+    // rather than treating them as opaque node_modules. The recipe list/detail routes pull in the recipe
+    // feature UI + its typed client, which in turn depend on the shared i18n and recipe-core packages.
+    transpilePackages: [
+        '@commise/features-account',
+        '@commise/features-recipes',
+        '@commise/features-core',
+        // The design-system `Button` (and future @commise/ui components) ship as raw `./src` .tsx so the
+        // bundler platform-resolves the `.native` leaf — Next must transpile it, not treat it as opaque.
+        '@commise/ui',
+        '@commise/i18n',
+        '@kitchensink/recipe-service-client',
+        '@kitchensink/recipe-core',
+    ],
+    // Those TS-source packages use NodeNext-style `.js` extensions on relative imports (e.g.
+    // `export * from './profileClient.js'`), so webpack must resolve a `.js` specifier to its `.ts`/`.tsx`
+    // source. Without this, `next build` fails with "Can't resolve './profileClient.js'".
+    webpack: (config) => {
+        config.resolve.extensionAlias = {
+            ...(config.resolve.extensionAlias as Record<string, string[]> | undefined),
+            '.js': ['.ts', '.tsx', '.js'],
+            '.jsx': ['.tsx', '.jsx'],
+        };
+
+        return config;
+    },
     // Standalone server output so the app can run off Vercel (ECS) later; traces the monorepo root.
     output: 'standalone',
     outputFileTracingRoot: repoRoot,
+    ...(previewAllowedOrigins ? { experimental: { serverActions: { allowedOrigins: previewAllowedOrigins } } } : {}),
     ...(previewBasePath ? { basePath: previewBasePath } : {}),
     // Surface the prefix to runtime code (Clerk middleware, base-path helper) — `basePath` is not
     // readable at runtime. Empty string in production.

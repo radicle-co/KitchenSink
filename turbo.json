@@ -1,5 +1,6 @@
 {
     "$schema": "https://turbo.build/schema.json",
+    "globalEnv": ["SANDBOX_PREVIEW_MODE"],
     "tasks": {
         "build": {
             "dependsOn": ["^build"],
@@ -10,6 +11,11 @@
             "outputs": ["dist/**"]
         },
         "test": {
+            "dependsOn": ["^build"],
+            "outputs": []
+        },
+        "test:integration": {
+            "dependsOn": ["^build"],
             "outputs": []
         },
         "test:e2e": {

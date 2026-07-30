@@ -1,0 +1,24 @@
+{
+    "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+    "_comment": "Mutation testing (Stryker) proves the UNIT suite actually catches bugs, per docs/engineering/ENGINEERING_EXCELLENCE.md. Scoped to the PURE recipe domain + service logic that unit tests exercise; uses vitest.config.ts (unit only — integration/e2e specs need Docker and are excluded from that config, so they never run here). A surviving mutant = a bug the tests can't see; drive them to zero.",
+    "testRunner": "vitest",
+    "vitest": {
+        "configFile": "vitest.config.ts"
+    },
+    "mutate": [
+        "src/recipes/domain/**/*.ts",
+        "src/recipes/recipes.service.ts",
+        "src/photos/photos.service.ts",
+        "!src/**/*.test.ts",
+        "!src/**/__tests__/**",
+        "!src/**/__fixtures__/**"
+    ],
+    "reporters": ["clear-text", "progress", "json"],
+    "jsonReporter": {
+        "fileName": "reports/mutation/mutation.json"
+    },
+    "coverageAnalysis": "perTest",
+    "concurrency": 4,
+    "timeoutMS": 30000,
+    "tempDirName": ".stryker-tmp"
+}

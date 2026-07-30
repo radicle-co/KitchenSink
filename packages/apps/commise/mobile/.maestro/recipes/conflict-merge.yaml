@@ -1,0 +1,154 @@
+appId: io.commise.mobile
+---
+# Concurrent-edit conflict resolution (US1, T070 / FR-007c; W7 rebuild — banner + changed-only diff + A/B/C
+# cards + per-element merge, replacing the pre-rebuild 2-way "Keep my version" / "Use the latest version" /
+# "Merge field by field" flow this file used to drive). Mobile mirror of the web Playwright
+# `recipeConflict.spec.ts` (cross-platform mandate) — same option labels, same per-side banner copy, same
+# changed-only diff/legend, same gating, asserted here against `RecipeConflictView.native.tsx`. Also asserts
+# the "Discard and close" header exit (wireframe gap #1) is visible.
+#
+# A real conflict needs the recipe to change on the SERVER between this session's load and its save, so this
+# flow is GUARDED on the conflict view appearing: in an ordinary single-writer run it is a safe no-op (the
+# save just succeeds and the flow exits at the detail screen); in a conflict-seeded run (a harness performing
+# a concurrent write to the opened recipe while the editor is open) it drives the full W7 resolution. There is
+# no such harness wired into local/CI Maestro today (confirmed against `versions.yaml`'s own precedent and
+# the CI reseed loop — neither performs a concurrent write), so every assertion INSIDE the guard is
+# UN-DRIVABLE in the current harness; it is written to the shipped W7 UI (labels/copy verified verbatim
+# against `versions/messages.ts`) for the day a conflict-seeding harness exists, exactly as `conflict-merge.yaml`
+# already did pre-rebuild. Cannot be verified locally — no emulator here.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'Recipes'
+
+# The seed is guaranteed present (the CI loop reseeds before every flow); scroll to the recipe rather than a
+# `when: visible` guard that would silently SKIP the whole flow when it is below the fold (the list scrolls).
+# The INNER conflict guard below stays conditional on purpose — a single-writer run has no conflict view.
+- scrollUntilVisible:
+      element: 'Mediterranean Grilled Lamb'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Mediterranean Grilled Lamb'
+# The edit entry point is in the owner-action block at the foot of the (scrolling) detail.
+- scrollUntilVisible:
+      element: 'Edit recipe'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Edit recipe'
+
+# Step 1 of 4 (Basic) — the wizard opens here; no page heading of its own (that copy belonged to the retired
+# flat `RecipeForm`), so the step-progress label is the entry checkpoint instead. Change the title FIRST,
+# before moving forward: once the draft is dirty, the wizard's discard guard intercepts any BACKWARD rail/Prev
+# navigation with a confirmation dialog (by design — see `Wizard.tsx`'s `guardIfBackward`), so this flow never
+# revisits an earlier step after leaving it, only advances via `Next: …`.
+- assertVisible: 'Step 1 of 4'
+- tapOn: 'Title'
+- eraseText
+- inputText: 'Mediterranean Grilled Lamb (my edit)'
+
+# The seed recipe carries no ingredients or steps, but Publish (whole-form validation, unchanged by the
+# wizard) requires >= 1 of each. Add one of each via the picker (freeform Create, exactly as the create flow).
+- scrollUntilVisible:
+      element: 'Next: Ingredients'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Ingredients'
+- assertVisible: 'Step 2 of 4'
+- scrollUntilVisible:
+      element: 'Search ingredients'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Search ingredients'
+- inputText: 'Tomato'
+- scrollUntilVisible:
+      element:
+          text: 'Create .*Tomato.*'
+      direction: DOWN
+      timeout: 20000
+- tapOn:
+      text: 'Create .*Tomato.*'
+- scrollUntilVisible:
+      element: 'Ingredient 1 name'
+      direction: DOWN
+      timeout: 30000
+- scrollUntilVisible:
+      element: 'Next: Instructions'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Instructions'
+- assertVisible: 'Step 3 of 4'
+- scrollUntilVisible:
+      element: 'Add step'
+      direction: UP
+      timeout: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1 instruction'
+- inputText: 'Combine everything and simmer.'
+
+# Publish is the STEP-4 FOOTER PRIMARY, not a sticky top-bar action. U6 collapsed the wizard chrome to one
+# contextual footer primary — `Next: …` on steps 1-3, swapping to `Publish` on step 4 (`Wizard.native.tsx`'s
+# module doc: "Publish is NO LONGER live on steps 1-3"); the header holds only Preview + the More-actions
+# overflow. This flow used to tap `Publish` from step 3 on the pre-U6 assumption and failed there. Advancing
+# to step 4 also keeps the discard guard un-triggered — this is forward navigation, never backward.
+- scrollUntilVisible:
+      element: 'Next: Photos'
+      direction: DOWN
+      timeout: 20000
+- tapOn: 'Next: Photos'
+- assertVisible: 'Step 4 of 4'
+- tapOn: 'Publish'
+# If a concurrent save landed first, the conflict view offers the per-side banner, the changed-only diff, and
+# all three W7 FR-007c resolutions (A/B/C). UN-DRIVABLE without a conflict-seeding harness — see module note.
+- runFlow:
+      when:
+          visible: 'This recipe changed while you were editing'
+      commands:
+          # "Discard and close" (wireframe gap #1) — the header escape hatch, present on every sub-view of
+          # this screen (including the merge panel below) and NEVER disabled, even mid-resolve. Asserted for
+          # visibility only (not tapped) — tapping it here would exit before the rest of this flow's own
+          # merge-and-persist assertions run.
+          - assertVisible: 'Discard and close'
+
+          # Per-side banner (X3): server names its winning version/save-time/device; mine has no version of
+          # its own (never persisted) — the ONE piece of banner copy with no dynamic version/device content,
+          # so it is the only banner line assertable without knowing the concurrent write's exact shape.
+          - assertVisible: 'Your version: local unsaved changes'
+          - assertVisible:
+                text: 'Server version \(v\d+\): Saved.*'
+
+          # Changed-only diff panel (X1/X7) — guaranteed non-empty whenever this view is showing at all (a
+          # phantom zero-diff 409 auto-resolves BEFORE reaching the conflict view — `useRecipeEditor`'s own
+          # fast path), so both the heading and the legend are unconditionally present here.
+          - assertVisible: 'Changed fields'
+          - assertVisible: 'Legend'
+
+          # The three W7 A/B/C option cards (X2) — server-keep, overwrite, and manual merge.
+          - assertVisible: 'Keep server version'
+          - assertVisible: 'Overwrite with your version'
+          - assertVisible: 'Merge manually'
+
+          # Enter the per-field/per-element merge panel (Option C).
+          - tapOn: 'Merge manually'
+          - assertVisible: 'Merge changes field by field'
+
+          # Gating (X5): before any selection, Save is disabled with an inline hint explaining why.
+          - assertVisible:
+                text: 'Save merged version'
+                enabled: false
+          - assertVisible: 'Choose a value for at least one field to save the merged version.'
+
+          # Pull one row from the latest saved version (every other row stays on my draft by default — the
+          # per-element `steps[N]`/`ingredients:<id>` keys this W7 panel adds have no bearing on the FIRST
+          # matching row Maestro's substring match picks, same as the pre-W7 flow's own approach).
+          - tapOn: 'Latest saved version'
+          - assertVisible:
+                text: 'Save merged version'
+                enabled: true
+          - scrollUntilVisible:
+                element: 'Save merged version'
+                direction: DOWN
+          - tapOn: 'Save merged version'
+# Back on the detail with the user's title preserved by the merge (regex tolerates the last-char input dup).
+- extendedWaitUntil:
+      visible:
+          text: 'Mediterranean Grilled Lamb .my edit.*'
+      timeout: 40000

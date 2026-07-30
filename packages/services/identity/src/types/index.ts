@@ -14,4 +14,4 @@ export * from './account.js';
 export * from './profile.js';
 export * from './deletion.js';
 export * from './reconciliation.js';
-export { newUserId, isUserId } from '../database/ulid.js';
+export { newUserId, isUserId } from '@kitchensink/identity-db';

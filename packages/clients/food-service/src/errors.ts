@@ -127,15 +127,26 @@ export function isConflictError(error: unknown): error is ConflictError {
     return error instanceof ConflictError;
 }
 
-/** `503` — backpressure / flood-shed / resolve capacity exhaustion (NEVER a per-user `429`). */
+/**
+ * `503` — the food service is not usably available. This covers both an explicit server-side
+ * `503` (backpressure / flood-shed / resolve capacity exhaustion; NEVER a per-user `429`) AND a
+ * client-side timeout/abort or raw transport failure (the service did not respond within the
+ * configured deadline, or the connection failed). Both mean the same thing to a caller: "back off
+ * and retry" — so they share one typed error rather than a parallel transport hierarchy. When it
+ * originates from a transport failure the underlying error is preserved in {@link cause} and
+ * `retryAfterSeconds` is `undefined` (there is no `Retry-After` without a response).
+ */
 export class FetchUnavailableError extends FoodServiceClientError {
     /** Seconds the caller should wait before retrying (from `Retry-After`, when present). */
     public readonly retryAfterSeconds: number | undefined;
+    /** The underlying transport error (abort / timeout / ECONNRESET / DNS), when there is one. */
+    public override readonly cause: unknown;
 
-    public constructor(retryAfterSeconds?: number, message = 'Fetch temporarily unavailable') {
+    public constructor(retryAfterSeconds?: number, message = 'Fetch temporarily unavailable', cause?: unknown) {
         super(message, 503);
         this.name = 'FetchUnavailableError';
         this.retryAfterSeconds = retryAfterSeconds;
+        this.cause = cause;
         Object.setPrototypeOf(this, FetchUnavailableError.prototype);
     }
 }

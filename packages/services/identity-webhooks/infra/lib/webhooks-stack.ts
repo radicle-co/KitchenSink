@@ -7,6 +7,7 @@ import {
     type StackProps,
     aws_apigateway as apigw,
     aws_certificatemanager as acm,
+    aws_cloudwatch as cloudwatch,
     aws_ec2 as ec2,
     aws_events as events,
     aws_events_targets as events_targets,
@@ -15,11 +16,11 @@ import {
     aws_lambda_event_sources as lambda_event_sources,
     aws_logs as logs,
     aws_logs_destinations as logsDestinations,
-    aws_rds as rds,
     aws_route53 as route53,
     aws_route53_targets as route53_targets,
     aws_s3 as s3,
     aws_secretsmanager as secretsmanager,
+    aws_sns as sns,
     aws_sqs as sqs,
     aws_ssm as ssm,
 } from 'aws-cdk-lib';
@@ -28,7 +29,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { getAuthSecretName, ssmParamPath } from './config.js';
+import { erasureSsmPath, getAuthSecretName, getErasureSigningSecretName, ssmParamPath } from './config.js';
 
 export interface WebhooksStackProps extends StackProps {
     readonly stage: string;
@@ -65,19 +66,13 @@ export class WebhooksStack extends Stack {
         const dbCredentialsSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedDbSecret', {
             secretCompleteArn: props.dbSecretArn,
         });
+        // `authSecretArn` is the data stack's name-based, suffix-LESS `SecretArn` export (the secret is
+        // imported there via `fromSecretNameV2`). Import it as a PARTIAL ARN so `grantRead` appends the
+        // `-??????` wildcard that matches the secret's real ARN — a `secretCompleteArn` grants the exact
+        // suffix-less resource, which the runtime GetSecretValue fallback (below) would be denied on.
+        // (The DB and migration secrets are CDK-created and export full ARNs, so they stay complete.)
         const authSecretKey = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedAuthSecret', {
-            secretCompleteArn: props.authSecretArn,
-        });
-        secretsmanager.Secret.fromSecretAttributes(this, 'ImportedMigrationSecret', {
-            secretCompleteArn: props.migrationPlanSecretArn,
-        });
-        rds.DatabaseInstance.fromDatabaseInstanceAttributes(this, 'ImportedDatabase', {
-            instanceIdentifier: props.dbInstanceIdentifier,
-            instanceEndpointAddress: props.dbEndpoint,
-            port: props.dbPort,
-            securityGroups: [
-                ec2.SecurityGroup.fromSecurityGroupId(this, 'ImportedDbSg', props.databaseSecurityGroupId),
-            ],
+            secretPartialArn: props.authSecretArn,
         });
         const deletionQueue = sqs.Queue.fromQueueArn(this, 'ImportedDeletionQueue', props.deletionQueueArn);
         const mediaBucket = s3.Bucket.fromBucketName(this, 'ImportedMediaBucket', props.mediaBucketName);
@@ -120,6 +115,14 @@ export class WebhooksStack extends Stack {
         const runtime = lambda.Runtime.NODEJS_22_X;
         const architecture = lambda.Architecture.X86_64;
         const identityStage = deployStage === 'prod' ? 'prod' : 'sandbox';
+
+        // The global handle-sync topic (W8-a.2): the user.updated webhook publishes a rename here. Imported
+        // from the DataStack export (per-stage global — prod/sandbox baseline).
+        const handleSyncTopic = sns.Topic.fromTopicArn(
+            this,
+            'ImportedHandleSyncTopic',
+            Fn.importValue(`kitchensink-data-${identityStage}:HandleSyncTopicArn`),
+        );
         const ssmValue = (service: 'clerk' | 'sentry', key: string): string =>
             ssm.StringParameter.valueForStringParameter(this, ssmParamPath(identityStage, service, key));
 
@@ -161,31 +164,131 @@ export class WebhooksStack extends Stack {
             }).unsafeUnwrap(),
         };
 
+        // CR-002 / U4b — the cross-service erasure fan-out config for the deletion-worker + the new
+        // erasure-reconciliation Lambda. The EdDSA PRIVATE signing key is embedded at deploy (CFN dynamic
+        // reference) from the per-stage erasure secret, so `service-erasure-token.ts` signs with no runtime
+        // GetSecretValue — exactly the IDP_SECRET_KEY embed pattern above. The recipe/food origins are
+        // non-secret, resolved from SSM at deploy. See the deferred key-provisioning seam on
+        // `getErasureSigningSecretName`: until ops provisions the keypair + URLs, the fan-out fails CLOSED
+        // (loud DLQ + the ErasureIncomplete alarm), never silently.
+        const erasureFanoutEnv: Record<string, string> = {
+            SERVICE_ERASURE_SIGNING_KEY: SecretValue.secretsManager(getErasureSigningSecretName(identityStage), {
+                jsonField: 'SIGNING_KEY',
+            }).unsafeUnwrap(),
+            RECIPE_SERVICE_BASE_URL: ssm.StringParameter.valueForStringParameter(
+                this,
+                erasureSsmPath(identityStage, 'recipe-base-url'),
+            ),
+            FOOD_SERVICE_BASE_URL: ssm.StringParameter.valueForStringParameter(
+                this,
+                erasureSsmPath(identityStage, 'food-base-url'),
+            ),
+        };
+
         const webhooksLogGroup = new logs.LogGroup(this, 'WebhooksLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
         });
 
-        const webhooksRole = new iam.Role(this, 'WebhooksLambdaRole', {
-            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-            description: 'Least-privilege execution role for identity-webhooks Lambda',
-            managedPolicies: [
-                iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
-            ],
-        });
-        webhooksLogGroup.grantWrite(webhooksRole);
-        dbCredentialsSecret.grantRead(webhooksRole);
-        authSecretKey.grantRead(webhooksRole);
-        deletionQueue.grantSendMessages(webhooksRole);
-        deletionQueue.grantConsumeMessages(webhooksRole);
-        mediaBucket.grantReadWrite(webhooksRole);
-        archiveBucket.grantReadWrite(webhooksRole);
+        // ARCH-IT-7: one least-privilege role PER function instead of a single union role shared by all
+        // four Lambdas. The old shared role granted the UNION of every permission (DB-secret read,
+        // auth-secret read, SQS send AND consume, media + archive bucket read/write) to functionally
+        // distinct handlers, so e.g. the migration runner could send/consume SQS and read/write both
+        // buckets it never touches. Each role below grants ONLY what that handler's code actually calls
+        // (verified against the handler sources): every Lambda is VPC-attached (to reach the private
+        // RDS) and writes to the shared webhooks log group, so `makeLambdaRole` factors out just that
+        // common base; the resource grants are added per function.
+        //
+        // NOTE: none of these handlers touch S3 — the only S3 caller in the identity codebase is the
+        // avatar-upload controller, which runs in the ECS service, not any Lambda — so no bucket grant
+        // is issued here (the media/archive bucket NAMES are still passed as env vars, above).
+        const vpcAccessManagedPolicy = iam.ManagedPolicy.fromAwsManagedPolicyName(
+            'service-role/AWSLambdaVPCAccessExecutionRole',
+        );
+        const makeLambdaRole = (id: string, description: string): iam.Role => {
+            const role = new iam.Role(this, id, {
+                assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+                description,
+                managedPolicies: [vpcAccessManagedPolicy],
+            });
+            webhooksLogGroup.grantWrite(role);
+
+            return role;
+        };
+
+        // webhook (handlers/identityWebhook.ts): reads the DB creds (getDb) and enqueues deletion jobs
+        // to SQS (SendMessage). It calls the Clerk backend SDK (setExternalId), which prefers the
+        // deploy-embedded IDP_SECRET_KEY but can fall back to a runtime GetSecretValue on the auth
+        // secret — so the auth-secret read grant is retained (removing it reintroduces the user.created
+        // 502 the embed fixed). No SQS consume, no buckets.
+        const webhookRole = makeLambdaRole('WebhookLambdaRole', 'Least-privilege role for the Clerk webhook Lambda');
+        dbCredentialsSecret.grantRead(webhookRole);
+        authSecretKey.grantRead(webhookRole);
+        deletionQueue.grantSendMessages(webhookRole);
+        handleSyncTopic.grantPublish(webhookRole);
+
+        // deletion-worker (handlers/deletion-worker.ts): reads the DB creds (getDb) and drains the SQS
+        // deletion queue. CR-002: it now calls the Clerk backend SDK (banUser/unbanUser on closure/
+        // reactivation events) — the secret is deploy-embedded in clerkBackendEnv (IDP_SECRET_KEY), but the
+        // auth-secret read grant is retained for identityClient's runtime GetSecretValue fallback, matching
+        // the webhook/reconciliation roles. It does not send to SQS. (The SqsEventSource below also grants
+        // consume; the explicit grant states the intent.)
+        const deletionWorkerRole = makeLambdaRole(
+            'DeletionWorkerLambdaRole',
+            'Least-privilege role for the SQS deletion-worker Lambda',
+        );
+        dbCredentialsSecret.grantRead(deletionWorkerRole);
+        authSecretKey.grantRead(deletionWorkerRole);
+        deletionQueue.grantConsumeMessages(deletionWorkerRole);
+
+        // tombstone-sweep (handlers/tombstone-sweep.ts, CR-002 KTD-3): reads the DB creds (getDb) to scrub
+        // expired tombstones, calls the Clerk backend SDK (deleteUser) — so it needs the auth-secret read
+        // fallback — and enqueues the recipe/food erasure legs to the deletion queue (SendMessage). Runs on
+        // its own schedule, off no queue.
+        const tombstoneSweepRole = makeLambdaRole(
+            'TombstoneSweepLambdaRole',
+            'Least-privilege role for the scheduled 12-month tombstone-sweep Lambda',
+        );
+        dbCredentialsSecret.grantRead(tombstoneSweepRole);
+        authSecretKey.grantRead(tombstoneSweepRole);
+        deletionQueue.grantSendMessages(tombstoneSweepRole);
+
+        // reconciliation (handlers/reconciliation.ts): reads the DB creds and lists Clerk users via the
+        // backend SDK, which (like the webhook) may fall back to a runtime GetSecretValue on the auth
+        // secret — so the auth-secret read grant is retained. It runs on a schedule, not off SQS, and
+        // touches no queue or bucket.
+        const reconciliationRole = makeLambdaRole(
+            'ReconciliationLambdaRole',
+            'Least-privilege role for the scheduled reconciliation Lambda',
+        );
+        dbCredentialsSecret.grantRead(reconciliationRole);
+        authSecretKey.grantRead(reconciliationRole);
+
+        // erasure-reconciliation (handlers/erasure-reconciliation.ts, CR-002 R7 completion contract): reads
+        // the DB creds (getDb) to scan `status='erased'` rows and RE-DRIVES the recipe + food erasure legs
+        // over HTTPS (egress via the VPC/NAT to the shared ALB). It does NOT call the Clerk SDK, drains no
+        // SQS, and touches no bucket — so no auth-secret read, no queue grant. The EdDSA signing key is
+        // deploy-embedded (erasureFanoutEnv), so no runtime GetSecretValue grant is needed for it either.
+        const erasureReconciliationRole = makeLambdaRole(
+            'ErasureReconciliationLambdaRole',
+            'Least-privilege role for the scheduled erasure-completion reconciliation Lambda (DB read only)',
+        );
+        dbCredentialsSecret.grantRead(erasureReconciliationRole);
+
+        // migration (handlers/migrate.ts): SLIM. It only reads the DB creds (DB_SECRET_ARN) to apply the
+        // bundled ordered SQL — no SQS, no bucket, no auth secret, and no migration-plan secret (that
+        // prop is unused by this handler; the runner discovers .sql files, it does not read a plan).
+        const migrationRole = makeLambdaRole(
+            'MigrationLambdaRole',
+            'Slim least-privilege role for the schema-migration Lambda (DB-secret read only)',
+        );
+        dbCredentialsSecret.grantRead(migrationRole);
 
         const webhookFn = new lambda.Function(this, 'WebhookFunction', {
             runtime,
             architecture,
             handler: 'handlers/identityWebhook.handler',
             code: lambda.Code.fromAsset(distPath),
-            role: webhooksRole,
+            role: webhookRole,
             vpc,
             vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
             securityGroups: [lambdaSecurityGroup],
@@ -197,6 +300,8 @@ export class WebhooksStack extends Stack {
                 // runtime GetSecretValue on the auth secret that the role can't read → AccessDenied →
                 // every user.created 502s.
                 ...clerkBackendEnv,
+                // The handle-sync topic the user.updated route publishes renames to (W8-a.2).
+                HANDLE_SYNC_TOPIC_ARN: handleSyncTopic.topicArn,
                 // Embed the Clerk webhook signing secret as a Lambda env var, resolved from Secrets
                 // Manager at *deploy* time via a CloudFormation dynamic reference — not fetched at
                 // runtime. The handler reads `IDP_WEBHOOK_SECRET` directly, so this removes a
@@ -217,13 +322,14 @@ export class WebhooksStack extends Stack {
             architecture,
             handler: 'handlers/deletion-worker.handler',
             code: lambda.Code.fromAsset(distPath),
-            role: webhooksRole,
+            role: deletionWorkerRole,
             vpc,
             vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
             securityGroups: [lambdaSecurityGroup],
             timeout: Duration.seconds(30),
             memorySize: 512,
-            environment: clerkBackendEnv,
+            // clerkBackendEnv (ban/unban) + the CR-002 erasure fan-out config (recipe + food legs).
+            environment: { ...clerkBackendEnv, ...erasureFanoutEnv },
             logGroup: webhooksLogGroup,
         });
 
@@ -242,7 +348,7 @@ export class WebhooksStack extends Stack {
             architecture,
             handler: 'handlers/reconciliation.handler',
             code: lambda.Code.fromAsset(distPath),
-            role: webhooksRole,
+            role: reconciliationRole,
             vpc,
             vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
             securityGroups: [lambdaSecurityGroup],
@@ -260,6 +366,78 @@ export class WebhooksStack extends Stack {
             targets: [new events_targets.LambdaFunction(reconciliationFn)],
         });
 
+        // CR-002 KTD-3: the 12-month tombstone → erasure sweep. Finds closed (tombstoned) accounts past the
+        // retention window and erases them (identity scrub + Clerk deleteUser + audit + recipe/food erasure
+        // legs). Runs daily (the handler applies the 12-month cutoff itself), on a distinct schedule from
+        // reconciliation. 03:00 UTC = low-traffic window, offset from reconciliation's 07:00.
+        const tombstoneSweepFn = new lambda.Function(this, 'TombstoneSweepFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/tombstone-sweep.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: tombstoneSweepRole,
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(300),
+            memorySize: 512,
+            environment: clerkBackendEnv,
+            logGroup: webhooksLogGroup,
+        });
+
+        new events.Rule(this, 'TombstoneSweepSchedule', {
+            schedule: events.Schedule.cron({ minute: '0', hour: '3' }),
+            targets: [new events_targets.LambdaFunction(tombstoneSweepFn)],
+        });
+
+        // CR-002 R7 — the erasure completion-contract reconciliation. DISTINCT from the provisioning
+        // reconciliation above: it scans `status='erased'` identities and re-drives the idempotent recipe +
+        // food erasure legs, emitting the `ErasureIncomplete` metric a lost/stuck leg trips. Runs daily at
+        // 05:00 UTC — offset from the tombstone-sweep (03:00) and the provisioning reconciliation (07:00) so
+        // the three scheduled jobs don't contend. Timeout is generous: it re-drives two HTTP legs per erased
+        // identity.
+        const erasureReconciliationFn = new lambda.Function(this, 'ErasureReconciliationFunction', {
+            runtime,
+            architecture,
+            handler: 'handlers/erasure-reconciliation.handler',
+            code: lambda.Code.fromAsset(distPath),
+            role: erasureReconciliationRole,
+            vpc,
+            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            securityGroups: [lambdaSecurityGroup],
+            timeout: Duration.seconds(300),
+            memorySize: 512,
+            // commonEnv (DB creds) + the fan-out config (signing key + recipe/food origins). No Clerk secret.
+            environment: { ...commonEnv, ...erasureFanoutEnv },
+            logGroup: webhooksLogGroup,
+        });
+
+        new events.Rule(this, 'ErasureReconciliationSchedule', {
+            schedule: events.Schedule.cron({ minute: '0', hour: '5' }),
+            targets: [new events_targets.LambdaFunction(erasureReconciliationFn)],
+        });
+
+        // R7 detective control: alarm when ANY erased identity's recipe/food leg is still incomplete. The
+        // handler emits `ErasureIncomplete` (a count) every run — including 0, so a cleared backlog resets
+        // the alarm. A silently half-erased account is a GDPR Art. 17 failure, so a single incomplete owner
+        // for two consecutive daily runs pages.
+        new cloudwatch.Alarm(this, 'ErasureIncompleteAlarm', {
+            alarmName: `kitchensink-erasure-incomplete-${deployStage}`,
+            alarmDescription:
+                'CR-002 R7: one or more identities reached status=erased but their recipe/food erasure leg is not complete.',
+            metric: new cloudwatch.Metric({
+                namespace: 'KitchenSink/IdentityWebhooks',
+                metricName: 'ErasureIncomplete',
+                statistic: cloudwatch.Stats.MAXIMUM,
+                period: Duration.days(1),
+            }),
+            threshold: 0,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluationPeriods: 2,
+            datapointsToAlarm: 2,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+
         // In-VPC schema migration runner. The RDS instance lives in private-isolated subnets, so the
         // deploy pipeline (outside the VPC) invokes this Lambda to apply migrations. It reuses the
         // lambda SG (which has egress to PostgreSQL) and the DB credentials in commonEnv.
@@ -268,7 +446,7 @@ export class WebhooksStack extends Stack {
             architecture,
             handler: 'handlers/migrate.handler',
             code: lambda.Code.fromAsset(distPath),
-            role: webhooksRole,
+            role: migrationRole,
             vpc,
             vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
             securityGroups: [lambdaSecurityGroup],

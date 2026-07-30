@@ -38,6 +38,13 @@ import type {
 /** A bearer token supplied either as a literal or a (sync/async) per-request callback. */
 export type TokenSource = string | (() => string | Promise<string>);
 
+/**
+ * Per-request timeout (ms). A downstream caller (e.g. the 001 recipe service's ingredient path)
+ * awaits this client synchronously; without a bound, a hung food service would hang the caller
+ * unbounded. 8s comfortably covers a healthy `202`/`200`/`503` round-trip while capping the worst case.
+ */
+const DEFAULT_TIMEOUT_MS = 8_000;
+
 /** Construction options. */
 export interface FoodServiceClientOptions {
     /** The food service base origin, e.g. `https://food.commise.app` (no trailing `/v1`). */
@@ -46,6 +53,8 @@ export interface FoodServiceClientOptions {
     readonly token?: TokenSource;
     /** Injectable `fetch` (defaults to the global `fetch`) — enables test doubles. */
     readonly fetch?: typeof fetch;
+    /** Per-request timeout in milliseconds; defaults to {@link DEFAULT_TIMEOUT_MS} (8000). */
+    readonly timeoutMs?: number;
 }
 
 /** A normalized response: status, parsed JSON body (or `undefined`), and a parsed `Retry-After`. */
@@ -59,12 +68,14 @@ export class FoodServiceClient {
     private readonly baseUrl: string;
     private readonly token: TokenSource | undefined;
     private readonly fetchImpl: typeof fetch;
+    private readonly timeoutMs: number;
 
-    /** @param options - Base URL, optional token (user or M2M), and an optional `fetch` double. */
+    /** @param options - Base URL, optional token (user or M2M), optional `fetch` double, and timeout. */
     public constructor(options: FoodServiceClientOptions) {
         this.baseUrl = options.baseUrl.replace(/\/+$/, '');
         this.token = options.token;
         this.fetchImpl = options.fetch ?? fetch;
+        this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     }
 
     /**
@@ -210,6 +221,8 @@ export class FoodServiceClient {
      * @param path - Path beginning with `/`.
      * @param body - Optional JSON body.
      * @returns The normalized response.
+     * @throws {FetchUnavailableError} when the request exceeds {@link timeoutMs} (client abort) or the
+     *   transport fails outright — both mean the food service did not respond usably.
      * @sideEffect Performs a network request via the injected `fetch`.
      */
     private async send(method: string, path: string, body?: unknown): Promise<RawResponse> {
@@ -227,8 +240,36 @@ export class FoodServiceClient {
             payload = JSON.stringify(body);
         }
 
-        const response = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers, body: payload });
-        const text = await response.text();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => {
+            controller.abort();
+        }, this.timeoutMs);
+
+        let response: Response;
+        let text: string;
+
+        try {
+            response = await this.fetchImpl(`${this.baseUrl}${path}`, {
+                method,
+                headers,
+                body: payload,
+                signal: controller.signal,
+            });
+
+            // Read the body INSIDE the armed deadline. A load-degraded food service can stall the
+            // response body AFTER headers arrive; clearing the timer before this (or reading in the
+            // caller) would leave a body-read hang that is never aborted → the call never resolves.
+            text = await response.text();
+        } catch (error) {
+            // Any failure of the network operation — a client abort (the timeout fired) or a raw
+            // transport error (ECONNRESET / ENOTFOUND / undici "fetch failed") — means the food
+            // service did not respond usably: the timeout class of failure. Carry the cause so a
+            // permanent misconfig (e.g. bad host) is diagnosable.
+            throw new FetchUnavailableError(undefined, 'Food service request failed or timed out', error);
+        } finally {
+            clearTimeout(timeout);
+        }
+
         const retryAfter = response.headers.get('retry-after');
 
         return {

@@ -160,27 +160,37 @@ export function foodListenerPriorityForStage(stage: string, baseStage: string): 
 /**
  * Resolve the food service's DNS label (the `Host` header + A-record name) for a stage.
  *
- * The shared ALB certificate covers `commise.app`, `*.commise.app`, and `*.sandbox.commise.app`
- * (ADR-0003 / DomainStack) — all **single-label** wildcards. A base stage therefore uses a dotted host
- * that the cert covers: prod → `food` (`food.commise.app`), sandbox → `food.sandbox`
- * (`food.sandbox.commise.app`). A per-PR stage must NOT use `food.pr-{N}` — that 3-label host
- * (`food.pr-7.commise.app`) is uncovered by any wildcard and fails the TLS handshake — so it flips the
- * separator to a dash: `food-{stage}` → `food-pr-7.commise.app`, a single label covered by
- * `*.commise.app` (ADR-0006; matches the `{service}-pr-{N}.commise.app` convention in
- * `sandbox-deploy.yml`). Pure.
+ * The shared ALB certificate covers `commise.app`, `*.commise.app`, and `*.sandbox.commise.app` (ADR-0003 /
+ * DomainStack) — all **single-label** wildcards. prod is the bare label `food` (`food.commise.app`); every
+ * other stage uses the DASH form, `food-{stage}` → `food-pr-7.commise.app`, because a 3-label
+ * `food.pr-7.commise.app` matches no wildcard and fails the TLS handshake (ADR-0006; matches the
+ * `{service}-pr-{N}.commise.app` convention in `sandbox-deploy.yml`). Pure, total.
+ *
+ * There is deliberately NO way to produce a stage-qualified `food.{stage}` host — every PR deploys its own
+ * food service and prod is the only persistent one, so that label has no referent and this function takes no
+ * `baseStage` to compare against. Which stages may be deployed is decided in `infra/bin/app.ts`.
  *
  * @param stage - The deploy stage.
- * @param baseStage - The resolved base stage (prod → prod, else → sandbox).
  * @returns The subdomain label to prefix onto the apex domain.
  */
-export function foodSubdomainForStage(stage: string, baseStage: string): string {
-    if (stage === 'prod') {
-        return 'food';
-    }
+export function foodSubdomainForStage(stage: string): string {
+    return stage === 'prod' ? 'food' : `food-${stage}`;
+}
 
-    // A base stage (sandbox) is a single label under the apex, covered by `*.sandbox.commise.app`; a
-    // per-PR stage rides `*.commise.app` via the dash form so the shared cert covers the preview host.
-    return stage === baseStage ? `food.${stage}` : `food-${stage}`;
+/**
+ * The food service's full public ORIGIN for a stage — the one authoritative composition of
+ * {@link foodSubdomainForStage} with the apex domain.
+ *
+ * Used by this stack for its own `serviceUrl`/DNS record AND by `infra/bin/print-food-host.ts`, which is how
+ * the recipe deploy learns which food service to point `RECIPE_FOOD_SERVICE_URL` at (issue #120). One
+ * function so a pipeline can never grow a second, drifting copy of the host shape in YAML. Pure, total.
+ *
+ * @param stage - The deploy stage.
+ * @param domainName - The apex domain.
+ * @returns The `https://` origin, no trailing slash.
+ */
+export function foodServiceOriginForStage(stage: string, domainName: string): string {
+    return `https://${foodSubdomainForStage(stage)}.${domainName}`;
 }
 
 /** Props for {@link FoodServiceStack}. */
@@ -306,12 +316,12 @@ export class FoodServiceStack extends Stack {
                 iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
             ],
         });
-        taskExecutionRole.addToPolicy(
-            new iam.PolicyStatement({
-                actions: ['secretsmanager:GetSecretValue'],
-                resources: ['*'],
-            }),
-        );
+        // ARCH-IT-4: no manual `secretsmanager:GetSecretValue` on `*` here. The only secret the
+        // execution role must fetch is the USDA API key referenced by every container's `secrets:`
+        // block, and `ecs.Secret.fromSecretsManager(usdaApiKeySecret)` already grants the execution
+        // role `GetSecretValue` scoped to that exact secret ARN. (Food connects to RDS via IAM auth, so
+        // there is no DB secret.) A wildcard statement would let these tasks read EVERY secret in the
+        // account, so it is omitted (verified against the synthesized policy).
 
         // EventBridge bus the worker uses to signal fetch lifecycle (no SQS). The completion event
         // (`FoodFetchCompleted`) is still emitted as part of the event contract for future consumers;
@@ -345,11 +355,40 @@ export class FoodServiceStack extends Stack {
                 this,
                 `/kitchensink/${baseStage}/clerk/jwt-public-key`,
             ),
-            CLERK_AUTHORIZED_PARTIES: ssm.StringParameter.valueForStringParameter(
+            // CR-002 / U4b / R11 — the PUBLIC EdDSA verification key for the internal service-principal
+            // erasure route (`FoodServiceErasureAuthService`). Non-secret, resolved from SSM at deploy (same
+            // wiring as CLERK_JWT_KEY). The matching PRIVATE key is held only by the identity deletion-worker
+            // / erasure-reconciliation Lambdas. Absent → the internal route fails closed (401). Per-stage
+            // keypair (pr-{N} shares the sandbox key via baseStage), matching the shared-service model.
+            FOOD_SERVICE_PRINCIPAL_JWT_KEY: ssm.StringParameter.valueForStringParameter(
                 this,
-                `/kitchensink/${baseStage}/clerk/authorized-parties`,
+                `/kitchensink/${baseStage}/food/service-principal-jwt-public-key`,
             ),
         };
+
+        // Stage-gated azp enforcement (ADR-0001), mirroring the identity service. Prod: exact-match list.
+        // Non-prod (sandbox / pr-{N}, baseStage=sandbox): the self-owned preview pattern for per-PR
+        // subdomains, with the preview MODE (strict|transition) from SSM so the cutover + rollback is an
+        // SSM change + task restart, not a code deploy. These are mutually exclusive per the food config.
+        if (baseStage === 'prod') {
+            foodDbEnvironment['CLERK_AUTHORIZED_PARTIES'] = ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/prod/clerk/authorized-parties`,
+            );
+        } else {
+            foodDbEnvironment['CLERK_AZP_PATTERN'] = ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/sandbox/clerk/azp-pattern`,
+            );
+            foodDbEnvironment['CLERK_AZP_PREVIEW_MODE'] = ssm.StringParameter.valueForStringParameter(
+                this,
+                `/kitchensink/sandbox/clerk/azp-preview-mode`,
+            );
+            // Pattern mode rejects azp-less native (@clerk/expo) tokens unless the native-admission gate is
+            // on. Admit the mobile app's `client_type: 'native'` tokens. Prod stays list mode (skips the azp
+            // check on absent azp) → no flag, prod template byte-identical.
+            foodDbEnvironment['CLERK_ADMIT_NATIVE_CLIENT'] = 'true';
+        }
 
         // Optional load-test overrides (see packages/tools/loadtest): a preview can lower the USDA cap +
         // rolling window via CDK context (`-c foodSourceRateLimitPerHour=15 -c foodSourceWindowSeconds=60`)
@@ -616,7 +655,7 @@ export class FoodServiceStack extends Stack {
         // listener (owned by the global infra — kitchensink-alb-${stage}) and attaches a host-based
         // rule for its subdomain. See docs/architecture/decisions/0003-shared-alb-per-stage.md.
         const isProd = stage === 'prod';
-        const subdomain = foodSubdomainForStage(stage, baseStage);
+        const subdomain = foodSubdomainForStage(stage);
         const serviceDomain = `${subdomain}.${domainName}`;
 
         const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'ImportedHostedZone', {
@@ -678,7 +717,7 @@ export class FoodServiceStack extends Stack {
             target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(sharedAlb)),
         });
 
-        this.serviceUrl = `https://${serviceDomain}`;
+        this.serviceUrl = foodServiceOriginForStage(stage, domainName);
 
         // ── Observability: SNS + alarms (T-183) + dashboard (T-182) ─────────────────────────────
         // Food-specific alarms read the EMF metrics the worker emits (Commise/Food namespace, no extra

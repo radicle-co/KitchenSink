@@ -1,0 +1,54 @@
+# Home "Recent recipes" card → recipe detail (mobile E2E, US-000 / FR-046 cross-platform parity).
+#
+# The mobile mirror of the web Playwright coverage for the same story: from the Home widget surface, TAPPING a
+# recent-recipe CARD opens that recipe's detail. This is deliberately distinct from `home.yaml`, which drives
+# the widget's "See all recipes" entry into the recipes LIST — the card tap is a different affordance and was
+# the one that shipped inert on native (every shared card leaf already accepted an `onSelectRecipe` seam; the
+# mobile host simply never passed one, so the cards rendered non-interactive with nothing failing).
+#
+# Chain under test (there is no Expo Router in this app — see `AppRoot`'s B13 note): the card reports its id
+# through `RecipeWidgetSlot` → `HomeWidgetSurface` → `HomeScreen` → `AppRoot`'s destination state →
+# `RecipesScreen`'s seeded `[list, detail]` stack. The final Back assertion is what proves the stack was
+# SEEDED with the list beneath the detail rather than rooted at the detail (which would dead-end).
+#
+# Requires a seeded recipe API (EXPO_PUBLIC_RECIPE_API_URL) — the same seed the other recipe flows use.
+
+appId: io.commise.mobile
+---
+# Sign in and land on the Home widget surface (the login core waits on the time-of-day "…Chef" greeting).
+- runFlow: auth/signin-home.yaml
+
+# The recipe (recent-recipes) widget renders on Home. The wait absorbs the lazy widget-chunk load plus the
+# recipe-service fetch on first paint.
+- extendedWaitUntil:
+      visible: 'Recent recipes'
+      timeout: 40000
+
+# Drive the card → detail hop on the first seeded recipe. Guarded by `when: visible` so a viewer with an EMPTY
+# library (no seed, or a fresh test user) still passes the widget assertion above instead of failing the suite —
+# the same guard `recipes/list-detail.yaml` uses for exactly this reason.
+- runFlow:
+      when:
+          visible: 'Mediterranean Grilled Lamb'
+      commands:
+          # The card is a single accessible button named by the recipe title (the shared `RecipeCard` root
+          # wraps its content in ONE `PressScale` Pressable labelled with the title).
+          - tapOn: 'Mediterranean Grilled Lamb'
+
+          # The recipe DETAIL opened — assert the detail's own title heading plus a section only the detail
+          # renders, so a card that merely highlighted (or a navigation that landed on the list) fails here.
+          - extendedWaitUntil:
+                visible: 'Mediterranean Grilled Lamb'
+                timeout: 40000
+          - assertVisible: 'Ingredients'
+          - assertVisible: 'Instructions'
+          - assertVisible: 'Nutrition (per serving)'
+
+          # We really left Home: the time-of-day greeting is gone.
+          - assertNotVisible: '.*Chef.*'
+
+          # Back must land on the recipe LIST, not on a dead end — proving `RecipesScreen` was seeded with the
+          # list beneath the pushed detail.
+          - tapOn: 'Back'
+          - assertVisible: 'Recipes'
+          - assertVisible: 'New recipe'

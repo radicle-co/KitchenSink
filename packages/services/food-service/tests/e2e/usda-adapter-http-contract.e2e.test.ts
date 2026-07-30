@@ -39,10 +39,10 @@ import { isSourceApiError, SourceAdapterRegistry } from '../../src/sources/food-
 import { RollingWindowLimiter } from '../../src/sources/rolling-window-limiter.js';
 import { FoodConsumerService } from '../../src/worker/food-consumer.service.js';
 import type { WorkerLogger } from '../../src/worker/worker-logger.js';
+import { resetSchema } from '../support/db.js';
 import { generateClerkKeypair, mintToken } from '../support/jwt.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
-const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../src/db/migrations');
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), '__fixtures__/usda');
 
 const USDA_ORIGIN = 'https://api.nal.usda.gov';
@@ -54,7 +54,12 @@ const FOUNDATION_FDC_ID = 1750340;
 const GHOST_FDC_ID = 404404;
 
 const keypair = generateClerkKeypair();
-const userToken = mintToken(keypair.privateKeyPem, { sub: 'user_usda_e2e', azp: APP_AZP });
+// CR-002/U1: the user token carries its app-user ULID as `external_id` (THE requester key).
+const userToken = mintToken(keypair.privateKeyPem, {
+    sub: 'user_usda_e2e',
+    externalId: '01J9ZK8N7QF3B2X4M6T0V5C1AB',
+    azp: APP_AZP,
+});
 
 const silentLogger: WorkerLogger = { info(): void {}, warn(): void {}, error(): void {} };
 
@@ -184,11 +189,7 @@ describe.skipIf(!DATABASE_URL)('real UsdaApiClient + UsdaSourceAdapter over undi
 
         // ── real DB migration + Nest boot (same hermetic stack as the other food-service e2es) ──────
         pool = new pg.Pool({ connectionString: DATABASE_URL });
-        await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-
-        for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
-            await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
-        }
+        await resetSchema(pool);
 
         process.env['DATABASE_URL'] = DATABASE_URL;
         process.env['USDA_API_KEY'] = 'e2e-usda-key';

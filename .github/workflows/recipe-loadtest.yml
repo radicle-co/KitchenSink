@@ -1,0 +1,41 @@
+# Recipe-service k6 load test (T081/SC-009 performance gate).
+#
+# The recipe k6 job lives in the reusable `_ci-heavy.yml`, which no ordinary PR/push pipeline calls, so the
+# heavy run never fires on one. This workflow is the intended opt-in CALLER: it invokes `_ci-heavy.yml`
+# with the Maestro half switched off, so only `Load test (recipe — k6)` runs — on a weekly schedule and on
+# demand. (Mirrors the per-service load-test trigger pattern of food-loadtest.yml.)
+#
+# Trigger: Actions → "Recipe load test (k6)" → Run workflow, or `gh workflow run recipe-loadtest.yml`.
+#
+# Requires the `RECIPE_LOAD_TEST_TOKEN` repo secret (a Clerk token minted for authenticated load
+# requests); the k6 job reads it to hit protected endpoints. Set it before the first real run — without
+# it the load scripts cannot authenticate.
+name: Recipe load test (k6)
+
+on:
+    workflow_dispatch: {}
+    # Weekly regression run (Monday 05:00 UTC) so the perf gate is exercised regularly, not just on demand.
+    schedule:
+        - cron: '0 5 * * 1'
+
+# One heavy load run at a time — a scheduled and a manual trigger should not stack.
+concurrency:
+    group: recipe-loadtest
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+jobs:
+    loadtest:
+        # HEAVY tier only, and only its k6 half: `_ci-heavy.yml` holds nothing but the load tests and the
+        # Maestro job, so this caller no longer has to switch the base tier off to avoid re-running
+        # lint/typecheck/test/build/integration/e2e on a commit ci-pr.yml already covered — nor to avoid
+        # starting a second `e2e-web` against the shared sandbox Clerk instance. Use ci-full.yml for
+        # everything.
+        uses: ./.github/workflows/_ci-heavy.yml
+        with:
+            stage: sandbox
+            # The 50-minute emulator job is not what a weekly load run is for.
+            run_mobile_maestro: false
+        secrets: inherit

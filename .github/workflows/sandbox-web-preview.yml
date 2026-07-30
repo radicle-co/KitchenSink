@@ -29,16 +29,29 @@ jobs:
         # guard also blocks a future `pull_request_target` foot-gun from running fork code with creds.
         if: github.event.pull_request.head.repo.full_name == github.repository
         steps:
-            # Surface the /pr-{N} path-routed preview as a GitHub deployment, so the PR's "View
-            # deployment" button opens the working, azp-matched URL (https://sandbox.commise.app/pr-{N}/).
-            # Vercel's own preview button opens the bare deployment host with no /pr-{N}, which 404s under
-            # the app's basePath. Independent of the router/KVS steps below (pure GitHub API).
-            - name: Publish path-routed preview deployment
+            # Surface the sandbox preview as a GitHub deployment, so the PR's "View deployment" button opens
+            # the working, azp-matched friendly URL. Vercel's own preview button opens the bare deployment
+            # host, which 404s/401s under our router + azp, so we publish our own. Independent of the
+            # router/KVS steps below (pure GitHub API).
+            #
+            # ADR-0001 cutover: the repo variable SANDBOX_PREVIEW_MODE selects the addressing form —
+            #   unset/`path`  → https://sandbox.commise.app/pr-{N}/   (path routing, default)
+            #   `subdomain`   → https://pr-{N}.sandbox.commise.app/   (per-PR subdomains, post-cutover)
+            # Flip this in lockstep with the Vercel build's SANDBOX_PREVIEW_MODE (which drives basePath) and
+            # the backend CLERK_AZP_PREVIEW_MODE=transition. Default MUST stay path until the live cutover.
+            - name: Publish sandbox preview deployment
               if: github.event.action != 'closed'
               uses: actions/github-script@v7
+              env:
+                  PREVIEW_MODE: ${{ vars.SANDBOX_PREVIEW_MODE }}
               with:
                   script: |
                       const pr = context.payload.pull_request.number;
+                      const subdomain = process.env.PREVIEW_MODE === 'subdomain';
+                      const url = subdomain
+                          ? `https://pr-${pr}.sandbox.commise.app/`
+                          : `https://sandbox.commise.app/pr-${pr}/`;
+                      const mode = subdomain ? 'subdomain' : 'path-routed';
                       const dep = await github.rest.repos.createDeployment({
                           ...context.repo,
                           ref: context.payload.pull_request.head.sha,
@@ -46,14 +59,14 @@ jobs:
                           transient_environment: true,
                           auto_merge: false,
                           required_contexts: [],
-                          description: 'Path-routed sandbox preview',
+                          description: `${mode} sandbox preview`,
                       });
                       await github.rest.repos.createDeploymentStatus({
                           ...context.repo,
                           deployment_id: dep.data.id,
                           state: 'success',
-                          environment_url: `https://sandbox.commise.app/pr-${pr}/`,
-                          description: 'Open the /pr-{N} path-routed sandbox preview',
+                          environment_url: url,
+                          description: `Open the ${mode} sandbox preview`,
                       });
             - name: Deactivate path-routed preview deployment on close
               if: github.event.action == 'closed'
@@ -94,7 +107,7 @@ jobs:
                     --query "Stacks[0].Outputs[?OutputKey=='RouterKvsArn'].OutputValue | [0]" \
                     --output text 2>/dev/null || true)
                   if [ -z "$ARN" ] || [ "$ARN" = "None" ]; then
-                    echo "::warning::Router stack 'kitchensink-sandbox-router-sandbox' is not deployed yet — skipping PR route registration. Run sandbox-router-deploy once to enable preview routing."
+                    echo "::error title=Sandbox router missing::kitchensink-sandbox-router-sandbox is not deployed — this PR's preview is unreachable (sandbox.commise.app is NXDOMAIN). The daily 'Sandbox Router Deploy' auto-heals it; to fix now, run that workflow (workflow_dispatch)."
                     echo "found=false" >> "$GITHUB_OUTPUT"
                   else
                     echo "found=true" >> "$GITHUB_OUTPUT"
@@ -107,7 +120,7 @@ jobs:
               env:
                   ACTION: deregister
                   KVS_ARN: ${{ steps.kvs.outputs.arn }}
-              run: npx tsx packages/apps/commise/web/scripts/register-preview.ts
+              run: npx tsx packages/apps/commise/web/scripts/registerPreview.ts
 
             # PR open/updated → wait for the Vercel preview, capture its host, register the route.
             - name: Wait for the Vercel preview to be READY
@@ -125,4 +138,4 @@ jobs:
                   ACTION: register
                   KVS_ARN: ${{ steps.kvs.outputs.arn }}
                   PREVIEW_HOST: ${{ steps.preview.outputs.preview_url }}
-              run: npx tsx packages/apps/commise/web/scripts/register-preview.ts
+              run: npx tsx packages/apps/commise/web/scripts/registerPreview.ts

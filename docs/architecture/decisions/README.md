@@ -19,3 +19,11 @@ Without those two layers the ADR is invisible at the moment it matters.
 
 - [0001 — Sandbox front-end addressing (path routing + Clerk azp)](0001-sandbox-front-end-addressing.md)
 - [0002 — One VPC per stage with distinct CIDRs (prod 10.0.0.0/16, sandbox 10.1.0.0/16)](0002-vpc-consolidation-and-cidr-scheme.md)
+- [0003 — One shared internet-facing ALB per stage, host-based routing per service](0003-shared-alb-per-stage.md)
+- [0004 — Minimize NAT: one t4g.nano NAT instance, Fargate egress via the IGW](0004-minimize-nat-egress.md)
+- [0005 — `Environment` tagging + tag/name-driven per-PR teardown](0005-environment-tagging-and-pr-cleanup.md)
+- [0006 — Per-PR feature-service deploys: base-stage imports + per-PR logical database](0006-per-pr-feature-deploys-base-stage-and-logical-db.md)
+- [0007 — Sandbox cost controls: right-sizing + scheduled nightly shutdown](0007-sandbox-cost-controls.md)
+- [0008 — Additional cost levers: gp3 storage, Fargate Spot (non-prod), and budget guardrails](0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md)
+- [0009 — Sign-out goes through one command that verifies the session actually ended](0009-clerk-signout-load-gate.md)
+- [0010 — Every PR preview is a complete ecosystem: the ensure-exists deploy gate](0010-ensure-exists-per-pr-deploy-gate.md)

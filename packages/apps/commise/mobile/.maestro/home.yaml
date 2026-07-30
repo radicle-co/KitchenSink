@@ -1,0 +1,34 @@
+# Home widget-surface E2E (T104-e2e-mobile, US-000 / FR-046 / CR-001). Signs in and STAYS on the Home landing
+# (via the login core `auth/signin-home.yaml`, which does not cross into any feature surface), then verifies
+# what Home promises in v1: the recipe (recent-recipes) widget renders; the unshipped 005–009 cohort renders
+# as SKELETON PLACEHOLDERS ("coming soon", never fabricated data — CR-001) rather than being absent; and the
+# recipe widget's "See all recipes" entry navigates into the recipes surface.
+
+appId: io.commise.mobile
+---
+# Sign in and land on the Home widget surface (the login core waits on the time-of-day "…Chef" greeting).
+- runFlow: auth/signin-home.yaml
+
+# The recipe (recent-recipes) widget renders on Home. The card title comes from the recipe feature's
+# `widgetTitle`; the wait absorbs the lazy widget-chunk load + the recipe-service fetch on first paint.
+- extendedWaitUntil:
+      visible: 'Recent recipes'
+      timeout: 40000
+
+# The unshipped 005–009 widgets render as SKELETON PLACEHOLDERS — present (not absent), each carrying the
+# real widget heading and a visible "Coming soon". Their feature packages don't exist yet, so this is the
+# placeholder shape with no invented data (CR-001), not the live widget.
+- assertVisible: "Today's Nutrition"
+- assertVisible: 'Resume cooking'
+- assertVisible: "This Week's Meals"
+- assertVisible: 'Coming soon'
+
+# Tapping the recipe widget's entry point navigates into the recipes surface. It sits at the bottom of the
+# Home surface (below the roadmap placeholders), so scroll it into view first.
+- scrollUntilVisible:
+      element: 'See all recipes'
+      direction: DOWN
+- tapOn: 'See all recipes'
+- extendedWaitUntil:
+      visible: 'Recipes'
+      timeout: 40000

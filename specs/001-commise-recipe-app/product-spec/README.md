@@ -76,11 +76,11 @@ metrics.md
 
 ## Traceability Summary
 
-| MoSCoW tier | Story count        | FR coverage                                                                                                                                                    |
-| ----------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Must Have   | 6 (US-001..US-006) | 100% — all mapped to FR-001, FR-001a, FR-002, FR-003, FR-004, FR-006, FR-007, FR-007a, FR-007b, FR-007b-i, FR-007c, FR-044, FR-045, C-004, C-005, C-006, C-007 |
-| Should Have | 3 (US-007..US-009) | FR-005, FR-008, FR-009, FR-010, C-004                                                                                                                          |
-| Could Have  | 2 (US-010..US-011) | FR-007b, FR-011                                                                                                                                                |
-| Won't Have  | 4 (US-012..US-015) | Out of scope — deferred or covered by other specs                                                                                                              |
+| MoSCoW tier | Story count        | FR coverage                                                                                                                                                            |
+| ----------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Must Have   | 7 (US-000..US-006) | 100% — all mapped to FR-001, FR-001a, FR-002, FR-003, FR-004, FR-006, FR-007, FR-007a, FR-007b, FR-007b-i, FR-007c, FR-044, FR-045, FR-046, C-004, C-005, C-006, C-007 |
+| Should Have | 3 (US-007..US-009) | FR-005, FR-008, FR-009, FR-010, C-004                                                                                                                                  |
+| Could Have  | 2 (US-010, US-016) | FR-007b, FR-011                                                                                                                                                        |
+| Won't Have  | 4 (US-012..US-015) | Out of scope — deferred or covered by other specs                                                                                                                      |
 
 All Must Have stories are mapped to specific FR and C IDs from `spec.md`. Should Have and Could Have stories that are Net-new (no matching FR in spec.md) are marked as such in `product-spec.md`.

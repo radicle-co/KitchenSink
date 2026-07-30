@@ -13,7 +13,7 @@ export class AvatarUploadController {
 
     public constructor() {
         this.s3 = new S3Client({});
-        this.bucket = process.env.MEDIA_BUCKET_NAME ?? 'kitchensink-identity-media-dev';
+        this.bucket = process.env['MEDIA_BUCKET_NAME'] ?? 'kitchensink-identity-media-dev';
     }
 
     @Post('presign')

@@ -57,14 +57,22 @@
 
 ## Layout Notes
 
-| Zone                    | Description                                                                                                 |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Collection header       | Name (editable), edit/delete actions; visibility badge; source attribution if cloned                        |
-| Recipe list             | Checkbox indicates recipe source: [x] = added by owner (protected from Pull), [ ] = from source (will sync) |
-| Right sidebar           | Actions: Add Recipes, Pull Updates, Clone; Visibility toggle (FR-010); Clone info panel                     |
-| Pull Updates action     | Available only on cloned collections; shows preview before executing (FR-011)                               |
-| Clone Collection action | Creates a new snapshot clone; new collection has its own sourceCollectionId                                 |
-| Visibility toggle       | Public by default; Private option only for premium users (FR-010)                                           |
+| Zone                    | Description                                                                                                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Collection header       | Name (editable), edit/delete actions; visibility badge; source attribution if cloned                                                                                          |
+| Recipe list             | Row indicates recipe source: added by owner (protected from Pull) vs. from source (will sync) — shipped as a text label, not the `[x]`/`[ ] ` checkbox glyph below (see note) |
+| Right sidebar           | Actions: Add Recipes, Pull Updates, Clone; Visibility toggle (FR-010); Clone info panel                                                                                       |
+| Pull Updates action     | Available only on cloned collections; shows preview before executing (FR-011)                                                                                                 |
+| Clone Collection action | Creates a new snapshot clone; new collection has its own sourceCollectionId                                                                                                   |
+| Visibility toggle       | Public by default; Private option only for premium users (FR-010)                                                                                                             |
+
+**Reconciled (C7):** the `[x]`/`[ ]` checkbox glyph above is a wireframe shorthand for a **read-only source
+indicator**, not a selection control — nothing on this row is user-togglable. The shipped
+`CollectionMemberRow` (`features/recipes/src/collections/CollectionMemberRow.tsx`/`.native.tsx`) intentionally
+renders it as a visible TEXT label ("Added by you" / "From source collection", `detail.sourceIndicatorOwned` /
+`detail.sourceIndicatorFromSource`) instead of a checkbox: a real checkbox affords toggling, which would be
+actively misleading for a value the user cannot change, and WCAG 1.4.1 requires this status not be conveyed by
+shape/checked-state alone. The text label is strictly clearer than the glyph it replaces and is kept as-built.
 
 ## Pull Updates Preview Dialog (FR-011)
 

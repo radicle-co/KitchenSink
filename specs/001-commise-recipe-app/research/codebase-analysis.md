@@ -110,8 +110,8 @@ TBD — no test framework declared in root. [plan.md](../plan.md) does not docum
 - Extensions: `pg_trgm` (fuzzy search), `pgcrypto` (UUID generation)
 - `tsvector` generated column with GIN index for FTS
 - `JSONB` for recipe version snapshots and flexible metadata
-- `public` schema for production; `pr_<number>` per-PR isolation
-- Tables: `users`, `recipes`, `ingredients`, `recipe_ingredients`, `recipe_steps`, `recipe_photos`, `recipe_versions`, `collections`, `collection_recipes`, `pending_archives`
+- Own logical database `kitchensink_recipes` on the shared RDS instance for production; per-PR isolation is a per-PR **logical database** (`kitchensink_recipes` cloned per PR, [ADR-0006](../../../docs/architecture/decisions/0006-per-pr-feature-deploys-base-stage-and-logical-db.md)), **not** a per-PR Postgres schema
+- Tables: `recipes`, `ingredients`, `recipe_ingredients`, `recipe_steps`, `recipe_photos`, `recipe_versions`, `collections`, `recipe_collections`, `recipe_version_pending_archives`, `account_erasure_jobs` (no local `users` table — the recipe schema does not own users; D2)
 
 **Key versioning pattern** (from [plan.md](../plan.md) FR-007b-i):
 

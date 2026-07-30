@@ -1,281 +1,236 @@
 {
-  "openapi": "3.1.0",
-  "info": {
-    "title": "KitchenSink Identity API",
-    "version": "1.0.0",
-    "description": "REST API for user authentication, profile management, and admin operations. Consumed by Commise web and mobile clients."
-  },
-  "servers": [
-    {
-      "url": "https://identity.{stage}.{domain}/v1",
-      "description": "Identity API Gateway",
-      "variables": {
-        "stage": { "default": "dev", "enum": ["dev", "sandbox", "prod"] },
-        "domain": { "default": "thecommise.app" }
-      }
-    }
-  ],
-  "paths": {
-    "/users/me": {
-      "get": {
-        "summary": "Get current user profile",
-        "operationId": "getUserMe",
-        "security": [{ "bearerAuth": [] }],
-        "responses": {
-          "200": {
-            "description": "User profile",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/UserProfileResponse" }
-              }
-            }
-          },
-          "401": { "description": "Unauthorized — missing or invalid token" },
-          "403": { "description": "Forbidden — user suspended" }
-        }
-      },
-      "patch": {
-        "summary": "Update current user profile",
-        "operationId": "patchUserMe",
-        "security": [{ "bearerAuth": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/PatchUserMeBody" }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated profile",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/GetUserMeResponse" }
-              }
-            }
-          },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "422": { "description": "Validation error" }
-        }
-      },
-      "delete": {
-        "summary": "Delete current user account (soft delete + IdP cascade)",
-        "operationId": "deleteUserMe",
-        "security": [{ "bearerAuth": [] }],
-        "responses": {
-          "202": {
-            "description": "Accepted — deletion queued",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/DeleteUserMeResponse" }
-              }
-            }
-          },
-          "401": { "description": "Unauthorized" }
-        }
-      }
+    "openapi": "3.1.0",
+    "info": {
+        "title": "KitchenSink Identity API",
+        "version": "1.0.0",
+        "description": "REST API for user authentication, profile management, and admin operations. Consumed by Commise web and mobile clients."
     },
-    "/users/upsert": {
-      "post": {
-        "summary": "Upsert user from IdP webhook context",
-        "operationId": "upsertUser",
-        "security": [{ "bearerAuth": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
+    "servers": [
+        {
+            "url": "https://identity.{stage}.{domain}/v1",
+            "description": "Identity API Gateway",
+            "variables": {
+                "stage": { "default": "dev", "enum": ["dev", "sandbox", "prod"] },
+                "domain": { "default": "thecommise.app" }
+            }
+        }
+    ],
+    "paths": {
+        "/users/me": {
+            "get": {
+                "summary": "Get current user profile",
+                "operationId": "getUserMe",
+                "security": [{ "bearerAuth": [] }],
+                "responses": {
+                    "200": {
+                        "description": "User profile",
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/UserProfileResponse" }
+                            }
+                        }
+                    },
+                    "401": { "description": "Unauthorized — missing or invalid token" },
+                    "403": { "description": "Forbidden — user suspended" }
+                }
+            },
+            "patch": {
+                "summary": "Update current user profile",
+                "operationId": "patchUserMe",
+                "security": [{ "bearerAuth": [] }],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": { "$ref": "#/components/schemas/PatchUserMeBody" }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Updated profile",
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/GetUserMeResponse" }
+                            }
+                        }
+                    },
+                    "401": { "description": "Unauthorized" },
+                    "403": { "description": "Forbidden" },
+                    "422": { "description": "Validation error" }
+                }
+            },
+            "delete": {
+                "summary": "Delete current user account (soft delete + IdP cascade)",
+                "operationId": "deleteUserMe",
+                "security": [{ "bearerAuth": [] }],
+                "responses": {
+                    "202": {
+                        "description": "Accepted — deletion queued",
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/DeleteUserMeResponse" }
+                            }
+                        }
+                    },
+                    "401": { "description": "Unauthorized" }
+                }
+            }
+        },
+        "/admin/users": {
+            "get": {
+                "summary": "List users with optional filters",
+                "operationId": "listUsers",
+                "security": [{ "bearerAuth": [] }],
+                "parameters": [
+                    { "name": "email", "in": "query", "schema": { "type": "string" } },
+                    { "name": "name", "in": "query", "schema": { "type": "string" } },
+                    { "name": "sub", "in": "query", "schema": { "type": "string" } },
+                    { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
+                    { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated user list",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": { "$ref": "#/components/schemas/GetUserMeResponse" }
+                                        },
+                                        "total": { "type": "integer" }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": { "description": "Unauthorized" },
+                    "403": { "description": "Forbidden — admin role required" }
+                }
+            }
+        },
+        "/admin/users/{userId}/suspend": {
+            "post": {
+                "summary": "Suspend a user",
+                "operationId": "suspendUser",
+                "security": [{ "bearerAuth": [] }],
+                "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }],
+                "responses": {
+                    "200": { "description": "User suspended" },
+                    "401": { "description": "Unauthorized" },
+                    "403": { "description": "Forbidden" },
+                    "404": { "description": "User not found" }
+                }
+            }
+        },
+        "/admin/users/{userId}/unsuspend": {
+            "post": {
+                "summary": "Reactivate a suspended user",
+                "operationId": "unsuspendUser",
+                "security": [{ "bearerAuth": [] }],
+                "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }],
+                "responses": {
+                    "200": { "description": "User reactivated" },
+                    "401": { "description": "Unauthorized" },
+                    "403": { "description": "Forbidden" },
+                    "404": { "description": "User not found" }
+                }
+            }
+        },
+        "/admin/users/{userId}/impersonation/start": {
+            "post": {
+                "summary": "Start operator impersonation",
+                "operationId": "startImpersonation",
+                "security": [{ "bearerAuth": [] }],
+                "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }],
+                "responses": {
+                    "200": { "description": "Impersonation started" },
+                    "401": { "description": "Unauthorized" },
+                    "403": { "description": "Forbidden" },
+                    "404": { "description": "User not found" }
+                }
+            }
+        },
+        "/admin/users/{userId}/impersonation/stop": {
+            "post": {
+                "summary": "Stop operator impersonation",
+                "operationId": "stopImpersonation",
+                "security": [{ "bearerAuth": [] }],
+                "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }],
+                "responses": {
+                    "200": { "description": "Impersonation stopped" },
+                    "401": { "description": "Unauthorized" },
+                    "403": { "description": "Forbidden" }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "summary": "Service health check",
+                "operationId": "getHealth",
+                "security": [],
+                "responses": {
+                    "200": { "description": "Healthy" }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "GetUserMeResponse": {
                 "type": "object",
-                "required": ["identityId", "email"],
+                "required": ["id", "email", "displayName", "status", "createdAt", "updatedAt"],
                 "properties": {
-                  "identityId": { "type": "string", "description": "IdP user ID (e.g., user_abc123)" },
-                  "email": { "type": "string", "format": "email" },
-                  "name": { "type": "string" },
-                  "picture": { "type": "string", "format": "uri" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Upsert result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
                     "id": { "type": "string" },
-                    "created": { "type": "boolean" }
-                  }
+                    "email": { "type": "string" },
+                    "displayName": { "type": "string" },
+                    "avatarUrl": { "type": "string", "nullable": true },
+                    "status": { "type": "string", "enum": ["active", "suspended", "pending_deletion"] },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" }
                 }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/admin/users": {
-      "get": {
-        "summary": "List users with optional filters",
-        "operationId": "listUsers",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "email", "in": "query", "schema": { "type": "string" } },
-          { "name": "name", "in": "query", "schema": { "type": "string" } },
-          { "name": "sub", "in": "query", "schema": { "type": "string" } },
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
-          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated user list",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/GetUserMeResponse" } },
-                    "total": { "type": "integer" }
-                  }
+            },
+            "UserProfileResponse": {
+                "type": "object",
+                "properties": {
+                    "user": { "$ref": "#/components/schemas/GetUserMeResponse" },
+                    "account": {
+                        "type": "object",
+                        "properties": {
+                            "id": { "type": "string" },
+                            "userId": { "type": "string" },
+                            "subscriptionTier": { "type": "string" },
+                            "createdAt": { "type": "string", "format": "date-time" },
+                            "updatedAt": { "type": "string", "format": "date-time" }
+                        }
+                    }
                 }
-              }
+            },
+            "PatchUserMeBody": {
+                "type": "object",
+                "properties": {
+                    "displayName": { "type": "string", "maxLength": 100 },
+                    "avatarUrl": { "type": "string", "format": "uri", "nullable": true }
+                }
+            },
+            "DeleteUserMeResponse": {
+                "type": "object",
+                "properties": {
+                    "sub": { "type": "string" },
+                    "deletedAt": { "type": "string", "format": "date-time" },
+                    "message": { "type": "string" }
+                }
             }
-          },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden — admin role required" }
-        }
-      }
-    },
-    "/admin/users/{userId}/suspend": {
-      "post": {
-        "summary": "Suspend a user",
-        "operationId": "suspendUser",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": { "description": "User suspended" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "User not found" }
-        }
-      }
-    },
-    "/admin/users/{userId}/unsuspend": {
-      "post": {
-        "summary": "Reactivate a suspended user",
-        "operationId": "unsuspendUser",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": { "description": "User reactivated" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "User not found" }
-        }
-      }
-    },
-    "/admin/users/{userId}/impersonation/start": {
-      "post": {
-        "summary": "Start operator impersonation",
-        "operationId": "startImpersonation",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": { "description": "Impersonation started" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "User not found" }
-        }
-      }
-    },
-    "/admin/users/{userId}/impersonation/stop": {
-      "post": {
-        "summary": "Stop operator impersonation",
-        "operationId": "stopImpersonation",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": { "description": "Impersonation stopped" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" }
-        }
-      }
-    },
-    "/health": {
-      "get": {
-        "summary": "Service health check",
-        "operationId": "getHealth",
-        "security": [],
-        "responses": {
-          "200": { "description": "Healthy" }
-        }
-      }
-    }
-  },
-  "components": {
-    "schemas": {
-      "GetUserMeResponse": {
-        "type": "object",
-        "required": ["id", "email", "displayName", "status", "createdAt", "updatedAt"],
-        "properties": {
-          "id": { "type": "string" },
-          "email": { "type": "string" },
-          "displayName": { "type": "string" },
-          "avatarUrl": { "type": "string", "nullable": true },
-          "status": { "type": "string", "enum": ["active", "suspended", "pending_deletion"] },
-          "createdAt": { "type": "string", "format": "date-time" },
-          "updatedAt": { "type": "string", "format": "date-time" }
-        }
-      },
-      "UserProfileResponse": {
-        "type": "object",
-        "properties": {
-          "user": { "$ref": "#/components/schemas/GetUserMeResponse" },
-          "account": {
-            "type": "object",
-            "properties": {
-              "id": { "type": "string" },
-              "userId": { "type": "string" },
-              "subscriptionTier": { "type": "string" },
-              "createdAt": { "type": "string", "format": "date-time" },
-              "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
             }
-          }
         }
-      },
-      "PatchUserMeBody": {
-        "type": "object",
-        "properties": {
-          "displayName": { "type": "string", "maxLength": 100 },
-          "avatarUrl": { "type": "string", "format": "uri", "nullable": true }
-        }
-      },
-      "DeleteUserMeResponse": {
-        "type": "object",
-        "properties": {
-          "sub": { "type": "string" },
-          "deletedAt": { "type": "string", "format": "date-time" },
-          "message": { "type": "string" }
-        }
-      }
-    },
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
     }
-  }
 }

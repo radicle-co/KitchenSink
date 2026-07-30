@@ -10,10 +10,7 @@
  */
 import 'reflect-metadata';
 
-import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -41,17 +38,22 @@ import { SourceAdapterRegistry } from '../../src/sources/food-source-adapter.js'
 import { RollingWindowLimiter } from '../../src/sources/rolling-window-limiter.js';
 import { FoodConsumerService } from '../../src/worker/food-consumer.service.js';
 import type { WorkerLogger } from '../../src/worker/worker-logger.js';
+import { resetSchema } from '../support/db.js';
 import { generateClerkKeypair, mintToken } from '../support/jwt.js';
 import { stub } from '../support/stub-source-adapter.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
-const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../src/db/migrations');
 
 const APP_AZP = 'https://app.example.com';
 const M2M_AZP = 'svc-import-client';
 
 const keypair = generateClerkKeypair();
-const userToken = mintToken(keypair.privateKeyPem, { sub: 'user_client_e2e', azp: APP_AZP });
+// CR-002/U1: the user token carries its app-user ULID as `external_id` (THE requester key).
+const userToken = mintToken(keypair.privateKeyPem, {
+    sub: 'user_client_e2e',
+    externalId: '01J9ZK8N7QF3B2X4M6T0V5C1AB',
+    azp: APP_AZP,
+});
 const m2mToken = mintToken(keypair.privateKeyPem, { sub: 'svc_client_e2e', azp: M2M_AZP });
 
 const silentLogger: WorkerLogger = { info(): void {}, warn(): void {}, error(): void {} };
@@ -89,10 +91,7 @@ describe.skipIf(!DATABASE_URL)('@kitchensink/food-service-client against the boo
 
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
-        await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-        for (const file of ['0000_food_schema.sql', '0001_food_fts.sql']) {
-            await pool.query(readFileSync(join(migrationsDir, file), 'utf-8'));
-        }
+        await resetSchema(pool);
 
         process.env['DATABASE_URL'] = DATABASE_URL;
         process.env['USDA_API_KEY'] = 'e2e-stub-key';
@@ -167,7 +166,8 @@ describe.skipIf(!DATABASE_URL)('@kitchensink/food-service-client against the boo
 
         const status = await client.getStatus(add.id);
         expect(status.status).toBe('RESOLVED');
-        expect(status.food).toBeDefined();
+        expect(status.food?.id).toBe(add.id);
+        expect(status.food?.nutrients[0]?.nutrient).toBe('Protein');
     });
 
     it('search returns ranked local hits (typed, never a source call)', async () => {
@@ -196,8 +196,8 @@ describe.skipIf(!DATABASE_URL)('@kitchensink/food-service-client against the boo
         const add = await m2mClient.addByName('service-added food');
         expect(add.status).toBe('PENDING');
 
-        const requesters = await pool.query('SELECT sub FROM fetch_requesters');
-        expect(requesters.rows.map((row) => row.sub)).toEqual(['svc_client_e2e']);
+        const requesters = await pool.query('SELECT requester_id FROM fetch_requesters');
+        expect(requesters.rows.map((row) => row.requester_id)).toEqual(['svc_client_e2e']);
     });
 
     it('maps the queue-depth ceiling to a typed FetchUnavailableError (503), never a 429', async () => {

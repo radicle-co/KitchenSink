@@ -2,13 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { provisionCompleteUser, type ProvisionDeps, type ProvisioningSchema } from '../provisioning.js';
 
-// Sentinel table objects — the mock db keys behavior off `__t`; `.name`/`.picture`/`.identityId` stand
-// in for Drizzle columns referenced by the `sql\`coalesce(...)\`` / conflict target (never executed).
+// Sentinel table objects — the mock db keys behavior off `__t`; the `.name`/`.picture`/`.identityId`/`.status`/
+// `.deletedAt`/`.email` stand in for Drizzle columns referenced by the `sql\`case ...\`` conflict set (the SQL
+// is never executed here — the mock captures the `set` shape; the CASE semantics are proven in integration).
 const usersT = {
     __t: 'users',
     identityId: { name: 'identity_id' },
     name: { name: 'name' },
     picture: { name: 'picture' },
+    status: { name: 'status' },
+    deletedAt: { name: 'deleted_at' },
+    email: { name: 'email' },
 };
 const accountsT = { __t: 'accounts' };
 const profilesT = { __t: 'profiles' };
@@ -21,6 +25,8 @@ const emailViolation = Object.assign(new Error('duplicate key'), {
 
 interface MockOpts {
     userInsertThrowsOnce?: unknown;
+    /** The `status` of the row the (conflict) upsert returns — drives the R10 no-resurrection guard. */
+    rowStatus?: string;
 }
 
 function buildMockDb(opts: MockOpts = {}) {
@@ -28,7 +34,13 @@ function buildMockDb(opts: MockOpts = {}) {
     const valuesByTable = new Map<string, Record<string, unknown>>();
     const conflictSets: Array<Record<string, unknown>> = [];
     let userReturningCount = 0;
-    const row = { id: 'usr_test', identityId: 'id_1', email: 'a@b.com', deletedAt: null };
+    const row = {
+        id: 'usr_test',
+        identityId: 'id_1',
+        email: 'a@b.com',
+        deletedAt: null,
+        status: opts.rowStatus ?? 'active',
+    };
 
     const db = {
         insert(table: { __t: string }) {
@@ -90,7 +102,10 @@ describe('provisionCompleteUser', () => {
         });
     });
 
-    it('resets deletedAt on conflict (revives a re-registered soft-deleted identity)', async () => {
+    it('carries a lifecycle-aware deletedAt directive in the conflict set (revival gated on status)', async () => {
+        // R10: `deletedAt` is no longer an unconditional literal null — it is a `case`-expression that only
+        // clears deletedAt for a NON-tombstoned/erased row. The unit mock captures the key's presence; the
+        // integration suite proves the CASE preserves a tombstoned row's deletedAt.
         const { deps, conflictSets } = buildMockDb();
 
         await provisionCompleteUser(
@@ -99,10 +114,10 @@ describe('provisionCompleteUser', () => {
             { onEmailCollision: 'placeholder' },
         );
 
-        expect(conflictSets[0]).toHaveProperty('deletedAt', null);
+        expect(conflictSets[0]).toHaveProperty('deletedAt');
     });
 
-    it('overwrites email on conflict only when emailIsReal (default true)', async () => {
+    it('includes email in the conflict set only when emailIsReal (default true)', async () => {
         const { deps, conflictSets } = buildMockDb();
 
         await provisionCompleteUser(
@@ -111,7 +126,33 @@ describe('provisionCompleteUser', () => {
             { onEmailCollision: 'placeholder' },
         );
 
-        expect(conflictSets[0]).toHaveProperty('email', 'real@b.com');
+        expect(conflictSets[0]).toHaveProperty('email');
+    });
+
+    it('R10: does NOT rebuild account/profile when the upserted row is tombstoned (no resurrection)', async () => {
+        const { deps, insertedTables } = buildMockDb({ rowStatus: 'tombstoned' });
+
+        const result = await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com', name: 'Ada', picture: 'https://img/ada.png' },
+            { onEmailCollision: 'placeholder' },
+        );
+
+        // Only the users upsert ran — the closed account's companion rows are NEVER re-created.
+        expect(insertedTables).toEqual(['users']);
+        expect(result.kind).toBe('complete');
+    });
+
+    it('R10: does NOT rebuild account/profile when the upserted row is erased (no resurrection)', async () => {
+        const { deps, insertedTables } = buildMockDb({ rowStatus: 'erased' });
+
+        await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com' },
+            { onEmailCollision: 'placeholder' },
+        );
+
+        expect(insertedTables).toEqual(['users']);
     });
 
     it('email collision + placeholder policy: retries with a placeholder email, does not overwrite real email', async () => {

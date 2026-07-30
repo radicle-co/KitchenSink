@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
 
 vi.mock('@sentry/nestjs', () => ({
@@ -134,5 +134,67 @@ describe('AuthMiddleware', () => {
 
         expect(clerkAuth.verify).toHaveBeenCalledOnce();
         expect(req.user).toBe(userCtx); // from the verified JWT, never the forged header
+    });
+
+    describe('dev-auth bypass (IDENTITY_DEV_AUTH_USER_ID)', () => {
+        const DEV_KEYS = ['NODE_ENV', 'IDENTITY_DEV_AUTH_USER_ID'] as const;
+        const saved: Record<string, string | undefined> = {};
+
+        beforeEach(() => {
+            for (const key of DEV_KEYS) {
+                saved[key] = process.env[key];
+            }
+        });
+
+        afterEach(() => {
+            for (const key of DEV_KEYS) {
+                if (saved[key] === undefined) {
+                    delete process.env[key];
+                } else {
+                    process.env[key] = saved[key];
+                }
+            }
+        });
+
+        it('injects a fixed synthetic principal outside production — no token, no Clerk verify, no DB read-through', async () => {
+            process.env['NODE_ENV'] = 'development';
+            process.env['IDENTITY_DEV_AUTH_USER_ID'] = '01HZZDEVBYPASSULID00000000';
+
+            const req = makeReq({ headers: {} }); // deliberately NO bearer token
+
+            await mw.use(req as never, res, next as never);
+
+            expect(next).toHaveBeenCalledOnce();
+            expect(clerkAuth.verify).not.toHaveBeenCalled();
+            expect(users.resolveOrCreateFromClaims).not.toHaveBeenCalled();
+            expect(req.user).toMatchObject({
+                userId: '01HZZDEVBYPASSULID00000000',
+                clerkUserId: 'dev-bypass:01HZZDEVBYPASSULID00000000',
+                scopes: [],
+                permissions: [],
+                tokenType: 'user',
+            });
+        });
+
+        it('is HARD-DISABLED in production even when the env var is set → falls through to a 401', async () => {
+            process.env['NODE_ENV'] = 'production';
+            process.env['IDENTITY_DEV_AUTH_USER_ID'] = '01HZZDEVBYPASSULID00000000';
+
+            const req = makeReq({ headers: {} });
+
+            await expect(mw.use(req as never, res, next as never)).rejects.toBeInstanceOf(UnauthorizedException);
+            expect(req.user).toBeUndefined();
+            expect(next).not.toHaveBeenCalled();
+        });
+
+        it('is inert when the env var is unset → normal bearer path applies', async () => {
+            process.env['NODE_ENV'] = 'development';
+            delete process.env['IDENTITY_DEV_AUTH_USER_ID'];
+
+            const req = makeReq({ headers: {} });
+
+            await expect(mw.use(req as never, res, next as never)).rejects.toBeInstanceOf(UnauthorizedException);
+            expect(next).not.toHaveBeenCalled();
+        });
     });
 });

@@ -1,5 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule, ValidationPipe } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { SentryModule } from '@sentry/nestjs/setup';
 
 import { AppConfigModule } from './config/config.module.js';
@@ -10,7 +10,7 @@ import { QueueModule } from './queue/queue.module.js';
 import { UsersModule } from './users/users.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { AuthMiddleware } from './auth/middleware/auth.middleware.js';
-import { SentryExceptionFilter } from './observability/sentry.filter.js';
+import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
 import { SentryContextMiddleware } from './observability/sentry-context.middleware.js';
 
 @Module({
@@ -28,10 +28,13 @@ import { SentryContextMiddleware } from './observability/sentry-context.middlewa
     providers: [
         {
             provide: APP_FILTER,
-            useClass: SentryExceptionFilter,
+            useClass: ApiExceptionFilter,
         },
         {
-            provide: ValidationPipe,
+            // APP_PIPE (not the bare `ValidationPipe` class token) is what registers a pipe GLOBALLY.
+            // Bound to the class token, nothing injected it and DTO validation never ran — an over-long
+            // displayName or non-URL avatarUrl reached the DB unchecked. See S-I1.
+            provide: APP_PIPE,
             useValue: new ValidationPipe({
                 whitelist: true,
                 forbidNonWhitelisted: true,

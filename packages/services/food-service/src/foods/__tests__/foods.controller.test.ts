@@ -17,11 +17,14 @@ import {
     HttpStatus,
     NotFoundException,
     ServiceUnavailableException,
+    UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AuthenticatedRequest } from '../../auth/authenticated-principal.js';
+import type { Environment } from '../../config/env.schema.js';
 import { FoodsController } from '../foods.controller.js';
 import {
     CandidateMismatchError,
@@ -34,6 +37,9 @@ import { FoodsService } from '../foods.service.js';
 
 const VALID_ID = '01J9ZZZZZZZZZZZZZZZZZZZZZZ';
 
+/** App-user ULID (from `external_id`) — THE requester key an enqueue records (CR-002/U1). */
+const USER_ULID = '01J9ZK8N7QF3B2X4M6T0V5C1AB';
+
 function makeRes(): { res: Response; status: ReturnType<typeof vi.fn>; setHeader: ReturnType<typeof vi.fn> } {
     const status = vi.fn();
     const setHeader = vi.fn();
@@ -42,8 +48,13 @@ function makeRes(): { res: Response; status: ReturnType<typeof vi.fn>; setHeader
     return { res, status, setHeader };
 }
 
-function makeReq(sub = 'user_1', scopes: string[] = []): AuthenticatedRequest {
-    return { user: { sub, scopes, permissions: [] } } as unknown as AuthenticatedRequest;
+/**
+ * Build a request with a verified principal. Defaults to a user principal carrying its app-user ULID
+ * (`userId`) — the requester key an enqueue records. Pass `userId: undefined` to simulate the
+ * first-token sync race (no `external_id` yet), or a `svc_*` `sub` for a service principal.
+ */
+function makeReq(sub = 'user_1', scopes: string[] = [], userId: string | undefined = USER_ULID): AuthenticatedRequest {
+    return { user: { sub, userId, scopes, permissions: [] } } as unknown as AuthenticatedRequest;
 }
 
 function makeController(): { controller: FoodsController; service: Record<string, ReturnType<typeof vi.fn>> } {
@@ -58,7 +69,10 @@ function makeController(): { controller: FoodsController; service: Record<string
         refetch: vi.fn(),
     };
 
-    return { controller: new FoodsController(service as unknown as FoodsService), service };
+    // Mirror the boot-validated ConfigModule: the batch cap comes from the coerced Environment.
+    const config = new ConfigService<Environment, true>({ FOOD_MAX_BATCH_NAMES: 100 } as Environment);
+
+    return { controller: new FoodsController(service as unknown as FoodsService, config), service };
 }
 
 describe('FoodsController.getFood', () => {
@@ -139,14 +153,37 @@ describe('FoodsController.addByName / batch', () => {
         ctx = makeController();
     });
 
-    it('sets 202 + returns the add result and passes the verified sub', async () => {
+    it('sets 202 + returns the add result and passes the app-user ULID as the requester (CR-002/U1)', async () => {
         ctx.service.addByName.mockResolvedValue({ id: VALID_ID, status: 'PENDING', estimatedWaitSeconds: 30 });
         const { res, status } = makeRes();
 
-        await ctx.controller.addByName({ name: 'Broccoli' }, makeReq('user_9'), res);
+        await ctx.controller.addByName({ name: 'Broccoli' }, makeReq('user_9', [], USER_ULID), res);
 
         expect(status).toHaveBeenCalledWith(HttpStatus.ACCEPTED);
-        expect(ctx.service.addByName).toHaveBeenCalledWith('Broccoli', 'user_9');
+        // The requester is the app-user ULID (external_id), NEVER the Clerk sub 'user_9'.
+        expect(ctx.service.addByName).toHaveBeenCalledWith('Broccoli', USER_ULID);
+    });
+
+    it('passes a service principal`s svc_* id straight through as the requester (FR-047)', async () => {
+        ctx.service.addByName.mockResolvedValue({ id: VALID_ID, status: 'PENDING', estimatedWaitSeconds: 30 });
+        const { res } = makeRes();
+        // A service principal carries no external_id; its svc_* sub IS the requester key.
+        const svcReq = { user: { sub: 'svc_import', scopes: [], permissions: [] } } as unknown as AuthenticatedRequest;
+
+        await ctx.controller.addByName({ name: 'Broccoli' }, svcReq, res);
+
+        expect(ctx.service.addByName).toHaveBeenCalledWith('Broccoli', 'svc_import');
+    });
+
+    it('DEFERS with 401 when a user token has no external_id yet, without calling the service (CR-002/U1)', async () => {
+        const { res } = makeRes();
+        // A verified user token whose external_id has not synced yet (no userId) — never falls back to sub.
+        const preSyncReq = { user: { sub: 'user_9', scopes: [], permissions: [] } } as unknown as AuthenticatedRequest;
+
+        await expect(ctx.controller.addByName({ name: 'Broccoli' }, preSyncReq, res)).rejects.toBeInstanceOf(
+            UnauthorizedException,
+        );
+        expect(ctx.service.addByName).not.toHaveBeenCalled();
     });
 
     it('rejects an empty name with 400 before calling the service (FR-006)', async () => {
@@ -249,9 +286,10 @@ describe('FoodsController.refetch', () => {
         ctx.service.refetch.mockResolvedValue({ id: VALID_ID, status: 'RESOLVED', estimatedWaitSeconds: 30 });
         const { res, status } = makeRes();
 
-        await ctx.controller.refetch(VALID_ID, makeReq('admin_1', ['food:admin']), res);
+        await ctx.controller.refetch(VALID_ID, makeReq('admin_1', ['food:admin'], USER_ULID), res);
 
         expect(status).toHaveBeenCalledWith(HttpStatus.ACCEPTED);
-        expect(ctx.service.refetch).toHaveBeenCalledWith(VALID_ID, 'admin_1');
+        // The recorded requester is the admin's app-user ULID, not the Clerk sub.
+        expect(ctx.service.refetch).toHaveBeenCalledWith(VALID_ID, USER_ULID);
     });
 });

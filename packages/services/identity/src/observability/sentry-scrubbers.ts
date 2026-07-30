@@ -6,6 +6,8 @@
  * before anything leaves the host. Exported pieces let every init and its tests assert one contract.
  */
 
+import { createHash } from 'node:crypto';
+
 export const DENYLIST_KEYS: readonly string[] = [
     'email',
     'password',
@@ -19,20 +21,61 @@ export const DENYLIST_KEYS: readonly string[] = [
 
 const DENYLIST = new Set(DENYLIST_KEYS);
 
+/**
+ * Keys whose values are a **person-linked identifier** (Clerk `sub` / app-user ULID). Unlike the
+ * denylist (redacted outright), these are pseudonymized to a stable, non-reversible token so an
+ * erased user cannot be re-identified from log/Sentry copies (GDPR Art. 17 erasure-of-copies +
+ * Art. 5 minimization) while cross-service incident correlation is preserved. NOT bare `id` — that
+ * is ambiguous (`jobId`, `recipeId`, … are not person ids); only these explicit id keys.
+ */
+export const ID_KEYS: readonly string[] = [
+    'sub',
+    'clerksub',
+    'clerkuserid',
+    'identityid',
+    'userid',
+    'ownerid',
+    'requesterid',
+];
+
+const ID_KEY_SET = new Set(ID_KEYS);
+
 const BEARER_PATTERN = /[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/;
 
 const REDACTED = '[redacted]';
 
 export const isDeniedKey = (key: string): boolean => DENYLIST.has(key.toLowerCase());
 
+/** True when a key name holds a person-linked identifier (pseudonymized, not redacted). */
+export const isIdKey = (key: string): boolean => ID_KEY_SET.has(key.toLowerCase());
+
 export const looksLikeBearerToken = (value: string): boolean => BEARER_PATTERN.test(value);
+
+/**
+ * Stable, non-reversible pseudonym for a person-linked identifier. Deterministic (same id → same
+ * token, across services and log lines, so incident correlation survives) but one-way: a Sentry /
+ * CloudWatch reader cannot recover the raw id (the input — a ULID or Clerk `sub` — is high-entropy,
+ * so the truncated SHA-256 is not feasibly reversible or brute-forceable). No secret to provision;
+ * a keyed HMAC is the hardening path if the threat model ever needs unlinkability-against-a-holder. Pure.
+ */
+export const pseudonymizeId = (raw: string): string =>
+    `anon_${createHash('sha256').update(raw).digest('hex').slice(0, 16)}`;
 
 const EMAIL_PATTERN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const BEARER_GLOBAL = /[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g;
+/** Clerk user `sub` embedded in free text — distinctive `user_…` prefix, safe to pseudonymize inline. */
+const CLERK_SUB_GLOBAL = /user_[A-Za-z0-9]{20,}/g;
 
-/** Redact email- and bearer-token-shaped substrings from free text (error messages, log bodies). */
+/**
+ * Redact email/bearer-shaped substrings and pseudonymize embedded Clerk `sub`s in free text (error
+ * messages, log bodies). ULIDs embedded in free text are left to the structured-attribute path
+ * (a bare-26-char matcher would false-positive); the concrete leak sites log ids as attributes.
+ */
 export const scrubText = (text: string): string =>
-    text.replace(BEARER_GLOBAL, REDACTED).replace(EMAIL_PATTERN, REDACTED);
+    text
+        .replace(BEARER_GLOBAL, REDACTED)
+        .replace(EMAIL_PATTERN, REDACTED)
+        .replace(CLERK_SUB_GLOBAL, (m) => pseudonymizeId(m));
 
 const scrubUnknown = (value: unknown): unknown => {
     if (typeof value === 'string') {
@@ -47,7 +90,13 @@ const scrubUnknown = (value: unknown): unknown => {
         const out: Record<string, unknown> = {};
 
         for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
-            out[key] = isDeniedKey(key) ? REDACTED : scrubUnknown(nested);
+            if (isDeniedKey(key)) {
+                out[key] = REDACTED;
+            } else if (isIdKey(key) && typeof nested === 'string' && nested.length > 0) {
+                out[key] = pseudonymizeId(nested);
+            } else {
+                out[key] = scrubUnknown(nested);
+            }
         }
 
         return out;
@@ -70,8 +119,8 @@ interface ScrubbableEvent {
 }
 
 /**
- * `beforeSend` hook: scrub user-data-bearing parts of an error event, preserving the opaque
- * `user.id` while redacting the rest of the user object.
+ * `beforeSend` hook: scrub user-data-bearing parts of an error event, pseudonymizing
+ * `user.id` (stable per user) while redacting the rest of the user object.
  *
  * @sideEffect mutates and returns the event, per the Sentry `beforeSend` contract.
  */
@@ -105,7 +154,8 @@ export const scrubEvent = <T extends ScrubbableEvent>(event: T): T => {
     }
 
     if (event.user) {
-        const id = event.user.id;
+        const rawId = event.user.id;
+        const id = typeof rawId === 'string' && rawId.length > 0 ? pseudonymizeId(rawId) : rawId;
         event.user = { ...scrubAttributes(event.user), id };
     }
 

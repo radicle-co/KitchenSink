@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import * as schema from '../../src/database/schema/index.js';
+import * as schema from '@kitchensink/identity-db';
 
 const DATABASE_URL =
     process.env.DATABASE_URL ?? 'postgresql://identity_app:localdev@localhost:5432/kitchensink_identity';

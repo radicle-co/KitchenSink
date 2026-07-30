@@ -1,0 +1,70 @@
+# Reusable, idempotent sign-in CORE sub-flow: launches the app, signs in if needed, and lands on the Home
+# widget surface (the real post-login landing, T104-mobile) — it does NOT cross into any feature surface.
+#
+# Launches the app and, ONLY IF the login screen is showing, signs in with the shared Clerk test user
+# (a `+clerk_test` magic email whose new-device verification accepts the fixed code 424242 — no real
+# mailbox needed). When a persisted session already exists (`expo-secure-store` token cache), the login
+# screen is absent, the guarded block is skipped, and the flow falls straight through to the Home landing.
+#
+# A signed-out launch lands DIRECTLY on the login form — the branded welcome hero that used to sit in front of
+# it was deleted by owner decision on 2026-07-28, on both platforms.
+#
+# Consumers that want the Home surface (`home.yaml`) use THIS core. Consumers that want the recipes list
+# (`signin.yaml` and, through it, the recipe flows) wrap this core and then cross into recipes — so "sign
+# in" and "navigate to a feature" stay separate concerns.
+#
+# The login form lives in mobile/src/screens/login.tsx; the completed session renders HomeScreen (a
+# time-of-day greeting ending in "Chef" — "Good morning, Chef!" etc.). Credentials mirror the web Playwright
+# suite's TEST_USER_* (cross-platform parity).
+
+appId: io.commise.mobile
+---
+- launchApp
+
+# Wait for the auth gate to FINISH resolving the session before deciding anything. This barrier is load-bearing
+# now that there is no welcome hero in front of the login form (owner decision 2026-07-28): the guarded block
+# below is the FIRST thing that reads the screen, and `when: visible:` does not wait — so while `AuthGate` is
+# still showing its "Checking your session…" affordance, the guard would evaluate false, the sign-in would be
+# skipped entirely, and the flow would fail 40s later at the Home assertion for a reason unrelated to sign-in.
+# Previously the welcome-crossing `tapOn` absorbed that window incidentally. Keyed on the loading label's
+# DISAPPEARANCE (mobile i18n `auth.sessionLoading`), so it is satisfied by either outcome — login form or a
+# live session — and never by a hang.
+- extendedWaitUntil:
+      notVisible: 'Checking your session…'
+      timeout: 30000
+
+# Sign in only when the credentials form is present (fresh install / cleared state). A live session skips this.
+# The guard keys on the email PLACEHOLDER 'you@example.com', which is unique to the login form — a plain
+# 'Sign in' guard would false-match the form's own submit button and the sign-up screen's return control.
+#
+# The U2 rebuild puts the login form on the design-system `Input`, which renders a VISIBLE LABEL as a
+# separate element from the text field (associated for assistive tech). So the fields are tapped by their
+# on-field PLACEHOLDER (unique to the input): the email placeholder 'you@example.com', the password
+# placeholder 'Your password', and the verification-code placeholder '123456'. Placeholders come from mobile
+# i18n `auth.emailPlaceholder` / `passwordPlaceholder` / `codePlaceholder`.
+- runFlow:
+      when:
+          visible: 'you@example.com'
+      commands:
+          - tapOn: 'you@example.com'
+          - inputText: 'commise-e2e-signin+clerk_test@example.com'
+          - tapOn: 'Your password'
+          - inputText: 'Commise-e2e-Test-9j2xQ!'
+          - tapOn: 'Sign in'
+          # New-device verification: this Clerk instance requires an email code after the password factor
+          # (the web sign-in spec fills the same code), and `clearState` makes every fresh sign-in a new
+          # device. `+clerk_test` magic emails accept the fixed code 424242 — no real mailbox needed.
+          - extendedWaitUntil:
+                visible: 'Verification code'
+                timeout: 15000
+          - tapOn: '123456'
+          - inputText: '424242'
+          - tapOn: 'Verify'
+
+# The authenticated landing: HomeScreen renders the time-of-day greeting header (always ending in "Chef").
+# The match is greeting-agnostic (the exact bucket depends on the wall clock at run time). The wait is
+# generous because completing sign-in (Clerk `setActive`) re-renders through the auth gate before Home
+# paints — a chain that is slow under the Metro dev bundler on first paint.
+- extendedWaitUntil:
+      visible: '.*Chef.*'
+      timeout: 40000

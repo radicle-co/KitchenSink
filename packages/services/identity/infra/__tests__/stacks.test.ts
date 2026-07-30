@@ -9,6 +9,7 @@ import { IdentityServiceStack } from '../lib/identity-service-stack.js';
 // is what this package owns and deploys.
 
 let serviceTemplate: Template;
+let prodTemplate: Template;
 
 const env = { account: '123456789012', region: 'us-east-1' };
 
@@ -63,7 +64,20 @@ beforeAll(() => {
         vpcId: 'vpc-12345678',
     });
 
+    // A prod-stage synth to pin the stage-gated azp env: prod stays exact-match list, non-prod uses the
+    // self-owned preview pattern (ADR-0001). Same App/context (VPC seed is account/region-scoped). Both
+    // stacks must be constructed BEFORE any Template.fromStack() — synth freezes the whole App's tree.
+    const prodService = new IdentityServiceStack(app, 'ProdService', {
+        env,
+        stage: 'prod',
+        domainName: 'example.com',
+        imageTag: 'test',
+        desiredCount: 1,
+        vpcId: 'vpc-12345678',
+    });
+
     serviceTemplate = Template.fromStack(service);
+    prodTemplate = Template.fromStack(prodService);
 });
 
 describe('No Auth0 references', () => {
@@ -84,8 +98,8 @@ describe('No Auth0 references', () => {
 });
 
 describe('Identity env vars present', () => {
-    const taskHasEnvVar = (name: string): boolean => {
-        const tasks = serviceTemplate.findResources('AWS::ECS::TaskDefinition');
+    const templateHasEnvVar = (template: Template, name: string): boolean => {
+        const tasks = template.findResources('AWS::ECS::TaskDefinition');
 
         return Object.values(tasks).some((task: any) =>
             (task.Properties?.ContainerDefinitions ?? []).some((container: any) =>
@@ -93,6 +107,7 @@ describe('Identity env vars present', () => {
             ),
         );
     };
+    const taskHasEnvVar = (name: string): boolean => templateHasEnvVar(serviceTemplate, name);
 
     it('service task has AUTH_SECRET_ARN env var', () => {
         expect(taskHasEnvVar('AUTH_SECRET_ARN')).toBe(true);
@@ -102,8 +117,28 @@ describe('Identity env vars present', () => {
         expect(taskHasEnvVar('CLERK_JWT_KEY')).toBe(true);
     });
 
-    it('service task has CLERK_AUTHORIZED_PARTIES env var (azp enforcement)', () => {
-        expect(taskHasEnvVar('CLERK_AUTHORIZED_PARTIES')).toBe(true);
+    // ── ADR-0001 stage-gated azp enforcement ──
+    // Non-prod (sandbox) runs the self-owned preview pattern in `transition` mode (accepts the apex AND
+    // pr-{N} subdomains during cutover). Prod stays exact-match list. Exactly one mode per stage (the
+    // config contract), so each stage carries one set and NOT the other.
+    it('non-prod task uses the azp PATTERN + preview mode, NOT the exact-match list', () => {
+        expect(taskHasEnvVar('CLERK_AZP_PATTERN')).toBe(true);
+        expect(taskHasEnvVar('CLERK_AZP_PREVIEW_MODE')).toBe(true);
+        expect(taskHasEnvVar('CLERK_AUTHORIZED_PARTIES')).toBe(false);
+    });
+
+    it('prod task keeps the exact-match list, NOT the preview pattern (prod unaffected)', () => {
+        expect(templateHasEnvVar(prodTemplate, 'CLERK_AUTHORIZED_PARTIES')).toBe(true);
+        expect(templateHasEnvVar(prodTemplate, 'CLERK_AZP_PATTERN')).toBe(false);
+        expect(templateHasEnvVar(prodTemplate, 'CLERK_AZP_PREVIEW_MODE')).toBe(false);
+    });
+
+    // Native (@clerk/expo) tokens are azp-less; pattern mode rejects them without the admission gate. The
+    // mobile app authenticates against the shared sandbox identity, so non-prod admits `client_type:native`.
+    // Prod runs list mode (skips the azp check on absent azp) → no flag, template byte-identical.
+    it('non-prod task admits native azp-less tokens (CLERK_ADMIT_NATIVE_CLIENT), prod does NOT', () => {
+        expect(taskHasEnvVar('CLERK_ADMIT_NATIVE_CLIENT')).toBe(true);
+        expect(templateHasEnvVar(prodTemplate, 'CLERK_ADMIT_NATIVE_CLIENT')).toBe(false);
     });
 });
 
@@ -118,7 +153,7 @@ describe('Alarms notify via SNS (A4)', () => {
         expect(ids.length).toBeGreaterThanOrEqual(3);
         for (const id of ids) {
             const actions = (alarms[id] as any).Properties?.AlarmActions;
-            expect(actions, `${id} has no AlarmActions`).toBeDefined();
+            expect(Array.isArray(actions), `${id} has no AlarmActions`).toBe(true);
             expect(actions.length).toBeGreaterThan(0);
         }
     });
@@ -309,5 +344,51 @@ describe('Per-stage Container Insights (ADR-0007)', () => {
         });
 
         expect(insightsValue(Template.fromStack(prodService))).toBe('enhanced');
+    });
+});
+
+describe('Auth secret grant (regression: ECS NotStabilized / GetSecretValue AccessDenied)', () => {
+    // The data stack imports the Clerk auth secret by NAME and exports its suffix-LESS ARN
+    // (`kitchensink/{stage}/identity/keys`). If the service stack consumes that as a COMPLETE ARN, the
+    // IAM grant is written for the exact suffix-less resource, which never matches the secret's real ARN
+    // (`...keys-XXXXXX`) — the task execution role gets AccessDenied on GetSecretValue, the container
+    // never launches, and every deploy hangs on ECS "NotStabilized" then rolls back. Importing as a
+    // PARTIAL ARN appends the `-??????` wildcard so the grant matches. These assertions fail if anyone
+    // reverts to `secretCompleteArn`.
+    const authSecretResource = {
+        'Fn::Join': ['', [{ 'Fn::ImportValue': 'kitchensink-data-test:SecretArn' }, '-??????']],
+    };
+
+    it('grants GetSecretValue on the auth secret with the -?????? wildcard suffix (matches the real ARN)', () => {
+        serviceTemplate.hasResourceProperties('AWS::IAM::Policy', {
+            PolicyDocument: {
+                Statement: Match.arrayWith([
+                    Match.objectLike({
+                        Action: Match.arrayWith(['secretsmanager:GetSecretValue']),
+                        Resource: authSecretResource,
+                    }),
+                ]),
+            },
+        });
+    });
+
+    it('never grants the auth secret on a bare suffix-less ImportValue (the AccessDenied bug shape)', () => {
+        const policies = serviceTemplate.findResources('AWS::IAM::Policy');
+        const bareGrants = Object.values(policies).flatMap((policy) =>
+            ((policy.Properties?.PolicyDocument?.Statement ?? []) as Array<Record<string, unknown>>).filter(
+                (statement) => {
+                    const actions = ([] as string[]).concat(statement['Action'] as string | string[]);
+                    const resource = statement['Resource'];
+                    const isBareSecretArn =
+                        typeof resource === 'object' &&
+                        resource !== null &&
+                        'Fn::ImportValue' in resource &&
+                        (resource as Record<string, unknown>)['Fn::ImportValue'] === 'kitchensink-data-test:SecretArn';
+                    return actions.includes('secretsmanager:GetSecretValue') && isBareSecretArn;
+                },
+            ),
+        );
+
+        expect(bareGrants).toEqual([]);
     });
 });

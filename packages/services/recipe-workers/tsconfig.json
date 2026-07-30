@@ -1,0 +1,17 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "@kitchensink/typescript/base.json",
+    "compilerOptions": {
+        "outDir": "dist",
+        // rootDir is the package root, not `src`, so the out-of-`src` integration specs under
+        // `__tests__/` are legal inputs. This tsconfig NEVER emits (build uses tsconfig.build.json, which
+        // re-pins rootDir to `src`); it is the typecheck + eslint project only.
+        "rootDir": "."
+    },
+    // Tests are deliberately INCLUDED (mirrors recipe-service): vitest transpiles without typechecking, so
+    // `__tests__/**` (the LocalStack integration specs) and `src/**/__tests__` unit specs otherwise get NO
+    // static analysis at all — `npm run typecheck`/`lint` would both silently skip them. A prior agent had
+    // to typecheck an integration spec out-of-band precisely because it sat outside this project.
+    "include": ["src/**/*.ts", "__tests__/**/*.ts"],
+    "exclude": ["node_modules", "dist"]
+}

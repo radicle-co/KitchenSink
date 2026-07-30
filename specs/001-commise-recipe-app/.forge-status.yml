@@ -1,9 +1,12 @@
 # Product Forge Lifecycle Status
 # Feature: 001-commise-recipe-app
-# Last updated: 2026-05-13
+# Last updated: 2026-07-15 (Product Forge resume: task_log reconciled with the 2026-07-14/15 sessions —
+#   native-auth completion, recipe CORS, full local run of both apps + all test tiers, and the
+#   mockup design-language styling pass across the recipe UI)
 
 feature: 001-commise-recipe-app
 mode: retroactive-bootstrap
+feature_mode: standard
 pilot: true
 
 phases:
@@ -69,17 +72,408 @@ phases:
         artifact: null
 
     implement:
-        state: not-started
-        note: tasks.md present but no T-IDs marked complete.
+        state: complete
+        completed_at: '2026-07-16'
+        completion_note: >
+            Phase 6 complete. All 187 core tasks + the CR-001 mockup-parity set (T151-T169) done and
+            verified. 227 tasks marked done in tasks.md; the 3 remaining open are NOT incomplete v1 code:
+            T052 (backend quickstart runbook — doc polish), T116 (full GitHub Actions CI — only runnable
+            post-merge; every job is wired + verified locally), and T150 (an explicitly-deferred
+            cross-feature 001<->003 write-back DECISION, out of v1 scope by its own text).
+        verified_2026_07_16:
+            typecheck: 'clean, all 8 packages'
+            lint: 'clean, all 8 packages'
+            unit: 'recipe-core 46 / recipe-service 624 / recipe-workers 158 / recipe-service-client 249 / features-core 123 / features-recipes 365 web + 203 native / web 282 / mobile 32 node + 134 native'
+            integration: 'recipe-service 103 + recipe-workers 23 (real Postgres 16 + LocalStack)'
+            e2e: 'recipe-service 15'
+            notable_this_session: >
+                Closed 3 false-DONE MUST violations the prior sync-verify missed (T065 filter bar, T072
+                add-to-collection, T070 conflict-merge); completed the full GDPR erasure vertical
+                (worker/service/infra/integration + archive-resurrection orphan-sweep backstop,
+                mutation-verified 19/19); fixed the throttle AND-bug capping the whole API at 10/min +
+                the health-probe throttle + per-user (userId) throttle tracker; fixed a spec-MUST
+                archive backlog alarm that could never fire (STAGE dim) + added the missing >1h age alarm
+                + SNS paging; built the Home chrome + skeleton placeholders + full recipe-card mockup
+                parity (cover thumbnail, difficulty pill+write path, community star rating + FR-013 write
+                control, derived PRO badge); completed the ingredient async-resolution vertical
+                (addByName route + poll + disambiguation, both platforms); added the recipe-workers
+                integration CI job. A full backend re-audit (123 [x] tasks) found the ledger otherwise
+                clean.
+            honest_residuals: >
+                (1) Live E2E/Maestro/Playwright authed runs are CI-only in this env — the Clerk dev
+                sign-in is down locally (pre-existing, unrelated), so those specs are written + wired but
+                not driven against a live sign-in here. (2) sharp thumbnail deployment requires the CI
+                install arch to match the Fargate task arch (degrades to serving the original on
+                mismatch). (3) The local kitchensink_recipes dev DB shows 0 seeded recipes (re-seedable
+                via npm run seed; no schema/DB lost).
+        started_at: '2026-07-06'
+        stable_checkpoint:
+            at: '2026-07-06'
+            workspace: '.worktrees/001-commise-recipe-app (branch 001-commise-recipe-app)'
+            base: 'current main bdf4987 (#57 zod, #58, #59 cost/per-PR-DB, #60 clerk-verify all merged)'
+            specs_commit: b272fbb
+            verified:
+                - 'specs = 57 files, exact parity with preserved snapshot 84605fc (0 stragglers, 0 missing)'
+                - 'DB reconciled to post-#59 reality: kitchensink_recipes own logical DB via RecipeDbBootstrap custom resource + passwordless RDS-IAM recipe_app (no password secret); 0 stale RecipeDbSecret refs'
+                - 'worktree on current main, clean tree, docs-only commit'
+                - 'full session work preserved at wip/001-session-snapshot (84605fc) + stash@{0}'
+                - 'husky NOT broken on main — prior failure was git-add-A of the 269-file stale rename (prettier on renamed tool configs + cold full-typecheck OOM); per-task commits are fine'
+            prerequisites_before_code_tasks:
+                - 'PR #62 (packages/ui → apps/commise/ui = @commise/ui) merges — the ONLY existing-package move under the platform/product split. Recipe BACKEND packages are @kitchensink platform (no rename needed; PR #61 full-rename was closed as wrong-direction); only the recipe widget + features-core are @commise under apps/commise/features/'
+                - 'npm install in the worktree (fresh worktree has no node_modules) + one warm build so turbo typecheck cache is hot for husky'
+                - 'Clerk session-token external_id claim on both instances (MANUAL) — needed for recipe ownership end-to-end, not for scaffolding'
+        note: >
+            T000-prereq clerk-verify code MERGED to main in PR #60 (as @kitchensink/clerk-verify — it
+            becomes @kitchensink/clerk-verify when the rename lands). Remaining for T000-prereq:
+            (1) Clerk session-token external_id customization — MANUAL, both instances; (2) recipe
+            AuthMiddleware fail-closed on absent userId — T019, after the recipe service is scaffolded (T001).
+        red_gate:
+            status: confirmed_failing
+            tests:
+                - 'clerk-verify > surfaces the app-user ULID from the external_id claim as userId (T000-prereq)'
+            note: confirmed failing before implementation; now green.
+    gates:
+        - phase: implement
+          decision: approved
+          mode: interactive
+          risk: low
+          at: '2026-07-06'
+          note: 'Start T000-prereq first (clerk-verify external_id→userId), TDD-first.'
+        - phase: code_review
+          decision: approved
+          at: '2026-07-16'
+          reviewed_by_model: null
+          cross_model_findings: 0
+          findings: { critical: 0, high: 0, medium: 3, low: 3, fixed: 5, acknowledged: 1 }
+          note: 'Phase 6B 4-dimension adversarial review. 0 CRITICAL/HIGH; suite mutation-resistant. 5 findings fixed + re-verified, REV-006 accepted (DAMP). See code-review.md.'
+        - phase: verify
+          decision: approved
+          at: '2026-07-16'
+          findings: { critical: 0, warning: 3, skipped: 2 }
+          note: 'Phase 7 verify-full: PASS WITH WARNINGS, 0 CRITICAL. Every Must-Have FR/US traced end-to-end; contract + constitution clean. 3 doc-level warnings (W3 fixed; W1/W2 acknowledged as path-descriptive). Acknowledged to continue.'
+        - phase: release_readiness
+          decision: approved_with_conditions
+          at: '2026-07-16'
+          reviewed_sha: '69cbe10'
+          action_items: { must: 5, must_completed: 1, should: 2, nice_to_have: 1 }
+          aws_verified_2026_07_16: >
+              Read-only audit of account 040663841500/us-east-1: recipe-service deployed ONLY as
+              kitchensink-recipe-service-pr-73 (manual — no CI image build for recipe-service; only
+              food/identity have buildx). Its image is amd64/linux and the task is X86_64 → sharp arch
+              VERIFIED matching (condition dropped). recipe-workers is NOT deployed anywhere: no stack, no
+              version-archive/erasure Lambdas, no queues, and no recipe alarm SNS topic — the 6 alarms are
+              CDK-defined but unprovisioned. So the alarm-subscription condition is reframed to "deploy the
+              workers stack first".
+          conditions:
+              - 'Deploy the recipe-workers stack (deployed nowhere — no workers/queues/alarms/topic exist), then subscribe a pager/human to its per-stage alarm SNS topic.'
+              - 'Wire a CI image-build + deploy for recipe-service (mirror food/identity buildx --platform linux/amd64 → ECR → CDK) so deploys are automated and stay arch-correct.'
+              - 'Instrument the SC-009 API SLI: ALB TargetResponseTime p95 (≤500ms) + HTTPCode_Target_5XX_Count alarms for the recipe-service target group.'
+              - 'Run osv-scanner (PR-diff) + syft SBOM in CI over the new deps (sharp, @aws-sdk/client-s3, @aws-sdk/client-sqs, @aws-sdk/rds-signer) — tools absent locally.'
+              - 'Apply migrations 0010 + 0011 to the target-stage DB before the service deploy.'
+          conditions_resolved:
+              - 'sharp arch == Fargate task arch — VERIFIED via AWS (amd64/linux == X86_64).'
+              - 'Authed web E2E in CI — DONE: ran, surfaced + fixed 6 real issues, ci/E2E (web — Playwright) now green (Maestro mobile + k6 remain CI-skipped: device farm / opt-in).'
+          note: 'Phase 9 CONDITIONALLY READY. Code/review/verify all clean; full PR CI GREEN (25 pass, 0 fail) after the ci/Test @commise/ui fix AND the authed web-E2E fixes (clickable custom radios, Home <h1>, no-SSR-recipe-fetch, 2 E2E flow bugs). AWS audit sharpened the deploy items: sharp arch verified OK, but recipe-workers is deployed nowhere and recipe-service has no CI build. Artifacts: release-readiness.md, flags/registry.yml, monitoring/{alerts.yml,slo.md,dashboard.json}, supply-chain/README.md.'
+    task_log:
+        - id: T000-prereq
+          part: 'clerk-verify external_id→userId (shared verifier surface; optional field)'
+          size: S
+          status: done
+          tests: '11/11 green'
+          paths:
+              - packages/shared/clerk-verify/src/clerk-verify.ts
+              - packages/shared/clerk-verify/src/__tests__/clerk-verify.test.ts
+        # ── Reconciled 2026-07-13 (Product Forge resume): entries below were completed across the
+        #    2026-07-13 sessions but never recorded in this ledger. Backend recipe-service (domains,
+        #    DALs, services, contracts) was built earlier and is covered by tasks.md [x] marks + its own
+        #    test suites (unit 408 / integration 50 / service-e2e 1, all green); the frontend + infra +
+        #    deploy work below is the delta this reconciliation records.
+        - id: T065
+          part: 'Recipe list building blocks (RecipeList + RecipeListCard, web + native) — presentational, every state'
+          size: M
+          status: done
+          tests: 'component tests both platforms (all states); pkg 33→99 green'
+          commit: db5f619
+          paths:
+              - packages/apps/commise/features/recipes/src/list/
+        - id: T066
+          part: 'Read-only recipe detail view (RecipeDetailView, web + native) — header/meta/photos/ingredients/steps/nutrition'
+          size: M
+          status: done
+          tests: 'component tests both platforms (every content branch)'
+          commit: 26c0e58
+          paths:
+              - packages/apps/commise/features/recipes/src/detail/
+        - id: T002a
+          part: 'DataStack RecipeDbBootstrap — recipe_app IAM role + kitchensink_recipes on shared RDS (mirror food)'
+          size: M
+          status: done
+          tests: 'recipe-db-bootstrap unit 3/3; cdk diff prod+sandbox proved additive-only; DEPLOYED to kitchensink-data-sandbox'
+          commit: 3150b54
+          paths:
+              - packages/infra/global/src/recipe-db-bootstrap/handler.ts
+              - packages/infra/global/lib/platform/data-stack.ts
+        - id: T001-alb
+          part: 'Recipe-service CDK stack + Dockerfile + migrate lambda + ESM-boot fix + per-PR ALB priority (300 / band 30000)'
+          size: L
+          status: done
+          tests: 'infra unit 11/11; synth clean vs real sandbox VPC; image boot-tested; DEPLOYED as kitchensink-recipe-service-pr-73 (https://recipe-pr-73.commise.app /health + /health/ready ok)'
+          commit: ec42039, f355ee9
+          paths:
+              - packages/services/recipe-service/infra/lib/recipe-service-stack.ts
+              - packages/services/recipe-service/Dockerfile
+              - packages/services/recipe-service/src/lambdas/migrate/handler.ts
+        - id: 'T093/T094 + web/mobile app-shell wiring'
+          part: 'Live /recipes list→detail routes (web) + screens (mobile), RecipeServiceProvider + Clerk token source, *_API_URL env'
+          size: M
+          status: done
+          tests: 'web 116 / mobile 40 green (container tests mock the client)'
+          commit: 210706d
+          paths:
+              - packages/apps/commise/web/src/app/[locale]/recipes/
+              - packages/apps/commise/mobile/src/screens/Recipe*.tsx
+        - id: 'T096/T097'
+          part: 'Deterministic seed (5 recipes/2 owners + 1 collection) + npm run seed'
+          size: S
+          status: done
+          tests: 'seed data unit 4/4; RAN + verified against live-shape DB (5 recipes, 1 collection, 2 memberships)'
+          commit: 33874d9
+          paths:
+              - packages/services/recipe-service/src/database/seed.ts
+        - id: 'fixes + validation (non-task)'
+          part: 'throttle limits wired to RATE_LIMIT_* env + k6 SC-009 (p95≪500ms, 0% fail) + Maestro emulator CI job + recipe flow'
+          size: M
+          status: done
+          tests: 'throttle unit 10; k6 SC-009 green on live /v1; Maestro job wired (opt-in, CI-verified)'
+          commit: a046154, c45e7eb
+          paths:
+              - packages/services/recipe-service/src/common/throttle/throttle.config.ts
+              - packages/apps/commise/mobile/.maestro/recipes/list-detail.yaml
+              - .github/workflows/_ci.yml
+        # ── Reconciled 2026-07-15 (Product Forge resume): the 2026-07-14/15 sessions. These are
+        #    infra/integration/polish beyond the tasks.md ledger (the 66 open T-tasks — soft-delete,
+        #    collection clone/pull, version-archive worker, account erasure, some test-infra — are still
+        #    genuinely OPEN). Recorded here so the ledger reflects what actually shipped this session.
+        - id: 'native-auth (azp-less @clerk/expo tokens, end-to-end)'
+          part: >
+              clerk-verify isNativeClientToken + admitNativeClient; identity/recipe/food services wire
+              CLERK_ADMIT_NATIVE_CLIENT; mobile mints every backend token from the commise-native Clerk JWT
+              template; non-prod CDK sets the flag (prod byte-identical). Root-caused a real gap — native
+              auth was designed (clerk-verify test) but never wired, so mobile could not reach identity.
+          size: L
+          status: done
+          tests: 'clerk-verify 46; identity 107 / recipe 18 / food 19 auth; infra 22/11/44; verified locally end-to-end'
+          commits: e4fdf4d, af9eb89
+          paths:
+              - packages/shared/clerk-verify/src/clerkVerify.ts
+              - packages/services/{identity,recipe-service,food-service}/src/auth/
+              - packages/apps/commise/mobile/src/auth/nativeToken.ts
+        - id: 'recipe-service CORS'
+          part: >
+              enableCors reusing the Clerk authorized-parties allowlist (mirrors identity) — the recipe
+              service had NO CORS, which blocked the web app cross-origin in sandbox/prod (the web e2e
+              route-mocks hid it). No CDK change (reuses per-stage CLERK_AUTHORIZED_PARTIES).
+          size: S
+          status: done
+          tests: '3 cors unit; live web Playwright (E2E_LIVE_BACKEND) green cross-origin'
+          commit: 1bba364
+          paths:
+              - packages/services/recipe-service/src/main.ts
+              - packages/services/recipe-service/src/config/cors.ts
+        - id: 'mobile identity-URL split + first-run/safe-area/Sentry fixes'
+          part: >
+              EXPO_PUBLIC_IDENTITY_API_URL (identity is a separate origin from recipe); top safe-area inset
+              (content rendered under the status bar); Sentry.wrap gated on init; inert Clerk UI-loader
+              rejection suppressed; Expo 57 / RN 0.86 first-run bugs (Intl polyfill, Tamagui true token,
+              registerRootComponent, Metro NodeNext resolver).
+          size: M
+          status: done
+          tests: '73 native + 30 unit mobile green'
+          commits: a420b96, 4449512, e2b1122, c268f94, e625544
+          paths:
+              - packages/apps/commise/mobile/App.tsx
+              - packages/apps/commise/mobile/src/services/api.ts
+        - id: 'full local run — both apps + ALL test tiers + all 6 Maestro flows'
+          part: >
+              recipe-service local (Docker + Postgres + LocalStack, dev-bypass + seed); identity-local
+              (JWKS→PEM, list mode, seeded user id-aligned to the recipe owner); web app on the real local
+              backend; ALL 6 mobile Maestro flows (login, list-detail, create, edit, delete, discover-clone)
+              pass end-to-end with real Clerk sign-in + working owner-gating; recipe-service integration 50 /
+              service-e2e 1 / k6 SC-009 (p95≪500ms, 0% fail). Fixed a real web production bug: unbound fetch
+              in the recipe client (globalThis.fetch.bind).
+          size: L
+          status: done
+          tests: 'all 6 Maestro flows green on emulator; recipe integration 50 / e2e 1 / k6 SC-009 green; web live-backend Playwright green'
+          commits: c7436f6, ac9bee1, 81eb257, d5233a2
+          paths:
+              - packages/apps/commise/mobile/.maestro/
+              - packages/clients/recipe-service/src/client.ts
+              - packages/apps/commise/web/tests/e2e/recipeLive.spec.ts
+        - id: 'mockup design-language styling pass (recipe UI, web + native)'
+          part: >
+              Style the ENTIRE recipe UI to the Commise design tokens (@commise/ui / Tailwind v4): list,
+              detail, form, discovery, collections, actions (delete/clone/visibility), ingredient picker,
+              versions, conflict view, photos, home widget, and the mobile tab bar + detail owner actions.
+              KEY infra fix: Tailwind @source for the shared features package (it scanned only the app, so
+              NO shared-component class rendered). Data-gated mockup elements (hero images, ratings,
+              difficulty, PRO badges, favorites, filter chips) are deferred — they need model/seed fields.
+          size: L
+          status: done
+          tests: '201 web + 133 native recipe tests green; verified by screenshot on web + emulator'
+          commits: f4cc71b, 3f2c31d, 20da536, f69ab41, 2f0b0cc, d2574b0, ba00797, f788e18, a8c254a, 2e6dd86, 5d62c81, d2d2939
+          paths:
+              - packages/apps/commise/features/recipes/src/
+              - packages/apps/commise/web/src/app/globals.css
+        # ── 2026-07-15 (Product Forge resume): closed DRIFT-007 from sync-verify run #3 — the US-000 Home
+        #    widget-surface HOST (T104 family) on both platforms. The widget contract + recipe widget were
+        #    already built (T104-shared/curate-test [x]); this is the composition-root host that was absent.
+        - id: 'T104 — Home widget-surface host (web + mobile) [US-000 / FR-046]'
+          part: >
+              Composition root on both platforms: ditox appShell container (discovery, v1 registers only the
+              recipe widget), curateHomeWidgets (capability + tier gating; gated widgets 005-009 ABSENT, not
+              empty tiles), render each curated widget via next/dynamic (web) / React.lazy (mobile) + Suspense
+              + per-widget react-error-boundary with unknown-id skip, recipe slot fed the widget's data
+              (web: recipesPromise; mobile: recipes+isLoading) and owning the "see all recipes" entry, and a
+              once-per-session subscription nudge + useHomeNudge trigger seam. Web renders from [locale]/page;
+              mobile HomeScreen is the post-login landing via a root navigator (Home↔Recipes). Resolves
+              DRIFT-007. Used core `ditox` (not @ditox/react — stale React≤17 peer range; the appShell
+              register/resolve fns are core-container based) — an intentional divergence from the task text.
+          size: L
+          status: done
+          tests: '9 web + 9 mobile component tests; Playwright home.spec.ts; Maestro home.yaml. Web 199 + mobile 112 suites green; typecheck + lint clean both apps.'
+          commits: 4eb432a, 94a474b, cfc06ff, 543081e
+          paths:
+              - packages/apps/commise/web/src/components/home/
+              - packages/apps/commise/web/src/app/[locale]/page.tsx
+              - packages/apps/commise/mobile/src/components/home/
+              - packages/apps/commise/mobile/src/screens/{HomeScreen,AppRoot}.tsx
+              - packages/apps/commise/mobile/.maestro/{home,auth/signin-home,auth/signin}.yaml
+
+        # ── 2026-07-15 (Product Forge resume #2): Phase 6 continued. Soft-delete test backfill, a
+        #    systemic static-analysis fix, FR-011 clone/pull, ARCH-BE-3, and the FR-007b-i async
+        #    version-archive group. 132 -> 152 of 187 (the 190 total counted 3 rubric bullets; fixed).
+        - id: 'T123-test + T126 — C-007 soft-delete tests'
+          part: >
+              Characterization tests for the already-shipped soft-delete (TDD was skipped when T123-T125
+              landed). The gap they close: C-007 RETENTION was unpinned at every tier — recipes/crud
+              asserts only 204-then-404, which a hard DELETE FROM recipes satisfies identically. Verified
+              by mutation: under a hard delete the crud spec stays GREEN while T126 fails.
+          size: M
+          status: done
+          tests: '8 unit (PgDialect-rendered WHERE assertions) + 3 integration; each mutation-verified'
+          commits: da29f7d, c6cafb5
+          paths:
+              - packages/services/recipe-service/src/recipes/dal/__tests__/recipes.dal.soft-delete.test.ts
+              - packages/services/recipe-service/__tests__/integration/recipes/soft-delete.integration.spec.ts
+        - id: 'static-analysis gap — unit tests had none'
+          part: >
+              tsconfig.json excluded src/**/__tests__ and lint ran --ignore-pattern '**/*.test.ts', and
+              vitest transpiles without typechecking, so unit tests had NO static analysis. The exclusion
+              was pure loss (tsconfig.build.json already excludes tests). 13 hidden errors fixed, incl. a
+              FakeS3 double NOT assignable to the VersionArchiveS3 it doubled, and a RecipeSnapshot
+              fixture the zod schema would reject. Proven effective within the hour: it caught
+              collections.controller.test.ts's ServiceMock going stale as the service grew.
+          size: M
+          status: done
+          tests: 'typecheck exit 0 + lint 0 with tests included; injected type error now fails (before: silent)'
+          commit: 25a6549
+          paths:
+              - packages/services/recipe-service/tsconfig.json
+              - packages/services/recipe-service/package.json
+        - id: 'T103/T127/T127-test/T128/T128-test/T129 — collection clone + pull (FR-011)'
+          part: >
+              True TDD red->green (17 unit tests confirmed failing first). Clone reads the source through
+              the CLONER's eyes so private recipes are excluded; pull is additive with added_via='pull'
+              and never overwrites the cloner's own 'manual' rows. Resolved an APPARENT 3-way
+              contradiction (FR-011 "removes inaccessible" vs data-model "removed-in-source stay" vs
+              tasks "additive only"): different conditions — access-revocation is already handled
+              continuously by listRecipes' membership-IDOR guard at READ time, so the write path is
+              additive and FR-011 still holds. Contract drift caught pre-merge: an invented
+              { added: number } vs api.openapi.yaml's required [collection, addedRecipeIds].
+          size: L
+          status: done
+          tests: '17 unit + 8 integration; mutation-verified (clone reading as source owner fails T103)'
+          commits: 7218ae6, 60eecf3
+          paths:
+              - packages/services/recipe-service/src/collections/
+              - packages/services/recipe-service/__tests__/integration/collections/
+        - id: 'ARCH-BE-3 — one S3 key scheme for recipe media'
+          part: >
+              A live defect, not cleanup. The key scheme had THREE representations: service
+              (versionNumber) and worker (versionId) DISAGREED and would archive one snapshot to two
+              objects, while the third (ownerMediaPrefix) is the GDPR erasure sweep — so the first two
+              were compliant only by coincidence. Now one shared recipeObjectKeys in recipe-core, with
+              the containment invariant (EVERY archive key starts with the owner erasure prefix) pinned
+              by test, so a key change that escapes erasure fails a test instead of an audit
+              (verticals-8). versionNumber won: client-facing address, unique via
+              (recipe_id, version_number), and already what shipped. Measured bonus: recipe-core
+              sideEffects:false shook zod out of the Lambda bundles, 964K -> 423K (-56%).
+          size: M
+          status: done
+          tests: '9 recipe-core unit; all consumers re-verified (workers 37, service 453, client 62, features 201, web 199)'
+          commit: 9a3eaf7
+          paths:
+              - packages/shared/recipe-core/src/recipeObjectKeys.ts
+        - id: 'T130-T133 + T138 — async version archive (FR-007b-i)'
+          part: >
+              The save now records intent in the recipe_version_pending_archives OUTBOX and returns; the
+              scheduled sweeper dispatches; the worker archives to S3 and only then prunes (the cascade
+              clears the outbox row, making "deleted only after S3 confirmation" a SCHEMA property).
+              KEY DESIGN: the service deliberately does NOT enqueue — a save that enqueues fails when SQS
+              is down — so the ROW is the source of truth, the message is derived, and the sweeper is the
+              only drain. T131's loadVersionSnapshot was worse than a stub: it returned an envelope with
+              NO snapshot, so wiring it up would have archived an empty object and pruned the row. T138's
+              alarm was nearly decorative: it first read the sweeper's claimed count, capped at
+              SWEEP_BATCH_SIZE=100, so it could never cross a threshold of 100 — now an unbounded
+              COUNT(*) via EMF. All Lambdas VPC-attached per ADR-0004; Environment tagging per ADR-0005;
+              both pinned by synth tests.
+          size: XL
+          status: done
+          tests: '58 workers unit (incl. 10 CDK synth) + 5 workers integration + 62 service integration; prune-before-archive mutation-verified'
+          commits: 270243f, 0f7256d, b5eae03, d5d3bcf, c5a5441
+          paths:
+              - packages/services/recipe-service/src/versions/
+              - packages/services/recipe-workers/src/handlers/
+              - packages/services/recipe-workers/infra/
 
     code-review:
-        state: not-applicable
-        reason: No code yet.
+        state: completed
+        completed_at: '2026-07-16'
+        artifact: code-review.md
+        method: '4 parallel adversarial reviewers — security, correctness, architecture/maintainability, test mutation-resistance'
+        outcome: >
+            0 CRITICAL, 0 HIGH. Test suite independently confirmed mutation-resistant. 6 findings
+            (3 MEDIUM architecture + 2 LOW bug/hardening + 1 LOW accepted-DAMP); all 5 actionable ones
+            FIXED + mutation-verified, REV-006 (duplicate makeRecipe fixture) accepted as DAMP-tolerant.
+        fixes:
+            - 'REV-001 photo original key now composed from ownerMediaPrefix (structural GDPR containment) + test'
+            - 'REV-002 EMF metric envelope extracted to one emitMetric() helper (byte-identical)'
+            - 'REV-003 IngredientsController onto the house @OwnerId()+DTO+ValidationPipe convention'
+            - 'REV-004 stale rating-write error reset on recipe navigation (web + mobile) + test'
+            - 'REV-005 ingredient resolve made converge-only (no cross-user overwrite of a RESOLVED catalog row)'
+            - 'plus 2 adversarial security tests: photo-key traversal containment, PUBLIC_PATHS fail-closed'
+        post_fix_verify: 'recipe-core 51 / recipe-service 634 unit + 104 integration + 15 e2e / recipe-workers 162 / web 283 / mobile 32 node + 135 native — all typecheck + lint clean'
+        machine_gates: 'typecheck PASS, lint PASS (incl. oxlint), coverage PASS (pyramid); SCA osv-scanner tooling-unavailable locally — run in CI (sharp, @aws-sdk/client-sqs)'
 
     verify:
         state: completed
-        note: verify-report.md updated 2026-05-13; GR-002 API-prefix and GR-007 shared-core handoff blockers are resolved at documentation/task level. Implementation and test execution have not started.
+        completed_at: '2026-07-16'
         artifact: verify-report.md
+        digest_path: verify/digest.md
+        verdict: 'PASS WITH WARNINGS'
+        outcome: >
+            Phase 7 full verification (implementation-complete run, HEAD d1d1b43). 0 CRITICAL. Every
+            Must-Have FR/US traced end-to-end research→spec→tasks→code→tests with file:line evidence
+            (card fields, ratings + IDOR authz + GDPR ratings-root erasure, Home widget gating, both
+            FR-007b-i alarms, conflict-merge, search/filter, collections). Layer 9 contract-drift clean
+            (every /v1/* path → controller + client; the one unhandled path is x-deferred:feature-008).
+            Layer 11 constitution: passed. 3 WARNINGs, all documentation-level, zero functional impact.
+        warnings:
+            - 'W1/W2 (doc): task text for T153/T159/T161/T163 names standalone badge/cover/rating component files; functionality shipped coherently inside card/RecipeCard.tsx + rating/RecipeRatingControl.tsx with full tests. Path-descriptive drift only — acknowledged.'
+            - 'W3 (doc): v-model/traceability-matrix.md was a stale pre-impl snapshot — FIXED with a SUPERSEDED banner pointing to verify-report.md.'
+        skipped:
+            - 'Authed E2E/Maestro execution — Clerk dev sign-in down locally (pre-existing env limit); specs verified to EXIST + be CI-wired, not run.'
+            - 'Deterministic traceability pre-gate (validate-traceability.js) — repo forces ESM but the script is CommonJS + no live traceability.yml; LLM layers ran instead.'
 
     test-plan:
         state: complete
@@ -89,8 +483,45 @@ phases:
         state: not-started
 
     release-readiness:
-        state: blocked
-        note: blocked until implementation is complete, traceability gaps are closed, execution results are ingested, and GR-001 release-audit conditions are satisfied.
+        state: completed
+        completed_at: '2026-07-16'
+        artifact: release-readiness.md
+        verdict: 'CONDITIONALLY READY'
+        flag_registry_path: flags/registry.yml
+        monitoring_paths:
+            - monitoring/alerts.yml
+            - monitoring/slo.md
+            - monitoring/dashboard.json
+        supply_chain_paths:
+            - supply-chain/README.md # osv-scanner + syft absent locally → MUST action items, not run
+        outcome: >
+            Phase 9 release-readiness (HEAD 69cbe10). Code-complete, review-clean (0 CRIT/HIGH),
+            verify-clean (0 CRIT), and the PR CI pipeline is GREEN — the previously-failing ci/Test job
+            was fixed (turbo test dependsOn ^build + @commise/features-recipes declares its undeclared
+            @commise/ui dep; 31/31 test tasks pass from a clean @commise/ui build). Verdict CONDITIONALLY
+            READY: 6 MUST items remain, all OPERATIONAL wiring (subscribe recipe-workers alarm SNS topic;
+            instrument API p95/5xx SLI on the ALB target group; run osv-scanner+syft in CI over the 4 new
+            deps; confirm sharp arch == Fargate arch; apply migrations 0010+0011; run authed E2E + k6 in
+            CI) — none is a code change. No provider feature flags (capability-gate + env levers instead).
+        must_action_items: 6
+        must_completed: 0
+        should_action_items: 2
+        nice_to_have: 1
+
+    spec_merge:
+        state: completed
+        completed_at: '2026-07-16'
+        archived: false # PR #73 not yet merged to main; no physical archive (this repo has no features/_archived convention — features live in place under specs/)
+        canonical_model: flat-per-feature # this repo uses specs/{NNN-slug}/spec.md, NOT the OpenSpec canonical specs/{domain}/spec.md + delta split; there is no separate canonical tree to fold into — the feature spec.md IS canonical
+        deltas_applied: 0 # no domain delta specs exist; CR-001 mockup-parity was already folded into spec.md during implementation
+        drift_reconciled: 0 # both Theme-G carriers empty: code-review.md "Suggested canonical-spec updates" = None; verify-report.md has no suggested-updates section (its Layer-10 warnings were tasks.md path-naming, not spec.md drift)
+        outcome: >
+            Phase 10 spec-merge (HEAD 2d270a2). This project uses a flat per-feature canonical spec model,
+            so the OpenSpec delta-fold is a structural no-op — spec.md is already the canonical source and
+            already reflects shipped reality (the CR-001 difficulty/rating/PRO-badge/skeleton clarifications
+            are in the Clarifications log + change-requests/CR-001-mockup-parity.md). No doc↔code drift to
+            reconcile (both carriers None). Sole change: spec.md front-matter Status Draft → Implemented,
+            with pointers to release-readiness.md and the no-drift finding. Not archived (PR unmerged).
 
     retrospective:
         state: not-applicable
@@ -118,27 +549,164 @@ contracts:
         - contracts/recipe.types.ts
         - contracts/config.types.ts
 
-next_action: implement
-next_command: /speckit.product-forge.implement
+next_action: merge-pr-and-satisfy-release-conditions
+next_command: 'gh pr merge 73 (after the 6 MUST release conditions); then deploy'
+next_session_brief: >
+    Phase 9 release-readiness COMPLETE (2026-07-16) — verdict CONDITIONALLY READY, gate
+    approved_with_conditions. PR #73 CI is GREEN (fixed the ci/Test @commise/ui-resolution failure in
+    commit 69cbe10: turbo test dependsOn ^build + features-recipes declares @commise/ui). 6 MUST
+    conditions before prod ship are all OPERATIONAL wiring (SNS subscription, API p95/5xx SLI alarms,
+    osv-scanner+syft in CI, sharp arch check, apply migrations 0010+0011, run authed E2E+k6 in CI) —
+    none is a code change; see release-readiness.md. Phase 10 spec-merge COMPLETE (2026-07-16) — flat
+    per-feature canonical model, structural no-op: spec.md is already canonical + reconciled (CR-001
+    folded during impl), both Theme-G drift carriers empty; only change was spec.md Status Draft →
+    Implemented. Lifecycle is now at its end: retrospective is not-applicable, so the remaining steps are
+    OPERATIONAL — satisfy the 6 MUST release conditions, then merge PR #73 and deploy. Open ledger
+    residuals unchanged: T052 runbook, T116 post-merge CI, T150 deferred cross-feature decision.
+
+    Tree clean and every tier green: typecheck 0 + lint 0 across all 8 packages; unit recipe-core 46 /
+    recipe-service 624 / recipe-workers 158 / recipe-service-client 249 / features-core 123 /
+    features-recipes 365 web + 203 native / web 282 / mobile 32 node + 134 native; integration
+    recipe-service 103 + recipe-workers 23 (real Postgres 16 + LocalStack); e2e recipe-service 15.
+
+    NEXT (all Product Forge phases done through spec-merge): satisfy the 6 MUST release conditions in
+    release-readiness.md, then `gh pr merge 73` and deploy. Before deploy, confirm the sharp thumbnail
+    install-arch == Fargate task-arch (ADR-adjacent CI note), and subscribe the per-stage recipe-workers
+    alarm SNS topic (ops).
+
+    Local harness (unchanged): integration needs Docker Postgres + LocalStack. Port 5432 is
+    kitchensink-e2e-postgres (the user's LIVE local data); the vitest global-setup DROPS the public
+    schema, so ALWAYS run against the throwaway DB:
+    DATABASE_URL=postgresql://postgres:postgres@localhost:5432/kitchensink_recipes_it
+    S3_ENDPOINT=http://localhost:4566 S3_FORCE_PATH_STYLE=true
+    NOTE: bring LocalStack up first (docker compose -f docker-compose.test.yml up -d localstack) and
+    CREATE DATABASE kitchensink_recipes_it if absent; run recipe-service integration BEFORE recipe-workers
+    (the workers suite has no migrating global-setup — it needs the schema recipe-service migrates).
 governance_note: >
     Revalidation complete (Revision 1, 2026-05-09, skip-approval).
     Blocking corrections required before implementation handoff — see review.md Revision 2.
     Release readiness gated by GR-001 (specs/governance-rules.md).
     release-readiness phase must not be marked complete until all test scenarios are executed or formally waived.
 
+reconciliation:
+    date: '2026-07-06'
+    spec: (folded into spec.md / plan.md / data-model.md / contracts)
+    authority: research/home-widget-architecture.md
+    note: >
+        Docs/specs/contracts alignment pass (no implementation code) bringing every
+        001 artifact into line with how 002 (identity) and 003 (food) shipped in main
+        and with the finalized Home widget architecture (DECISION 2026-07-06). Phase
+        states below are unchanged by this pass.
+    rules_applied:
+        - >
+            R1 — Public API prefix is bare /v1/* (the earlier api-prefixed proposal is
+            superseded and reversed): canonical recipe, collection,
+            /v1/ingredients/search, /v1/search/recipes, and idempotent
+            /v1/account/erasure routes. Next.js-internal framework routes stay private.
+        - >
+            R2 (REVISED 2026-07-07 — platform/product split) — recipe BACKEND = @kitchensink platform (@kitchensink/recipe-service|recipe-workers|recipe-service-client|recipe-core); recipe WIDGET/feature = @commise product (@commise/features-recipes + @commise/features-core) at apps/commise/features/*; packages/ui → apps/commise/ui = @commise/ui (PR #62). The earlier "everything @commise" reading was a miscommunication, corrected.
+            @kitchensink/recipe-service, services/recipes-workers →
+            @kitchensink/recipe-workers, clients/recipes → @kitchensink/recipe-service-client,
+            shared/recipe-core → @kitchensink/recipe-core, features/recipes →
+            @commise/features-recipes. The former monolithic api package and the shared
+            db/config package references are replaced. Existing shipped packages keep their
+            real names — the food client stays @kitchensink/food-service-client.
+        - >
+            R3 — Recipe service attaches to the shared ALB at priority 300 (identity=100,
+            food=200); Fargate in public subnets with assignPublicIp (egress via IGW);
+            version-archive-worker Lambda is VPC-attached, photo-processor is S3-only;
+            per-service Clerk session-token AuthMiddleware (no API-Gateway authorizer, no
+            forgeable authorizer-context header); Environment=pr-{N} tagging + per-PR logical DB.
+        - >
+            R5 — Ingredients back onto the source-agnostic food service (003) via
+            @kitchensink/food-service-client (FoodServiceClient); foods referenced by
+            internal ULID (foodId), never the external USDA food identifier, no cross-DB
+            FK; resolution is asynchronous (addByName → 202 PENDING|UNRESOLVED → poll
+            getById/getStatus → RESOLVED; getCandidates/resolve for disambiguation).
+            Freeform FR-007a (user-entered nutrition) unchanged.
+        - >
+            R6 — Home widget architecture: explicit startup registration (composition
+            root, .use(addFeature)); curateHomeWidgets(widgets, ctx) pure fn gating by
+            capability + subscription tier; React.lazy + Suspense + ErrorBoundary render;
+            ditox + @ditox/react frontend DI (appShell), NestJS decorator DI backend. US-0
+            rescoped by capability gating: Home v1 ships only the recipe widget live;
+            meal-plan/nutrition/shopping/AI/cooking widgets are NOT registered in v1
+            (feature packages 005–009 don't exist yet — a literal import() loader for an
+            unbuilt package would fail the build) so they are absent; each registers when
+            its package ships and capability gating then shows it. Per-user home
+            layout via PATCH /v1/profiles/me owned by identity (002), consumed by 001.
+        - >
+            R7 — Cross-artifact consistency propagated across
+            spec/plan/data-model/contracts/tasks/v-model, and confirmed zero residual
+            legacy api-prefixed routes, monolithic-api or shared db/config package paths,
+            external-lookup ingredient framing, external-food-id ingredient keys, or
+            unconditional six-section US-0 assertions.
+
 sync_runs:
-    last_run: '2026-06-02T09:35:00Z'
-    total_runs: 2
-    last_drift_count: 7
-    last_critical_count: 1
-    last_verdict: MIXED
+    last_run: '2026-07-15T23:00:00Z'
+    total_runs: 4
+    last_drift_count: 5
+    last_critical_count: 0
+    last_verdict: CONSISTENT
     notes: >
-        Run #2 (post-HITL): delegation analysis confirmed most capabilities are
-        correctly owned by sub-features 002-014 (auth, food DB, importing, AI,
-        meal planning, grocery, cooking mode, nutrition, subscriptions,
-        digitization, creator profiles, cooking school, notifications). Core
-        recipe scaffolding (US-0/1/2, FR-001..FR-006) remains 001's own scope
-        — HITL decision (2026-06-02) selected "implement under 001 directly"
-        (no new sub-feature spawn). DRIFT-002 OPEN-CRITICAL remains as active
-        WIP signal until core recipe code lands. Other findings: 2 WARNING,
-        3 INFO, 1 CLEAN (Layer 7 cross-links).
+        Run #3 (2026-07-15, post-implementation reconciliation): DRIFT-002
+        (run #2 OPEN-CRITICAL, "core recipe code absent") is RESOLVED — the
+        recipe domain landed across recipe-service (84 src/42 test),
+        recipe-core, apps/commise/features/recipes (70 src/43 test),
+        clients/recipe-service, and recipe-workers, on both web and mobile.
+        NEW findings: DRIFT-007 (CRITICAL, L6) — US-000 Home widget-surface
+        HOST (T104-web/mobile + tests) not implemented; the building-block
+        widgets exist and were styled but no curateHomeWidgets/appShell
+        composition root is wired in either app, so the P1 Home screen (FR-046)
+        is not yet shippable. DRIFT-008 (WARNING, L5-backward) — tasks.md
+        [ ]/[x] marks under-report shipped code (softDelete DAL+controller
+        T123/T125, account-erasure worker T136 have code but read open); the
+        dangerous direction ([x] with no code) was NOT found. Carried forward:
+        DRIFT-003, DRIFT-004 (WARNING), DRIFT-005/006 (INFO). DRIFT-008 was
+        RESOLVED the same run: a per-task file-inspection pass flipped 8
+        verified-complete marks (T061-T064, T095, T123-T125) [ ]→[x] in
+        tasks.md (124→132 of 190 done); the pass explicitly did NOT flip three
+        stub scaffolds (T130 still inline-S3, T131/T136 TODO-bodied workers),
+        so no false-DONE was introduced. No source code changed — doc-only
+        reconciliation.
+        POST-RUN UPDATE (2026-07-15, same day): DRIFT-007 is now RESOLVED — the
+        Home widget-surface host shipped on both platforms (4eb432a, 94a474b,
+        cfc06ff, 543081e; see the T104 task_log entry). The sentence this
+        replaces said it "remains OPEN per the standing don't-progress
+        constraint"; that hold was lifted for T104 and the host landed after
+        run #3's note was written. Run #3's counts (1 CRITICAL) are preserved
+        above AS OF the run — they are a historical record, not live state.
+        Also corrected: run #3 said "124→132 of 190 done". The 190 counted 3
+        Parity-Checklist rubric bullets that were never tasks (tasks.md:273-275,
+        since renumbered out of the checkbox space). The real total is 187.
+    history:
+        - run: 1
+          date: '2026-06-02T00:47:00Z'
+          layers: '1-7'
+          critical: 2
+          warning: 3
+          verdict: CRITICAL DRIFT
+        - run: 2
+          date: '2026-06-02T09:35:00Z'
+          layers: '1-7'
+          critical: 1
+          warning: 2
+          verdict: MIXED
+        - run: 3
+          date: '2026-07-15T00:00:00Z'
+          layers: '5,6 (1-4,7 carried; 8-10 spot)'
+          critical: 1
+          warning: 3
+          verdict: DRIFT DETECTED
+        - run: 4
+          date: '2026-07-15T23:00:00Z'
+          layers: '4,5,6 (8 spot; 1-3,7,9-10 carried)'
+          critical: 0
+          warning: 2
+          verdict: CONSISTENT
+          note: >
+              DRIFT-007 resolved (Home host shipped). DRIFT-008 resolved at its root — the 3 Parity
+              rubric bullets are numbered, so checkbox count == real task count (187) permanently.
+              NEW: DRIFT-009 (task text vs shipped reality — 3 accepted divergences) and DRIFT-010 (the
+              erasure worker is deployed but its eraseRecipeRows is a no-op TODO; inert because T132
+              wires no trigger, but T136 MUST land before T136b or erasure reports a false success).

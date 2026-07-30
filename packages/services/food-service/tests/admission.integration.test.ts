@@ -49,10 +49,10 @@ describe.skipIf(!DATABASE_URL)('AdmissionService backpressure + flood-shed (inte
         await resetSchema(pool);
     });
 
-    /** Create a PENDING food + pending queue row attributed to `sub`. */
-    async function seedPending(name: string, sub: string): Promise<string> {
+    /** Create a PENDING food + pending queue row attributed to `requesterId`. */
+    async function seedPending(name: string, requesterId: string): Promise<string> {
         const { id } = await foodDao.createByName({ normalizedName: name, displayName: name });
-        await requesters.add({ foodId: id, sub });
+        await requesters.add({ foodId: id, requesterId });
         await queue.enqueue(id);
 
         return id;

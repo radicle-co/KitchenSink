@@ -6,6 +6,7 @@ import {
     FoodServiceStack,
     foodDatabaseNameForStage,
     foodListenerPriorityForStage,
+    foodServiceOriginForStage,
     foodSubdomainForStage,
     BASE_FOOD_LISTENER_PRIORITY,
     PER_PR_PRIORITY_BASE,
@@ -139,6 +140,11 @@ beforeAll(() => {
     const service = new FoodServiceStack(app, 'TestFoodService', {
         env,
         stage: 'test',
+        // `baseStage` is now REQUIRED in practice for any non-prod stage: the stack defaults it to `stage`,
+        // and `foodSubdomainForStage` refuses `stage === baseStage` outside prod because that names a
+        // persistent non-prod instance, which the food service does not have. So this suite synthesizes the
+        // real ephemeral shape — a named stage riding the shared sandbox platform, exactly like `pr-{N}`.
+        baseStage: 'sandbox',
         domainName: 'example.com',
         imageTag: 'test',
         desiredCount: 1,
@@ -154,15 +160,19 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 0);
     });
 
-    it('attaches exactly one host-based listener rule to the shared HTTPS listener (priority 200)', () => {
+    it('attaches exactly one host-based listener rule to the shared HTTPS listener', () => {
         serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerRule', 1);
         serviceTemplate.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
-            Priority: 200,
+            // Derived, not the literal 200: `test` is an EPHEMERAL named stage riding the sandbox platform,
+            // so it draws from the named-stage band. 200 is prod's base priority, and asserting it here
+            // would only have held while this suite synthesized the forbidden `stage === baseStage` shape.
+            Priority: foodListenerPriorityForStage('test', 'sandbox'),
             Conditions: Match.arrayWith([
                 Match.objectLike({
                     Field: 'host-header',
                     HostHeaderConfig: Match.objectLike({
-                        Values: ['food.test.example.com'],
+                        // The DASH form — a 3-label `food.test.example.com` matches no wildcard cert.
+                        Values: ['food-test.example.com'],
                     }),
                 }),
             ]),
@@ -177,7 +187,7 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         serviceTemplate.resourceCountIs('AWS::Route53::RecordSet', 1);
         serviceTemplate.hasResourceProperties('AWS::Route53::RecordSet', {
             Type: 'A',
-            Name: 'food.test.example.com.',
+            Name: 'food-test.example.com.',
         });
     });
 
@@ -225,20 +235,125 @@ describe('Food worker + service wiring', () => {
         }
     });
 
-    it('wires Clerk auth env (CLERK_JWT_KEY + CLERK_AUTHORIZED_PARTIES) so the guard can verify tokens', () => {
-        // Without these the FoodAuthGuard fail-closes and every /v1/foods/* request is 401 (regardless of
-        // token). Mirrors the identity service; the values resolve from the shared sandbox Clerk SSM params.
-        const containers = Object.values(serviceTemplate.findResources('AWS::ECS::TaskDefinition')).flatMap(
-            (resource: any) => resource.Properties.ContainerDefinitions as any[],
+    // Every container's env names (across all task definitions in a template).
+    const containerEnvSets = (template: Template): string[][] =>
+        Object.values(template.findResources('AWS::ECS::TaskDefinition'))
+            .flatMap((resource: any) => resource.Properties.ContainerDefinitions as any[])
+            .map((container) => (container.Environment ?? []).map((entry: any) => entry.Name as string));
+
+    it('injects FOOD_SERVICE_PRINCIPAL_JWT_KEY so the internal erasure route can verify service tokens (CR-002/U4b/R11)', () => {
+        // The API container (which serves /v1/internal/account/erasure) carries the PUBLIC verification key.
+        // Without it the FoodServiceErasureAuthService fail-closes and every service-principal erase is 401.
+        const withErasureKey = containerEnvSets(synthFoodTemplate('test', 'sandbox')).filter((envNames) =>
+            envNames.includes('FOOD_SERVICE_PRINCIPAL_JWT_KEY'),
         );
 
-        const withClerk = containers.filter((container) => {
-            const envNames = (container.Environment ?? []).map((entry: any) => entry.Name);
+        expect(withErasureKey.length).toBeGreaterThanOrEqual(1);
+    });
 
-            return envNames.includes('CLERK_JWT_KEY') && envNames.includes('CLERK_AUTHORIZED_PARTIES');
-        });
+    it('non-prod wires Clerk auth env with the azp PATTERN + preview mode (not the exact-match list)', () => {
+        // Without CLERK_JWT_KEY the FoodAuthGuard fail-closes and every /v1/foods/* request is 401.
+        // Non-prod (sandbox / pr-{N}) runs the self-owned preview pattern in transition mode (ADR-0001).
+        const withClerk = containerEnvSets(synthFoodTemplate('test', 'sandbox')).filter(
+            (envNames) =>
+                envNames.includes('CLERK_JWT_KEY') &&
+                envNames.includes('CLERK_AZP_PATTERN') &&
+                envNames.includes('CLERK_AZP_PREVIEW_MODE') &&
+                // Pattern mode admits the mobile app's azp-less native tokens via this gate (non-prod only).
+                envNames.includes('CLERK_ADMIT_NATIVE_CLIENT') &&
+                !envNames.includes('CLERK_AUTHORIZED_PARTIES'),
+        );
 
         expect(withClerk).toHaveLength(3);
+    });
+
+    it('prod keeps the exact-match list (CLERK_AUTHORIZED_PARTIES), never the preview pattern', () => {
+        const withClerk = containerEnvSets(synthFoodTemplate('prod', 'prod')).filter(
+            (envNames) =>
+                envNames.includes('CLERK_JWT_KEY') &&
+                envNames.includes('CLERK_AUTHORIZED_PARTIES') &&
+                !envNames.includes('CLERK_AZP_PATTERN') &&
+                !envNames.includes('CLERK_AZP_PREVIEW_MODE') &&
+                // Prod runs list mode (Clerk skips the azp check on absent azp) → no native gate, unchanged.
+                !envNames.includes('CLERK_ADMIT_NATIVE_CLIENT'),
+        );
+
+        expect(withClerk).toHaveLength(3);
+    });
+});
+
+describe('USDA API-key secret grant (regression: suffix-less GetSecretValue never matches the real ARN)', () => {
+    // The USDA key is imported by NAME via `fromSecretNameV2`, and injected via
+    // `ecs.Secret.fromSecretsManager`, which grants the task EXECUTION role `GetSecretValue` scoped to
+    // that secret. Because the import is name-based (no complete ARN at synth), CDK MUST append the
+    // `-??????` wildcard so the grant matches the secret's real ARN (`...usda-api-key-XXXXXX`, the 6
+    // random chars Secrets Manager suffixes). A regression to a suffix-LESS / exact-ARN grant (e.g.
+    // `fromSecretCompleteArn`, or hand-building the bare ARN) never matches the live secret: the
+    // execution role gets AccessDenied on GetSecretValue, the container never launches, and every deploy
+    // hangs on ECS "NotStabilized" then rolls back — the exact bug that bit identity/webhooks. These
+    // assertions document that food does it RIGHT and fail loudly if the wildcard is ever dropped.
+    const usdaSecretResource = {
+        'Fn::Join': [
+            '',
+            [
+                'arn:',
+                { Ref: 'AWS::Partition' },
+                ':secretsmanager:us-east-1:123456789012:secret:kitchensink/sandbox/food/usda-api-key-??????',
+            ],
+        ],
+    };
+
+    it('grants GetSecretValue on the USDA secret via a name-based ARN WITH the -?????? wildcard suffix', () => {
+        serviceTemplate.hasResourceProperties('AWS::IAM::Policy', {
+            PolicyDocument: {
+                Statement: Match.arrayWith([
+                    Match.objectLike({
+                        Action: Match.arrayWith(['secretsmanager:GetSecretValue']),
+                        Resource: usdaSecretResource,
+                    }),
+                ]),
+            },
+        });
+    });
+
+    it('lands that grant on the shared task EXECUTION role (the principal that pulls the secret at task start)', () => {
+        serviceTemplate.hasResourceProperties('AWS::IAM::Policy', {
+            Roles: Match.arrayWith([Match.objectLike({ Ref: Match.stringLikeRegexp('FoodTaskExecutionRole') })]),
+            PolicyDocument: {
+                Statement: Match.arrayWith([
+                    Match.objectLike({
+                        Action: Match.arrayWith(['secretsmanager:GetSecretValue']),
+                        Resource: usdaSecretResource,
+                    }),
+                ]),
+            },
+        });
+    });
+
+    it('never grants the USDA secret on a bare/exact ARN missing the -?????? wildcard (the AccessDenied bug shape)', () => {
+        const policies = serviceTemplate.findResources('AWS::IAM::Policy');
+        const usdaGrants = Object.values(policies).flatMap((policy: any) =>
+            ((policy.Properties?.PolicyDocument?.Statement ?? []) as Array<Record<string, unknown>>).filter(
+                (statement) => {
+                    const actions = ([] as string[]).concat(statement['Action'] as string | string[]);
+
+                    return (
+                        actions.includes('secretsmanager:GetSecretValue') &&
+                        JSON.stringify(statement['Resource']).includes('usda-api-key')
+                    );
+                },
+            ),
+        );
+
+        // The grant must exist (otherwise the tasks could never read the key) ...
+        expect(usdaGrants.length).toBeGreaterThan(0);
+        // ... and EVERY USDA GetSecretValue grant must carry the wildcard suffix — a `usda-api-key` not
+        // immediately followed by `-??????` is the suffix-less regression that produces AccessDenied.
+        for (const grant of usdaGrants) {
+            const resource = JSON.stringify(grant['Resource']);
+            expect(resource).toContain('usda-api-key-??????');
+            expect(resource).not.toMatch(/usda-api-key(?!-\?{6})/);
+        }
     });
 });
 
@@ -534,22 +649,50 @@ describe('Base-stage platform imports (ADR-0006)', () => {
     });
 });
 
-describe('foodSubdomainForStage (ADR-0006 — cert-safe per-PR host)', () => {
-    it('uses the dotted host for base stages (covered by the wildcard certs)', () => {
-        expect(foodSubdomainForStage('prod', 'prod')).toBe('food');
-        expect(foodSubdomainForStage('sandbox', 'sandbox')).toBe('food.sandbox');
+describe('foodServiceOriginForStage (the ONE definition the recipe deploy consumes — issue #120)', () => {
+    it('composes the stage label with the apex into an https origin', () => {
+        expect(foodServiceOriginForStage('prod', 'commise.app')).toBe('https://food.commise.app');
+        expect(foodServiceOriginForStage('pr-73', 'commise.app')).toBe('https://food-pr-73.commise.app');
     });
 
-    it('uses the dash form for a per-PR stage so `*.commise.app` covers it (no 3-label host)', () => {
-        expect(foodSubdomainForStage('pr-7', 'sandbox')).toBe('food-pr-7');
-        expect(foodSubdomainForStage('pr-123', 'sandbox')).toBe('food-pr-123');
+    it('never emits a trailing slash (the food client strips one, but callers embed this verbatim)', () => {
+        expect(foodServiceOriginForStage('pr-1', 'commise.app').endsWith('/')).toBe(false);
+    });
+
+    it('stays SINGLE-label under the apex for every non-prod stage (the wildcard-cert constraint)', () => {
+        // `https://food.pr-7.commise.app` would match neither `*.commise.app` nor `*.sandbox.commise.app`
+        // and would fail the TLS handshake — so recipe would be pointed at a host it can never reach.
+        for (const stage of ['pr-7', 'pr-123', 'sandbox']) {
+            const host = new URL(foodServiceOriginForStage(stage, 'commise.app')).hostname;
+
+            expect(host.split('.')).toHaveLength(3);
+        }
+    });
+});
+
+describe('foodSubdomainForStage (ADR-0006 — cert-safe per-PR host)', () => {
+    it('prod → food; every other stage → food-{stage} (dash form, covered by *.commise.app)', () => {
+        expect(foodSubdomainForStage('prod')).toBe('food');
+        expect(foodSubdomainForStage('pr-7')).toBe('food-pr-7');
+        expect(foodSubdomainForStage('pr-123')).toBe('food-pr-123');
+    });
+
+    it('never emits a dot after the service label, for ANY stage', () => {
+        // Mirrors the recipe assertion: a stage-qualified `food.{stage}` host is unrepresentable rather than
+        // guarded, because the only separator this function writes is a dash. A 3-label host would also fail
+        // the TLS handshake — no wildcard on the shared cert covers it.
+        for (const stage of ['prod', 'sandbox', 'staging', 'pr-7', 'team-x']) {
+            expect(foodSubdomainForStage(stage)).not.toMatch(/^food\./);
+        }
     });
 });
 
 describe('foodDatabaseNameForStage', () => {
     it('returns the imported base name for a base (stage === baseStage) stage', () => {
+        // PROD is the only reachable base stage for this service: `foodSubdomainForStage` refuses
+        // `stage === baseStage` outside prod, because there is no persistent non-prod food instance. Asserting
+        // `('sandbox', 'sandbox')` here would pin behaviour for a deploy shape that can no longer exist.
         expect(foodDatabaseNameForStage('prod', 'prod', '<imported-token>')).toBe('<imported-token>');
-        expect(foodDatabaseNameForStage('sandbox', 'sandbox', '<imported-token>')).toBe('<imported-token>');
     });
 
     it('derives a sanitized per-PR database name from the stage', () => {
@@ -570,9 +713,8 @@ describe('foodDatabaseNameForStage', () => {
 });
 
 describe('foodListenerPriorityForStage', () => {
-    it('keeps the fixed food priority for a base stage', () => {
+    it('keeps the fixed food priority for the base stage (prod — the only one)', () => {
         expect(foodListenerPriorityForStage('prod', 'prod')).toBe(BASE_FOOD_LISTENER_PRIORITY);
-        expect(foodListenerPriorityForStage('sandbox', 'sandbox')).toBe(BASE_FOOD_LISTENER_PRIORITY);
     });
 
     it('allocates pr-{N} into the per-PR band as PER_PR_PRIORITY_BASE + N', () => {

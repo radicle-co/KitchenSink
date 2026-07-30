@@ -6,7 +6,7 @@ import { SqsService, SQS_CLIENT } from './sqs.service.js';
 const sqsClientProvider: Provider = {
     provide: SQS_CLIENT,
     useFactory() {
-        return new SQSClient({ region: process.env.DEFAULT_AWS_REGION ?? 'us-east-1' });
+        return new SQSClient({ region: process.env['DEFAULT_AWS_REGION'] ?? 'us-east-1' });
     },
 };
 

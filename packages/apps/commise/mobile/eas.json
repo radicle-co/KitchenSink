@@ -10,13 +10,22 @@
             },
             "android": {
                 "buildType": "apk"
+            },
+            "env": {
+                "EXPO_PUBLIC_RECIPE_API_URL": "http://10.0.2.2:3000",
+                "EXPO_PUBLIC_IDENTITY_API_URL": "http://10.0.2.2:4000"
             }
         },
         "preview": {
-            "distribution": "internal"
+            "distribution": "internal",
+            "environment": "preview"
         },
         "production": {
-            "autoIncrement": true
+            "autoIncrement": true,
+            "env": {
+                "EXPO_PUBLIC_RECIPE_API_URL": "https://recipe.commise.app",
+                "EXPO_PUBLIC_IDENTITY_API_URL": "https://identity.commise.app"
+            }
         }
     }
 }

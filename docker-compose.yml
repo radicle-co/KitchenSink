@@ -1,0 +1,72 @@
+# docker-compose.yml (T006b) — LOCAL DEVELOPMENT stack for the Commise recipe API.
+#
+# Brings up PostgreSQL 16 (with the pg_trgm + pgcrypto extensions pre-enabled via
+# infra/docker/postgres-init.sql) and LocalStack for S3 emulation, per
+# specs/001-commise-recipe-app/quickstart.md. Start it from the monorepo root:
+#
+#   docker compose up -d
+#
+# The recipe service connects with:
+#   DATABASE_URL=postgresql://commise:commise@localhost:5432/commise
+#   S3_ENDPOINT=http://localhost:4566   S3_FORCE_PATH_STYLE=true
+#
+# It also REQUIRES a food-service origin (FOOD_SERVICE_URL) — there is no in-code default, deliberately
+# (issue #120). `npm run dev --workspace=packages/services/recipe-service` sets NODE_ENV=development, which
+# is what makes the committed `packages/services/recipe-service/.env.development` supply `localhost:3002`;
+# override it in `.env.local` to develop against a deployed food service. Nothing needs to be listening on
+# :3002 — the ingredient typeahead degrades to recipe-local-only and says so (`catalogAvailability`).
+#
+# Buckets are created by the app / by hand in local dev (see quickstart "LocalStack S3 Setup"); the CI
+# variant (docker-compose.test.yml) auto-provisions them instead.
+
+networks:
+    commise:
+        driver: bridge
+
+services:
+    postgres:
+        image: postgres:16-alpine
+        container_name: commise-postgres
+        restart: unless-stopped
+        networks:
+            - commise
+        ports:
+            - '5432:5432'
+        environment:
+            POSTGRES_USER: commise
+            POSTGRES_PASSWORD: commise
+            POSTGRES_DB: commise
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+            - ./infra/docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -U commise -d commise']
+            interval: 5s
+            timeout: 5s
+            retries: 10
+            start_period: 10s
+
+    localstack:
+        image: localstack/localstack:3
+        container_name: commise-localstack
+        restart: unless-stopped
+        networks:
+            - commise
+        ports:
+            - '4566:4566'
+        environment:
+            SERVICES: s3
+            DEFAULT_REGION: us-east-1
+            EAGER_SERVICE_LOADING: 1
+        volumes:
+            - localstack_data:/var/lib/localstack
+        healthcheck:
+            test: ['CMD-SHELL', 'awslocal s3 ls || exit 1']
+            interval: 5s
+            timeout: 5s
+            retries: 15
+            start_period: 10s
+
+volumes:
+    postgres_data:
+    localstack_data:

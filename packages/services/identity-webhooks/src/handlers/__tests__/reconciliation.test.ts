@@ -11,7 +11,7 @@ vi.mock('../../common/identityClient.js', () => ({
     listUsers: vi.fn(),
 }));
 
-vi.mock('@kitchensink/identity-service/database/dao', () => ({
+vi.mock('@kitchensink/identity-db', () => ({
     UserDAO: vi.fn().mockImplementation(function () {
         return { findByIdentityId: vi.fn() };
     }),
@@ -36,8 +36,9 @@ import { handler as rawHandler } from '../reconciliation.js';
 import { getDb } from '../../common/db.js';
 import { listUsers } from '../../common/identityClient.js';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
-import { UserDAO } from '@kitchensink/identity-service/database/dao';
+import { UserDAO } from '@kitchensink/identity-db';
 import { captureProvisioningFailure, emitMetric, logger } from '../../common/observability.js';
+import { resetConfigCacheForTests } from '../../config/env.js';
 
 const mockProvisionCompleteUser = vi.mocked(provisionCompleteUser);
 
@@ -68,9 +69,19 @@ const idpUserExisting = {
     imageUrl: 'https://example.com/existing.jpg',
 };
 
+// A tombstoned (closed) user still exists in Clerk (banned, not deleted) so it appears in listUsers().
+const idpUserTombstoned = {
+    id: 'user_tombstoned',
+    emailAddresses: [{ id: 'ea_3', emailAddress: 'closed@example.com' }],
+    primaryEmailAddressId: 'ea_3',
+    fullName: 'Closed User',
+    imageUrl: 'https://example.com/closed.jpg',
+};
+
 describe('reconciliation handler', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        resetConfigCacheForTests();
         process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
         process.env.IDP_SECRET_KEY = 'sk_test_abc';
         process.env.STAGE = 'test';
@@ -79,9 +90,14 @@ describe('reconciliation handler', () => {
         mockProvisionCompleteUser.mockResolvedValue({ kind: 'complete', user: { id: 'ulid_x' } } as never);
 
         // findByIdentityId drives the inserted-vs-updated count: user_existing already present, user_new not.
+        // A tombstoned row surfaces its lifecycle status so the R10 skip can refuse to resurrect it.
         const findByIdentityIdMock = vi.fn().mockImplementation((identityId: string) => {
             if (identityId === 'user_existing') {
-                return Promise.resolve({ id: 'ulid_existing', identityId });
+                return Promise.resolve({ id: 'ulid_existing', identityId, status: 'active' });
+            }
+
+            if (identityId === 'user_tombstoned') {
+                return Promise.resolve({ id: 'ulid_tombstoned', identityId, status: 'tombstoned' });
             }
 
             return Promise.resolve(undefined);
@@ -136,10 +152,26 @@ describe('reconciliation handler', () => {
         expect(mockEmitMetric).toHaveBeenCalledWith('ReconciliationDrift', expect.any(Number));
     });
 
-    it('throws when env vars are missing', async () => {
+    it('missing DB_SECRET_ARN → fails fast on the typed config before listing IdP users', async () => {
         delete process.env.DB_SECRET_ARN;
 
         await expect(handler(makeEvent(), makeContext())).rejects.toThrow();
+        expect(mockListIdpUsers).not.toHaveBeenCalled();
+    });
+
+    it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN → fails fast on the typed config', async () => {
+        delete process.env.IDP_SECRET_KEY;
+
+        await expect(handler(makeEvent(), makeContext())).rejects.toThrow();
+        expect(mockListIdpUsers).not.toHaveBeenCalled();
+    });
+
+    it('reads DB_SECRET_ARN from the typed config (not requireEnv)', async () => {
+        mockListIdpUsers.mockResolvedValue([]);
+
+        await handler(makeEvent(), makeContext());
+
+        expect(mockGetDb).toHaveBeenCalledWith('arn:aws:secretsmanager:us-east-1:123:secret:db');
     });
 
     it('continues past a genuinely failing user, signals it, and counts it as failed', async () => {
@@ -161,6 +193,25 @@ describe('reconciliation handler', () => {
         expect(res.updated).toBe(1);
         // R5: the genuine failure emits the distinct paging signal carrying the Clerk identity id.
         expect(vi.mocked(captureProvisioningFailure)).toHaveBeenCalledWith(expect.any(Error), 'user_new');
+    });
+
+    it('R10: SKIPS a tombstoned user — never re-provisions (resurrects) a closed account', async () => {
+        mockListIdpUsers.mockResolvedValue([idpUserNew, idpUserTombstoned] as never);
+
+        await handler(makeEvent(), makeContext());
+
+        // Only the new user is provisioned; the tombstoned user is skipped entirely (no upsert = no revival).
+        expect(mockProvisionCompleteUser).toHaveBeenCalledTimes(1);
+        expect(mockProvisionCompleteUser).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ identityId: 'user_new' }),
+            expect.anything(),
+        );
+        expect(mockProvisionCompleteUser).not.toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ identityId: 'user_tombstoned' }),
+            expect.anything(),
+        );
     });
 
     it('handles an empty IdP user list gracefully', async () => {

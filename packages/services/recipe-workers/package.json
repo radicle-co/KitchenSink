@@ -1,0 +1,54 @@
+{
+    "name": "@kitchensink/recipe-workers",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "exports": {
+        "./infra": "./infra/lib/recipe-workers-stack.ts"
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json && npm run package",
+        "package": "node esbuild.mjs",
+        "infra:build": "tsc -p infra/tsconfig.json",
+        "infra:synth": "cdk synth --app 'npx tsx infra/bin/app.ts'",
+        "infra:deploy": "cdk deploy --app 'npx tsx infra/bin/app.ts'",
+        "test": "npm run build && vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "lint": "eslint 'src/**/*.ts' '__tests__/**/*.ts'",
+        "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "dependencies": {
+        "@aws-lambda-powertools/logger": "^2.33.1",
+        "@aws-sdk/client-cloudfront": "^3.935.0",
+        "@aws-sdk/client-s3": "^3.935.0",
+        "@aws-sdk/client-sqs": "^3.935.0",
+        "@aws-sdk/rds-signer": "^3.935.0",
+        "@kitchensink/recipe-core": "*",
+        "ulidx": "^2.4.1",
+        "aws-cdk-lib": "^2.0.0",
+        "constructs": "^10.0.0",
+        "drizzle-orm": "^0.45.2",
+        "pg": "^8.16.3"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "typescript": "^5.9.3",
+        "vitest": "^4.0.0",
+        "@types/aws-lambda": "^8.10.0",
+        "@types/node": "^24.0.0",
+        "@types/pg": "^8.11.10",
+        "aws-cdk": "^2.0.0",
+        "esbuild": "^0.24.0",
+        "tsx": "^4.0.0"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

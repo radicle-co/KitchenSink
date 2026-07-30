@@ -11,7 +11,11 @@ import { writeFileSync } from 'node:fs';
  * A bare `cdk synth` that skips this bundle still works: `SandboxSchedulerStack` falls back to an inline
  * placeholder when `dist-lambda/` is absent. The real deploy always runs this first.
  */
-const entryPoints = ['src/sandbox-scheduler/handler.ts', 'src/food-db-bootstrap/handler.ts'];
+const entryPoints = [
+    'src/sandbox-scheduler/handler.ts',
+    'src/food-db-bootstrap/handler.ts',
+    'src/recipe-db-bootstrap/handler.ts',
+];
 
 await build({
     entryPoints,

@@ -69,8 +69,15 @@ export class IdentityServiceStack extends Stack {
             secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:DatabaseSecretArn`),
         });
 
+        // The data stack imports this secret by NAME (`fromSecretNameV2`) and exports its name-based,
+        // suffix-LESS ARN — unlike the DB/migration secrets, which are CDK-created and export the full
+        // ARN with the random `-XXXXXX` suffix. Import it as a PARTIAL ARN so `grantRead` (and the ecs
+        // `Secret.fromSecretsManager` execution-role grant) append the `-??????` wildcard. A
+        // `secretCompleteArn` here writes an exact policy for the suffix-less ARN, which never matches
+        // the secret's real ARN — so the task can't fetch it, the container never starts, and every
+        // deploy hangs on ECS "NotStabilized" then rolls back.
         const authSecretKey = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedAuthSecret', {
-            secretCompleteArn: Fn.importValue(`kitchensink-data-${stage}:SecretArn`),
+            secretPartialArn: Fn.importValue(`kitchensink-data-${stage}:SecretArn`),
         });
 
         const migrationPlanSecret = secretsmanager.Secret.fromSecretAttributes(this, 'ImportedMigrationSecret', {
@@ -94,6 +101,13 @@ export class IdentityServiceStack extends Stack {
             this,
             'ImportedDeletionQueue',
             Fn.importValue(`kitchensink-data-${stage}:DeletionQueueArn`),
+        );
+
+        // The global handle-sync topic (W8-a.2): identity publishes a rename here on PATCH /v1/users/me.
+        const handleSyncTopic = sns.Topic.fromTopicArn(
+            this,
+            'ImportedHandleSyncTopic',
+            Fn.importValue(`kitchensink-data-${stage}:HandleSyncTopicArn`),
         );
 
         const mediaBucket = s3.Bucket.fromBucketName(
@@ -128,12 +142,11 @@ export class IdentityServiceStack extends Stack {
             ],
         });
 
-        taskExecutionRole.addToPolicy(
-            new iam.PolicyStatement({
-                actions: ['secretsmanager:GetSecretValue'],
-                resources: ['*'],
-            }),
-        );
+        // ARCH-IT-4: no manual `secretsmanager:GetSecretValue` on `*` here. The execution role only
+        // needs to read the secrets referenced by the container `secrets:` block (the DB creds and the
+        // auth publishable key), and `ecs.Secret.fromSecretsManager` already grants the execution role
+        // `GetSecretValue` scoped to those exact secret ARNs. A wildcard statement would let this task
+        // read EVERY secret in the account, so it is omitted (verified against the synthesized policy).
 
         const taskRole = new iam.Role(this, 'IdentityTaskRole', {
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
@@ -144,6 +157,7 @@ export class IdentityServiceStack extends Stack {
         authSecretKey.grantRead(taskRole);
         migrationPlanSecret.grantRead(taskRole);
         deletionQueue.grantConsumeMessages(taskRole);
+        handleSyncTopic.grantPublish(taskRole);
         mediaBucket.grantReadWrite(taskRole);
         archiveBucket.grantReadWrite(taskRole);
 
@@ -178,6 +192,7 @@ export class IdentityServiceStack extends Stack {
                 DB_PORT: Fn.importValue(`kitchensink-data-${stage}:DatabasePort`),
                 DB_NAME: Fn.importValue(`kitchensink-data-${stage}:DatabaseName`),
                 DELETION_QUEUE_URL: deletionQueue.queueUrl,
+                HANDLE_SYNC_TOPIC_ARN: handleSyncTopic.topicArn,
                 MEDIA_BUCKET_NAME: mediaBucket.bucketName,
                 ARCHIVE_BUCKET_NAME: archiveBucket.bucketName,
                 AUTH_SECRET_ARN: authSecretKey.secretArn,
@@ -201,10 +216,34 @@ export class IdentityServiceStack extends Stack {
                     this,
                     `/kitchensink/${stage === 'prod' ? 'prod' : 'sandbox'}/clerk/jwt-public-key`,
                 ),
-                CLERK_AUTHORIZED_PARTIES: ssm.StringParameter.valueForStringParameter(
-                    this,
-                    `/kitchensink/${stage === 'prod' ? 'prod' : 'sandbox'}/clerk/authorized-parties`,
-                ),
+                // Stage-gated azp enforcement (ADR-0001). PROD: exact-match list. NON-PROD (sandbox): the
+                // self-owned anchored pattern for per-PR preview subdomains, with the preview MODE
+                // (`strict` | `transition`) resolved from SSM so the cutover + rollback is an SSM change +
+                // task restart, not a code deploy. Exactly one mode per stage (config contract), so prod
+                // gets ONLY the list and non-prod ONLY the pattern pair. Params must exist before deploy.
+                ...(stage === 'prod'
+                    ? {
+                          CLERK_AUTHORIZED_PARTIES: ssm.StringParameter.valueForStringParameter(
+                              this,
+                              `/kitchensink/prod/clerk/authorized-parties`,
+                          ),
+                      }
+                    : {
+                          CLERK_AZP_PATTERN: ssm.StringParameter.valueForStringParameter(
+                              this,
+                              `/kitchensink/sandbox/clerk/azp-pattern`,
+                          ),
+                          CLERK_AZP_PREVIEW_MODE: ssm.StringParameter.valueForStringParameter(
+                              this,
+                              `/kitchensink/sandbox/clerk/azp-preview-mode`,
+                          ),
+                          // Non-prod runs pattern mode, which rejects azp-less native (@clerk/expo) tokens
+                          // unless the native-admission gate is on. The mobile app authenticates against the
+                          // shared sandbox identity, so admit its `client_type: 'native'` tokens. Prod stays
+                          // list mode, which already skips the azp check on absent azp — so prod needs no flag
+                          // and its template stays byte-identical.
+                          CLERK_ADMIT_NATIVE_CLIENT: 'true',
+                      }),
             },
             secrets: {
                 DB_USERNAME: ecs.Secret.fromSecretsManager(dbCredentialsSecret, 'username'),

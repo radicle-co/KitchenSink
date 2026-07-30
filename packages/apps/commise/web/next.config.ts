@@ -24,6 +24,33 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const nextConfig: NextConfig = {
     reactStrictMode: true,
     typedRoutes: true,
+
+    /**
+     * The second half of the analytics query-string redaction — and the half `beforeSend` cannot do.
+     *
+     * `src/lib/analyticsRedaction.ts` strips the query string from the Vercel Analytics event body, because
+     * `/[locale]/discover` carries a free-text `query` plus `dietaryFlags` that plausibly reveal health or
+     * religious information (GDPR Art. 9). But Vercel's collection endpoint is the RELATIVE, same-origin
+     * `/_vercel/insights/*`, and the browser default `strict-origin-when-cross-origin` sends the FULL URL —
+     * query string included — as `Referer` on a SAME-ORIGIN request. So the beacon handed Vercel exactly the
+     * values the redaction had just removed, in a header no application hook can intercept.
+     *
+     * `strict-origin` drops path and query everywhere (same-origin included) while still sending the bare
+     * origin, so genuine external referrer attribution survives. `no-referrer` would also work but throws
+     * that away for nothing. Do NOT relax this to `same-origin` or back to the default: both send the full
+     * URL same-origin, which reopens the leak. `tests/nextConfig.test.ts` fails on any such value.
+     *
+     * Nothing in this repo reads `Referer` (grepped across the web app and every service), so tightening it
+     * breaks no behaviour. It also narrows the same exposure on Sentry's same-origin tunnel route.
+     *
+     * @returns The universal security headers applied to every route.
+     */
+    headers: async () => [
+        {
+            source: '/:path*',
+            headers: [{ key: 'Referrer-Policy', value: 'strict-origin' }],
+        },
+    ],
     // These workspace packages ship TypeScript source (not pre-built JS), so Next must transpile them
     // rather than treating them as opaque node_modules. The recipe list/detail routes pull in the recipe
     // feature UI + its typed client, which in turn depend on the shared i18n and recipe-core packages.

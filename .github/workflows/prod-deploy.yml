@@ -141,6 +141,23 @@ jobs:
               if: steps.flags.outputs.deploy_webhooks == 'true'
               run: npm run infra:build --workspace=packages/services/identity-webhooks
 
+            # ⚠️ MUST stay ABOVE "Prune dev dependencies". `nest build` is a devDependency binary
+            # (@nestjs/cli), so building after the prune exits 127 "command not found" — which is exactly how
+            # the first production deploy of these two services failed: their builds were written inline with
+            # their Docker steps, further down, on the other side of the prune. The identity leg was always
+            # correct (it builds at the top); food and recipe were the outliers.
+            #
+            # turbo, not a bare workspace build, so `^build` compiles the shared dists the images COPY
+            # (recipe-core, food-service-client, clerk-verify, identity-core) — without them the container
+            # crash-loops at boot on the bare @kitchensink/* specifiers.
+            - name: Build food service package
+              if: steps.flags.outputs.deploy_food == 'true'
+              run: npx turbo run build --filter=@kitchensink/food-service
+
+            - name: Build recipe service + workers packages
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              run: npx turbo run build --filter=@kitchensink/recipe-service --filter=@kitchensink/recipe-workers
+
             - name: Prune dev dependencies
               run: npm prune --omit=dev
 
@@ -267,7 +284,6 @@ jobs:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
                   IMAGE_TAG: ${{ github.sha }}
               run: |
-                  npx turbo run build --filter=@kitchensink/food-service
                   npm run docker:prepare --workspace=packages/services/food-service
                   npm run infra:build --workspace=packages/services/food-service
                   npm run bundle:lambda --workspace=packages/services/food-service
@@ -357,7 +373,6 @@ jobs:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
                   IMAGE_TAG: ${{ github.sha }}
               run: |
-                  npx turbo run build --filter=@kitchensink/recipe-service --filter=@kitchensink/recipe-workers
                   npm run infra:build --workspace=packages/services/recipe-service
                   npm run bundle:lambda --workspace=packages/services/recipe-service
                   docker buildx build --platform linux/amd64 -f packages/services/recipe-service/Dockerfile \

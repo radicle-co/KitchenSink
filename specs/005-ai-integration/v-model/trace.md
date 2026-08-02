@@ -16,7 +16,7 @@ citations. The file is kept as a pointer and its stale content removed.
 
 1. It asserted the **rejected** BYOK design — "AES-256-GCM encryption with unique IV per write",
    `ProviderConfigRepository`, `src/ai/provider-config/*`. The approved design writes the key to AWS
-   Secrets Manager and keeps only the ARN in Postgres (`plan.md` §2.2, FR-015, ADR-0011).
+   Secrets Manager and keeps only the ARN in Postgres (`plan.md` §2.2, FR-015, ADR-0012).
 2. Its hazard rows did not match the authoritative register. It listed `HAZ-001 "BYOK API key stored in
 plaintext"` and `HAZ-002 "GCM auth tag mismatch exposes tampered credential"`; `hazard-analysis.md`
    defines `HAZ-001` as "Raw API key written to the application database instead of Secrets Manager" and

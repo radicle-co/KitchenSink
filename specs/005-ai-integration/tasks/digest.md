@@ -35,7 +35,7 @@
 
 - **T036, T038, T040, T047, T048, T053, T054, T075, T076, T077, T085 are `L`.** None is `XL`, but the
   MCP integration cluster (T036/T038/T040) is the highest-risk area in the feature: it is where
-  ADR-0011's trust boundary is actually proven. Budget review time there.
+  ADR-0012's trust boundary is actually proven. Budget review time there.
 - **T054 (SSE) has an unresolved infra question** — behaviour behind the shared ALB (idle timeout,
   buffering) is unverified. Do not mark it done on a local pass alone.
 - **T084 depends on OQ-7.** If `verifyClerkToken` introspects over the network, a per-tool-call round

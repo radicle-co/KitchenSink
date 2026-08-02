@@ -89,7 +89,7 @@ requirements:
       code: []
       tests: []
       notes: >
-          Wording change pending — consent is rendered by OUR UI, not Clerk's (ADR-0011:
+          Wording change pending — consent is rendered by OUR UI, not Clerk's (ADR-0012:
           Clerk has no custom OAuth scopes). Intent is unchanged.
 
     - id: FR-019

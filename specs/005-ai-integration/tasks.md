@@ -2,7 +2,7 @@
 
 **Feature**: `005-ai-integration`
 **Generated**: 2026-08-02 (full regeneration — supersedes the 2026-06-02 list)
-**Source**: `plan.md` (2026-08-02), `spec.md`, `product-spec/`, ADR-0011, `downstream-gaps.md`
+**Source**: `plan.md` (2026-08-02), `spec.md`, `product-spec/`, ADR-0012, `downstream-gaps.md`
 **Total tasks**: 98
 
 > **Why this is a replacement, not an edit.** The previous list targeted a package the plan no longer
@@ -147,7 +147,7 @@
 
 ## Phase 5B — MCP + grants (the security core)
 
-> Every task here is covered by ADR-0011. Read it before changing any of them.
+> Every task here is covered by ADR-0012. Read it before changing any of them.
 
 - [ ] **T018** Unit tests: `GrantPolicy` scope matrix
       Paths: `packages/services/ai-service/src/mcp/policy/__tests__/grant.policy.test.ts`
@@ -177,26 +177,26 @@
 - [ ] **T022** Unit tests: `act` admission gate
       Paths: `packages/shared/clerk-verify/src/__tests__/agentActorToken.test.ts`
       Test-first: true
-      Implements: FR-018 · ADR-0011
+      Implements: FR-018 · ADR-0012
       Notes: `act.sub` = our MCP actor → admit; `act` absent → reject; **`act` present but a different sub → reject** (a support-staff impersonation session must not enter the agent path); a token with a present `azp` short-circuits to the pattern check unchanged.
       Size: M
 
 - [ ] **T023** `isAgentActorToken` gate in `@kitchensink/clerk-verify`
       Paths: `packages/shared/clerk-verify/src/clerkVerify.ts, packages/shared/clerk-verify/src/index.ts`
-      Implements: FR-018 · ADR-0011
+      Implements: FR-018 · ADR-0012
       Notes: Sibling of `isNativeClientToken`. Never admit on `azp`-absence alone. Shared package → all three services gain it at once.
       Size: M
 
 - [ ] **T024** Unit tests: actor-token minting
       Paths: `packages/services/ai-service/src/mcp/auth/__tests__/actor-token.service.test.ts`
       Test-first: true
-      Implements: FR-018 · ADR-0011
+      Implements: FR-018 · ADR-0012
       Notes: Mock Clerk. Assert `session_max_duration_in_seconds` is set well below the 30-minute default, and that a mint failure surfaces as a denial rather than an unauthenticated downstream call.
       Size: M
 
 - [ ] **T025** `ActorTokenService`
       Paths: `packages/services/ai-service/src/mcp/auth/actor-token.service.ts`
-      Implements: FR-018 · ADR-0011
+      Implements: FR-018 · ADR-0012
       Notes: The only holder of the Clerk secret key. Custom error + `is*` guard per §13.
       Size: M
 
@@ -284,7 +284,7 @@
 
 - [ ] **T039** Enable Dynamic Client Registration + document the runbook
       Paths: `packages/services/ai-service/docs/clerk-setup.md`
-      Implements: FR-018 · ADR-0011
+      Implements: FR-018 · ADR-0012
       Notes: `instance/oauth_application_settings.dynamic_oauth_client_registration = true`. Without it ChatGPT cannot self-register.
       Size: S
 
@@ -494,7 +494,7 @@
 
 - [ ] **T070** `AgentConsent`
       Paths: `packages/apps/commise/features/ai/src/agents/AgentConsent.tsx`
-      Implements: FR-018 · ADR-0011
+      Implements: FR-018 · ADR-0012
       Notes: This is **our** consent screen — Clerk cannot render it (no custom OAuth scopes).
       Size: M
 
@@ -654,42 +654,48 @@
 
 ---
 
-## Phase 5G — `/api/v1/*` migration of consumed services (GR-002)
+## Phase 5G — `/api/v1/*` conformance (GR-002)
 
-> 005 calls recipe-service and food-service, which serve `v1/*` today. Per `plan.md` §3.6 these move
-> **before** 005 ships, so the ecosystem serves one URL shape. `/health` stays unprefixed — see
-> `docs/api-conventions.md` §3.
+> **This phase was rewritten on 2026-08-02: the migration it scoped already SHIPPED on `main`.** It
+> originally moved recipe-service and food-service onto `/api/v1/*` as a prerequisite for 005. That work
+> landed independently (ADR-0011 `docs/architecture/decisions/0011-api-version-prefix.md`; commits
+> `daac10c6`, `9658ed05`, `22e8ef15`, `ac06d703`, `dcd13187`, `1422c4b8`) while this plan was being
+> written. The superseded tasks are recorded below rather than deleted, so the audit trail shows what was
+> planned, what actually shipped, and where the shipped mechanism DIFFERS from what was planned.
+>
+> **What shipped is a dual-path controller** — `@Controller(['api/v1/foods', 'v1/foods'])` — **not**
+> `setGlobalPrefix`. The bare `/v1/*` path is retained as a **deprecated alias** because its consumers
+> cannot be fixed by redeploying this repo (already-shipped mobile builds, cached web bundles with
+> build-time-inlined `NEXT_PUBLIC_*` endpoints, the Clerk-dashboard webhook URL, and the
+> independently-deployed identity Lambdas that dial `POST /v1/internal/account/erasure`).
+> **Retiring that alias is NOT in 005's scope** — it needs its own consumer-drain evidence against
+> ADR-0011. `/health` remains unprefixed, as this phase required.
+>
+> What remains for 005 is conformance of its OWN surface. See `plan.md` §3.6.
 
-- [ ] **T087** Contract test: every route is served under `/api/v1/*`, and `/health` is NOT
-      Paths: `packages/services/recipe-service/tests/api-prefix.integration.test.ts, packages/services/food-service/tests/api-prefix.integration.test.ts`
+- [ ] **T087** Contract test: every 005 route is canonical `/api/v1/*` and carries **NO** bare-`/v1/` alias
+      Paths: `packages/services/ai-service/src/common/__tests__/api-route-paths.test.ts`
       Test-first: true
       Implements: GR-002
-      Notes: Boot each app, enumerate the router, assert every non-health route starts `/api/v1/` and that `GET /health` still answers unprefixed. This is the test that makes the migration verifiable rather than hopeful.
+      Notes: Enumerate 005's controller routing metadata and assert every route sits under `/api/v1/` (`/api/v1/ai/*`, the MCP surface) and that `GET /health` is NOT prefixed. Crucially, assert the INVERSE of what the shipped services do: 005's endpoints must declare a SINGLE path with no bare-`/v1/` alias. Nothing has ever shipped on these paths, so there is no legacy consumer to protect, and minting an alias for a brand-new endpoint manufactures exactly the debt ADR-0011 exists to retire. Model on `packages/services/recipe-service/src/common/__tests__/api-route-paths.test.ts` (decorator-metadata tier — no HTTP, no DB).
       Size: M
 
-- [ ] **T088** Apply `setGlobalPrefix('api/v1', { exclude: ['health'] })`
-      Paths: `packages/services/recipe-service/src/main.ts, packages/services/food-service/src/main.ts`
-      Implements: GR-002
-      Notes: One line each; controllers keep declaring only their resource. Do NOT prefix `/health` — it backs the ECS container health check and the ALB target-group health check.
-      Size: S
+### Superseded by `main` — no work remains
 
-- [ ] **T089** Update both service clients to the new base path
-      Paths: `packages/clients/recipe-service/src/client.ts, packages/clients/food-service/src/index.ts`
-      Implements: GR-002
-      Notes: Clients are the only in-repo callers 005 uses; their integration suites must pass unchanged against the migrated services.
-      Size: S
+| Task     | Was                                                        | Disposition                                                                                                                                                                                                       |
+| -------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T088** | Apply `setGlobalPrefix('api/v1', { exclude: ['health'] })` | **Superseded** by `9658ed05`, which used dual-path `@Controller([...])` instead. A global prefix serves exactly ONE shape and would silently drop the deprecated alias — do not "finish" this task by adding one. |
+| **T089** | Update both service clients to the new base path           | **Done** on `main` (`ac06d703`). `recipe-service-client` and `food-service-client` dial `/api/v1/*`.                                                                                                              |
+| **T090** | Re-point every out-of-band `/v1/` reference                | **Done** on `main` (`dcd13187`, `1422c4b8`): Playwright globs, k6 scripts, CI probes and ADR-0010's post-deploy food smoke are all on `/api/v1/*`.                                                                |
+| **T091** | Update `docs/api-conventions.md` §6 conformance table      | **Done** on `main` (`daac10c6`), which authored `docs/api-conventions.md` independently.                                                                                                                          |
 
-- [ ] **T090** Re-point every out-of-band `/v1/` reference — **highest-risk step**
-      Paths: `packages/apps/commise/web/tests/e2e/utils/recipeApi.ts, packages/tools/loadtest/ratelimit.js, .github/workflows/_ci.yml, .github/workflows/_ci-heavy.yml, .github/workflows/sandbox-deploy.yml`
-      Implements: GR-002
-      Notes: Playwright `page.route('**/v1/**')` globs → `**/api/v1/**`. If missed, mocked tests **silently stop intercepting and hit the network** — they still pass, so nothing catches it. Also: k6 scripts, CI stub-server curls, and ADR-0010's post-deploy food smoke asserting `/v1/foods/search` → `401` (the path moves; `401` remains the PASS).
-      Size: M
-
-- [ ] **T091** Update `docs/api-conventions.md` §6 conformance table
-      Paths: `docs/api-conventions.md`
-      Implements: GR-002
-      Notes: Move the migrated services from "Current `v1/*`" to conformant. The table is the portfolio's record of who still needs migrating; leaving it stale makes the next feature repeat this analysis.
-      Size: XS
+**The Playwright hazard is now INVERTED — read before touching any route glob.** T090's original warning
+was that a missed `**/v1/**` → `**/api/v1/**` update would silently stop intercepting. The globs have
+moved, so the live risk is the opposite: Clerk's Frontend API serves at the bare `/v1/*`, and the
+interception glob is now `**/api/v1/**`, so Clerk requests no longer enter the handler. Any 005 suite that
+**widens** a glob back toward `**/v1/**` recaptures Clerk, 404s `getToken()`, and hangs every request
+awaiting a token. The pass-through reasoning is recorded in
+`packages/apps/commise/web/tests/e2e/utils/recipeApi.ts` — restore it if you ever widen the glob.
 
 ## Coverage
 
@@ -709,4 +715,7 @@
 | SC-003      | T084                                                 |
 | DG-001..004 | T057–T062                                            |
 
-**Test-first tasks**: 41 · **Implementation tasks**: 45
+**Test-first tasks**: 46 · **Implementation tasks**: 48 · **Total**: 94
+
+> Counts recomputed 2026-08-02. The previous footer (41 / 45) predated the final task list and did not
+> match it. T088–T091 are excluded as superseded by `main` (see Phase 5G).

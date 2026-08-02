@@ -2,7 +2,7 @@
 
 **Feature**: `005-ai-integration`
 **Phase**: 5 — Product Forge Plan
-**Status**: Draft — rewritten 2026-08-02 against the shipped codebase and ADR-0011
+**Status**: Draft — rewritten 2026-08-02 against the shipped codebase and ADR-0012
 **Stack**: TypeScript 5.x, Node.js 24.x, NestJS 11, Drizzle ORM, pg, Vercel AI SDK, AWS Secrets Manager, SQS, Clerk
 
 > **Rewrite note (2026-08-02).** The previous revision (2026-05-10) targeted a codebase that no longer
@@ -37,7 +37,7 @@
 This mirrors the existing `recipe-service` / `recipe-workers` split, so it introduces no new deployment
 shape.
 
-**The split is a security boundary, not packaging taste.** ADR-0011 gives `ai-service` the ability to mint
+**The split is a security boundary, not packaging taste.** ADR-0012 gives `ai-service` the ability to mint
 an actor-token session for any user. If the same process also fed user-supplied prompts to an AI provider
 and parsed the result, a prompt-injection or SSRF chain would land directly on that capability. Keeping
 generation in a worker that has **no** Clerk secret key means the component handling untrusted content
@@ -152,7 +152,7 @@ CREATE TABLE user_byok_keys (
 
 ### 2.3 `mcp_agent_grants`
 
-Our authorization record for an external agent. **Renamed** from `mcp_oauth_consents` because ADR-0011
+Our authorization record for an external agent. **Renamed** from `mcp_oauth_consents` because ADR-0012
 makes this grant _ours_, not Clerk's OAuth consent — the two are now distinct things and must not share a
 name.
 
@@ -176,7 +176,7 @@ CREATE INDEX idx_mcp_grants_active ON mcp_agent_grants(user_id, client_id) WHERE
 
 `revoked_at TIMESTAMPTZ` replaces the previous `is_revoked BOOLEAN`: it records _when_, which the audit
 trail needs, and makes the partial index above expressible. Scope names are **ours** — Clerk does not
-support custom OAuth scopes (ADR-0011).
+support custom OAuth scopes (ADR-0012).
 
 ### 2.4 `prompt_templates`
 
@@ -246,9 +246,9 @@ Saving a previewed recipe is **not** a local insert: `ai-service` calls
 | `POST`   | `/api/v1/ai/agents/:clientId/grant` | Writes the two-checkbox consent result (D-001).     |
 | `DELETE` | `/api/v1/ai/agents/:clientId`       | Sets `revoked_at`. Effective on the next tool call. |
 
-### 3.5 MCP server — per ADR-0011
+### 3.5 MCP server — per ADR-0012
 
-**Read [`ADR-0011`](../../docs/architecture/decisions/0011-mcp-agent-credential-bridge.md) before changing
+**Read [`ADR-0012`](../../docs/architecture/decisions/0012-mcp-agent-credential-bridge.md) before changing
 anything in this section.** What it fixes: Clerk cannot express our scopes (no custom OAuth scopes), so
 Clerk proves _identity_ and we own the _grant_.
 
@@ -281,32 +281,59 @@ loosen this to "azp absent → allow"; that is the bypass the gate exists to pre
 
 ---
 
-### 3.6 Endpoints 005 CONSUMES must be migrated to `/api/v1/*` first
+### 3.6 The `/api/v1/*` migration already SHIPPED — 005 inherits it, it does not perform it
 
-005 is a composition layer (§1.4): it calls recipe-service and food-service through their clients. Those
-services currently serve **`v1/*` without the `/api` segment** and are therefore non-conformant with
-GR-002 / `docs/api-conventions.md`. 005 cannot be conformant on its own surface while calling
-non-conformant ones — the ecosystem would serve two URL shapes at once.
+**This section previously scoped the migration into 005. That work landed on `main` first** (ADR-0011,
+`docs/architecture/decisions/0011-api-version-prefix.md`; commits `daac10c6`, `9658ed05`, `22e8ef15`,
+`ac06d703`, `dcd13187`, `1422c4b8`). What was a prerequisite is now a constraint to conform to, so the
+section is rewritten rather than deleted — the reasoning that made it a blocker is still the reasoning
+that makes the remaining items load-bearing.
 
-**These are in scope for this feature** because 005 is the caller that breaks if they move later:
+**What shipped, and how it differs from what this section originally prescribed:**
 
-| Service                         | Endpoints 005 consumes                                        | Migration                                                |
-| ------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------- |
-| `@kitchensink/recipe-service`   | `v1/recipes`, `v1/search`, `v1/ingredients`, `v1/collections` | `setGlobalPrefix('api/v1', { exclude: ['health'] })`     |
-| `@kitchensink/food-service`     | `v1/foods`                                                    | same                                                     |
-| `@kitchensink/identity-service` | `v1/account` (subscription tier, DG-004)                      | same — only if 005 reads it over HTTP rather than the DB |
+| Surface                                                                  | Shipped state                                                                     |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `recipe-service`, `food-service`, `identity` controllers                 | Canonically `/api/v1/*`, with the bare `/v1/*` retained as a **deprecated alias** |
+| `@kitchensink/recipe-service-client`, `@kitchensink/food-service-client` | Dial `/api/v1/*`                                                                  |
+| Web + mobile                                                             | Dial `/api/v1/*`                                                                  |
+| Playwright interception (`tests/e2e/utils/recipeApi.ts`)                 | Glob is `**/api/v1/**`                                                            |
+| k6 (`packages/tools/loadtest/`), CI probes, post-deploy food smoke       | On `/api/v1/*`                                                                    |
+| `/health`                                                                | Still unprefixed, as this section required                                        |
 
-**`/health` stays unprefixed.** It is wired into the ECS container health check and the ALB target-group
-health check; moving it without changing infra first fails every task's health check and reads as a
-rolling deploy that never stabilises (`docs/api-conventions.md` §3).
+**The mechanism is NOT `setGlobalPrefix`.** This section originally prescribed
+`setGlobalPrefix('api/v1', { exclude: ['health'] })`. What shipped is a **dual-path controller** —
+`@Controller(['api/v1/foods', 'v1/foods'])` — because a global prefix serves exactly one shape and would
+have broken every already-shipped consumer. That difference matters to 005: a global prefix added later
+would silently drop the alias.
 
-**The highest-risk step is not the services — it is Playwright.** `page.route('**/v1/**')` interception
-globs must become `**/api/v1/**`, or mocked tests silently stop intercepting and start hitting the
-network. That failure is green-looking, which is why it is called out separately in the task list.
+**The alias is deliberate and is not 005's to retire.** It exists because its consumers cannot be fixed by
+redeploying this repo — already-shipped mobile builds and cached web bundles have their endpoints inlined
+from build-time `NEXT_PUBLIC_*` values, the Clerk dashboard holds the webhook URL, and
+`POST /v1/internal/account/erasure` is dialed service-to-service by independently-deployed identity
+Lambdas. Both halves are pinned by tests that fail if either path disappears:
+`packages/services/recipe-service/src/common/__tests__/api-route-paths.test.ts`,
+`packages/services/identity/tests/api-route-paths.test.ts`, and the over-the-wire
+`packages/services/identity/tests/e2e/deprecated-path-alias.e2e.test.ts`. **Retiring the alias is a
+separate decision with its own consumer-drain evidence, tracked against ADR-0011 — it is explicitly OUT
+of 005's scope.**
 
-Also affected: both service clients, k6 scripts in `packages/tools/loadtest/`, CI smoke checks, and the
-post-deploy food smoke that asserts `/v1/foods/search` answers `401` (ADR-0010) — that assertion's path
-moves with the service.
+**What actually remains for 005** is conformance of its OWN surface, which is much narrower:
+
+1. **Every new 005 endpoint is born canonical `/api/v1/*`** — `/api/v1/ai/*` and the MCP surface. They get
+   **no bare-`/v1/` alias**: nothing has ever shipped on them, so there is no legacy consumer to protect,
+   and minting an alias for a brand-new path manufactures exactly the debt ADR-0011 is trying to retire.
+2. **005's clients, mocks and load scripts are written against `/api/v1/*` from the start** — there is no
+   migration step, only a convention to follow.
+3. **The Playwright hazard is now inverted.** The interception glob is `**/api/v1/**`, and Clerk's Frontend
+   API serves at the bare `/v1/*`, so Clerk requests no longer enter the handler. Any 005 suite that
+   _widens_ a route glob back toward `**/v1/**` recaptures Clerk, 404s `getToken()`, and hangs every
+   request awaiting a token. The pass-through reasoning is recorded in `recipeApi.ts` — do not widen the
+   glob without restoring it.
+
+**Correction to this section's original table:** it listed `identity-service` as serving `v1/account`.
+It does not — identity serves `api/v1/users` and `api/v1/admin/users`; `account` is recipe-service's
+(`api/v1/account`). DG-004's subscription-tier lookup reads `accounts.subscription_tier` and is deferred
+to feature 010 regardless, so no identity endpoint moves for 005.
 
 ### 3.7 Sanity validation and regenerate (FR-023 / FR-024)
 
@@ -370,7 +397,7 @@ inserting it and treats a uniqueness violation as "already handled".
 ### 5.2 Throttles
 
 - One concurrent generation per user → `429`.
-- Per-grant rate limit on MCP tool calls; a sudden bulk read is an alertable anomaly (ADR-0011).
+- Per-grant rate limit on MCP tool calls; a sudden bulk read is an alertable anomaly (ADR-0012).
 - Pro tier: 500 generations/month (OQ-2 governs granularity).
 
 ### 5.3 Circuit breakers
@@ -432,7 +459,7 @@ Sequenced **after 006 and 007** per the owner's standing decision.
 | ---- | ---------------------------------------------------- | ------------------------------------------------------------ |
 | OQ-1 | Gemini GCP region                                    | Open — before GA                                             |
 | OQ-2 | Quota granularity: per type or total                 | Open — Product                                               |
-| OQ-3 | MCP client registration UI                           | **Resolved** — DCR is automatic (ADR-0011); no portal needed |
+| OQ-3 | MCP client registration UI                           | **Resolved** — DCR is automatic (ADR-0012); no portal needed |
 | OQ-4 | User-forked prompt templates                         | Deferred to V2                                               |
 | OQ-5 | OpenAI / Anthropic DPA + SCCs                        | Open — blocks EU traffic                                     |
 | OQ-6 | Nutrition advice risk classification (EU AI Act)     | Open — Legal                                                 |

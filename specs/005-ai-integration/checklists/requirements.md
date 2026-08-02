@@ -46,13 +46,13 @@
 - [x] Every FR traces to at least one V-Model requirement (`REQ-*`)
 - [x] Every requirement traces to an acceptance test case — **29/29**, after `ATP-CN-001-A`, `ATP-IF-004-A`,
       `ATP-016-A` and `ATP-017-A`
-- [x] `spec.md` FR-018 matches the implemented consent mechanism (ADR-0011) — corrected 2026-08-02
+- [x] `spec.md` FR-018 matches the implemented consent mechanism (ADR-0012) — corrected 2026-08-02
 - [x] No artifact still describes the rejected encrypted-key-in-Postgres BYOK design
 
 ## Notes
 
 - 2026-04-15: 16 items passed; spec declared ready for `/speckit.plan`.
-- **2026-08-02**: revalidated against FR-022 and the ADR-0011 rewrite. "Edge cases are identified" was
+- **2026-08-02**: revalidated against FR-022 and the ADR-0012 rewrite. "Edge cases are identified" was
   first corrected to **incomplete** (it had been a false pass), then genuinely **resolved** later the same
   day by the FR-023/FR-024 decision. Four cross-artifact items added.
 - **Open blocker**: the low-quality-output edge case. It is a product decision (retry? regenerate?

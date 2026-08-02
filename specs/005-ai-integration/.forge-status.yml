@@ -15,19 +15,19 @@ gates:
       risk: high
       risk_basis:
           'Classified by heuristic — `gate-risk.js` is not installed in this environment. High because the rewrite
-          replaces the entire data model, introduces a security boundary (ADR-0011), and invalidates every downstream artifact.
+          replaces the entire data model, introduces a security boundary (ADR-0012), and invalidates every downstream artifact.
 
           '
       note: "plan.md rewritten 2026-08-02 against the shipped codebase. The prior revision was unbuildable: it keyed all
           tables off `users(sub)` (removed by identity migration 0005) and declared foreign keys into `recipes` / `meal_plans`,
           which live in other services' databases. Adopts composition-over-duplication, the ai-service/ai-workers split,
-          ADR-0011's credential bridge, `/api/v1/*` per GR-002, and adds the previously-absent pattern register.
+          ADR-0012's credential bridge, `/api/v1/*` per GR-002, and adds the previously-absent pattern register.
 
           "
       artifacts:
           - plan.md
           - downstream-gaps.md
-          - ../../docs/architecture/decisions/0011-mcp-agent-credential-bridge.md
+          - ../../docs/architecture/decisions/0012-mcp-agent-credential-bridge.md
           - ../../docs/api-conventions.md
     - phase: tasks
       decision: approved
@@ -154,9 +154,9 @@ reconciliation:
                 CLOSED — UTS-008-A3 (state TTL expiry, distinguishable from tampering) and UTS-008-A4 (concurrent
                 flows do not collide) added, plus acceptance scenario SCN-IF-001-A4.
             spec_FR-018: "Reworded: consent surface and grant store are ours, not the IdP's. Intent unchanged; mechanism
-                cites ADR-0011."
+                cites ADR-0012."
             checklist:
-                Revalidated against FR-022 and ADR-0011. The false pass on "Edge cases are identified" is corrected
+                Revalidated against FR-022 and ADR-0012. The false pass on "Edge cases are identified" is corrected
                 to INCOMPLETE.
             trace_md: 'Truncated to a pointer stub. Not deleted: peer-review.md cites it 7x and is a historical record,
                 so the path must stay resolvable.'

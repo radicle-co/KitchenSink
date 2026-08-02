@@ -2,178 +2,219 @@
 
 **Feature Branch**: `004-recipe-importing`
 **Created**: 2026-05-10
-**Status**: Draft
+**Revised**: 2026-08-02
+**Status**: Approved
 **Source**: `specs/004-recipe-importing/v-model/system-design.md`
-**Standard**: General-Purpose FMEA (non-regulated software; `domain: ''` in `v-model-config.yml`)
+**Standard**: General-purpose FMEA (non-regulated consumer software)
+
+> **Revision note.** The hazard set below was the strongest artefact in the previous document set and is
+> substantially retained. Three classes of defect are fixed: (1) **mitigation citations pointed at the wrong
+> requirements** — HAZ-003 (SSRF) cited `REQ-014`, which was about 404 handling, so the Catastrophic hazard had
+> no real requirement behind it; (2) hazards referenced SYS/ARCH components that no longer exist after the
+> architecture was reconciled against shipped 001; (3) **no mitigation had reached `plan.md` or `tasks.md`** —
+> a grep for `ssrf|sanitiz|size limit` across both returned nothing, so implementing the task list as written
+> would have shipped the Catastrophic hazard. Every mitigation below now names a real requirement **and** the
+> task that implements it.
 
 ## Overview
 
-This document presents the Failure Mode and Effects Analysis (FMEA) for the **Recipe Importing** feature. Every system component (`SYS-001`..`SYS-009`) from `system-design.md` is assessed for realistic failure modes. Each hazard receives a unique `HAZ-NNN` identifier and is linked to risk-control measures (`REQ-NNN` / `SYS-NNN` / `ARCH-NNN`), enabling the traceability chain: Hazard → Mitigation → Requirement → Test Case (Matrix H in `traceability-matrix.md`).
+FMEA for **Recipe Importing**. Every system component (`SYS-001`..`SYS-013`) is assessed for realistic failure
+modes. Each hazard carries a `HAZ-NNN` identifier and links to risk controls (`REQ-*` / `SYS-*` / `ARCH-*`) and
+to the implementing task, giving the chain: Hazard → Requirement → Design → Task → Test.
 
-**Non-regulated context.** Commise is a consumer recipe management application. There are no life-safety, vehicle-control, medical-device, or aviation-control concerns. Severity is measured against **user trust, data integrity, privacy, availability, attribution compliance, and platform cost** — not personal injury.
+**Non-regulated context.** Commise is a consumer recipe application. There are no life-safety concerns.
+Severity is measured against user trust, data integrity, privacy, legal/attribution compliance, availability,
+and platform cost.
+
+**What makes this feature unusually hazardous relative to the rest of the platform:** it is the first surface
+that performs **outbound HTTP to arbitrary user-supplied hosts** and then **persists third-party content**.
+That combination is the origin of the two highest-severity hazards below (SSRF, stored XSS), neither of which
+existed anywhere else in the system.
 
 ## ID Schema
 
-- **Hazard ID**: `HAZ-{NNN}` — 3-digit zero-padded, sequential (HAZ-001, HAZ-002, ...). Never renumbered.
-- **Lineage**: From any `HAZ-NNN`, the Mitigation column lists `REQ-NNN`, `SYS-NNN`, and (where useful) `ARCH-NNN` references. The full chain to verification test cases (`ATP-NNN`, `STP-NNN`, `ITP-NNN`, `UTP-NNN`) lives in `traceability-matrix.md` (Matrix H — Hazard Traceability).
+- **Hazard**: `HAZ-{NNN}`, 3-digit, sequential, never renumbered.
+- Each row names the component, failure mode, effect, severity, likelihood, risk, controls, residual risk, and
+  the task that implements the control.
 
 ## Risk Matrix Definition
 
-### Severity Scale (consumer SaaS — recipe app)
+### Severity
 
-| Level        | Definition                                                                                                                                                                 |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Catastrophic | Cross-tenant data leak, broad unauthorized access, persistent loss of user-owned recipe data, or platform-wide outage.                                                     |
-| Critical     | Individual-user data loss without recovery, sustained attribution/legal-compliance failure, security control bypass for one user, or sustained core-flow outage (≥1 hour). |
-| Serious      | Recoverable degradation: failed imports with retry path, persistent extraction quality drop, transient endpoint 5xx with idempotent retry.                                 |
-| Minor        | Annoyance: slow import turnaround, partial field extraction with user-edit workaround, transient UI error with self-recovery.                                              |
-| Negligible   | Cosmetic only: log noise, telemetry drift, copy/wording inconsistency.                                                                                                     |
+| Level        | Definition                                                                                                                                    |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Catastrophic | Cross-tenant data leak, broad unauthorized access, internal-network compromise, or platform-wide outage.                                      |
+| Critical     | Individual-user data loss without recovery, sustained attribution/legal-compliance failure, security-control bypass, or core-flow outage ≥1h. |
+| Serious      | Recoverable degradation: failed imports with a retry path, persistent extraction-quality drop, transient 5xx with idempotent retry.           |
+| Minor        | Annoyance: slow import, partial extraction with a user-edit workaround, transient UI error with self-recovery.                                |
+| Negligible   | Cosmetic: log noise, telemetry drift, copy inconsistency.                                                                                     |
 
-### Likelihood Scale
+### Likelihood
 
-| Level      | Definition                                                                   |
-| ---------- | ---------------------------------------------------------------------------- |
-| Frequent   | Expected on a regular cadence under normal load (≥1× per day in production). |
-| Probable   | Expected occasionally (≥1× per week per 1k MAU).                             |
-| Occasional | Expected rarely (≥1× per month per 1k MAU).                                  |
-| Remote     | Possible under unusual conditions (≥1× per quarter at small scale).          |
-| Improbable | Conceivable only under stacked failure or adversarial conditions.            |
+| Level      | Definition                                                          |
+| ---------- | ------------------------------------------------------------------- |
+| Frequent   | ≥1× per day in production.                                          |
+| Probable   | ≥1× per week per 1k MAU.                                            |
+| Occasional | ≥1× per month per 1k MAU.                                           |
+| Remote     | Possible under unusual conditions (≥1× per quarter at small scale). |
+| Improbable | Conceivable only under stacked failure or adversarial conditions.   |
 
-### Risk Level Matrix
+### Risk classes
 
-|              | Frequent     | Probable     | Occasional   | Remote      | Improbable  |
-| ------------ | ------------ | ------------ | ------------ | ----------- | ----------- |
-| Catastrophic | Unacceptable | Unacceptable | Unacceptable | Undesirable | Undesirable |
-| Critical     | Unacceptable | Unacceptable | Undesirable  | Undesirable | Tolerable   |
-| Serious      | Unacceptable | Undesirable  | Undesirable  | Tolerable   | Tolerable   |
-| Minor        | Undesirable  | Tolerable    | Tolerable    | Tolerable   | Acceptable  |
-| Negligible   | Tolerable    | Tolerable    | Acceptable   | Acceptable  | Acceptable  |
+`Intolerable` — must not ship · `Undesirable` — must be mitigated to Tolerable · `Tolerable` — accepted with
+controls · `Acceptable` — no further action.
 
-**Disposition rule**: `Unacceptable` MUST be mitigated to `Undesirable` or lower before release. `Undesirable` MUST have explicit residual-risk acceptance recorded in this document. `Tolerable` and `Acceptable` may ship with standard controls.
+---
 
-## Operational States
+## Hazard Register
 
-`system-design.md` does not define explicit operational states for the importing subsystem; the implicit state is **NORMAL** (steady-state production). The following operating modes are referenced where relevant for state-dependent hazards:
+### SYS-001 Source Fetcher — outbound egress
 
-| State             | Definition                                                               | Source                    |
-| ----------------- | ------------------------------------------------------------------------ | ------------------------- |
-| NORMAL            | Steady-state operation under expected load and upstream availability.    | Implicit                  |
-| DEGRADED-UPSTREAM | Source sites/oEmbed/OCR providers returning elevated errors or latency.  | SYS-001, SYS-002, SYS-003 |
-| RATE-LIMITED      | Upstream source is actively rate limiting requests (429 / throttling).   | SYS-001, SYS-002          |
-| REDIRECT-CHAIN    | URL fetch path enters multi-hop redirects and canonicalization handling. | SYS-001                   |
-| OCR-REVIEW        | OCR draft is presented for user correction before final save.            | SYS-003                   |
+| ID          | Failure mode                                                         | Effect                                                                                                    | Sev              | Lik        | Risk            | Controls (requirement · design · task)                                                                                                                                                                                   | Residual   |
+| ----------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------- | ---------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| HAZ-001     | Fetch failure (DNS/TLS/timeout/4xx/5xx) treated as a success path    | Silent empty import; user sees a blank or partial recipe                                                  | Serious          | Occasional | Undesirable     | REQ-024, REQ-NF-007 · ARCH-005 throws typed `SourceUnreachable`; ARCH-033 maps it to `422` · **T-010, T-011**                                                                                                            | Tolerable  |
+| HAZ-002     | Redirect chain unbounded or looping                                  | Worker starvation, import timeout, elevated cost                                                          | Serious          | Remote     | Tolerable       | REQ-NF-007 · ARCH-005 caps at 5 hops with total-time budget · **T-010**                                                                                                                                                  | Tolerable  |
+| **HAZ-003** | **SSRF via user-supplied URL — internal/metadata/private-IP fetch**  | **Internal network probing; cloud credential theft via the instance metadata endpoint; lateral movement** | **Catastrophic** | **Remote** | **Undesirable** | **REQ-NF-009, REQ-018** · ARCH-006 rejects all non-public addresses, pins the connection to the validated IP (closing DNS rebinding), and re-validates **every** redirect hop · **T-010 (security tests written first)** | Tolerable  |
+| HAZ-004     | Oversized response buffered without a size guard                     | Memory pressure, degraded service, DoS                                                                    | Critical         | Occasional | Undesirable     | REQ-NF-007 · ARCH-005 streams with a 5 MB early abort — **not** buffer-then-check · **T-010**                                                                                                                            | Tolerable  |
+| HAZ-005     | Charset/BOM decode errors corrupt extracted text                     | Garbled ingredients persisted                                                                             | Serious          | Occasional | Undesirable     | REQ-001 · ARCH-005 charset normalization; ARCH-018 validates before persistence · **T-007, T-008**                                                                                                                       | Tolerable  |
+| HAZ-031     | Slow-loris / trickled response consumes a worker for the full budget | Worker pool exhaustion under a small number of hostile URLs                                               | Serious          | Remote     | Tolerable       | REQ-NF-007 · ARCH-005 total-request deadline independent of the connect timeout; bulkhead bounds concurrent fetches · **T-010**                                                                                          | Tolerable  |
+| HAZ-032     | Outbound request carries credentials or cookies                      | Credential leakage to a third-party host                                                                  | Critical         | Improbable | Undesirable     | REQ-NF-009 · ARCH-005 constructs requests with no auth headers, cookie jar disabled · **T-010**                                                                                                                          | Acceptable |
 
-## Hazard Register (FMEA)
+### SYS-002 Extractor Chain
 
-> One or more `HAZ-NNN` per `SYS-NNN`. Mitigations cite existing `REQ-NNN`, `SYS-NNN`, or `ARCH-NNN` identifiers.
+| ID      | Failure mode                                                       | Effect                                                   | Sev     | Lik        | Risk        | Controls                                                                                                                 | Residual   |
+| ------- | ------------------------------------------------------------------ | -------------------------------------------------------- | ------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| HAZ-006 | Markup format drift yields a false parse success                   | Fields mis-mapped (title/ingredients swapped or dropped) | Serious | Probable   | Undesirable | REQ-002 · ARCH-008 Zod-validates before accepting; falls through to ARCH-009/010 · **T-008**                             | Tolerable  |
+| HAZ-007 | Partial parse accepted with no ingredients found                   | Unusable recipe saved; trust erosion                     | Serious | Probable   | Undesirable | REQ-012, REQ-013 · draft carries `missingRequired`; **confirmation is blocked** until complete · **T-007, T-016, T-022** | Acceptable |
+| HAZ-009 | JS-rendered page interpreted as an empty document                  | False "success" with an empty recipe                     | Minor   | Probable   | Tolerable   | REQ-CN-006 · ARCH-011 classifies "fetched, nothing found" as `IMPORT_NO_RECIPE_FOUND` · **T-008**                        | Acceptable |
+| HAZ-028 | JSON-LD parser accepts a non-`Recipe` object as a recipe           | Corrupted payload persisted with wrong semantics         | Serious | Occasional | Undesirable | REQ-002 · ARCH-008 strict `@type === 'Recipe'` check before acceptance · **T-008**                                       | Tolerable  |
+| HAZ-033 | Adversarial markup causes catastrophic parser backtracking (ReDoS) | Worker CPU exhaustion from one crafted page              | Serious | Remote     | Tolerable   | REQ-NF-007 · heuristics avoid unbounded backtracking; per-job CPU/time budget bounds the blast radius · **T-008, T-010** | Tolerable  |
 
-### SYS-001 — Web URL Extractor
+### SYS-003 Instagram Adapter
 
-| HAZ ID  | Component | Failure Mode                                                                    | Operational State | Effect                                                           | Severity     | Likelihood | Risk Level  | Mitigation                                                                                                | Residual Risk |
-| ------- | --------- | ------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------- | ------------ | ---------- | ----------- | --------------------------------------------------------------------------------------------------------- | ------------- |
-| HAZ-001 | SYS-001   | URL fetch failure (DNS/TLS/timeout/4xx/5xx) treated as generic success path.    | DEGRADED-UPSTREAM | User sees incomplete import or silent failure.                   | Serious      | Occasional | Undesirable | REQ-001, REQ-NF-002; ARCH-003 throws `UrlUnreachableError`; ARCH-017 normalizes to deterministic 4xx/5xx. | Tolerable     |
-| HAZ-002 | SYS-001   | Redirect loop or excessive redirect hops not bounded.                           | REDIRECT-CHAIN    | Worker/thread starvation, import timeout, elevated cost.         | Serious      | Remote     | Tolerable   | REQ-NF-001; ARCH-003 redirect cap + timeout; SYS-009 hard-fails on extractor timeout.                     | Tolerable     |
-| HAZ-003 | SYS-001   | SSRF via user-supplied URL (internal metadata/private IP fetch).                | NORMAL            | Internal network probing or data exposure.                       | Catastrophic | Remote     | Undesirable | REQ-014 input validation; ARCH-002 URL DTO validation; ARCH-003 egress allowlist/deny private CIDRs.      | Tolerable     |
-| HAZ-004 | SYS-001   | Oversized HTML payload accepted without size guard.                             | NORMAL            | Memory pressure, degraded performance, potential DoS.            | Critical     | Occasional | Undesirable | REQ-NF-001, REQ-NF-002; ARCH-003 max response-size limit + early abort.                                   | Tolerable     |
-| HAZ-005 | SYS-001   | UTF-8/BOM/charset decode errors corrupt extracted text.                         | NORMAL            | Garbled ingredients/instructions and incorrect persisted recipe. | Serious      | Occasional | Undesirable | REQ-001; ARCH-003 charset normalization; ARCH-016 typed payload validation before persistence.            | Tolerable     |
-| HAZ-006 | SYS-001   | schema.org/microdata format drift yields false parse success.                   | NORMAL            | Incorrect field mapping (title/ingredients swapped or missing).  | Serious      | Probable   | Undesirable | REQ-001; ARCH-004 strict schema validation + null on invalid; fallback to ARCH-005 heuristics.            | Tolerable     |
-| HAZ-007 | SYS-001   | Partial parse accepted with no ingredients found.                               | NORMAL            | Unusable imported recipe saved, user trust erosion.              | Serious      | Probable   | Undesirable | REQ-001, REQ-011; ARCH-005 confidence threshold + required-field checks in ARCH-001 before save.          | Tolerable     |
-| HAZ-008 | SYS-001   | Malicious HTML/script fragments persisted and later rendered unsanitized.       | NORMAL            | Stored XSS risk in recipe views.                                 | Critical     | Remote     | Undesirable | REQ-NF-004; ARCH-002 DTO sanitization boundary; ARCH-013 persistence sanitization/encoding contract.      | Tolerable     |
-| HAZ-009 | SYS-001   | JS-rendered pages interpreted as empty content without explicit classification. | NORMAL            | False "success" with empty extraction on modern recipe sites.    | Minor        | Probable   | Tolerable   | REQ-001; ARCH-003 classify dynamic-render failure and return actionable extraction error via ARCH-017.    | Acceptable    |
+| ID      | Failure mode                                             | Effect                                               | Sev     | Lik        | Risk        | Controls                                                                                                     | Residual   |
+| ------- | -------------------------------------------------------- | ---------------------------------------------------- | ------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------ | ---------- |
+| HAZ-010 | Upstream rate-limit (429) not classified                 | Burst failures look generic; retries amplify         | Serious | Occasional | Undesirable | REQ-005, REQ-NF-008 · ARCH-013 maps 429 to an explicit throttled error; backoff with full jitter · **T-019** | Tolerable  |
+| HAZ-011 | Caption parser false-positive on promotional text        | Low-quality recipe imported                          | Minor   | Probable   | Tolerable   | REQ-012 · draft review is the correction point (ARCH-029) · **T-022**                                        | Acceptable |
+| HAZ-012 | Provider contract drift (field rename/removal)           | Channel breaks for valid URLs until adapter update   | Serious | Remote     | Tolerable   | REQ-IF-001 · ARCH-013 validates response shape; contract test pins the expected shape · **T-019**            | Tolerable  |
+| HAZ-030 | Adapter timeout returned as a success-like empty payload | Empty imports created instead of an explicit failure | Serious | Remote     | Tolerable   | REQ-024 · ARCH-013 throws typed; ARCH-002 hard-fails the job · **T-019**                                     | Acceptable |
+| HAZ-034 | Meta credential absent or expired in a deployed stage    | Channel silently 500s for every user                 | Serious | Occasional | Undesirable | REQ-IF-001 · capability flag defaults **off**; the channel is hidden rather than broken (D-002) · **T-019**  | Acceptable |
 
-### SYS-002 — Instagram oEmbed Adapter
+### SYS-004 OCR Pipeline
 
-| HAZ ID  | Component | Failure Mode                                                  | Operational State | Effect                                                               | Severity | Likelihood | Risk Level  | Mitigation                                                                                             | Residual Risk |
-| ------- | --------- | ------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------- | -------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------ | ------------- |
-| HAZ-010 | SYS-002   | Upstream oEmbed rate-limit not detected/classified.           | RATE-LIMITED      | Burst failures appear as generic errors; retries amplify throttling. | Serious  | Occasional | Undesirable | REQ-002, REQ-NF-002; ARCH-006 maps 429 to explicit throttled error; SYS-009 retry policy with backoff. | Tolerable     |
-| HAZ-011 | SYS-002   | Caption parser false-positive on non-recipe promotional text. | NORMAL            | Low-quality/incorrect recipe imported.                               | Minor    | Probable   | Tolerable   | REQ-003; ARCH-006 non-empty + recipe-content checks; ARCH-016 payload shape constraints.               | Acceptable    |
-| HAZ-012 | SYS-002   | Instagram API contract drift (field rename/removal).          | DEGRADED-UPSTREAM | Import path breaks for valid URLs until adapter update.              | Serious  | Remote     | Tolerable   | REQ-002, REQ-IF-001; ARCH-006 strict response validation + explicit `OEmbedApiError` via ARCH-017.     | Tolerable     |
+| ID      | Failure mode                                   | Effect                                                                                                       | Sev      | Lik        | Risk        | Controls                                                                                                                   | Residual   |
+| ------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------- | ---------- | ----------- | -------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| HAZ-013 | Provider latency spike without timeout/backoff | Photo import stalls; user abandons                                                                           | Serious  | Occasional | Undesirable | REQ-NF-007 · ARCH-015 bounded polling + hard timeout; breaker opens · **T-018**                                            | Tolerable  |
+| HAZ-014 | Partial OCR text saved as if complete          | Missing ingredients persisted silently                                                                       | Serious  | Occasional | Undesirable | REQ-012 · OCR uses the same draft path; confirmation blocked while incomplete · **T-018, T-022**                           | Acceptable |
+| HAZ-035 | Source image retained indefinitely             | Storage cost growth and an avoidable privacy liability (photos may contain faces, handwriting, surroundings) | Critical | Probable   | Undesirable | REQ-026 · ARCH-016 deletes on confirm/discard/expiry, whichever is first; S3 lifecycle rule as backstop · **T-018, T-012** | Tolerable  |
+| HAZ-036 | OCR text logged for debugging                  | Third-party content and potential PII in logs                                                                | Critical | Occasional | Undesirable | REQ-NF-012 · logging policy forbids body/text; enforced by review and a log-assertion test · **T-018**                     | Tolerable  |
 
-### SYS-003 — OCR Physical Copy Pipeline
+### SYS-005 File Parser
 
-| HAZ ID  | Component | Failure Mode                                                              | Operational State | Effect                                                     | Severity | Likelihood | Risk Level  | Mitigation                                                                                             | Residual Risk |
-| ------- | --------- | ------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------- | -------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------ | ------------- |
-| HAZ-013 | SYS-003   | OCR provider latency spikes without timeout/backoff.                      | DEGRADED-UPSTREAM | Photo import stalls; user abandons flow.                   | Serious  | Occasional | Undesirable | REQ-009, REQ-NF-002; ARCH-007 timeout + retry/backoff; ARCH-017 error normalization for user feedback. | Tolerable     |
-| HAZ-014 | SYS-003   | OCR text extraction returns partial content and save proceeds unreviewed. | OCR-REVIEW        | Missing ingredients/instructions persisted as if complete. | Serious  | Occasional | Undesirable | REQ-011; SYS-003 mandatory review-and-correct step before ARCH-008 save path.                          | Tolerable     |
+| ID      | Failure mode                                              | Effect                                         | Sev      | Lik        | Risk        | Controls                                                                                     | Residual   |
+| ------- | --------------------------------------------------------- | ---------------------------------------------- | -------- | ---------- | ----------- | -------------------------------------------------------------------------------------------- | ---------- |
+| HAZ-037 | File type trusted from the client-supplied name/MIME      | Parser confusion; unexpected content processed | Serious  | Occasional | Undesirable | REQ-006 · ARCH-017 determines type by magic bytes (`file-type`) · **T-015**                  | Tolerable  |
+| HAZ-038 | YAML parsed with type resolution enabling object creation | Deserialization attack surface                 | Critical | Remote     | Undesirable | REQ-006 · `yaml` safe-parse only; no custom tags/anchors expansion beyond bounds · **T-015** | Tolerable  |
+| HAZ-039 | Decompression/expansion bomb in an uploaded file          | Memory exhaustion                              | Serious  | Remote     | Tolerable   | REQ-006 · 1 MB upload cap enforced before parse · **T-015**                                  | Acceptable |
 
-### SYS-004 — Attribution & Visibility Gate
+### SYS-006 Normalizer
 
-| HAZ ID  | Component | Failure Mode                                                                      | Operational State | Effect                                                         | Severity | Likelihood | Risk Level  | Mitigation                                                                                               | Residual Risk |
-| ------- | --------- | --------------------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------- | -------- | ---------- | ----------- | -------------------------------------------------------------------------------------------------------- | ------------- |
-| HAZ-015 | SYS-004   | Attribution metadata dropped on create/update path.                               | NORMAL            | Legal/compliance exposure for imported public recipes.         | Critical | Occasional | Undesirable | REQ-004, REQ-013; ARCH-011 enforces attribution object for web/Instagram imports before persistence.     | Tolerable     |
-| HAZ-016 | SYS-004   | Visibility defaults wrong (web/Instagram saved private or physical saved public). | NORMAL            | Policy violation and inconsistent user-facing behavior.        | Critical | Remote     | Undesirable | REQ-005, REQ-010; ARCH-011 import-type mapping with explicit branch coverage in tests.                   | Tolerable     |
-| HAZ-017 | SYS-004   | Clone-and-edit premium gate bypassed.                                             | NORMAL            | Public import becomes private without substantive edit policy. | Critical | Remote     | Undesirable | REQ-006, REQ-007; ARCH-012 enforces premium + substantive-edit preconditions before visibility mutation. | Tolerable     |
+| ID      | Failure mode                                               | Effect                                                       | Sev      | Lik      | Risk        | Controls                                                                                            | Residual   |
+| ------- | ---------------------------------------------------------- | ------------------------------------------------------------ | -------- | -------- | ----------- | --------------------------------------------------------------------------------------------------- | ---------- |
+| HAZ-008 | Malicious markup persisted and later rendered              | **Stored XSS** in recipe views across web and mobile         | Critical | Remote   | Undesirable | REQ-NF-010 · ARCH-021 zero-tag-allowlist sanitization before persistence · **T-007**                | Tolerable  |
+| HAZ-029 | Unsanitized field bypasses the boundary on one path        | Stored XSS via a path that skipped sanitization              | Critical | Remote   | Undesirable | REQ-NF-010 · sanitization applied in ARCH-018, which **every** channel traverses · **T-007, T-011** | Tolerable  |
+| HAZ-040 | Missing required value silently defaulted (`servings = 1`) | Fabricated data presented to the user as extracted fact      | Critical | Probable | Undesirable | REQ-011 · ARCH-020 **never** defaults; absent ⇒ `missingRequired` · **T-007** (explicit test)       | Acceptable |
+| HAZ-041 | Ingredient line mis-parsed and the original discarded      | Irrecoverable data loss — the user cannot see what was meant | Serious  | Probable | Undesirable | REQ-008, REQ-009 · ARCH-019 **always** retains `raw` · **T-007, T-022**                             | Acceptable |
 
-### SYS-005 — Deduplication Guard
+### SYS-007 Provenance Classifier
 
-| HAZ ID  | Component | Failure Mode                                                                | Operational State | Effect                                                       | Severity | Likelihood | Risk Level  | Mitigation                                                                                              | Residual Risk |
-| ------- | --------- | --------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------ | -------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------- | ------------- |
-| HAZ-018 | SYS-005   | Duplicate imports created due to race between check and persist.            | NORMAL            | Multiple public copies of same source URL.                   | Serious  | Occasional | Undesirable | REQ-008, REQ-CN-001; ARCH-010 + ARCH-015 enforce atomic dedupe check with unique source-url constraint. | Tolerable     |
-| HAZ-019 | SYS-005   | URL canonicalization mismatch (`http/https`, query params, trailing slash). | NORMAL            | False negatives in deduplication; duplicate recipes created. | Serious  | Probable   | Undesirable | REQ-008; ARCH-010 canonicalization before lookup; ARCH-015 normalized source-url index key.             | Tolerable     |
+| ID      | Failure mode                                         | Effect                                                           | Sev      | Lik        | Risk        | Controls                                                                                                | Residual   |
+| ------- | ---------------------------------------------------- | ---------------------------------------------------------------- | -------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------- | ---------- |
+| HAZ-016 | Provenance mis-classified (physical saved as public) | Policy violation; a private-origin recipe made public            | Critical | Remote     | Undesirable | REQ-014 · ARCH-022 pure total function with exhaustive branch tests · **T-006**                         | Tolerable  |
+| HAZ-017 | Clone/premium gate bypassed                          | Public import made private without a substantive edit            | Critical | Remote     | Undesirable | REQ-015 · delegated to the **shipped** `evaluateVisibility`; 004 adds no second rule · **T-006, T-016** | Acceptable |
+| HAZ-042 | A heuristic reclassifies a recipe on its own         | False accusation of paid-source use; wrongly blocked publication | Serious  | Occasional | Undesirable | REQ-023 · heuristics **flag for review only**, never adjudicate (D-003) · **T-006**                     | Acceptable |
+| HAZ-043 | Classification failure defaults to a public class    | Paid or private-origin content published                         | Critical | Remote     | Undesirable | REQ-014 · classification is a **hard-fail** gate; there is no default-to-public path · **T-006, T-011** | Tolerable  |
 
-### SYS-006 — Paywall Blocklist Enforcer
+### SYS-008 Paywall Blocklist
 
-| HAZ ID  | Component | Failure Mode                                                         | Operational State | Effect                                                       | Severity | Likelihood | Risk Level  | Mitigation                                                                                                | Residual Risk |
-| ------- | --------- | -------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------ | -------- | ---------- | ----------- | --------------------------------------------------------------------------------------------------------- | ------------- |
-| HAZ-020 | SYS-006   | Paywalled source not detected (blocklist miss).                      | NORMAL            | Copyright/compliance breach via unauthorized import.         | Critical | Occasional | Undesirable | REQ-012, REQ-013, REQ-CN-002; ARCH-009 centralized paywall-domain rules consulted pre-extraction.         | Tolerable     |
-| HAZ-021 | SYS-006   | robots.txt disallow ignored during crawler-style fetch path.         | NORMAL            | Terms-of-service violation and source-site abuse complaints. | Serious  | Remote     | Tolerable   | REQ-012, REQ-CN-004; SYS-006 policy gate validates domain-level crawl constraints before import proceeds. | Tolerable     |
-| HAZ-022 | SYS-006   | Over-broad blocklist false-positives legitimate free recipe domains. | NORMAL            | Valid imports blocked; user frustration/churn.               | Minor    | Occasional | Tolerable   | REQ-CN-002; ARCH-009 scoped domain matching + monitored allowlist exceptions.                             | Acceptable    |
+| ID      | Failure mode                                         | Effect                                                   | Sev      | Lik        | Risk        | Controls                                                                                                                                                                | Residual   |
+| ------- | ---------------------------------------------------- | -------------------------------------------------------- | -------- | ---------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| HAZ-020 | Blocklist miss — paywalled source not detected       | Copyright/TOS breach via an unauthorized import          | Critical | Occasional | Undesirable | REQ-017 · ARCH-023 consulted pre-fetch and per redirect hop; admin-updatable without deploy (D-004) · **T-009, T-017**                                                  | Tolerable  |
+| HAZ-021 | `robots.txt` disallow ignored                        | TOS violation; source-site abuse complaints              | Serious  | Remote     | Tolerable   | REQ-030 · agent-specific groups honoured in full; path-specific wildcard rules honoured; bare wildcard `Disallow: /` does not block (D-007); blocks counted · **T-010** | Tolerable  |
+| HAZ-022 | Over-broad matching blocks legitimate domains        | Valid imports refused; user frustration                  | Minor    | Occasional | Tolerable   | REQ-020 · exact-host or registrable-suffix matching only, **never substring** · **T-009**                                                                               | Acceptable |
+| HAZ-044 | Blocklist store unavailable and the check fails open | Every blocked source becomes importable during an outage | Critical | Remote     | Undesirable | REQ-017 · the check fails **closed**; a lookup error aborts the import · **T-009, T-011**                                                                               | Tolerable  |
 
-### SYS-007 — Recipe Persistence Adapter
+### SYS-009 Deduplication Guard
 
-| HAZ ID  | Component | Failure Mode                                                                    | Operational State | Effect                                                 | Severity | Likelihood | Risk Level  | Mitigation                                                                                         | Residual Risk |
-| ------- | --------- | ------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------ | -------- | ---------- | ----------- | -------------------------------------------------------------------------------------------------- | ------------- |
-| HAZ-023 | SYS-007   | Persistence succeeds but attribution fields omitted in DB write mapping.        | NORMAL            | Attribution not displayed despite successful import.   | Critical | Remote     | Undesirable | REQ-004, REQ-015; ARCH-013 typed mapping contract includes attribution fields for sourced imports. | Tolerable     |
-| HAZ-024 | SYS-007   | Partial transaction commit leaves recipe row without required related metadata. | NORMAL            | Inconsistent records; downstream read/render failures. | Serious  | Remote     | Tolerable   | REQ-NF-001; ARCH-013 transactional persistence boundary with rollback on mapping/persist errors.   | Tolerable     |
+| ID      | Failure mode                                           | Effect                                           | Sev     | Lik        | Risk        | Controls                                                                                                               | Residual   |
+| ------- | ------------------------------------------------------ | ------------------------------------------------ | ------- | ---------- | ----------- | ---------------------------------------------------------------------------------------------------------------------- | ---------- |
+| HAZ-018 | Race between duplicate check and insert                | Two public recipes for one source URL            | Serious | Occasional | Undesirable | REQ-004, REQ-CN-001 · partial **unique index** is the authority; the lookup is only an optimisation · **T-002, T-014** | Acceptable |
+| HAZ-019 | URL canonicalization mismatch (scheme/params/slash)    | Dedup false negatives; duplicates accumulate     | Serious | Probable   | Undesirable | REQ-003 · ARCH-024 value object canonicalizes at construction, so no caller can forget · **T-005**                     | Acceptable |
+| HAZ-045 | Unique index blocks re-import of a soft-deleted recipe | A user who deletes an import can never re-add it | Serious | Probable   | Undesirable | REQ-CN-002 · the index is partial on `deleted_at IS NULL` · **T-002** (explicit test)                                  | Acceptable |
 
-### SYS-008 — Auth Enforcement Middleware
+### SYS-010/011 Drafts, Jobs, Orchestration
 
-| HAZ ID  | Component | Failure Mode                                                             | Operational State | Effect                                                   | Severity     | Likelihood | Risk Level  | Mitigation                                                                                                | Residual Risk |
-| ------- | --------- | ------------------------------------------------------------------------ | ----------------- | -------------------------------------------------------- | ------------ | ---------- | ----------- | --------------------------------------------------------------------------------------------------------- | ------------- |
-| HAZ-025 | SYS-008   | JWT validation bypass or misconfiguration allows unauthenticated import. | NORMAL            | Unauthorized recipe creation/modification path exposure. | Catastrophic | Improbable | Undesirable | REQ-IF-004; SYS-008 Clerk auth middleware on all import endpoints; ARCH-014 strict token validation path. | Tolerable     |
+| ID      | Failure mode                                                                            | Effect                                                                                        | Sev          | Lik        | Risk        | Controls                                                                                                                | Residual   |
+| ------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------ | ---------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
+| HAZ-026 | Pipeline step ordering regression (dedupe/policy after persist)                         | Invalid or duplicate records committed before controls apply                                  | Critical     | Remote     | Undesirable | REQ-024 · ARCH-002 owns the fixed sequence; unit tests assert call **order**, not just outcome · **T-011**              | Tolerable  |
+| HAZ-027 | Error normalization missed on one path                                                  | Internal details leak; inconsistent client behaviour                                          | Serious      | Occasional | Undesirable | REQ-024 · the **shipped** `ApiExceptionFilter` is the single boundary · **T-003**                                       | Acceptable |
+| HAZ-046 | Another user's draft or job readable by id                                              | **Cross-tenant data exposure** (BOLA/IDOR, OWASP API #1)                                      | Catastrophic | Remote     | Undesirable | REQ-027 · owner-scoped reads returning `404`, never `403`; IDOR tests on every id-bearing route · **T-012, T-013**      | Tolerable  |
+| HAZ-047 | Client retry double-imports                                                             | Duplicate drafts and duplicate OCR spend                                                      | Serious      | Probable   | Undesirable | REQ-028 · `Idempotency-Key` required; first outcome cached per (key, endpoint, principal) · **T-013**                   | Acceptable |
+| HAZ-048 | Unbounded intake under load                                                             | Queue growth → OOM rather than graceful shedding                                              | Critical     | Occasional | Undesirable | REQ-NF-011 · bounded queue; `429` shedding; k6 soak-to-failure proves the limit · **T-026**                             | Tolerable  |
+| HAZ-049 | Drafts accumulate without expiry                                                        | Unbounded table growth; stale third-party content retained                                    | Serious      | Probable   | Undesirable | REQ-026 · 7-day expiry sweep, cap enforced in prod (D-005) · **T-012**                                                  | Acceptable |
+| HAZ-056 | Single user or compromised account drives unbounded OCR / outbound volume               | Runaway Textract spend and third-party abuse complaints                                       | Serious      | Occasional | Undesirable | REQ-029 · daily allowance (200/day, 50/day OCR) evaluated in ARCH-002 as domain policy · **T-013**                      | Acceptable |
+| HAZ-057 | Client mass-assigns `sourceType` to obtain a private recipe or attach false attribution | Free-tier caller bypasses the C-004 premium gate; fabricated source credit on a public recipe | Critical     | Occasional | Undesirable | REQ-032 · server-set provenance for observed channels; client whitelist admits only the attested paid class · **T-029** | Tolerable  |
+| HAZ-058 | Bulk import partially fails and discards successful recipes                             | A 187-recipe migration loses everything on one bad row; user abandons migration               | Serious      | Probable   | Undesirable | REQ-034 · per-recipe outcome, per-recipe transaction; no all-or-nothing batch · **T-030**                               | Acceptable |
+| HAZ-059 | Bulk import floods the food service with ingredient resolutions                         | 003 degraded or throttled by one user's migration                                             | Serious      | Occasional | Undesirable | REQ-034 · resolution stays asynchronous and is batched/queued, never a synchronous fan-out per recipe · **T-030**       | Tolerable  |
+| HAZ-060 | Oversized export file exhausts memory or transaction limits                             | Import worker OOM; partial writes                                                             | Serious      | Occasional | Undesirable | REQ-033 · bounded recipe count and file size per upload, streamed parse, chunked persistence · **T-030**                | Tolerable  |
+| HAZ-061 | Premium gate bypassed on a non-public channel                                           | Free-tier caller obtains private recipes and bills Textract to the platform                   | Critical     | Remote     | Undesirable | REQ-035 · entitlement checked in ARCH-002 before the channel runs, from the signed token's permissions · **T-031**      | Tolerable  |
 
-### SYS-009 — Import Orchestrator
+### SYS-012 Confirmation Bridge
 
-| HAZ ID  | Component | Failure Mode                                                              | Operational State | Effect                                                        | Severity | Likelihood | Risk Level  | Mitigation                                                                                             | Residual Risk |
-| ------- | --------- | ------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------- | -------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------ | ------------- |
-| HAZ-026 | SYS-009   | Step ordering regression (dedupe/attribution checks after persistence).   | NORMAL            | Invalid or duplicate records committed before controls apply. | Critical | Remote     | Undesirable | REQ-NF-001; ARCH-001 orchestrates fixed sequence (paywall → extract → dedupe → attribution → persist). | Tolerable     |
-| HAZ-027 | SYS-009   | Error normalization omitted for one path, leaking internal error details. | NORMAL            | Information disclosure and inconsistent client behavior.      | Serious  | Occasional | Undesirable | REQ-NF-004; ARCH-017 centralized error mapping invoked from ARCH-001/ARCH-002.                         | Tolerable     |
+| ID      | Failure mode                                                | Effect                                                               | Sev      | Lik        | Risk        | Controls                                                                                                     | Residual   |
+| ------- | ----------------------------------------------------------- | -------------------------------------------------------------------- | -------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------ | ---------- |
+| HAZ-015 | Attribution dropped on the create path                      | Legal/compliance exposure for imported public recipes                | Critical | Occasional | Undesirable | REQ-016 · attribution carried on the draft and asserted on the created recipe · **T-016** (integration test) | Tolerable  |
+| HAZ-023 | Attribution fields omitted in the DB write mapping          | Attribution not displayed despite a successful import                | Critical | Remote     | Undesirable | REQ-016 · typed mapping; integration test asserts persisted attribution · **T-016**                          | Tolerable  |
+| HAZ-024 | Partial commit leaves a recipe without its related rows     | Inconsistent records; downstream render failures                     | Serious  | Remote     | Tolerable   | REQ-IF-003 · creation runs through 001's shipped transactional write path · **T-016**                        | Acceptable |
+| HAZ-050 | Food-service outage blocks confirmation                     | Users cannot save any import while a non-critical dependency is down | Serious  | Occasional | Undesirable | REQ-010 · resolution is asynchronous and **never** blocks confirmation; degrades to unresolved · **T-016**   | Acceptable |
+| HAZ-051 | A second recipe-creation path is introduced alongside 001's | Two write authorities drift; C-004 enforced in only one              | Critical | Occasional | Undesirable | REQ-CN-007 · confirmation delegates to `RecipesService.create`; enforced by review + inspection · **T-016**  | Tolerable  |
 
-## Progressive Deepening (Architecture-Level)
+### SYS-013 Import UI
 
-The following hazards emerged from `architecture-design.md` decomposition (18 ARCH modules). They are **appended** to the SYS-level register above and capture failure modes only visible at the ARCH boundary.
+| ID      | Failure mode                                             | Effect                                                      | Sev          | Lik        | Risk        | Controls                                                                                         | Residual   |
+| ------- | -------------------------------------------------------- | ----------------------------------------------------------- | ------------ | ---------- | ----------- | ------------------------------------------------------------------------------------------------ | ---------- |
+| HAZ-025 | Unauthenticated import reaches the service               | Unauthorized recipe creation                                | Catastrophic | Improbable | Undesirable | REQ-IF-004 · the **shipped** Clerk middleware guards every route · **T-014..T-019**              | Acceptable |
+| HAZ-052 | Import state conveyed by colour alone                    | Users with colour-vision deficiency cannot perceive failure | Serious      | Probable   | Undesirable | REQ-NF-005 · icon + text pairing; component tests assert the text affordance · **T-024**         | Acceptable |
+| HAZ-053 | Web ships an import capability mobile lacks              | Platform drift; §14.1 violation                             | Serious      | Probable   | Undesirable | REQ-CN-008 · T-021..T-024 each deliver both platforms; review checklist rejects an unpaired task | Acceptable |
+| HAZ-054 | A gated channel renders as an affordance that then fails | Dead UI; user attempts an unavailable action                | Minor        | Occasional | Tolerable   | REQ-IF-001 · the channel list is server-driven by `GET /import/sources` · **T-019, T-021**       | Acceptable |
+| HAZ-055 | Hard-coded user-facing copy                              | Untranslatable UI; platform copy drift                      | Minor        | Probable   | Tolerable   | REQ-NF-006 · copy lives in shared `messages.ts` via `useMessages` · **T-021..T-024**             | Acceptable |
 
-| HAZ ID  | Component           | Failure Mode                                                                     | Operational State | Effect                                                                  | Severity | Likelihood | Risk Level  | Mitigation                                                                                     | Residual Risk |
-| ------- | ------------------- | -------------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------- | -------- | ---------- | ----------- | ---------------------------------------------------------------------------------------------- | ------------- |
-| HAZ-028 | ARCH-003 + ARCH-004 | `application/ld+json` parser accepts non-Recipe JSON-LD object as valid recipe.  | NORMAL            | Corrupted recipe payload persisted with wrong semantics.                | Serious  | Occasional | Undesirable | REQ-001; ARCH-004 strict `@type=Recipe` validation; ARCH-003 fallback to ARCH-005 on mismatch. | Tolerable     |
-| HAZ-029 | ARCH-002 + ARCH-013 | Unsanitized payload fields pass controller boundary and persist raw HTML/script. | NORMAL            | Stored XSS in downstream recipe rendering clients.                      | Critical | Remote     | Undesirable | REQ-NF-004; ARCH-002 DTO sanitization + ARCH-013 persistence sanitization contract.            | Tolerable     |
-| HAZ-030 | ARCH-006 + ARCH-001 | oEmbed adapter timeout returned as success-like empty payload.                   | DEGRADED-UPSTREAM | Empty/low-quality imports created instead of explicit failure response. | Serious  | Remote     | Tolerable   | REQ-002, REQ-NF-002; ARCH-006 throws typed error, ARCH-001 hard-fails and routes via ARCH-017. | Tolerable     |
+---
 
-## Coverage Summary
+## Summary
 
-| Metric                               | Count |
-| ------------------------------------ | ----- |
-| Total System Components (SYS)        | 9     |
-| Components with ≥1 hazard            | 9     |
-| Total Hazards                        | 30    |
-| Unacceptable risks (post-mitigation) | 0     |
-| Undesirable risks (residual)         | 0     |
-| Tolerable residual risks             | 24    |
-| Acceptable residual risks            | 6     |
+| Metric                                   | Count   |
+| ---------------------------------------- | ------- |
+| Total hazards                            | 61      |
+| Catastrophic                             | 3       |
+| Critical                                 | 20      |
+| Serious                                  | 33      |
+| Minor                                    | 5       |
+| Residual **Intolerable**                 | 0       |
+| Residual **Undesirable** (must not ship) | 0       |
+| Hazards whose control reaches a task     | 61 / 61 |
 
-Coverage check: **100% of system components (`SYS-001`..`SYS-009`) have at least one hazard.**
+### The three Catastrophic hazards
 
-## Frozen-Pending-Resolution Tracker
+1. **HAZ-003 — SSRF.** The defining risk of this feature. Controlled by REQ-NF-009/REQ-018 and implemented in
+   **T-010**, whose security tests are written before the fetcher exists and include a test that fails if the
+   guard is removed.
+2. **HAZ-046 — cross-tenant draft/job access.** Controlled by REQ-027 and implemented in T-012/T-013 with
+   owner-scoped reads that return `404` rather than `403`.
+3. **HAZ-025 — unauthenticated import.** Controlled by the shipped Clerk middleware; 004 adds no new auth path.
 
-No `[FROZEN-PENDING-RESOLUTION:*]` markers are present in `specs/004-recipe-importing/v-model/system-design.md` at the time of this hazard pass.
+### Traceability
 
-## Domain Note (non-regulated)
-
-This artifact intentionally uses a lightweight, general-purpose FMEA profile suitable for consumer SaaS. No regulated safety taxonomy is applied.
-
-## Glossary
-
-- **FMEA**: Failure Mode and Effects Analysis.
-- **Residual Risk**: Risk remaining after listed mitigations are applied.
-- **Attribution compliance**: Preservation and presentation of source URL/author/platform for web/Instagram imports.
-- **SSRF**: Server-Side Request Forgery via attacker-controlled URL inputs.
+Every hazard maps to at least one requirement in `requirements.md` and at least one task in `tasks.md`. The
+Hazard Traceability matrix (Matrix H in `traceability-matrix.md`) is generated from this register; a hazard with
+no test-case mapping is a release blocker.

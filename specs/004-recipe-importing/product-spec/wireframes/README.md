@@ -1,33 +1,33 @@
-# Wireframes: Recipe Importing
+# Wireframes — 004 Recipe Importing
 
-**Branch**: `004-recipe-importing`
-**Date**: 2026-05-09
-**Status**: Draft
-**Source**: [product-spec.md](../product-spec.md), [spec.md](../../spec.md)
+**Regenerated**: 2026-08-02
 
----
+Screen specifications for the import flow. Every screen ships to **web and mobile in the same release**
+(`CODING_STANDARDS §14.1`); these documents describe shared behaviour, with platform differences called out
+inline. All copy is drawn from the shared message catalogue — no screen defines literal strings.
 
-## Index
+| Screen                                             | Journey | Story              |
+| -------------------------------------------------- | ------- | ------------------ |
+| [import-url.md](./import-url.md)                   | J1, J6  | US-401, US-402     |
+| [import-photo.md](./import-photo.md)               | J2      | US-405             |
+| [import-paste.md](./import-paste.md)               | J3      | US-410, US-411     |
+| [import-progress.md](./import-progress.md)         | J1, J2  | US-401, US-405     |
+| [import-draft-review.md](./import-draft-review.md) | **all** | US-408 — the pivot |
+| [import-conflict.md](./import-conflict.md)         | J4      | US-407             |
+| [import-error.md](./import-error.md)               | J5      | US-409             |
 
-| File                                       | Description                                                  | Key FRs                |
-| ------------------------------------------ | ------------------------------------------------------------ | ---------------------- |
-| [import-url.md](./import-url.md)           | URL and Instagram entry screen with staged parsing states    | FR-008, FR-009         |
-| [import-paste.md](./import-paste.md)       | Manual paste fallback with structured parse guidance         | FR-008, FR-014a        |
-| [import-preview.md](./import-preview.md)   | Parse-and-confirm editable preview with attribution block    | FR-008, FR-010, FR-011 |
-| [import-conflict.md](./import-conflict.md) | Duplicate source conflict screen with clone-first resolution | FR-008, FR-011         |
-| [import-error.md](./import-error.md)       | Typed import failure states and recovery actions             | FR-009, FR-014         |
+## Changes in this revision
 
----
+- **`import-preview.md` replaced by `import-draft-review.md`.** The old screen was an optional preview; the new
+  one is a mandatory completion step every channel passes through, and it can block saving. Different
+  responsibility, different name.
+- **`import-progress.md` added** — imports are asynchronous, so there is a real waiting state to design.
+- **`import-photo.md` added** — photo import is Must Have at launch (D-001) and previously had no screen.
+- **`import-paste.md` extended** with the source attestation and citation controls (D-003).
 
-## FR Reference Key
+## Accessibility rules for every screen
 
-- **FR-008**: Import from public website URL with extraction and duplicate handling
-- **FR-009**: Instagram import from caption-supported posts only
-- **FR-010**: Prominent source attribution for web/Instagram imports
-- **FR-011**: Imported public recipes visibility and clone/substantive-edit constraints
-- **FR-012**: Physical copy import via photo/OCR
-- **FR-013**: Physical-copy imports are private by default
-- **FR-014**: Reject known paywalled source imports with clear message
-- **FR-014a**: Legal-review-required policy for manually copied paid-source recipes
-- **NFR-003**: Accessible names/queryable controls
-- **NFR-004**: Non-color-only status communication
+- Every interactive element has an accessible name reachable via `getByRole` / `getByLabel`.
+- State is **never** conveyed by colour alone — an icon or text label always accompanies it.
+- Full keyboard operation on web; correct focus order and screen-reader labelling on both platforms.
+- Loading and error states are announced, not merely rendered.

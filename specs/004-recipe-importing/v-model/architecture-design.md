@@ -2,496 +2,311 @@
 
 **Feature Branch**: `004-recipe-importing`
 **Created**: 2026-05-09
-**Status**: Draft
+**Regenerated**: 2026-08-02
+**Status**: Approved for module design
 **Source**: `specs/004-recipe-importing/v-model/system-design.md`
+**Standard**: IEEE 42010 / Kruchten 4+1
+
+> **Regeneration note.** The previous revision (a) proposed `AttributionVisibilityService` and `CloneService`,
+> both of which already ship in 001 and would have forked the C-004 rule; (b) modelled `userId` as the "Clerk
+> sub claim" when the shipped service uses the **app ULID** as `owner_id`; (c) specified endpoints
+> (`/import/photo/save`, no version prefix, no file channel) that contradicted `plan.md` and `tasks.md`;
+> (d) used `201` where `plan.md` used `202`, and `422` where `plan.md` used `400`; and (e) had a Development
+> View that named **no package paths at all** — which is why every file path in `tasks.md` pointed at
+> `packages/api/recipe/`, a directory that does not exist. This revision names real paths, verified against
+> `main`.
 
 ## Overview
 
-The Recipe Importing architecture decomposes nine system components (SYS-001–SYS-009) into 18 architecture modules (ARCH-001–ARCH-018) organised across four Kruchten 4+1 views. The decomposition separates extraction adapters (web, Instagram, OCR) from shared enforcement logic (paywall, deduplication, attribution/visibility), and isolates the persistence boundary behind a typed adapter. Cross-cutting modules handle authentication middleware, error normalisation, and TypeScript type definitions shared across all import paths.
+Thirteen system components decompose into 26 architecture modules across the Kruchten 4+1 views. The
+decomposition separates **channel adapters** from the **shared pipeline** (normalize → classify → dedupe →
+draft), keeps every third-party dependency behind a **port**, and terminates at a **confirmation bridge** that
+hands work to 001's shipped write path rather than reimplementing it.
 
 ## ID Schema
 
-- **Architecture Module**: `ARCH-NNN` — sequential identifier for each module
-- **Parent System Components**: Comma-separated `SYS-NNN` list per module (many-to-many)
-- **Cross-Cutting Tag**: `[CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components]` for infrastructure/utility modules not traceable to a specific SYS
-- Example: `ARCH-003` with Parent System Components `SYS-001, SYS-004` — module serves both components
-- Example: `ARCH-010 [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components]` — infrastructure module (e.g., Logger, Thread Pool) with rationale
+- **Architecture Module**: `ARCH-NNN` — sequential, never renumbered.
+- **Cross-cutting** modules are tagged `[CROSS-CUTTING]` with a rationale.
 
-## Logical View — Component Breakdown (IEEE 42010 / Kruchten 4+1)
+## Logical View — Component Breakdown
 
-| ARCH ID  | Name                         | Description                                                                                                                                                                                                                                                                                                                                                                                         | Parent System Components                                                                                                                                                 | Type      |
-| -------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- | ------- |
-| ARCH-001 | ImportOrchestrator           | NestJS service that routes incoming import requests to the correct extractor module, sequences paywall check → deduplication → attribution/visibility → persistence, and returns a unified result to the API layer. Owns the top-level try/catch and delegates error normalisation to ARCH-017.                                                                                                     | SYS-009                                                                                                                                                                  | Service   |
-| ARCH-002 | ImportController             | NestJS REST controller exposing four endpoints: `POST /import/url`, `POST /import/instagram`, `POST /import/photo`, `POST /import/photo/save`. Validates incoming DTOs with `class-validator`, delegates to ARCH-001, and maps domain errors to HTTP status codes.                                                                                                                                  | SYS-009                                                                                                                                                                  | Component |
-| ARCH-003 | WebUrlExtractorService       | Fetches the target URL via `node-fetch`, parses `application/ld+json` schema.org/Recipe markup as the primary extraction strategy, falls back to heuristic CSS-selector parsing for title/ingredients/instructions, and returns a `RecipeImportPayload`. Throws `UrlUnreachableError` on 4xx/5xx or network timeout.                                                                                | SYS-001                                                                                                                                                                  | Service   |
-| ARCH-004 | SchemaOrgParser              | Stateless utility that accepts raw HTML and extracts a `RecipeImportPayload` from embedded `application/ld+json` `Recipe` objects. Returns `null` when no valid schema is found, signalling ARCH-003 to invoke the heuristic fallback.                                                                                                                                                              | SYS-001                                                                                                                                                                  | Library   |
-| ARCH-005 | HeuristicRecipeParser        | Stateless utility that applies CSS-selector heuristics (common recipe blog patterns) to extract title, ingredient list, and instruction steps from raw HTML when schema.org markup is absent. Returns a partial `RecipeImportPayload` with a confidence score.                                                                                                                                      | SYS-001                                                                                                                                                                  | Library   |
-| ARCH-006 | InstagramOEmbedAdapter       | Calls the Instagram public oEmbed endpoint (`https://graph.facebook.com/v18.0/instagram_oembed`) with the post URL, validates the response, checks that caption text contains recipe content (non-empty, not video-only), and returns a `RecipeImportPayload`. Throws `NoCaptionError` for video-only or image-only posts; `OEmbedApiError` on API failure.                                         | SYS-002                                                                                                                                                                  | Adapter   |
-| ARCH-007 | OcrPipelineService           | Accepts a `Buffer` (uploaded photo), submits it to the configured OCR provider (AWS Textract or equivalent), polls for completion, and returns raw extracted text as an `OcrDraftPayload`. Throws `OcrServiceError` on provider failure or timeout.                                                                                                                                                 | SYS-003                                                                                                                                                                  | Service   |
-| ARCH-008 | OcrReviewController          | NestJS controller endpoint (`POST /import/photo/save`) that accepts a user-corrected `OcrDraftPayload`, validates it, and passes it to ARCH-001 for the attribution/visibility/persistence pipeline. Distinct from ARCH-002 to isolate the two-step OCR flow.                                                                                                                                       | SYS-003                                                                                                                                                                  | Component |
-| ARCH-009 | PaywallBlocklistService      | Loads a domain blocklist from environment configuration at startup. Exposes `checkPaywall(url: string): void` — throws `PaywallBlockedError` synchronously if the URL's domain matches a blocked entry. Also exposes `flagManualEntry(payload): void` to mark manually entered paid-source recipes, preventing public visibility.                                                                   | SYS-006                                                                                                                                                                  | Service   |
-| ARCH-010 | DeduplicationService         | Queries the Recipe repository (via ARCH-015) for an existing record with the same `sourceUrl`. Returns a `DuplicateCheckResult` containing the existing `RecipeEntity` when found, or `null` when the URL is new. Exposes `findBySourceUrl(url: string)`.                                                                                                                                           | SYS-005                                                                                                                                                                  | Service   |
-| ARCH-011 | AttributionVisibilityService | Applies attribution metadata (sourceUrl, originalAuthor, platform) to a `RecipeImportPayload` and enforces visibility rules: web/Instagram imports → public; physical copy imports → private. Enforces the clone-and-substantive-edit rule for premium users attempting to make an imported recipe private. Returns an `AttributedPayload`.                                                         | SYS-004                                                                                                                                                                  | Service   |
-| ARCH-012 | CloneService                 | Creates a copy of an existing `RecipeEntity` for a given user, retaining source attribution on the clone. Enforces that the clone remains public until a premium user makes a substantive edit (determined by diff against the original). Delegates persistence to ARCH-015.                                                                                                                        | SYS-004                                                                                                                                                                  | Service   |
-| ARCH-013 | RecipePersistenceAdapter     | Wraps the Drizzle ORM `recipes` table. Exposes `save(payload: AttributedPayload): RecipeEntity`, `findBySourceUrl(url: string): RecipeEntity                                                                                                                                                                                                                                                        | null`, and `updateAttributionNote(recipeId, note): void` (used when an Instagram source is deleted). Conforms to the 001-commise-recipe-app schema.                      | SYS-007   | Adapter |
-| ARCH-014 | AuthMiddleware               | NestJS middleware applied to all import endpoints (backed by `ClerkAuthService`). Verifies the Clerk session token from the `Authorization: Bearer` header **networklessly** via `@clerk/backend` `verifyToken` (public `CLERK_JWT_KEY`), enforcing authorized parties (`azp`) against `CLERK_AUTHORIZED_PARTIES`. Rejects unauthenticated requests with HTTP 401 before any import logic executes. | SYS-008                                                                                                                                                                  | Component |
-| ARCH-015 | RecipeRepository             | Drizzle ORM repository providing typed query methods over the `recipes` PostgreSQL table. Used by ARCH-010 (deduplication reads), ARCH-012 (clone writes), and ARCH-013 (import persistence). Centralises all DB access for the import feature.                                                                                                                                                     | SYS-005, SYS-007                                                                                                                                                         | Library   |
-| ARCH-016 | ImportDtoTypes               | Shared TypeScript interfaces and `class-validator` DTOs: `ImportUrlDto`, `ImportInstagramDto`, `ImportPhotoSaveDto`, `RecipeImportPayload`, `OcrDraftPayload`, `AttributedPayload`, `DuplicateCheckResult`. Compiled with `strict: true`; no `any`. Consumed by all other ARCH modules.                                                                                                             | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — shared type contracts consumed by all import modules; not traceable to a single SYS | Library   |
-| ARCH-017 | ImportErrorNormalizer        | Maps domain-specific errors (`UrlUnreachableError`, `NoCaptionError`, `PaywallBlockedError`, `OcrServiceError`, `PersistenceError`, etc.) to structured `ImportErrorResponse` objects with HTTP status codes and user-facing messages. Used by ARCH-002 and ARCH-008.                                                                                                                               | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — error handling spans all import paths; not traceable to a single SYS                | Utility   |
-| ARCH-018 | ImportLogger                 | Structured logger (wrapping `@aws-lambda-powertools/logger` or NestJS Logger) that emits import lifecycle events (import started, extractor invoked, paywall blocked, duplicate found, persisted) with correlation IDs. Used by ARCH-001 for observability.                                                                                                                                         | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — observability spans all import paths; not traceable to a single SYS                 | Utility   |
+| ARCH ID  | Name                     | Description                                                                                                                                                                   | Parent SYS | Type      |
+| -------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------- |
+| ARCH-001 | ImportsController        | REST surface for all import endpoints. Validates DTOs, enforces `Idempotency-Key`, applies the import `@Throttle` override, and delegates to ARCH-002. Never contains policy. | SYS-011    | Component |
+| ARCH-002 | ImportsService           | **Facade.** Owns the fixed pipeline sequence (blocklist → fetch → extract → normalize → classify → dedupe → draft) in exactly one place, so no path can reorder it (HAZ-026). | SYS-011    | Service   |
+| ARCH-003 | ImportJobsService        | `import_jobs` lifecycle state machine, idempotency-key resolution, typed failure recording.                                                                                   | SYS-011    | Service   |
+| ARCH-004 | ImportJobWorker          | Queue consumer executing the asynchronous channels; idempotent, DLQ-routed, correlation-ID propagating.                                                                       | SYS-011    | Service   |
+| ARCH-005 | SourceFetcherService     | The single outbound-HTTP egress point. Applies the full fetch budget and delegates address safety to ARCH-006. Wrapped in a per-domain circuit breaker (`cockatiel`).         | SYS-001    | Service   |
+| ARCH-006 | SsrfGuard                | Pure address policy + a pinning `undici` dispatcher. Rejects loopback/private/link-local/CGNAT/ULA/unspecified addresses; re-applied on every redirect hop.                   | SYS-001    | Module    |
+| ARCH-007 | RecipeExtractor (port)   | The Strategy interface every extractor implements: `extract(document) → ExtractedRecipe \| null`. Returns null, never throws.                                                 | SYS-002    | Port      |
+| ARCH-008 | JsonLdExtractor          | Primary Strategy. Parses `application/ld+json`, walks `@graph`, and Zod-validates `@type === 'Recipe'` before accepting (HAZ-028).                                            | SYS-002    | Library   |
+| ARCH-009 | MicrodataExtractor       | Secondary Strategy over `[itemtype*="schema.org/Recipe"]` (`microdata-node`).                                                                                                 | SYS-002    | Library   |
+| ARCH-010 | HeuristicExtractor       | Last-resort Strategy using structural heuristics (`cheerio`); emits a confidence score so a weak parse is visible rather than silent.                                         | SYS-002    | Library   |
+| ARCH-011 | ExtractorChainService    | **Chain of Responsibility** running ARCH-008 → 009 → 010, first non-null wins; classifies "fetched but nothing found" as an explicit outcome (HAZ-009).                       | SYS-002    | Service   |
+| ARCH-012 | OEmbedProvider (port)    | Instagram caption retrieval interface, so the adapter is swappable and the pipeline is testable without Meta.                                                                 | SYS-003    | Port      |
+| ARCH-013 | InstagramOEmbedAdapter   | Meta-hosted oEmbed adapter using an app credential; classifies 429 explicitly (HAZ-010) and validates the response shape (HAZ-012). Capability-flagged off.                   | SYS-003    | Adapter   |
+| ARCH-014 | OcrProvider (port)       | OCR interface (`extractText(objectKey) → OcrText`), keeping D-001 reversible.                                                                                                 | SYS-004    | Port      |
+| ARCH-015 | TextractAdapter          | AWS Textract implementation with timeout, bounded polling, and backoff.                                                                                                       | SYS-004    | Adapter   |
+| ARCH-016 | OcrPipelineService       | Image intake, S3 object lifecycle (including deletion at/before draft expiry), and provider invocation.                                                                       | SYS-004    | Service   |
+| ARCH-017 | FileParserService        | Magic-byte type detection (`file-type`) then JSON / YAML / Markdown-frontmatter parsing. Never trusts the client-supplied MIME type.                                          | SYS-005    | Service   |
+| ARCH-018 | NormalizerService        | Orchestrates the pure normalizers and computes `missingRequired`.                                                                                                             | SYS-006    | Service   |
+| ARCH-019 | IngredientLineParser     | Pure. Free-text line → `{ quantity, unit, name, raw }` via `parse-ingredient`; **always** retains `raw`; unparseable → null quantity + flag, never a throw.                   | SYS-006    | Module    |
+| ARCH-020 | ValueNormalizers         | Pure. ISO-8601 duration → minutes (`iso8601-duration`); free-text yield → positive integer; **never** substitutes a default for an absent value.                              | SYS-006    | Module    |
+| ARCH-021 | ContentSanitizer         | Pure. Zero-tag-allowlist sanitization of every extracted text field before it can be persisted (HAZ-008/029).                                                                 | SYS-006    | Module    |
+| ARCH-022 | ProvenancePolicy         | Pure **Policy**. `(channel, attestation, citationReachable) → sourceType`. Total function; the D-003 rule lives here and nowhere else.                                        | SYS-007    | Module    |
+| ARCH-023 | PaywalledDomainsService  | Blocklist data access + admin CRUD with audit trail; exact-host / registrable-suffix matching (HAZ-022). Cached with bounded TTL.                                             | SYS-008    | Service   |
+| ARCH-024 | CanonicalSourceUrl       | **Value object.** Construction canonicalizes (`normalize-url`); an unnormalized URL is unrepresentable, so no caller can forget (HAZ-019).                                    | SYS-009    | Module    |
+| ARCH-025 | ImportDraftsService      | `import_drafts` lifecycle, owner-scoped reads (absent-not-forbidden), corrections, and expiry sweep.                                                                          | SYS-010    | Service   |
+| ARCH-026 | DraftConfirmationService | Validates a draft against the shipped `CreateRecipeRequest` and creates the recipe **through 001's `RecipesService`**. Contains no visibility logic of its own.               | SYS-012    | Service   |
 
-## Process View — Dynamic Behavior (Kruchten 4+1)
+| ARCH-035 | AuthMiddleware (shipped) | The shipped Clerk session-token middleware guarding every import endpoint. Consumed unchanged from 002; listed so SYS-014 has an architecture realisation. | SYS-014 | Component |
+| ARCH-036 | CiQualityGates | The contract round-trip check plus the type, documentation, and mutation gates that run in CI. | SYS-015 | Utility |
 
-### Interaction 1: Web URL Import — Happy Path
+### Frontend modules
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant ARCH014 as ARCH-014 AuthMiddleware
-    participant ARCH002 as ARCH-002 ImportController
-    participant ARCH001 as ARCH-001 ImportOrchestrator
-    participant ARCH009 as ARCH-009 PaywallBlocklistService
-    participant ARCH003 as ARCH-003 WebUrlExtractorService
-    participant ARCH004 as ARCH-004 SchemaOrgParser
-    participant ARCH005 as ARCH-005 HeuristicRecipeParser
-    participant ARCH010 as ARCH-010 DeduplicationService
-    participant ARCH015 as ARCH-015 RecipeRepository
-    participant ARCH011 as ARCH-011 AttributionVisibilityService
-    participant ARCH013 as ARCH-013 RecipePersistenceAdapter
+| ARCH ID  | Name                          | Description                                                                                                | Parent SYS | Type      |
+| -------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------- | --------- |
+| ARCH-027 | ImportEntry                   | Channel selection + submission. Orchestration component; renders platform leaves.                          | SYS-013    | Component |
+| ARCH-028 | ImportProgress                | Job progress and terminal outcomes; pure presentational, driven by job state.                              | SYS-013    | Component |
+| ARCH-029 | ImportDraftReview             | Draft review/completion surface — the correction point for missing fields and mis-parsed ingredient lines. | SYS-013    | Component |
+| ARCH-030 | RecipeAttribution             | Attribution block for imported recipes (source, author, platform) on recipe detail.                        | SYS-013    | Component |
+| ARCH-031 | ImportErrorState              | Typed error → actionable recovery mapping; icon + text, never colour alone.                                | SYS-013    | Component |
+| ARCH-032 | useImportJob / useImportDraft | Headless hooks over the typed client; all data access, no rendering.                                       | SYS-013    | Library   |
 
-    Client->>ARCH014: POST /import/url { url, Clerk session token }
-    ARCH014->>ARCH014: Verify token (networkless via CLERK_JWT_KEY + azp)
-    ARCH014->>ARCH002: Authenticated request
-    ARCH002->>ARCH002: Validate ImportUrlDto
-    ARCH002->>ARCH001: orchestrate(url, userId)
-    ARCH001->>ARCH009: checkPaywall(url)
-    ARCH009-->>ARCH001: OK (not blocked)
-    ARCH001->>ARCH003: extractFromUrl(url)
-    ARCH003->>ARCH004: parse(html)
-    ARCH004-->>ARCH003: RecipeImportPayload (schema.org found)
-    ARCH003-->>ARCH001: RecipeImportPayload
-    ARCH001->>ARCH010: checkDuplicate(sourceUrl)
-    ARCH010->>ARCH015: findBySourceUrl(url)
-    ARCH015-->>ARCH010: null (no duplicate)
-    ARCH010-->>ARCH001: { isDuplicate: false }
-    ARCH001->>ARCH011: applyAttributionVisibility(payload, type=web)
-    ARCH011-->>ARCH001: AttributedPayload { visibility: public, attribution: {...} }
-    ARCH001->>ARCH013: save(attributedPayload)
-    ARCH013-->>ARCH001: RecipeEntity
-    ARCH001-->>ARCH002: RecipeEntity
-    ARCH002-->>Client: 201 Created RecipeEntity
-```
+### Cross-cutting
 
-**Concurrency Model**: Single async/await chain per request; NestJS event loop (Node.js single-threaded). No shared mutable state between requests.
-**Synchronization Points**: All DB calls are awaited sequentially within the orchestrator. Paywall check is synchronous (in-memory blocklist).
+| ARCH ID  | Name             | Description                                                                                                        | Rationale                                                                       |
+| -------- | ---------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| ARCH-033 | ImportErrorCodes | New `RecipeErrorCode` members + their `ApiExceptionFilter` status mapping, and the typed factory functions.        | `[CROSS-CUTTING]` — extends the **shipped** error boundary; adds no second one. |
+| ARCH-034 | ImportContracts  | Shared types (`ExtractedRecipe`, `NormalizedDraft`, `ImportDraft`, `ImportChannel`) in `@kitchensink/recipe-core`. | `[CROSS-CUTTING]` — one contract consumed by service, client, web, and mobile.  |
 
----
+**Explicitly NOT modules of this feature** (shipped; consumed): Clerk auth middleware, `evaluateVisibility`,
+`RecipesService.clone()`, `ApiExceptionFilter`, `@nestjs/throttler`, the food-service client.
 
-### Interaction 2: Duplicate URL Detected — Clone Offered
+## Process View — Dynamic Behaviour
+
+### Interaction 1 — URL import (asynchronous, happy path)
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant ARCH001 as ARCH-001 ImportOrchestrator
-    participant ARCH010 as ARCH-010 DeduplicationService
-    participant ARCH015 as ARCH-015 RecipeRepository
-    participant ARCH012 as ARCH-012 CloneService
+    participant C as Client
+    participant CT as ARCH-001 ImportsController
+    participant J as ARCH-003 ImportJobsService
+    participant W as ARCH-004 ImportJobWorker
+    participant S as ARCH-002 ImportsService
+    participant B as ARCH-023 PaywalledDomains
+    participant F as ARCH-005 SourceFetcher
+    participant X as ARCH-011 ExtractorChain
+    participant N as ARCH-018 Normalizer
+    participant P as ARCH-022 ProvenancePolicy
+    participant D as ARCH-025 ImportDrafts
 
-    Client->>ARCH001: orchestrate(url, userId)
-    ARCH001->>ARCH010: checkDuplicate(sourceUrl)
-    ARCH010->>ARCH015: findBySourceUrl(url)
-    ARCH015-->>ARCH010: RecipeEntity (existing)
-    ARCH010-->>ARCH001: { isDuplicate: true, existing: RecipeEntity }
-    ARCH001-->>Client: 200 DuplicateFoundResult { existing, cloneAvailable: true }
-    Client->>ARCH012: cloneRecipe(existingId, userId)
-    ARCH012->>ARCH015: save(clonedEntity)
-    ARCH015-->>ARCH012: RecipeEntity (clone)
-    ARCH012-->>Client: 201 Created clone RecipeEntity
+    C->>CT: POST /api/v1/recipes/import/url {url} + Idempotency-Key
+    CT->>J: enqueue(url, principal, key)
+    J-->>CT: jobId (existing job if key seen)
+    CT-->>C: 202 { jobId }
+    W->>S: run(job)
+    S->>B: assertNotBlocked(host)
+    S->>F: fetchSource(CanonicalSourceUrl)
+    Note over F: SSRF guard + budget, re-checked per redirect hop
+    F-->>S: FetchedDocument
+    S->>X: extract(document)
+    X-->>S: ExtractedRecipe (+confidence)
+    S->>N: normalize(extracted)
+    N-->>S: NormalizedDraft (+missingRequired[])
+    S->>P: classify(channel=url, attestation=none)
+    P-->>S: imported_public
+    S->>D: createDraft(...)
+    D-->>S: draftId
+    S->>J: succeed(job, draftId)
+    C->>CT: GET /api/v1/recipes/import/jobs/{id}
+    CT-->>C: 200 { status: succeeded, draftId }
 ```
 
-**Concurrency Model**: Clone operation is a separate request; no locking required (Postgres row-level isolation handles concurrent clones).
-**Synchronization Points**: None — clone is an independent write.
+**Concurrency**: one async chain per job; worker concurrency is bounded by a bulkhead separate from the DB pool.
+**Synchronization**: the blocklist check is a hard-fail gate before any egress; the pipeline order is fixed in
+ARCH-002 and cannot be reordered by a caller.
 
----
-
-### Interaction 3: Instagram Import — No Caption Rejection
+### Interaction 2 — Draft confirmation (the only recipe-creating path)
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant ARCH002 as ARCH-002 ImportController
-    participant ARCH001 as ARCH-001 ImportOrchestrator
-    participant ARCH006 as ARCH-006 InstagramOEmbedAdapter
-    participant ARCH017 as ARCH-017 ImportErrorNormalizer
+    participant C as Client
+    participant CT as ARCH-001 ImportsController
+    participant CF as ARCH-026 DraftConfirmation
+    participant D as ARCH-025 ImportDrafts
+    participant R as 001 RecipesService (shipped)
+    participant FD as food-service client (003)
 
-    Client->>ARCH002: POST /import/instagram { postUrl, JWT }
-    ARCH002->>ARCH001: orchestrate(postUrl, userId, type=instagram)
-    ARCH001->>ARCH006: extractFromInstagram(postUrl)
-    ARCH006->>ARCH006: Call oEmbed API
-    ARCH006->>ARCH006: Detect video-only / no caption
-    ARCH006-->>ARCH001: throws NoCaptionError
-    ARCH001->>ARCH017: normalize(NoCaptionError)
-    ARCH017-->>ARCH001: { status: 422, message: "Instagram post has no recipe text in caption" }
-    ARCH001-->>ARCH002: ImportErrorResponse
-    ARCH002-->>Client: 422 Unprocessable Entity
+    C->>CT: POST /api/v1/recipes/import/drafts/{id}/confirm
+    CT->>CF: confirm(principal, draftId)
+    CF->>D: loadForOwner(id, principal.userId)
+    D-->>CF: ImportDraft (404 if absent OR not owner)
+    CF->>CF: validate against CreateRecipeRequest
+    alt missingRequired is non-empty
+        CF-->>C: 422 IMPORT_DRAFT_INCOMPLETE { fields }
+    else complete
+        CF->>R: create(principal, request)
+        Note over R: shipped write path — evaluateVisibility (C-004) applies
+        R-->>CF: RecipeResponse
+        CF->>FD: resolve ingredient names (async, non-blocking)
+        CF->>D: markConfirmed(id)
+        CF-->>C: 201 RecipeResponse
+    end
 ```
 
-**Concurrency Model**: Single async/await chain; oEmbed API call is awaited.
-**Synchronization Points**: None.
-
----
-
-### Interaction 4: Physical Copy OCR — Two-Step Flow
+### Interaction 3 — Duplicate URL detected
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant ARCH002 as ARCH-002 ImportController
-    participant ARCH007 as ARCH-007 OcrPipelineService
-    participant ARCH008 as ARCH-008 OcrReviewController
-    participant ARCH001 as ARCH-001 ImportOrchestrator
-    participant ARCH011 as ARCH-011 AttributionVisibilityService
-    participant ARCH013 as ARCH-013 RecipePersistenceAdapter
+    participant S as ARCH-002 ImportsService
+    participant U as ARCH-024 CanonicalSourceUrl
+    participant DD as SYS-009 Dedup
+    participant J as ARCH-003 ImportJobsService
 
-    Client->>ARCH002: POST /import/photo (image)
-    ARCH002->>ARCH007: extractFromPhoto(imageBuffer)
-    ARCH007->>ARCH007: Submit to OCR provider (async poll)
-    ARCH007-->>ARCH002: OcrDraftPayload (raw text)
-    ARCH002-->>Client: 200 OcrDraftPayload (for user review)
-    Client->>ARCH008: POST /import/photo/save (correctedPayload)
-    ARCH008->>ARCH001: orchestrate(correctedPayload, type=physical)
-    ARCH001->>ARCH011: applyAttributionVisibility(payload, type=physical)
-    ARCH011-->>ARCH001: AttributedPayload { visibility: private, attribution: null }
-    ARCH001->>ARCH013: save(attributedPayload)
-    ARCH013-->>ARCH001: RecipeEntity
-    ARCH001-->>ARCH008: RecipeEntity
-    ARCH008-->>Client: 201 Created RecipeEntity (private)
+    S->>U: from(rawUrl)
+    U-->>S: CanonicalSourceUrl
+    S->>DD: findExisting(canonical)
+    DD-->>S: RecipeSummary (existing, not deleted)
+    S->>J: succeed(job, existingRecipeId, duplicate=true)
+    Note over S: No draft created. Client is offered the shipped clone endpoint.
 ```
 
-**Concurrency Model**: Two separate HTTP requests; OCR polling is internal to ARCH-007 (async/await with retry). No shared state between step 1 and step 2 beyond the `OcrDraftPayload` returned to the client.
-**Synchronization Points**: OCR provider polling uses exponential backoff with a configurable max-wait timeout.
+The lookup is an optimisation, **not** the guarantee: two concurrent imports of a new URL both pass the lookup,
+and the partial unique index makes exactly one insert win. The loser catches the constraint violation and
+resolves to the winner's recipe (HAZ-018).
 
-## Interface View — API Contracts (Kruchten 4+1)
+### Interaction 4 — Blocked source (no egress occurs)
 
-### ARCH-001: ImportOrchestrator
+```mermaid
+sequenceDiagram
+    participant S as ARCH-002 ImportsService
+    participant B as ARCH-023 PaywalledDomains
+    participant J as ARCH-003 ImportJobsService
 
-| Direction | Name                | Type                                                      | Format              | Constraints                                               |
-| --------- | ------------------- | --------------------------------------------------------- | ------------------- | --------------------------------------------------------- |
-| Input     | url / postUrl       | `string`                                                  | Valid URL           | Required for web/Instagram paths                          |
-| Input     | imageBuffer         | `Buffer`                                                  | Binary image        | Required for physical copy path; max 10 MB                |
-| Input     | correctedPayload    | `OcrDraftPayload`                                         | JSON                | Required for photo/save path                              |
-| Input     | userId              | `string`                                                  | Clerk sub claim     | Required; injected by ARCH-014                            |
-| Input     | importType          | `'web' \| 'instagram' \| 'physical'`                      | Enum                | Required; determines routing                              |
-| Output    | result              | `RecipeEntity \| DuplicateFoundResult \| OcrDraftPayload` | JSON                | Discriminated union based on import type and dedup result |
-| Exception | UrlUnreachableError | `ImportError`                                             | `{ code, message }` | Thrown when target URL returns 4xx/5xx or times out       |
-| Exception | PaywallBlockedError | `ImportError`                                             | `{ code, message }` | Thrown when domain is on blocklist                        |
-| Exception | NoCaptionError      | `ImportError`                                             | `{ code, message }` | Thrown when Instagram post has no recipe caption          |
-| Exception | OcrServiceError     | `ImportError`                                             | `{ code, message }` | Thrown when OCR provider fails or times out               |
-| Exception | PersistenceError    | `ImportError`                                             | `{ code, message }` | Thrown when DB write fails                                |
-
-### ARCH-002: ImportController
-
-| Direction | Name               | Type                   | Format    | Constraints                                             |
-| --------- | ------------------ | ---------------------- | --------- | ------------------------------------------------------- |
-| Input     | ImportUrlDto       | `{ url: string }`      | JSON body | `url` must be a valid URL; validated by class-validator |
-| Input     | ImportInstagramDto | `{ postUrl: string }`  | JSON body | `postUrl` must be an instagram.com URL                  |
-| Input     | image              | `multipart/form-data`  | Binary    | MIME type must be image/\*; max 10 MB                   |
-| Input     | ImportPhotoSaveDto | `OcrDraftPayload`      | JSON body | All fields required; validated by class-validator       |
-| Output    | 201 Created        | `RecipeEntity`         | JSON      | On successful import or clone save                      |
-| Output    | 200 OK             | `DuplicateFoundResult` | JSON      | When duplicate URL detected                             |
-| Output    | 200 OK             | `OcrDraftPayload`      | JSON      | After OCR extraction, before user review                |
-| Exception | 400                | `ValidationError`      | JSON      | DTO validation failure                                  |
-| Exception | 401                | `UnauthorizedError`    | JSON      | JWT missing or invalid (from ARCH-014)                  |
-| Exception | 422                | `ImportErrorResponse`  | JSON      | Paywall blocked, no caption, URL unreachable            |
-| Exception | 500                | `ImportErrorResponse`  | JSON      | Unexpected persistence or OCR failure                   |
-
-### ARCH-003: WebUrlExtractorService
-
-| Direction | Name                | Type                  | Format       | Constraints                                                |
-| --------- | ------------------- | --------------------- | ------------ | ---------------------------------------------------------- |
-| Input     | url                 | `string`              | Valid URL    | Must be reachable; HTTPS preferred                         |
-| Output    | RecipeImportPayload | `RecipeImportPayload` | Typed object | title, ingredients[], instructions[], photos[], sourceUrl  |
-| Exception | UrlUnreachableError | `ImportError`         | Error object | HTTP 4xx/5xx or network timeout (10 s default)             |
-| Exception | ExtractionError     | `ImportError`         | Error object | Neither schema.org nor heuristic parser yields usable data |
-
-### ARCH-004: SchemaOrgParser
-
-| Direction | Name                | Type                          | Format       | Constraints                                  |
-| --------- | ------------------- | ----------------------------- | ------------ | -------------------------------------------- |
-| Input     | html                | `string`                      | Raw HTML     | Must be non-empty                            |
-| Output    | RecipeImportPayload | `RecipeImportPayload \| null` | Typed object | `null` when no valid schema.org Recipe found |
-
-### ARCH-005: HeuristicRecipeParser
-
-| Direction | Name                | Type                  | Format       | Constraints                                          |
-| --------- | ------------------- | --------------------- | ------------ | ---------------------------------------------------- |
-| Input     | html                | `string`              | Raw HTML     | Must be non-empty                                    |
-| Output    | RecipeImportPayload | `RecipeImportPayload` | Typed object | Partial payload with `confidenceScore: number (0–1)` |
-
-### ARCH-006: InstagramOEmbedAdapter
-
-| Direction | Name                | Type                  | Format        | Constraints                                                  |
-| --------- | ------------------- | --------------------- | ------------- | ------------------------------------------------------------ |
-| Input     | postUrl             | `string`              | Instagram URL | Must match `instagram.com/p/` pattern                        |
-| Output    | RecipeImportPayload | `RecipeImportPayload` | Typed object  | Populated from oEmbed caption; sourceUrl = postUrl           |
-| Exception | NoCaptionError      | `ImportError`         | Error object  | Post is video-only or image-only without recipe caption text |
-| Exception | OEmbedApiError      | `ImportError`         | Error object  | oEmbed API returns non-200 or malformed response             |
-
-### ARCH-007: OcrPipelineService
-
-| Direction | Name            | Type              | Format       | Constraints                                          |
-| --------- | --------------- | ----------------- | ------------ | ---------------------------------------------------- |
-| Input     | imageBuffer     | `Buffer`          | Binary image | Max 10 MB; MIME type image/\*                        |
-| Output    | OcrDraftPayload | `OcrDraftPayload` | Typed object | `{ rawText: string, confidence: number }`            |
-| Exception | OcrServiceError | `ImportError`     | Error object | Provider failure, timeout, or unsupported image type |
-
-### ARCH-008: OcrReviewController
-
-| Direction | Name               | Type                | Format    | Constraints                                       |
-| --------- | ------------------ | ------------------- | --------- | ------------------------------------------------- |
-| Input     | ImportPhotoSaveDto | `OcrDraftPayload`   | JSON body | All fields required; validated by class-validator |
-| Output    | 201 Created        | `RecipeEntity`      | JSON      | Private recipe entity                             |
-| Exception | 400                | `ValidationError`   | JSON      | DTO validation failure                            |
-| Exception | 401                | `UnauthorizedError` | JSON      | JWT missing or invalid                            |
-
-### ARCH-009: PaywallBlocklistService
-
-| Direction | Name                | Type          | Format       | Constraints                                              |
-| --------- | ------------------- | ------------- | ------------ | -------------------------------------------------------- |
-| Input     | url                 | `string`      | Valid URL    | Domain extracted and matched against blocklist           |
-| Output    | void                | —             | —            | Returns void when URL is not blocked                     |
-| Exception | PaywallBlockedError | `ImportError` | Error object | Thrown synchronously when domain matches blocklist entry |
-
-### ARCH-010: DeduplicationService
-
-| Direction | Name                 | Type                   | Format       | Constraints                                         |
-| --------- | -------------------- | ---------------------- | ------------ | --------------------------------------------------- |
-| Input     | sourceUrl            | `string`               | Valid URL    | Used as deduplication key                           |
-| Output    | DuplicateCheckResult | `DuplicateCheckResult` | Typed object | `{ isDuplicate: boolean, existing?: RecipeEntity }` |
-| Exception | DatabaseError        | `ImportError`          | Error object | DB query failure                                    |
-
-### ARCH-011: AttributionVisibilityService
-
-| Direction | Name              | Type                                 | Format       | Constraints                                                         |
-| --------- | ----------------- | ------------------------------------ | ------------ | ------------------------------------------------------------------- |
-| Input     | payload           | `RecipeImportPayload`                | Typed object | Must include sourceUrl for web/Instagram; null for physical         |
-| Input     | importType        | `'web' \| 'instagram' \| 'physical'` | Enum         | Determines visibility and attribution rules                         |
-| Input     | userId            | `string`                             | Clerk sub    | Used for premium-tier check on clone-and-edit rule                  |
-| Output    | AttributedPayload | `AttributedPayload`                  | Typed object | Includes `visibility`, `attribution`, `isPremiumEditAllowed`        |
-| Exception | AttributionError  | `ImportError`                        | Error object | Thrown when attribution rules cannot be applied (e.g., missing URL) |
-
-### ARCH-012: CloneService
-
-| Direction | Name             | Type           | Format       | Constraints                                                  |
-| --------- | ---------------- | -------------- | ------------ | ------------------------------------------------------------ |
-| Input     | existingId       | `string`       | UUID         | ID of the recipe to clone                                    |
-| Input     | userId           | `string`       | Clerk sub    | Owner of the new clone                                       |
-| Output    | RecipeEntity     | `RecipeEntity` | Typed object | Clone retains sourceUrl and attribution; visibility = public |
-| Exception | NotFoundError    | `ImportError`  | Error object | Source recipe not found                                      |
-| Exception | PersistenceError | `ImportError`  | Error object | DB write failure                                             |
-
-### ARCH-013: RecipePersistenceAdapter
-
-| Direction | Name              | Type                | Format       | Constraints                               |
-| --------- | ----------------- | ------------------- | ------------ | ----------------------------------------- |
-| Input     | attributedPayload | `AttributedPayload` | Typed object | All required Recipe fields populated      |
-| Output    | RecipeEntity      | `RecipeEntity`      | Typed object | Conforms to 001-commise-recipe-app schema |
-| Exception | PersistenceError  | `ImportError`       | Error object | Drizzle ORM / PostgreSQL write failure    |
-
-### ARCH-014: AuthMiddleware
-
-| Direction | Name                  | Type     | Format         | Constraints                                |
-| --------- | --------------------- | -------- | -------------- | ------------------------------------------ |
-| Input     | Authorization         | `string` | `Bearer <JWT>` | Required on all import endpoints           |
-| Output    | boolean               | `true`   | —              | Allows request to proceed                  |
-| Exception | UnauthorizedException | HTTP 401 | JSON           | JWT missing, expired, or invalid signature |
-
-### ARCH-015: RecipeRepository
-
-| Direction | Name          | Type                   | Format       | Constraints                            |
-| --------- | ------------- | ---------------------- | ------------ | -------------------------------------- |
-| Input     | payload       | `AttributedPayload`    | Typed object | For save operations                    |
-| Input     | url           | `string`               | Valid URL    | For findBySourceUrl                    |
-| Input     | recipeId      | `string`               | UUID         | For updateAttributionNote              |
-| Output    | RecipeEntity  | `RecipeEntity \| null` | Typed object | null when not found                    |
-| Exception | DatabaseError | `ImportError`          | Error object | PostgreSQL connection or query failure |
-
-### ARCH-016: ImportDtoTypes
-
-| Direction | Name           | Type                  | Format  | Constraints                            |
-| --------- | -------------- | --------------------- | ------- | -------------------------------------- |
-| Output    | (type exports) | TypeScript interfaces | `.d.ts` | Compiled with `strict: true`; no `any` |
-
-### ARCH-017: ImportErrorNormalizer
-
-| Direction | Name                | Type                  | Format       | Constraints                               |
-| --------- | ------------------- | --------------------- | ------------ | ----------------------------------------- |
-| Input     | error               | `ImportError`         | Error object | Any domain error thrown by import modules |
-| Output    | ImportErrorResponse | `{ status, message }` | Typed object | HTTP status code + user-facing message    |
-
-### ARCH-018: ImportLogger
-
-| Direction | Name    | Type     | Format                                    | Constraints                     |
-| --------- | ------- | -------- | ----------------------------------------- | ------------------------------- |
-| Input     | event   | `string` | Log event name                            | Required                        |
-| Input     | context | `object` | Structured metadata (correlationId, etc.) | Optional; merged into log entry |
-| Output    | void    | —        | Structured JSON log line                  | Emitted to stdout / CloudWatch  |
-
-## Data Flow View — Data Transformation Chains (Kruchten 4+1)
-
-### Flow 1: Web URL Import — Data Transformation
-
-```text
-[Client: { url }]
-      │
-      ▼
-ARCH-002 ImportController
-  → validates ImportUrlDto
-  → passes raw url string
-      │
-      ▼
-ARCH-003 WebUrlExtractorService
-  → fetches HTML from url
-  → passes html string to ARCH-004
-      │
-      ▼
-ARCH-004 SchemaOrgParser
-  → parses application/ld+json
-  → returns RecipeImportPayload { title, ingredients[], instructions[], photos[], sourceUrl }
-  (or null → ARCH-005 HeuristicRecipeParser produces partial RecipeImportPayload)
-      │
-      ▼
-ARCH-011 AttributionVisibilityService
-  → adds attribution { sourceUrl, originalAuthor, platform }
-  → sets visibility = 'public'
-  → returns AttributedPayload
-      │
-      ▼
-ARCH-013 RecipePersistenceAdapter
-  → maps AttributedPayload → Drizzle insert
-  → returns RecipeEntity (PostgreSQL row)
-      │
-      ▼
-[Client: RecipeEntity JSON]
+    S->>B: assertNotBlocked(host)
+    B-->>S: throws SourceBlocked
+    S->>J: fail(job, IMPORT_SOURCE_BLOCKED)
+    Note over S,B: The check precedes the fetch — a blocked domain is never contacted.
 ```
 
-**Intermediate Formats**:
+## Interface View — Module Contracts
 
-- Raw URL string → HTML string (HTTP fetch)
-- HTML string → `RecipeImportPayload` (schema.org or heuristic parse)
-- `RecipeImportPayload` → `AttributedPayload` (attribution/visibility enrichment)
-- `AttributedPayload` → `RecipeEntity` (DB persistence)
+| ARCH     | Direction | Name                  | Type / shape                                                                   | Constraints                                                           |
+| -------- | --------- | --------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| ARCH-002 | In        | `run`                 | `(job: ImportJob) => Promise<ImportOutcome>`                                   | Fixed pipeline order; every failure is a typed `RecipeDomainError`    |
+| ARCH-005 | In        | `fetchSource`         | `(url: CanonicalSourceUrl) => Promise<FetchedDocument>`                        | 3s connect / 10s total, ≤5 redirects, ≤5 MB, html content types only  |
+| ARCH-005 | Ex        | —                     | `SourceUnreachable`, `SourceBlocked`, `PayloadTooLarge`, `ProviderUnavailable` | Typed; mapped by ARCH-033                                             |
+| ARCH-006 | In        | `assertPublicAddress` | `(addresses: string[]) => void`                                                | Pure policy; throws on any non-public address                         |
+| ARCH-007 | In        | `extract`             | `(doc: FetchedDocument) => ExtractedRecipe \| null`                            | **Never throws.** Null = "not my format"                              |
+| ARCH-012 | In        | `fetchCaption`        | `(url: CanonicalSourceUrl) => Promise<ExtractedRecipe>`                        | Throws `NoCaption`, `ProviderUnavailable`                             |
+| ARCH-014 | In        | `extractText`         | `(objectKey: string) => Promise<OcrText>`                                      | Throws `OcrFailed`, `ProviderUnavailable`                             |
+| ARCH-017 | In        | `parseFile`           | `(bytes: Uint8Array) => Promise<ExtractedRecipe>`                              | Type by magic bytes; ≤1 MB; throws `UnsupportedFormat`                |
+| ARCH-018 | In        | `normalize`           | `(e: ExtractedRecipe) => NormalizedDraft`                                      | Pure. Populates `missingRequired`; never fabricates a value           |
+| ARCH-019 | In        | `parseIngredientLine` | `(raw: string) => ParsedIngredient`                                            | Pure, total. `raw` always retained; failure ⇒ `quantity: null`        |
+| ARCH-022 | In        | `classify`            | `(channel, attestation, citationReachable) => RecipeSourceType`                | Pure, total. Never returns a public class for an unreachable citation |
+| ARCH-023 | In        | `assertNotBlocked`    | `(host: string) => Promise<void>`                                              | Exact host or registrable suffix; never substring                     |
+| ARCH-024 | In        | `from`                | `(raw: string) => CanonicalSourceUrl`                                          | Throws on non-http(s); canonicalization is total at construction      |
+| ARCH-025 | In        | `loadForOwner`        | `(id, ownerId) => Promise<ImportDraft>`                                        | Not-owner is indistinguishable from absent (`404`)                    |
+| ARCH-026 | In        | `confirm`             | `(principal, draftId) => Promise<RecipeResponse>`                              | Delegates creation to 001; adds no visibility logic                   |
 
----
-
-### Flow 2: Instagram Import — Data Transformation
-
-```text
-[Client: { postUrl }]
-      │
-      ▼
-ARCH-006 InstagramOEmbedAdapter
-  → calls oEmbed API
-  → extracts caption text
-  → validates recipe content present
-  → returns RecipeImportPayload { title?, ingredients?, instructions?, sourceUrl: postUrl, platform: 'instagram' }
-      │
-      ▼
-ARCH-011 AttributionVisibilityService
-  → sets visibility = 'public', attribution.platform = 'instagram'
-  → returns AttributedPayload
-      │
-      ▼
-ARCH-013 RecipePersistenceAdapter → RecipeEntity
-```
-
----
-
-### Flow 3: Physical Copy OCR — Data Transformation
-
-```text
-[Client: image Buffer]
-      │
-      ▼
-ARCH-007 OcrPipelineService
-  → submits to OCR provider
-  → returns OcrDraftPayload { rawText, confidence }
-      │
-      ▼
-[Client: reviews and corrects OcrDraftPayload]
-      │
-      ▼
-ARCH-008 OcrReviewController
-  → validates corrected OcrDraftPayload
-      │
-      ▼
-ARCH-011 AttributionVisibilityService
-  → sets visibility = 'private', attribution = null
-  → returns AttributedPayload
-      │
-      ▼
-ARCH-013 RecipePersistenceAdapter → RecipeEntity (private)
-```
-
----
-
-### Flow 4: Deduplication — Short-Circuit Path
-
-```text
-[sourceUrl from any extractor]
-      │
-      ▼
-ARCH-010 DeduplicationService
-  → ARCH-015 RecipeRepository.findBySourceUrl(url)
-  → returns DuplicateCheckResult { isDuplicate: true, existing: RecipeEntity }
-      │
-      ▼
-ARCH-001 ImportOrchestrator
-  → short-circuits persistence pipeline
-  → returns DuplicateFoundResult { existing, cloneAvailable: true }
-      │
-      ▼
-[Client: offered clone option]
-```
-
----
-
-## SYS↔ARCH Traceability Matrix
-
-| SYS ID  | SYS Name                                                                           | ARCH Modules                                            |
-| ------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| SYS-001 | Web URL Extractor                                                                  | ARCH-003, ARCH-004, ARCH-005                            |
-| SYS-002 | Instagram oEmbed Adapter                                                           | ARCH-006                                                |
-| SYS-003 | OCR Physical Copy Pipeline                                                         | ARCH-007, ARCH-008                                      |
-| SYS-004 | Attribution & Visibility Gate                                                      | ARCH-011, ARCH-012                                      |
-| SYS-005 | Deduplication Guard                                                                | ARCH-010, ARCH-015                                      |
-| SYS-006 | Paywall Blocklist Enforcer                                                         | ARCH-009                                                |
-| SYS-007 | Recipe Persistence Adapter                                                         | ARCH-013, ARCH-015                                      |
-| SYS-008 | Auth Enforcement Middleware                                                        | ARCH-014                                                |
-| SYS-009 | Import Orchestrator                                                                | ARCH-001, ARCH-002                                      |
-| —       | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] | ARCH-016 (types), ARCH-017 (errors), ARCH-018 (logging) |
-
----
-
-## Coverage Summary
-
-| Metric                                       | Count |
-| -------------------------------------------- | ----- |
-| Total Architecture Modules (ARCH)            | 18    |
-| Modules traceable to SYS (non-cross-cutting) | 15    |
-| Cross-Cutting Modules                        | 3     |
-| Total System Components covered (SYS)        | 9 / 9 |
-| Derived Modules (not in system-design)       | 0     |
-| Modules without Interface contracts          | 0     |
-
-## Physical View — Deployment Topology
-
-The feature deploys within the Commise AWS/serverless topology. Client-facing web/mobile modules run in their respective application packages. Backend API, worker, queue, database, cache, storage, observability, and infrastructure modules deploy to the configured AWS account and region. Each ARCH module maps to the runtime described in the Logical View and the package/source paths listed in the Development View.
+**`principal.userId` is the app-user ULID**, matching the shipped `recipes.owner_id`. It is **not** the Clerk
+`sub`. Writing the `sub` here would produce recipes owned by a principal that no other query can find.
 
 ## Development View — Source Organization
 
-Implementation modules are organized by platform and service boundary: web code under Next.js application packages, mobile code under Expo packages, backend services under API/Lambda packages, shared contracts under shared TypeScript packages, and infrastructure under CDK/IaC packages. This view constrains ownership, build boundaries, and deployment units for every ARCH-NNN module listed above.
+Verified against `main` on 2026-08-02. Backend files follow the NestJS kebab `name.type.ts` regime
+(`CODING_STANDARDS §1a`); `packages/shared/*`, `packages/clients/*`, and `packages/apps/*` follow the
+camelCase/PascalCase regime (`§1b`). Both are CI-enforced by `eslint-plugin-check-file`.
+
+```
+packages/services/recipe-service/src/imports/          ← new domain folder (organize by domain, not type)
+├── imports.module.ts · imports.controller.ts · imports.service.ts · import.error.ts
+├── dto/            import-url.dto.ts · import-instagram.dto.ts · import-photo.dto.ts
+│                   update-import-draft.dto.ts · import-draft-response.dto.ts · import-job-response.dto.ts
+├── fetch/          source-fetcher.service.ts · ssrf-guard.ts · fetch-budget.config.ts
+├── extractors/     recipe-extractor.port.ts · json-ld.extractor.ts · microdata.extractor.ts
+│                   heuristic.extractor.ts · extractor-chain.service.ts · schema-org.schema.ts
+├── instagram/      oembed-provider.port.ts · instagram-oembed.adapter.ts
+├── ocr/            ocr-provider.port.ts · textract.adapter.ts · ocr-pipeline.service.ts
+├── files/          file-parser.service.ts · json.parser.ts · yaml.parser.ts · markdown.parser.ts
+├── normalize/      normalizer.service.ts · ingredient-line.ts · value-normalizers.ts · content-sanitizer.ts
+├── policy/         provenance.policy.ts · canonical-source-url.ts
+├── blocklist/      paywalled-domains.service.ts · paywalled-domains.dal.ts · paywalled-domains.controller.ts
+├── dedup/          deduplication.service.ts
+├── drafts/         import-drafts.service.ts · import-drafts.dal.ts · draft-expiry.service.ts
+├── jobs/           import-jobs.service.ts · import-jobs.dal.ts · idempotency.ts
+├── confirm/        draft-confirmation.service.ts
+├── __tests__/      *.test.ts                    ← unit (co-located, §7)
+└── __fixtures__/   make*.ts + fixture HTML corpus
+
+packages/services/recipe-service/src/database/
+├── schema/         import-drafts.ts · import-jobs.ts · paywalled-domains.ts   (+ recipes.ts edit)
+└── migrations/     0019_import_drafts.sql · 0020_import_jobs.sql
+                    0021_paywalled_domains.sql · 0022_recipes_import_columns.sql
+
+packages/services/recipe-service/tests/e2e/     import-url.e2e.spec.ts · import-draft-confirm.e2e.spec.ts
+                                                import-blocklist.e2e.spec.ts · import-ocr.e2e.spec.ts
+packages/services/recipe-workers/src/           import-job.worker.ts
+
+specs/001-commise-recipe-app/contracts/api.openapi.yaml   ← the service's ONE OpenAPI document; 004 EXTENDS it
+                                                             (code refers to it as `contracts/api.openapi.yaml`)
+
+packages/shared/recipe-core/src/                importTypes.ts · importProvenance.ts · importDraft.ts
+                                                (camelCase — §1b)
+packages/clients/recipe-service/src/            importQueries.ts · importHooks.ts (+ client/types/errors edits)
+
+packages/apps/commise/features/recipes/src/import/
+├── ImportEntry.tsx              · ImportEntry.native.tsx
+├── ImportProgress.tsx           · ImportProgress.native.tsx
+├── ImportDraftReview.tsx        · ImportDraftReview.native.tsx
+├── ImportErrorState.tsx         · ImportErrorState.native.tsx
+├── useImportJob.ts · useImportDraft.ts
+└── __tests__/  *.test.tsx + *.native.test.tsx
+packages/apps/commise/features/recipes/src/detail/  RecipeAttribution.tsx · RecipeAttribution.native.tsx
+packages/apps/commise/features/recipes/src/messages.ts   ← import copy (shared web+mobile, localized)
+
+packages/apps/commise/web/src/app/[locale]/recipes/import/page.tsx
+packages/apps/commise/web/tests/e2e/                     importUrl.spec.ts · importDraft.spec.ts
+packages/apps/commise/mobile/src/screens/                ImportScreen.tsx
+packages/apps/commise/mobile/.maestro/recipes/           import-url-flow.yaml · import-photo-flow.yaml
+packages/tools/loadtest/                                 import.js   ← k6 (NFR-011)
+```
+
+## Physical View — Deployment
+
+No new deployment unit. The import endpoints ship inside the existing `recipe-service` Fargate task behind the
+shared per-stage ALB (ADR-0003); the job worker ships in the existing `recipe-workers` bundle. New AWS surface
+is limited to **Textract** (IAM policy addition) and an S3 prefix for OCR source images under the existing
+bucket, with a lifecycle rule mirroring draft expiry.
+
+**Egress note (ADR-0004).** This feature makes the recipe service a deliberate outbound-HTTP client to arbitrary
+third-party hosts. Fargate tasks run in public subnets with `assignPublicIp` and egress via the Internet
+Gateway — they do **not** traverse the `t4g.nano` NAT instance, so import traffic does not load it. Do not
+"fix" this by moving the service to private subnets, which would route all import egress through the NAT.
 
 ## Scenarios — Architecture Validation
 
-Primary scenarios validate the 4+1 architecture: successful request flow through user-facing entrypoints, dependency failure propagation through process boundaries, data persistence and retrieval through storage boundaries, and deployment/change isolation through development-view package ownership. Each scenario traces back to the SYS coverage listed on ARCH rows.
+1. **Malicious URL** — `http://169.254.169.254/latest/meta-data/` is rejected by ARCH-006 before egress; a
+   redirect to that address is rejected on the hop. Validates the SSRF boundary end-to-end.
+2. **Concurrent duplicate import** — two jobs import one new URL; the unique index admits one; the loser
+   resolves to the winner. Validates that dedup does not depend on a read-then-write check.
+3. **Well-formed source, incomplete recipe** — a page with JSON-LD but no `recipeYield` produces a draft with
+   `missingRequired: ['servings']` and cannot be confirmed until completed. Validates that the schema's NOT NULL
+   constraints are satisfied by user completion, never by fabrication.
+4. **Provider outage** — Textract unavailable trips the breaker; OCR imports fail fast with `503` while URL
+   imports continue. Validates bulkhead isolation between channels.
+5. **Capability flag off** — Instagram endpoints return `404` and the channel is absent from
+   `GET /import/sources` and from both UIs. Validates D-002 gating without dead UI.
+
+## Coverage Summary
+
+| Metric                                       | Count   |
+| -------------------------------------------- | ------- |
+| Total architecture modules (ARCH)            | 34      |
+| Backend modules                              | 26      |
+| Frontend modules                             | 6       |
+| Cross-cutting modules                        | 2       |
+| System components covered (SYS)              | 13 / 13 |
+| Modules without an interface contract        | 0       |
+| Modules duplicating a shipped 001 capability | 0       |

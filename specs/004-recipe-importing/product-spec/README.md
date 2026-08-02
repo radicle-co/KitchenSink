@@ -1,66 +1,27 @@
-# Product Spec: Recipe Importing
+# Product Spec Index — 004 Recipe Importing
 
-**Branch**: `004-recipe-importing`
-**Date**: 2026-05-09
-**Status**: Draft
-**Source**: [spec.md](../spec.md)
+**Regenerated**: 2026-08-02
 
----
+| Artefact                             | Purpose                                                        |
+| ------------------------------------ | -------------------------------------------------------------- |
+| [product-spec.md](./product-spec.md) | Vision, personas, MoSCoW story map, scope boundaries           |
+| [user-journey.md](./user-journey.md) | Six end-to-end journeys, including failure paths               |
+| [metrics.md](./metrics.md)           | North star, quality/reliability/safety metrics, adoption gates |
+| [wireframes/](./wireframes/)         | Screen-level specifications                                    |
 
-## Index
+## Upstream
 
-This directory contains Product Forge product specification artifacts for recipe importing.
+- [../spec.md](../spec.md) — requirements and owner decisions D-001..D-004
+- [../plan.md](../plan.md) — technical plan, pattern register, library survey
+- [../tasks.md](../tasks.md) — implementation tasks
+- [../v-model/requirements.md](../v-model/requirements.md) — formal requirement set
 
-| Artifact      | File                                  | Description                                                                                                                       |
-| ------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Product Spec  | [product-spec.md](./product-spec.md)  | Vision, personas, epics, and MoSCoW story map with strict FR traceability to `FR-008..FR-014a`.                                   |
-| User Journeys | [user-journey.md](./user-journey.md)  | End-to-end flows for URL import, Instagram import, manual paste fallback, duplicate conflict handling, and import error recovery. |
-| Wireframes    | [wireframes/](./wireframes/README.md) | ASCII conceptual wireframes for required screens: import-url, import-paste, import-preview, import-conflict, import-error.        |
-| Metrics       | [metrics.md](./metrics.md)            | Story-level measurable outcomes for Must/Should/Could stories in this feature.                                                    |
+## What changed in this revision
 
----
-
-## Quick Links
-
-- [product-spec.md](./product-spec.md) — scope and FR-traceable story map
-- [user-journey.md](./user-journey.md) — behavior flows and sequence diagrams
-- [wireframes/](./wireframes/README.md) — conceptual UI screen structure
-- [metrics.md](./metrics.md) — per-story product metrics
-- [../spec.md](../spec.md) — canonical FR source (`FR-008..FR-014a`)
-- [../plan.md](../plan.md) — technical architecture and endpoint definitions
-- [../v-model/requirements.md](../v-model/requirements.md) — REQ-level breakdown
-
----
-
-## Artifact Cross-Reference
-
-```
-product-spec.md
-    |
-    +-- MoSCoW stories (US-401..US-410)
-    |       Each story references FR-008..FR-014a
-    |
-    +-- Personas (Importer, Planner, Compliance-conscious user)
-    |
-    v
-user-journey.md
-    |
-    +-- URL import flow
-    +-- Instagram import flow
-    +-- Manual paste + OCR-optional flow
-    +-- Duplicate conflict and error recovery
-    |
-    v
-wireframes/
-    |
-    +-- import-url.md
-    +-- import-paste.md
-    +-- import-preview.md
-    +-- import-conflict.md
-    +-- import-error.md
-    |
-    v
-metrics.md
-    |
-    +-- Story-level metrics (activation, quality, compliance)
-```
+- Every journey now routes through **draft review** — forced by the shipped recipe schema, not a UX preference.
+- **US-408** (review before save) promoted from Should Have to **Must Have**.
+- **US-405** (photo import) resolved to **Must Have at launch** (D-001), ending a three-month contradiction
+  between this spec and the plan.
+- **US-402** (Instagram) marked gated on an external credential (D-002); release does not depend on it.
+- **US-411..US-414** added for capabilities that were always implied but never written down: file import,
+  draft expiry, source-deleted handling, and blocklist administration.

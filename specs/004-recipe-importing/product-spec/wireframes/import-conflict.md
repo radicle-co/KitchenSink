@@ -1,7 +1,9 @@
-# Wireframe: Duplicate Import Conflict (Web)
+# Wireframe: Duplicate Import Conflict
 
 **Branch**: `004-recipe-importing` | **Date**: 2026-05-09
 **FRs**: [FR-008](../../spec.md#fr-008), [FR-011](../../spec.md#fr-011)
+
+**Platforms**: web + mobile — this screen ships to both in the same release (`CODING_STANDARDS §14.1`).
 
 ---
 

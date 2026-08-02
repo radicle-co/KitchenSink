@@ -1,49 +1,55 @@
 {
-  "feature": "004-recipe-importing",
-  "date": "2026-06-02",
-  "phase": "pre-implement",
-  "layers_checked": [1, 2, 3, 4, 6, 7],
-  "layers_skipped": [5],
-  "verdict": "PASS with warnings",
-  "summary": {
-    "critical_count": 0,
-    "warning_count": 0,
-    "info_count": 4,
-    "l1_research_to_product_spec": "PASSED",
-    "l2_product_spec_to_spec_md": "PASSED",
-    "l3_spec_md_to_plan_md": "PASSED",
-    "l4_plan_md_to_tasks_md": "PASSED",
-    "l6_code_to_tasks": "INFO-only (no completed tasks)",
-    "l7_cross_links": "PASSED"
-  },
-  "drifts": [
-    {
-      "id": "D-001",
-      "layer": 4,
-      "severity": "INFO",
-      "artifact": "tasks.md",
-      "description": "File paths use old src/web/ and src/mobile/ conventions instead of packages/apps/commise/{web,mobile}/."
+    "feature": "004-recipe-importing",
+    "date": "2026-08-02",
+    "phase": "pre-implement",
+    "verdict": "PASS",
+    "layers": {
+        "L1": "PASSED",
+        "L2": "PASSED",
+        "L3": "PASSED",
+        "L4": "PASSED",
+        "L5": "SKIPPED",
+        "L6": "PASSED",
+        "L7": "PASSED"
     },
-    {
-      "id": "D-002",
-      "layer": 3,
-      "severity": "INFO",
-      "artifact": "spec.md / plan.md",
-      "description": "FR-012 (OCR/physical copy) is P1 in spec.md but deferred to P3 in plan.md section 9 — open question in section 8."
+    "counts": {
+        "critical": 0,
+        "warning": 0,
+        "info": 3
     },
-    {
-      "id": "D-003",
-      "layer": 2,
-      "severity": "INFO",
-      "artifact": "Multiple",
-      "description": "FR-014a (paywalled manual paste) remains legal review required with no operational rule defined. Correctly surfaced as warning."
+    "priorWarningsClosed": ["W-001", "W-002", "W-003", "W-004"],
+    "priorDriftsClosed": ["D-001", "D-002", "D-003", "D-004"],
+    "drift": [
+        {
+            "id": "I-001",
+            "layer": "L7",
+            "severity": "INFO",
+            "description": "Service-wide OpenAPI contract lives in feature 001's folder"
+        },
+        {
+            "id": "I-002",
+            "layer": "L2/L3",
+            "severity": "INFO",
+            "description": "FR numbering collides with shipped 001; mitigated by the 004- prefix convention"
+        },
+        {
+            "id": "I-003",
+            "layer": "L3",
+            "severity": "INFO",
+            "description": "microdata-node and gray-matter are dormant; accepted with rationale (MIN-006)"
+        }
+    ],
+    "traceability": {
+        "rows": 231,
+        "missingCells": 0,
+        "executedScenarios": 0
     },
-    {
-      "id": "D-004",
-      "layer": 4,
-      "severity": "INFO",
-      "artifact": "tasks.md",
-      "description": "T-015 OCR provider choice unresolved (AWS Textract vs Tesseract vs Google Cloud Vision)."
-    }
-  ]
+    "ownerDecisions": [
+        "D-001 OCR P1 at launch (AWS Textract)",
+        "D-002 Instagram specified but gated on Meta credential",
+        "D-003 attestation + citation + advisory heuristics",
+        "D-004 blocklist as admin-managed table"
+    ],
+    "readiness": "ready-for-implementation",
+    "releaseAudit": "BLOCKED-PRE-IMPLEMENTATION"
 }

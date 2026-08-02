@@ -2,1524 +2,544 @@
 
 **Feature Branch**: `004-recipe-importing`
 **Created**: 2026-05-09
-**Status**: Draft
+**Regenerated**: 2026-08-02
+**Status**: Approved for implementation
 **Source**: `specs/004-recipe-importing/v-model/architecture-design.md`
 
-## Overview
-
-This document decomposes 18 architecture modules (ARCH-001–ARCH-018) into 18 low-level module specifications (MOD-001–MOD-018). Each module is described with four mandatory views: (1) Algorithmic/Logic View, (2) Internal State & Data Structures View, (3) Error Handling & Return Codes View, and (4) Concurrency & Timing View. The level of detail is sufficient that writing source code is a translation exercise — no further design decisions are required.
+> **Regeneration note.** The previous revision decomposed 18 modules mirroring an architecture since found to
+> duplicate shipped 001 capabilities, and it named **no real source path anywhere** across 1,525 lines — which
+> is why the wrong package paths in `tasks.md` survived every review. This revision covers the 34 reconciled
+> modules, names the real file for each, and states the four mandated views. Depth is spent where correctness
+> is at risk; thin adapters get brief views rather than padding.
 
 ## ID Schema
 
-- **Module**: `MOD-NNN` — sequential, one-to-one with ARCH-NNN
-- **Parent Architecture Module**: `ARCH-NNN`
-- **Traceability**: Each MOD row references its parent ARCH and the SYS components it ultimately serves
+`MOD-NNN` — one-to-one with `ARCH-NNN`. Each module states: **(1)** Algorithm/Logic · **(2)** Internal State &
+Data Structures · **(3)** Error Handling & Return Codes · **(4)** Concurrency & Timing.
 
-## ARCH↔MOD Traceability Table
+## ARCH ↔ MOD ↔ File Map
 
-| MOD ID  | Module Name                  | Parent ARCH | Parent SYS       |
-| ------- | ---------------------------- | ----------- | ---------------- |
-| MOD-001 | ImportOrchestrator           | ARCH-001    | SYS-009          |
-| MOD-002 | ImportController             | ARCH-002    | SYS-009          |
-| MOD-003 | WebUrlExtractorService       | ARCH-003    | SYS-001          |
-| MOD-004 | SchemaOrgParser              | ARCH-004    | SYS-001          |
-| MOD-005 | HeuristicRecipeParser        | ARCH-005    | SYS-001          |
-| MOD-006 | InstagramOEmbedAdapter       | ARCH-006    | SYS-002          |
-| MOD-007 | OcrPipelineService           | ARCH-007    | SYS-003          |
-| MOD-008 | OcrReviewController          | ARCH-008    | SYS-003          |
-| MOD-009 | PaywallBlocklistService      | ARCH-009    | SYS-006          |
-| MOD-010 | DeduplicationService         | ARCH-010    | SYS-005          |
-| MOD-011 | AttributionVisibilityService | ARCH-011    | SYS-004          |
-| MOD-012 | CloneService                 | ARCH-012    | SYS-004          |
-| MOD-013 | RecipePersistenceAdapter     | ARCH-013    | SYS-007          |
-| MOD-014 | AuthMiddleware               | ARCH-014    | SYS-008          |
-| MOD-015 | RecipeRepository             | ARCH-015    | SYS-005, SYS-007 |
-| MOD-016 | ImportDtoTypes               | ARCH-016    | [CROSS-CUTTING]  |
-| MOD-017 | ImportErrorNormalizer        | ARCH-017    | [CROSS-CUTTING]  |
-| MOD-018 | ImportLogger                 | ARCH-018    | [CROSS-CUTTING]  |
+Backend paths are relative to `packages/services/recipe-service/`; frontend to `packages/apps/commise/`.
 
----
-
-## MOD-001 — ImportOrchestrator
-
-**Parent ARCH**: ARCH-001 | **Type**: Service | **Parent SYS**: SYS-009
-
-### 1. Algorithmic / Logic View
-
-```
-function orchestrate(request: OrchestrationRequest): Promise<OrchestrationResult>
-
-  // Step 1 — Paywall gate (synchronous, throws on block)
-  paywallService.checkPaywall(request.sourceUrl)          // throws PaywallBlockedError
-
-  // Step 2 — Extract recipe payload based on import type
-  let payload: RecipeImportPayload
-  switch request.importType
-    case 'url':
-      payload = await webUrlExtractor.extractFromUrl(request.sourceUrl)
-    case 'instagram':
-      payload = await instagramAdapter.extractFromPost(request.sourceUrl)
-    case 'ocr':
-      payload = await ocrPipeline.processPhoto(request.photoBuffer)
-    default:
-      throw new UnsupportedImportTypeError(request.importType)
-
-  // Step 3 — Deduplication check
-  const dupResult = await deduplicationService.findBySourceUrl(request.sourceUrl)
-  if dupResult.isDuplicate
-    logger.log('duplicate_found', { existingId: dupResult.existingRecipe.id })
-    return { status: 'duplicate', existingRecipe: dupResult.existingRecipe }
-
-  // Step 4 — Attribution + visibility enforcement
-  const attributed = attributionService.applyAttributionVisibility(payload, request.importType, request.userId)
-
-  // Step 5 — Persist
-  const saved = await persistenceAdapter.save(attributed)
-  logger.log('import_persisted', { recipeId: saved.id, importType: request.importType })
-
-  return { status: 'created', recipe: saved }
-
-// Top-level error boundary — delegates to ImportErrorNormalizer (ARCH-017)
-// All unhandled errors bubble to ImportController (ARCH-002) which calls normalizer
-```
-
-**Decision rules**:
-
-- `importType === 'ocr'` skips `sourceUrl` paywall check (no URL); `checkPaywall` is a no-op when `sourceUrl` is undefined.
-- Duplicate detection returns early — no persistence, no attribution step.
-- The orchestrator does NOT catch errors; it lets them propagate to the controller layer.
-
-### 2. Internal State & Data Structures View
-
-```typescript
-// No mutable instance state — all dependencies injected via constructor DI
-class ImportOrchestrator {
-    constructor(
-        private readonly paywallService: PaywallBlocklistService, // MOD-009
-        private readonly webUrlExtractor: WebUrlExtractorService, // MOD-003
-        private readonly instagramAdapter: InstagramOEmbedAdapter, // MOD-006
-        private readonly ocrPipeline: OcrPipelineService, // MOD-007
-        private readonly deduplicationService: DeduplicationService, // MOD-010
-        private readonly attributionService: AttributionVisibilityService, // MOD-011
-        private readonly persistenceAdapter: RecipePersistenceAdapter, // MOD-013
-        private readonly logger: ImportLogger, // MOD-018
-    ) {}
-}
-
-// Input type
-interface OrchestrationRequest {
-    importType: 'url' | 'instagram' | 'ocr';
-    sourceUrl?: string; // undefined for OCR
-    photoBuffer?: Buffer; // defined only for OCR
-    userId: string; // Clerk sub claim
-}
-
-// Output type
-type OrchestrationResult =
-    | { status: 'created'; recipe: RecipeEntity }
-    | { status: 'duplicate'; existingRecipe: RecipeEntity };
-```
-
-### 3. Error Handling & Return Codes View
-
-| Error Class                  | Thrown By | Propagates To    | HTTP (via normalizer) |
-| ---------------------------- | --------- | ---------------- | --------------------- |
-| `PaywallBlockedError`        | MOD-009   | ImportController | 422 Unprocessable     |
-| `UrlUnreachableError`        | MOD-003   | ImportController | 502 Bad Gateway       |
-| `NoCaptionError`             | MOD-006   | ImportController | 422 Unprocessable     |
-| `OcrServiceError`            | MOD-007   | ImportController | 502 Bad Gateway       |
-| `PersistenceError`           | MOD-013   | ImportController | 500 Internal          |
-| `UnsupportedImportTypeError` | MOD-001   | ImportController | 400 Bad Request       |
-
-All errors are plain `Error` subclasses with a `code: string` discriminant property.
-
-### 4. Concurrency & Timing View
-
-- All async operations use `await` sequentially — no parallel fan-out within a single import.
-- No shared mutable state; each request creates an isolated call stack.
-- Timeout responsibility delegated to individual service modules (MOD-003, MOD-006, MOD-007).
-- NestJS DI scope: `@Injectable()` with default singleton scope (stateless, safe).
+| MOD     | Module                   | ARCH     | File                                                                              |
+| ------- | ------------------------ | -------- | --------------------------------------------------------------------------------- |
+| MOD-001 | ImportsController        | ARCH-001 | `src/imports/imports.controller.ts`                                               |
+| MOD-002 | ImportsService           | ARCH-002 | `src/imports/imports.service.ts`                                                  |
+| MOD-003 | ImportJobsService        | ARCH-003 | `src/imports/jobs/import-jobs.service.ts`                                         |
+| MOD-004 | ImportJobWorker          | ARCH-004 | `packages/services/recipe-workers/src/import-job.worker.ts`                       |
+| MOD-005 | SourceFetcherService     | ARCH-005 | `src/imports/fetch/source-fetcher.service.ts`                                     |
+| MOD-006 | SsrfGuard                | ARCH-006 | `src/imports/fetch/ssrf-guard.ts`                                                 |
+| MOD-007 | RecipeExtractor (port)   | ARCH-007 | `src/imports/extractors/recipe-extractor.port.ts`                                 |
+| MOD-008 | JsonLdExtractor          | ARCH-008 | `src/imports/extractors/json-ld.extractor.ts`                                     |
+| MOD-009 | MicrodataExtractor       | ARCH-009 | `src/imports/extractors/microdata.extractor.ts`                                   |
+| MOD-010 | HeuristicExtractor       | ARCH-010 | `src/imports/extractors/heuristic.extractor.ts`                                   |
+| MOD-011 | ExtractorChainService    | ARCH-011 | `src/imports/extractors/extractor-chain.service.ts`                               |
+| MOD-012 | OEmbedProvider (port)    | ARCH-012 | `src/imports/instagram/oembed-provider.port.ts`                                   |
+| MOD-013 | InstagramOEmbedAdapter   | ARCH-013 | `src/imports/instagram/instagram-oembed.adapter.ts`                               |
+| MOD-014 | OcrProvider (port)       | ARCH-014 | `src/imports/ocr/ocr-provider.port.ts`                                            |
+| MOD-015 | TextractAdapter          | ARCH-015 | `src/imports/ocr/textract.adapter.ts`                                             |
+| MOD-016 | OcrPipelineService       | ARCH-016 | `src/imports/ocr/ocr-pipeline.service.ts`                                         |
+| MOD-017 | FileParserService        | ARCH-017 | `src/imports/files/file-parser.service.ts` + `{json,yaml,markdown}.parser.ts`     |
+| MOD-018 | NormalizerService        | ARCH-018 | `src/imports/normalize/normalizer.service.ts`                                     |
+| MOD-019 | IngredientLineParser     | ARCH-019 | `src/imports/normalize/ingredient-line.ts`                                        |
+| MOD-020 | ValueNormalizers         | ARCH-020 | `src/imports/normalize/value-normalizers.ts`                                      |
+| MOD-021 | ContentSanitizer         | ARCH-021 | `src/imports/normalize/content-sanitizer.ts`                                      |
+| MOD-022 | ProvenancePolicy         | ARCH-022 | `src/imports/policy/provenance.policy.ts`                                         |
+| MOD-023 | PaywalledDomainsService  | ARCH-023 | `src/imports/blocklist/paywalled-domains.{service,dal,controller}.ts`             |
+| MOD-024 | CanonicalSourceUrl       | ARCH-024 | `src/imports/policy/canonical-source-url.ts`                                      |
+| MOD-025 | ImportDraftsService      | ARCH-025 | `src/imports/drafts/import-drafts.{service,dal}.ts`, `draft-expiry.service.ts`    |
+| MOD-026 | DraftConfirmationService | ARCH-026 | `src/imports/confirm/draft-confirmation.service.ts`                               |
+| MOD-027 | ImportEntry              | ARCH-027 | `features/recipes/src/import/ImportEntry{,.native}.tsx`                           |
+| MOD-028 | ImportProgress           | ARCH-028 | `features/recipes/src/import/ImportProgress{,.native}.tsx`                        |
+| MOD-029 | ImportDraftReview        | ARCH-029 | `features/recipes/src/import/ImportDraftReview{,.native}.tsx`                     |
+| MOD-030 | RecipeAttribution        | ARCH-030 | `features/recipes/src/detail/RecipeAttribution{,.native}.tsx`                     |
+| MOD-031 | ImportErrorState         | ARCH-031 | `features/recipes/src/import/ImportErrorState{,.native}.tsx`                      |
+| MOD-032 | Import hooks             | ARCH-032 | `features/recipes/src/import/useImportJob.ts`, `useImportDraft.ts`                |
+| MOD-033 | ImportErrorCodes         | ARCH-033 | `src/imports/import.error.ts` + `packages/shared/recipe-core/src/recipe.types.ts` |
+| MOD-034 | ImportContracts          | ARCH-034 | `packages/shared/recipe-core/src/{importTypes,importDraft}.ts`                    |
 
 ---
 
-## MOD-002 — ImportController
+### Module: MOD-001 (ImportsController)
 
-**Parent ARCH**: ARCH-002 | **Type**: Component | **Parent SYS**: SYS-009
+**Parent Architecture Modules**: ARCH-001
 
-### 1. Algorithmic / Logic View
+**Logic.** One handler per endpoint: bind DTO → validate (`ValidationPipe`, `whitelist: true`, so stray keys are
+stripped rather than trusted) → read `Idempotency-Key` where required → resolve the principal via the shipped
+`@CurrentPrincipal` decorator → delegate. Contains **no** policy and **no** I/O beyond delegation.
+**State.** Stateless.
+**Errors.** Throws nothing of its own; typed domain errors propagate to the shipped `ApiExceptionFilter`. A
+missing `Idempotency-Key` on a route that requires it ⇒ `400`.
+**Concurrency.** Per-request; no shared mutable state. The import `@Throttle` override is applied class-wide.
+
+### Module: MOD-002 (ImportsService (Facade))
+
+**Parent Architecture Modules**: ARCH-002
+
+**Logic.** The single definition of pipeline order:
 
 ```
-// Endpoint: POST /import/url
-async importUrl(dto: ImportUrlDto, user: AuthUser): Promise<RecipeResponseDto>
-  result = await orchestrator.orchestrate({ importType: 'url', sourceUrl: dto.url, userId: user.sub })
-  return mapOrchestrationResultToDto(result)
-
-// Endpoint: POST /import/instagram
-async importInstagram(dto: ImportInstagramDto, user: AuthUser): Promise<RecipeResponseDto>
-  result = await orchestrator.orchestrate({ importType: 'instagram', sourceUrl: dto.postUrl, userId: user.sub })
-  return mapOrchestrationResultToDto(result)
-
-// Endpoint: POST /import/photo
-async importPhoto(file: Express.Multer.File, user: AuthUser): Promise<OcrDraftResponseDto>
-  draft = await ocrPipeline.processPhoto(file.buffer)
-  return { draftId: draft.draftId, extractedText: draft.text, confidence: draft.confidence }
-
-// Endpoint: POST /import/photo/save  (delegates to OcrReviewController MOD-008)
-// (handled by ARCH-008 / MOD-008 — separate controller class)
-
-// Error mapping (called in catch block)
-function mapError(err: unknown): never
-  const normalized = errorNormalizer.normalize(err)
-  throw new HttpException(normalized.userMessage, normalized.httpStatus)
-
-// DTO mapping
-function mapOrchestrationResultToDto(result: OrchestrationResult): RecipeResponseDto
-  if result.status === 'duplicate'
-    return { ...result.existingRecipe, importStatus: 'duplicate' }
-  return { ...result.recipe, importStatus: 'created' }
+1 blocklist.assertNotBlocked(host)      → hard fail (fails CLOSED on lookup error)
+2 <channel adapter>                     → fetch | oembed | ocr | parseFile
+3 extractorChain.extract(document)      → null ⇒ IMPORT_NO_RECIPE_FOUND
+4 normalizer.normalize(extracted)       → NormalizedDraft + missingRequired[]
+5 provenancePolicy.classify(...)        → hard fail; NO default-to-public branch
+6 dedup.findExisting(canonicalUrl)      → short-circuit to the existing recipe
+7 drafts.create(...)                    → ImportDraft
 ```
 
-### 2. Internal State & Data Structures View
+No caller may reorder or skip a step because the sequence exists only here (HAZ-026).
+**State.** Stateless; all collaborators injected as ports.
+**Errors.** Every failure is a `RecipeDomainError` carrying an import code.
+**Concurrency.** One invocation per job. Outbound work is bounded by the fetch bulkhead, deliberately separate
+from the DB pool so a slow third-party host cannot starve database access.
 
-```typescript
-@Controller('import')
-// MOD-014 AuthMiddleware applied to these routes via module configure(consumer)
-class ImportController {
-    constructor(
-        private readonly orchestrator: ImportOrchestrator, // MOD-001
-        private readonly ocrPipeline: OcrPipelineService, // MOD-007
-        private readonly errorNormalizer: ImportErrorNormalizer, // MOD-017
-    ) {}
-}
+### Module: MOD-003 (ImportJobsService)
 
-// DTOs (defined in MOD-016)
-// ImportUrlDto       — { url: string @IsUrl() }
-// ImportInstagramDto — { postUrl: string @IsUrl() }
-// RecipeResponseDto  — { id, title, importStatus, ... }
-// OcrDraftResponseDto — { draftId, extractedText, confidence }
+**Parent Architecture Modules**: ARCH-003
+
+**Logic.** State machine `queued → running → succeeded | failed`; terminal states immutable. `enqueue` first
+resolves the idempotency key: an existing `(key, endpoint, principal)` returns the original job instead of
+creating a second (HAZ-047).
+**State.** `import_jobs` row — `status`, `channel`, `idempotency_key`, `draft_id?`, `error_code?`, `attempts`.
+**Errors.** An illegal transition is a programmer error: thrown, logged, alerted. `IMPORT_JOB_NOT_FOUND`
+(`404`) covers both absent and not-owned (HAZ-046).
+**Concurrency.** Transitions use a conditional update on the current status, so two workers cannot both claim a
+job. `(idempotency_key, principal, endpoint)` carries a unique constraint — the key's guarantee is the
+constraint, not a prior read.
+
+### Module: MOD-004 (ImportJobWorker)
+
+**Parent Architecture Modules**: ARCH-004
+
+**Logic.** Consume → claim (conditional update) → `ImportsService.run` → record outcome. A redelivered message
+for an already-terminal job is acknowledged without re-running.
+**State.** None beyond the job row. The correlation ID is propagated from the enqueueing request through the
+queue hop.
+**Errors.** Typed failures are recorded on the job and are **not** retried (a blocked domain will still be
+blocked). Unexpected errors retry to the cap, then DLQ; DLQ depth is alerted.
+**Concurrency.** At-least-once delivery assumed, so the handler is idempotent. Separate bulkheads mean a long
+OCR poll cannot block URL imports.
+
+### Module: MOD-005 (SourceFetcherService ⚠️ security-critical)
+
+**Parent Architecture Modules**: ARCH-005
+
+**Logic.**
+
+```
+1 url already validated + canonicalized by MOD-024 (scheme checked at construction)
+2 blocklist.assertNotBlocked(url.host)
+3 addresses = resolve(url.host);  ssrfGuard.assertPublicAddress(addresses)
+4 GET via an undici dispatcher PINNED to the validated address
+    headers: User-Agent only — no cookies, no Authorization (HAZ-032)
+    connect deadline 3s · TOTAL deadline 10s, independent of connect (HAZ-031)
+5 assert content-type ∈ { text/html, application/xhtml+xml }
+6 stream the body, aborting past 5 MB — streamed, never buffer-then-check (HAZ-004)
+7 on 3xx: hops+1 ≤ 5 → GOTO 2 with the redirect target
+    ── steps 2 AND 3 re-run on EVERY hop (REQ-018, HAZ-002/003)
+8 normalize charset → string (HAZ-005)
 ```
 
-### 3. Error Handling & Return Codes View
+**State.** Stateless per call. Per-registrable-domain `cockatiel` breaker policies live in a **bounded LRU** —
+an unbounded map keyed by attacker-supplied domains is itself a memory-exhaustion vector.
+**Errors.** `SourceBlocked`, `SourceUnreachable`, `PayloadTooLarge`, `ProviderUnavailable` (breaker open).
+Response bodies are **never** logged (REQ-NF-012).
+**Concurrency.** Bulkhead-bounded. Retry only on idempotent GET and transient classes, ≤2 attempts,
+exponential backoff **with full jitter** (synchronized retries would DDoS the source).
 
-| Scenario                        | HTTP Status | Response Body                                                  |
-| ------------------------------- | ----------- | -------------------------------------------------------------- |
-| DTO validation failure          | 400         | `{ message: string[], error: 'Bad Request' }` (NestJS default) |
-| Unauthenticated (guard rejects) | 401         | `{ message: 'Unauthorized' }`                                  |
-| PaywallBlockedError             | 422         | `{ code: 'PAYWALL_BLOCKED', message }`                         |
-| UrlUnreachableError             | 502         | `{ code: 'URL_UNREACHABLE', message }`                         |
-| NoCaptionError                  | 422         | `{ code: 'NO_CAPTION', message }`                              |
-| OcrServiceError                 | 502         | `{ code: 'OCR_FAILED', message }`                              |
-| PersistenceError                | 500         | `{ code: 'PERSISTENCE_ERROR', message }`                       |
-| Duplicate found                 | 200         | `{ importStatus: 'duplicate', ... }`                           |
+### Module: MOD-006 (SsrfGuard ⚠️ security-critical)
 
-### 4. Concurrency & Timing View
+**Parent Architecture Modules**: ARCH-006
 
-- Stateless singleton; concurrent requests are isolated by NestJS request pipeline.
-- File upload handled by `@UseInterceptors(FileInterceptor('photo'))` — Multer buffers in memory (max 10 MB enforced by Multer config).
-- No internal timeouts; relies on NestJS global timeout interceptor (configurable, default 30 s).
+**Logic.** Pure predicate over resolved addresses, via `ipaddr.js`. Rejects loopback (`127.0.0.0/8`, `::1`),
+private (`10/8`, `172.16/12`, `192.168/16`, `fc00::/7`), link-local (`169.254.0.0/16` — including the cloud
+metadata address — and `fe80::/10`), CGNAT (`100.64/10`), unspecified (`0.0.0.0`, `::`), multicast, and
+reserved ranges. **Every** resolved address must pass: a host resolving to one public and one private address
+is rejected outright. Supplies the pinning dispatcher so the connection cannot be re-pointed after validation.
+**State.** Stateless. DNS resolution is injected as a port, making tests deterministic.
+**Errors.** Throws `SourceBlocked` **without** disclosing what was resolved — a detailed message turns the
+endpoint into a network-probing oracle.
+**Concurrency.** None. Validation and connection are atomic with respect to each other **by construction** —
+that is precisely what pinning buys, and why a check-then-connect design would still be vulnerable.
+
+### Module: MOD-007 (RecipeExtractor (port))
+
+**Parent Architecture Modules**: ARCH-007
+
+**Logic.** `extract(doc: FetchedDocument): ExtractedRecipe | null`. **Total; never throws.** `null` means "not
+my format", which lets the chain control flow with values rather than exceptions.
+**State.** None. **Errors.** None by contract. **Concurrency.** Pure; concurrency-safe.
+
+### Module: MOD-008 (JsonLdExtractor)
+
+**Parent Architecture Modules**: ARCH-008
+
+**Logic.** Select `script[type="application/ld+json"]` → `JSON.parse` each block (a parse failure skips **that
+block**, never the page) → flatten `@graph` and arrays → find the first node whose `@type` is `Recipe` or an
+array containing it → Zod-validate → map. A node failing validation is **skipped, not coerced** (HAZ-028).
+**State.** Stateless. **Errors.** None thrown; unparseable or non-Recipe ⇒ `null`.
+**Concurrency.** Pure; input bounded by the 5 MB response cap.
+
+### Module: MOD-009 (MicrodataExtractor)
+
+**Parent Architecture Modules**: ARCH-009
+
+**Logic.** `microdata-node` over the document; select items whose `itemtype` matches schema.org Recipe; map the
+same field set as MOD-008 so downstream code is format-agnostic.
+**State/Errors/Concurrency.** As MOD-008.
+
+### Module: MOD-010 (HeuristicExtractor)
+
+**Parent Architecture Modules**: ARCH-010
+
+**Logic.** `cheerio` structural heuristics — title from `h1`/`og:title`; ingredients from the list whose items
+best match a quantity-leading shape; steps from the ordered list or heading-delimited paragraphs following an
+"instructions"-like heading. Emits `confidence ∈ [0,1]` derived from how many signals agreed, so a weak parse
+is **visible to the user** rather than silently equal to a strong one.
+**State.** Stateless; patterns bounded to avoid catastrophic backtracking (HAZ-033).
+**Errors.** None thrown; nothing recognisable ⇒ `null`.
+**Concurrency.** Pure; a per-job CPU/time budget bounds a hostile page.
+
+### Module: MOD-011 (ExtractorChainService)
+
+**Parent Architecture Modules**: ARCH-011
+
+**Logic.** Run MOD-008 → MOD-009 → MOD-010; first non-null wins; record which strategy hit (an SLI that tells
+us when the web's markup landscape shifts). All-null ⇒ an explicit `NoRecipeFound` outcome, **never** an empty
+success (HAZ-009, REQ-CN-006).
+**State.** Ordered injected strategy list — adding a strategy is additive, satisfying REQ-CN-005's "additive if
+ever justified" escape hatch.
+**Errors.** Returns an outcome value; the caller maps it to `IMPORT_NO_RECIPE_FOUND`.
+**Concurrency.** Deliberately sequential — later strategies are lower quality, so short-circuiting is the point.
+
+## MOD-012 / MOD-013 — OEmbedProvider port · InstagramOEmbedAdapter
+
+**Logic.** Port: `fetchCaption(url) → ExtractedRecipe`. The adapter calls the Meta-hosted oEmbed endpoint with
+an app credential from SSM/Secrets, Zod-validates the response shape (HAZ-012), extracts caption text, and runs
+it through MOD-010. Empty or recipe-free caption ⇒ `NoCaption`.
+**State.** Credential cached with a TTL; the capability flag is read at construction and defaults **off**.
+**Errors.** `NoCaption` (`422`), `ProviderUnavailable` (`503`). **429 is classified explicitly** as throttled
+rather than folded into a generic failure (HAZ-010). A timeout is a typed failure, never an empty success
+(HAZ-030).
+**Concurrency.** Its own breaker and bulkhead, so Instagram degradation cannot starve URL imports.
+
+## MOD-014 / MOD-015 / MOD-016 — OcrProvider port · TextractAdapter · OcrPipelineService
+
+**Logic.** Validate magic bytes (JPEG/PNG/HEIC) and size (≤10 MB) → `sharp` preprocessing → store to S3 under
+the import prefix → `provider.extractText(objectKey)` → raw text → the **shared** normalize path (so OCR
+inherits sanitization and ingredient parsing rather than duplicating them). The adapter polls Textract with
+bounded attempts, backoff, and a hard deadline.
+**State.** The S3 object key is recorded on the draft. **Deletion occurs on confirm, discard, or expiry —
+whichever comes first** (HAZ-035); the S3 lifecycle rule is a backstop, not the mechanism.
+**Errors.** `OcrFailed` (`422`) when no usable text is produced; `ProviderUnavailable` (`503`) on breaker-open
+or deadline. Extracted text is **never logged** (HAZ-036) — photographs of physical recipes can capture
+handwriting, faces, and surroundings.
+**Concurrency.** OCR is the slowest channel and holds its own bulkhead. Polling is bounded so a stuck job
+cannot occupy a worker indefinitely.
+
+### Module: MOD-017 (FileParserService)
+
+**Parent Architecture Modules**: ARCH-017
+
+**Logic.** `file-type` magic-byte sniff **first** — the client-declared filename and MIME are ignored entirely
+(HAZ-037) → dispatch to JSON / YAML (`yaml`, safe parse only, no custom tag resolution — HAZ-038) / Markdown
+(`gray-matter`) → Zod-validate the recipe shape → map to `ExtractedRecipe`.
+**State.** Stateless. The 1 MB cap is enforced **before** parsing, not after (HAZ-039).
+**Errors.** `IMPORT_UNSUPPORTED_FORMAT` (`415`), `IMPORT_PAYLOAD_TOO_LARGE` (`413`); Zod failures surface as
+field-level `422` details.
+**Concurrency.** Synchronous and fast — no queue, hence the `201` rather than `202`.
+
+### Module: MOD-018 (NormalizerService)
+
+**Parent Architecture Modules**: ARCH-018
+
+**Logic.** Apply MOD-021 (sanitize) to every text field, MOD-019 to each ingredient line, MOD-020 to durations
+and yield; then compute `missingRequired` against the shipped `CreateRecipeRequest` obligations (`servings`,
+the three times, ≥1 ingredient, ≥1 step).
+**State.** Pure.
+**Errors.** **None** — incompleteness is _data_ (`missingRequired`), not an error. That distinction is the
+hinge the entire draft model turns on.
+**Concurrency.** Pure; parallelisable across fields.
+
+### Module: MOD-019 (IngredientLineParser)
+
+**Parent Architecture Modules**: ARCH-019
+
+**Logic.** `parse-ingredient` on the raw line → `{ quantity, unit, name, raw }`. **`raw` is retained
+unconditionally** (HAZ-041). Unparseable, or a non-positive quantity, ⇒ `quantity: null` + `needsReview`:
+never a throw, and never a fabricated `1` (which the `CHECK (quantity > 0)` constraint would happily accept).
+**State.** Pure, total. **Errors.** None by contract. **Concurrency.** Pure.
+
+### Module: MOD-020 (ValueNormalizers)
+
+**Parent Architecture Modules**: ARCH-020
+
+**Logic.** ISO-8601 duration → integer minutes via `iso8601-duration`, rounded, negatives rejected. Free-text
+yield → positive integer for unambiguous forms (`"4"`, `"4 servings"`, `"serves 4"`); a range (`"4-6"`) takes
+the lower bound and flags for review; anything else ⇒ empty + flagged. **No branch returns a default for an
+absent input** (HAZ-040) — the shipped NOT NULL columns would accept a fabricated `0`, which is exactly why
+the prohibition must live here.
+**State.** Pure, total. **Errors.** None; unparseable ⇒ `undefined` + flag. **Concurrency.** Pure.
+
+### Module: MOD-021 (ContentSanitizer)
+
+**Parent Architecture Modules**: ARCH-021
+
+**Logic.** `sanitize-html` with `allowedTags: []` and `allowedAttributes: {}` across every extracted text
+field, then entity-decode to plain text. Invoked **inside MOD-018**, which every channel traverses — so no path
+can skip it (HAZ-029). Placement is the control; a per-channel call would eventually miss one.
+**State.** Pure; frozen config. **Errors.** None. **Concurrency.** Pure.
+
+### Module: MOD-022 (ProvenancePolicy)
+
+**Parent Architecture Modules**: ARCH-022
+
+**Logic.** Pure total function:
+
+```
+url | instagram                                          → imported_public
+ocr                                                      → imported_physical  (premium only — D-014)
+file                                                     → user_created       (the user's own export)
+manual + attested external + citation publicly reachable → imported_public
+manual + attested external + citation NOT public         → imported_paid
+manual + not attested                                    → user_created
+```
+
+Heuristic signals return `needsReview` **only**; they never alter the returned class (HAZ-042, D-003). There is
+**no** default-to-public branch (HAZ-043).
+
+The policy also reports whether the resulting class is **non-public by policy** (`imported_physical` /
+`imported_paid`). ARCH-002 uses that to require a premium entitlement before the channel runs (D-014, FR-028) —
+the entitlement check reads the shipped `PREMIUM_PERMISSION`, and the visibility rule itself stays 001's.
+**State.** Pure.
+**Errors.** Total function — no error path. Visibility is **not** decided here; that remains the shipped
+`evaluateVisibility` (REQ-015).
+**Concurrency.** Pure.
+
+### Module: MOD-023 (PaywalledDomainsService)
+
+**Parent Architecture Modules**: ARCH-023
+
+**Logic.** Normalize host (lowercase, strip `www.`) → look up exact host, then registrable-suffix ancestors.
+**Never substring** — `notnytimes.com` must not match `nytimes.com` (HAZ-022). Admin CRUD records `added_by`
+and `reason`.
+**State.** Bounded-TTL cache; refresh is single-flight to avoid a stampede. A DB error **fails closed**
+(HAZ-044) — during a blocklist outage every source is treated as blocked, which is the safe direction.
+**Errors.** `IMPORT_SOURCE_BLOCKED` (`422`); admin routes `403` without the scope.
+**Concurrency.** Read-mostly.
+
+### Module: MOD-024 (CanonicalSourceUrl)
+
+**Parent Architecture Modules**: ARCH-024
+
+**Logic.** Value object. The constructor rejects non-`http(s)`, then applies `normalize-url`: lowercase
+scheme+host, remove fragment, remove default port, strip tracking parameters, normalize trailing slash. Stores
+both the canonical form and the original (the original is what the user sees; the canonical is the dedup key).
+**State.** Immutable — an unnormalized instance is **unrepresentable**, so no caller can forget to canonicalize
+(HAZ-019). This is the "make illegal states unrepresentable" rule applied to a bug class.
+**Errors.** Throws at construction on an unusable URL — the earliest possible point.
+**Concurrency.** Immutable; freely shareable.
+
+### Module: MOD-025 (ImportDraftsService)
+
+**Parent Architecture Modules**: ARCH-025
+
+**Logic.** Create / read / patch / confirm / discard / expire. `loadForOwner(id, ownerId)` returns `404` when
+absent **or** not owned (HAZ-046) — the two are indistinguishable to a caller by design. `patch` recomputes
+`missingRequired`. The expiry sweep deletes due drafts and their OCR objects as one unit.
+**State.** `import_drafts` rows; state machine `open → confirmed | expired`, terminal states immutable.
+**Errors.** `IMPORT_DRAFT_EXPIRED` (`410`), not-found (`404`), `422` for an invalid correction.
+**Concurrency.** Confirm uses a conditional update on `status = 'open'`, so two concurrent confirms cannot both
+create a recipe. The sweep is idempotent and safe alongside live user activity.
+
+### Module: MOD-026 (DraftConfirmationService)
+
+**Parent Architecture Modules**: ARCH-026
+
+**Logic.** Load (owner-scoped) → assert `open` and unexpired → assert `missingRequired` is empty → map to the
+shipped `CreateRecipeRequest` → `RecipesService.create(principal, request)` → mark confirmed → submit
+ingredient names for asynchronous food resolution.
+**State.** Stateless.
+**Errors.** `IMPORT_DRAFT_INCOMPLETE` (`422`) with the offending field list; shipped recipe-domain errors
+propagate unchanged. A food-service outage does **not** fail confirmation (HAZ-050) — resolution is a
+non-critical enrichment and degrades rather than blocking the user's save.
+**Concurrency.** The draft's conditional status update is the idempotency guard. A dedup unique-constraint
+violation at insert is caught and resolved to the winning recipe rather than surfacing a `500` (HAZ-018).
+**Constraint.** Contains **no** visibility logic and constitutes **no** second write path (REQ-CN-007,
+HAZ-051). This module is deliberately thin; every temptation to add a rule here belongs in 001 instead.
+
+## MOD-027 – MOD-032 — Frontend modules
+
+All follow the shipped orchestration/render split: hooks hold data and state; render leaves are pure
+`props → JSX` with one responsibility each. Every `.tsx` has a `.native.tsx` sibling exporting an **identical
+public API** (§14.3). Refs are used only to wrap a genuinely external, non-declarative system. All copy comes
+from the shared `messages.ts` via `useMessages` (REQ-NF-006).
+
+| MOD     | Logic                                                                                                                                | State                                | Errors                        | Concurrency                                                |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ | ----------------------------- | ---------------------------------------------------------- |
+| MOD-027 | Channel picker + submit. The channel list is **server-driven** by `GET /import/sources`, so a gated channel never renders (HAZ-054)  | Form state only; submits via MOD-032 | Delegates to MOD-031          | Submit disabled while in flight — double-submit impossible |
+| MOD-028 | Renders job state; polls via MOD-032 with bounded backoff                                                                            | None (props)                         | Terminal failure → MOD-031    | Polling stops on terminal state or unmount                 |
+| MOD-029 | Draft review: editable fields, per-field confidence, the **raw** ingredient line shown beside the parsed values, attestation control | Local edit buffer, patched on save   | Field-level errors from `422` | Save disabled while `missingRequired` is non-empty         |
+| MOD-030 | Attribution block; renders only when a source is present; an unverifiable source is shown as such, not hidden (REQ-025)              | None (pure)                          | None                          | None                                                       |
+| MOD-031 | Exhaustive switch over the error-code union → message + recovery action; icon **and** text (REQ-NF-005)                              | None (pure)                          | Is the error surface          | None                                                       |
+| MOD-032 | `useImportJob` / `useImportDraft` over the typed client                                                                              | Query cache                          | Surfaces typed client errors  | Aborts in-flight requests on unmount                       |
+
+**Exhaustiveness.** MOD-031 switches over the discriminated error-code union with a `never` default, so adding
+a code without a rendering branch **fails compilation** rather than shipping an unhandled state at runtime.
+
+### Module: MOD-033 (ImportErrorCodes)
+
+**Parent Architecture Modules**: ARCH-033
+
+**Logic.** New `RecipeErrorCode` members; factory functions following the shipped `recipe.error.ts` pattern
+(extend `Error`, `Object.setPrototypeOf`, matching `is*` guard); status mapping added to the **shipped**
+`ApiExceptionFilter`.
+**State.** Frozen maps. **Errors.** N/A — this _is_ the error vocabulary. **Concurrency.** N/A.
+
+### Module: MOD-034 (ImportContracts)
+
+**Parent Architecture Modules**: ARCH-034
+
+**Logic.** Shared types in `@kitchensink/recipe-core`, consumed identically by service, typed client, web, and
+mobile — one contract, four consumers, no per-platform redefinition.
+**State.** Types only. **Errors.** N/A. **Concurrency.** N/A.
 
 ---
 
-## MOD-003 — WebUrlExtractorService
+## Coverage Summary
 
-**Parent ARCH**: ARCH-003 | **Type**: Service | **Parent SYS**: SYS-001
-
-### 1. Algorithmic / Logic View
-
-```
-async function extractFromUrl(url: string): Promise<RecipeImportPayload>
-
-  // 1. Fetch HTML
-  response = await fetch(url, { timeout: 10_000, headers: { 'User-Agent': SCRAPER_UA } })
-  if !response.ok
-    throw new UrlUnreachableError(url, response.status)
-  html = await response.text()
-
-  // 2. Primary strategy — schema.org parser
-  payload = schemaOrgParser.parse(html)
-  if payload !== null
-    return { ...payload, sourceUrl: url, extractionStrategy: 'schema_org' }
-
-  // 3. Fallback — heuristic parser
-  partial = heuristicParser.parse(html)
-  if partial.confidence < CONFIDENCE_THRESHOLD   // 0.4
-    throw new UrlUnreachableError(url, 'low_confidence')
-  return { ...partial, sourceUrl: url, extractionStrategy: 'heuristic' }
-```
-
-**Constants**:
-
-- `SCRAPER_UA = 'CommiseBot/1.0 (+https://commise.app/bot)'`
-- `CONFIDENCE_THRESHOLD = 0.4`
-- Fetch timeout: 10 000 ms
-
-### 2. Internal State & Data Structures View
-
-```typescript
-class WebUrlExtractorService {
-    constructor(
-        private readonly schemaOrgParser: SchemaOrgParser, // MOD-004
-        private readonly heuristicParser: HeuristicRecipeParser, // MOD-005
-    ) {}
-    // No mutable state
-}
-
-// Return type (from MOD-016)
-interface RecipeImportPayload {
-    title: string;
-    ingredients: string[];
-    instructions: string[];
-    sourceUrl: string;
-    originalAuthor?: string;
-    platform: 'web' | 'instagram' | 'ocr';
-    extractionStrategy: 'schema_org' | 'heuristic' | 'oembed' | 'ocr';
-    confidence?: number;
-}
-```
-
-### 3. Error Handling & Return Codes View
-
-| Condition                          | Error Class           | `code` property       |
-| ---------------------------------- | --------------------- | --------------------- |
-| HTTP 4xx/5xx from target URL       | `UrlUnreachableError` | `'URL_HTTP_ERROR'`    |
-| Network timeout (>10 s)            | `UrlUnreachableError` | `'URL_TIMEOUT'`       |
-| Both parsers fail / low confidence | `UrlUnreachableError` | `'EXTRACTION_FAILED'` |
-
-`UrlUnreachableError` constructor: `(url: string, reason: string | number)`.
-
-### 4. Concurrency & Timing View
-
-- One `fetch` call per invocation; no internal parallelism.
-- `node-fetch` AbortController used for 10 s timeout.
-- Stateless singleton — safe for concurrent requests.
+| Metric                                       | Count                |
+| -------------------------------------------- | -------------------- |
+| Total modules (MOD)                          | 34                   |
+| ARCH modules covered                         | 34 / 34              |
+| Modules with all four views stated           | 34                   |
+| Modules naming a real source path            | 34                   |
+| Pure modules (no I/O)                        | 9                    |
+| Security-critical modules                    | 2 (MOD-005, MOD-006) |
+| Modules duplicating a shipped 001 capability | 0                    |
 
 ---
 
-## MOD-004 — SchemaOrgParser
-
-**Parent ARCH**: ARCH-004 | **Type**: Library | **Parent SYS**: SYS-001
-
-### 1. Algorithmic / Logic View
-
-```
-function parse(html: string): RecipeImportPayload | null
-
-  // 1. Extract all <script type="application/ld+json"> blocks
-  scriptBlocks = extractLdJsonBlocks(html)   // regex: /<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi
-
-  for each block in scriptBlocks
-    try
-      data = JSON.parse(block)
-      // Handle @graph arrays
-      candidates = Array.isArray(data['@graph']) ? data['@graph'] : [data]
-      for each candidate in candidates
-        if candidate['@type'] === 'Recipe'
-          return mapSchemaOrgToPayload(candidate)
-    catch (SyntaxError)
-      continue   // malformed JSON — skip block
-
-  return null   // no valid Recipe schema found
-
-function mapSchemaOrgToPayload(schema: SchemaOrgRecipe): RecipeImportPayload
-  title       = schema.name ?? ''
-  ingredients = normaliseStringArray(schema.recipeIngredient)
-  instructions = extractInstructionSteps(schema.recipeInstructions)
-  author      = extractAuthorName(schema.author)
-  return { title, ingredients, instructions, originalAuthor: author, platform: 'web', extractionStrategy: 'schema_org' }
-
-function extractInstructionSteps(raw: unknown): string[]
-  if Array.isArray(raw)
-    return raw.map(step =>
-      typeof step === 'string' ? step : (step.text ?? step.name ?? '')
-    ).filter(Boolean)
-  if typeof raw === 'string'
-    return [raw]
-  return []
-```
+## Per-module traceability sections
 
-### 2. Internal State & Data Structures View
+> These sections exist so each `MOD-NNN` is individually addressable by `build-matrix.sh` (Matrix D). The
+> normative four-view text for these modules is the consolidated description above; these entries carry the
+> parent-ARCH linkage rather than restating it.
 
-```typescript
-// Pure stateless functions — no class instance needed; exported as module-level functions
-// or wrapped in a stateless @Injectable() class for NestJS DI
+### Module: MOD-012 (OEmbedProvider port)
 
-interface SchemaOrgRecipe {
-    '@type': 'Recipe';
-    name?: string;
-    recipeIngredient?: string[];
-    recipeInstructions?: unknown; // string | HowToStep[] | string[]
-    author?: { name?: string } | string;
-}
-```
+**Parent Architecture Modules**: ARCH-012
 
-### 3. Error Handling & Return Codes View
+**Logic.** See the consolidated description for this module earlier in this document; that text is the normative one and is not duplicated here.
+**State.** As stated in the consolidated description.
+**Errors.** As stated in the consolidated description.
+**Concurrency.** As stated in the consolidated description.
 
-- Never throws — all JSON parse errors are caught internally; returns `null` on any failure.
-- Malformed or missing fields produce empty strings/arrays (graceful degradation).
+### Module: MOD-013 (InstagramOEmbedAdapter)
 
-### 4. Concurrency & Timing View
+**Parent Architecture Modules**: ARCH-013
 
-- Synchronous; no I/O.
-- Pure function — safe for any concurrency level.
-
----
-
-## MOD-005 — HeuristicRecipeParser
-
-**Parent ARCH**: ARCH-005 | **Type**: Library | **Parent SYS**: SYS-001
-
-### 1. Algorithmic / Logic View
-
-```
-function parse(html: string): Partial<RecipeImportPayload> & { confidence: number }
-
-  dom = parseHtml(html)   // using 'node-html-parser' or equivalent
-
-  // Title — ordered selector list, first match wins
-  title = firstText(dom, [
-    'h1.recipe-title', 'h1[class*="recipe"]', 'h1[itemprop="name"]',
-    '.wprm-recipe-name', '.tasty-recipes-title', 'h1'
-  ])
-
-  // Ingredients — look for list items inside ingredient containers
-  ingredientEls = dom.querySelectorAll([
-    '[class*="ingredient"] li',
-    '[itemprop="recipeIngredient"]',
-    '.wprm-recipe-ingredient',
-  ].join(','))
-  ingredients = ingredientEls.map(el => el.text.trim()).filter(Boolean)
-
-  // Instructions — look for ordered/unordered lists inside instruction containers
-  instructionEls = dom.querySelectorAll([
-    '[class*="instruction"] li',
-    '[class*="direction"] li',
-    '[itemprop="recipeInstructions"] li',
-    '.wprm-recipe-instruction-text',
-  ].join(','))
-  instructions = instructionEls.map(el => el.text.trim()).filter(Boolean)
-
-  // Confidence scoring
-  score = 0
-  if title.length > 0        score += 0.3
-  if ingredients.length >= 3 score += 0.4
-  if instructions.length >= 2 score += 0.3
-
-  return { title, ingredients, instructions, platform: 'web', extractionStrategy: 'heuristic', confidence: score }
-```
-
-### 2. Internal State & Data Structures View
-
-```typescript
-// Stateless — no instance state
-// Selector constants defined as module-level readonly arrays
-const TITLE_SELECTORS: string[] = [ ... ]
-const INGREDIENT_SELECTORS: string[] = [ ... ]
-const INSTRUCTION_SELECTORS: string[] = [ ... ]
-```
-
-### 3. Error Handling & Return Codes View
-
-- Never throws. If DOM parsing fails, returns `{ title: '', ingredients: [], instructions: [], confidence: 0 }`.
-- Caller (MOD-003) checks `confidence < 0.4` and throws `UrlUnreachableError`.
+**Logic.** See the consolidated description for this module earlier in this document; that text is the normative one and is not duplicated here.
+**State.** As stated in the consolidated description.
+**Errors.** As stated in the consolidated description.
+**Concurrency.** As stated in the consolidated description.
 
-### 4. Concurrency & Timing View
+### Module: MOD-014 (OcrProvider port)
 
-- Synchronous CPU-bound parsing; no I/O.
-- Stateless — safe for concurrent use.
-- For very large HTML pages (>1 MB), parsing may take ~50–100 ms; acceptable within the 10 s fetch budget.
+**Parent Architecture Modules**: ARCH-014
 
----
-
-## MOD-006 — InstagramOEmbedAdapter
-
-**Parent ARCH**: ARCH-006 | **Type**: Adapter | **Parent SYS**: SYS-002
-
-### 1. Algorithmic / Logic View
-
-```
-async function extractFromPost(postUrl: string): Promise<RecipeImportPayload>
-
-  // 1. Call oEmbed endpoint
-  apiUrl = `https://graph.facebook.com/v18.0/instagram_oembed?url=${encodeURIComponent(postUrl)}&access_token=${INSTAGRAM_ACCESS_TOKEN}`
-  response = await fetch(apiUrl, { timeout: 8_000 })
-  if !response.ok
-    throw new OEmbedApiError(postUrl, response.status)
-  data = await response.json()   // type: InstagramOEmbedResponse
-
-  // 2. Validate caption presence
-  caption = data.title ?? ''
-  if caption.trim().length === 0
-    throw new NoCaptionError(postUrl, 'empty_caption')
-
-  // 3. Detect video-only / image-only (no recipe text)
-  if isNonRecipeContent(caption)
-    throw new NoCaptionError(postUrl, 'non_recipe_content')
-
-  // 4. Map to payload
-  return {
-    title: extractTitleFromCaption(caption),
-    ingredients: [],          // OCR/manual fill — caption rarely has structured ingredients
-    instructions: [caption],  // raw caption as single instruction block
-    sourceUrl: postUrl,
-    originalAuthor: data.author_name,
-    platform: 'instagram',
-    extractionStrategy: 'oembed',
-    confidence: 0.6,
-  }
-
-function isNonRecipeContent(caption: string): boolean
-  // Heuristic: caption shorter than 50 chars with no ingredient-like words
-  if caption.length < 50 return true
-  RECIPE_KEYWORDS = ['ingredient', 'cup', 'tbsp', 'tsp', 'oz', 'gram', 'mix', 'stir', 'bake', 'cook', 'heat', 'add', 'combine']
-  return !RECIPE_KEYWORDS.some(kw => caption.toLowerCase().includes(kw))
-
-function extractTitleFromCaption(caption: string): string
-  // First non-empty line, truncated to 120 chars
-  return caption.split('\n').find(l => l.trim().length > 0)?.slice(0, 120) ?? 'Imported Recipe'
-```
-
-### 2. Internal State & Data Structures View
-
-```typescript
-class InstagramOEmbedAdapter {
-    private readonly accessToken: string; // injected from ConfigService env var INSTAGRAM_ACCESS_TOKEN
-    constructor(private readonly config: ConfigService) {
-        this.accessToken = config.get('INSTAGRAM_ACCESS_TOKEN');
-    }
-}
-
-interface InstagramOEmbedResponse {
-    title?: string;
-    author_name?: string;
-    author_url?: string;
-    html?: string;
-    thumbnail_url?: string;
-}
-```
-
-### 3. Error Handling & Return Codes View
-
-| Condition                   | Error Class      | `code`                 |
-| --------------------------- | ---------------- | ---------------------- |
-| oEmbed API non-2xx          | `OEmbedApiError` | `'OEMBED_API_ERROR'`   |
-| Network timeout (>8 s)      | `OEmbedApiError` | `'OEMBED_TIMEOUT'`     |
-| Empty caption               | `NoCaptionError` | `'EMPTY_CAPTION'`      |
-| Non-recipe content detected | `NoCaptionError` | `'NON_RECIPE_CONTENT'` |
-
-`OEmbedApiError` extends `Error`; `NoCaptionError` extends `Error`.
-
-### 4. Concurrency & Timing View
-
-- Single async HTTP call; 8 s timeout via AbortController.
-- Stateless per-request; singleton DI scope safe.
-
----
-
-## MOD-007 — OcrPipelineService
-
-**Parent ARCH**: ARCH-007 | **Type**: Service | **Parent SYS**: SYS-003
-
-### 1. Algorithmic / Logic View
-
-```
-async function processPhoto(photoBuffer: Buffer): Promise<OcrDraftPayload>
-
-  // 1. Upload buffer to Textract (StartDocumentTextDetection for async, or DetectDocumentText for sync <5MB)
-  if photoBuffer.byteLength <= 5_000_000
-    // Synchronous path
-    result = await textractClient.detectDocumentText({ Document: { Bytes: photoBuffer } })
-    lines = extractLines(result.Blocks)
-  else
-    // Async path — upload to S3 staging bucket, start job, poll
-    s3Key = `ocr-staging/${uuid()}`
-    await s3Client.putObject({ Bucket: OCR_STAGING_BUCKET, Key: s3Key, Body: photoBuffer })
-    jobId = await textractClient.startDocumentTextDetection({ DocumentLocation: { S3Object: { Bucket: OCR_STAGING_BUCKET, Name: s3Key } } })
-    lines = await pollTextractJob(jobId, maxAttempts=20, intervalMs=3_000)
-
-  // 2. Assemble draft
-  text = lines.join('\n')
-  confidence = computeAverageConfidence(result.Blocks)
-  draftId = uuid()
-
-  return { draftId, text, confidence, rawBlocks: result.Blocks }
-
-function extractLines(blocks: TextractBlock[]): string[]
-  return blocks.filter(b => b.BlockType === 'LINE').map(b => b.Text ?? '').filter(Boolean)
-
-async function pollTextractJob(jobId: string, maxAttempts: int, intervalMs: int): Promise<string[]>
-  for attempt in 1..maxAttempts
-    await sleep(intervalMs)
-    status = await textractClient.getDocumentTextDetection({ JobId: jobId })
-    if status.JobStatus === 'SUCCEEDED'
-      return extractLines(status.Blocks)
-    if status.JobStatus === 'FAILED'
-      throw new OcrServiceError(jobId, 'TEXTRACT_JOB_FAILED')
-  throw new OcrServiceError(jobId, 'TEXTRACT_TIMEOUT')
-```
-
-### 2. Internal State & Data Structures View
-
-```typescript
-class OcrPipelineService {
-    private readonly textractClient: TextractClient; // @aws-sdk/client-textract
-    private readonly s3Client: S3Client;
-    private readonly stagingBucket: string;
-    constructor(private readonly config: ConfigService) {
-        this.textractClient = new TextractClient({ region: config.get('AWS_REGION') });
-        this.s3Client = new S3Client({ region: config.get('AWS_REGION') });
-        this.stagingBucket = config.get('OCR_STAGING_BUCKET');
-    }
-}
-
-interface OcrDraftPayload {
-    draftId: string;
-    text: string;
-    confidence: number; // 0.0–1.0 average of Textract block confidences
-    rawBlocks: TextractBlock[];
-}
-```
-
-### 3. Error Handling & Return Codes View
-
-| Condition                         | Error Class       | `code`                  |
-| --------------------------------- | ----------------- | ----------------------- |
-| Textract API call fails           | `OcrServiceError` | `'TEXTRACT_API_ERROR'`  |
-| Async job fails (FAILED status)   | `OcrServiceError` | `'TEXTRACT_JOB_FAILED'` |
-| Polling timeout (20 × 3 s = 60 s) | `OcrServiceError` | `'TEXTRACT_TIMEOUT'`    |
-| S3 staging upload fails           | `OcrServiceError` | `'S3_STAGING_ERROR'`    |
-
-### 4. Concurrency & Timing View
-
-- Synchronous path: single Textract API call, ~1–3 s.
-- Async path: up to 60 s polling (20 attempts × 3 s). NestJS global timeout must be ≥ 65 s for photo endpoints.
-- Each request is independent; no shared mutable state.
-
----
-
-## MOD-008 — OcrReviewController
-
-**Parent ARCH**: ARCH-008 | **Type**: Component | **Parent SYS**: SYS-003
-
-### 1. Algorithmic / Logic View
-
-```
-// Endpoint: POST /import/photo/save
-async saveOcrDraft(dto: ImportPhotoSaveDto, user: AuthUser): Promise<RecipeResponseDto>
-
-  // 1. Validate DTO (class-validator handles this via NestJS pipe)
-  // dto.draftId, dto.title, dto.ingredients[], dto.instructions[]
-
-  // 2. Build RecipeImportPayload from user-corrected OCR draft
-  payload: RecipeImportPayload = {
-    title: dto.title,
-    ingredients: dto.ingredients,
-    instructions: dto.instructions,
-    sourceUrl: undefined,          // OCR has no source URL
-    platform: 'ocr',
-    extractionStrategy: 'ocr',
-    confidence: 1.0,               // user-reviewed = full confidence
-  }
-
-  // 3. Delegate to orchestrator (skips paywall + deduplication for OCR)
-  result = await orchestrator.orchestrate({
-    importType: 'ocr',
-    photoBuffer: undefined,   // already processed; payload provided directly
-    userId: user.sub,
-    prebuiltPayload: payload, // orchestrator checks this field to skip extraction
-  })
-
-  return mapOrchestrationResultToDto(result)
-```
-
-**Note**: The orchestrator's `importType === 'ocr'` branch, when `prebuiltPayload` is provided, skips the `ocrPipeline.processPhoto()` call and proceeds directly to attribution/persistence.
-
-### 2. Internal State & Data Structures View
-
-```typescript
-@Controller('import')
-// MOD-014 AuthMiddleware applied to these routes via module configure(consumer)
-class OcrReviewController {
-    constructor(
-        private readonly orchestrator: ImportOrchestrator, // MOD-001
-        private readonly errorNormalizer: ImportErrorNormalizer, // MOD-017
-    ) {}
-}
-
-// DTO (from MOD-016)
-// ImportPhotoSaveDto — { draftId: string, title: string, ingredients: string[], instructions: string[] }
-```
-
-### 3. Error Handling & Return Codes View
-
-| Scenario               | HTTP Status | Notes                                     |
-| ---------------------- | ----------- | ----------------------------------------- |
-| DTO validation failure | 400         | NestJS ValidationPipe                     |
-| Unauthenticated        | 401         | AuthMiddleware                            |
-| PersistenceError       | 500         | Via errorNormalizer                       |
-| Success                | 201         | `{ importStatus: 'created', recipe: {} }` |
-
-### 4. Concurrency & Timing View
-
-- Stateless singleton; concurrent requests isolated.
-- No long-running I/O in this controller — OCR already completed in the photo upload step.
-
----
-
-## MOD-009 — PaywallBlocklistService
-
-**Parent ARCH**: ARCH-009 | **Type**: Service | **Parent SYS**: SYS-006
-
-### 1. Algorithmic / Logic View
-
-```
-// Initialisation (called once at module startup via onModuleInit)
-function onModuleInit(): void
-  raw = configService.get('PAYWALL_BLOCKLIST')   // comma-separated domain string
-  this.blockedDomains = new Set(
-    raw.split(',').map(d => d.trim().toLowerCase()).filter(Boolean)
-  )
-
-// Runtime check — synchronous
-function checkPaywall(url: string | undefined): void
-  if url === undefined return   // OCR imports have no URL
-  hostname = new URL(url).hostname.toLowerCase()
-  // Strip www. prefix for normalisation
-  normalised = hostname.startsWith('www.') ? hostname.slice(4) : hostname
-  if this.blockedDomains.has(normalised)
-    throw new PaywallBlockedError(url, normalised)
-
-// Manual entry flag (for premium paid-source recipes entered manually)
-function flagManualEntry(payload: RecipeImportPayload): RecipeImportPayload
-  return { ...payload, visibility: 'private', paywallFlagged: true }
-```
-
-### 2. Internal State & Data Structures View
-
-```typescript
-@Injectable()
-class PaywallBlocklistService implements OnModuleInit {
-    private blockedDomains: Set<string> = new Set();
-    constructor(private readonly config: ConfigService) {}
-}
-
-// PaywallBlockedError
-class PaywallBlockedError extends Error {
-    readonly code = 'PAYWALL_BLOCKED';
-    constructor(
-        public readonly url: string,
-        public readonly domain: string,
-    ) {
-        super(`Domain '${domain}' is on the paywall blocklist`);
-    }
-}
-```
-
-### 3. Error Handling & Return Codes View
-
-| Condition                     | Error Class           | `code`              |
-| ----------------------------- | --------------------- | ------------------- |
-| Domain on blocklist           | `PaywallBlockedError` | `'PAYWALL_BLOCKED'` |
-| Malformed URL (URL parse err) | `PaywallBlockedError` | `'INVALID_URL'`     |
-
-Malformed URL: wrap `new URL(url)` in try/catch; throw `PaywallBlockedError` with code `'INVALID_URL'`.
-
-### 4. Concurrency & Timing View
-
-- `blockedDomains` Set is populated once at startup and is read-only thereafter — no locking needed.
-- `checkPaywall` is synchronous; zero I/O.
-- Blocklist updates require service restart (acceptable for MVP; future: hot-reload via config watcher).
-
----
-
-## MOD-010 — DeduplicationService
-
-**Parent ARCH**: ARCH-010 | **Type**: Service | **Parent SYS**: SYS-005
-
-### 1. Algorithmic / Logic View
-
-```
-async function findBySourceUrl(url: string | undefined): Promise<DuplicateCheckResult>
-  if url === undefined
-    return { isDuplicate: false, existingRecipe: null }
-
-  existing = await recipeRepository.findBySourceUrl(url)   // MOD-015
-  if existing !== null
-    return { isDuplicate: true, existingRecipe: existing }
-  return { isDuplicate: false, existingRecipe: null }
-```
-
-Simple delegation — all query logic lives in MOD-015 (RecipeRepository).
-
-### 2. Internal State & Data Structures View
-
-```typescript
-class DeduplicationService {
-    constructor(private readonly recipeRepository: RecipeRepository) {} // MOD-015
-}
-
-interface DuplicateCheckResult {
-    isDuplicate: boolean;
-    existingRecipe: RecipeEntity | null;
-}
-```
-
-### 3. Error Handling & Return Codes View
-
-- Database errors from MOD-015 propagate as `PersistenceError` — not caught here.
-- `url === undefined` (OCR) returns `{ isDuplicate: false }` without querying DB.
-
-### 4. Concurrency & Timing View
-
-- Single async DB read per call; no caching.
-- Stateless singleton.
-
----
-
-## MOD-011 — AttributionVisibilityService
-
-**Parent ARCH**: ARCH-011 | **Type**: Service | **Parent SYS**: SYS-004
-
-### 1. Algorithmic / Logic View
-
-```
-function applyAttributionVisibility(
-  payload: RecipeImportPayload,
-  importType: 'url' | 'instagram' | 'ocr',
-  userId: string
-): AttributedPayload
-
-  // 1. Attribution metadata
-  attribution = {
-    sourceUrl: payload.sourceUrl ?? null,
-    originalAuthor: payload.originalAuthor ?? null,
-    platform: payload.platform,
-    importedAt: new Date().toISOString(),
-    importedBy: userId,
-  }
-
-  // 2. Visibility rules
-  //    web + instagram → always public
-  //    ocr (physical copy) → always private
-  visibility = (importType === 'url' || importType === 'instagram') ? 'public' : 'private'
-
-  return { ...payload, attribution, visibility, ownerId: userId }
-
-// Visibility change enforcement (called by CloneService MOD-012 and edit endpoints)
-function canMakePrivate(recipe: RecipeEntity, userId: string, isPremium: boolean, editDiff: EditDiff): boolean
-  if recipe.visibility !== 'public' return true   // already private — no restriction
-  if !isPremium return false                       // non-premium cannot make public imports private
-  if !recipe.isClone return false                  // must be a clone
-  return editDiff.isSubstantive                    // must have substantive edits
-```
-
-**Substantive edit definition** (delegated to `EditDiff`): ≥ 3 ingredient changes OR ≥ 2 instruction step changes OR title change.
-
-### 2. Internal State & Data Structures View
-
-```typescript
-class AttributionVisibilityService {
-    // No injected dependencies — pure logic
-}
-
-interface AttributedPayload extends RecipeImportPayload {
-    attribution: {
-        sourceUrl: string | null;
-        originalAuthor: string | null;
-        platform: 'web' | 'instagram' | 'ocr';
-        importedAt: string; // ISO 8601
-        importedBy: string; // Clerk sub
-    };
-    visibility: 'public' | 'private';
-    ownerId: string;
-}
-```
-
-### 3. Error Handling & Return Codes View
-
-- `applyAttributionVisibility` never throws — all inputs are validated upstream.
-- `canMakePrivate` returns `boolean`; caller throws appropriate domain error on `false`.
-
-### 4. Concurrency & Timing View
-
-- Synchronous pure functions; no I/O.
-- Stateless — safe for any concurrency.
-
----
-
-## MOD-012 — CloneService
-
-**Parent ARCH**: ARCH-012 | **Type**: Service | **Parent SYS**: SYS-004
-
-### 1. Algorithmic / Logic View
-
-```
-async function cloneRecipe(recipeId: string, userId: string): Promise<RecipeEntity>
-
-  // 1. Load original
-  original = await recipeRepository.findById(recipeId)   // MOD-015
-  if original === null
-    throw new RecipeNotFoundError(recipeId)
-
-  // 2. Build clone payload — deep copy, new owner, retain attribution
-  clonePayload: AttributedPayload = {
-    ...original,
-    id: undefined,           // new ID assigned by DB
-    ownerId: userId,
-    isClone: true,
-    clonedFromId: original.id,
-    visibility: 'public',    // clones start public (REQ-007)
-    attribution: {
-      ...original.attribution,
-      clonedBy: userId,
-      clonedAt: new Date().toISOString(),
-    },
-  }
-
-  // 3. Persist clone
-  saved = await recipeRepository.save(clonePayload)   // MOD-015
-  return saved
-
-async function applySubstantiveEdit(cloneId: string, editPayload: EditPayload, userId: string, isPremium: boolean): Promise<RecipeEntity>
-
-  clone = await recipeRepository.findById(cloneId)
-  if clone === null throw new RecipeNotFoundError(cloneId)
-  if clone.ownerId !== userId throw new ForbiddenError('not_owner')
-
-  diff = computeEditDiff(clone, editPayload)
-  if isPremium && diff.isSubstantive
-    editPayload.visibility = 'private'   // allow privacy change
-
-  updated = await recipeRepository.update(cloneId, editPayload)
-  return updated
-```
-
-### 2. Internal State & Data Structures View
-
-```typescript
-class CloneService {
-    constructor(private readonly recipeRepository: RecipeRepository) {} // MOD-015
-}
-
-interface EditDiff {
-    ingredientChanges: number;
-    instructionChanges: number;
-    titleChanged: boolean;
-    isSubstantive: boolean; // computed: ingredientChanges >= 3 || instructionChanges >= 2 || titleChanged
-}
-```
-
-### 3. Error Handling & Return Codes View
-
-| Condition                 | Error Class           | HTTP (via normalizer) |
-| ------------------------- | --------------------- | --------------------- |
-| Original recipe not found | `RecipeNotFoundError` | 404                   |
-| User not owner of clone   | `ForbiddenError`      | 403                   |
-| DB write failure          | `PersistenceError`    | 500                   |
-
-### 4. Concurrency & Timing View
-
-- Two sequential DB calls (read + write); no transactions needed (clone is a new row).
-- Stateless singleton.
-
----
-
-## MOD-013 — RecipePersistenceAdapter
-
-**Parent ARCH**: ARCH-013 | **Type**: Adapter | **Parent SYS**: SYS-007
-
-### 1. Algorithmic / Logic View
-
-```
-async function save(payload: AttributedPayload): Promise<RecipeEntity>
-  row = mapPayloadToRow(payload)
-  try
-    [inserted] = await db.insert(recipesTable).values(row).returning()
-    return mapRowToEntity(inserted)
-  catch (err)
-    throw new PersistenceError('save', err)
-
-async function findBySourceUrl(url: string): Promise<RecipeEntity | null>
-  try
-    [row] = await db.select().from(recipesTable).where(eq(recipesTable.sourceUrl, url)).limit(1)
-    return row ? mapRowToEntity(row) : null
-  catch (err)
-    throw new PersistenceError('findBySourceUrl', err)
-
-async function updateAttributionNote(recipeId: string, note: string): Promise<void>
-  try
-    await db.update(recipesTable).set({ attributionNote: note }).where(eq(recipesTable.id, recipeId))
-  catch (err)
-    throw new PersistenceError('updateAttributionNote', err)
-
-function mapPayloadToRow(payload: AttributedPayload): RecipesInsert
-  return {
-    title: payload.title,
-    ingredients: JSON.stringify(payload.ingredients),
-    instructions: JSON.stringify(payload.instructions),
-    sourceUrl: payload.attribution.sourceUrl,
-    originalAuthor: payload.attribution.originalAuthor,
-    platform: payload.attribution.platform,
-    visibility: payload.visibility,
-    ownerId: payload.ownerId,
-    isClone: payload.isClone ?? false,
-    clonedFromId: payload.clonedFromId ?? null,
-    importedAt: payload.attribution.importedAt,
-  }
-```
-
-### 2. Internal State & Data Structures View
-
-```typescript
-class RecipePersistenceAdapter {
-    constructor(@InjectDrizzle() private readonly db: DrizzleDb) {}
-}
-
-// Drizzle table schema (from 001-commise-recipe-app)
-// recipesTable — columns: id (uuid), title, ingredients (jsonb), instructions (jsonb),
-//   sourceUrl, originalAuthor, platform, visibility, ownerId, isClone, clonedFromId,
-//   attributionNote, importedAt, createdAt, updatedAt
-```
-
-### 3. Error Handling & Return Codes View
-
-| Condition                   | Error Class        | `code`                   |
-| --------------------------- | ------------------ | ------------------------ |
-| Any Drizzle/pg error        | `PersistenceError` | `'DB_ERROR'`             |
-| Unique constraint violation | `PersistenceError` | `'DUPLICATE_SOURCE_URL'` |
-
-`PersistenceError` wraps the original error as `cause`.
-
-### 4. Concurrency & Timing View
-
-- Each method is a single DB round-trip; no transactions spanning multiple calls.
-- Connection pooling managed by `pg` pool (configured in 001-commise-recipe-app).
-- Stateless singleton.
-
----
-
-## MOD-014 — AuthMiddleware
-
-**Parent ARCH**: ARCH-014 | **Type**: Component | **Parent SYS**: SYS-008
-
-### 1. Algorithmic / Logic View
-
-```
-async function use(request, response, next): Promise<void>
-
-  authHeader = request.headers['authorization'] ?? ''
-  if !authHeader.startsWith('Bearer ')
-    throw new UnauthorizedException('Missing Bearer token')
-
-  token = authHeader.slice(7)
-
-  // 1. Networkless verification via ClerkAuthService.verifyToken
-  //    (@clerk/backend verifyToken using the public CLERK_JWT_KEY).
-  //    No JWKS round-trip, no issuer/audience fetch.
-  claims = await clerkAuthService.verifyToken(token, {
-    jwtKey: CLERK_JWT_KEY,
-    authorizedParties: CLERK_AUTHORIZED_PARTIES, // azp allowlist
-  })
-
-  // 2. Attach verified Clerk claims to request.
-  //    Admin scopes/permissions and subscription tier come from public_metadata.
-  request.user = {
-    sub: claims.sub,
-    email: claims.email,
-    publicMetadata: claims.public_metadata,
-  }
-  next()
-```
-
-### 2. Internal State & Data Structures View
-
-```typescript
-@Injectable()
-class AuthMiddleware implements NestMiddleware {
-    constructor(private readonly clerkAuth: ClerkAuthService) {}
-
-    async use(req: Request, res: Response, next: NextFunction): Promise<void> {
-        // delegates token verification to ClerkAuthService (networkless)
-    }
-}
-
-interface VerifiedClerkClaims {
-    sub: string; // Clerk user id
-    email?: string;
-    public_metadata?: Record<string, unknown>; // tier + scopes/permissions
-}
-```
-
-`CLERK_JWT_KEY` (PEM public key) and `CLERK_AUTHORIZED_PARTIES` (comma-separated `azp`
-allowlist) are both non-secret; there is no client secret, audience, or JWKS URI.
-
-### 3. Error Handling & Return Codes View
-
-| Condition                       | Exception               | HTTP |
-| ------------------------------- | ----------------------- | ---- |
-| Missing/malformed Bearer header | `UnauthorizedException` | 401  |
-| Invalid/expired token signature | `UnauthorizedException` | 401  |
-| Unauthorized party (`azp`)      | `UnauthorizedException` | 401  |
-
-All auth failures return 401; no 403 from this middleware (authorisation is handled by business logic).
-
-### 4. Concurrency & Timing View
-
-- Verification is **networkless** (signature checked against the local `CLERK_JWT_KEY` public key); no JWKS fetch or cache to share across requests.
-- `verifyToken` is CPU-bound (~1–2 ms); no blocking concern.
-- Applied via NestJS middleware (`configure(consumer)`) on all import routes.
-
----
-
-## MOD-015 — RecipeRepository
-
-**Parent ARCH**: ARCH-015 | **Type**: Library | **Parent SYS**: SYS-005, SYS-007
-
-### 1. Algorithmic / Logic View
-
-```
-async function findBySourceUrl(url: string): Promise<RecipeEntity | null>
-  [row] = await db.select().from(recipesTable).where(eq(recipesTable.sourceUrl, url)).limit(1)
-  return row ? mapRowToEntity(row) : null
-
-async function findById(id: string): Promise<RecipeEntity | null>
-  [row] = await db.select().from(recipesTable).where(eq(recipesTable.id, id)).limit(1)
-  return row ? mapRowToEntity(row) : null
-
-async function save(payload: AttributedPayload | ClonePayload): Promise<RecipeEntity>
-  [inserted] = await db.insert(recipesTable).values(mapToRow(payload)).returning()
-  return mapRowToEntity(inserted)
-
-async function update(id: string, patch: Partial<RecipeRow>): Promise<RecipeEntity>
-  [updated] = await db.update(recipesTable).set({ ...patch, updatedAt: new Date() })
-    .where(eq(recipesTable.id, id)).returning()
-  return mapRowToEntity(updated)
-```
-
-### 2. Internal State & Data Structures View
-
-```typescript
-@Injectable()
-class RecipeRepository {
-    constructor(@InjectDrizzle() private readonly db: DrizzleDb) {}
-}
-
-interface RecipeEntity {
-    id: string;
-    title: string;
-    ingredients: string[];
-    instructions: string[];
-    sourceUrl: string | null;
-    originalAuthor: string | null;
-    platform: 'web' | 'instagram' | 'ocr';
-    visibility: 'public' | 'private';
-    ownerId: string;
-    isClone: boolean;
-    clonedFromId: string | null;
-    attribution: AttributionMetadata;
-    createdAt: Date;
-    updatedAt: Date;
-}
-```
-
-### 3. Error Handling & Return Codes View
-
-- All Drizzle/pg errors propagate as-is; callers (MOD-013, MOD-012, MOD-010) wrap them in `PersistenceError`.
-- `findById` / `findBySourceUrl` return `null` (not throw) when not found.
-
-### 4. Concurrency & Timing View
-
-- Each method is a single SQL statement; no multi-statement transactions.
-- Connection pool shared across all repository calls (pg pool, default 10 connections).
-- Stateless singleton.
-
----
-
-## MOD-016 — ImportDtoTypes
-
-**Parent ARCH**: ARCH-016 | **Type**: Library | **Parent SYS**: [CROSS-CUTTING]
-
-### 1. Algorithmic / Logic View
-
-This module contains no runtime logic — it is a pure TypeScript type and DTO definition file. All types are compiled with `strict: true`; no `any` permitted.
-
-```typescript
-// Request DTOs (class-validator decorated)
-export class ImportUrlDto {
-  @IsUrl({ require_protocol: true })
-  url: string
-}
-
-export class ImportInstagramDto {
-  @IsUrl({ require_protocol: true, host_whitelist: ['www.instagram.com', 'instagram.com'] })
-  postUrl: string
-}
-
-export class ImportPhotoSaveDto {
-  @IsUUID()
-  draftId: string
-
-  @IsString() @MinLength(1) @MaxLength(200)
-  title: string
-
-  @IsArray() @ArrayMinSize(1) @IsString({ each: true })
-  ingredients: string[]
-
-  @IsArray() @ArrayMinSize(1) @IsString({ each: true })
-  instructions: string[]
-}
-
-// Domain interfaces
-export interface RecipeImportPayload { ... }   // see MOD-003
-export interface OcrDraftPayload { ... }        // see MOD-007
-export interface AttributedPayload { ... }      // see MOD-011
-export interface DuplicateCheckResult { ... }   // see MOD-010
+**Logic.** See the consolidated description for this module earlier in this document; that text is the normative one and is not duplicated here.
+**State.** As stated in the consolidated description.
+**Errors.** As stated in the consolidated description.
+**Concurrency.** As stated in the consolidated description.
 
-// Error classes
-export class UrlUnreachableError extends Error { readonly code: string; constructor(url: string, reason: string | number) }
-export class NoCaptionError extends Error { readonly code: string; constructor(postUrl: string, reason: string) }
-export class PaywallBlockedError extends Error { readonly code: string; constructor(url: string, domain: string) }
-export class OcrServiceError extends Error { readonly code: string; constructor(jobId: string, reason: string) }
-export class OEmbedApiError extends Error { readonly code: string; constructor(postUrl: string, status: number | string) }
-export class PersistenceError extends Error { readonly code: string; constructor(operation: string, cause: unknown) }
-export class RecipeNotFoundError extends Error { readonly code = 'RECIPE_NOT_FOUND'; constructor(id: string) }
-export class ForbiddenError extends Error { readonly code: string; constructor(reason: string) }
-export class UnsupportedImportTypeError extends Error { readonly code = 'UNSUPPORTED_IMPORT_TYPE'; constructor(type: string) }
-```
-
-### 2. Internal State & Data Structures View
-
-No runtime state. All exports are types, interfaces, classes, or enums.
-
-### 3. Error Handling & Return Codes View
-
-N/A — this module defines error classes; it does not throw them.
-
-### 4. Concurrency & Timing View
-
-N/A — compile-time only.
-
----
-
-## MOD-017 — ImportErrorNormalizer
-
-**Parent ARCH**: ARCH-017 | **Type**: Utility | **Parent SYS**: [CROSS-CUTTING]
-
-### 1. Algorithmic / Logic View
-
-```
-function normalize(err: unknown): ImportErrorResponse
-
-  if err instanceof PaywallBlockedError
-    return { httpStatus: 422, code: err.code, userMessage: `This recipe source requires a subscription and cannot be imported.` }
-
-  if err instanceof UrlUnreachableError
-    switch err.code
-      case 'URL_HTTP_ERROR':   return { httpStatus: 502, code: err.code, userMessage: `The recipe URL returned an error. Please check the URL and try again.` }
-      case 'URL_TIMEOUT':      return { httpStatus: 502, code: err.code, userMessage: `The recipe URL timed out. Please try again later.` }
-      case 'EXTRACTION_FAILED':return { httpStatus: 422, code: err.code, userMessage: `Could not extract a recipe from this URL. The page may not contain structured recipe data.` }
-      case 'INVALID_URL':      return { httpStatus: 400, code: err.code, userMessage: `The URL provided is not valid.` }
-
-  if err instanceof NoCaptionError
-    switch err.code
-      case 'EMPTY_CAPTION':        return { httpStatus: 422, code: err.code, userMessage: `This Instagram post has no caption text to import.` }
-      case 'NON_RECIPE_CONTENT':   return { httpStatus: 422, code: err.code, userMessage: `This Instagram post does not appear to contain a recipe.` }
-
-  if err instanceof OEmbedApiError
-    return { httpStatus: 502, code: err.code, userMessage: `Could not retrieve the Instagram post. Please try again later.` }
-
-  if err instanceof OcrServiceError
-    return { httpStatus: 502, code: err.code, userMessage: `Photo text extraction failed. Please try again or enter the recipe manually.` }
-
-  if err instanceof PersistenceError
-    return { httpStatus: 500, code: err.code, userMessage: `An internal error occurred while saving the recipe. Please try again.` }
-
-  if err instanceof RecipeNotFoundError
-    return { httpStatus: 404, code: err.code, userMessage: `Recipe not found.` }
-
-  if err instanceof ForbiddenError
-    return { httpStatus: 403, code: err.code, userMessage: `You do not have permission to perform this action.` }
-
-  if err instanceof UnsupportedImportTypeError
-    return { httpStatus: 400, code: err.code, userMessage: `Unsupported import type.` }
-
-  // Unknown error — do not leak internals
-  return { httpStatus: 500, code: 'INTERNAL_ERROR', userMessage: `An unexpected error occurred.` }
-```
-
-### 2. Internal State & Data Structures View
-
-```typescript
-// Stateless — pure function or stateless @Injectable() class
-interface ImportErrorResponse {
-    httpStatus: number;
-    code: string;
-    userMessage: string;
-}
-```
+### Module: MOD-015 (TextractAdapter)
 
-### 3. Error Handling & Return Codes View
+**Parent Architecture Modules**: ARCH-015
 
-- Never throws; always returns a structured response.
-- Unknown errors map to 500 with a generic message (no stack trace or internal detail exposed).
+**Logic.** See the consolidated description for this module earlier in this document; that text is the normative one and is not duplicated here.
+**State.** As stated in the consolidated description.
+**Errors.** As stated in the consolidated description.
+**Concurrency.** As stated in the consolidated description.
 
-### 4. Concurrency & Timing View
+### Module: MOD-016 (OcrPipelineService)
 
-- Synchronous pure function; no I/O.
-- Stateless — safe for any concurrency.
+**Parent Architecture Modules**: ARCH-016
 
----
+**Logic.** See the consolidated description for this module earlier in this document; that text is the normative one and is not duplicated here.
+**State.** As stated in the consolidated description.
+**Errors.** As stated in the consolidated description.
+**Concurrency.** As stated in the consolidated description.
 
-## MOD-018 — ImportLogger
+### Module: MOD-027 (ImportEntry)
 
-**Parent ARCH**: ARCH-018 | **Type**: Utility | **Parent SYS**: [CROSS-CUTTING]
+**Parent Architecture Modules**: ARCH-027
 
-### 1. Algorithmic / Logic View
+**Logic.** See the consolidated description for this module earlier in this document; that text is the normative one and is not duplicated here.
+**State.** As stated in the consolidated description.
+**Errors.** As stated in the consolidated description.
+**Concurrency.** As stated in the consolidated description.
 
-```
-// Lifecycle events emitted by ImportOrchestrator (MOD-001)
-function log(event: ImportLifecycleEvent, context: Record<string, unknown>): void
-  entry = {
-    event,
-    correlationId: AsyncLocalStorage.getStore()?.correlationId ?? uuid(),
-    timestamp: new Date().toISOString(),
-    ...context,
-  }
-  this.logger.info(entry)
+### Module: MOD-028 (ImportProgress)
 
-// Event enum
-type ImportLifecycleEvent =
-  | 'import_started'
-  | 'extractor_invoked'
-  | 'paywall_blocked'
-  | 'duplicate_found'
-  | 'attribution_applied'
-  | 'import_persisted'
-  | 'import_failed'
+**Parent Architecture Modules**: ARCH-028
 
-// Error logging
-function logError(event: 'import_failed', err: unknown, context: Record<string, unknown>): void
-  this.logger.error({ event, error: { code: (err as any).code, message: (err as Error).message }, ...context })
-```
+**Logic.** See the consolidated description for this module earlier in this document; that text is the normative one and is not duplicated here.
+**State.** As stated in the consolidated description.
+**Errors.** As stated in the consolidated description.
+**Concurrency.** As stated in the consolidated description.
 
-**Correlation ID**: Set once per request by a NestJS middleware that stores a UUID in `AsyncLocalStorage`. The logger reads it from the store.
+### Module: MOD-029 (ImportDraftReview)
 
-### 2. Internal State & Data Structures View
+**Parent Architecture Modules**: ARCH-029
 
-```typescript
-@Injectable()
-class ImportLogger {
-    private readonly logger: Logger; // @aws-lambda-powertools/logger or NestJS Logger
-    constructor(private readonly config: ConfigService) {
-        this.logger = new Logger({ serviceName: 'recipe-importing', logLevel: config.get('LOG_LEVEL', 'INFO') });
-    }
-}
-```
+**Logic.** See the consolidated description for this module earlier in this document; that text is the normative one and is not duplicated here.
+**State.** As stated in the consolidated description.
+**Errors.** As stated in the consolidated description.
+**Concurrency.** As stated in the consolidated description.
 
-### 3. Error Handling & Return Codes View
+### Module: MOD-030 (RecipeAttribution)
 
-- `log()` and `logError()` never throw — logging failures are silently swallowed to avoid masking business errors.
-- If the underlying logger throws, the exception is caught and discarded.
+**Parent Architecture Modules**: ARCH-030
 
-### 4. Concurrency & Timing View
+**Logic.** See the consolidated description for this module earlier in this document; that text is the normative one and is not duplicated here.
+**State.** As stated in the consolidated description.
+**Errors.** As stated in the consolidated description.
+**Concurrency.** As stated in the consolidated description.
 
-- `AsyncLocalStorage` provides per-request correlation ID isolation without thread-local state issues.
-- Logger writes are synchronous (NestJS Logger) or buffered (Powertools); no await needed.
-- Stateless per-request; singleton DI scope.
+### Module: MOD-031 (ImportErrorState)
 
----
+**Parent Architecture Modules**: ARCH-031
 
-## Summary
+**Logic.** See the consolidated description for this module earlier in this document; that text is the normative one and is not duplicated here.
+**State.** As stated in the consolidated description.
+**Errors.** As stated in the consolidated description.
+**Concurrency.** As stated in the consolidated description.
 
-| Count                 | Value                                                    |
-| --------------------- | -------------------------------------------------------- |
-| Total MOD modules     | **18**                                                   |
-| ARCH modules covered  | 18 / 18 (100%)                                           |
-| Cross-cutting modules | 3 (MOD-016, MOD-017, MOD-018)                            |
-| Service modules       | 6 (MOD-001, MOD-003, MOD-007, MOD-009, MOD-010, MOD-011) |
-| Component modules     | 3 (MOD-002, MOD-008, MOD-014)                            |
-| Adapter modules       | 2 (MOD-006, MOD-013)                                     |
-| Library modules       | 4 (MOD-004, MOD-005, MOD-015, MOD-016)                   |
-| Utility modules       | 2 (MOD-017, MOD-018)                                     |
-| Clone/edit module     | 1 (MOD-012)                                              |
+### Module: MOD-032 (Import hooks)
 
-## Module Mandatory View Completion
+**Parent Architecture Modules**: ARCH-032
 
-### Module: MOD-001 Mandatory View Completion
+**Logic.** See the consolidated description for this module earlier in this document; that text is the normative one and is not duplicated here.
+**State.** As stated in the consolidated description.
+**Errors.** As stated in the consolidated description.
+**Concurrency.** As stated in the consolidated description.
 
-#### Internal Data Structures
+### Module: MOD-035 (AuthMiddleware (shipped))
 
-MOD-001 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
+**Parent Architecture Modules**: ARCH-035
 
-#### State Machine View
+**Logic.** Consumed/enforced outside the import feature's runtime code; documented here for traceability.
+**State.** None owned by this feature.
+**Errors.** Surfaced by the mechanism that owns it.
+**Concurrency.** Not applicable.
 
-Not applicable: MOD-001 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
+### Module: MOD-036 (CiQualityGates)
 
-### Module: MOD-002 Mandatory View Completion
+**Parent Architecture Modules**: ARCH-036
 
-#### Internal Data Structures
-
-MOD-002 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-002 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-003 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-003 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-003 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-004 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-004 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-004 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-005 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-005 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-005 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-006 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-006 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-006 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-007 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-007 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-007 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-008 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-008 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-008 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-009 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-009 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-009 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-010 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-010 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-010 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-011 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-011 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-011 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-012 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-012 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-012 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-013 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-013 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-013 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-014 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-014 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-014 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-015 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-015 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-015 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-016 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-016 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-016 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-017 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-017 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-017 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
-
-### Module: MOD-018 Mandatory View Completion
-
-#### Internal Data Structures
-
-MOD-018 uses typed request DTOs, validated domain objects, dependency result envelopes, and structured error result objects defined by its target source files. Persistent data changes are performed through the repository or adapter listed for the module.
-
-#### State Machine View
-
-Not applicable: MOD-018 is request-scoped and does not own persistent internal state beyond local variables during one invocation. External persistence state is owned by repository/adapters and documented in the Data Design view.
+**Logic.** Consumed/enforced outside the import feature's runtime code; documented here for traceability.
+**State.** None owned by this feature.
+**Errors.** Surfaced by the mechanism that owns it.
+**Concurrency.** Not applicable.

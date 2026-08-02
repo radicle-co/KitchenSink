@@ -500,8 +500,8 @@ jobs:
             # NOTE the load container runs with the dev-auth bypass, so requests carry NO bearer — and recipe now
             # calls food AS THE CALLER. With no credential to forward the gateway degrades WITHOUT issuing a
             # request, so this scenario measures the short-circuit path rather than the transport timeout; the
-            # timeout itself is proven in `__tests__/integration/ingredients/blended-suggest.integration.spec.ts`
-            # and `food-token-forwarding.integration.spec.ts`. Do NOT set FOOD_CATALOG_BLEND_ENABLED=false here —
+            # timeout itself is proven in `__tests__/integration/ingredients/blended-suggest.integration.test.ts`
+            # and `food-token-forwarding.integration.test.ts`. Do NOT set FOOD_CATALOG_BLEND_ENABLED=false here —
             # that reports 'disabled' and skips the cross-service call entirely, silently retiring the behavior
             # under test.
             - name: Run k6 load scripts

@@ -17,15 +17,15 @@
  * path is `PhotosService.delete()` (`DELETE /api/v1/recipes/{id}/photos/{photoId}`, an explicit per-photo
  * user action this suite never invokes), and the actual GDPR hard-purge (DB rows + the dual-bucket S3
  * sweep) lives entirely in the DOWNSTREAM `@kitchensink/recipe-workers` erasure worker — see
- * `erasure.integration.spec.ts`'s scope note ("recipe-service does not, and must not, depend on its own
+ * `erasure.integration.test.ts`'s scope note ("recipe-service does not, and must not, depend on its own
  * downstream consumer"). So the S3-retention proof below needs nothing from recipe-workers: it is
  * enough to show that soft-delete's only observable effect is the tombstone stamp.
  *
  * Scope note (DRY — one authoritative spec per rule): the sibling exclusion rules already have homes and
- * are NOT re-asserted here — search exclusion in `integration/search/search.integration.spec.ts`
+ * are NOT re-asserted here — search exclusion in `integration/search/search.integration.test.ts`
  * ("excludes tombstoned (soft-deleted) recipes from results"), collection-membership exclusion in
- * `integration/collections/crud.integration.spec.ts` ("...excluding tombstoned recipes from the
- * listing"), and GET-after-delete → 404 in `integration/recipes/crud.integration.spec.ts`. What is left —
+ * `integration/collections/crud.integration.test.ts` ("...excluding tombstoned recipes from the
+ * listing"), and GET-after-delete → 404 in `integration/recipes/crud.integration.test.ts`. What is left —
  * and covered here — is retention (DB row AND S3 object), owner-list exclusion, and re-delete idempotency.
  *
  * Runs only when the harness DB is configured — otherwise skipped in lockstep with the global setup.
@@ -66,7 +66,7 @@ const CREATE_PAYLOAD = {
     steps: [{ instruction: 'Mix.' }],
 };
 
-/** A REAL, decodable 1×1 PNG (base64) — see `photos/upload.integration.spec.ts` for why a genuine image is used. */
+/** A REAL, decodable 1×1 PNG (base64) — see `photos/upload.integration.test.ts` for why a genuine image is used. */
 const REAL_PNG_BYTES = new Uint8Array(
     Buffer.from(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -228,7 +228,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe soft-delete tombstones (C-007 integrati
 
         // REQ-019b/c (S3 half): the object is STILL in the bucket — no automatic process purged it. The
         // only S3-delete code path in this service is the explicit `DELETE …/photos/{photoId}` endpoint
-        // (proven to actually delete in `photos/delete.integration.spec.ts`), which this test never calls;
+        // (proven to actually delete in `photos/delete.integration.test.ts`), which this test never calls;
         // there is no sweep, cron, or cascade in `recipe-service` that reaches S3 on a recipe soft-delete.
         expect(await objectExists(photo.key)).toBe(true);
     });

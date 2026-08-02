@@ -37,149 +37,233 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ---
 
-### Module: MOD-001 (ProviderConfigRepository — CRUD Operations)
+### Module: MOD-001 (ByokKeyRepository — ARN Reference CRUD)
 
 **Parent Architecture Modules**: ARCH-001
-**Target Source File(s)**: `src/ai/provider-config/provider-config.repository.ts`
+**Target Source File(s)**: `packages/services/ai-service/src/byok/byok.dal.ts`
+
+> **Revised 2026-08-02.** These scenarios previously asserted the AES-256-GCM design
+> (`INSERT INTO provider_configs`, "verify encrypt called"). That design was rejected — see
+> `module-design.md` MOD-001 and `plan.md` §2.2. Left unchanged, this test plan would have **validated
+> the wrong architecture**: a green run would have "proven" ciphertext-at-rest in the application
+> database. The scenarios below assert the ARN-only design, and UTS-001-A5 exists specifically to fail
+> if key material ever reaches this layer again.
 
 ---
 
-#### Test Case: UTP-001-A (upsertProviderConfig — encryption + DB upsert)
+#### Test Case: UTP-001-A (upsertByokKeyRef — ARN persistence + validation)
 
 **Technique**: Statement & Branch Coverage + Boundary Value Analysis
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies upsertProviderConfig encrypts the API key with AES-256-GCM (unique IV per write), executes the upsert SQL, and returns the full record. Also verifies validation errors are thrown before any I/O.
+**Description**: Verifies `upsertByokKeyRef` persists **only** the Secrets Manager ARN, conflicts on the composite `(user_id, provider)` (decision D-005), bumps `key_version` on replace, and throws validation errors before any I/O. This module performs no cryptography and touches no key material.
 
 **Scenarios:**
 
-**UTS-001-A1** — Valid upsert → encrypted payload stored, record returned with masked key in response
+**UTS-001-A1** — Valid upsert → ARN row written, record returned
 
-- Arrange: mock db.query() → { userId: 'uid', provider: 'openai', encryptedApiKey: 'iv:tag:cipher', updatedAt: 'ts' }; mock crypto.randomBytes(12) → Buffer.alloc(12)
-- Act: result = await repo.upsertProviderConfig('uid', 'openai', 'sk-test-key-123')
-- Assert: result.provider === 'openai'; verify db.query called once with SQL containing 'INSERT INTO provider_configs'; verify encrypt called
-- Mock isolation: db.query, crypto stubbed
+- Arrange: mock db.query() → { id: 'r1', userId: 'uid', provider: 'openai', secretArn: 'arn:aws:secretsmanager:us-east-1:1:secret:byok/uid/openai', keyVersion: 1, isActive: true, updatedAt: 'ts' }
+- Act: result = await repo.upsertByokKeyRef('uid', 'openai', 'arn:aws:secretsmanager:us-east-1:1:secret:byok/uid/openai')
+- Assert: result.provider === 'openai'; result.secretArn starts with 'arn:aws:secretsmanager:'; verify db.query called once with SQL containing 'INSERT INTO user_byok_keys' **and** 'ON CONFLICT (user_id, provider)'
+- Mock isolation: db.query stubbed
 
 **UTS-001-A2** — userId null → ValidationError thrown before DB call
 
-- Arrange: userId = null; provider = 'openai'; apiKey = 'key'
-- Act/Assert: upsertProviderConfig(null, 'openai', 'key') throws ValidationError with message 'userId required'; verify db.query NOT called
+- Arrange: userId = null; provider = 'openai'; secretArn = 'arn:…'
+- Act/Assert: upsertByokKeyRef(null, 'openai', 'arn:…') throws ValidationError with message 'userId required'; verify db.query NOT called
 - Mock isolation: none
 
 **UTS-001-A3** — Invalid provider enum → ValidationError thrown before DB call
 
 - Arrange: provider = 'unknown-provider'
-- Act/Assert: upsertProviderConfig('uid', 'unknown-provider', 'key') throws ValidationError; verify db.query NOT called
+- Act/Assert: upsertByokKeyRef('uid', 'unknown-provider', 'arn:…') throws ValidationError; verify db.query NOT called
 - Mock isolation: none
 
-**UTS-001-A4** — Empty apiKey → ValidationError thrown before DB call
+**UTS-001-A4** — Empty secretArn → ValidationError thrown before DB call
 
-- Arrange: apiKey = ''
-- Act/Assert: upsertProviderConfig('uid', 'openai', '') throws ValidationError; verify db.query NOT called
+- Arrange: secretArn = ''
+- Act/Assert: upsertByokKeyRef('uid', 'openai', '') throws ValidationError; verify db.query NOT called
 - Mock isolation: none
+
+**UTS-001-A5** — Regression guard: no key material may reach this layer
+
+- Arrange: spy on every argument passed to db.query
+- Act: await repo.upsertByokKeyRef('uid', 'openai', 'arn:aws:secretsmanager:us-east-1:1:secret:byok/uid/openai')
+- Assert: no bound parameter matches `/^sk-/` or `/^sk-ant/`; the SQL contains neither 'encrypted_api_key' nor 'provider_configs'; no `crypto` module function is invoked anywhere in the call
+- Rationale: this is the executable form of the FR-015 invariant "the raw key is never in Postgres". It fails loudly if the rejected design is reintroduced.
+- Mock isolation: db.query stubbed; `node:crypto` spied
 
 ---
 
-#### Test Case: UTP-001-B (getProviderConfig — decryption + get, or null)
+#### Test Case: UTP-001-B (getByokKeyRef / listByokKeyRefs — reference retrieval)
 
 **Technique**: Statement Coverage + Equivalence Partitioning
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies getProviderConfig queries DB, decrypts the stored payload using the stored IV/authTag, and returns decrypted apiKey alongside row data. Returns null if no row found.
+**Description**: Verifies `getByokKeyRef` returns the ARN reference row or NULL, and that `listByokKeyRefs` never selects `secret_arn`. No decryption occurs at this layer — there is nothing to decrypt.
 
 **Scenarios:**
 
-**UTS-001-B1** — Row found → decrypted apiKey returned
+**UTS-001-B1** — Row found → ARN reference returned, no key material
 
-- Arrange: mockDbRow = { userId: 'uid', provider: 'openai', encrypted_api_key: 'ivHex:tagHex:cipherText', updatedAt: 'ts' }; mock db.query() → mockDbRow
-- Act: result = await repo.getProviderConfig('uid', 'openai')
-- Assert: result !== null; result.apiKey === 'decrypted-key'; verify decipher.setAuthTag called
+- Arrange: mockDbRow = { id: 'r1', userId: 'uid', provider: 'openai', secretArn: 'arn:aws:secretsmanager:us-east-1:1:secret:byok/uid/openai', keyVersion: 1, isActive: true }; mock db.query() → mockDbRow
+- Act: result = await repo.getByokKeyRef('uid', 'openai')
+- Assert: result !== null; result.secretArn starts with 'arn:aws:secretsmanager:'; result has **no** `apiKey` property; SQL filters on `is_active = true`
 - Mock isolation: db.query stubbed
 
-**UTS-001-B2** — Row not found → null returned
+**UTS-001-B2** — Row not found → null returned (not an error)
 
 - Arrange: mock db.query() → null
-- Act: result = await repo.getProviderConfig('uid', 'openai')
-- Assert: result === null; verify decrypt NOT called
+- Act: result = await repo.getByokKeyRef('uid', 'openai')
+- Assert: result === null; no throw
 - Mock isolation: db.query stubbed
 
-**UTS-001-B3** — GCM auth tag mismatch → DecryptionError propagated
+**UTS-001-B3** — listByokKeyRefs must not select the ARN
 
-- Arrange: mockDbRow = { encrypted_api_key: 'ivHex:badTagHex:cipherText' }; mock db.query() → mockDbRow; mock createDecipheriv().setAuthTag() → throws
-- Act/Assert: getProviderConfig('uid', 'openai') throws DecryptionError; verify db.query called
-- Mock isolation: db.query, crypto stubbed
+- Arrange: mock db.query() → [{ provider: 'openai', keyVersion: 1 }, { provider: 'gemini', keyVersion: 2 }]
+- Act: result = await repo.listByokKeyRefs('uid')
+- Assert: result.length === 2; **no element has a `secretArn` property**; the executed SQL string does not contain 'secret_arn'
+- Rationale: a list response has no legitimate need for the ARN; asserting on the SQL makes the omission structural rather than incidental.
+- Mock isolation: db.query stubbed
 
 ---
 
-### Module: MOD-002 (ProviderConfigService — Credential Lifecycle Orchestrator)
+### Module: MOD-002 (ByokService — Credential Lifecycle Orchestrator)
 
 **Parent Architecture Modules**: ARCH-002
-**Target Source File(s)**: `src/ai/provider-config/provider-config.service.ts`
+**Target Source File(s)**: `packages/services/ai-service/src/byok/byok.service.ts`
+
+> **Revised 2026-08-02.** This module now owns all Secrets Manager I/O. The scenarios below replace
+> masking-only assertions with the ordering and compensation guarantees that actually protect key
+> material (`module-design.md` MOD-002).
 
 ---
 
-#### Test Case: UTP-002-A (saveProviderCredentials + listProviderCredentials — masking)
+#### Test Case: UTP-002-A (saveByokKey — validate-before-persist, ARN-only response)
 
 **Technique**: Statement Coverage + Equivalence Partitioning
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies saveProviderCredentials calls repository and returns masked config (never raw key). listProviderCredentials returns all configs with fully masked keys.
+**Description**: Verifies `saveByokKey` proves the key works before persisting anything, writes the raw key only to Secrets Manager, stores only the ARN, and returns neither the key nor the ARN.
 
 **Scenarios:**
 
-**UTS-002-A1** — saveProviderCredentials → masked response with '\*\*\*\*' prefix + last 4 chars
+**UTS-002-A1** — Valid key → secret written, ARN persisted, metadata returned
 
-- Arrange: mock repo.upsertProviderConfig() → { userId: 'uid', provider: 'openai', updatedAt: 'ts' }
-- Act: result = await service.saveProviderCredentials('uid', 'openai', 'sk-real-key-abcdef')
-- Assert: result.apiKeyMasked === '\*\*\*\*cdef'; result.provider === 'openai'; raw key not in result
-- Mock isolation: ProviderConfigRepository stubbed
+- Arrange: mock validator.assertLiveKey() → resolves; mock secretsManager.putSecret() → 'arn:aws:secretsmanager:…:byok/uid/openai'; mock repo.upsertByokKeyRef() → { provider: 'openai', keyVersion: 1, isActive: true, updatedAt: 'ts' }
+- Act: result = await service.saveByokKey('uid', 'openai', 'sk-real-key-abcdef')
+- Assert: result.provider === 'openai'; **result contains neither the raw key nor `secretArn`**; putSecret called with name 'byok/uid/openai'; upsertByokKeyRef called with the ARN, never with the key
+- Mock isolation: validator, secretsManager, ByokKeyRepository stubbed
 
-**UTS-002-A2** — Unsupported provider → ValidationError thrown
+**UTS-002-A2** — Unsupported provider → ValidationError, nothing persisted
 
 - Arrange: provider = 'unknown'
-- Act/Assert: saveProviderCredentials('uid', 'unknown', 'key') throws ValidationError
-- Mock isolation: none
+- Act/Assert: saveByokKey('uid', 'unknown', 'key') throws ValidationError; verify putSecret NOT called; verify upsertByokKeyRef NOT called
+- Mock isolation: secretsManager, repository spied
 
-**UTS-002-A3** — listProviderCredentials → all configs masked, apiKey fully redacted
+**UTS-002-A3** — Key fails its live provider check → nothing written anywhere
 
-- Arrange: mock repo.listProviderConfigs() → [{ userId: 'uid', provider: 'openai', updatedAt: 'ts' }, { userId: 'uid', provider: 'gemini', updatedAt: 'ts' }]
-- Act: result = await service.listProviderCredentials('uid')
-- Assert: result.length === 2; result[0].apiKeyMasked === '\***\*'; result[1].apiKeyMasked === '\*\***'
-- Mock isolation: ProviderConfigRepository stubbed
+- Arrange: mock validator.assertLiveKey() → throws InvalidApiKeyError
+- Act/Assert: saveByokKey('uid', 'openai', 'sk-bad') throws InvalidApiKeyError; verify **putSecret NOT called** and upsertByokKeyRef NOT called
+- Rationale: a rejected key must leave no trace in Secrets Manager — otherwise failed attempts accumulate billable, unreferenced secrets.
+- Mock isolation: validator, secretsManager, repository stubbed
+
+**UTS-002-A4** — DB write fails after the secret write → compensating delete
+
+- Arrange: mock putSecret() → 'arn:…'; mock repo.upsertByokKeyRef() → throws DatabaseError
+- Act/Assert: saveByokKey(...) rethrows DatabaseError; verify **deleteSecret called with that exact ARN**
+- Rationale: without compensation the write leaves orphaned key material that nothing references and nothing will ever clean up.
+- Mock isolation: secretsManager, repository stubbed
+
+**UTS-002-A5** — listByokKeys returns metadata only
+
+- Arrange: mock repo.listByokKeyRefs() → [{ provider: 'openai', keyVersion: 1 }, { provider: 'gemini', keyVersion: 1 }]
+- Act: result = await service.listByokKeys('uid')
+- Assert: result.length === 2; no element carries `secretArn` or any key material
+- Mock isolation: ByokKeyRepository stubbed
 
 ---
 
-#### Test Case: UTP-002-B (getProviderCredentials — priority fallback)
+#### Test Case: UTP-002-B (resolveByokKey / deleteByokKey — retrieval and teardown ordering)
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies getProviderCredentials iterates providers in priority order (openai → gemini → anthropic) and returns first found. Throws NoProviderConfiguredError if none configured.
+**Description**: Verifies just-in-time key retrieval, the distinction between "not configured" and "secret missing", and the DB-before-secret delete ordering.
 
 **Scenarios:**
 
-**UTS-002-B1** — openai configured → returns openai credentials immediately
+**UTS-002-B1** — Configured provider → key fetched just-in-time
 
-- Arrange: mock repo.getProviderConfig('uid', 'openai') → { provider: 'openai', apiKey: 'openai-key' }
-- Act: result = await service.getProviderCredentials('uid')
-- Assert: result.provider === 'openai'; result.apiKey === 'openai-key'; verify repo.getProviderConfig called only for 'openai'
-- Mock isolation: ProviderConfigRepository stubbed
+- Arrange: mock repo.getByokKeyRef() → { secretArn: 'arn:…' }; mock getSecretValue() → 'sk-real'
+- Act: key = await service.resolveByokKey('uid', 'openai')
+- Assert: key === 'sk-real'; getSecretValue called with the stored ARN; the key is not retained on any service field after the call
+- Mock isolation: repository, secretsManager stubbed
 
-**UTS-002-B2** — openai not configured, gemini is → returns gemini credentials
+**UTS-002-B2** — No row → NoProviderConfiguredError (routes to setup guide)
 
-- Arrange: mock repo.getProviderConfig('uid', 'openai') → null; mock repo.getProviderConfig('uid', 'gemini') → { provider: 'gemini', apiKey: 'gemini-key' }
-- Act: result = await service.getProviderCredentials('uid')
-- Assert: result.provider === 'gemini'; verify repo.getProviderConfig called for both 'openai' and 'gemini' (not 'anthropic')
-- Mock isolation: ProviderConfigRepository stubbed
+- Arrange: mock repo.getByokKeyRef() → null
+- Act/Assert: resolveByokKey('uid', 'openai') throws NoProviderConfiguredError; verify getSecretValue NOT called
+- Rationale: FR-015 acceptance scenario 4 — an unconfigured user is guided through setup, not shown an error.
+- Mock isolation: repository, secretsManager stubbed
 
-**UTS-002-B3** — No provider configured for user → NoProviderConfiguredError
+**UTS-002-B3** — ARN row present but secret absent → ByokSecretMissingError, not NoProviderConfigured
 
-- Arrange: mock repo.getProviderConfig('uid', 'openai') → null; mock repo.getProviderConfig('uid', 'gemini') → null; mock repo.getProviderConfig('uid', 'anthropic') → null
-- Act/Assert: service.getProviderCredentials('uid') throws NoProviderConfiguredError
-- Mock isolation: ProviderConfigRepository stubbed
+- Arrange: mock repo.getByokKeyRef() → { secretArn: 'arn:…' }; mock getSecretValue() → null
+- Act/Assert: throws ByokSecretMissingError (a 500-class data-integrity fault), **not** NoProviderConfiguredError
+- Rationale: conflating the two would silently route a real inconsistency into the "please set up a provider" flow, hiding it forever.
+- Mock isolation: repository, secretsManager stubbed
+
+**UTS-002-B4** — Delete removes the DB row before the secret
+
+- Arrange: mock repo.deleteByokKeyRef() → 'arn:…'; mock deleteSecret() → resolves
+- Act: await service.deleteByokKey('uid', 'openai')
+- Assert: deleteByokKeyRef called **before** deleteSecret (assert call order); deleteSecret called with the returned ARN
+- Mock isolation: repository, secretsManager stubbed
+
+**UTS-002-B5** — Delete of an absent key is idempotent
+
+- Arrange: mock repo.deleteByokKeyRef() → null
+- Act/Assert: deleteByokKey('uid', 'openai') resolves without throwing; verify deleteSecret NOT called
+- Mock isolation: repository, secretsManager stubbed
+
+---
+
+#### Test Case: UTP-002-C (resolvePreferredProvider — priority fallback)
+
+**Technique**: Statement & Branch Coverage
+**Target View**: Algorithmic/Logic View
+**Description**: Verifies `resolvePreferredProvider` iterates providers in priority order (openai → gemini → anthropic) and returns the first configured one. Throws `NoProviderConfiguredError` if none is configured.
+
+> **Renumbered 2026-08-02 (was UTP-002-B).** The 2026-08-02 rewrite introduced a new UTP-002-B for
+> retrieval/teardown ordering, which collided with this case. Two test cases sharing one ID is exactly
+> the defect peer review raised as **PRF-005-A1** for the duplicate `AT-005-F`; renumbering here avoids
+> reintroducing it.
+
+**Scenarios:**
+
+**UTS-002-C1** — openai configured → returns openai credentials immediately
+
+- Arrange: mock repo.getByokKeyRef('uid', 'openai') → { secretArn: 'arn:…openai' }; mock getSecretValue() → 'openai-key'
+- Act: result = await service.resolvePreferredProvider('uid')
+- Assert: result.provider === 'openai'; result.apiKey === 'openai-key'; verify getByokKeyRef called only for 'openai' (no wasted lookups)
+- Mock isolation: ByokKeyRepository, secretsManager stubbed
+
+**UTS-002-C2** — openai not configured, gemini is → returns gemini credentials
+
+- Arrange: mock repo.getByokKeyRef('uid', 'openai') → null; mock repo.getByokKeyRef('uid', 'gemini') → { secretArn: 'arn:…gemini' }; mock getSecretValue() → 'gemini-key'
+- Act: result = await service.resolvePreferredProvider('uid')
+- Assert: result.provider === 'gemini'; verify getByokKeyRef called for 'openai' and 'gemini' but **not** 'anthropic'
+- Mock isolation: ByokKeyRepository, secretsManager stubbed
+
+**UTS-002-C3** — No provider configured for user → NoProviderConfiguredError
+
+- Arrange: mock repo.getByokKeyRef() → null for all three providers
+- Act/Assert: service.resolvePreferredProvider('uid') throws NoProviderConfiguredError; verify getSecretValue NOT called
+- Mock isolation: ByokKeyRepository, secretsManager stubbed
 
 ---
 
 ### Module: MOD-003 (ProviderSetupGuide — Setup Payload Generator)
 
 **Parent Architecture Modules**: ARCH-003
-**Target Source File(s)**: `src/ai/provider-config/provider-setup-guide.service.ts`
+**Target Source File(s)**: `packages/services/ai-service/src/byok/byok-setup-guide.service.ts`
 
 ---
 
@@ -265,7 +349,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies generateRecipe fetches credentials via ProviderConfigService, dispatches to AIProviderAdapter, and returns the raw draft (not persisted).
+**Description**: Verifies generateRecipe fetches credentials via ByokService, dispatches to AIProviderAdapter, and returns the raw draft (not persisted).
 
 **Scenarios:**
 
@@ -274,13 +358,13 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 - Arrange: mock service.getProviderCredentials('uid') → { provider: 'openai', apiKey: 'key' }; mock adapter.dispatch('openai', 'key', criteria) → { title: 'Generated Recipe', ingredients: ['item'], instructions: ['step'], estimatedCalories: 200 }
 - Act: result = await service.generateRecipe('uid', criteria)
 - Assert: result.title === 'Generated Recipe'; result.estimatedCalories === 200
-- Mock isolation: ProviderConfigService stubbed; AIProviderAdapter stubbed
+- Mock isolation: ByokService stubbed; AIProviderAdapter stubbed
 
 **UTS-005-A2** — NoProviderConfiguredError → propagated to caller
 
 - Arrange: mock service.getProviderCredentials('uid') → throws NoProviderConfiguredError
 - Act/Assert: service.generateRecipe('uid', criteria) throws NoProviderConfiguredError
-- Mock isolation: ProviderConfigService stubbed
+- Mock isolation: ByokService stubbed
 
 ---
 
@@ -425,6 +509,21 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 - Arrange: storedState = 'correct-state'; receivedState = 'wrong-state'; codeVerifier = 'test-verifier'
 - Act/Assert: server.handleCallback('wrong-state', 'auth-code', 'test-verifier') throws Error with message containing 'State mismatch'
 - Mock isolation: none
+
+**UTS-008-A3** — State TTL expiry → distinguishable from tampering
+
+- Arrange: a state entry stored, then aged past the 60 s TTL (`AuthCodeCache`); clock advanced via injected time source, not a real sleep
+- Act/Assert: `handleCallback(expiredState, ...)` throws an **expiry-specific** error, NOT the generic 'State mismatch'
+- Rationale: closes peer-review **PRF-005-A4**. A legitimate user who is slow through the consent screen currently gets an error identical to a CSRF attempt — indistinguishable in logs, and unrecoverable for the user because nothing tells them to simply retry.
+- Mock isolation: injected clock; `AuthCodeCache` real
+
+**UTS-008-A4** — Concurrent authorization flows do not collide
+
+- Arrange: the same user initiates two authorizations; two distinct states/verifiers issued
+- Act: complete the **second** flow, then the **first**
+- Assert: both resolve against their own entry; the second initiation does **not** overwrite or evict the first
+- Rationale: also PRF-005-A4. If the second overwrites the first, a legitimate first flow fails as a state mismatch — and an attacker who can trigger a second initiation gains a CSRF window.
+- Mock isolation: `AuthCodeCache` real
 
 ---
 
@@ -751,41 +850,41 @@ No unit tests — TypeScript compiler and ESLint enforcement. Build step verifie
 
 ---
 
-### Module: MOD-019 (ProviderConfigController — HTTP Endpoint Handler)
+### Module: MOD-019 (ByokController — HTTP Endpoint Handler)
 
 **Parent Architecture Modules**: ARCH-019
-**Target Source File(s)**: `src/ai/provider-config/provider-config.controller.ts`
+**Target Source File(s)**: `packages/services/ai-service/src/byok/byok.controller.ts`
 
 ---
 
-#### Test Case: UTP-019-A (handleSaveProviderConfig — DTO validation + service delegation)
+#### Test Case: UTP-019-A (handleStoreByokKey — DTO validation + service delegation)
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies POST /ai/provider-config saves provider credentials and returns masked config; validates DTO; maps errors to correct HTTP codes.
+**Description**: Verifies POST /api/v1/ai/byok/keys saves provider credentials and returns masked config; validates DTO; maps errors to correct HTTP codes.
 
 **Scenarios:**
 
 **UTS-019-A1** — Valid request → 200 with masked config
 
 - Arrange: mock service.saveProviderCredentials() → { userId: 'uid', provider: 'openai', apiKeyMasked: '\*\*\*\*1234', updatedAt: 'ts' }
-- Act: result = await controller.handleSaveProviderConfig({ userId: 'uid', provider: 'openai', apiKey: 'sk-real-key' })
+- Act: result = await controller.handleStoreByokKey({ userId: 'uid', provider: 'openai', apiKey: 'sk-real-key' })
 - Assert: result.status === 200; result.body.apiKeyMasked === '\*\*\*\*1234'; raw key not in response
-- Mock isolation: ProviderConfigService stubbed
+- Mock isolation: ByokService stubbed
 
 **UTS-019-A2** — Invalid provider → 400
 
 - Arrange: payload = { userId: 'uid', provider: 'invalid', apiKey: 'key' }
-- Act: result = await controller.handleSaveProviderConfig(payload)
+- Act: result = await controller.handleStoreByokKey(payload)
 - Assert: result.status === 400; verify service NOT called
 - Mock isolation: none
 
 **UTS-019-A3** — Database error → 503
 
 - Arrange: mock service.saveProviderCredentials() → throws DatabaseError
-- Act: result = await controller.handleSaveProviderConfig({ userId: 'uid', provider: 'openai', apiKey: 'key' })
+- Act: result = await controller.handleStoreByokKey({ userId: 'uid', provider: 'openai', apiKey: 'key' })
 - Assert: result.status === 503
-- Mock isolation: ProviderConfigService stubbed
+- Mock isolation: ByokService stubbed
 
 ---
 
@@ -838,8 +937,8 @@ No unit tests — TypeScript compiler and ESLint enforcement. Build step verifie
 
 | MOD ID  | MOD Name                     | UTP Count  | UTS Count        |
 | ------- | ---------------------------- | ---------- | ---------------- |
-| MOD-001 | ProviderConfigRepository     | 2 (A, B)   | 7 (A1-A4, B1-B3) |
-| MOD-002 | ProviderConfigService        | 2 (A, B)   | 7 (A1-A3, B1-B3) |
+| MOD-001 | ByokKeyRepository            | 2 (A, B)   | 7 (A1-A4, B1-B3) |
+| MOD-002 | ByokService                  | 2 (A, B)   | 7 (A1-A3, B1-B3) |
 | MOD-003 | ProviderSetupGuide           | 1 (A)      | 2 (A1-A2)        |
 | MOD-004 | AIProviderAdapter            | 1 (A)      | 5 (A1-A5)        |
 | MOD-005 | RecipeGenerationService      | 1 (A)      | 2 (A1-A2)        |
@@ -856,7 +955,7 @@ No unit tests — TypeScript compiler and ESLint enforcement. Build step verifie
 | MOD-016 | PremiumEntitlementGuard      | [EXTERNAL] | —                |
 | MOD-017 | TypeSafetyAndA11yEnforcer    | [EXTERNAL] | —                |
 | MOD-018 | OAuthClientRegistry          | 1 (A)      | 3 (A1-A3)        |
-| MOD-019 | ProviderConfigController     | 1 (A)      | 3 (A1-A3)        |
+| MOD-019 | ByokController               | 1 (A)      | 3 (A1-A3)        |
 | MOD-020 | TokenDenylist                | 1 (A)      | 4 (A1-A4)        |
 
 ## Mock Registry

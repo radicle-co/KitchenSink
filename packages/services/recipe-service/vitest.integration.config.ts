@@ -8,12 +8,12 @@ import { defineConfig } from 'vitest/config';
  * unit run so DB-backed specs never bleed into it. Mirrors the identity/food services' integration
  * configs: a single shared database means specs run serially to avoid cross-file interference.
  *
- * Integration specs live in `**​/__tests__/integration/**​/*.integration.spec.ts` (co-located under the
+ * Integration specs live in `**​/__tests__/integration/**​/*.integration.test.ts` (co-located under the
  * feature domain they cover, per the folder-by-domain convention).
  */
 export default defineConfig({
     test: {
-        include: ['**/__tests__/integration/**/*.integration.spec.ts'],
+        include: ['**/__tests__/integration/**/*.integration.test.ts'],
         exclude: ['node_modules', 'dist'],
         globalSetup: ['./tests/global-setup.ts'],
         typecheck: { enabled: false },

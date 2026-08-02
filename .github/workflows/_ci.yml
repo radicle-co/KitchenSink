@@ -434,7 +434,7 @@ jobs:
             # Drives the erasure/archive integration specs against the real, migrated Postgres + LocalStack
             # S3. The S3 clients hardcode `test`/`test` creds and force path-style addressing, so only the
             # endpoint + bucket names come from env; both are set for parity with `integration-recipe`.
-            # The lambda BUNDLE must exist before the integration tier. `workers-app-synth.integration.spec.ts`
+            # The lambda BUNDLE must exist before the integration tier. `workers-app-synth.integration.test.ts`
             # spawns the real CDK app, and `RecipeWorkersStack` refuses to synth without `dist/` — it asserts
             # the bundle is present rather than deploying a phantom `lambda.Code.fromAsset`. That check is
             # correct; what was missing is that this job never built it, so the spec passed locally (where a

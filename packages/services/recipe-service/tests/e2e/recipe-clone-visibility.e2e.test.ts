@@ -20,9 +20,9 @@
  * exists) and never `200` (which would leak the content).
  *
  * The booted app authenticates as CLONER (dev bypass); OWNER's source recipes are seeded directly via a
- * raw pg pool (mirroring `ratings.e2e.spec.ts`). For the one assertion that needs OWNER to read their OWN
+ * raw pg pool (mirroring `ratings.e2e.test.ts`). For the one assertion that needs OWNER to read their OWN
  * recipe (owner GET private = 200), the dev-bypass identity is flipped via `RECIPE_DEV_AUTH_USER_ID`
- * for that single request and restored in a `finally` — the exact pattern `throttle.e2e.spec.ts` uses to
+ * for that single request and restored in a `finally` — the exact pattern `throttle.e2e.test.ts` uses to
  * exercise two authenticated identities against one booted app (the dev bypass reads the env var fresh on
  * every request, so flipping it between sequential — never concurrent — requests is safe). Skips cleanly
  * without a database.
@@ -92,7 +92,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe clone + visibility (e2e, assembled app)
 
     /**
      * Run `fn` authenticated as `userId` against the ONE booted app, then restore whatever dev-bypass
-     * identity was active before — mirrors `throttle.e2e.spec.ts`'s "keys the write limit PER USER" test,
+     * identity was active before — mirrors `throttle.e2e.test.ts`'s "keys the write limit PER USER" test,
      * the established pattern for exercising two identities without booting a second app.
      * @sideEffect Temporarily mutates `process.env['RECIPE_DEV_AUTH_USER_ID']`.
      */

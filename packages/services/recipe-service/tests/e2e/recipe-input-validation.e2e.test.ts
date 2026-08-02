@@ -2,7 +2,7 @@
  * REQ-003a / REQ-007 / REQ-006 — recipe input-validation e2e proof against the fully ASSEMBLED recipe
  * app (real Nest app + Docker Postgres, dev-auth bypass). The unit tier (`src/recipes/dto/__tests__/`)
  * already exhausts the DTO's boundary logic; this pins the client-visible HTTP contract: a cap or
- * non-positive-value violation is a `400`, mirroring `recipe-clone-visibility.e2e.spec.ts`'s structure.
+ * non-positive-value violation is a `400`, mirroring `recipe-clone-visibility.e2e.test.ts`'s structure.
  * Skips cleanly without a database.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

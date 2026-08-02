@@ -1,18 +1,204 @@
 # Product Forge Lifecycle Status
 # Feature: 005-ai-integration
-# Last updated: 2026-05-10
+# Last updated: 2026-08-02
 
 feature: 005-ai-integration
 mode: retroactive-bootstrap
+feature_mode: standard
 pilot: true
-last_updated: 2026-05-10
+last_updated: 2026-08-02
+gates:
+    - phase: plan
+      decision: approved
+      date: 2026-08-02
+      mode: interactive
+      risk: high
+      risk_basis:
+          'Classified by heuristic — `gate-risk.js` is not installed in this environment. High because the rewrite
+          replaces the entire data model, introduces a security boundary (ADR-0012), and invalidates every downstream artifact.
 
+          '
+      note: "plan.md rewritten 2026-08-02 against the shipped codebase. The prior revision was unbuildable: it keyed all
+          tables off `users(sub)` (removed by identity migration 0005) and declared foreign keys into `recipes` / `meal_plans`,
+          which live in other services' databases. Adopts composition-over-duplication, the ai-service/ai-workers split,
+          ADR-0012's credential bridge, `/api/v1/*` per GR-002, and adds the previously-absent pattern register.
+
+          "
+      artifacts:
+          - plan.md
+          - downstream-gaps.md
+          - ../../docs/architecture/decisions/0012-mcp-agent-credential-bridge.md
+          - ../../docs/api-conventions.md
+    - phase: tasks
+      decision: approved
+      date: 2026-08-02
+      mode: interactive
+      risk: high
+      next: reconcile-v-model
+      note: "86 tasks / 6 groups / 41 test-first, regenerated from the 2026-08-02 plan. 7/7 Must-Have stories and 8/8
+          FRs covered, plus coverage that never existed for FR-022's confidence indicator, NFR-002 and SC-003. Structural
+          checks passed (86 unique IDs; every task carries Paths + Size).
+
+          "
+      artifacts:
+          - tasks.md
+          - tasks/digest.md
+          - traceability.yml
+reconciliation:
+    v_model:
+        state: complete-traceability-green
+        finding: 'The V-Model artifacts do not merely use different table NAMES from plan.md — they specify a DIFFERENT
+            AND WEAKER SECURITY DESIGN for BYOK. module-design.md hand-rolls AES-256-GCM and stores the ciphertext in Postgres
+            (`provider_configs.encrypted_api_key`), decrypting in-process with an ambient `AES_KEY` that has no stated custody
+            or rotation. plan.md §2.2 and FR-015 require the raw key to go to AWS Secrets Manager with ONLY the ARN in Postgres
+            — the raw key never touches the database. Secrets Manager is mentioned in ZERO of the 22 v-model artifacts.
+
+            '
+        why_it_matters: 'unit-test.md asserts `INSERT INTO provider_configs` plus encryption, so the V-Model TEST layer
+            would validate the rejected design. A green V-Model run would have "proven" the wrong architecture. A mechanical
+            rename would have hidden this rather than surfacing it.
+
+            '
+        affected:
+            - v-model/module-design.md
+            - v-model/unit-test.md
+            - v-model/system-test.md
+            - v-model/acceptance-plan.md
+            - v-model/peer-review.md
+        required_action:
+            'DONE for the authored artifacts (see completed_2026_08_02). Remaining work is the three DERIVED
+            artifacts under derived_pending, which must be REGENERATED rather than hand-edited. Note that `speckit.v-model.*`
+            regenerates wholesale — appropriate for the derived trio, but it would discard hand-written content and the
+            peer-review history if pointed at the authored artifacts. peer-review.md is a HISTORICAL record and was deliberately
+            left untouched.
+
+            '
+        completed_2026_08_02:
+            - module-design.md — MOD-001 rewritten (ARN-only, no crypto); MOD-002 owns Secrets Manager I/O with validate-before-persist,
+              compensating secret-delete, and DB-before-secret delete ordering; MOD-019 controller renamed; all callers +
+              ARCH<->MOD map updated
+            - unit-test.md — UTP-001-A/B and UTP-002-A/B rewritten; added UTS-001-A5 regression guard (fails if key material
+              or a crypto call reaches the DAL); duplicate UTP-002-B renumbered to UTP-002-C
+            - integration-test.md — ITP-001-A/B and ITP-002-A/B rewritten; added ITS-001-A3 (proves D-005 against the real
+              composite constraint) and ITS-001-B2 (compensating delete)
+            - system-test.md — STP-002 rewritten; the old assertion ("stored value must be AES-256 ciphertext") PASSED the
+              rejected design and FAILED the approved one
+            - architecture-design.md — ARCH-001/002 renamed and redescribed; sequence diagram + flow rows corrected
+            - system-design.md — SYS-001 description and the Data Design View row corrected
+            - requirements.md — REQ-001, REQ-NF-005 and the entity description aligned with spec.md
+            - acceptance-plan.md — ATS-005-A5/A6 replaced (they tested crypto failure modes that no longer exist); gate +
+              verification rows corrected
+            - hazard-analysis.md — HAZ-001 restated as "raw key written to the app DB instead of Secrets Manager", mitigation
+              now cites the executable guards
+        derived_pending:
+            traceability_matrix:
+                REGENERATED and now COMPUTES. Matrix A 25/27 (92%) REQ->ATP, 26/26 ATP->SCN. Matrix B 8/8
+                SYS->STP. Matrix C 17/17. Matrix D 20/20. Matrix H 34/34 (was 0/34). ZERO orphans in all three orphan classes.
+            trace_md:
+                Stale ORPHAN, not tool-maintained. Marked SUPERSEDED with a banner documenting both defects (rejected
+                AES design; two hazards absent from the register). Delete-or-rebuild remains an open owner decision.
+            release_audit_report: Now UNBLOCKED to regenerate — the parse miss that determined its output is fixed. Not
+                yet run.
+        blocking_decision:
+            issue:
+                The deterministic build-matrix.sh hard-codes its ID regexes; v-model-config.yml id_prefixes is NOT consulted,
+                so editing config alone changes nothing.
+            mismatch:
+                - 'acceptance-plan.md uses AT-005-A table rows + ATS-005-A1; builder needs "#### Test Case: ATP-NNN-X (desc)"
+                  + SCN-NNN-X#'
+                - 'system-test.md uses "### STP-001 — Name (EP, DT)"; builder needs "#### Test Case: STP-NNN-X (desc)"'
+                - integration-test.md and module-design/unit-test.md already match and parse cleanly
+            options:
+                - A) Restructure acceptance-plan.md + system-test.md to the builder ID scheme. Deterministic matrices go green,
+                  but renumbering conflicts with the artifacts' own "Never renumbered" rule and invalidates peer-review PRF
+                  citations (e.g. PRF-005-A1 cites AT-005-F).
+                - B) Adapt build-matrix.sh regexes to the artifacts' scheme. No artifact churn, no ID history broken; but it
+                  forks a vendored extension script and must survive extension updates.
+                - C) Accept Matrices A/B as tool-blind and rely on the hand-maintained acceptance coverage, with the caveat
+                  standing. Cheapest, but leaves the audit gate unable to compute real coverage.
+            recommendation: B — the artifacts predate the tool and their IDs are cited across peer review; changing the
+                parser is the smaller, reversible blast radius. Needs owner sign-off because it forks a vendored script.
+        id_scheme_decision:
+            chosen: A — restructure the artifacts to the builder ID scheme (owner decision)
+            scope_correction: 'A proved larger than priced: the builder keys ATP-NNN-X -> REQ-NNN, so it needed ONE test
+                case per requirement, not a rename. AT-005-B alone had covered 8 requirements.'
+            acceptance_plan:
+                7 AT-005-* test cases (39 ATS scenarios) -> 26 ATP test cases (52 SCN scenarios), one per requirement.
+                Scenario CONTENT preserved; scenarios validating two requirements now appear under both with their own IDs,
+                as the builder SCN->ATP prefix match requires.
+            system_test: 24 STP renumbered from a flat 001..024 sequence to per-SYS-component keys (STP-{SYS}-{letter});
+                69 STS renumbered to match. This removed 12 orphaned STPs that keyed to non-existent SYS-009..SYS-024.
+            id_history_preserved:
+                An old->new ID map is embedded at the top of acceptance-plan.md so prior citations stay
+                resolvable — notably peer-review PRF-005-A1, which cites the duplicate AT-005-F. That duplicate is now resolved
+                into distinct requirement-keyed cases.
+            coverage_recovered: REQ-015 (accept/reject optimization) was genuinely covered by ATS-005-B9/B10 but listed
+                on no test case, so it read as uncovered. It now has ATP-015-A.
+            remaining_gaps:
+                REQ-CN-001:
+                    Inspection-only cross-spec dependency on 001 Recipe entities. This is peer-review PRF-005-A3,
+                    still open — it argues Inspection is insufficient for a P1 cross-spec dependency.
+                REQ-IF-004:
+                    Web/mobile parity. Listed under the old second AT-005-F but supplied NO scenario, so it was never
+                    actually covered. Parity is asserted by tasks T-076/T-077 (Playwright + Maestro).
+        gaps_closed_2026_08_02:
+            REQ-CN-001:
+                ATP-CN-001-A added with 3 executable scenarios against the REAL recipe-service client — closes peer-review
+                PRF-005-A3, which rejected Inspection-only verification for a P1 cross-spec dependency. Also mapped to SYS-003.
+            REQ-IF-004:
+                ATP-IF-004-A added with 4 web/mobile parity scenarios (incl. shared-component assertion for GR-010
+                AC-010-c). Also mapped to SYS-008.
+            PRF-005-A1: CLOSED by the ID restructure — the duplicate AT-005-F is now two distinct requirement-keyed test
+                cases.
+            PRF-005-A4:
+                CLOSED — UTS-008-A3 (state TTL expiry, distinguishable from tampering) and UTS-008-A4 (concurrent
+                flows do not collide) added, plus acceptance scenario SCN-IF-001-A4.
+            spec_FR-018: "Reworded: consent surface and grant store are ours, not the IdP's. Intent unchanged; mechanism
+                cites ADR-0012."
+            checklist:
+                Revalidated against FR-022 and ADR-0012. The false pass on "Edge cases are identified" is corrected
+                to INCOMPLETE.
+            trace_md: 'Truncated to a pointer stub. Not deleted: peer-review.md cites it 7x and is a historical record,
+                so the path must stay resolvable.'
+            system_design: Stale self-reported totals corrected (23/23 -> 27/27; interface 3/3 -> 4/4).
+        traceability:
+            matrix_A: 27/27
+            matrix_B: 27/27 + 8/8
+            matrix_C: 8/8 + 17/17
+            matrix_D: 17/17 + 20/20
+            matrix_H: 34/34
+            exceptions: 0
+        release_audit:
+            status: ❌ BLOCKED (correct)
+            condition_1_traceability: MET — 27/27 mapped, 0 orphans (was 12 missing cells)
+            condition_2_execution: FAILS — 527/527 scenarios untested; requires implementation
+            condition_3_waivers: FAILS — waivers.md absent
+            tooling_defect: build-audit-report.sh emitted "✅ RELEASE READY" despite 527/527 untested and no waivers.md.
+                It evaluates only "no FAILED tests", which is trivially true when nothing ran. The Constitution supersedes
+                the auto-generated status; an AUDIT INTEGRITY NOTICE is prepended. DO NOT re-run and accept its status without
+                re-applying the correction.
+        tooling_defect_matrix: 'A prior traceability-matrix.md became CORRUPT (7,717 NUL bytes, feature 004 requirement
+            text interleaved with 005) after post-processing a generated file. `file` reported it as `data`, so grep silently
+            matched nothing and verification passed unsoundly. Fix: regenerate from scratch, never post-process, and verify
+            with Python rather than grep.'
+tooling:
+    v_model_extension:
+        version: 0.6.0
+        state: installed-and-materialized
+        note: "Correction to an earlier claim in this feature's history: the extension was ALWAYS installed as a specify
+            extension — its 14 commands had simply never been materialized for the `claude` integration (they existed for
+            copilot under .github/prompts and for opencode under .opencode/command). A remove + `specify extension add v-model`
+            cycle materialized them into .claude/skills/speckit-v-model-*. Do NOT use `--dev`: it materializes SYMLINKS
+            pointing at the copilot variant via an absolute worktree path, which breaks for every other developer. The reinstall
+            also strips the exec bit from 22 extension scripts and reorders the `after_tasks` hook — both were restored
+            by hand.
+
+            "
 phases:
     problem-discovery:
         state: skipped
         reason: Feature was already specified and researched in existing SpecKit artifacts.
         artifact: null
-
     research:
         state: complete
         bootstrapped_from:
@@ -27,7 +213,6 @@ phases:
             - research/metrics-roi.md
             - research/README.md
         completed_at: 2026-05-09
-
     product-spec:
         state: complete
         bootstrapped_from:
@@ -42,74 +227,82 @@ phases:
             - product-spec/metrics.md
             - product-spec/README.md
         completed_at: 2026-05-09
-
     revalidation:
         state: complete
-        note: >
-            Product owner decisions D-001 through D-005 recorded in review.md on 2026-05-10.
-            All three open review questions resolved. Product-layer decisions are final.
-            Remaining open questions (OQ-1 through OQ-6) tracked in review.md; OQ-5 and OQ-6
-            block EU user traffic and nutrition features respectively.
-            NOTE: Product decisions approved does not constitute engineering handoff readiness.
-            plan.md, V-Model design artifacts, and all test artifacts remain Draft/pre-implementation.
-            release-audit-report.md is BLOCKED (224 untested scenarios).
+        note: 'Product owner decisions D-001 through D-005 recorded in review.md on 2026-05-10. All three open review
+            questions resolved. Product-layer decisions are final. Remaining open questions (OQ-1 through OQ-6) tracked
+            in review.md; OQ-5 and OQ-6 block EU user traffic and nutrition features respectively. NOTE: Product decisions
+            approved does not constitute engineering handoff readiness. plan.md, V-Model design artifacts, and all test
+            artifacts remain Draft/pre-implementation. release-audit-report.md is BLOCKED (224 untested scenarios).
+
+            '
         artifact: review.md
         completed_at: 2026-05-10
-
     bridge:
         state: complete
         note: spec.md already exists from SpecKit flow; bridge is a no-op.
         artifact: spec.md
-
     plan:
         state: complete
-        artifact: plan.md
+        artifacts:
+            - plan.md
+            - downstream-gaps.md
+        completed_at: 2026-08-02
+        note:
+            'Rewritten 2026-08-02 and re-gated (see gates[] above). Supersedes the 2026-05-10 revision, which was unbuildable
+            against the shipped codebase.
 
+            '
     tasks:
         state: complete
-        note: >
-            tasks.md updated 2026-05-10 to add Phase 5F mobile parity tasks (T-043 through T-050)
-            and reflect decisions D-001, D-003, D-004.
+        completed_at: 2026-08-02
+        total: 86
+        groups: 6
+        test_first: 41
+        implementation: 45
+        story_coverage: 7/7
+        fr_coverage: 8/8
+        digest_path: tasks/digest.md
+        traceability: traceability.yml
         artifact: tasks.md
+        supersedes: the 2026-06-02 list (50 tasks, stale against the rewritten plan)
+        note: "Fully replaced 2026-08-02. The prior list carried 37 references to `packages/services/ai-integration`,
+            2 to the dropped `mcp_oauth_consents`, 2 to the non-existent `packages/cdk/`, and 8 to pre-GR-002 `/ai/*` endpoints;
+            it was sequenced code-first and omitted k6, Maestro and RTL component tests entirely. The replacement adds coverage
+            that never existed for FR-022's confidence indicator, NFR-002, and SC-003.
 
+            "
     pre-impl-review:
         state: skipped
         reason: Existing V-Model artifacts provide pre-implementation structure for this feature.
         artifact: null
-
     implement:
         state: not-started
-        note: >
-            tasks.md present but no T-IDs marked complete.
-            Blocked: plan.md (Draft), V-Model design artifacts (Draft), release-audit-report.md (BLOCKED).
-            Product decisions approved; implementation lifecycle has not started.
+        note:
+            'tasks.md present but no T-IDs marked complete. Blocked: plan.md (Draft), V-Model design artifacts (Draft),
+            release-audit-report.md (BLOCKED). Product decisions approved; implementation lifecycle has not started.
 
+            '
     code-review:
         state: not-applicable
         reason: No implementation commits for feature 005 yet.
-
     verify:
         state: complete
-        note: >
-            verify-report.md updated 2026-05-10. W-003 resolved by D-003 (FR-022 added).
-            W-001 and W-002 remain as low-priority recommendations, not blockers.
-            SCOPE: This verify covers the Product Forge bootstrap layer (product-spec consistency) only.
-            It does NOT cover V-Model test execution. release-audit-report.md remains BLOCKED.
+        note: 'verify-report.md updated 2026-05-10. W-003 resolved by D-003 (FR-022 added). W-001 and W-002 remain as
+            low-priority recommendations, not blockers. SCOPE: This verify covers the Product Forge bootstrap layer (product-spec
+            consistency) only. It does NOT cover V-Model test execution. release-audit-report.md remains BLOCKED.
+
+            '
         artifact: verify-report.md
         completed_at: 2026-05-10
-
     test-plan:
         state: not-started
-
     test-run:
         state: not-started
-
     release-readiness:
         state: not-started
-
     retrospective:
         state: not-applicable
-
 v-model:
     state: complete
     artifacts:
@@ -147,7 +340,6 @@ v-model:
         state: completed
         artifact: release-audit-report.md
         completed_at: 2026-05-10
-
 bootstrap:
     sources:
         - specs/005-ai-integration/spec.md

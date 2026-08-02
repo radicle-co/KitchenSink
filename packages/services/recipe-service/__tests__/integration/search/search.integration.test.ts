@@ -9,7 +9,7 @@
  * set, and pagination slices the ranked page while reporting the unpaged total.
  *
  * Guarded with `describe.skipIf(!hasDatabaseUrl)` so a machine without the harness up simply skips
- * (matching the service's e2e ethos and the sibling `ingredients/search.integration.spec.ts`).
+ * (matching the service's e2e ethos and the sibling `ingredients/search.integration.test.ts`).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';

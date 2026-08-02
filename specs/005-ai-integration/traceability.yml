@@ -1,0 +1,173 @@
+# Live traceability matrix — Feature 005 (AI Integration)
+# Seeded 2026-08-02 by Phase 5B (tasks). `tasks` is filled now; `code`, `tests` and `events`
+# are filled by later phases. verify-full consumes THIS file rather than re-deriving the chain.
+#
+# NOTE: v-model/traceability-matrix.md is a SEPARATE, STALE artifact still keyed to
+# provider_configs / agent_consent_records. It must be reconciled before the release audit
+# can move off BLOCKED. See plan.md §9.
+
+feature: 005-ai-integration
+seeded_at: 2026-08-02
+source: plan.md@2026-08-02
+
+requirements:
+    - id: FR-015
+      summary: Users configure their own AI provider credentials (BYOK)
+      stories: [US-001]
+      tasks: [T005, T006, T007, T008, T011, T012, T013, T014, T015, T016, T017, T067, T068, T074, T075, T076, T077]
+      code: []
+      tests: []
+
+    - id: FR-016
+      summary: Call the user's configured provider to generate recipes
+      stories: [US-002]
+      tasks:
+          [
+              T041,
+              T042,
+              T043,
+              T044,
+              T045,
+              T046,
+              T047,
+              T048,
+              T049,
+              T050,
+              T051,
+              T052,
+              T053,
+              T054,
+              T055,
+              T056,
+              T078,
+              T079,
+              T080,
+              T081,
+              T084,
+          ]
+      code: []
+      tests: []
+
+    - id: FR-017
+      summary: Preview generated recipes before optionally saving
+      stories: [US-002, US-003]
+      tasks: [T045, T046, T053, T054, T055, T056, T074, T075]
+      code: []
+      tests: []
+
+    - id: FR-018
+      summary: OAuth-protected API for external agents; separate read/write consent
+      stories: [US-004]
+      tasks:
+          [
+              T018,
+              T019,
+              T022,
+              T023,
+              T024,
+              T025,
+              T026,
+              T027,
+              T028,
+              T029,
+              T030,
+              T031,
+              T032,
+              T033,
+              T034,
+              T035,
+              T036,
+              T037,
+              T038,
+              T039,
+              T040,
+              T059,
+              T060,
+              T069,
+              T070,
+          ]
+      code: []
+      tests: []
+      notes: >
+          Wording change pending — consent is rendered by OUR UI, not Clerk's (ADR-0012:
+          Clerk has no custom OAuth scopes). Intent is unchanged.
+
+    - id: FR-019
+      summary: AI-powered instruction optimization (premium)
+      stories: [US-006]
+      tasks: [T061, T062, T080, T081]
+      code: []
+      tests: []
+
+    - id: FR-020
+      summary: AI-saved recipes are always private, user-owned
+      stories: [US-003, US-004]
+      tasks: [T020, T021, T030, T031, T038]
+      code: []
+      tests: []
+
+    - id: FR-021
+      summary: Users can revoke agent authorizations at any time
+      stories: [US-005]
+      tasks: [T034, T035, T071, T072]
+      code: []
+      tests: []
+
+    - id: FR-022
+      summary: Confidence indicator + guard message on every AI surface
+      stories: [US-007]
+      tasks: [T063, T064, T065, T066, T073, T082, T083]
+      code: []
+      tests: []
+
+    - id: NFR-001
+      summary: Strict TypeScript, zero `any`
+      tasks: [T001, T002, T003, T006, T010, T086]
+      code: []
+      tests: []
+
+    - id: NFR-002
+      summary: JSDoc on every export
+      tasks: [T006, T010, T012, T019, T027, T083]
+      code: []
+      tests: []
+      notes: Had ZERO task coverage in the previous list.
+
+    - id: NFR-003
+      summary: Accessible names queryable via getByRole/getByLabel
+      tasks: [T063, T065, T067, T069, T071, T076, T077]
+      code: []
+      tests: []
+
+    - id: NFR-004
+      summary: Colour is never the sole conveyor of state
+      tasks: [T063, T065, T067, T069, T071]
+      code: []
+      tests: []
+
+    - id: SC-003
+      summary: AI-generated recipes returned within 15 seconds
+      tasks: [T084]
+      code: []
+      tests: []
+      notes: >
+          The only measurable success criterion; had ZERO coverage previously. k6 must include
+          the actor-mint round trip (OQ-7) in the measured path.
+
+downstream_gaps:
+    - id: DG-001
+      owner: 006-meal-planning
+      tasks: [T057, T058]
+    - id: DG-002
+      owner: 007-grocery-lists
+      tasks: [T057, T058]
+    - id: DG-003
+      owner: 006-meal-planning
+      tasks: [T059, T060]
+    - id: DG-004
+      owner: 010-subscriptions
+      tasks: [T061, T062]
+    - id: DG-005
+      owner: 014-notification-service
+      tasks: []
+      notes: No task — 005's spec does not yet declare the 014 dependency GR-011 requires.

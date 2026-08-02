@@ -163,6 +163,18 @@ export class DataStack extends Stack {
         // back to an inline no-op asset. This module lives at `lib/platform/`, so the package root is two
         // levels up when run from source (tsx) but three when run from the compiled `dist/lib/platform/`
         // (how CI deploys via `node dist/bin/app.js`) — probe both so the REAL handler ships either way.
+        // The placeholder shipped when `dist-lambda/` was never built. It must NOT report success: a
+        // success-returning no-op is how prod ran for four weeks with NO `food_app`/`recipe_app` role at
+        // all — CloudFormation recorded CREATE_COMPLETE for a 101-byte stub that did nothing, and the
+        // failure only surfaced later, in another service, as `password authentication failed for user
+        // "food_app"`. Deleting must still no-op, or a stack delete would wedge on a throwing resource.
+        const missingBundleStub = (physicalId: string): string =>
+            `exports.handler = async (e) => { if (e.RequestType === 'Delete') { ` +
+            `return { PhysicalResourceId: e.PhysicalResourceId ?? '${physicalId}' }; } ` +
+            `throw new Error('${physicalId} was deployed WITHOUT its real bundle, so it would silently ` +
+            `create no role and no database. Run \`npm run bundle:lambda --workspace=packages/infra/global\` ` +
+            `before cdk deploy (the package\\'s own npm \`deploy\` script already does).'); };`;
+
         const here = dirname(fileURLToPath(import.meta.url));
         const lambdaAssetDir =
             [resolve(here, '../../dist-lambda'), resolve(here, '../../../dist-lambda')].find((candidate) =>
@@ -175,9 +187,7 @@ export class DataStack extends Stack {
             handler: hasLambdaAsset ? 'food-db-bootstrap/handler.handler' : 'index.handler',
             code: hasLambdaAsset
                 ? lambda.Code.fromAsset(lambdaAssetDir)
-                : lambda.Code.fromInline(
-                      'exports.handler = async (e) => ({ PhysicalResourceId: e.PhysicalResourceId ?? "food-db-bootstrap" });',
-                  ),
+                : lambda.Code.fromInline(missingBundleStub('food-db-bootstrap')),
             timeout: Duration.seconds(300),
             memorySize: 256,
             description: `Bootstrap food_app role + base database (${stageTag})`,
@@ -201,7 +211,14 @@ export class DataStack extends Stack {
         const foodBootstrap = new CustomResource(this, 'FoodDbBootstrap', {
             serviceToken: foodBootstrapProvider.serviceToken,
             // Re-runs the (idempotent) bootstrap whenever the target database or stage changes.
-            properties: { foodDatabaseName: this.foodDatabaseName, stage: stageTag },
+            properties: {
+                foodDatabaseName: this.foodDatabaseName,
+                stage: stageTag,
+                // Re-runs when the handler goes from the inline stub to the real bundle. Without this a
+                // CODE-only change never re-invokes the resource, so a stage bootstrapped by the stub
+                // stays un-bootstrapped forever even after the bundle starts shipping.
+                codeSource: hasLambdaAsset ? 'bundle' : 'inline-stub',
+            },
         });
         // `GRANT rds_iam` needs the instance's IAM-auth modify to be applied first. The env already
         // references the endpoint (an implicit dependency), but make the ordering explicit so a fresh
@@ -220,9 +237,7 @@ export class DataStack extends Stack {
             handler: hasLambdaAsset ? 'recipe-db-bootstrap/handler.handler' : 'index.handler',
             code: hasLambdaAsset
                 ? lambda.Code.fromAsset(lambdaAssetDir)
-                : lambda.Code.fromInline(
-                      'exports.handler = async (e) => ({ PhysicalResourceId: e.PhysicalResourceId ?? "recipe-db-bootstrap" });',
-                  ),
+                : lambda.Code.fromInline(missingBundleStub('recipe-db-bootstrap')),
             timeout: Duration.seconds(300),
             memorySize: 256,
             description: `Bootstrap recipe_app role + base database (${stageTag})`,
@@ -246,7 +261,11 @@ export class DataStack extends Stack {
         const recipeBootstrap = new CustomResource(this, 'RecipeDbBootstrap', {
             serviceToken: recipeBootstrapProvider.serviceToken,
             // Re-runs the (idempotent) bootstrap whenever the target database or stage changes.
-            properties: { recipeDatabaseName: this.recipeDatabaseName, stage: stageTag },
+            properties: {
+                recipeDatabaseName: this.recipeDatabaseName,
+                stage: stageTag,
+                codeSource: hasLambdaAsset ? 'bundle' : 'inline-stub',
+            },
         });
         // Same explicit ordering as the food bootstrap: `GRANT rds_iam` needs the instance's IAM-auth
         // modify applied first, so depend on the instance rather than race a fresh deploy.

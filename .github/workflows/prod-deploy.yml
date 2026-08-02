@@ -150,6 +150,16 @@ jobs:
               if: steps.flags.outputs.deploy_global == 'true'
               run: npm run build --workspace=packages/infra/global
 
+            # `build` is tsc only — it does NOT bundle the DataStack's custom-resource handlers. Without this
+            # step `dist-lambda/` is absent at synth, and the DataStack ships an inline placeholder instead of
+            # the real food/recipe bootstrap. That is not theoretical: prod ran for four weeks with a 101-byte
+            # stub that created NO `food_app`/`recipe_app` role while CloudFormation reported CREATE_COMPLETE.
+            # The package's own `npm run deploy` bundles first; this workflow calls `cdk deploy` directly, so
+            # it has to do it here. Guarded by prod-deploy-bootstrap-bundle.test.ts.
+            - name: Bundle global infra custom-resource handlers
+              if: steps.flags.outputs.deploy_global == 'true'
+              run: npm run bundle:lambda --workspace=packages/infra/global
+
             - name: Build identity service infra
               if: steps.flags.outputs.deploy_service == 'true'
               run: npm run infra:build --workspace=packages/services/identity

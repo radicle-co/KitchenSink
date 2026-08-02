@@ -392,16 +392,16 @@ The previous task list specified **none** of this. Security tests are written fi
 
 **Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-031-A, ATP-031-B, ATP-032-A`
 
-Touches **001's shipped code**, not 004's. Additive: `POST /v1/recipes` behaviour must be unchanged.
+Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` behaviour must be unchanged.
 
 - [ ] `RecipesService.create` accepts provenance; `evaluateVisibility` receives the **actual** `sourceType`
       rather than the hardcoded `USER_CREATED`
 - [ ] Omitted provenance ⇒ `user_created` — existing callers and the shipped contract are unaffected
 - [ ] `RecipesService.createMany` added: **per-recipe** transaction and outcome, never all-or-nothing (HAZ-058)
 - [ ] Ingredient resolution in bulk stays asynchronous and batched — no synchronous fan-out to 003 (HAZ-059)
-- [ ] `POST /v1/recipes` DTO admits only `declaredSource: own | paid-source + citation`;
+- [ ] `POST /api/v1/recipes` DTO admits only `declaredSource: own | paid-source + citation`;
       `imported_public` / `imported_physical` are **not representable** in the DTO (REQ-032, HAZ-057)
-- [ ] **Regression tests proving `POST /v1/recipes` is unchanged** for every existing case
+- [ ] **Regression tests proving `POST /api/v1/recipes` is unchanged** for every existing case
 - [ ] **Unit tests**: each provenance value reaches `evaluateVisibility`; a free-tier caller cannot obtain a
       private recipe by declaring a physical/imported source; false `imported_public` is unrepresentable
 - [ ] **Integration tests** against real Postgres for both `create` and `createMany`

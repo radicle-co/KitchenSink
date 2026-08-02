@@ -39,7 +39,7 @@ was originally written to create. 004 **consumes** the following and MUST NOT re
 | `recipes.source_type` (`user_created`/`imported_public`/`imported_physical`/`imported_paid`)                 | `database/schema/recipes.ts`                            |
 | `recipes.source_url`, `recipes.source_attribution`, `recipes.cloned_from_id`, `recipes.has_substantive_edit` | `database/schema/recipes.ts` (since `0001_initial.sql`) |
 | The C-004 visibility policy over `(sourceType, isPremium, hasSubstantiveEdit, requested)`                    | `evaluateVisibility` in `@kitchensink/recipe-core`      |
-| Clone with attribution retention, `POST /v1/recipes/{id}/clone`                                              | `recipes.service.ts` `clone()`, `recipes.controller.ts` |
+| Clone with attribution retention, `POST /api/v1/recipes/{id}/clone`                                          | `recipes.service.ts` `clone()`, `recipes.controller.ts` |
 | `canClone` / `canGoPrivate` access policy                                                                    | `recipeAccessPolicy.ts` in `@kitchensink/recipe-core`   |
 | Single error envelope `{ code, message, details? }`, `RecipeErrorCode` → HTTP mapping                        | `common/filters/api-exception.filter.ts`                |
 | Per-user rate limiting                                                                                       | `common/throttle/` (`@nestjs/throttler`)                |
@@ -56,7 +56,7 @@ semantics, visibility _enforcement_, and cloning are 001's, referenced here as d
 > `sourceType`/`sourceUrl`/`sourceAttribution` — `clone()` uses them — but no creation path exposes them.
 >
 > 004 therefore depends on 001's recipes vertical gaining provenance-aware creation (`004-FR-024`,
-> `004-FR-025`). This is **additive**: `POST /v1/recipes`'s existing behaviour is unchanged when no provenance
+> `004-FR-025`). This is **additive**: `POST /api/v1/recipes`'s existing behaviour is unchanged when no provenance
 > is supplied. It is called out here because it is a cross-feature code dependency, not a 004-local change.
 
 ---
@@ -320,7 +320,7 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   a release.
 - **D-011 (Creation shape, 2026-08-02)**: Recipe creation is fixed at the source rather than fenced off.
   `RecipesService.create` stops hardcoding `USER_CREATED` and takes provenance as an explicit argument
-  (defaulting to `user_created`, so `POST /v1/recipes` is unchanged), and a **bulk creation** path is added
+  (defaulting to `user_created`, so `POST /api/v1/recipes` is unchanged), and a **bulk creation** path is added
   alongside it for multi-recipe import. Provenance that a client may declare is **whitelisted** (`FR-025`):
   self-declaring a more restrictive class is allowed, self-declaring `imported_public` or `imported_physical`
   is not. An earlier draft of this plan proposed instead leaving `create` alone and adding lint rules, a module
@@ -330,8 +330,9 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
 - **D-016 (OpenAPI contract location, 2026-08-02)**: The service's single contract stays at
   `specs/001-commise-recipe-app/contracts/api.openapi.yaml` for this feature; 004 extends it rather than
   starting a second document. Relocating a 120 KB contract into the service package mid-feature adds risk for
-  tidiness, and it gets worse with every feature that extends it — so the move is recorded as its own change,
-  bundled with the D-015 prefix migration since both touch every endpoint.
+  tidiness, and it gets worse with every feature that extends it — so the move stays its own change. Note the
+  ADR-0011 migration rewrote that contract's paths in place **without** relocating it, so the location
+  question is still open and this decision still stands.
 - **D-017 (FR numbering, 2026-08-02)**: 004 keeps `FR-008`..`FR-014a` and relies on the mandatory `004-`
   prefix for cross-feature references. A clean renumber would break existing links and the cross-feature index
   for a cosmetic gain, and 004 is the last feature carrying this collision now the prefix convention is
@@ -341,15 +342,20 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   unauthenticated import (`REQ-IF-004`) — **permit no waiver at any gate**. Ratified as a standing constraint
   so that a future waiver request is visibly a deviation from a recorded decision rather than a judgement call
   made under deadline pressure.
-- **D-015 (API path prefix, 2026-08-02)**: Every API path begins `/api/{version}/`. 004's endpoints are
-  specified as `/api/v1/...` from the outset — they have no consumers yet, so there is no migration cost.
-  **The shipped services do not yet comply**: `recipe-service` exposes `v1/recipes`, `v1/collections`,
-  `v1/ingredients`, `v1/search`, `v1/account`, and the photo/version sub-routes; `identity` exposes
-  `v1/users`, `v1/users/me/avatar`, `v1/admin/users`. Bringing those to `/api/v1` is a **breaking change across
-  three deployed services**, their two typed clients, both apps' base URLs, and the shared ALB host rules — so
-  it is tracked as its own change, not folded into a feature spec. Until it lands, 004 references shipped
-  routes at their real paths (`POST /v1/recipes/{id}/clone`, `POST /v1/recipes`), because writing an
-  aspirational path into a spec that implementation must match would be a lie in the contract.
+- **D-015 (API path prefix, 2026-08-02; superseded in part by ADR-0011)**: Every path this feature
+  introduces is canonically `/api/v1/...`. **This is no longer a 004-local decision.**
+  [`ADR-0011`](../../docs/architecture/decisions/0011-api-version-prefix.md) landed on `main` the same day
+  and makes `/api/{version}/*` canonical across all three services, retaining the bare `/{version}/*` as a
+  **deliberately deprecated alias** for consumers we cannot redeploy (the Clerk-registered webhook, already
+  shipped mobile builds with endpoints baked in at build time, and cross-service erasure calls). It
+  implements `specs/governance-rules.md` **GR-002**, which had mandated this shape since 2026-05-10 while the
+  services still served bare `/v1/*`.
+  Two consequences for 004, both applied: per ADR-0011 §4 — _"clients, tests, k6 scripts and contracts use
+  the canonical path only"_ — every reference in this feature now uses `/api/v1/...`, **including references
+  to endpoints shipped by 001** (`POST /api/v1/recipes`, `POST /api/v1/recipes/{id}/clone`). And 004 must not
+  "tidy away" the bare alias it may encounter in shipped controllers: it is load-bearing, not dead code.
+  _An earlier revision of this decision recorded the shipped services as non-compliant and scoped the
+  migration as future work. That was true when written and is now obsolete — the migration has landed._
 - **D-014 (Non-public creation is premium, 2026-08-02)**: Creating a recipe that is not public requires a
   subscription — applied consistently, including where the privacy is imposed by policy rather than chosen.
   Consequences, stated plainly: **photo/OCR import and attested paid-source entry become premium-only**; free

@@ -174,7 +174,7 @@ every added column is nullable or defaulted, so the migration is deployable ahea
 | POST   | `/api/v1/admin/import/paywalled-domains`          | admin scope | `201`   | D-004                                   |
 | DELETE | `/api/v1/admin/import/paywalled-domains/{domain}` | admin scope | `204`   | D-004                                   |
 
-**Clone is NOT here** — `POST /v1/recipes/{id}/clone` already ships in 001.
+**Clone is NOT here** — `POST /api/v1/recipes/{id}/clone` already ships in 001.
 
 `confirm-bulk` returns **`207 Multi-Status`**: a 187-recipe migration where 3 fail is neither a success nor a
 failure, and collapsing it to one status would force the client to guess. The body carries one entry per draft
@@ -184,12 +184,12 @@ with `created` / `already_existed` / `failed` plus a reason.
 
 `RecipesService.create` hardcodes `sourceType: USER_CREATED`, so it cannot create an imported recipe. 004 needs:
 
-| Method                                     | Change                                                                                                                                                                             |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create(principal, dto, provenance?)`      | Accept provenance; pass the **actual** `sourceType` to `evaluateVisibility` instead of the hardcoded constant. Omitted ⇒ `user_created`, so `POST /v1/recipes` is byte-compatible. |
-| `createMany(principal, items, provenance)` | New. Per-recipe transaction and per-recipe outcome — **not** an all-or-nothing batch (HAZ-058). Ingredient resolution stays async and batched (HAZ-059).                           |
+| Method                                     | Change                                                                                                                                                                                 |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create(principal, dto, provenance?)`      | Accept provenance; pass the **actual** `sourceType` to `evaluateVisibility` instead of the hardcoded constant. Omitted ⇒ `user_created`, so `POST /api/v1/recipes` is byte-compatible. |
+| `createMany(principal, items, provenance)` | New. Per-recipe transaction and per-recipe outcome — **not** an all-or-nothing batch (HAZ-058). Ingredient resolution stays async and batched (HAZ-059).                               |
 
-**Provenance whitelist (`FR-025`, HAZ-057).** The DTO for `POST /v1/recipes` accepts only a
+**Provenance whitelist (`FR-025`, HAZ-057).** The DTO for `POST /api/v1/recipes` accepts only a
 `declaredSource` of `own` or `paid-source + citation`. `imported_public` and `imported_physical` are **not
 representable** in that DTO — they are set server-side from the channel actually observed. This is why the
 whitelist lives in the type, not in a validation branch someone can forget.

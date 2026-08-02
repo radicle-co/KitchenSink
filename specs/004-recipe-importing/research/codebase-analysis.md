@@ -34,7 +34,7 @@ Verified by reading the source, not the spec:
 | `recipes.source_url`, `source_attribution`, `cloned_from_id`, `has_substantive_edit`               | same — since `0001_initial.sql`                            |
 | C-004 visibility policy `evaluateVisibility(sourceType, isPremium, hasSubstantiveEdit, requested)` | `@kitchensink/recipe-core`                                 |
 | `canClone`, `canGoPrivate`                                                                         | `recipe-core/src/recipeAccessPolicy.ts`                    |
-| Clone endpoint `POST /v1/recipes/{id}/clone`                                                       | `src/recipes/recipes.controller.ts` + `recipes.service.ts` |
+| Clone endpoint `POST /api/v1/recipes/{id}/clone`                                                   | `src/recipes/recipes.controller.ts` + `recipes.service.ts` |
 | Error envelope `{code,message,details?}` + `RecipeErrorCode` → HTTP map                            | `src/common/filters/api-exception.filter.ts`               |
 | Typed domain errors (`Object.setPrototypeOf` + `is*` guard)                                        | `src/recipes/recipe.error.ts`                              |
 | Per-user rate limiting                                                                             | `src/common/throttle/` (`@nestjs/throttler`)               |
@@ -57,6 +57,14 @@ These were **not** identified in the previous analysis and they reshape the whol
 | `recipes.id` is `uuid`; `owner_id` is the **app ULID**                         | `principal.userId` is the ULID, never the Clerk `sub`         |
 | No unique index on `source_url` today                                          | Dedup needs a new partial unique index, not a new column      |
 | Latest migration is `0018`                                                     | 004 starts at `0019`                                          |
+
+## API path shape after ADR-0011
+
+Every shipped controller now declares **both** paths, canonical first — e.g.
+`@Controller(['api/v1/recipes', 'v1/recipes'])`. `/api/{version}/*` is canonical; the bare `/{version}/*` is a
+**deprecated alias kept deliberately** for consumers outside this repo (the Clerk-registered webhook, shipped
+mobile builds with baked-in endpoints, cross-service erasure calls). `/health` stays unprefixed at the root.
+004 uses the canonical form only, and must not remove the alias.
 
 ## Conventions 004 must follow
 

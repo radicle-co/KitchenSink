@@ -56,7 +56,7 @@ is shown**, and never auto-approves.
 | F-011 | LOW    | peer-review/system-test   | Third-party sources are faked; the corpus is a static snapshot     | Compensating control is the D-009 refresh cadence.                                                                                |
 | F-012 | LOW    | peer-review/integration   | Two vendors faked even at the integration tier                     | Pinning contract tests catch shape drift, not semantic drift.                                                                     |
 | F-013 | LOW    | plan                      | D-015 prefix migration is scoped but **not done**                  | Three deployed services, two clients, both apps, ALB rules. Own change.                                                           |
-| F-014 | LOW    | plan                      | 004 requires an additive change to shipped 001 code (T-029)        | Called out in the spec as a cross-feature dependency; `POST /v1/recipes` behaviour unchanged.                                     |
+| F-014 | LOW    | plan                      | 004 requires an additive change to shipped 001 code (T-029)        | Called out in the spec as a cross-feature dependency; `POST /api/v1/recipes` behaviour unchanged.                                 |
 
 ## Resolved findings (14)
 

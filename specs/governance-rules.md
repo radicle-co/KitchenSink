@@ -107,16 +107,22 @@ Superseded the 2026-05-10 entry.
   unprefixed are third-party URLs the platform does not own (Instacart's `/idp/api/v1/products/*`).
 - **`docs/api-conventions.md` now exists**, authored under feature 005. AC-002-d is satisfied.
 - **Feature 005: conformant** — adopts `app.setGlobalPrefix('api/v1', { exclude: ['health'] })`.
-- ⚠️ **Open conflict — features 004 and 006 diverge, and so does every shipped service.** Both 004 and
-  006 were reconciled against shipped `main` and use bare `/v1/*`; 006's `review.md` records an explicit
-  ruling (PRF-006-16) settling on "the platform's plain-segment convention, `POST /v1/recipes/nutrition-batch`",
-  taken as owner of the recipe service. The four shipped services (`identity-service`, `food-service`,
-  `recipe-service`, `identity-webhooks`) all serve `v1/*` today. This rule is therefore **aspirational for
-  shipped code** and requires either a migration or an amendment.
-  **Owner ruling (2026-08-02): GR-002 stands; 007–014 were normalized to it.** The 004/006 divergence is
-  recorded here as an open portfolio conflict for Director-of-Product resolution — it is **not** resolved by
-  this sweep. Migration surface is enumerated in `docs/api-conventions.md` §6 (that file lands with feature 005);
-  its highest-risk step is Playwright's `page.route('**/v1/**')` globs, which fail silently rather than loudly.
+- **Features 004 and 006: being corrected.** Both were reconciled against shipped `main` and still carry
+  bare `/v1/*`; both will be updated to `/api/v1/*` in their own branches (owner direction, 2026-08-02).
+  006's `review.md` closes PRF-006-16 on "the platform's plain-segment convention,
+  `POST /v1/recipes/nutrition-batch`" — **that finding is superseded.** Its stated rationale also
+  misattributed ownership: a feature spec does not own a service. The recipe service is owned by the
+  repository owner, not by feature 006, so PRF-006-16 was never an ownership-backed exemption from a
+  portfolio rule.
+- **Shipped services: migration in progress.** `identity-service`, `food-service`, `recipe-service`, and
+  `identity-webhooks` serve `v1/*` today; `main` is being migrated to `/api/v1/*` under separate work
+  (owner direction, 2026-08-02). Until that lands, this rule is **aspirational for shipped code and
+  binding for specs**. Migration surface is enumerated in `docs/api-conventions.md` §6 (that file lands
+  with feature 005); its highest-risk step is Playwright's `page.route('**/v1/**')` globs, which fail
+  silently rather than loudly.
+
+**Disposition: `/api/v1/*` is the portfolio-wide target with no standing exceptions.** Every feature spec
+and every shipped service converges on it. No feature holds an exemption.
 
 ---
 
@@ -155,8 +161,8 @@ forms such as `001 FR-045`.
 were qualified (61 in 010's gating tables and v-model, 2 in 007). Verified mechanically: for every feature,
 zero bare `FR-NNN` references remain that fall outside that feature's own defined set.
 
-**Numbering is deliberately NOT 1-based per feature.** This rule requires *locality* and *qualified
-cross-references*; it does not mandate a starting number. Features carry overlapping ranges by design —
+**Numbering is deliberately NOT 1-based per feature.** This rule requires _locality_ and _qualified
+cross-references_; it does not mandate a starting number. Features carry overlapping ranges by design —
 001 owns FR-001…046, 004 FR-008…028, 005 FR-015…022, 006 FR-022…041, 007 FR-028…033, 008 FR-032…035,
 009 FR-036…039, 010 FR-040…043, while 003, 011, 012, 013, and 014 number from 001. Numeric collision across
 features is therefore expected and accepted (004's `verify-report.md` records it as INFO I-002, "mitigated
@@ -192,13 +198,13 @@ Database column names that reference another feature's primary key **MUST** use 
 
 **Canonical decisions**:
 
-| Concept              | Canonical column name                  | Owner                    |
-| -------------------- | -------------------------------------- | ------------------------ |
-| USDA food identifier | `fdc_id`                               | 003-usda-food-data       |
-| Meal plan reference  | `meal_plan_id`                         | 006-meal-planning        |
+| Concept              | Canonical column name                  | Owner                  |
+| -------------------- | -------------------------------------- | ---------------------- |
+| USDA food identifier | `fdc_id`                               | 003-usda-food-data     |
+| Meal plan reference  | `meal_plan_id`                         | 006-meal-planning      |
 | Recipe reference     | `recipe_id`                            | 001-commise-recipe-app |
-| User reference       | `user_id`                              | 002-user-auth      |
-| Subscription tier    | `plan` (values: `'free'`, `'premium'`) | 010-subscriptions        |
+| User reference       | `user_id`                              | 002-user-auth          |
+| Subscription tier    | `plan` (values: `'free'`, `'premium'`) | 010-subscriptions      |
 
 **Table naming**:
 
@@ -409,7 +415,7 @@ call, not a sweep's.
   does not contemplate at all, `@commise/{name}` (`web`, `mobile`, `ui`, `i18n`, `features-recipes`,
   `features-account`, `features-core`).
 - Conforming would mean renaming 26 published workspace packages and every import of them.
-- **What the 2026-08-02 sweep did**: corrected features 007–014 to the *shipped* names, and to the
+- **What the 2026-08-02 sweep did**: corrected features 007–014 to the _shipped_ names, and to the
   `@kitchensink/{domain}-service` / `@kitchensink/{domain}-workers` / `@commise/features-{domain}` forms
   that feature 005 uses for new packages. It did **not** rewrite this rule.
 - **Decision needed**: either amend GR-009 to describe the two real scopes, or schedule a rename. Until

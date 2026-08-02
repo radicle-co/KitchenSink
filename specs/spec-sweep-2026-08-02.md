@@ -11,12 +11,12 @@ cross-feature governance documents that govern them.
 
 ## 1. Owner rulings applied
 
-| #   | Question                                                              | Ruling                                                                                                           |
-| --- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 1   | Shipped code serves `/v1/*`; GR-002 mandates `/api/v1/*`. Which wins? | **GR-002 wins.** 007–014 normalized to `/api/v1/*`; the 004/006/shipped divergence recorded as an open conflict. |
-| 2   | Renumber FRs to 1-based, or keep numbers and qualify cross-refs?      | **Keep numbers, qualify cross-refs** — matches the 004/005/006 precedent.                                        |
-| 3   | How far does the sweep reach?                                         | **007–014 plus the cross-feature governance docs.**                                                              |
-| 4   | 013 had no FRs; 012/010 cited undefined ones. Author them?            | **Reconstruct from downstream artifacts, marked DRAFT.** In practice nothing had to be invented — see §3.        |
+| #   | Question                                                              | Ruling                                                                                                                                                   |
+| --- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Shipped code serves `/v1/*`; GR-002 mandates `/api/v1/*`. Which wins? | **GR-002 wins, portfolio-wide, no exceptions.** 007–014 normalized here; 004 and 006 correcting in their own branches; `main` being migrated separately. |
+| 2   | Renumber FRs to 1-based, or keep numbers and qualify cross-refs?      | **Keep numbers, qualify cross-refs** — matches the 004/005/006 precedent.                                                                                |
+| 3   | How far does the sweep reach?                                         | **007–014 plus the cross-feature governance docs.**                                                                                                      |
+| 4   | 013 had no FRs; 012/010 cited undefined ones. Author them?            | **Reconstruct from downstream artifacts, marked DRAFT.** In practice nothing had to be invented — see §3.                                                |
 
 ---
 
@@ -60,12 +60,21 @@ Recorded because the first pass over-reported these, and the record should be ac
 
 ---
 
-## 4. Open items — deliberately NOT resolved here
+## 4. Open items and hand-offs
 
-1. ⚠️ **API prefix conflict (portfolio-level).** `007`–`014` and `005` now use `/api/v1/*`. Features `004`
-   and `006` use `/v1/*`, as do all four shipped services — and 006's `review.md` records an explicit
-   owner-of-the-recipe-service ruling (PRF-006-16) for the plain-segment form. **Needs a Director-of-Product
-   decision**: migrate the shipped services, or amend GR-002. Migration surface: `docs/api-conventions.md` §6.
+1. ✅ **API prefix — RESOLVED 2026-08-02, no longer open.** `/api/v1/*` is the portfolio-wide target with
+   no standing exceptions. `007`–`014` (this PR) and `005` are conformant; `004` and `006` are correcting
+   their docs in their own branches; shipped `main` is being migrated under separate work. All owner
+   direction, 2026-08-02.
+
+    Two corrections to how this sweep originally framed it:
+
+    - It was recorded as an **open conflict needing a Director-of-Product decision**. It is not open — the
+      direction is settled and every branch converges.
+    - It cited 006's PRF-006-16 as an **owner-of-the-recipe-service** ruling for the plain-segment form.
+      That attribution was wrong: **a feature spec does not own a service.** The recipe service is owned by
+      the repository owner, not by feature 006, so PRF-006-16 was never an ownership-backed exemption from a
+      portfolio rule — it is simply superseded.
 
 2. ⚠️ **`cross-feature-FR-index.md` not updated — hand-off.** Both the `005` and `006` worktrees hold
    uncommitted edits to this file. Editing it here would have caused a three-way conflict. Rows to register

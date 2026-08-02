@@ -1,3 +1,12 @@
+/* Brand typography. MUST be the FIRST line of this file — above the `@commise/ui/theme.css` import, not
+   merely above the `@source` rules.
+   CSS drops any `@import` that follows another rule, and `theme.css` is INLINED here: it carries its own
+   `@import "tailwindcss"` plus a `@theme { … }` block, so anything after it is "after a rule" and gets
+   discarded. Sitting below the `@source` rules is how this shipped a production bundle with no webfonts at
+   all (Playfair Display silently degraded to Georgia, Inter to system-ui) — and moving it to just below the
+   theme import does NOT fix that, which a real `next build` shows and the file-shape guard alone cannot.
+   Guarded by `tests/globalsCss.test.ts`; verified by grepping `.next/static/css` after a production build. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
 @import '@commise/ui/theme.css';
 
 /* Tailwind v4 auto-scans THIS app's files but not workspace packages. The recipe UI (list, detail, form,
@@ -7,8 +16,6 @@
 /* The shared design-system components (e.g. @commise/ui/button) carry their own utility classes — scan
    their source too, or the Button's tier/surface classes are never generated. */
 @source "../../../ui/src/**/*.{ts,tsx}";
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
 
 @layer base {
     body {

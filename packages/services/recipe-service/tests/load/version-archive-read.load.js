@@ -11,7 +11,7 @@
 // only import k6's built-in modules — see lib/common.js's docstring — and this fixture needs direct
 // Postgres + S3 access). It is idempotent (fixed ids) and seeds the recipe this script's
 // ARCHIVE_FIXTURE_RECIPE_ID (lib/common.js) addresses; mirrors
-// tests/e2e/version-archive-fallback.e2e.spec.ts's setup (create → prune the DB row → PUT to the S3
+// tests/e2e/version-archive-fallback.e2e.test.ts's setup (create → prune the DB row → PUT to the S3
 // archive bucket).
 //
 //   DATABASE_URL=postgres://... npx tsx tests/load/prepare-version-archive-fixture.ts

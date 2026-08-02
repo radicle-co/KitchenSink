@@ -3,7 +3,7 @@
 // Load-tests the collection pull-from-source pair: the READ-ONLY preview
 // (`POST …/pull-from-source/preview`, which computes the `{added,removed,unchanged}` diff and mutates
 // nothing) and the COMMIT (`POST …/pull-from-source`, which applies it). `setup()` seeds a SOURCE
-// collection and CLONES it (FR-011 clone semantics) — mirroring tests/e2e/pull-from-source.e2e.spec.ts's
+// collection and CLONES it (FR-011 clone semantics) — mirroring tests/e2e/pull-from-source.e2e.test.ts's
 // fixture, where a source with pending recipes the clone doesn't have yet is what preview/commit act on.
 // Each commit iteration then adds a fresh recipe to the source first, so the clone always has a genuine
 // pending update to pull rather than measuring an already-converged (empty-diff) pair.

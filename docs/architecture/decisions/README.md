@@ -28,3 +28,4 @@ Without those two layers the ADR is invisible at the moment it matters.
 - [0009 — Sign-out goes through one command that verifies the session actually ended](0009-clerk-signout-load-gate.md)
 - [0010 — Every PR preview is a complete ecosystem: the ensure-exists deploy gate](0010-ensure-exists-per-pr-deploy-gate.md)
 - [0011 — Canonical `/api/{version}/*` endpoints, bare `/{version}/*` kept as a deprecated alias](0011-api-version-prefix.md)
+- [0012 — MCP agent credential bridge: Clerk proves identity, we own the grant](0012-mcp-agent-credential-bridge.md)

@@ -110,8 +110,10 @@ phases:
     test-plan:
         state: complete
         note: >-
-            Full V-model test set authored — acceptance (13 procedures), system (13), integration (16),
-            unit (22), plus the SC-002 fixture corpus definition that made the accuracy criterion measurable.
+            Full V-model test set authored and machine-verified: 86 acceptance test cases / 86 scenarios across
+            all 63 requirements, plus system, integration and unit tiers at 100% coverage in the generated
+            traceability matrix, and the SC-002 fixture corpus definition that made the accuracy criterion
+            measurable. Counts are derived from v-model/traceability-matrix.md, not restated by hand.
         artifacts:
             - v-model/acceptance-plan.md
             - v-model/system-test.md

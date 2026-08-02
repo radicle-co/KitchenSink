@@ -12,9 +12,9 @@
 **Date**: 2026-08-02
 **Regulatory context**: Non-regulated consumer SaaS (Commise)
 
-- **253 traceability rows** across 5 matrices — **0 missing mapping cells**.
+- **236 traceability rows** across 5 matrices — **0 missing mapping cells**.
 - **61 hazards** identified; **0** with residual risk above Tolerable; **61/61** trace to an implementing task.
-- **0 of 253** mapped scenarios executed.
+- **0 of 236** mapped scenarios executed.
 
 **Compliance status**: ❌ **BLOCKED — PRE-IMPLEMENTATION**
 
@@ -36,13 +36,13 @@ gate is passed; the verification gate is not yet startable.**
 
 | Artefact            | File                     | Status                                    |
 | ------------------- | ------------------------ | ----------------------------------------- |
-| Requirements        | `requirements.md`        | ✅ Present — regenerated, 62 requirements |
+| Requirements        | `requirements.md`        | ✅ Present — regenerated, 63 requirements |
 | Acceptance Plan     | `acceptance-plan.md`     | ✅ Present — 14 procedures / 68 scenarios |
 | System Design       | `system-design.md`       | ✅ Present — 13 components                |
 | System Test         | `system-test.md`         | ✅ Present — 14 procedures / 68 scenarios |
-| Architecture Design | `architecture-design.md` | ✅ Present — 34 modules                   |
+| Architecture Design | `architecture-design.md` | ✅ Present — 36 modules                   |
 | Integration Test    | `integration-test.md`    | ✅ Present — 16 procedures / 75 scenarios |
-| Module Design       | `module-design.md`       | ✅ Present — 34 modules, four views each  |
+| Module Design       | `module-design.md`       | ✅ Present — 36 modules, four views each  |
 | Unit Test           | `unit-test.md`           | ✅ Present — 22 procedures                |
 | Hazard Analysis     | `hazard-analysis.md`     | ✅ Present — 61 hazards                   |
 | Traceability Matrix | `traceability-matrix.md` | ✅ Present — 0 missing cells              |
@@ -60,7 +60,7 @@ gate is passed; the verification gate is not yet startable.**
 | MOD modules with unit coverage                 | 34 / 34 (was 0 / 18)                                                                  |
 | Hazards traced to an implementing task         | 61 / 61                                                                               |
 | Hazards with residual risk > Tolerable         | **0**                                                                                 |
-| Executed scenarios                             | **0 / 253**                                                                           |
+| Executed scenarios                             | **0 / 236**                                                                           |
 | Test tiers planned per `CODING_STANDARDS §7.1` | unit ✅ · integration ✅ · e2e ✅ · k6 ✅ · component ✅ · Playwright ✅ · Maestro ✅ |
 | Release readiness                              | **BLOCKED — pre-implementation**                                                      |
 
@@ -107,3 +107,9 @@ implementation.
 5. Re-run the release audit at the end of implementation; the release gate is passed only when every scenario
    holds an executed result or an approved waiver, and **no waiver is permitted for ATP-012** (the
    Catastrophic-hazard procedures).
+
+---
+
+> **Counts in this document are derived from the generated `v-model/traceability-matrix.md`.**
+> That file is produced by `build-matrix.sh` from the artefacts and is the authoritative source; if a
+> number here disagrees with it, this document is stale. Regenerate rather than hand-editing.

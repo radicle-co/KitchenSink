@@ -1,19 +1,19 @@
 /**
  * HAZ-052 — e2e proof of the erasure write-lock through the fully ASSEMBLED recipe app
  * (`ThrottlerModule` + BOTH global `APP_GUARD`s in their registered order, `AuthMiddleware`,
- * `ApiExceptionFilter`, real HTTP) via `bootRecipeApp`. Mirrors `throttle.e2e.spec.ts` — another
+ * `ApiExceptionFilter`, real HTTP) via `bootRecipeApp`. Mirrors `throttle.e2e.test.ts` — another
  * cross-cutting global guard pinned at this tier — for the same reason: a guard registered as `APP_GUARD`
  * is a property of the ASSEMBLED app, not of any one controller, so the client-visible proof belongs
  * here rather than wedged into an unrelated domain's e2e spec.
  *
- * Where the integration spec (`__tests__/integration/account/erasure-lock.integration.spec.ts`) exhausts
+ * Where the integration spec (`__tests__/integration/account/erasure-lock.integration.test.ts`) exhausts
  * the guard's branches (both in-flight statuses, both terminal statuses, per-owner isolation, that
  * nothing is written), this pins only what a REAL client sees end to end: a locked write answers `423`
  * with the contract's `ERASURE_IN_PROGRESS` body, a read is untouched, and the erasure-request endpoint
  * itself keeps answering its own idempotent `202` rather than locking itself out.
  *
  * The booted app authenticates as OWNER (dev bypass). Recipes are seeded via a direct `pg` pool, matching
- * `ratings.e2e.spec.ts`. Skips cleanly when no test database is configured.
+ * `ratings.e2e.test.ts`. Skips cleanly when no test database is configured.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';

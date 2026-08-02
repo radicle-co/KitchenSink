@@ -35,7 +35,7 @@ const OWNER = '01JCOMPLETERECIPETIMING0001';
 /** ATP-NF-003-A's own budget: a complete recipe in under 5 minutes of elapsed time. */
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
-/** A REAL, decodable 1×1 PNG (base64) — see `photos/upload.integration.spec.ts` for why a genuine image is used. */
+/** A REAL, decodable 1×1 PNG (base64) — see `photos/upload.integration.test.ts` for why a genuine image is used. */
 const REAL_PNG_BYTES = new Uint8Array(
     Buffer.from(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',

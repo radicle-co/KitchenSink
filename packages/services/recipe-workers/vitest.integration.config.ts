@@ -9,7 +9,7 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
     test: {
-        include: ['**/__tests__/integration/**/*.integration.spec.ts'],
+        include: ['**/__tests__/integration/**/*.integration.test.ts'],
         exclude: ['node_modules', 'dist'],
         typecheck: { enabled: false },
         // Specs share one S3 endpoint; run serially to avoid cross-file bucket interference.

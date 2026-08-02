@@ -172,7 +172,7 @@ async function applyMigrations(pool: pg.Pool): Promise<void> {
  */
 export async function setup(): Promise<void> {
     // `DATABASE_URL` is the master switch for "the harness is expected to be up". When it is unset
-    // (e.g. a plain unit `vitest run` that happens to glob a `*.e2e.spec.ts`), skip ALL harness work —
+    // (e.g. a plain unit `vitest run` that happens to glob a `*.e2e.test.ts`), skip ALL harness work —
     // including S3 provisioning — so the run does not hang waiting for a LocalStack that isn't there.
     // The specs themselves guard with `describe.skipIf(!hasDatabaseUrl)`, so they skip in lockstep.
     if (!DATABASE_URL) {

@@ -5,7 +5,7 @@
  * recipe/collection reads are keyed on the owner while photos/versions/memberships reach the owner via an
  * INNER JOIN, and that each method returns the rows it read. That the JOINs and `owner_id` predicates
  * ACTUALLY isolate one owner's data from another's is real-Postgres semantics and belongs to the
- * integration tier (`__tests__/integration/account/account-export.integration.spec.ts`).
+ * integration tier (`__tests__/integration/account/account-export.integration.test.ts`).
  *
  * Requirement → test map:
  *

@@ -109,7 +109,7 @@ describe('CollectionsService.createCollection', () => {
 // advisory-locked transaction, closing a TOCTOU two concurrent creates could otherwise both slip through)
 // — is unit-tested against the real DAL logic in `dal/__tests__/collections.dal.test.ts`'s
 // `CollectionsDal.createIfUnderCap` suite, and proven under real concurrent Postgres transactions in
-// `__tests__/integration/collections/crud.integration.spec.ts`. Here, over a MOCKED DAL, the service is
+// `__tests__/integration/collections/crud.integration.test.ts`. Here, over a MOCKED DAL, the service is
 // pinned only on its own responsibility: delegating to `createIfUnderCap` with the right args and
 // propagating whatever it resolves/rejects with untouched.
 describe('CollectionsService.createCollection — delegates the 50-collection-per-owner cap (REQ-049b) to the DAL', () => {

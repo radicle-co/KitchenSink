@@ -31,7 +31,7 @@ import { PHOTOS_CDN, type CdnInvalidationPort } from '../../../src/photos/photos
 /** The dev-bypass owner ULID this suite creates recipes + photos as. */
 const OWNER = '01JPHOTODELETEOWNER00000AA';
 
-/** A REAL, decodable 1×1 PNG (base64) — see `upload.integration.spec.ts` for why a genuine image is used. */
+/** A REAL, decodable 1×1 PNG (base64) — see `upload.integration.test.ts` for why a genuine image is used. */
 const REAL_PNG_BYTES = new Uint8Array(
     Buffer.from(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',

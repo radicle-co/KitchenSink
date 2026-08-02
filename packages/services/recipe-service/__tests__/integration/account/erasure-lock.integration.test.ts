@@ -73,7 +73,7 @@ describe.skipIf(!hasDatabaseUrl)('ErasureLockGuard over the wire (HAZ-052 integr
         await db.delete(accountErasureJobs).where(inArray(accountErasureJobs.ownerId, [OWNER, OTHER_OWNER]));
         await db.delete(recipes).where(inArray(recipes.ownerId, [OWNER, OTHER_OWNER]));
         await db.delete(collections).where(inArray(collections.ownerId, [OWNER, OTHER_OWNER]));
-        // clone-visibility.integration.spec.ts documents why: the dev-auth bypass reads a
+        // clone-visibility.integration.test.ts documents why: the dev-auth bypass reads a
         // PROCESS-GLOBAL env var per request, so a test that authenticates as OTHER_OWNER must restore
         // the suite's primary identity afterward or leak into the next test.
         process.env['RECIPE_DEV_AUTH_USER_ID'] = OWNER;

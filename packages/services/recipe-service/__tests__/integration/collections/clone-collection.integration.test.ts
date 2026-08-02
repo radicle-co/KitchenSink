@@ -209,7 +209,7 @@ describe.skipIf(!hasDatabaseUrl)('collection clone (FR-011 integration)', () => 
  * S-R1 — atomicity of `cloneCollection`'s Unit-of-Work. Before the fix, `create` and the per-recipe
  * `addRecipe` loop were independent, auto-committed statements: a mid-seed failure left an ORPHANED
  * `collections` row with zero (or a partial set of) memberships. Instantiates the DAL/service directly
- * over a real pool (mirroring `photos/reorder.integration.spec.ts`) and spies on the DAL's bulk seed
+ * over a real pool (mirroring `photos/reorder.integration.test.ts`) and spies on the DAL's bulk seed
  * method to fail INSIDE the transaction `cloneCollection` opens, proving the created row rolls back with
  * it rather than surviving as an orphan.
  */

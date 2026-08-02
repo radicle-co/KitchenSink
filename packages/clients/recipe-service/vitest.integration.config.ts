@@ -10,7 +10,7 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
     test: {
-        include: ['src/__integration__/**/*.integration.spec.ts'],
+        include: ['src/__integration__/**/*.integration.test.ts'],
         // Each spec owns its own ephemeral server; serial keeps port/lifecycle reasoning simple.
         fileParallelism: false,
         testTimeout: 30_000,

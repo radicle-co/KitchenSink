@@ -15,7 +15,7 @@
  * This suite asserts the REAL 403 behaviour, not a 404 IDOR pattern that does not apply to this endpoint.
  *
  * The booted app authenticates as OWNER (dev bypass). OTHER's collection is seeded directly via a raw
- * pg pool (mirroring `ratings.e2e.spec.ts` / `pull-from-source.e2e.spec.ts`) — OTHER never needs their
+ * pg pool (mirroring `ratings.e2e.test.ts` / `pull-from-source.e2e.test.ts`) — OTHER never needs their
  * own authenticated session, since the ownership check is symmetric: OWNER's authenticated attempt to
  * touch OTHER's row is a full proof of the boundary. Skips cleanly without a database.
  */

@@ -241,7 +241,7 @@ describe.skipIf(!hasDatabaseUrl)('collection pull-from-source (FR-011 integratio
  * and the trailing `touchLastPulled` were independent, auto-committed statements: a failure AFTER some
  * memberships had already been inserted left them stranded while `last_pulled_at` never advanced (or vice
  * versa). Instantiates the DAL/service directly over a real pool (mirroring
- * `photos/reorder.integration.spec.ts`) and spies on `touchLastPulled` to fail INSIDE the transaction
+ * `photos/reorder.integration.test.ts`) and spies on `touchLastPulled` to fail INSIDE the transaction
  * `pullFromSource` opens AFTER the bulk seed has run, proving the seed rolls back with it.
  */
 describe.skipIf(!hasDatabaseUrl)('CollectionsService.pullFromSource atomicity (S-R1 unit-of-work)', () => {

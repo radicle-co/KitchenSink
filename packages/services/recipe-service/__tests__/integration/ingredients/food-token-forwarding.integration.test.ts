@@ -20,7 +20,7 @@
  *
  * No database is involved, so this runs with or without the Docker harness up (`tests/global-setup.ts` is a
  * no-op without `DATABASE_URL`); the DAL is the one collaborator doubled, because it is not what is under test
- * here (the DAL-and-real-SQL half of the blend is `blended-suggest.integration.spec.ts`).
+ * here (the DAL-and-real-SQL half of the blend is `blended-suggest.integration.test.ts`).
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { inspect } from 'node:util';

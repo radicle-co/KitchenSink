@@ -45,7 +45,7 @@ function makeFoodClientStub(): FoodServiceClient {
     } as unknown as FoodServiceClient;
 }
 
-/** A no-op catalog gateway — the disambiguation path never blends (see `blended-suggest.integration.spec.ts`). */
+/** A no-op catalog gateway — the disambiguation path never blends (see `blended-suggest.integration.test.ts`). */
 function makeCatalogStub(): FoodCatalogGateway {
     return { search: vi.fn().mockResolvedValue({ hits: [], availability: 'ok' }) } as unknown as FoodCatalogGateway;
 }

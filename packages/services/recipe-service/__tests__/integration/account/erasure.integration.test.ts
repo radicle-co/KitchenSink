@@ -39,7 +39,7 @@
  *
  * The worker half — the FK/cascade semantics of the erase itself, the dual-bucket S3 sweep, and the job
  * reaching `completed` — lives in `@kitchensink/recipe-workers`
- * (`__tests__/integration/erasure/account-erasure.integration.spec.ts`), because `recipe-service` does
+ * (`__tests__/integration/erasure/account-erasure.integration.test.ts`), because `recipe-service` does
  * not (and must not) depend on its own downstream consumer.
  *
  * Runs only when the harness DB is configured — otherwise skipped in lockstep with the global setup.

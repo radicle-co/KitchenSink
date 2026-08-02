@@ -2,13 +2,13 @@
  * CDN-invalidation integration coverage for the GDPR account-erasure worker (HAZ-051/067/039).
  *
  * **Why this drives the pieces directly rather than `handler`/`processRecord`.** Like the sibling
- * `s3-erasure.integration.spec.ts` and `account-erasure.integration.spec.ts`, this cannot boot the
+ * `s3-erasure.integration.test.ts` and `account-erasure.integration.test.ts`, this cannot boot the
  * handler end to end against local Postgres: the handler's own `getRecipeDb()` mints an RDS-IAM auth
  * token no local Postgres can honour. So this proves the SAME two real steps `processRecord` performs in
  * sequence, composed together against genuine backends:
  *   1. `eraseRecipeObjects` (real S3, LocalStack) actually removes every object under the owner's media
  *      prefix — re-used rather than re-asserted (the S3 sweep itself is already pinned by
- *      `s3-erasure.integration.spec.ts`); this test's own assertion is that the objects are REALLY gone.
+ *      `s3-erasure.integration.test.ts`); this test's own assertion is that the objects are REALLY gone.
  *   2. `createCloudFrontInvalidation` (the real adapter, `@aws-sdk/client-cloudfront` MOCKED — LocalStack
  *      Community has no CloudFront support, `docker-compose.test.yml`'s `SERVICES` is `s3,sqs` only)
  *      issues a `CreateInvalidationCommand` for EXACTLY `cdnOwnerPrefixInvalidationPath(ownerId)` — the

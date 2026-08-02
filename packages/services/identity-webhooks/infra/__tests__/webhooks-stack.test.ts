@@ -79,6 +79,55 @@ describe.skipIf(!distBuilt)('WebhooksStack (authoritative, consumes the consolid
         template.hasOutput('MigrationFunctionName', {});
     });
 
+    describe('custom-domain base-path mappings (the public webhook URL shape)', () => {
+        // The Clerk webhook's public path is (custom-domain base path) + (resource path `webhooks/users`).
+        // The two mappings synthesize to DIFFERENT CloudFormation types, which is a CDK/API Gateway
+        // constraint rather than a choice: `AWS::ApiGateway::BasePathMapping` rejects multi-level paths
+        // (`DomainName.addBasePathMapping` throws), so a multi-level base path such as `api/v1` must go
+        // through `addApiMapping` → `AWS::ApiGatewayV2::ApiMapping`. That is legal here because the domain
+        // is REGIONAL with a TLS 1.2 security policy; both are prerequisites AWS enforces for multi-level
+        // mappings, and both are asserted below so a future downgrade of either fails loudly here.
+
+        /** The single-level base paths mapped via `AWS::ApiGateway::BasePathMapping`. */
+        function singleLevelBasePaths(): string[] {
+            return Object.values(template.findResources('AWS::ApiGateway::BasePathMapping')).map(
+                (resource) => (resource as { Properties: { BasePath: string } }).Properties.BasePath,
+            );
+        }
+
+        /** The multi-level base paths mapped via `AWS::ApiGatewayV2::ApiMapping`. */
+        function multiLevelBasePaths(): string[] {
+            return Object.values(template.findResources('AWS::ApiGatewayV2::ApiMapping')).map(
+                (resource) => (resource as { Properties: { ApiMappingKey: string } }).Properties.ApiMappingKey,
+            );
+        }
+
+        it('serves the canonical `api/v1` base path, so the webhook is POST /api/v1/webhooks/users', () => {
+            expect(multiLevelBasePaths()).toContain('api/v1');
+        });
+
+        it('KEEPS the deprecated `v1` base path — the Clerk dashboard is configured to POST there', () => {
+            // This alias is NOT dead code and NOT tidy-uppable. The webhook endpoint URL lives in the Clerk
+            // DASHBOARD, outside this repository. Dropping `v1` would 404 every user.created/updated/deleted
+            // callback and silently stop syncing users into RDS, with no failing deploy and no alarm — the
+            // failure would only surface later as missing users. Removal REQUIRES updating the Clerk
+            // dashboard endpoint to the `api/v1` URL FIRST, then draining. See ADR-0011.
+            expect(singleLevelBasePaths()).toContain('v1');
+        });
+
+        it('maps exactly those two base paths onto the one REST API', () => {
+            expect([...multiLevelBasePaths(), ...singleLevelBasePaths()]).toHaveLength(2);
+            template.resourceCountIs('AWS::ApiGateway::RestApi', 1);
+        });
+
+        it('keeps the domain REGIONAL on TLS 1.2 — AWS requires both for a multi-level base path', () => {
+            template.hasResourceProperties('AWS::ApiGateway::DomainName', {
+                EndpointConfiguration: { Types: ['REGIONAL'] },
+                SecurityPolicy: 'TLS_1_2',
+            });
+        });
+    });
+
     it('provisions the deletion-worker, reconciliation, and migration Lambdas alongside the webhook', () => {
         // The four service Lambdas (webhook + deletion-worker + reconciliation + migration). CDK may add
         // helper functions (e.g. log-retention), so assert "at least four" rather than an exact count.

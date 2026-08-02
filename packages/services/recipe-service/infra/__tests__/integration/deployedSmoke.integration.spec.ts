@@ -28,7 +28,7 @@ import { runSmoke, type SmokeVerdict } from '../../smoke/deployedSmoke.js';
 const CLI = fileURLToPath(new URL('../../smoke/deployedSmoke.ts', import.meta.url));
 const WEB_ORIGIN = 'https://pr-73.sandbox.commise.app';
 
-/** How the stub food service should answer `GET /v1/foods/search` — swapped per test. */
+/** How the stub food service should answer `GET /api/v1/foods/search` — swapped per test. */
 type FoodBehaviour = 'unauthenticated-401' | 'alb-default-404' | 'app-404' | 'open-200' | 'erroring-503';
 
 let server: Server;
@@ -52,14 +52,14 @@ beforeAll(async () => {
             return;
         }
 
-        if (url.pathname === '/v1/recipes' && request.method === 'OPTIONS') {
+        if (url.pathname === '/api/v1/recipes' && request.method === 'OPTIONS') {
             response.writeHead(204, { ...base, 'access-control-allow-origin': WEB_ORIGIN });
             response.end();
 
             return;
         }
 
-        if (url.pathname === '/v1/foods/search') {
+        if (url.pathname === '/api/v1/foods/search') {
             lastFoodRequestHeaders = request.headers;
 
             switch (foodBehaviour) {
@@ -76,7 +76,7 @@ beforeAll(async () => {
                     return;
                 case 'app-404':
                     response.writeHead(404, { ...base, 'content-type': 'application/json; charset=utf-8' });
-                    response.end(JSON.stringify({ message: 'Cannot GET /v1/foods/search', statusCode: 404 }));
+                    response.end(JSON.stringify({ message: 'Cannot GET /api/v1/foods/search', statusCode: 404 }));
 
                     return;
                 case 'open-200':

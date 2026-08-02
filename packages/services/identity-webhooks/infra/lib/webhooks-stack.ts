@@ -546,6 +546,22 @@ export class WebhooksStack extends Stack {
             },
         });
 
+        // The webhook's public path is (custom-domain base path) + (resource path `webhooks/users`), so the
+        // version prefix is owned HERE, not by the Lambda. Two mappings point at the same stage:
+        //
+        //  - `api/v1` is CANONICAL — every HTTP endpoint in the platform is served under `/api/{version}/`,
+        //    making the webhook `POST /api/v1/webhooks/users`. A multi-level base path cannot use
+        //    `addBasePathMapping` (`AWS::ApiGateway::BasePathMapping` rejects multi-level and CDK throws);
+        //    it must go through `addApiMapping` → `AWS::ApiGatewayV2::ApiMapping`. AWS allows that only on a
+        //    REGIONAL domain with a TLS 1.2+ security policy — both set on `customDomain` above; do not
+        //    downgrade either or synth will fail.
+        //  - `v1` is a DEPRECATED ALIAS and MUST NOT be removed yet. The Clerk DASHBOARD holds the webhook
+        //    endpoint URL (`.../v1/webhooks/users`), i.e. configuration that lives OUTSIDE this repository.
+        //    Deleting this mapping would 404 every `user.created`/`user.updated`/`user.deleted` callback and
+        //    silently stop syncing users into RDS — no failed deploy, no alarm, just users going missing.
+        //    Removal REQUIRES repointing the Clerk dashboard endpoint at the `api/v1` URL FIRST and letting
+        //    in-flight retries drain. See ADR-0011.
+        customDomain.addApiMapping(api.deploymentStage, { basePath: 'api/v1' });
         customDomain.addBasePathMapping(api, { basePath: 'v1', stage: api.deploymentStage });
 
         new route53.ARecord(this, 'IdentityApiAliasRecord', {

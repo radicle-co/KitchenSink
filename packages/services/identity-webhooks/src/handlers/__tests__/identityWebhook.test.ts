@@ -413,7 +413,7 @@ describe('identity-webhook handler', () => {
         mockGetDb.mockResolvedValue(db);
 
         // Self-service state: `profiles.displayName` was overridden to "Self Service Name" via
-        // PATCH /v1/users/me, but `users.name` (the Clerk mirror) still reads Clerk's last-synced
+        // PATCH /api/v1/users/me, but `users.name` (the Clerk mirror) still reads Clerk's last-synced
         // "Clerk Name" — exactly the divergence the corrected gate must respect.
         const daoInstance = makeStatefulUserDao({
             mirrorName: 'Clerk Name',

@@ -348,7 +348,7 @@ export class FoodServiceStack extends Stack {
             FOOD_EVENT_BUS_NAME: eventBus.eventBusName,
             // Clerk session-token verification (FoodAuthGuard → verifyClerkToken). The JWT *public* key
             // and the authorized-parties allowlist are non-secret, resolved from SSM at deploy — same
-            // wiring as the identity service. Without these the guard fail-closes and every `/v1/foods/*`
+            // wiring as the identity service. Without these the guard fail-closes and every `/api/v1/foods/*`
             // request is 401. Prod reads prod params; every other stage (incl. `pr-{N}`) reads the shared
             // sandbox (dev-instance) params, matching `baseStage`.
             CLERK_JWT_KEY: ssm.StringParameter.valueForStringParameter(

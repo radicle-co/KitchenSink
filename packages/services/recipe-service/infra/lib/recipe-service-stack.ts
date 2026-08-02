@@ -276,7 +276,7 @@ export class RecipeServiceStack extends Stack {
                 `/kitchensink/${baseStage}/clerk/jwt-public-key`,
             ),
             // CR-002 / U4a — the PUBLIC EdDSA verification key for the internal service-principal erasure
-            // route (`ServiceErasureAuthService`, `POST /v1/internal/account/erasure`). Non-secret, resolved
+            // route (`ServiceErasureAuthService`, `POST /api/v1/internal/account/erasure`). Non-secret, resolved
             // from SSM at deploy (same wiring as CLERK_JWT_KEY above); the matching PRIVATE key is held only
             // by the identity deletion-worker / erasure-reconciliation Lambdas. Absent ⇒ the internal route
             // fails closed (401), never open. Per-stage keypair (a pr-{N} preview shares the sandbox key via

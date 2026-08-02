@@ -6,7 +6,7 @@
  * raw-SQL idiom the recipe-workers Lambdas use over their schema-less handle (mirroring account-erasure).
  *
  * Idempotent + out-of-order safe: an older-or-equal `source_timestamp` is a no-op, so SQS redelivery and
- * cross-route races (the Clerk `user.updated` webhook AND identity's `PATCH /v1/users/me` both publish)
+ * cross-route races (the Clerk `user.updated` webhook AND identity's `PATCH /api/v1/users/me` both publish)
  * converge to the actual latest name. A record that fails is reported via `batchItemFailures` so SQS retries
  * ONLY it, never the whole batch.
  *

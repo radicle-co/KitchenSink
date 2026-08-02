@@ -103,7 +103,7 @@ export class IdentityServiceStack extends Stack {
             Fn.importValue(`kitchensink-data-${stage}:DeletionQueueArn`),
         );
 
-        // The global handle-sync topic (W8-a.2): identity publishes a rename here on PATCH /v1/users/me.
+        // The global handle-sync topic (W8-a.2): identity publishes a rename here on PATCH /api/v1/users/me.
         const handleSyncTopic = sns.Topic.fromTopicArn(
             this,
             'ImportedHandleSyncTopic',

@@ -43,7 +43,10 @@ describe('runErasureFanout', () => {
         const calls: Array<{ url: string; auth: string }> = [];
         const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
             const u = String(url);
-            calls.push({ url: u, auth: String((init?.headers as Record<string, string>)['Authorization']) });
+            // `init?.headers` short-circuiting to undefined would make the index access throw a TypeError
+            // instead of recording the call, so default it before indexing (oxlint no-unsafe-optional-chaining).
+            const headers = (init?.headers ?? {}) as Record<string, string>;
+            calls.push({ url: u, auth: String(headers['Authorization']) });
 
             return u.includes('recipe')
                 ? jsonResponse(202, { jobId: 'job_1', status: 'queued', triggerSource: 'service' })
@@ -53,8 +56,8 @@ describe('runErasureFanout', () => {
         const result = await runErasureFanout(TARGET, config(), { fetchImpl });
 
         // Ordering: recipe before food (R9 — job exists before the echo).
-        expect(calls[0]!.url).toBe('https://recipe.example.test/v1/internal/account/erasure');
-        expect(calls[1]!.url).toBe('https://food.example.test/v1/internal/account/erasure');
+        expect(calls[0]!.url).toBe('https://recipe.example.test/api/v1/internal/account/erasure');
+        expect(calls[1]!.url).toBe('https://food.example.test/api/v1/internal/account/erasure');
 
         // Audience binding: the recipe leg's token pins the recipe audience, the food leg's the food one.
         const recipeToken = calls[0]!.auth.replace('Bearer ', '');

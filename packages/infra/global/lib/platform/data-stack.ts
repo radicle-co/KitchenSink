@@ -36,7 +36,7 @@ export class DataStack extends Stack {
     public readonly deletionQueue: sqs.Queue;
     /**
      * The handle-sync SNS topic (W8-a.2 / decision 6). Owned by GLOBAL infra (never swept by per-PR
-     * cleanup): the identity service (`PATCH /v1/users/me`) and the Clerk `user.updated` webhook both
+     * cleanup): the identity service (`PATCH /api/v1/users/me`) and the Clerk `user.updated` webhook both
      * publish `{ userId, displayName, sourceTimestamp }` here, and each recipe-workers deployment subscribes
      * its OWN per-stack SQS queue — SNS fan-out, not one shared queue (which would deliver each rename to
      * exactly one of N preview consumers). Its ARN is exported for the producer + subscriber stacks.

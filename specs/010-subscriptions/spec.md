@@ -53,6 +53,22 @@ New users start on a free tier that provides core functionality: creating, viewi
 - **FR-041**: System MUST provide a premium tier that unlocks: private recipe visibility, AI recipe generation, AI meal suggestions, auto-generated meal plans, food waste optimization, AI instruction optimization, online grocery ordering, and trainer nutrition planning. Premium is available at **$6.99/month** or **$59.99/year** (annual saves ~29%). New subscribers receive a **14-day free trial** before the first charge.
 - **FR-042**: System MUST gate premium features with clear upgrade prompts that preview the feature value for free-tier users. Prompts follow a three-tier hierarchy: (1) contextual inline teaser at the feature entry point, (2) modal/bottom-sheet on active invocation, (3) pricing page accessible from any CTA and from account settings.
 - **FR-043**: System MUST retain all user data and non-premium functionality if a premium subscription lapses. Existing private recipes remain private after downgrade; the lapsed user cannot create new private recipes until they renew. A **7-day grace period** applies after a failed payment before premium access is removed.
+- **FR-044**: System MUST make a user's subscription tier readable by **every** service, not only the identity service, by publishing it into the Clerk session token as a signed claim (`public_metadata`), using the same mechanism that already carries admin `scopes`/`permissions`. The claim MUST be refreshed when the tier changes, and every consumer MUST **fail closed** — treat an absent or unreadable claim as `free`, never as premium. _(**DRAFT**, added 2026-08-02.)_
+
+    **Why this is a requirement and not an implementation note.** `accounts.subscription_tier` already ships
+    (`text`, `notNull`, default `'free'`, with an `updateSubscriptionTier` DAO method), but it is **not** a
+    token claim: `@kitchensink/clerk-verify` reads only `scopes` and `permissions` from signed
+    `public_metadata`, and the sole cross-service account endpoint (`/api/v1/internal/account`) is
+    **erasure-only**. So identity can gate on tier today and **no other service can**. Without this,
+    `@RequirePremium()` is enforceable only inside the identity service, which is not where most gated
+    features live.
+
+    **What it unblocks** — all entitlement gating, none of which needs marketplace payments:
+    `012-FR-034`, `012-FR-035`, `012-FR-039` (premium recipe visibility); `013` course access control; and
+    the three rows feature 006 deferred (`006-FR-025`, `006-FR-026`, `006-FR-027`), which were parked
+    citing exactly this missing mechanism. **Staleness is the design question to settle**: a signed claim
+    is only as fresh as the token, so define the maximum tolerated lag between a tier change and enforcement,
+    and whether downgrade requires forced token refresh or revocation.
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -78,17 +94,22 @@ New users start on a free tier that provides core functionality: creating, viewi
 - **Family plan is out of scope for v1.** Family/household multi-seat subscriptions are a future consideration only. No FR, no architecture, and no task covers family plans in this release. A dedicated spec change is required before any family-plan work begins.
 - **Web is the primary billing surface.** Stripe Checkout and the Stripe Customer Portal are web-only. Mobile users see upgrade prompts and are deep-linked to the web checkout URL. Native in-app purchase (App Store / Play Store IAP) is out of scope for v1.
 - Imported, attributed recipes are always public regardless of subscription tier, in compliance with source Terms of Service.
-- **Marketplace payments are out of scope for v1 — and two features already depend on them.** 010 is
-  **subscriber-tier billing only**: a free/premium tier on Stripe Checkout + Customer Portal (`FR-040` …
-  `FR-043`). It has no one-time payments, no per-item purchases, no creator-defined subscription tiers, no
-  revenue splitting, and no payouts.
-  **Unmet downstream assumptions** (surfaced by the 2026-08-02 spec sweep):
-    - `012-creator-profiles` `012-FR-031` … `012-FR-040` (DRAFT) — tip jar, premium recipes, paid follows, all
-      stated as "010 owns the paywall and revenue split".
-    - `013-cooking-school` `013-FR-010` — "Revenue share: platform 20%, educator 80% (pro tier: 15%/85%
-      via 010)", with course purchases "disbursed via 010's payout model".
+- **Marketplace payments are out of scope for v1 — but entitlement gating is NOT.** Keep these separate;
+  conflating them over-blocks downstream work.
+    - **In scope / available**: gating any feature on the caller's subscription tier. `FR-040` … `FR-044`
+      cover it, and `FR-044` is what makes it enforceable outside the identity service.
+    - **Out of scope**: anything that moves money **to a creator** — one-time payments (tips), per-item
+      purchases, creator-defined subscription tiers, revenue splitting, and payouts.
 
-    Neither is satisfiable today. Marketplace payments need their own spec — in 010 or a dedicated payments
-    feature — including the money-transmission and tax posture that splitting third-party revenue implies
-    (e.g. Stripe Connect, 1099 reporting). **Do not plan 012 monetization or 013 revenue share against 010
-    as it stands.**
+    **Downstream requirements that depend on the deferred half**, surfaced by the 2026-08-02 spec sweep:
+    - `012-creator-profiles` `012-FR-031`–`033`, `012-FR-036`–`038`, `012-FR-040` (DRAFT) — tip jar,
+      purchased access, creator-priced follow tiers, earnings surface.
+    - `013-cooking-school` `013-FR-010` — "Revenue share: platform 20%, educator 80% (pro tier: 15%/85%
+      via 010)", with course revenue "disbursed via 010's payout model".
+
+    Their **gating-only** siblings (`012-FR-034`, `012-FR-035`, `012-FR-039`, and 013 course access control)
+    are **not** blocked by this — they need only `FR-044`.
+
+    Marketplace payments need their own spec — in 010 or a dedicated payments feature — including the
+    money-transmission and tax posture that splitting third-party revenue implies (e.g. Stripe Connect, 1099
+    reporting). **Do not plan creator compensation against 010 as it stands.**

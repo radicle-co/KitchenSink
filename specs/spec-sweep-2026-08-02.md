@@ -117,25 +117,43 @@ match.
 Either it is mis-scoped or it is a deliberate exception — unresolved here because renaming a published
 package is a code change, not a spec change.
 
-### 4.4 ✅ `012` monetization — enumerated, and it exposed a blocker
+### 4.4 ✅ `012` monetization — enumerated and scoped by dependency
 
-`012-FR-031` … `012-FR-040` authored as **DRAFT**: tip jar (031–033), premium recipes (034–036), paid
-follows (037–039), earnings surface (040).
+`012-FR-031` … `012-FR-040` authored as **DRAFT**, then split by what each actually depends on. The dividing
+line is **not** creator-gating vs platform-gating — it is **whether money reaches a creator.**
 
-⚠️ **BLOCKER — the capability they depend on is not specified anywhere.** 012 states that "010 owns the
-paywall and revenue split". **It does not.** Feature 010's entire functional scope is `010-FR-040` …
-`010-FR-043`: a free/premium **subscriber** tier on Stripe Checkout + Customer Portal, upgrade prompts, and
-downgrade retention. There is no one-time payment, per-item purchase, creator-defined tier, revenue split,
-or payout surface — its Out-of-Scope section rules out even multi-seat family plans.
+|                          | Requirements                                                        | Depends on           | Status                                                         |
+| ------------------------ | ------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------- |
+| **Entitlement gating**   | `012-FR-034`, `012-FR-035`, `012-FR-039`; 013 course access control | `010-FR-044`         | **Available once `010-FR-044` ships** — no merchant capability |
+| **Creator compensation** | `012-FR-031`–`033`, `012-FR-036`–`038`, `012-FR-040`; `013-FR-010`  | Marketplace payments | **Blocked**                                                    |
 
-**`013` carries the identical unmet dependency**: `013-FR-010` specifies a 20%/80% platform/educator
-revenue share "via 010", with course revenue "disbursed via 010's payout model".
+**New: `010-FR-044` (DRAFT)** — publish the subscription tier into the Clerk session token as a signed
+`public_metadata` claim, the same mechanism admin `scopes`/`permissions` already use, refreshed on tier
+change, consumers failing closed.
 
-Per FR-index Review Rule 3, this is recorded as a **capability-level dependency** rather than resolved by
-inventing an FR in 010's namespace. Marketplace payments need their own spec — in 010 or a dedicated
-payments feature — including the money-transmission and tax posture that splitting third-party revenue
-implies (Stripe Connect, 1099 reporting). Recorded in `010/spec.md` Out of Scope, `013/spec.md` FR-010, and
-`v1-launch-plan.md` at both `M6` and `M7`.
+Why it is needed: `accounts.subscription_tier` already ships (`text`, `notNull`, default `'free'`, with an
+`updateSubscriptionTier` DAO method), but it is **not** a token claim — `@kitchensink/clerk-verify` reads
+only `scopes` and `permissions` from signed `public_metadata`, and the sole cross-service account endpoint
+(`/api/v1/internal/account`) is **erasure-only**. So identity can gate on tier today and **no other service
+can**, which is where most gated features live.
+
+It also **unblocks the three rows feature 006 deferred** (`006-FR-025`–`027`), which were parked citing
+exactly this missing mechanism. Their other blocker (005's AI provider surface) is unaffected, and flipping
+those rows is 006's call, not this sweep's.
+
+**Recorded product decision, awaiting ratification**: in the entitlement-gated model, _"premium recipe"
+means visible to platform-premium subscribers, not purchasable from this creator._ That ships with no
+merchant work and **pays the creator nothing**. Different product from the deferred half — a deliberate
+choice, not a technical shortcut.
+
+**Still blocked**: marketplace payments need their own spec — in 010 or a dedicated payments feature —
+including the money-transmission and tax posture that splitting third-party revenue implies (Stripe Connect,
+1099 reporting). Recorded in `010/spec.md` Out of Scope, `012/spec.md`, `013/spec.md` FR-010, and
+`v1-launch-plan.md` at `M6` and `M7`.
+
+**Open design question on `010-FR-044`**: a signed claim is only as fresh as the token. The maximum tolerated
+lag between a tier change and enforcement — and whether downgrade forces token refresh or revocation — is
+unspecified and must be settled when 010 is planned.
 
 ### 4.5 ✅ `docs/api-conventions.md` — not needed here
 

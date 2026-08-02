@@ -225,7 +225,8 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 - Burn down `010/verify-report.md`: 1 critical / 6 warning → 0 / 0. Close 127 untested + 36 missing trace refs.
 - Confirm subscription gating mechanism per [GR-012](./governance-rules.md#gr-012-subscription-gating-mechanism).
-- **Decide the marketplace-payments question.** 012 (`FR-031`…`FR-040`, DRAFT) and 013 (`013-FR-010`) both depend on one-time payments, per-item purchases, creator subscription tiers, revenue splitting, and payouts that 010 does not specify. Either bring them into 010's scope here or stand up a dedicated payments feature; `M7` is blocked on the answer.
+- **Ship `010-FR-044` — the subscription tier as a signed token claim.** Without it `@RequirePremium()` is enforceable only inside the identity service. It needs no merchant capability, and it unblocks all entitlement gating: `012-FR-034`/`035`/`039`, 013 course access control, and the three rows 006 deferred (`006-FR-025`–`027`).
+- **Decide the marketplace-payments question.** This is the _compensation_ half only — anything that moves money **to a creator**: tips (`012-FR-031`–`033`), purchased access (`012-FR-036`), creator-priced tiers (`012-FR-037`–`038`), earnings (`012-FR-040`), and `013-FR-010`'s 20%/80% share. Either bring it into 010's scope here or stand up a dedicated payments feature; `M7` monetization is blocked on the answer, but `M7` _gating_ is not.
 - V-Model regen + test execution.
 - Add a payments-compliance review: PCI scope assessment, SCA support, refund / cancel / dunning flows tested against sandbox cards on web and mobile (incl. App Store / Play Store IAP if applicable).
 
@@ -258,7 +259,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
     - Close 102 untested + 32 missing trace refs.
     - Integrate creator monetization tier with `010` subscription gating.
     - ~~**Author FRs for the monetization surface.**~~ Done 2026-08-02 — `012-FR-031` … `012-FR-040` (tip jar, premium recipes, paid follows, earnings surface) authored as **DRAFT**.
-    - ⚠️ **BLOCKER — marketplace payments are unspecified.** Authoring those FRs surfaced that 010 provides **none** of the capabilities 012 assumes: 010 is subscriber-tier billing only (`010-FR-040`…`043`, Stripe Checkout + Customer Portal) with no one-time payments, per-item purchases, creator tiers, revenue splitting, or payouts. `013-FR-010` (20%/80% revenue share "via 010") has the **same** unmet dependency. Marketplace payments need their own spec — in 010 or a dedicated payments feature — including the money-transmission and tax posture that splitting third-party revenue implies. **`M7` cannot exit, and 012 monetization / 013 revenue share cannot be planned, until this is resolved.**
+    - ⚠️ **Marketplace payments are unspecified — this blocks creator COMPENSATION, not gating.** 010 provides no one-time payments, per-item purchases, creator-defined tiers, revenue splitting, or payouts (its scope is `010-FR-040`…`044`). Blocked: `012-FR-031`–`033`, `012-FR-036`–`038`, `012-FR-040`, and `013-FR-010`. **Not blocked**: `012-FR-034`/`035`/`039` and 013 course access control, which need only `010-FR-044`. Marketplace payments need their own spec, including the money-transmission and tax posture that splitting third-party revenue implies.
 - **`013`**:
     - ~~Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md`~~ — **all four now exist** (verified 2026-08-02); the 2026-05-12 claim that none existed is stale.
     - Burn down findings to `0 CRITICAL, 0 WARNING`.

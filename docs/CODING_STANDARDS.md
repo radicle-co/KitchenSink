@@ -4,7 +4,11 @@ Tactical conventions for the KitchenSink monorepo. This document is the authorit
 reference for day-to-day coding decisions. The [Constitution](../.specify/memory/constitution.md)
 defines immutable principles; this document translates them into enforceable rules.
 
-**Version**: 1.2.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-05-10
+**Version**: 1.3.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-02
+
+> **1.3.0** — corrected §1a/§1b test-file rows, rewrote §7 Test File Location against the actual
+> repo layout (both regimes, the reserved `.spec` suffix, Maestro/k6 homes, known non-conformance),
+> and corrected §4 Extensions, which prescribed a relative-import extension the compiler rejects.
 
 ---
 
@@ -22,27 +26,32 @@ for **every** file (services, controllers, filters, guards, decorators, modules,
 domain/utility modules) — regardless of whether the file exports a class. This is the framework-idiomatic
 convention the entire backend uses (e.g. `recipes.service.ts` exports `RecipesService`).
 
-| Context                    | Convention                       | Example                                              |
-| -------------------------- | -------------------------------- | ---------------------------------------------------- |
-| Provider / injectable      | `<name>.<role>.ts` (kebab)       | `recipes.service.ts`, `clerk-auth.service.ts`, `api-exception.filter.ts` |
-| Domain / utility module    | kebab-case `.ts`                 | `recipe-visibility.ts`, `pool-config.ts`             |
-| Unit test                  | `<source>.test.ts`               | `recipes.service.test.ts`                            |
-| Integration test           | `<source>.integration.spec.ts`   | `crud.integration.spec.ts` (**`.spec`** — wired into the vitest integration config) |
-| E2E test                   | `<source>.e2e.spec.ts`           | `health.e2e.spec.ts`                                 |
+| Context                 | Convention                               | Example                                                                  |
+| ----------------------- | ---------------------------------------- | ------------------------------------------------------------------------ |
+| Provider / injectable   | `<name>.<role>.ts` (kebab)               | `recipes.service.ts`, `clerk-auth.service.ts`, `api-exception.filter.ts` |
+| Domain / utility module | kebab-case `.ts`                         | `recipe-visibility.ts`, `pool-config.ts`                                 |
+| Unit test               | `<source>.test.ts` in `__tests__/`       | `recipes.service.test.ts`                                                |
+| Integration test        | `<name>.integration.test.ts` in `tests/` | `create-user-flow.integration.test.ts`                                   |
+| E2E test                | `<name>.e2e.test.ts` in `tests/e2e/`     | `users-validation.e2e.test.ts`                                           |
+
+Directories and the reason `.test` (not `.spec`) is the vitest suffix are in
+[§7 Test File Location](#test-file-location). Integration and E2E tests are wired into their own
+vitest configs and MUST NOT run in the default `test` task.
 
 ### 1b. Frontend & shared libraries (`packages/apps/*`, `packages/shared/*`, `packages/clients/*`, `packages/utils/*`)
 
 Kebab is **not** allowed here — use camelCase for modules, PascalCase for a file that exports a React
 component or a class (name matching the export).
 
-| Context                            | Convention                    | Example                                         |
-| ---------------------------------- | ----------------------------- | ----------------------------------------------- |
-| Module / util / hook / type / const| `camelCase.ts`                | `authState.ts`, `useUserProfile.ts`, `apiClient.ts` |
-| React component                    | `PascalCase.tsx`              | `RecipeCard.tsx`, `AccountStateGate.tsx`        |
-| Non-component class                | `PascalCase.ts`               | `RecipeRepository.ts`                            |
-| Mobile (Expo/RN) variant           | `<source>.native.ts(x)`       | `RecipeCard.native.tsx`, `storage.native.ts`    |
-| Unit test                          | `<source>.test.ts(x)`         | `authState.test.ts`, `RecipeCard.test.tsx`      |
-| E2E (Playwright)                   | `<feature>.spec.ts`           | `signIn.spec.ts`                                |
+| Context                             | Convention                                                  | Example                                             |
+| ----------------------------------- | ----------------------------------------------------------- | --------------------------------------------------- |
+| Module / util / hook / type / const | `camelCase.ts`                                              | `authState.ts`, `useUserProfile.ts`, `apiClient.ts` |
+| React component                     | `PascalCase.tsx`                                            | `RecipeCard.tsx`, `AccountStateGate.tsx`            |
+| Non-component class                 | `PascalCase.ts`                                             | `RecipeRepository.ts`                               |
+| Mobile (Expo/RN) variant            | `<source>.native.ts(x)`                                     | `RecipeCard.native.tsx`, `storage.native.ts`        |
+| Unit / component test               | `<source>.test.ts(x)`                                       | `authState.test.ts`, `RecipeCard.test.tsx`          |
+| Integration test                    | `<name>.integration.test.ts(x)` in `tests/__integration__/` | `tailwindTheme.integration.test.ts`                 |
+| E2E (Playwright)                    | `<feature>.spec.ts` in `tests/e2e/`                         | `signIn.spec.ts`                                    |
 
 **Framework-mandated exceptions (allowed, not renameable):** Next.js special files
 (`page.tsx`, `layout.tsx`, `route.ts`, `not-found.tsx`, `global-error.tsx`, `middleware.ts`,
@@ -189,21 +198,37 @@ Blank line between groups. No other grouping required.
 
 ### Extensions
 
-- Aliased imports: `.js` / `.jsx` extensions
-- Relative imports: `.ts` / `.tsx` extensions
+The extension follows the package's `moduleResolution`, which is not a matter of taste — the compiler
+rejects the alternative.
+
+| Regime                                                                                                | Aliased imports | Relative imports |
+| ----------------------------------------------------------------------------------------------------- | --------------- | ---------------- |
+| `NodeNext` — backend services, clients, shared libs (the `@kitchensink/typescript/base.json` default) | `.js` / `.jsx`  | `.js` / `.jsx`   |
+| `bundler` — `@commise/web` (Next.js)                                                                  | `.js` / `.jsx`  | extensionless    |
+
+**A relative import MUST NEVER end in `.ts` / `.tsx`.** Under `NodeNext` that is `error TS5097`
+("An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled"),
+which the base config does not set. There are zero first-party relative `.ts` imports in the repo, and
+653 of 653 relative imports in `recipe-service` use `.js`.
 
 ```typescript
-// Good — aliased imports with .js extension
+// Good — external, then aliased, blank line between groups
 import { describe, it, expect } from 'vitest';
-import type { Recipe } from '@kitchensink/models';
-import { RecipeService } from '@kitchensink/core';
+
+import type { Recipe } from '@kitchensink/recipe-core';
 import { makeRecipe } from '@/e2e/__fixtures__/makeRecipe.js';
 
-// Bad — relative import crossing workspace boundaries
-import type { Recipe } from '../../models/Recipe.js';
+// Good — relative import inside a NodeNext package
+import { RecipeServiceClient } from '../index.js';
 
-// Bad — .ts extension on aliased import
-import type { Recipe } from '@/models/Recipe.ts';
+// Good — relative import inside the web app (bundler resolution)
+import { RecipeCard } from './RecipeCard';
+
+// Bad — .ts on a relative import: error TS5097 under NodeNext
+import { makeRecipe } from '../__fixtures__/recipes.ts';
+
+// Bad — relative import crossing workspace boundaries (use an alias)
+import type { Recipe } from '../../../shared/recipe-core/src/index.js';
 ```
 
 ### Aliases
@@ -267,7 +292,7 @@ Two publish scopes, split by **platform vs. product**:
 - **`@kitchensink/*` — the KitchenSink _platform_.** Reusable backend + tooling: everything under `packages/{services,clients,shared,tools,infra,utils}/*`. The existing style is kept (role suffixes are fine): `@kitchensink/food-service`, `@kitchensink/food-service-client`, `@kitchensink/clerk-verify`, `@kitchensink/infra-global`, `@kitchensink/eslint`.
 - **`@commise/*` — the Commise _product_.** Everything under `packages/apps/commise/`: the apps (`@commise/web`, `@commise/mobile`, `@commise/ui`) and the feature packages under `packages/apps/commise/features/*` — `@commise/features-<name>` (e.g. `@commise/features-recipes`, `@commise/features-core`, both introduced by feature 001).
 
-**Rule of thumb: if it lives under `packages/apps/commise/`, it's `@commise/*`; otherwise it's `@kitchensink/*`.** A domain's *backend* (service/client/types) is platform, while its Commise *widget / feature UI* is product — e.g. feature 001 adds the recipe backend as `@kitchensink/recipe-service` (alongside today's `@kitchensink/food-service`) and its Home widget as `@commise/features-recipes`. CDK stack/resource names (`kitchensink-*`) are a separate namespace and are **not** governed by this rule.
+**Rule of thumb: if it lives under `packages/apps/commise/`, it's `@commise/*`; otherwise it's `@kitchensink/*`.** A domain's _backend_ (service/client/types) is platform, while its Commise _widget / feature UI_ is product — e.g. feature 001 adds the recipe backend as `@kitchensink/recipe-service` (alongside today's `@kitchensink/food-service`) and its Home widget as `@commise/features-recipes`. CDK stack/resource names (`kitchensink-*`) are a separate namespace and are **not** governed by this rule.
 
 ---
 
@@ -377,11 +402,11 @@ export function registerIngredient(name: string, _metadata: unknown): void {
 
 This applies to **EVERY** phase, **EVERY** feature, and **EVERY** change to this repository — permanently.
 
-| Work under test | REQUIRED tests — write **ALL** of them, test-first. Omitting **any one** = the work is INCOMPLETE. |
-| --------------- | -------------------------------------------------------------------------------------------------- |
-| **UI code** (components, screens, hooks) | (1) a **vitest component test** (React Testing Library) for **EVERY** UI path/state — loading, empty, populated, error, gated, disabled, and every other branch — **NOT just the happy path, NOT a representative sample; every single path**; **AND** (2) a **Playwright** test (web) for **EVERY** happy-path / user story — Playwright **IS** the UI's integration test. Mobile parity: a **Maestro** flow per story. |
-| **Non-UI code** (services, DALs, domain logic, controllers, DTOs, workers, libraries, utilities) | **unit tests AND integration tests — BOTH, always.** Integration exercises the **real** dependency (Docker Postgres for the DB, LocalStack for AWS). A unit test alone is a **VIOLATION**. |
-| **Services** (deployable HTTP APIs) | everything above **PLUS end-to-end tests** (boot the service against real Postgres + LocalStack and drive it over HTTP) **AND k6 load/performance tests** (assert the service's latency/throughput SLOs). Unit + integration alone is **NOT SUFFICIENT** for a deployable API. |
+| Work under test                                                                                  | REQUIRED tests — write **ALL** of them, test-first. Omitting **any one** = the work is INCOMPLETE.                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **UI code** (components, screens, hooks)                                                         | (1) a **vitest component test** (React Testing Library) for **EVERY** UI path/state — loading, empty, populated, error, gated, disabled, and every other branch — **NOT just the happy path, NOT a representative sample; every single path**; **AND** (2) a **Playwright** test (web) for **EVERY** happy-path / user story — Playwright **IS** the UI's integration test. Mobile parity: a **Maestro** flow per story. |
+| **Non-UI code** (services, DALs, domain logic, controllers, DTOs, workers, libraries, utilities) | **unit tests AND integration tests — BOTH, always.** Integration exercises the **real** dependency (Docker Postgres for the DB, LocalStack for AWS). A unit test alone is a **VIOLATION**.                                                                                                                                                                                                                               |
+| **Services** (deployable HTTP APIs)                                                              | everything above **PLUS end-to-end tests** (boot the service against real Postgres + LocalStack and drive it over HTTP) **AND k6 load/performance tests** (assert the service's latency/throughput SLOs). Unit + integration alone is **NOT SUFFICIENT** for a deployable API.                                                                                                                                           |
 
 **Absolute rules — no interpretation, no exceptions:**
 
@@ -396,11 +421,62 @@ This applies to **EVERY** phase, **EVERY** feature, and **EVERY** change to this
 
 ### Test File Location
 
-- **Unit tests**: `__tests__/` directories co-located with source, named `*.test.ts`
-- **Integration tests**: `__integration__/` directories co-located with source, named `*.integration.test.ts`
-- **E2E tests**: `e2e/` directory at the workspace root, named `*.spec.ts`
-- **Mocks**: `__mocks__/` directories co-located with source
-- **Fixtures**: `__fixtures__/` directories co-located with tests
+Two regimes, matching the [§1 File Naming](#1-file-naming) split. Pick by the package the test lives in.
+
+#### Backend services & clients (`packages/services/*`, `packages/clients/*`)
+
+| Tier        | Location                            | Name                    | Wired by                       |
+| ----------- | ----------------------------------- | ----------------------- | ------------------------------ |
+| Unit        | `__tests__/` co-located with source | `*.test.ts`             | `vitest.config.ts`             |
+| Integration | `tests/`                            | `*.integration.test.ts` | `vitest.integration.config.ts` |
+| E2E         | `tests/e2e/`                        | `*.e2e.test.ts`         | `vitest.e2e.config.ts`         |
+
+#### Frontend & shared libraries (`packages/apps/*`, `packages/shared/*`)
+
+| Tier                  | Location                             | Name                       | Wired by                       |
+| --------------------- | ------------------------------------ | -------------------------- | ------------------------------ |
+| Unit / component      | `__tests__/` co-located, or `tests/` | `*.test.ts(x)`             | `vitest.config.ts`             |
+| Integration           | `tests/__integration__/`             | `*.integration.test.ts(x)` | `vitest.integration.config.ts` |
+| E2E (Playwright, web) | `tests/e2e/`                         | `*.spec.ts`                | `playwright.config.ts`         |
+| E2E (Maestro, mobile) | `.maestro/`                          | `*.yaml`                   | `run-maestro-flows.sh`         |
+
+#### Every regime
+
+- **Load / performance (k6)**: `packages/tools/loadtest/` — scripts are shared across services, not
+  colocated per package. Required for every deployable service ([§7.1](#71-test-mandate--absolute-non-negotiable-every-phase-every-feature-every-contributor)).
+- **Mocks**: `__mocks__/` directories co-located with source.
+- **Fixtures**: `__fixtures__/` directories co-located with tests.
+
+#### `.test.ts` vs `.spec.ts` — the suffix is reserved, not stylistic
+
+**Bare `*.spec.ts` means Playwright and nothing else.** Every vitest tier — unit, integration, E2E —
+uses a `.test.ts` suffix. This is not a preference: Playwright's default `testMatch` also collects
+`*.test.ts`, so a shared suffix makes it try to run vitest files as browser specs and crash the run on
+their `vitest` imports. `packages/apps/commise/web/playwright.config.ts` pins `testMatch: '**/*.spec.ts'`
+for exactly this reason. Keeping the two suffixes disjoint is what stops the collision from recurring.
+
+#### Integration and E2E MUST NOT run in the default `test` task
+
+Per [Constitution Principle IV](../.specify/memory/constitution.md#iv-testing-discipline-with-pyramid-enforcement),
+each tier gets its own vitest config and its own `package.json` script (`test:integration`, `test:e2e`),
+and the default `test` include globs MUST exclude the other tiers' patterns. A package that adds an
+integration or E2E tier MUST also be added to the corresponding CI job — CI invokes these per-workspace
+by name (`.github/workflows/_ci.yml`), so a new script that no job calls is a test that never runs.
+
+#### Known non-conformance (pending migration)
+
+These predate this section and are **not** a licence to copy the old shape in new work:
+
+| Package                              | Current                                          | Target                           |
+| ------------------------------------ | ------------------------------------------------ | -------------------------------- |
+| `@kitchensink/recipe-service`        | `__tests__/integration/**/*.integration.spec.ts` | `tests/**/*.integration.test.ts` |
+| `@kitchensink/recipe-workers`        | `__tests__/integration/**/*.integration.spec.ts` | `tests/**/*.integration.test.ts` |
+| `@kitchensink/recipe-service-client` | `src/__integration__/**/*.integration.spec.ts`   | `tests/**/*.integration.test.ts` |
+| `@kitchensink/recipe-service`        | `tests/e2e/**/*.e2e.spec.ts`                     | `tests/e2e/**/*.e2e.test.ts`     |
+| `@kitchensink/identity-webhooks`     | `tests/e2e/**/*.spec.ts`                         | `tests/e2e/**/*.e2e.test.ts`     |
+
+Renaming them is a mechanical change to ~45 files plus four config globs, deliberately **not** bundled
+with this documentation fix. New packages follow the tables above.
 
 ### Test Structure
 

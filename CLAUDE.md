@@ -246,13 +246,13 @@ A feature is **NOT DONE** until every category it touches has **passing** tests 
 - **Commit messages**: Conventional Commits — `<type>(<scope>): <description>`. Enforced by commitlint.
 - **Formatting**: 4-space indent, single quotes, semicolons, trailing commas, 120-char print width. Enforced by Prettier; run `npm run format` to fix.
 - **Exports**: named exports only; default exports only where framework-required (Next.js pages, Expo entry).
-- **Imports**: `.js`/`.jsx` extension on aliased imports; `.ts`/`.tsx` on relative imports. `import type` for type-only imports. Import order: external packages → internal aliases (blank line between). No relative imports crossing workspace boundaries.
+- **Imports**: `.js`/`.jsx` on aliased imports. Relative imports follow the package's `moduleResolution`: `.js` under `NodeNext` (backend/clients/shared — the base config default), extensionless under `bundler` (`@commise/web`). **Never end a relative import in `.ts`/`.tsx`** — that is `error TS5097` under NodeNext. `import type` for type-only imports. Import order: external packages → internal aliases (blank line between). No relative imports crossing workspace boundaries.
 - **Environment variables**: bracket notation only — `process.env['KEY']`, never `process.env.KEY`.
 - **Dates**: ISO 8601 strings in interfaces, never `Date` objects.
 - **Custom errors**: extend `Error`, call `Object.setPrototypeOf`, provide a matching `is*` type guard.
 - **Impure functions**: document with `@sideEffect` JSDoc tag.
 - **Function purity**: functions must be pure unless performing I/O, mutations, or external calls.
-- **Test files**: `*.test.ts` in `__tests__/`; integration tests as `*.integration.test.ts` in `__integration__/`; E2E specs in `e2e/` as `*.spec.ts`. Always import `describe/it/expect/vi` explicitly from `vitest`.
+- **Test files**: unit `*.test.ts` in `__tests__/`. Backend integration `*.integration.test.ts` in `tests/`, backend e2e `*.e2e.test.ts` in `tests/e2e/`; frontend integration `*.integration.test.ts(x)` in `tests/__integration__/`. **Bare `*.spec.ts` is reserved for Playwright** (`tests/e2e/`) — every vitest tier uses `.test.ts`, because a shared suffix makes Playwright try to run vitest files and crash the run. Each non-unit tier needs its own `vitest.*.config.ts`, its own `package.json` script, exclusion from the default `test` globs, **and** a CI step (CI calls them per-workspace by name). Full tables: `docs/CODING_STANDARDS.md §7 Test File Location`. Always import `describe/it/expect/vi` explicitly from `vitest`.
 - **Playwright selectors**: `getByRole` and `getByLabel` only — `data-testid` and `page.waitForTimeout()` are banned.
 - **Fixture factories**: `make*` functions in `__fixtures__/` accepting `Partial<T>`.
 - **TypeScript**: strict mode, zero `any`, no `@ts-ignore`/`@ts-expect-error`.

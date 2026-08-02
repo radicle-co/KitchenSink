@@ -460,6 +460,44 @@ jobs:
                   S3_BUCKET_VERSIONS: commise-versions
               run: npm run test:integration --workspace=@kitchensink/recipe-workers
 
+    integration-selfcontained:
+        # Static name covering both self-contained integration suites (same precedent as `e2e-backend`).
+        # These two tiers use REAL adapters — the app's actual Tailwind compiler, and the client's real
+        # `ky`/`fetch` transport against a booted `node:http` server — but need NO service containers, so
+        # giving each its own job would pay two checkout+restore cycles for sub-second suites.
+        name: Integration (self-contained — web + recipe client)
+        runs-on: ubuntu-latest
+        # build-ui: the web suite compiles `src/app/globals.css`, which `@import`s `@commise/ui/theme.css`
+        # — and that export resolves to `dist/theme.css`. Without the built UI the compile step fails.
+        needs: [install, build-ui]
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@v5
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            - name: Restore UI build artifacts
+              uses: actions/cache/restore@v5
+              with:
+                  path: packages/apps/commise/ui/dist
+                  key: ${{ runner.os }}-ui-dist-${{ github.sha }}
+            - name: Ensure @commise/ui is built (fallback if the per-SHA cache restore missed)
+              run: '[ -n "$(ls -A packages/apps/commise/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/ui'
+            - name: Run web integration tests
+              run: npm run test:integration --workspace=@commise/web
+            - name: Run recipe-service-client integration tests
+              run: npm run test:integration --workspace=@kitchensink/recipe-service-client
+
     e2e-food:
         name: E2E (food — booted app + Postgres + LocalStack)
         runs-on: ubuntu-latest

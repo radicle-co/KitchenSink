@@ -13,6 +13,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { NotFoundError, RecipeServiceClient } from '../index.js';
+import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 
 /** A single request as observed on the server socket. */
 interface ReceivedRequest {
@@ -100,7 +101,7 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
     });
 
     it('GETs a recipe over the wire, attaching the bearer token, and parses the JSON body', async () => {
-        const recipe = { id: 'rec_1', ownerId: 'usr_1', title: 'Soup' };
+        const recipe = makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', title: 'Soup' });
         server = await startServer([{ status: 200, json: recipe }]);
         const client = new RecipeServiceClient({ baseUrl: server.baseUrl, token: 'tok-int', fetch });
 
@@ -127,7 +128,7 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
     });
 
     it('streams a JSON request body on a POST and returns the created resource', async () => {
-        const created = { id: 'rec_new', title: 'Soup' };
+        const created = makeRecipeDetail({ id: 'rec_new', title: 'Soup' });
         server = await startServer([{ status: 201, json: created }]);
         const client = new RecipeServiceClient({ baseUrl: server.baseUrl, token: 'tok', fetch });
         const input = {
@@ -163,7 +164,7 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
     });
 
     it('retries a real 401 IDENTITY_SYNC_PENDING with a force-refreshed token, then succeeds', async () => {
-        const recipe = { id: 'rec_1', title: 'Soup' };
+        const recipe = makeRecipeDetail({ id: 'rec_1', title: 'Soup' });
         server = await startServer([
             { status: 401, json: { code: 'IDENTITY_SYNC_PENDING', message: 'not yet' } },
             { status: 200, json: recipe },

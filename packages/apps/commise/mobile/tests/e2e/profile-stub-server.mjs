@@ -1,5 +1,5 @@
 /**
- * Minimal stand-in for the IDENTITY service's `/v1/users/me` (+ `/v1/accounts/me`) used by the Maestro
+ * Minimal stand-in for the IDENTITY service's `/api/v1/users/me` (+ `/api/v1/accounts/me`) used by the Maestro
  * mobile E2E job. The self-contained job boots only the recipe service; the mobile app also fetches the
  * viewer's PROFILE from the identity service to derive `viewerId` (client-side ownership → Edit/Delete/
  * clone) and the subscription tier. This server returns a fixed FREE profile whose `user.id` equals the
@@ -41,12 +41,19 @@ function send(res, status, body) {
 }
 
 const server = createServer((req, res) => {
-    const path = (req.url ?? '').split('?')[0];
+    const rawPath = (req.url ?? '').split('?')[0];
 
-    if (path === '/v1/users/me' && req.method === 'GET') {
+    // The real identity service serves every route at BOTH `/api/v1/*` (canonical) and the bare `/v1/*`
+    // (a DEPRECATED ALIAS retained for the Clerk-dashboard webhook URL and already-shipped app builds,
+    // whose endpoints were inlined at build time — see ADR-0011). Mirror that here by normalising the
+    // legacy spelling onto the canonical one, so a Maestro run passes against whichever path the app
+    // build under test dials. Match canonical only below.
+    const path = rawPath.startsWith('/v1/') ? `/api${rawPath}` : rawPath;
+
+    if (path === '/api/v1/users/me' && req.method === 'GET') {
         return send(res, 200, profile);
     }
-    if (path === '/v1/users/me' && req.method === 'PATCH') {
+    if (path === '/api/v1/users/me' && req.method === 'PATCH') {
         // Echo the merge so the profile screen's optimistic update lands; body is display-name/avatar only.
         let raw = '';
         req.on('data', (c) => (raw += c));
@@ -61,14 +68,14 @@ const server = createServer((req, res) => {
         });
         return undefined;
     }
-    if (path === '/v1/users/me' && req.method === 'DELETE') {
+    if (path === '/api/v1/users/me' && req.method === 'DELETE') {
         return send(res, 204);
     }
-    if (path === '/v1/accounts/me' && req.method === 'GET') {
+    if (path === '/api/v1/accounts/me' && req.method === 'GET') {
         return send(res, 200, profile.account);
     }
 
-    return send(res, 404, { code: 'NOT_FOUND', message: `stub: ${req.method} ${path}` });
+    return send(res, 404, { code: 'NOT_FOUND', message: `stub: ${req.method} ${rawPath}` });
 });
 
 server.listen(PORT, '0.0.0.0', () => {

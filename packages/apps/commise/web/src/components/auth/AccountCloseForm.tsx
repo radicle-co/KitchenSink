@@ -5,7 +5,7 @@
  *
  * Closure is the RECOVERABLE action: it deactivates the account (identity ban + tombstone) but RETAINS the
  * user's data, which can be restored. This supersedes the old `AccountDeleteForm`, whose copy wrongly claimed
- * the same `DELETE /v1/users/me` call "permanently deleted" "all your data" — the exact conflation U4b fixes.
+ * the same `DELETE /api/v1/users/me` call "permanently deleted" "all your data" — the exact conflation U4b fixes.
  * Irreversible ERASURE is a SEPARATE control ({@link import('./AccountEraseForm.js').AccountEraseForm}).
  *
  * Built on the design-system `ConfirmDialog` (`@commise/ui/confirm-dialog`), which owns the focus trap,

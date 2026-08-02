@@ -179,7 +179,7 @@ test.describe('recipe search (T110)', () => {
             viewerId,
             recipes: [
                 // Default ingredients (`utils/recipeApi.ts`'s `makeRecipeDetail`) carry the catalog id `ing_salt`
-                // ("Salt") the mocked `/v1/ingredients/search` always returns, regardless of the typed query.
+                // ("Salt") the mocked `/api/v1/ingredients/search` always returns, regardless of the typed query.
                 makeRecipeDetail({ id: 'rec_soup', ownerId: 'usr_other', title: 'Weeknight Ramen Bowl' }),
                 makeRecipeDetail({
                     id: 'rec_salad',

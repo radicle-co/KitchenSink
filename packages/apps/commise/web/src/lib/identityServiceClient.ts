@@ -1,7 +1,7 @@
 /**
  * Shared factory for the web app's typed identity/profile client (DA10-c). ONE source of truth — the base
  * origin, `credentials` policy, and the 401-redirect-to-sign-in side effect — for every web call site that
- * talks to `GET`/`PATCH`/`DELETE /v1/users/me` (`useUserProfile`, `AccountEditForm`, `AccountDeleteForm`),
+ * talks to `GET`/`PATCH`/`DELETE /api/v1/users/me` (`useUserProfile`, `AccountEditForm`, `AccountDeleteForm`),
  * mirroring `recipeServiceConfig.ts`'s role for the recipe client.
  *
  * The origin comes from the validated configuration in `@/config/env` (never hardcoded —

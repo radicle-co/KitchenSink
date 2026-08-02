@@ -25,7 +25,7 @@ import { signInWithTicket } from './utils/auth';
  *   (W5 Task 13)
  *
  * The ADD leg drives the REAL flow end-to-end: the detail view's "Add a recipe" control → the picker route
- * → the `useAddRecipeToCollection` mutation → `POST /v1/collections/{id}/recipes`. The mock models membership
+ * → the `useAddRecipeToCollection` mutation → `POST /api/v1/collections/{id}/recipes`. The mock models membership
  * as a join (see `utils/recipeApi`), so the add is observable: the picker row flips to the inert "in this
  * collection" marker and, on return, the recipe appears as a member of the collection.
  */
@@ -328,7 +328,7 @@ test.describe('collections (T109)', () => {
 
         // PERSISTED — once the refetch resolves, the server-reported visibility matches the pending
         // selection again, so Save goes back to disabled. That transition can only happen via a real 200
-        // from `PATCH /v1/collections/{id}` and a subsequent GET, not from local state alone.
+        // from `PATCH /api/v1/collections/{id}` and a subsequent GET, not from local state alone.
         await expect(saveButton).toBeDisabled();
     });
 

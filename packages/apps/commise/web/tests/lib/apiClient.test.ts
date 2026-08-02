@@ -20,18 +20,18 @@ describe('api-client', () => {
             json: () => Promise.resolve({ message: 'Unauthorized' }),
         } as Response);
 
-        await expect(buildApiClient('expired-token').get('/v1/users/me')).rejects.toThrow('Unauthorized');
+        await expect(buildApiClient('expired-token').get('/api/v1/users/me')).rejects.toThrow('Unauthorized');
 
         expect(mockNavigateTo).toHaveBeenCalledWith('/sign-in?redirect_url=%2Fprofile');
     });
 
-    it('resolves (does not reject) on a 202 with an empty body — DELETE /v1/users/me success (B26)', async () => {
-        // DELETE /v1/users/me returns 202 Accepted with no body. The old code only special-cased 204, so
+    it('resolves (does not reject) on a 202 with an empty body — DELETE /api/v1/users/me success (B26)', async () => {
+        // DELETE /api/v1/users/me returns 202 Accepted with no body. The old code only special-cased 204, so
         // response.json() threw on the empty 202 — the account was deleted server-side but signOut() never
         // ran and the user saw a parser error. An empty 2xx body must resolve to void.
         global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
 
-        await expect(buildApiClient('tok').delete('/v1/users/me')).resolves.toBeUndefined();
+        await expect(buildApiClient('tok').delete('/api/v1/users/me')).resolves.toBeUndefined();
     });
 
     it('returns undefined on a 204 (regression)', async () => {
@@ -54,7 +54,7 @@ describe('api-client', () => {
             );
 
         const err = await buildApiClient('tok')
-            .delete('/v1/users/me')
+            .delete('/api/v1/users/me')
             .catch((caught: unknown) => caught);
 
         expect(err).toBeInstanceOf(ApiError);

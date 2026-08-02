@@ -42,7 +42,7 @@ test.describe('account danger zone — closure vs erasure (CR-002/U4b)', () => {
         // Intercept the erasure POST (registered AFTER mockRecipeApi so it wins) — mock the 202 so the test
         // account is never actually destroyed, and capture the body to assert the election reached the wire.
         let erasureBody: unknown;
-        await page.route('**/v1/account/erasure', async (routeReq) => {
+        await page.route('**/api/v1/account/erasure', async (routeReq) => {
             erasureBody = routeReq.request().postDataJSON();
             await routeReq.fulfill({
                 status: 202,

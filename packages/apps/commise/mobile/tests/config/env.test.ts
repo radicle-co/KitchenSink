@@ -16,7 +16,7 @@
  * nothing in this repo provisions; shipping it means a build silently addresses a domain the team does not
  * control. Neither is a safe thing to guess, so absence must be fatal instead.
  *
- * The identity chain also silently fell back to the RECIPE origin, which sends `/v1/users/me` to a service
+ * The identity chain also silently fell back to the RECIPE origin, which sends `/api/v1/users/me` to a service
  * that does not serve it — a 404 that looks like a bug in the profile screen rather than a missing setting.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -63,7 +63,7 @@ describe('mobile endpoint configuration', () => {
     });
 
     it('refuses to start when the identity endpoint is missing, rather than reusing the recipe origin', async () => {
-        // The old chain fell through to the recipe origin, so `/v1/users/me` went to a service that does
+        // The old chain fell through to the recipe origin, so `/api/v1/users/me` went to a service that does
         // not serve it. A 404 on the profile screen is a much worse signal than a refusal to boot.
         await expect(loadEnv({ [RECIPE]: 'https://recipe-pr-73.commise.app', [IDENTITY]: undefined })).rejects.toThrow(
             /invalid environment variables[\s\S]*EXPO_PUBLIC_IDENTITY_API_URL/i,

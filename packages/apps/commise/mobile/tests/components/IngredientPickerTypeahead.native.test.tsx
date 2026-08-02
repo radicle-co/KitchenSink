@@ -27,7 +27,7 @@ function own(ingredients: readonly Ingredient[]): IngredientSuggestion[] {
     return ingredients.map((ingredient) => ({ provenance: 'local', ingredient }));
 }
 
-/** The `GET /v1/ingredients/suggest` envelope the picker consumes. */
+/** The `GET /api/v1/ingredients/suggest` envelope the picker consumes. */
 function blended(suggestions: readonly IngredientSuggestion[]): IngredientSuggestions {
     return { suggestions, catalogAvailability: 'ok' };
 }

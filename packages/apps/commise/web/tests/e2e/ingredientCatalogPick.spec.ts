@@ -10,8 +10,8 @@ import { signInWithTicket } from './utils/auth';
  * intercepted (`utils/recipeApi`, which serves one `local` and one `catalog` suggestion for any query).
  *
  * Playwright IS this feature's UI integration test (repo testing policy), so what it proves is the part no
- * component test can: that the real `GET /v1/ingredients/suggest` → render → tap → `POST
- * /v1/ingredients/by-food` → resolved-line round trip actually holds through the live client, the live query
+ * component test can: that the real `GET /api/v1/ingredients/suggest` → render → tap → `POST
+ * /api/v1/ingredients/by-food` → resolved-line round trip actually holds through the live client, the live query
  * cache, and the real wizard — including that a catalog hit (which has NO ingredient id of its own) ends up
  * as a recipe line whose id came from the ADMIT response, and that the recipe then publishes with it.
  *
@@ -82,7 +82,7 @@ test.describe('blended ingredient typeahead — food-catalog suggestions (search
         // Override the blended read for THIS test only: food-service is down, so the server answered 200
         // with the local section and `catalogAvailability: 'unavailable'`. Registered after `mockRecipeApi`
         // so it takes precedence (Playwright matches the most recently added route first).
-        await page.route('**/v1/ingredients/suggest**', (routeToFulfill) =>
+        await page.route('**/api/v1/ingredients/suggest**', (routeToFulfill) =>
             routeToFulfill.fulfill({
                 json: {
                     suggestions: [

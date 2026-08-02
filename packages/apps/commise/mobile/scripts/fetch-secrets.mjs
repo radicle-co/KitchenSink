@@ -36,7 +36,7 @@ try {
         '# Clerk / IDP authentication (sandbox dev instance pk_test). App.tsx reads this at startup.',
         `EXPO_PUBLIC_IDP_PUBLISHABLE_KEY=${publishableKey}`,
         '',
-        '# The recipe/identity API origin the typed clients talk to (no trailing /v1). Point at the',
+        '# The recipe/identity API origin the typed clients talk to (origin ONLY; they append /api/v1). Point at the',
         '# sandbox recipe host to run the built app against real data; localhost for a local backend.',
         'EXPO_PUBLIC_API_URL=http://localhost:3000',
     ];

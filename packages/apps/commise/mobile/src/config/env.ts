@@ -14,7 +14,7 @@
  *     connection failures that look like a network bug.
  *   - `?? 'https://api.commise.io'` — a hardcoded guess at a production hostname that nothing in this repo
  *     provisions. Shipping it points the app at a domain the team does not control.
- *   - The identity origin also fell back to the RECIPE origin, sending `/v1/users/me` to a service that
+ *   - The identity origin also fell back to the RECIPE origin, sending `/api/v1/users/me` to a service that
  *     does not serve it — a 404 on the profile screen instead of a clear "you forgot to configure this".
  *
  * Identity and recipe are separate deployables on separate hosts (`identity.{stage}` vs `recipe.{stage}`,

@@ -47,7 +47,7 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
         throw new ApiError(payload.message ?? `HTTP ${response.status}`, response.status, payload.code);
     }
 
-    // A no-content success (`204`, or a `202 Accepted` with an empty body — e.g. `DELETE /v1/users/me`)
+    // A no-content success (`204`, or a `202 Accepted` with an empty body — e.g. `DELETE /api/v1/users/me`)
     // has nothing to parse; `response.json()` on an empty body throws. Read the body once and treat any
     // empty 2xx as void, so a successful account deletion resolves (and the caller's signOut runs) rather
     // than surfacing a spurious parse error. A non-empty 2xx must be valid JSON per the contract.

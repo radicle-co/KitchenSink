@@ -138,29 +138,50 @@ jobs:
             # dashboard variable structurally cannot be, since those are scoped to an ENVIRONMENT. Only
             # `opened`/`reopened`: a `synchronize` push already carries the association, and redeploying there
             # would double every preview build.
+            # Created as a GIT-SOURCE deployment through the REST API, deliberately NOT with `vercel deploy`.
+            # A CLI deployment is subject to Vercel's team-seat protection, which BLOCKS it unless the
+            # COMMIT AUTHOR holds a seat on the Vercel team:
+            #
+            #   readyState: BLOCKED
+            #   readyStateReason: "Git author <email> must have access to the team Radicle on Vercel to
+            #                      create deployments."   (seatBlock.blockCode = TEAM_ACCESS_REQUIRED)
+            #
+            # Measured, not guessed: two `vercel deploy` runs were blocked before building. That coupling is
+            # unacceptable here — it would make every preview depend on the author of the head commit being a
+            # Vercel team member. A git-source deployment is authorized by the GitHub App instead, so it is
+            # not seat-gated.
+            #
+            # It also removes the need to inject the PR number at all: Vercel resolves the PR from the branch
+            # and sets `meta.githubPrId` (verified: 77 on this branch), so the build gets
+            # VERCEL_GIT_PULL_REQUEST_ID the ordinary way. `PREVIEW_PR_NUMBER` remains supported by
+            # scripts/previewEndpoints.ts as an explicit override, but is not needed on this path.
+            #
+            # No `target` field: the API rejects `"preview"` ("should be 'production', 'staging', or a custom
+            # environment identifier"), and omitting it yields a preview deployment, which is what we want.
             - name: Deploy this PR's Vercel preview
               if: github.event.action == 'opened' || github.event.action == 'reopened'
               env:
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-                  VERCEL_ORG_ID: ${{ vars.VERCEL_TEAM_ID }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
                   VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+                  BRANCH: ${{ github.event.pull_request.head.ref }}
               run: |
-                  # --build-env is per-deployment; --meta records why this deployment exists out-of-band.
-                  #
-                  # --no-wait returns as soon as the deployment is CREATED. The next step already polls for
-                  # READY, so blocking here would just wait twice — and a blocking wait is actively worse:
-                  # interrupting the CLI mid-wait (job timeout, cancelled run, concurrency cancel) leaves the
-                  # deployment stuck reporting UNKNOWN with no build ever finishing. Observed exactly that
-                  # while validating this step by hand.
-                  npx --yes vercel@latest deploy \
-                    --token "$VERCEL_TOKEN" \
-                    --scope "$VERCEL_ORG_ID" \
-                    --target preview \
-                    --build-env "PREVIEW_PR_NUMBER=$PR_NUMBER" \
-                    --meta "githubPrId=$PR_NUMBER" \
-                    --meta "ciTriggered=pr-${{ github.event.action }}" \
-                    --no-wait \
-                    --yes
+                  set -euo pipefail
+                  response=$(curl -sS -X POST \
+                    -H "Authorization: Bearer $VERCEL_TOKEN" \
+                    -H 'Content-Type: application/json' \
+                    "https://api.vercel.com/v13/deployments?teamId=${VERCEL_TEAM_ID}&skipAutoDetectionConfirmation=1" \
+                    -d "$(jq -nc --arg project "$VERCEL_PROJECT_ID" --arg ref "$BRANCH" \
+                        '{name: "commise", project: $project,
+                          gitSource: {type: "github", org: "radicle-co", repo: "KitchenSink", ref: $ref}}')")
+                  # A failure here must not pass silently: the next step would then wait on the OLD, failed
+                  # deployment and register a broken preview host.
+                  if [ "$(printf '%s' "$response" | jq -r 'has("error")')" = "true" ]; then
+                    echo "::error title=Vercel preview deploy failed::$(printf '%s' "$response" | jq -r '.error.message')"
+                    exit 1
+                  fi
+                  printf '%s' "$response" |
+                    jq -r '"created \(.url)  state=\(.readyState)  prId=\(.meta.githubPrId // "none")"'
 
             # PR open/updated → wait for the Vercel preview, capture its host, register the route.
             - name: Wait for the Vercel preview to be READY

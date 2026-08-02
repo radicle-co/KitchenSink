@@ -122,6 +122,39 @@ jobs:
                   KVS_ARN: ${{ steps.kvs.outputs.arn }}
               run: npx tsx packages/apps/commise/web/scripts/registerPreview.ts
 
+            # ── Deploy this PR's Vercel preview, because the git integration cannot ────────────────────
+            #
+            # Vercel deploys on PUSH and populates VERCEL_GIT_PULL_REQUEST_ID only for a deployment it can
+            # associate with an OPEN pull request. A branch's FIRST deployment therefore NEVER has it — the
+            # push necessarily precedes `gh pr create` — so `scripts/previewEndpoints.ts`, which needs the
+            # number to resolve this PR's own recipe service, hard-fails that build:
+            #
+            #     Error: VERCEL_GIT_PULL_REQUEST_ID must be the pull request number, but was ''.
+            #
+            # Opening the PR does NOT trigger a rebuild (Vercel builds on push, not on PR events), so without
+            # this step a freshly-opened PR is stuck with a failed preview until someone pushes again.
+            #
+            # So CI deploys it, passing the number as a per-deployment BUILD env var — the one thing a Vercel
+            # dashboard variable structurally cannot be, since those are scoped to an ENVIRONMENT. Only
+            # `opened`/`reopened`: a `synchronize` push already carries the association, and redeploying there
+            # would double every preview build.
+            - name: Deploy this PR's Vercel preview
+              if: github.event.action == 'opened' || github.event.action == 'reopened'
+              env:
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_ORG_ID: ${{ vars.VERCEL_TEAM_ID }}
+                  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+              run: |
+                  # --build-env is per-deployment; --meta records why this deployment exists out-of-band.
+                  npx --yes vercel@latest deploy \
+                    --token "$VERCEL_TOKEN" \
+                    --scope "$VERCEL_ORG_ID" \
+                    --target preview \
+                    --build-env "PREVIEW_PR_NUMBER=$PR_NUMBER" \
+                    --meta "githubPrId=$PR_NUMBER" \
+                    --meta "ciTriggered=pr-${{ github.event.action }}" \
+                    --yes
+
             # PR open/updated → wait for the Vercel preview, capture its host, register the route.
             - name: Wait for the Vercel preview to be READY
               if: github.event.action != 'closed' && steps.kvs.outputs.found == 'true'

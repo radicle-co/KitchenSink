@@ -19,7 +19,7 @@
  * | stage | source                                                                 |
  * |-------|------------------------------------------------------------------------|
  * | local | the committed `.env.development` — loaded by Next ONLY when `NODE_ENV` is `development` (i.e. `next dev`), never during `next build` |
- * | PR    | resolved PER DEPLOYMENT by `scripts/previewEndpoints.ts` from the `*_TEMPLATE` variables and the build's PR number: this PR's own recipe service plus the shared sandbox identity host |
+ * | PR    | resolved PER DEPLOYMENT by `scripts/previewEndpoints.ts` from the `*_SANDBOX_TEMPLATE` variables and the build's PR number: this PR's own recipe service plus the shared sandbox identity host |
  * | prod  | the production pipeline's environment                                   |
  *
  * The PR row is per-DEPLOYMENT, not per-environment, and that distinction is the point: every PR deploys its

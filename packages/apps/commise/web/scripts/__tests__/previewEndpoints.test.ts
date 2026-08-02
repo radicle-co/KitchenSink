@@ -33,8 +33,8 @@ import { resolveBuildEndpoints, substitutePrNumber } from '../previewEndpoints';
 const PREVIEW = {
     VERCEL_ENV: 'preview',
     VERCEL_GIT_PULL_REQUEST_ID: '73',
-    NEXT_PUBLIC_RECIPE_API_URL_TEMPLATE: 'https://recipe-pr-{pr}.commise.app',
-    NEXT_PUBLIC_IDENTITY_API_URL_TEMPLATE: 'https://identity.sandbox.commise.app',
+    NEXT_PUBLIC_RECIPE_API_URL_SANDBOX_TEMPLATE: 'https://recipe-pr-{pr}.commise.app',
+    NEXT_PUBLIC_IDENTITY_API_URL_SANDBOX_TEMPLATE: 'https://identity.sandbox.commise.app',
 } as const;
 
 describe('substitutePrNumber', () => {
@@ -85,16 +85,16 @@ describe('resolveBuildEndpoints', () => {
         expect(resolveBuildEndpoints({ ...PREVIEW, VERCEL_ENV: 'production' })).toEqual({});
         expect(resolveBuildEndpoints({ ...PREVIEW, VERCEL_ENV: 'development' })).toEqual({});
         // Not on Vercel at all (CI's build job, a developer's `npm run build`).
-        expect(resolveBuildEndpoints({ NEXT_PUBLIC_RECIPE_API_URL_TEMPLATE: 'https://x-{pr}.example.com' })).toEqual(
-            {},
-        );
+        expect(
+            resolveBuildEndpoints({ NEXT_PUBLIC_RECIPE_API_URL_SANDBOX_TEMPLATE: 'https://x-{pr}.example.com' }),
+        ).toEqual({});
     });
 
     it('is INERT when no template is configured, even on a preview build', () => {
         // Two failure modes in one assertion, both about not breaking things this module has no business
         // touching:
         //
-        //  1. The rollout. Until the `*_TEMPLATE` variables exist in the Vercel dashboard there is nothing to
+        //  1. The rollout. Until the `*_SANDBOX_TEMPLATE` variables exist in the Vercel dashboard there is nothing to
         //     resolve, so every existing preview must keep building exactly as before from whatever the
         //     project supplies. Shipping a resolver that fails closed on absent config would have taken every
         //     preview down at merge.
@@ -130,14 +130,16 @@ describe('resolveBuildEndpoints', () => {
     it('omits an endpoint whose template is unset, leaving env validation to fail loudly', () => {
         // Deliberately NOT a throw: the caller may legitimately supply one endpoint by template and the
         // other directly. `src/config/env.ts` is the single place that decides an endpoint is missing.
-        expect(resolveBuildEndpoints({ ...PREVIEW, NEXT_PUBLIC_IDENTITY_API_URL_TEMPLATE: undefined })).toEqual({
-            NEXT_PUBLIC_RECIPE_API_URL: 'https://recipe-pr-73.commise.app',
-        });
+        expect(resolveBuildEndpoints({ ...PREVIEW, NEXT_PUBLIC_IDENTITY_API_URL_SANDBOX_TEMPLATE: undefined })).toEqual(
+            {
+                NEXT_PUBLIC_RECIPE_API_URL: 'https://recipe-pr-73.commise.app',
+            },
+        );
     });
 
     it('treats a blank template as unset', () => {
         // A cleared dashboard field arrives as `''`, which would otherwise resolve to an empty endpoint.
-        expect(resolveBuildEndpoints({ ...PREVIEW, NEXT_PUBLIC_RECIPE_API_URL_TEMPLATE: '   ' })).toEqual({
+        expect(resolveBuildEndpoints({ ...PREVIEW, NEXT_PUBLIC_RECIPE_API_URL_SANDBOX_TEMPLATE: '   ' })).toEqual({
             NEXT_PUBLIC_IDENTITY_API_URL: 'https://identity.sandbox.commise.app',
         });
     });
@@ -146,8 +148,11 @@ describe('resolveBuildEndpoints', () => {
         // Caught here as well as in `env.ts` so the failure names the TEMPLATE variable the operator has to
         // fix, not the derived variable they never set.
         expect(() =>
-            resolveBuildEndpoints({ ...PREVIEW, NEXT_PUBLIC_RECIPE_API_URL_TEMPLATE: 'recipe-pr-{pr}.commise.app' }),
-        ).toThrow(/NEXT_PUBLIC_RECIPE_API_URL_TEMPLATE/);
+            resolveBuildEndpoints({
+                ...PREVIEW,
+                NEXT_PUBLIC_RECIPE_API_URL_SANDBOX_TEMPLATE: 'recipe-pr-{pr}.commise.app',
+            }),
+        ).toThrow(/NEXT_PUBLIC_RECIPE_API_URL_SANDBOX_TEMPLATE/);
     });
 
     it('requires the RECIPE template to be per-PR, because the recipe service is', () => {
@@ -160,9 +165,9 @@ describe('resolveBuildEndpoints', () => {
         // answers a well-formed 404 on every request — it looks configured and fails like an application bug.
         // A fixed PER-PR host is just as wrong: it is some other PR's live service.
         for (const fixed of ['https://recipe.some-stage.commise.app', 'https://recipe-pr-73.commise.app']) {
-            expect(() => resolveBuildEndpoints({ ...PREVIEW, NEXT_PUBLIC_RECIPE_API_URL_TEMPLATE: fixed })).toThrow(
-                /\{pr\}/,
-            );
+            expect(() =>
+                resolveBuildEndpoints({ ...PREVIEW, NEXT_PUBLIC_RECIPE_API_URL_SANDBOX_TEMPLATE: fixed }),
+            ).toThrow(/\{pr\}/);
         }
     });
 

@@ -19,10 +19,17 @@
  *
  * Configuration supplies the whole URL with a `{pr}` placeholder:
  *
- *   | variable                                | example                                  |
- *   | --------------------------------------- | ---------------------------------------- |
- *   | `NEXT_PUBLIC_RECIPE_API_URL_TEMPLATE`   | `https://recipe-pr-{pr}.commise.app`     |
- *   | `NEXT_PUBLIC_IDENTITY_API_URL_TEMPLATE` | `https://identity.sandbox.commise.app`   |
+ *   | variable                                        | example                                |
+ *   | ----------------------------------------------- | -------------------------------------- |
+ *   | `NEXT_PUBLIC_RECIPE_API_URL_SANDBOX_TEMPLATE`   | `https://recipe-pr-{pr}.commise.app`   |
+ *   | `NEXT_PUBLIC_IDENTITY_API_URL_SANDBOX_TEMPLATE` | `https://identity.sandbox.commise.app` |
+ *
+ * `SANDBOX` is in the name because it is in the VALUE: both templates describe sandbox topology — a per-PR
+ * recipe service, and the single shared sandbox identity host every preview signs in against. Production
+ * cannot reuse either one (the recipe template needs a PR number production does not have, and the identity
+ * template would point production at the sandbox instance and its dev-instance Clerk keys), so a name that
+ * did not say `SANDBOX` invited exactly that reading. Production sets the plain `NEXT_PUBLIC_*` names
+ * directly; see `.env.template`.
  *
  * The per-PR host SHAPE already has exactly one owner — `recipeSubdomainForStage` in the recipe service's
  * CDK. Re-deriving `recipe-pr-${pr}.commise.app` here would copy that knowledge across a package boundary
@@ -96,7 +103,7 @@ function requirePrNumber(environment: BuildEnvironment): string {
 }
 
 /**
- * Resolve the endpoint variables a Vercel PREVIEW build must be compiled with, from the `*_TEMPLATE`
+ * Resolve the endpoint variables a Vercel PREVIEW build must be compiled with, from the `*_SANDBOX_TEMPLATE`
  * variables and the build's PR number. Pure.
  *
  * Returns an empty object for any build that is not a Vercel preview (production, `vercel dev`, CI's build
@@ -110,7 +117,7 @@ function requirePrNumber(environment: BuildEnvironment): string {
  * @param environment - The build environment to read.
  * @returns The variables to layer over the build environment; empty outside a preview build.
  * @throws If this is a preview build with no usable PR number, or a template is malformed — resolved here,
- *   where the message can name the `*_TEMPLATE` variable an operator has to fix, rather than the derived
+ *   where the message can name the `*_SANDBOX_TEMPLATE` variable an operator has to fix, rather than the derived
  *   variable they never set.
  */
 export function resolveBuildEndpoints(environment: BuildEnvironment): Readonly<Record<string, string>> {
@@ -121,12 +128,12 @@ export function resolveBuildEndpoints(environment: BuildEnvironment): Readonly<R
     const templates = ENDPOINTS.map(({ key, perPr }) => ({
         key,
         perPr,
-        name: `${key}_TEMPLATE`,
-        template: environment[`${key}_TEMPLATE`]?.trim() ?? '',
+        name: `${key}_SANDBOX_TEMPLATE`,
+        template: environment[`${key}_SANDBOX_TEMPLATE`]?.trim() ?? '',
     })).filter(({ template }) => template !== '');
 
     // Nothing configured to resolve, so nothing to demand. Checking this BEFORE the PR number matters twice:
-    // it keeps this module inert until the `*_TEMPLATE` variables are actually set (so adding it broke no
+    // it keeps this module inert until the `*_SANDBOX_TEMPLATE` variables are actually set (so adding it broke no
     // existing preview), and Vercel only sets `VERCEL_GIT_PULL_REQUEST_ID` for a deployment that belongs to a
     // PR — a plain branch deployment has none, and must not be failed for a template it was never given.
     if (templates.length === 0) {

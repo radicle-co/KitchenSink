@@ -25,7 +25,9 @@ function firstNonPreambleRuleOffset(css: string): number {
     // `@layer base {` (block form) also closes the preamble; the bare `@layer a, b;` statement form does not.
     const layerBlock = css.search(/@layer\s+[^;{]*\{/);
 
-    if (layerBlock !== -1) offsets.push(layerBlock);
+    if (layerBlock !== -1) {
+        offsets.push(layerBlock);
+    }
 
     return offsets.length === 0 ? Number.POSITIVE_INFINITY : Math.min(...offsets);
 }

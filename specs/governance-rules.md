@@ -1,6 +1,6 @@
 # KitchenSink Cross-Feature Governance Rules
 
-**Version**: 2.0.0
+**Version**: 3.0.0
 **Ratified**: 2026-05-10 | **Last amended**: 2026-08-02
 **Authority**: Senior Product Owner, cross-feature governance
 **Scope**: All features 001–014 and any future feature in this portfolio
@@ -573,20 +573,56 @@ The following persona names are banned from user-facing persona sections: `Jorda
 
 All shareable entities (recipes, collections, meal plans, lessons, profiles) **MUST** use the unified audience model defined in `cross-feature-consistency-report.md` §10. Ad-hoc per-feature sharing concepts are prohibited.
 
-**Canonical audience scopes**: `private`, `circle`, `public-profile`, `published-lesson`.
+**Canonical audience scopes**: `private`, `circle`, `public`, `public-profile`, `published-lesson`.
+
+**Amended 2026-08-02** — see [Change Log](#change-log) v3.0.0.
+
+**Recipe visibility is binary.** A recipe is `private` or `public`. There is **no premium, paywalled, or
+purchasable recipe state**, and no feature may introduce one.
+
+- `private` — owner only. It MAY be shared with contacts **read-only** via `circle`; sharing grants read
+  access, never write access, and is never a sale.
+- `public` — readable by any authenticated user (`001-FR-004`).
+- `public-profile` — a **surfacing** concern only: displaying a creator's already-`public` content on their
+  `@handle` page. It is **not** a third visibility state, and a recipe does not need a `CreatorProfile` to
+  be publicly readable.
 
 The `Circle` entity is owned by Feature 011. The `CreatorProfile` entity is owned by Feature 012. Features that need these entities must declare a dependency on the owning feature.
 
 ### Acceptance Criteria
 
-- **AC-014-a**: Features 001, 004, 006, 007, 010, 011, 012, 013 use the `audience` field with `{ scope, ref_id?, price_cents? }` shape on all shareable entities.
+- **AC-014-a**: Features 001, 004, 006, 007, 010, 011, 012, 013 use the `audience` field with
+  `{ scope, ref_id? }` shape on all shareable entities.
 - **AC-014-b**: No feature defines its own sharing primitive that duplicates `Circle` or `CreatorProfile`.
 - **AC-014-c**: Every audience change is audit-logged (compliance requirement).
+- **AC-014-d**: `price_cents` appears **only** on a `published-lesson` audience. Courses are purchasable
+  (`013-FR-003`); recipes and collections are not. A priced recipe audience is a violation.
+- **AC-014-e**: **Ingestion provenance sets the initial scope.** A recipe created from an external source is
+  `public` only when that source is **publicly and freely available and not otherwise marked or licensed**
+  against republication — paywall, subscription, explicit reservation, or a licence forbidding
+  redistribution or derivatives. Otherwise it is created `private`, and the system MUST NOT auto-publish it.
+- **AC-014-f**: **Attribution and source linking are required** for every ingested recipe, whichever scope
+  it lands in, and a recipe MUST NOT be publishable while attribution is absent.
 
-### Current State (2026-05-10)
+### Violation
 
-- The unified audience model is defined in `cross-feature-consistency-report.md` §10.
-- No feature has implemented it yet. This rule applies when features enter implementation.
+Introducing a paywalled or purchasable recipe state — by any name — is a violation of this rule, as is
+carrying `price_cents` on a recipe audience or auto-publishing an ingested recipe whose source was marked,
+licensed, or paywalled against republication.
+
+### Current State (2026-08-02)
+
+- The unified audience model is defined in `cross-feature-consistency-report.md` §10, amended in step with
+  this rule.
+- **`011`** records the model and owns the primitives: `011-FR-021a` (a photo-digitized recipe is created
+  `private` — its source is not publicly available) and `011-FR-021b` (attribution required, and required
+  before publishing). The `circle` scope with member read-only access is `011` US-006.
+- **`012`** carried a `premium recipe` / `paid follow` model in both its spec and its v-model. **Withdrawn**
+  2026-08-02; `012` now keeps a Retired Requirement IDs register so the withdrawn IDs are never reused.
+- ⚠️ **`004-FR-011` needs a carve-out and has not been changed here.** It currently reads that imports from
+  public websites or Instagram MUST be marked public, with no exception. Under AC-014-e it needs
+  "**unless the source is otherwise marked or licensed** against republication". `004` is being worked on
+  its own branch, so this is recorded rather than applied — see `spec-sweep-2026-08-02.md`.
 
 ---
 
@@ -608,7 +644,8 @@ Downgrading a CRITICAL rule to WARNING requires explicit product owner approval 
 
 ## Change Log
 
-| Version | Date       | Author                                          | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------- | ---------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1.0.0   | 2026-05-10 | Senior Product Owner (cross-feature governance) | Initial ratification. Converts all CRITICAL and WARNING findings from `cross-feature-consistency-report.md` into enforceable rules with acceptance criteria. Corrects all release audit reports to BLOCKED status. Establishes release readiness gate (GR-001) as the primary blocker for engineering handoff.                                                                                                                                                                                                                                 |
-| 2.0.0   | 2026-08-02 | Repository owner                                | **GR-009 amended** (MAJOR — incompatible redefinition): the `@kitchensink/{group}-{name}` pattern was ratified when no packages existed and none of the 26 shipped packages follow it. Restated to the two scopes actually in use, `@kitchensink/{name}` and `@commise/{name}`, with role suffixes (`-service`, `-workers`, `-service-client`) replacing group prefixes. Superseded pattern preserved in-section. **GR-002/GR-003/GR-007 Current State** refreshed against shipped `main`; GR-002 confirmed portfolio-wide with no exceptions. |
+| Version | Date       | Author                                          | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------- | ---------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.0.0   | 2026-05-10 | Senior Product Owner (cross-feature governance) | Initial ratification. Converts all CRITICAL and WARNING findings from `cross-feature-consistency-report.md` into enforceable rules with acceptance criteria. Corrects all release audit reports to BLOCKED status. Establishes release readiness gate (GR-001) as the primary blocker for engineering handoff.                                                                                                                                                                                                                                                               |
+| 3.0.0   | 2026-08-02 | Repository owner                                | **GR-014 amended** (MAJOR — incompatible redefinition): recipe visibility declared **binary** (`private` \| `public`); the missing `public` scope added, and `public-profile` demoted to a surfacing concern rather than a third visibility state; `circle` clarified as read-only; `price_cents` removed from the audience shape and restricted to `published-lesson`; ingestion-provenance and attribution criteria added (AC-014-d/e/f). Withdraws the premium-recipe and paid-follow model portfolio-wide. `cross-feature-consistency-report.md` S-004 amended to match. |
+| 2.0.0   | 2026-08-02 | Repository owner                                | **GR-009 amended** (MAJOR — incompatible redefinition): the `@kitchensink/{group}-{name}` pattern was ratified when no packages existed and none of the 26 shipped packages follow it. Restated to the two scopes actually in use, `@kitchensink/{name}` and `@commise/{name}`, with role suffixes (`-service`, `-workers`, `-service-client`) replacing group prefixes. Superseded pattern preserved in-section. **GR-002/GR-003/GR-007 Current State** refreshed against shipped `main`; GR-002 confirmed portfolio-wide with no exceptions.                               |

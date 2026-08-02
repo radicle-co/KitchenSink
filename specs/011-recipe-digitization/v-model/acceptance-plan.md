@@ -1176,7 +1176,7 @@ more executable User Scenarios (SCN) in BDD format (Given/When/Then).
 
 #### Test Case: ATP-053-B (Audience type missing optional fields fails contract test)
 
-**Description:** Validates via **Test** required type-shape contract for optional `ref_id` and `price_cents`.
+**Description:** Validates via **Test** required type-shape contract for optional `ref_id` ; `price_cents` is NOT part of the shape (GR-014 v3.0.0 — recipes are not purchasable).
 
 - **User Scenario: SCN-053-B1**
     - **Given** a package version where `Audience` omits `ref_id`

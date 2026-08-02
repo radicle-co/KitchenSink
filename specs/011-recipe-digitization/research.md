@@ -77,12 +77,12 @@ Alex uses the app daily across multiple features. He might digitize a few recipe
 
 No implementation exists yet. The following packages will be introduced:
 
-| Package                             | Group          | Purpose                                                                                     |
-| ----------------------------------- | -------------- | ------------------------------------------------------------------------------------------- |
-| `@kitchensink/digitization-workers` | `digitization` | Lambda function: receives S3 key, runs OCR/handwriting recognition, returns structured JSON |
-| `@kitchensink/digitization-service` | `digitization` | NestJS module: `DigitizationJob` CRUD, pre-signed URL generation, correction save           |
-| `@kitchensink/circles-service`      | `circles`      | NestJS module: `Circle` entity, membership, invitations, audience resolution                |
-| `@kitchensink/audience`             | `shared`       | Shared library: `AudienceScope` type, `{ scope, ref_id?, price_cents? }` shape (S-004)      |
+| Package                             | Group          | Purpose                                                                                         |
+| ----------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| `@kitchensink/digitization-workers` | `digitization` | Lambda function: receives S3 key, runs OCR/handwriting recognition, returns structured JSON     |
+| `@kitchensink/digitization-service` | `digitization` | NestJS module: `DigitizationJob` CRUD, pre-signed URL generation, correction save               |
+| `@kitchensink/circles-service`      | `circles`      | NestJS module: `Circle` entity, membership, invitations, audience resolution                    |
+| `@kitchensink/audience`             | `shared`       | Shared library: `AudienceScope` type, `{ scope, ref_id? }` shape (S-004, amended GR-014 v3.0.0) |
 
 The `Circle` entity and `@kitchensink/audience` are cross-feature primitives. Features 001, 006, and 007 will import from `@kitchensink/circles-service` and `@kitchensink/audience` respectively — they do not own these packages.
 

@@ -196,7 +196,7 @@ This feature defines and implements the `circle` audience scope. The full S-004 
 | `public-profile`   | Anyone with URL   | yes       | 012     |
 | `published-lesson` | Enrolled learners | yes       | 013     |
 
-The `audience` field shape on shareable entities: `{ scope: AudienceScope, ref_id?: string, price_cents?: number }`.
+The `audience` field shape on shareable entities (no `price_cents` — GR-014 v3.0.0): `{ scope: AudienceScope, ref_id?: string, price_cents?: number }`.
 
 For `circle` scope, `ref_id` is the `Circle.id`. The `@kitchensink/audience` package exports the `AudienceScope` enum and the `Audience` type. Features 001, 006, and 007 import from this package — they do not redefine the type.
 

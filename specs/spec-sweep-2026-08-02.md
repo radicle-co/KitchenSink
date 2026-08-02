@@ -154,15 +154,39 @@ scope that make read-only contact sharing work. Two requirements added there:
 service, not identity — which is exactly what a tier-as-token-claim enables. It still unblocks 006's three
 deferred rows.
 
-⚠️ **Open question for `004` — does the ingestion rule change `004-FR-011`?** The ruling reads "ingested
-from a non-public or free source". Taken as _not publicly **and** freely available_ (paywalled,
-subscription, physical, personal), it is consistent with `004-FR-011`, which marks **public** website and
-Instagram imports as **public** per source TOS, and it newly covers `004-FR-012` (photo import). Read
-literally as _"or free"_, it would invert `004-FR-011` and make public-web imports private too. **The specs
-adopt the first reading**; the second would reverse a TOS-driven requirement on another agent's branch, so
-it is flagged rather than applied. Confirm before `004` or `011` is planned.
+✅ **Resolved 2026-08-02 — public websites import as public, unless otherwise marked or licensed.** The
+"not publicly **and** freely available" reading was confirmed, with a carve-out: a public web source yields
+a `public` recipe **unless** the source is marked or licensed against republication (paywall, subscription,
+explicit reservation, or a licence forbidding redistribution or derivatives), in which case the recipe is
+created `private`. Attribution and source linking are required either way.
 
-### 4.5 ✅ `docs/api-conventions.md` — not needed here
+The canonical rule now lives in **[GR-014](./governance-rules.md#gr-014-audience-and-sharing-model)**
+(`AC-014-e`, `AC-014-f`) rather than being restated per feature.
+
+⚠️ **Hand-off — `004-FR-011` needs the carve-out and was NOT changed here.** It currently reads that
+imports from public websites or Instagram MUST be marked public, **with no exception**, and that they MUST
+NOT be made private unless cloned and substantively edited. Under `AC-014-e` it needs "unless the source is
+otherwise marked or licensed against republication". `004` is being worked on its own branch, so this is
+recorded rather than applied. **Do not plan `004` without it** — as written, it would auto-publish
+paywalled and licence-restricted content.
+
+### 4.5 ✅ Audience model corrected (GR-014, `2.0.0 → 3.0.0`)
+
+Applying the visibility ruling exposed two defects in the shared audience model that no feature would have
+caught alone:
+
+- **There was no `public` scope.** The canonical list was `private`, `circle`, `public-profile`,
+  `published-lesson` — nothing expressing "readable by any authenticated user" (`001-FR-004`), so
+  `public-profile` was standing in for it. That conflates _being publicly readable_ with _being surfaced on
+  a creator's `@handle` page_; a public recipe is readable whether or not its owner has a `CreatorProfile`.
+  `public` added; `public-profile` demoted to a surfacing concern.
+- **`price_cents` sat on the audience shape for every entity.** That encodes exactly the paywalled state the
+  ruling forbids. Restricted to `published-lesson` — courses are purchasable (`013-FR-003`), recipes are not.
+
+Also: `circle` clarified as **read-only** for members, and `AC-014-e`/`AC-014-f` added for ingestion
+provenance and mandatory attribution. `cross-feature-consistency-report.md` S-004 amended in step.
+
+### 4.6 ✅ `docs/api-conventions.md` — not needed here
 
 Feature 005 authored it. GR-002 AC-002-d is satisfied by that file.
 

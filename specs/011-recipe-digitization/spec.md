@@ -181,28 +181,27 @@ Key need: reliable OCR on printed + handwritten text + side-by-side correction U
 
 > ### Recipe visibility model (owner ruling, 2026-08-02)
 >
-> **A recipe is either private or public. There is no third state.** No premium, paywalled, or
+> Canonical rule: [GR-014](../governance-rules.md#gr-014-audience-and-sharing-model). Summarised here
+> because 011 owns the `Circle` primitive and the `circle` audience scope.
+>
+> **A recipe is either private or public. There is no third state** — no premium, paywalled, or
 > purchasable recipe exists anywhere in the portfolio.
 >
-> - **Private** — visible to the owner. It MAY be shared with contacts **read-only** via a Circle
+> - **Private** — owner only. MAY be shared with contacts **read-only** via a Circle
 >   (`{ scope: 'circle', ref_id }`, member read-only access per US-006). Sharing is not selling.
-> - **Public** — visible to any authenticated user (`001-FR-004`).
-> - **Ingestion rule** — a recipe ingested from a source that is **not publicly and freely available**
->   is created **private** (`FR-021a`).
-> - **Attribution** — source attribution and linking are **required**, and are a precondition of
->   publishing (`FR-021b`, and `004-FR-010` for web/Instagram imports).
+> - **Public** — readable by any authenticated user (`001-FR-004`).
+> - **Ingestion rule** — an ingested recipe is created `public` **only** when its source is publicly and
+>   freely available **and not otherwise marked or licensed** against republication (paywall,
+>   subscription, explicit reservation, or a licence forbidding redistribution or derivatives). Otherwise
+>   it is created **private** (`FR-021a`), and MUST NOT be auto-published.
+> - **Attribution** — source attribution and linking are **required in every case**, and are a
+>   precondition of publishing (`FR-021b`; `004-FR-010` for web/Instagram imports).
 >
-> 001 owns the visibility field; 011 owns the Circle primitive and the `circle` audience scope that make
-> read-only contact sharing possible.
+> 001 owns the visibility field; 011 owns the Circle primitive and the `circle` scope.
 >
-> ⚠️ **Open question for `004` — does the ingestion rule change `004-FR-011`?** The ruling reads
-> "recipes ingested from a non-public or free source are automatically marked as private". Taken as
-> _"not publicly **and** freely available"_ — paywalled, subscription, physical, or personal sources —
-> it is consistent with `004-FR-011`, which marks imports from **public** websites and Instagram as
-> **public** per source TOS, and it newly covers `004-FR-012` (photo import of physical copies).
-> Read literally as _"or free"_, it would invert `004-FR-011` and make public-web imports private too.
-> **This spec adopts the first reading.** The second would reverse a TOS-driven requirement in another
-> feature's branch, so it is flagged rather than applied. Confirm before `004` or `011` is planned.
+> **Where 011 lands**: a photo-digitized recipe is always `private` on creation — a cookbook page, recipe
+> card, or handwritten note is not a publicly available source, so the "unless otherwise marked" carve-out
+> never makes it public by default. The owner may publish it afterwards if they hold the rights.
 
 ### Accessibility (FR-023 … FR-026) — supports US-002, US-004, US-007, US-008
 
@@ -310,13 +309,13 @@ New tables (PostgreSQL 16, Drizzle): `circles`, `circle_members` (PK = `circle_i
 
 ### Codebase Constraints
 
-| Constraint                                                      | Source         | Impact                                                                               |
-| --------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
-| Pre-signed S3 PUT for binary; API never proxies binary.         | NFR-002, S-002 | API just mints the URL; client uploads direct to S3, then notifies via job ID.       |
-| `/api/v1/*` route prefix enforced.                              | S-001          | All new endpoints scoped under `/api/v1/recipes/digitize/*` and `/api/v1/circles/*`. |
-| `@kitchensink/{group}-{name}` package naming.                   | S-002          | New packages must follow naming.                                                     |
-| Audit logging required for membership changes.                  | NFR-003, S-004 | `circles-api` emits structured events on every membership-state change.              |
-| `audience` field uses `{ scope, ref_id?, price_cents? }` shape. | S-004          | `circle` scope ⇒ `ref_id = Circle.id`; defined in `@kitchensink/audience`.           |
+| Constraint                                                                                                  | Source         | Impact                                                                               |
+| ----------------------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
+| Pre-signed S3 PUT for binary; API never proxies binary.                                                     | NFR-002, S-002 | API just mints the URL; client uploads direct to S3, then notifies via job ID.       |
+| `/api/v1/*` route prefix enforced.                                                                          | S-001          | All new endpoints scoped under `/api/v1/recipes/digitize/*` and `/api/v1/circles/*`. |
+| `@kitchensink/{group}-{name}` package naming.                                                               | S-002          | New packages must follow naming.                                                     |
+| Audit logging required for membership changes.                                                              | NFR-003, S-004 | `circles-api` emits structured events on every membership-state change.              |
+| `audience` field uses `{ scope, ref_id? }` shape (GR-014 v3.0.0; `price_cents` is `published-lesson`-only). | S-004          | `circle` scope ⇒ `ref_id = Circle.id`; defined in `@kitchensink/audience`.           |
 
 ---
 
@@ -346,7 +345,8 @@ export enum AudienceScope {
 export interface Audience {
     scope: AudienceScope;
     ref_id?: string;
-    price_cents?: number;
+    // `price_cents` REMOVED 2026-08-02 per GR-014 v3.0.0 — recipes are not purchasable.
+    // A price belongs only on a `published-lesson` audience (013 courses).
 }
 ```
 

@@ -575,16 +575,36 @@ Unified portfolio-level sharing primitive. Replaces the ad-hoc per-feature shari
 
 **Audience scopes** (applied to recipes, collections, meal plans, lessons, profiles):
 
-| Scope              | Visibility                                                       | Owner control               | Indexable            |
-| ------------------ | ---------------------------------------------------------------- | --------------------------- | -------------------- |
-| `private`          | Owner only                                                       | full                        | no                   |
-| `circle`           | Members of a named circle (family, friends, team)                | invite/revoke               | no                   |
-| `public-profile`   | Anyone with the URL; surfaced on creator's `@handle` page        | full + monetization options | yes                  |
-| `published-lesson` | Anyone enrolled (free or paid) in a Cooking School lesson/course | full + price/tier           | yes (course catalog) |
+| Scope              | Visibility                                                         | Owner control     | Indexable            |
+| ------------------ | ------------------------------------------------------------------ | ----------------- | -------------------- |
+| `private`          | Owner only                                                         | full              | no                   |
+| `circle`           | Members of a named Circle, **read-only**                           | invite/revoke     | no                   |
+| `public`           | Any authenticated user (`001-FR-004`)                              | full              | yes                  |
+| `public-profile`   | Surfacing of a creator's **already-`public`** content on `@handle` | full              | yes                  |
+| `published-lesson` | Anyone enrolled (free or paid) in a Cooking School lesson/course   | full + price/tier | yes (course catalog) |
+
+**Amended 2026-08-02 (owner ruling).** Three corrections:
+
+1. **`public` was missing.** A recipe's visibility is **binary — `private` or `public`** (`001-FR-003`,
+   `001-FR-004`), and no scope expressed "readable by any authenticated user". `public-profile` was being
+   made to stand in for it, which conflates _being publicly readable_ with _being surfaced on a creator's
+   `@handle` page_. They are independent: a public recipe is readable whether or not its owner has a
+   `CreatorProfile`. `public-profile` is now strictly a **surfacing** concern layered on `public`.
+2. **`circle` is read-only** for members (011 US-006). Sharing is not a transfer of write access.
+3. **No paywalled recipe state exists.** `public-profile` previously read "full + monetization options",
+   implying purchasable profile content. Creator monetization is the tip jar only; see GR-014.
 
 **Required implementation properties**:
 
-- Single `audience` field on shareable entities (`recipe`, `collection`, `lesson`, etc.) with `{ scope, ref_id?, price_cents? }` shape.
+- Single `audience` field on shareable entities (`recipe`, `collection`, `lesson`, etc.) with
+  `{ scope, ref_id? }` shape. **`price_cents` is valid ONLY on `published-lesson`** — courses are
+  purchasable (`013-FR-003`); recipes are not. A `price_cents` on any recipe or collection audience is a
+  violation, because it would encode a paywalled visibility state that does not exist.
+- **Ingestion provenance governs the initial scope.** A recipe created by ingesting an external source is
+  `public` only when that source is **publicly and freely available and not otherwise marked or licensed**
+  against republication (paywall, subscription, explicit reservation, or a licence forbidding
+  redistribution or derivatives). Otherwise it is created `private`. Attribution and source linking are
+  **required in both cases**, and a recipe MUST NOT be publishable without attribution.
 - Single `Circle` entity owned by feature 011 but reusable from 001, 006, 007.
 - Single `CreatorProfile` entity owned by 012, referenced from 010 (monetization) and 013 (educator profiles).
 - Audit logging on every audience change (compliance and trust).

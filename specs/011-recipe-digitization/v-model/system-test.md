@@ -1301,7 +1301,7 @@ Frozen design constraints from `system-design.md` are intentionally preserved an
     - **Then** type resolves and compile succeeds
 
 - **System Scenario: STS-021-A2**
-    - **Given** downstream service expects optional `price_cents`
+    - **Given** downstream service expects no `price_cents` (GR-014 v3.0.0)
     - **When** `Audience` type is used
     - **Then** field is available and correctly typed as optional number
 

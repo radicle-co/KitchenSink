@@ -171,7 +171,7 @@ packages/
 4. `digitization_jobs`
     - `id`, `user_id`, `batch_id`, `s3_key`, `state`, `low_quality`, `language_code`, `raw_ocr_json`, `parsed_json`, `recipe_id`, `created_at`, `updated_at`, `deleted_at`
 5. Recipe extension (feature 001 entity)
-    - `recipes.audience` JSONB contract: `{"scope":"private|circle|...","ref_id":string|null,"price_cents":number|null}`
+    - `recipes.audience` JSONB contract: `{"scope":"private|circle|public","ref_id":string|null}` (no `price_cents` — GR-014 v3.0.0)
 6. `recipe_versions`
     - append-only version rows for correction/save changes (supports archival/audit behavior)
 7. Raw OCR retention

@@ -146,6 +146,12 @@ jobs:
                   VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
               run: |
                   # --build-env is per-deployment; --meta records why this deployment exists out-of-band.
+                  #
+                  # --no-wait returns as soon as the deployment is CREATED. The next step already polls for
+                  # READY, so blocking here would just wait twice — and a blocking wait is actively worse:
+                  # interrupting the CLI mid-wait (job timeout, cancelled run, concurrency cancel) leaves the
+                  # deployment stuck reporting UNKNOWN with no build ever finishing. Observed exactly that
+                  # while validating this step by hand.
                   npx --yes vercel@latest deploy \
                     --token "$VERCEL_TOKEN" \
                     --scope "$VERCEL_ORG_ID" \
@@ -153,6 +159,7 @@ jobs:
                     --build-env "PREVIEW_PR_NUMBER=$PR_NUMBER" \
                     --meta "githubPrId=$PR_NUMBER" \
                     --meta "ciTriggered=pr-${{ github.event.action }}" \
+                    --no-wait \
                     --yes
 
             # PR open/updated → wait for the Vercel preview, capture its host, register the route.

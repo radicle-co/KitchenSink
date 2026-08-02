@@ -1,6 +1,6 @@
 /**
  * Public request/response shapes for `@kitchensink/food-service-client` (T-057). These mirror the
- * food service's `/v1/foods/*` contract but are intentionally standalone (no dependency on the NestJS
+ * food service's `/api/v1/foods/*` contract but are intentionally standalone (no dependency on the NestJS
  * service package) and source-agnostic: every food is keyed by its internal `id` and NO source-native
  * key (`fdcId`) ever appears in a public shape (SC-013). Dates are ISO-8601 strings (CODING_STANDARDS).
  */

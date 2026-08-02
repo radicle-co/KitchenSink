@@ -19,7 +19,7 @@ import type {
     RecipeVisibility,
 } from '@kitchensink/recipe-core';
 
-/** Sort key for `listRecipes` (`GET /v1/recipes`). */
+/** Sort key for `listRecipes` (`GET /api/v1/recipes`). */
 export type RecipeListSortBy = 'updatedAt' | 'createdAt' | 'title';
 
 /** Query parameters for `listRecipes`. */
@@ -29,7 +29,7 @@ export interface ListRecipesParams {
     readonly sortBy?: RecipeListSortBy;
 }
 
-/** Query parameters for `listCollections` (`GET /v1/collections`). */
+/** Query parameters for `listCollections` (`GET /api/v1/collections`). */
 export interface ListCollectionsParams {
     readonly page?: number;
     readonly pageSize?: number;
@@ -37,7 +37,7 @@ export interface ListCollectionsParams {
 
 /**
  * A single cross-source disambiguation candidate for an `UNRESOLVED` ingredient (response item of
- * `getIngredientCandidates` — `GET /v1/ingredients/{id}/candidates`). Mirrors the food client's
+ * `getIngredientCandidates` — `GET /api/v1/ingredients/{id}/candidates`). Mirrors the food client's
  * `CandidateView` but is declared here so the recipe client never depends on `@kitchensink/food-service-client`.
  * Source-agnostic: keyed by the candidate's own opaque handle, never a USDA `fdcId`.
  */
@@ -55,7 +55,7 @@ export interface IngredientCandidate {
 }
 
 /**
- * Where a blended typeahead suggestion came from (`GET /v1/ingredients/suggest`, search Stage 2).
+ * Where a blended typeahead suggestion came from (`GET /api/v1/ingredients/suggest`, search Stage 2).
  *
  *  - `local` — a real `ingredients` catalog row. Pickable as-is: its `id` is a valid recipe-line
  *    `ingredientId`, and it carries whatever nutrition the row already has.
@@ -66,7 +66,7 @@ export type IngredientSuggestionProvenance = 'local' | 'catalog';
 
 /**
  * One blended ingredient-typeahead suggestion (response item of `suggestIngredients` —
- * `GET /v1/ingredients/suggest`). A DISCRIMINATED UNION rather than a widened `Ingredient`, because the two
+ * `GET /api/v1/ingredients/suggest`). A DISCRIMINATED UNION rather than a widened `Ingredient`, because the two
  * kinds are structurally different and only one of them is pickable without a round-trip: collapsing them
  * would force a fabricated ingredient id onto a catalog hit, which ends as a foreign-key violation or a
  * nutrition-less recipe line. Narrow on `provenance` before using a suggestion.
@@ -95,7 +95,7 @@ export type IngredientSuggestion =
 export type IngredientCatalogAvailability = 'ok' | 'unavailable' | 'disabled';
 
 /**
- * Response envelope of `suggestIngredients` (`GET /v1/ingredients/suggest`).
+ * Response envelope of `suggestIngredients` (`GET /api/v1/ingredients/suggest`).
  *
  * Sectioned, not interleaved: every `local` suggestion precedes every `catalog` one, and that order is
  * stable. Consumers should render them as two labeled sections — the fast familiar list never reorders when
@@ -108,13 +108,13 @@ export interface IngredientSuggestions {
     readonly catalogAvailability: IngredientCatalogAvailability;
 }
 
-/** Request body for `addIngredientByFood` (`POST /v1/ingredients/by-food`). */
+/** Request body for `addIngredientByFood` (`POST /api/v1/ingredients/by-food`). */
 export interface AddIngredientByFoodRequest {
     /** The opaque food-service id taken from a `catalog` suggestion. */
     readonly foodId: string;
 }
 
-/** Request body for `createPhotoUploadUrl` (`POST /v1/recipes/{id}/photos/upload-url`). */
+/** Request body for `createPhotoUploadUrl` (`POST /api/v1/recipes/{id}/photos/upload-url`). */
 export interface PhotoUploadUrlRequest {
     readonly fileName: string;
     readonly contentType: string;
@@ -132,13 +132,13 @@ export interface UploadUrlResponse {
     readonly maxBytes: number;
 }
 
-/** Request body for `confirmPhotoUpload` (`POST /v1/recipes/{id}/photos/confirm`). */
+/** Request body for `confirmPhotoUpload` (`POST /api/v1/recipes/{id}/photos/confirm`). */
 export interface PhotoConfirmRequest {
     readonly key: string;
     readonly contentType: string;
 }
 
-/** Request body for `createCollection` (`POST /v1/collections`). */
+/** Request body for `createCollection` (`POST /api/v1/collections`). */
 export interface CreateCollectionRequest {
     readonly name: string;
     readonly description?: string;
@@ -146,7 +146,7 @@ export interface CreateCollectionRequest {
     readonly visibility?: RecipeVisibility;
 }
 
-/** Request body for `updateCollection` (`PATCH /v1/collections/{id}`); at least one field is required. */
+/** Request body for `updateCollection` (`PATCH /api/v1/collections/{id}`); at least one field is required. */
 export interface UpdateCollectionRequest {
     readonly name?: string;
     readonly description?: string;
@@ -205,13 +205,13 @@ export interface CollectionRecipeMembership {
     readonly createdAt: string;
 }
 
-/** Optional overrides for `cloneCollection` (`POST /v1/collections/{id}/clone`). */
+/** Optional overrides for `cloneCollection` (`POST /api/v1/collections/{id}/clone`). */
 export interface CloneCollectionRequest {
     readonly name?: string;
     readonly description?: string;
 }
 
-/** Response from `pullCollectionFromSource` (`POST /v1/collections/{id}/pull-from-source`). */
+/** Response from `pullCollectionFromSource` (`POST /api/v1/collections/{id}/pull-from-source`). */
 export interface PullFromSourceResponse {
     readonly collection: Collection;
     /** Recipe ids added to the collection by this pull. */
@@ -219,7 +219,7 @@ export interface PullFromSourceResponse {
 }
 
 /**
- * Request body for `requestAccountErasure` (`POST /v1/account/erasure`) — mirrors the recipe service's
+ * Request body for `requestAccountErasure` (`POST /api/v1/account/erasure`) — mirrors the recipe service's
  * `ErasureRequestDto` EXACTLY (CR-002 / U3b). Historically this carried only an OPTIONAL `confirmationPhrase`
  * and no election, which no longer matches the shipped contract: the phrase is REQUIRED (U7 — an irreversible
  * action must never proceed without a deliberate intent gate; a missing/empty/mismatched phrase is a `400`),
@@ -265,7 +265,7 @@ export interface RecipeSearchFacets {
     readonly totalTime?: RecipeSearchFacetCounts;
 }
 
-/** Response from `searchRecipes` (`GET /v1/search/recipes`). Results are an object-per-hit envelope. */
+/** Response from `searchRecipes` (`GET /api/v1/search/recipes`). Results are an object-per-hit envelope. */
 export interface RecipeSearchResponse {
     readonly results: readonly RecipeSearchResult[];
     readonly total: number;

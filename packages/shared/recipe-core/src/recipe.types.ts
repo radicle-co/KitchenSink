@@ -225,7 +225,7 @@ export interface Recipe {
     currentVersion: number;
     /**
      * Mean of this recipe's ratings, 1–5 (FR-013a). READ-ONLY — maintained by a database trigger and
-     * never accepted from a client; rate via `PUT /v1/recipes/{id}/rating`.
+     * never accepted from a client; rate via `PUT /api/v1/recipes/{id}/rating`.
      *
      * ABSENT exactly when {@link ratingCount} is 0. An unrated recipe has NO average — it is never
      * reported as `0`, which would render as a genuine zero-star score.
@@ -377,7 +377,7 @@ export const recipeIngredientViewSchema = z.object({
 
 /**
  * A recipe WITH its cookable content: the {@link Recipe} metadata PLUS the composed `ingredients` and
- * `steps`. This is what the single-recipe read paths return (`GET /v1/recipes/{id}`, create, update,
+ * `steps`. This is what the single-recipe read paths return (`GET /api/v1/recipes/{id}`, create, update,
  * clone, restore) — everything a cook needs to follow the recipe. List/search/collection endpoints
  * return the lighter {@link Recipe} metadata (no per-item content).
  */
@@ -422,7 +422,7 @@ export interface RecipeDetail extends Recipe {
      *
      * ABSENT when the viewer has not rated the recipe (and inherently absent on the viewer's OWN recipe — an
      * owner cannot rate their own). Never `0`: an unrated viewer has no stars, not a zero-star rating. Detail
-     * projection ONLY (`GET /v1/recipes/{id}` and the rating write's detail response); never on the lighter
+     * projection ONLY (`GET /api/v1/recipes/{id}` and the rating write's detail response); never on the lighter
      * list/search {@link Recipe} projection, which carries only the community score.
      */
     viewerRating?: number;
@@ -830,7 +830,7 @@ export const versionConflictDetailsSchema = z.object({
 });
 
 /**
- * Response to a version restore (`POST /v1/recipes/{id}/versions/{versionNumber}/restore`): the recipe
+ * Response to a version restore (`POST /api/v1/recipes/{id}/versions/{versionNumber}/restore`): the recipe
  * after the restore, the version it was restored FROM, and the recipe's new current version number.
  */
 export interface RestoreVersionResponse {
@@ -879,7 +879,7 @@ export const recipeRatingSchema = z.object({
 });
 
 /**
- * Body of the idempotent `PUT /v1/recipes/{id}/rating` upsert (FR-013).
+ * Body of the idempotent `PUT /api/v1/recipes/{id}/rating` upsert (FR-013).
  *
  * The rater is taken from the authenticated token, never from the body — a client-supplied rater id
  * would let any caller rate as anyone else. The schema is non-strict (unknown keys are stripped), so a
@@ -1286,7 +1286,7 @@ export const RecipeErrorCode = {
     PULL_DRIFT: 'PULL_DRIFT',
     /**
      * REQ-049b — the caller already owns the maximum of 50 (non-deleted) collections, so a further
-     * `POST /v1/collections` is rejected before any row is written. A 409, matching `MAX_PHOTOS_EXCEEDED`'s
+     * `POST /api/v1/collections` is rejected before any row is written. A 409, matching `MAX_PHOTOS_EXCEEDED`'s
      * treatment of a resource-count cap; `details` carries the `limit` for the client.
      */
     COLLECTION_LIMIT_REACHED: 'COLLECTION_LIMIT_REACHED',

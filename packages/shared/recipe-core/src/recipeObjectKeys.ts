@@ -30,7 +30,7 @@ export interface RecipeVersionArchiveKeyParts {
     /**
      * The 1-based, client-facing version number — NOT the internal `recipe_versions.id` UUID.
      *
-     * This is the address the API exposes (`GET /v1/recipes/{id}/versions/{versionNumber}`) and it is
+     * This is the address the API exposes (`GET /api/v1/recipes/{id}/versions/{versionNumber}`) and it is
      * unique within a recipe via the `(recipe_id, version_number)` index, so it is collision-free while
      * staying legible in the bucket.
      */

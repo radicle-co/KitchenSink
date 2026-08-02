@@ -110,7 +110,7 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
         expect(result).toEqual(recipe);
         expect(server.received).toHaveLength(1);
         expect(server.received[0]!.method).toBe('GET');
-        expect(server.received[0]!.url).toBe('/v1/recipes/rec_1');
+        expect(server.received[0]!.url).toBe('/api/v1/recipes/rec_1');
         expect(server.received[0]!.authorization).toBe('Bearer tok-int');
     });
 
@@ -123,7 +123,7 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
         await client.searchRecipes({ query: 'chicken pie', dietaryFlags: ['vegan', 'gluten_free'], page: 2 });
 
         expect(server.received[0]!.url).toBe(
-            '/v1/search/recipes?query=chicken+pie&dietaryFlags=vegan&dietaryFlags=gluten_free&page=2',
+            '/api/v1/search/recipes?query=chicken+pie&dietaryFlags=vegan&dietaryFlags=gluten_free&page=2',
         );
     });
 

@@ -87,16 +87,16 @@ export const recipeServiceKeys = {
     ingredientSearch: (query: string, limit?: number) =>
         ['recipe-service', 'search', 'ingredients', query, limit ?? null] as const,
     /**
-     * One blended typeahead read (`GET /v1/ingredients/suggest`). Keyed under a `suggest` segment of the
+     * One blended typeahead read (`GET /api/v1/ingredients/suggest`). Keyed under a `suggest` segment of the
      * SAME `ingredientSearches` prefix so it shares that invalidation region while never colliding with a
      * local-only `/search` entry for the same terms — the two return different shapes, so one cache key
      * serving both would be a type error waiting to happen.
      */
     ingredientSuggest: (query: string, limit?: number) =>
         ['recipe-service', 'search', 'ingredients', 'suggest', query, limit ?? null] as const,
-    /** One ingredient's async-resolution poll (`GET /v1/ingredients/{id}/status`). */
+    /** One ingredient's async-resolution poll (`GET /api/v1/ingredients/{id}/status`). */
     ingredientStatus: (id: string) => ['recipe-service', 'ingredients', 'detail', id, 'status'] as const,
-    /** One ingredient's disambiguation candidate set (`GET /v1/ingredients/{id}/candidates`). */
+    /** One ingredient's disambiguation candidate set (`GET /api/v1/ingredients/{id}/candidates`). */
     ingredientCandidates: (id: string) => ['recipe-service', 'ingredients', 'detail', id, 'candidates'] as const,
 } as const;
 
@@ -124,14 +124,14 @@ export const DEFAULT_INGREDIENT_POLL_INTERVAL_MS = 2500;
  */
 export function recipeQueries(client: RecipeServiceClient) {
     return {
-        /** `GET /v1/recipes` — the caller's recipes (paginated, flat page). */
+        /** `GET /api/v1/recipes` — the caller's recipes (paginated, flat page). */
         list: (params: ListRecipesParams = {}) =>
             queryOptions({
                 queryKey: recipeServiceKeys.recipeList(params),
                 queryFn: () => client.listRecipes(params),
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
             }),
-        /** `GET /v1/recipes` — the same list, paginated for a "Load more" flow. */
+        /** `GET /api/v1/recipes` — the same list, paginated for a "Load more" flow. */
         listInfinite: (params: ListRecipesParams = {}) =>
             infiniteQueryOptions({
                 queryKey: recipeServiceKeys.recipeList(params),
@@ -140,35 +140,35 @@ export function recipeQueries(client: RecipeServiceClient) {
                 getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
             }),
-        /** `GET /v1/recipes/{id}` — a single recipe. */
+        /** `GET /api/v1/recipes/{id}` — a single recipe. */
         detail: (id: string) =>
             queryOptions({
                 queryKey: recipeServiceKeys.recipe(id),
                 queryFn: () => client.getRecipeById(id),
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
             }),
-        /** `GET /v1/recipes/{id}/versions` — a recipe's recent versions. */
+        /** `GET /api/v1/recipes/{id}/versions` — a recipe's recent versions. */
         versions: (id: string) =>
             queryOptions({
                 queryKey: recipeServiceKeys.recipeVersions(id),
                 queryFn: () => client.listRecipeVersions(id),
                 staleTime: RECIPE_VERSIONS_STALE_TIME_MS,
             }),
-        /** `GET /v1/recipes/{id}/versions/{versionNumber}` — a specific version snapshot (immutable once created). */
+        /** `GET /api/v1/recipes/{id}/versions/{versionNumber}` — a specific version snapshot (immutable once created). */
         version: (id: string, versionNumber: number) =>
             queryOptions({
                 queryKey: recipeServiceKeys.recipeVersion(id, versionNumber),
                 queryFn: () => client.getRecipeVersion(id, versionNumber),
                 staleTime: RECIPE_VERSIONS_STALE_TIME_MS,
             }),
-        /** `GET /v1/recipes/{id}/photos` — a recipe's photos (embedded on the detail; same cadence). */
+        /** `GET /api/v1/recipes/{id}/photos` — a recipe's photos (embedded on the detail; same cadence). */
         photos: (id: string) =>
             queryOptions({
                 queryKey: recipeServiceKeys.recipePhotos(id),
                 queryFn: () => client.listRecipePhotos(id),
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
             }),
-        /** `GET /v1/search/recipes` — full-text recipe search with facets (flat page). */
+        /** `GET /api/v1/search/recipes` — full-text recipe search with facets (flat page). */
         search: (params: RecipeSearchParams = {}) =>
             queryOptions({
                 queryKey: recipeServiceKeys.recipeSearch(params),
@@ -176,7 +176,7 @@ export function recipeQueries(client: RecipeServiceClient) {
                 staleTime: RECIPE_SEARCH_STALE_TIME_MS,
             }),
         /**
-         * `GET /v1/search/recipes` — the same search, paginated for a "Load more" flow (W4/S4). Each
+         * `GET /api/v1/search/recipes` — the same search, paginated for a "Load more" flow (W4/S4). Each
          * fetched page appends to `data.pages`; the next page is `page + 1` while the last page reported
          * `hasMore`, otherwise `getNextPageParam` returns `undefined` and the control disappears.
          */
@@ -204,7 +204,7 @@ export function recipeQueries(client: RecipeServiceClient) {
  */
 export function collectionQueries(client: RecipeServiceClient) {
     return {
-        /** `GET /v1/collections` — the caller's collections (paginated, flat page). */
+        /** `GET /api/v1/collections` — the caller's collections (paginated, flat page). */
         list: (params: ListCollectionsParams = {}) =>
             queryOptions({
                 queryKey: recipeServiceKeys.collectionList(params),
@@ -212,7 +212,7 @@ export function collectionQueries(client: RecipeServiceClient) {
                 staleTime: COLLECTION_STALE_TIME_MS,
             }),
         /**
-         * `GET /v1/collections` — the same list, paginated for a "Load more" flow (W5/C7). Shares its query
+         * `GET /api/v1/collections` — the same list, paginated for a "Load more" flow (W5/C7). Shares its query
          * key with `list` (same "flat + infinite share one key" contract as `recipeQueries`) — a flat and an
          * infinite read of the same params are the same logical cache entry.
          */
@@ -224,7 +224,7 @@ export function collectionQueries(client: RecipeServiceClient) {
                 getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
                 staleTime: COLLECTION_STALE_TIME_MS,
             }),
-        /** `GET /v1/collections/{id}` — a collection with its member recipes. */
+        /** `GET /api/v1/collections/{id}` — a collection with its member recipes. */
         detail: (id: string) =>
             queryOptions({
                 queryKey: recipeServiceKeys.collection(id),
@@ -244,7 +244,7 @@ export function collectionQueries(client: RecipeServiceClient) {
  */
 export function ingredientQueries(client: RecipeServiceClient) {
     return {
-        /** `GET /v1/ingredients/search` — LOCAL-only ingredient typeahead (the recipe-search filter's read). */
+        /** `GET /api/v1/ingredients/search` — LOCAL-only ingredient typeahead (the recipe-search filter's read). */
         search: (query: string, limit?: number) =>
             queryOptions({
                 queryKey: recipeServiceKeys.ingredientSearch(query, limit),
@@ -252,7 +252,7 @@ export function ingredientQueries(client: RecipeServiceClient) {
                 staleTime: INGREDIENT_SEARCH_STALE_TIME_MS,
             }),
         /**
-         * `GET /v1/ingredients/suggest` — the BLENDED typeahead (search Stage 2), the picker's read.
+         * `GET /api/v1/ingredients/suggest` — the BLENDED typeahead (search Stage 2), the picker's read.
          *
          * Same short `staleTime` as the local search: a keystroke-driven typeahead over a catalog that
          * changes as users add ingredients. Deliberately NO `retry` override — the endpoint already degrades
@@ -267,7 +267,7 @@ export function ingredientQueries(client: RecipeServiceClient) {
                 staleTime: INGREDIENT_SEARCH_STALE_TIME_MS,
             }),
         /**
-         * `GET /v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model
+         * `GET /api/v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model
          * R5). The poll is SELF-LIMITING: `refetchInterval` returns a cadence ONLY while the last-seen
          * status is `PENDING`, and `false` for every other state — `RESOLVED`, `UNRESOLVED` (needs user
          * disambiguation, not more polling), the `NOT_FOUND`/`FAILED` terminals, and a freeform ingredient
@@ -287,7 +287,7 @@ export function ingredientQueries(client: RecipeServiceClient) {
                     return data?.foodResolutionStatus === FoodResolutionStatus.PENDING ? pollIntervalMs : false;
                 },
             }),
-        /** `GET /v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED` ingredient. */
+        /** `GET /api/v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED` ingredient. */
         candidates: (id: string) =>
             queryOptions({
                 queryKey: recipeServiceKeys.ingredientCandidates(id),

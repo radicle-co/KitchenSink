@@ -108,7 +108,7 @@ export interface QueryEnableOptions {
 // the caller-configurable cadence. The query key, the fetcher, and the cache policy (`staleTime`) live
 // on the factory, so they cannot drift between two hooks that read the same data.
 
-/** `GET /v1/recipes` — the caller's recipes (paginated). */
+/** `GET /api/v1/recipes` — the caller's recipes (paginated). */
 export function useRecipes(params: ListRecipesParams = {}) {
     const client = useRecipeServiceClient();
 
@@ -119,7 +119,7 @@ export function useRecipes(params: ListRecipesParams = {}) {
 export const ALL_OWNER_RECIPES_PAGE_SIZE = 100;
 
 /**
- * `GET /v1/recipes` — the caller's ENTIRE recipe list, eagerly paged to completion.
+ * `GET /api/v1/recipes` — the caller's ENTIRE recipe list, eagerly paged to completion.
  *
  * The account-erasure donate election (CR-002 / U4b) is the input to an IRREVERSIBLE action: any owner-only
  * recipe the user is never shown would be silently destroyed. So the election MUST see every page, not just
@@ -167,7 +167,7 @@ export function useAllOwnerRecipes(pageSize = ALL_OWNER_RECIPES_PAGE_SIZE) {
     };
 }
 
-/** `GET /v1/recipes/{id}` — a single recipe. */
+/** `GET /api/v1/recipes/{id}` — a single recipe. */
 export function useRecipe(id: string, options: QueryEnableOptions = {}) {
     const client = useRecipeServiceClient();
 
@@ -177,7 +177,7 @@ export function useRecipe(id: string, options: QueryEnableOptions = {}) {
     });
 }
 
-/** `GET /v1/recipes/{id}/versions` — a recipe's recent versions. */
+/** `GET /api/v1/recipes/{id}/versions` — a recipe's recent versions. */
 export function useRecipeVersions(id: string, options: QueryEnableOptions = {}) {
     const client = useRecipeServiceClient();
 
@@ -187,7 +187,7 @@ export function useRecipeVersions(id: string, options: QueryEnableOptions = {}) 
     });
 }
 
-/** `GET /v1/recipes/{id}/versions/{versionNumber}` — a specific version snapshot. */
+/** `GET /api/v1/recipes/{id}/versions/{versionNumber}` — a specific version snapshot. */
 export function useRecipeVersion(id: string, versionNumber: number, options: QueryEnableOptions = {}) {
     const client = useRecipeServiceClient();
 
@@ -197,7 +197,7 @@ export function useRecipeVersion(id: string, versionNumber: number, options: Que
     });
 }
 
-/** `GET /v1/recipes/{id}/photos` — a recipe's photos. */
+/** `GET /api/v1/recipes/{id}/photos` — a recipe's photos. */
 export function useRecipePhotos(id: string, options: QueryEnableOptions = {}) {
     const client = useRecipeServiceClient();
 
@@ -209,7 +209,7 @@ export function useRecipePhotos(id: string, options: QueryEnableOptions = {}) {
 
 // ─── Collection queries ─────────────────────────────────────────────────────────────────────────
 
-/** `GET /v1/collections` — the caller's collections (paginated). */
+/** `GET /api/v1/collections` — the caller's collections (paginated). */
 export function useCollections(params: ListCollectionsParams = {}) {
     const client = useRecipeServiceClient();
 
@@ -217,7 +217,7 @@ export function useCollections(params: ListCollectionsParams = {}) {
 }
 
 /**
- * `GET /v1/collections` — the same caller's collections as {@link useCollections}, but PAGINATED for a
+ * `GET /api/v1/collections` — the same caller's collections as {@link useCollections}, but PAGINATED for a
  * "Load more" flow (W5/C7): each fetched page appends to `data.pages`, and `hasNextPage`/`fetchNextPage`
  * drive the load-more control. The next page is `page + 1` while the last page reported `hasMore`; once it
  * does not, `getNextPageParam` returns `undefined` and the control disappears.
@@ -230,7 +230,7 @@ export function useCollectionsInfinite(params: ListCollectionsParams = {}) {
     return useInfiniteQuery(collectionQueries(client).listInfinite(params));
 }
 
-/** `GET /v1/collections/{id}` — a collection with its member recipes. */
+/** `GET /api/v1/collections/{id}` — a collection with its member recipes. */
 export function useCollection(id: string, options: QueryEnableOptions = {}) {
     const client = useRecipeServiceClient();
 
@@ -242,7 +242,7 @@ export function useCollection(id: string, options: QueryEnableOptions = {}) {
 
 // ─── Search queries ─────────────────────────────────────────────────────────────────────────────
 
-/** `GET /v1/search/recipes` — full-text recipe search with facets. */
+/** `GET /api/v1/search/recipes` — full-text recipe search with facets. */
 export function useSearchRecipes(params: RecipeSearchParams = {}) {
     const client = useRecipeServiceClient();
 
@@ -250,7 +250,7 @@ export function useSearchRecipes(params: RecipeSearchParams = {}) {
 }
 
 /**
- * `GET /v1/search/recipes` — the same ranked, faceted, visibility-scoped search as {@link useSearchRecipes},
+ * `GET /api/v1/search/recipes` — the same ranked, faceted, visibility-scoped search as {@link useSearchRecipes},
  * but PAGINATED for a "Load more" flow (W4/S4): each fetched page appends to `data.pages`, and
  * `hasNextPage`/`fetchNextPage` drive the load-more control. The next page is `page + 1` while the last page
  * reported `hasMore`; once it does not, `getNextPageParam` returns `undefined` and the control disappears.
@@ -264,7 +264,7 @@ export function useInfiniteSearchRecipes(params: RecipeSearchParams = {}) {
     return useInfiniteQuery(recipeQueries(client).searchInfinite(params));
 }
 
-/** `GET /v1/ingredients/search` — ingredient typeahead (disabled for an empty query). */
+/** `GET /api/v1/ingredients/search` — ingredient typeahead (disabled for an empty query). */
 export function useSearchIngredients(query: string, limit?: number, options: QueryEnableOptions = {}) {
     const client = useRecipeServiceClient();
 
@@ -275,7 +275,7 @@ export function useSearchIngredients(query: string, limit?: number, options: Que
 }
 
 /**
- * `GET /v1/ingredients/suggest` — the BLENDED ingredient typeahead (search Stage 2): the local `ingredients`
+ * `GET /api/v1/ingredients/suggest` — the BLENDED ingredient typeahead (search Stage 2): the local `ingredients`
  * catalog plus the food-service golden catalog, deduped and sectioned by provenance. This is the ingredient
  * PICKER's read; {@link useSearchIngredients} stays the local-only read the recipe-search filter needs.
  *
@@ -303,7 +303,7 @@ export interface IngredientStatusOptions extends QueryEnableOptions {
 }
 
 /**
- * `GET /v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model R5).
+ * `GET /api/v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model R5).
  *
  * The poll is SELF-LIMITING: `refetchInterval` (from {@link ingredientQueries}`.status`) returns a cadence
  * ONLY while the last-seen status is `PENDING`, and `false` for every other state — `RESOLVED`,
@@ -326,7 +326,7 @@ export function useIngredientStatus(id: string, options: IngredientStatusOptions
 }
 
 /**
- * `GET /v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED` ingredient.
+ * `GET /api/v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED` ingredient.
  * Gate it (`enabled`) on a line actually being `UNRESOLVED` so it never fetches for a resolved/freeform line.
  *
  * @param id - The ingredient id (the query is disabled for an empty id).
@@ -350,7 +350,7 @@ export function useIngredientCandidates(id: string, options: QueryEnableOptions 
 // stale at exactly the same instant as the list, and nothing else invalidates it. Photo writes are
 // deliberately excluded: search rows are `Recipe` metadata, which carries no photo data.
 
-/** `POST /v1/recipes` — create a recipe. */
+/** `POST /api/v1/recipes` — create a recipe. */
 export function useCreateRecipe() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -365,7 +365,7 @@ export function useCreateRecipe() {
 }
 
 /**
- * `PATCH /v1/recipes/{id}` — update a recipe (optimistic concurrency).
+ * `PATCH /api/v1/recipes/{id}` — update a recipe (optimistic concurrency).
  *
  * DA3 — write-through: the response IS the full, freshly-persisted `RecipeDetail`, so it is written straight
  * into `recipe(id)` (`setQueryData`) instead of invalidating it and forcing a refetch of data the client
@@ -395,7 +395,7 @@ export function useUpdateRecipe() {
     });
 }
 
-/** `DELETE /v1/recipes/{id}` — soft-delete a recipe. */
+/** `DELETE /api/v1/recipes/{id}` — soft-delete a recipe. */
 export function useDeleteRecipe() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -409,7 +409,7 @@ export function useDeleteRecipe() {
 }
 
 /**
- * `POST /v1/recipes/{id}/clone` — clone a public recipe.
+ * `POST /api/v1/recipes/{id}/clone` — clone a public recipe.
  *
  * DA3 — write-through: the response is the NEW clone's full `RecipeDetail`, so it is written straight into
  * that clone's OWN `recipe(data.id)` (its id, not the source recipe's) instead of forcing a refetch. A fresh
@@ -434,7 +434,7 @@ export function useCloneRecipe() {
 }
 
 /**
- * `PATCH /v1/recipes/{id}/visibility` — set a recipe's visibility.
+ * `PATCH /api/v1/recipes/{id}/visibility` — set a recipe's visibility.
  *
  * DA3 — write-through: the response is the full, freshly-persisted `RecipeDetail`, so it is written straight
  * into `recipe(id)` instead of invalidating it. A visibility flip is confirmed (against the server DAL) to be
@@ -539,7 +539,7 @@ function invalidateEditedRecipeRows(queryClient: ReturnType<typeof useQueryClien
 }
 
 /**
- * `POST /v1/recipes/{id}/versions/{versionNumber}/restore` — restore a recipe to a prior version.
+ * `POST /api/v1/recipes/{id}/versions/{versionNumber}/restore` — restore a recipe to a prior version.
  *
  * A restore is server-side a full recipe update off the snapshot: it rewrites the title/description/times,
  * replaces the ingredient and step sets, bumps `currentVersion`, and records a new version.
@@ -599,7 +599,7 @@ interface RatingMutationContext {
     readonly previous: RecipeDetail | undefined;
 }
 
-/** `PUT /v1/recipes/{id}/rating` — set the caller's rating (idempotent upsert), optimistically (DA4). */
+/** `PUT /api/v1/recipes/{id}/rating` — set the caller's rating (idempotent upsert), optimistically (DA4). */
 export function useSetRecipeRating() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -626,7 +626,7 @@ export function useSetRecipeRating() {
     });
 }
 
-/** `DELETE /v1/recipes/{id}/rating` — remove the caller's rating (idempotent), optimistically (DA4). */
+/** `DELETE /api/v1/recipes/{id}/rating` — remove the caller's rating (idempotent), optimistically (DA4). */
 export function useDeleteRecipeRating() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -655,7 +655,7 @@ export function useDeleteRecipeRating() {
 
 // ─── Ingredient mutations ─────────────────────────────────────────────────────────────────────────
 
-/** `POST /v1/ingredients` — create a freeform ingredient. */
+/** `POST /api/v1/ingredients` — create a freeform ingredient. */
 export function useCreateIngredient() {
     const client = useRecipeServiceClient();
 
@@ -665,7 +665,7 @@ export function useCreateIngredient() {
 }
 
 /**
- * `POST /v1/ingredients/by-name` — add an unknown food by name through the food service (data-model R5).
+ * `POST /api/v1/ingredients/by-name` — add an unknown food by name through the food service (data-model R5).
  *
  * The ENTRY POINT of the async-resolution vertical: it persists a food-backed catalog row and returns it
  * with a NON-terminal status (`PENDING` / `UNRESOLVED`), which the picker then polls ({@link useIngredientStatus})
@@ -687,7 +687,7 @@ export function useAddIngredientByName() {
 }
 
 /**
- * `POST /v1/ingredients/by-food` — admit a `catalog` typeahead suggestion as a food-backed ingredient
+ * `POST /api/v1/ingredients/by-food` — admit a `catalog` typeahead suggestion as a food-backed ingredient
  * (search Stage 2's pick path).
  *
  * The server creates the row AND backfills its golden-record nutrition in one round-trip, so the ingredient
@@ -711,7 +711,7 @@ export function useAddIngredientByFood() {
 }
 
 /**
- * `POST /v1/ingredients/{id}/resolve` — resolve an `UNRESOLVED` ingredient from a candidate pick.
+ * `POST /api/v1/ingredients/{id}/resolve` — resolve an `UNRESOLVED` ingredient from a candidate pick.
  *
  * On success the ingredient is now `RESOLVED` with nutrition, so this stales exactly the caches that
  * rendered its pre-resolution state: its own poll (`ingredientStatus(id)`), its now-stale candidate set
@@ -736,7 +736,7 @@ export function useResolveIngredient() {
 
 // ─── Photo mutations ──────────────────────────────────────────────────────────────────────────────
 
-/** `POST /v1/recipes/{id}/photos/upload-url` — mint a presigned upload URL (no cache to invalidate). */
+/** `POST /api/v1/recipes/{id}/photos/upload-url` — mint a presigned upload URL (no cache to invalidate). */
 export function useCreatePhotoUploadUrl() {
     const client = useRecipeServiceClient();
 
@@ -759,7 +759,7 @@ export function useCreatePhotoUploadUrl() {
 // so all three invalidate uniformly. This is NOT over-invalidation: it is exactly the queries whose rendered
 // data can change, and a photo write is a single, infrequent user action (no refetch storm).
 
-/** `POST /v1/recipes/{id}/photos/confirm` — confirm an uploaded photo. */
+/** `POST /api/v1/recipes/{id}/photos/confirm` — confirm an uploaded photo. */
 export function useConfirmPhotoUpload() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -773,7 +773,7 @@ export function useConfirmPhotoUpload() {
     });
 }
 
-/** `DELETE /v1/recipes/{id}/photos/{photoId}` — delete a photo. */
+/** `DELETE /api/v1/recipes/{id}/photos/{photoId}` — delete a photo. */
 export function useDeleteRecipePhoto() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -786,7 +786,7 @@ export function useDeleteRecipePhoto() {
     });
 }
 
-/** `PATCH /v1/recipes/{id}/photos/reorder` — reorder a recipe's photos. */
+/** `PATCH /api/v1/recipes/{id}/photos/reorder` — reorder a recipe's photos. */
 export function useReorderRecipePhotos() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -802,7 +802,7 @@ export function useReorderRecipePhotos() {
 
 // ─── Collection mutations ─────────────────────────────────────────────────────────────────────────
 
-/** `POST /v1/collections` — create a collection. */
+/** `POST /api/v1/collections` — create a collection. */
 export function useCreateCollection() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -815,7 +815,7 @@ export function useCreateCollection() {
     });
 }
 
-/** `PATCH /v1/collections/{id}` — update a collection. */
+/** `PATCH /api/v1/collections/{id}` — update a collection. */
 export function useUpdateCollection() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -829,7 +829,7 @@ export function useUpdateCollection() {
     });
 }
 
-/** `DELETE /v1/collections/{id}` — delete a collection. */
+/** `DELETE /api/v1/collections/{id}` — delete a collection. */
 export function useDeleteCollection() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -860,7 +860,7 @@ export function useDeleteCollection() {
 // row is server-generated). Deferred out of DA4's required scope (rating) rather than risk a rushed, under-tested
 // fabrication of that shape; not yet implemented.
 
-/** `POST /v1/collections/{id}/recipes` — add a recipe to a collection. */
+/** `POST /api/v1/collections/{id}/recipes` — add a recipe to a collection. */
 export function useAddRecipeToCollection() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -873,7 +873,7 @@ export function useAddRecipeToCollection() {
     });
 }
 
-/** `DELETE /v1/collections/{id}/recipes/{recipeId}` — remove a recipe from a collection. */
+/** `DELETE /api/v1/collections/{id}/recipes/{recipeId}` — remove a recipe from a collection. */
 export function useRemoveRecipeFromCollection() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -887,7 +887,7 @@ export function useRemoveRecipeFromCollection() {
     });
 }
 
-/** `POST /v1/collections/{id}/clone` — clone a collection. */
+/** `POST /api/v1/collections/{id}/clone` — clone a collection. */
 export function useCloneCollection() {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -902,7 +902,7 @@ export function useCloneCollection() {
 }
 
 /**
- * `POST /v1/collections/{id}/pull-from-source/preview` — PREVIEW a pull without mutating (W5 Task 5).
+ * `POST /api/v1/collections/{id}/pull-from-source/preview` — PREVIEW a pull without mutating (W5 Task 5).
  *
  * An IMPERATIVE trigger (`mutateAsync`), not a query: the preview is read-only server-side but is invoked
  * on demand (e.g. opening the pull-updates dialog), not kept warm/refetched like a `useQuery` cache entry.
@@ -918,7 +918,7 @@ export function usePreviewPull() {
 }
 
 /**
- * `POST /v1/collections/{id}/pull-from-source` — pull new recipes from a cloned collection's source.
+ * `POST /api/v1/collections/{id}/pull-from-source` — pull new recipes from a cloned collection's source.
  *
  * `previewedDiff` (from {@link usePreviewPull}) is optional and, when supplied, lets the server detect
  * DRIFT between what the caller previewed and what it would apply now — a rejection surfaces as a typed
@@ -945,7 +945,7 @@ export function usePullCollectionFromSource() {
 
 // ─── Account mutations ────────────────────────────────────────────────────────────────────────────
 
-/** `POST /v1/account/erasure` — request GDPR account erasure. */
+/** `POST /api/v1/account/erasure` — request GDPR account erasure. */
 export function useRequestAccountErasure() {
     const client = useRecipeServiceClient();
 

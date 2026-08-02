@@ -1,6 +1,6 @@
 /**
  * `@kitchensink/recipe-service-client` (T-004 / T-095) — the typed client for the Commise recipe
- * management API (`/v1/recipes`, `/v1/ingredients`, `/v1/collections`, `/v1/search`, `/v1/account`).
+ * management API (`/api/v1/recipes`, `/api/v1/ingredients`, `/api/v1/collections`, `/api/v1/search`, `/api/v1/account`).
  * Attaches a user-session or M2M bearer token and maps the recipe service's HTTP contract to typed
  * results (DTOs from `@kitchensink/recipe-core` + local wire envelopes) and typed errors
  * (`400`/`401`/`403`/`404`/`409`/`410`). Named-only barrel (CODING_STANDARDS).

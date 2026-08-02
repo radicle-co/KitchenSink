@@ -58,7 +58,7 @@ describe('ownerMediaPrefix', () => {
 
 describe('recipeVersionArchiveKey', () => {
     it('addresses a version by its CLIENT-FACING number, not the internal row id', () => {
-        // versionNumber is how the API addresses a version (GET /v1/recipes/{id}/versions/{n}) and is
+        // versionNumber is how the API addresses a version (GET /api/v1/recipes/{id}/versions/{n}) and is
         // unique within a recipe via the (recipe_id, version_number) index — so it is both collision-free
         // and debuggable. The worker previously keyed on the version UUID; the service's scheme wins.
         expect(recipeVersionArchiveKey({ ownerId: OWNER, recipeId: RECIPE, versionNumber: 3 })).toBe(

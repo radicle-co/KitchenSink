@@ -20,7 +20,7 @@ import type { ProfileServiceClient } from './profileServiceClient.js';
 
 /** Stable query-key factory for the viewer's profile — the single cache address both platforms share. */
 export const profileServiceKeys = {
-    /** `GET /v1/users/me` — the signed-in viewer's identity profile. */
+    /** `GET /api/v1/users/me` — the signed-in viewer's identity profile. */
     me: ['user', 'me'] as const,
 };
 
@@ -36,7 +36,7 @@ export const PROFILE_STALE_TIME_MS = 2 * 60 * 1000;
 export function profileQueries(client: ProfileServiceClient) {
     return {
         /**
-         * `GET /v1/users/me` — the signed-in viewer's profile. `options` is forwarded to
+         * `GET /api/v1/users/me` — the signed-in viewer's profile. `options` is forwarded to
          * `client.getMe(...)` unchanged, so a caller can still request a forced token refresh (mobile's
          * policy — see `mobile/src/hooks/useUserProfile.ts`) without this factory hard-coding either
          * platform's choice.

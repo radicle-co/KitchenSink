@@ -5,7 +5,7 @@
  * own them**:
  *
  *  - {@link AccountErasureMessage} — the `account-erasure` SQS message body. It has a producer in
- *    `@kitchensink/recipe-service` (the `ErasureService`, which enqueues on `POST /v1/account/erasure`)
+ *    `@kitchensink/recipe-service` (the `ErasureService`, which enqueues on `POST /api/v1/account/erasure`)
  *    and a consumer in `@kitchensink/recipe-workers` (the erasure worker, plus the cron sweeper that
  *    re-drains stuck jobs). A message contract with a producer and a consumer in different packages that
  *    each declare their own copy is a contract that WILL drift — exactly the failure
@@ -19,7 +19,7 @@
  */
 
 /**
- * Machine-readable `code` the recipe API returns on the `410` from `POST /v1/account/erasure` when a
+ * Machine-readable `code` the recipe API returns on the `410` from `POST /api/v1/account/erasure` when a
  * prior erasure job already `completed` — the account's data is gone and a fresh job would be
  * meaningless. Per `api.openapi.yaml` (`requestAccountErasure` → `410`). Distinct from the `202` that a
  * duplicate request gets while a job is still `queued`/`running`: that is idempotency, this is terminal.

@@ -10,7 +10,7 @@ import { RecipesModule } from '../recipes/recipes.module.js';
 
 /**
  * Ratings module (CR-001 / FR-013). Owns the rating WRITE surface (`PUT`/`DELETE
- * /v1/recipes/{id}/rating`). Wires the {@link RatingsDal} (writes `recipe_ratings` only — the aggregate
+ * /api/v1/recipes/{id}/rating`). Wires the {@link RatingsDal} (writes `recipe_ratings` only — the aggregate
  * self-maintains via trigger) and its own {@link RecipesDal} instance (the recipe existence/visibility
  * read that authorizes a rating) over the global Drizzle client, plus {@link RatingsService} and the
  * REST controller. It imports {@link RecipesModule} to reuse `RecipesService` for the `RecipeDetail`

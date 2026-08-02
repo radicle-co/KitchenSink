@@ -1,5 +1,5 @@
 /**
- * CR-001 / FR-013 — the `/v1/recipes/{id}/rating` REST surface (rating write).
+ * CR-001 / FR-013 — the `/api/v1/recipes/{id}/rating` REST surface (rating write).
  *
  * A thin controller sharing the `v1/recipes` base path with {@link RecipesController} (distinct method +
  * sub-path, so no route collision). The `@OwnerId()` decorator resolves the verified caller ULID from
@@ -28,13 +28,17 @@ import type { RecipeResponse } from '../recipes/dto/recipe-response.dto.js';
 import { OwnerId } from '../auth/current-principal.decorator.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
-@Controller('v1/recipes')
+// Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
+// `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
+// webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
+// inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+@Controller(['api/v1/recipes', 'v1/recipes'])
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
 export class RatingsController {
     public constructor(private readonly ratingsService: RatingsService) {}
 
     /**
-     * `PUT /v1/recipes/{id}/rating` — set the caller's rating (idempotent upsert). Returns `200` with the
+     * `PUT /api/v1/recipes/{id}/rating` — set the caller's rating (idempotent upsert). Returns `200` with the
      * recipe's refreshed `RecipeDetail`.
      */
     @Put(':id/rating')
@@ -48,7 +52,7 @@ export class RatingsController {
     }
 
     /**
-     * `DELETE /v1/recipes/{id}/rating` — remove the caller's rating (`204`, idempotent — removing a
+     * `DELETE /api/v1/recipes/{id}/rating` — remove the caller's rating (`204`, idempotent — removing a
      * non-existent rating still succeeds).
      */
     @Delete(':id/rating')

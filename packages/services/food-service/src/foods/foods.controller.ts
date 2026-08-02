@@ -1,5 +1,5 @@
 /**
- * `FoodsController` (ARCH-001, MOD-001) — the source-agnostic `/v1/foods/*` HTTP surface. Validates
+ * `FoodsController` (ARCH-001, MOD-001) — the source-agnostic `/api/v1/foods/*` HTTP surface. Validates
  * input at the boundary, delegates to {@link FoodsService}, and maps the service's typed domain errors
  * to HTTP responses under the FR-051 precedence `401 → 403 → 400 → 404/202/200`:
  *
@@ -65,20 +65,24 @@ import type {
     StatusResponse,
 } from './foods.types.js';
 
-@Controller('v1/foods')
+// Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
+// `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
+// webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
+// inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+@Controller(['api/v1/foods', 'v1/foods'])
 export class FoodsController {
     public constructor(
         private readonly foodsService: FoodsService,
         private readonly config: ConfigService<Environment, true>,
     ) {}
 
-    /** `GET /v1/foods/search?query=` — local fuzzy/crosswalk search (declared before `:id`). */
+    /** `GET /api/v1/foods/search?query=` — local fuzzy/crosswalk search (declared before `:id`). */
     @Get('search')
     public async search(@Query('query') query?: string): Promise<SearchResponse> {
         return this.foodsService.search(query ?? '');
     }
 
-    /** `POST /v1/foods` — add by name → `202` + `id` (FR-005); empty name → `400` (FR-006). */
+    /** `POST /api/v1/foods` — add by name → `202` + `id` (FR-005); empty name → `400` (FR-006). */
     @Post()
     public async addByName(
         @Body() body: unknown,
@@ -97,7 +101,7 @@ export class FoodsController {
         }
     }
 
-    /** `POST /v1/foods/batch` — batch add-by-name; ≤100 names (`400` over) (FR-045). */
+    /** `POST /api/v1/foods/batch` — batch add-by-name; ≤100 names (`400` over) (FR-045). */
     @Post('batch')
     public async batch(
         @Body() body: unknown,
@@ -113,7 +117,7 @@ export class FoodsController {
         }
     }
 
-    /** `GET /v1/foods/{id}/status` — lifecycle poll (FR-007). */
+    /** `GET /api/v1/foods/{id}/status` — lifecycle poll (FR-007). */
     @Get(':id/status')
     public async getStatus(@Param('id') id: string): Promise<StatusResponse> {
         this.requireId(id);
@@ -125,7 +129,7 @@ export class FoodsController {
         }
     }
 
-    /** `GET /v1/foods/{id}/candidates` — disambiguation candidate set (FR-RES-1). */
+    /** `GET /api/v1/foods/{id}/candidates` — disambiguation candidate set (FR-RES-1). */
     @Get(':id/candidates')
     public async getCandidates(@Param('id') id: string): Promise<CandidatesResponse> {
         this.requireId(id);
@@ -137,7 +141,7 @@ export class FoodsController {
         }
     }
 
-    /** `POST /v1/foods/{id}/refetch` — admin-scoped manual re-enqueue; `403` without scope (FR-039). */
+    /** `POST /api/v1/foods/{id}/refetch` — admin-scoped manual re-enqueue; `403` without scope (FR-039). */
     @Post(':id/refetch')
     public async refetch(
         @Param('id') id: string,
@@ -161,7 +165,7 @@ export class FoodsController {
         }
     }
 
-    /** `PATCH /v1/foods/{id}` — resolve from the user's candidate pick (FR-RES-2). */
+    /** `PATCH /api/v1/foods/{id}` — resolve from the user's candidate pick (FR-RES-2). */
     @Patch(':id')
     public async patchResolve(
         @Param('id') id: string,
@@ -182,7 +186,7 @@ export class FoodsController {
         }
     }
 
-    /** `GET /v1/foods/{id}` — golden-record read with lifecycle status codes (FR-002/FR-003/FR-004). */
+    /** `GET /api/v1/foods/{id}` — golden-record read with lifecycle status codes (FR-002/FR-003/FR-004). */
     @Get(':id')
     public async getFood(
         @Param('id') id: string,

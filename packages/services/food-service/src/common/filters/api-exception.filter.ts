@@ -10,7 +10,7 @@ import {
 } from '../../foods/foods.errors.js';
 
 /**
- * Machine-readable error codes surfaced to `/v1/foods/*` clients. One code per food domain error, so a
+ * Machine-readable error codes surfaced to `/api/v1/foods/*` clients. One code per food domain error, so a
  * client (and the sibling identity/recipe services) can branch on a stable `code` string instead of a
  * localized `message`. Kept as an enum so {@link FOOD_ERROR_STATUS} is exhaustive over it at compile time.
  */

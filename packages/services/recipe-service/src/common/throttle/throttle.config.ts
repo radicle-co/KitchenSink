@@ -63,7 +63,7 @@ export const photoLimit = throttleLimitFromEnv('RATE_LIMIT_PHOTO_UPLOAD', 10);
 export const searchLimit = throttleLimitFromEnv('RATE_LIMIT_SEARCH', 60);
 
 /**
- * GDPR account-export endpoint (`GET /v1/account/export`). The tightest limit: the export assembles six
+ * GDPR account-export endpoint (`GET /api/v1/account/export`). The tightest limit: the export assembles six
  * owner-scoped tables into one document, so it is the heaviest single read AND a data-egress surface,
  * while a genuine "download my data" request is rare. `RATE_LIMIT_EXPORT` req/min (default 10).
  */

@@ -34,7 +34,7 @@
  * past food: an unverified header simply 401s there.
  *
  * A service credential would have been strictly worse, not merely harder: food's enqueue paths
- * (`POST /v1/foods`, `/batch`) require the token's `external_id` (the app-user ULID) to attribute the fetch,
+ * (`POST /api/v1/foods`, `/batch`) require the token's `external_id` (the app-user ULID) to attribute the fetch,
  * and a machine principal has none.
  *
  * ## Confused-deputy boundary

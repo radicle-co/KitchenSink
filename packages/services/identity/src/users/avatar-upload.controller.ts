@@ -4,7 +4,11 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { CurrentAuthorizerContext } from '../auth/decorators/current-user.decorator.js';
 import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
 
-@Controller('v1/users/me/avatar')
+// Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
+// `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
+// webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
+// inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+@Controller(['api/v1/users/me/avatar', 'v1/users/me/avatar'])
 export class AvatarUploadController {
     private readonly s3: S3Client;
     private readonly bucket: string;

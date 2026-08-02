@@ -1,5 +1,5 @@
 /**
- * T023 — request DTO for `POST /v1/recipes` (create recipe).
+ * T023 — request DTO for `POST /api/v1/recipes` (create recipe).
  *
  * Mirrors the `CreateRecipeRequest` schema in `contracts/api.openapi.yaml`: title/servings/times are
  * required, ingredients and steps carry at least one item, and visibility defaults to `public`. The
@@ -121,7 +121,7 @@ export class CreateRecipeStepInputDto {
     timerSeconds?: number;
 }
 
-/** Body of `POST /v1/recipes`. */
+/** Body of `POST /api/v1/recipes`. */
 export class CreateRecipeDto {
     @IsString()
     @MaxLength(200)

@@ -2,7 +2,7 @@
  * Pure status logic for the account-erasure vertical (C-007).
  *
  * The four erasure statuses split into two in-flight (`queued`, `running`) and two terminal
- * (`completed`, `failed`), and that split drives every branch of `POST /v1/account/erasure`: in-flight →
+ * (`completed`, `failed`), and that split drives every branch of `POST /api/v1/account/erasure`: in-flight →
  * `202` with the existing job id, `completed` → `410`, `failed` → a fresh `202`. The set itself is
  * defined once on the schema ({@link ACTIVE_ERASURE_JOB_STATUSES}); this module is only the runtime
  * narrowing over it.

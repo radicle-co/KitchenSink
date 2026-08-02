@@ -1,5 +1,5 @@
 /**
- * Drizzle definition for `account_erasure_jobs` (T122). Tracks each `POST /v1/account/erasure` enqueue
+ * Drizzle definition for `account_erasure_jobs` (T122). Tracks each `POST /api/v1/account/erasure` enqueue
  * so the endpoint is idempotent per C-007 (NOT a 409). This table is the SINGLE authoritative source
  * for the erasure job status enum. Mirrors data-model.md EXACTLY.
  *
@@ -32,7 +32,7 @@ export type ErasureJobStatus = (typeof ERASURE_JOB_STATUSES)[number];
  * named once here rather than re-typed at each use:
  *
  *  1. the predicate of the `idx_erasure_jobs_active_owner` partial unique index below (which is what
- *     makes `POST /v1/account/erasure` idempotent),
+ *     makes `POST /api/v1/account/erasure` idempotent),
  *  2. the set `ErasureJobsDal.findActiveJob` reads, and
  *  3. the `202` response's `status` enum in `api.openapi.yaml`.
  *
@@ -73,7 +73,7 @@ export const accountErasureJobs = pgTable(
         // WHO/WHAT triggered this erasure job and WHEN it was confirmed, recorded independently of the
         // mutable `status` column so the audit survives a status transition.
         //
-        // trigger_source — 'user' (owner via the confirmation-gated POST /v1/account/erasure) or 'service'
+        // trigger_source — 'user' (owner via the confirmation-gated POST /api/v1/account/erasure) or 'service'
         // (the deletion-worker's verified service principal via the internal route, which skips the phrase
         // BECAUSE the signed single-target token is the authorization; KTD-2). DEFAULT 'user' matches every
         // historical row (all predate the service path).

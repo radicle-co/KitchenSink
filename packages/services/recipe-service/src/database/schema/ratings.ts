@@ -1,7 +1,7 @@
 /**
  * Drizzle definition for `recipe_ratings` (CR-001 / FR-013). Mirrors data-model.md EXACTLY. One row per
  * `(recipe_id, user_id)`: re-rating UPDATEs the row, it never inserts a second one (the UNIQUE index is
- * also the conflict target of the idempotent `PUT /v1/recipes/{id}/rating` upsert).
+ * also the conflict target of the idempotent `PUT /api/v1/recipes/{id}/rating` upsert).
  *
  * D2 (no local `users` table): `user_id` stores the app-user ULID of the RATER (from the token claim)
  * directly as `VARCHAR(255) NOT NULL` — no FK, no user replication — the same rule as `recipes.owner_id`.

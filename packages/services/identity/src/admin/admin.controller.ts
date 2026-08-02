@@ -18,7 +18,11 @@ import {
 // replaces the old imperative `assertAdmin(ctx)` call the service used to repeat per-method.
 @UseGuards(ScopesGuard)
 @RequireScopes('admin:users')
-@Controller('v1/admin/users')
+// Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
+// `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
+// webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
+// inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+@Controller(['api/v1/admin/users', 'v1/admin/users'])
 export class AdminController {
     constructor(private readonly adminService: AdminService) {}
 

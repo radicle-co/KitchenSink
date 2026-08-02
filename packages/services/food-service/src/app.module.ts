@@ -10,7 +10,7 @@ import { HealthModule } from './health/health.module.js';
 /**
  * Root module for the food service. Wires config validation, the `/health` probe, the global
  * {@link DatabaseModule} (Drizzle + `pg` pool over `kitchensink_food`), and {@link FoodsModule}
- * (the `/v1/foods/*` read API, T-010). The `FoodAuthGuard` middleware and the Fargate worker are
+ * (the `/api/v1/foods/*` read API, T-010). The `FoodAuthGuard` middleware and the Fargate worker are
  * added by later-phase tasks (Phase 3 / Phase 7).
  */
 @Module({

@@ -1,5 +1,5 @@
 /**
- * T134 — GDPR account-erasure orchestration for `POST /v1/account/erasure` (C-007 / D7).
+ * T134 — GDPR account-erasure orchestration for `POST /api/v1/account/erasure` (C-007 / D7).
  *
  * Sits between the controller (which supplies the verified owner key) and the {@link ErasureJobsDal} +
  * an injected {@link ErasureQueuePort}. It owns the rules neither of them does:

@@ -1,5 +1,5 @@
 /**
- * `FoodsService` (ARCH-001, MOD-001) — transport-agnostic business logic for `/v1/foods/*`, rewired onto
+ * `FoodsService` (ARCH-001, MOD-001) — transport-agnostic business logic for `/api/v1/foods/*`, rewired onto
  * the source-agnostic per-aggregate DAOs, the source-adapter registry, the merge service, the rolling-
  * window limiter, the {@link EnqueueEmitter}, and the {@link AdmissionService} (T-130). Every food is
  * keyed by its internal `id`; no source-native key (`fdcId`) ever appears (FR-IDN-1/SC-013).
@@ -66,7 +66,7 @@ export class FoodsService {
     ) {}
 
     /**
-     * `GET /v1/foods/{id}` — golden-record read with lifecycle status codes (FR-002/FR-003/FR-004).
+     * `GET /api/v1/foods/{id}` — golden-record read with lifecycle status codes (FR-002/FR-003/FR-004).
      *
      * @param id - The internal food id.
      * @returns The golden record (200) when `RESOLVED`.
@@ -97,7 +97,7 @@ export class FoodsService {
     }
 
     /**
-     * `GET /v1/foods/{id}/status` — lifecycle poll, never enqueues, never fetches (FR-007).
+     * `GET /api/v1/foods/{id}/status` — lifecycle poll, never enqueues, never fetches (FR-007).
      *
      * @param id - The internal food id.
      * @returns The status (plus the golden record when `RESOLVED`).
@@ -122,7 +122,7 @@ export class FoodsService {
     }
 
     /**
-     * `GET /v1/foods/{id}/candidates` — the persisted cross-source candidate set for an `UNRESOLVED`
+     * `GET /api/v1/foods/{id}/candidates` — the persisted cross-source candidate set for an `UNRESOLVED`
      * food (FR-RES-1). A non-`UNRESOLVED` food returns an empty set.
      *
      * @param id - The internal food id.
@@ -155,7 +155,7 @@ export class FoodsService {
     }
 
     /**
-     * `GET /v1/foods/search?query=` — local fuzzy/substring search + barcode/external-key crosswalk
+     * `GET /api/v1/foods/search?query=` — local fuzzy/substring search + barcode/external-key crosswalk
      * lookup → internal `id`s (FR-008). NEVER calls a source (FR-009).
      *
      * @param rawQuery - The raw query (may be empty/whitespace).
@@ -185,7 +185,7 @@ export class FoodsService {
     }
 
     /**
-     * `POST /v1/foods` — add-by-name: dedup on normalized name, enqueue a fresh add/reactivation, and
+     * `POST /api/v1/foods` — add-by-name: dedup on normalized name, enqueue a fresh add/reactivation, and
      * return `202` + `id` (FR-005/FR-013/FR-028a). An add for an existing non-terminal food returns its
      * current status WITHOUT enqueuing (no scarce source budget burned).
      *
@@ -226,7 +226,7 @@ export class FoodsService {
     }
 
     /**
-     * `POST /v1/foods/batch` — per-item partial add-by-name (FR-012/FR-045). Intra-batch dedup collapses
+     * `POST /api/v1/foods/batch` — per-item partial add-by-name (FR-012/FR-045). Intra-batch dedup collapses
      * a repeated name to one row; a locally-`RESOLVED` hit is returned inline; a miss is created +
      * enqueued and returned `PENDING`. The caller-side ≤100 cap is enforced in the controller.
      *
@@ -287,7 +287,7 @@ export class FoodsService {
     }
 
     /**
-     * `PATCH /v1/foods/{id}` — resolve from the user's candidate pick (FR-RES-2): `UNRESOLVED`-only +
+     * `PATCH /api/v1/foods/{id}` — resolve from the user's candidate pick (FR-RES-2): `UNRESOLVED`-only +
      * idempotent; validate each pick is in this food's candidate set; re-fetch each pick through the
      * rolling-window limiter; merge → `RESOLVED` and clear the candidate set. A re-fetch failure leaves
      * the food `UNRESOLVED` with its candidate set intact (TST-2).
@@ -362,7 +362,7 @@ export class FoodsService {
     }
 
     /**
-     * `POST /v1/foods/{id}/refetch` — operational manual re-enqueue (admin-scoped; the scope gate is in
+     * `POST /api/v1/foods/{id}/refetch` — operational manual re-enqueue (admin-scoped; the scope gate is in
      * the controller, FR-039). Re-enqueues the food (reactivating its queue row).
      *
      * @param id - The internal food id.

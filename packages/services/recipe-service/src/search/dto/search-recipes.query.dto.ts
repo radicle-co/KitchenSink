@@ -1,5 +1,5 @@
 /**
- * T043 — query DTO for `GET /v1/search/recipes`.
+ * T043 — query DTO for `GET /api/v1/search/recipes`.
  *
  * Mirrors the shared `RecipeSearchParams` contract (`@kitchensink/recipe-core`). Query-string values
  * arrive as strings, so numeric fields are coerced with `@Type(() => Number)` and array fields
@@ -33,7 +33,7 @@ function toStringArray(value: unknown): string[] | undefined {
     return normalized.length > 0 ? normalized : undefined;
 }
 
-/** Query parameters of `GET /v1/search/recipes` (a wire projection of `RecipeSearchParams`). */
+/** Query parameters of `GET /api/v1/search/recipes` (a wire projection of `RecipeSearchParams`). */
 export class SearchRecipesQueryDto implements RecipeSearchParams {
     @IsOptional()
     @IsString()

@@ -47,7 +47,7 @@ import { isRetryBudgetExhausted } from './backoff.js';
 import { hasValidProvenance } from './provenance.js';
 import { ConsoleWorkerLogger, type WorkerLogger } from './worker-logger.js';
 
-/** Max keys pulled in one batch source call (USDA's `POST /v1/foods` cap; counts as 1 windowed call). */
+/** Max keys pulled in one batch source call (USDA's `POST /api/v1/foods` cap; counts as 1 windowed call). */
 const FETCH_BATCH_MAX = 20;
 
 /** Dispositions that resolved a row to a terminal state — the ones that count toward resolution latency. */

@@ -1,5 +1,5 @@
 /**
- * `FoodsAdminController` (T-184) — the admin-scoped operational-query surface under `/v1/foods/admin/*`
+ * `FoodsAdminController` (T-184) — the admin-scoped operational-query surface under `/api/v1/foods/admin/*`
  * for the operations dashboard (FR-039/US-10). Read-only GETs exposing the queue depths, lifecycle
  * backlog, tombstone-row counts, and per-source rolling-window utilization.
  *
@@ -16,11 +16,15 @@ import { FOOD_ADMIN_SCOPE, hasScope, type AuthenticatedRequest } from '../../aut
 import { AdminMetricsService, type OperationalMetrics } from './admin-metrics.service.js';
 import type { QueueDepthMetrics } from './admin-metrics.dao.js';
 
-@Controller('v1/foods/admin')
+// Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
+// `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
+// webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
+// inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+@Controller(['api/v1/foods/admin', 'v1/foods/admin'])
 export class FoodsAdminController {
     public constructor(private readonly metrics: AdminMetricsService) {}
 
-    /** `GET /v1/foods/admin/metrics` — full operational dashboard signals (admin-scoped, FR-039). */
+    /** `GET /api/v1/foods/admin/metrics` — full operational dashboard signals (admin-scoped, FR-039). */
     @Get('metrics')
     public async getMetrics(@Req() req: AuthenticatedRequest): Promise<OperationalMetrics> {
         this.requireAdmin(req);
@@ -28,7 +32,7 @@ export class FoodsAdminController {
         return this.metrics.collect();
     }
 
-    /** `GET /v1/foods/admin/queue` — focused `fetch_queue` depth signals (admin-scoped, FR-039). */
+    /** `GET /api/v1/foods/admin/queue` — focused `fetch_queue` depth signals (admin-scoped, FR-039). */
     @Get('queue')
     public async getQueue(@Req() req: AuthenticatedRequest): Promise<QueueDepthMetrics> {
         this.requireAdmin(req);

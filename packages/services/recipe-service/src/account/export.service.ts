@@ -1,5 +1,5 @@
 /**
- * GDPR data-subject ACCESS/PORTABILITY orchestration for `GET /v1/account/export` (Art. 15 + Art. 20).
+ * GDPR data-subject ACCESS/PORTABILITY orchestration for `GET /api/v1/account/export` (Art. 15 + Art. 20).
  *
  * The read-only mirror of {@link ErasureService}: where erasure enqueues a job that hard-deletes every
  * owner-scoped root, this assembles those SAME roots into one structured document. It sits between the

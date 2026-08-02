@@ -35,7 +35,7 @@ export class RatingsDal {
 
     /**
      * Create the caller's rating, or replace it if one already exists — the idempotent upsert behind
-     * `PUT /v1/recipes/{id}/rating`. The conflict target is the `(recipe_id, user_id)` unique constraint,
+     * `PUT /api/v1/recipes/{id}/rating`. The conflict target is the `(recipe_id, user_id)` unique constraint,
      * so re-rating UPDATEs the single existing row (never inserts a second), and `updated_at = now()` is
      * set explicitly because the column default only fires on INSERT.
      *
@@ -82,7 +82,7 @@ export class RatingsDal {
     }
 
     /**
-     * Remove the caller's rating of a recipe (behind `DELETE /v1/recipes/{id}/rating`). Scoped to exactly
+     * Remove the caller's rating of a recipe (behind `DELETE /api/v1/recipes/{id}/rating`). Scoped to exactly
      * the `(recipe_id, user_id)` row so a caller can only ever delete their OWN rating.
      *
      * @returns `true` when a rating was removed, `false` when the caller had none (a clean idempotent

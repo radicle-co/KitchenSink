@@ -187,12 +187,16 @@ describe('AuthMiddleware', () => {
         // path that merely resembles a health probe must NOT be admitted unauthenticated — it falls through
         // to full Bearer enforcement and 401s without a token. If the allowlist ever loosened to a
         // prefix/`includes`/case-insensitive match, these protected-looking paths would slip through — and
-        // these cases would fail. `/health/../v1/account/erasure` is the load-bearing one: erasure is the
+        // these cases would fail. `/health/../api/v1/account/erasure` is the load-bearing one: erasure is the
         // most destructive route, and a traversal-prefixed spelling must never reach it without auth.
         it.each([
-            ['a traversal-prefixed erasure path', '/health/../v1/account/erasure'],
+            ['a traversal-prefixed erasure path', '/health/../api/v1/account/erasure'],
+            // The deprecated bare-`v1` alias (ADR-0011) is a real, routable spelling of every endpoint, so it
+            // needs the same guarantee — an alias that skipped auth would be a bypass of the canonical path.
+            ['a traversal-prefixed erasure path on the deprecated alias', '/health/../v1/account/erasure'],
             ['a case-variant of the health probe', '/HEALTH'],
-            ['a traversal off the readiness probe', '/health/ready/../../v1/recipes'],
+            ['a traversal off the readiness probe', '/health/ready/../../api/v1/recipes'],
+            ['a traversal off the readiness probe onto the deprecated alias', '/health/ready/../../v1/recipes'],
             ['the health token as a mere prefix of a real route', '/healthz/secrets'],
         ])('requires auth (401, next never called) for %s', async (_label, path) => {
             const { req, res, next } = makeContext({ path });

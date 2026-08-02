@@ -1,5 +1,5 @@
 /**
- * T041 — the Collections HTTP controller (`/v1/collections`).
+ * T041 — the Collections HTTP controller (`/api/v1/collections`).
  *
  * A thin adapter: it validates the request (body/query → 400 on malformed input), reads the OWNER from
  * the verified `req.principal.userId` (NEVER from the body or a client header — the `AuthMiddleware`
@@ -56,7 +56,11 @@ function optionalBody<T>(schema: ZodType<T>): ZodType<T> {
     return z.preprocess((value) => value ?? {}, schema);
 }
 
-@Controller('v1/collections')
+// Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
+// `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
+// webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
+// inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+@Controller(['api/v1/collections', 'v1/collections'])
 export class CollectionsController {
     public constructor(private readonly collections: CollectionsService) {}
 

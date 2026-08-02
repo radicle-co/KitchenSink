@@ -449,7 +449,7 @@ export const foodServiceConfigMeta: Record<keyof FoodServiceConfig, ConfigFieldM
 
 /**
  * Config for the GDPR account-erasure hand-off (C-007 / D7): the `account-erasure` SQS queue the
- * service enqueues to on `POST /v1/account/erasure`, drained by the worker in
+ * service enqueues to on `POST /api/v1/account/erasure`, drained by the worker in
  * `@kitchensink/recipe-workers`.
  *
  * `ACCOUNT_ERASURE_QUEUE_URL` is REQUIRED, not optional. The service can technically accept an erasure

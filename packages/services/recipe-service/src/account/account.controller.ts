@@ -1,5 +1,5 @@
 /**
- * T135 — the `/v1/account` REST surface (GDPR account erasure).
+ * T135 — the `/api/v1/account` REST surface (GDPR account erasure).
  *
  * Thin controller: the `@OwnerId()` decorator reads the authenticated owner key from `req.principal`
  * (set by the fail-closed `AuthMiddleware`) and every decision is delegated to {@link ErasureService}.
@@ -18,7 +18,11 @@ import type { AccountExport } from './dto/export.dto.js';
 import { ExportRateLimit, WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 import { SkipErasureLock } from './skip-erasure-lock.decorator.js';
 
-@Controller('v1/account')
+// Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
+// `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
+// webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
+// inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+@Controller(['api/v1/account', 'v1/account'])
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
 export class AccountController {
     public constructor(
@@ -27,7 +31,7 @@ export class AccountController {
     ) {}
 
     /**
-     * `GET /v1/account/export` — the CALLER'S OWN recipe-domain personal data as one structured,
+     * `GET /api/v1/account/export` — the CALLER'S OWN recipe-domain personal data as one structured,
      * machine-readable JSON document (GDPR Art. 15 access + Art. 20 portability). The read-only mirror of
      * the erasure endpoint: it returns the same owner-scoped roots erasure removes/keeps.
      *
@@ -48,7 +52,7 @@ export class AccountController {
     }
 
     /**
-     * `POST /v1/account/erasure` — request GDPR erasure of the CALLER'S OWN account data.
+     * `POST /api/v1/account/erasure` — request GDPR erasure of the CALLER'S OWN account data.
      *
      * Returns `202` (not the POST default `201`) per the contract: the work is asynchronous and no
      * resource is created at this URL. The owner is taken from the verified token and never from the

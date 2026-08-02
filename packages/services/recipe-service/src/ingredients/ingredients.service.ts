@@ -143,7 +143,7 @@ export class IngredientsService {
     ) {}
 
     /**
-     * Local catalog search (fuzzy `pg_trgm` + tsvector FTS) for the `GET /v1/ingredients/search`
+     * Local catalog search (fuzzy `pg_trgm` + tsvector FTS) for the `GET /api/v1/ingredients/search`
      * autocomplete. Returns already-known catalog ingredients (with any resolved nutrition).
      *
      * @param query - The raw user query (trimmed here).
@@ -156,7 +156,7 @@ export class IngredientsService {
     }
 
     /**
-     * Stage 2 — the BLENDED typeahead behind `GET /v1/ingredients/suggest`: the recipe-local `ingredients`
+     * Stage 2 — the BLENDED typeahead behind `GET /api/v1/ingredients/suggest`: the recipe-local `ingredients`
      * catalog **plus** the food-service golden catalog, deduped on `food_id` and sectioned by provenance.
      *
      * Before Stage 2 the typeahead saw only `ingredients` rows — foods that had already been *used* in a
@@ -222,7 +222,7 @@ export class IngredientsService {
      * Stage 2 pick path (F1) — admit a food-catalog suggestion into the shared `ingredients` catalog as a
      * food-backed row that ALREADY carries its golden-record nutrition.
      *
-     * **Why this is not just `createFoodBacked`.** A catalog suggestion comes from `/v1/foods/search`, whose
+     * **Why this is not just `createFoodBacked`.** A catalog suggestion comes from `/api/v1/foods/search`, whose
      * `SearchResultView` carries **no nutrition**, and `createFoodBacked` writes only `name`/`food_id`/`status`
      * — nutrition reaches an `ingredients` row ONLY through `updateResolution`. Creating the row and stopping
      * there would ship an ingredient with NULL calories that nothing ever backfills (the status poll stops on a
@@ -465,7 +465,7 @@ export class IngredientsService {
 
     /**
      * Create (or dedup-return) a freeform, user-entered ingredient (`is_user_entered = true`) for the
-     * `POST /v1/ingredients` fallback — a name with no linked food record. Its nutrition, when supplied,
+     * `POST /api/v1/ingredients` fallback — a name with no linked food record. Its nutrition, when supplied,
      * lives per-line on `recipe_ingredients`, not here.
      *
      * @param name - The display name (trimmed here).

@@ -1,5 +1,5 @@
 /**
- * `FoodsModule` (T-130) — wires the source-agnostic `/v1/foods/*` API onto the committed layers: the
+ * `FoodsModule` (T-130) — wires the source-agnostic `/api/v1/foods/*` API onto the committed layers: the
  * per-aggregate DAOs (`FoodDao`, `CandidateStore`, `FoodSourcesDao`, `FoodSearchDao`), the source-adapter
  * registry (USDA wired), the per-source rolling-window limiter, the merge/persist service, the
  * {@link EnqueueEmitter} (in-process Postgres-as-queue), and the {@link AdmissionService} (backpressure).
@@ -8,7 +8,7 @@
  * admission service are NestJS-managed.
  *
  * The {@link FoodAuthGuard} middleware is mounted ahead of {@link FoodsController} via `configure` so EVERY
- * `/v1/foods/*` route is authenticated before any handler runs (FR-035). No source (USDA) type leaks into
+ * `/api/v1/foods/*` route is authenticated before any handler runs (FR-035). No source (USDA) type leaks into
  * the controller layer (FR-ADP-1).
  *
  * @implements FR-001 FR-IDN-1
@@ -104,7 +104,7 @@ import { UserErasureService } from './user-erasure.service.js';
     exports: [FoodsService, EnqueueEmitter, UserErasureService],
 })
 export class FoodsModule implements NestModule {
-    /** Mount {@link FoodAuthGuard} on every `/v1/foods/*` route, incl. the admin endpoints (FR-035/FR-039). */
+    /** Mount {@link FoodAuthGuard} on every `/api/v1/foods/*` route, incl. the admin endpoints (FR-035/FR-039). */
     public configure(consumer: MiddlewareConsumer): void {
         consumer.apply(FoodAuthGuard).forRoutes(FoodsController, FoodsAdminController);
     }

@@ -162,7 +162,7 @@ describe.skipIf(!DATABASE_URL)('user.updated A->B->A profile sync — coherent u
         // would right after Clerk-driven provisioning).
         const userId = await provisionUser('user_self_service', 'Clerk Name');
 
-        // Self-service edit via PATCH /v1/users/me: only `profiles.displayName` is written (mirroring
+        // Self-service edit via PATCH /api/v1/users/me: only `profiles.displayName` is written (mirroring
         // `UsersService.patchUserMe`, which never touches `users.name`). `users.name` is now STALE
         // relative to `profiles.displayName` by design — that gap is exactly what the corrected gate
         // must respect.

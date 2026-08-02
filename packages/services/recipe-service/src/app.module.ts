@@ -73,7 +73,16 @@ export class AppModule implements NestModule {
             // machine token, NOT a Clerk user session token — the Clerk middleware would 401 it before its
             // own `ServiceErasureGuard` runs. Exclude it so the guard is its (fail-closed) enforcement
             // point. This is the ONLY route not covered by the Clerk middleware besides the health probes.
-            .exclude({ path: 'v1/internal/account/erasure', method: RequestMethod.POST })
+            //
+            // BOTH spellings must be listed, because `ServiceErasureController` answers on both: the
+            // canonical `/api/{version}/` path AND the deprecated bare-`v1` alias it shipped on. Excluding
+            // only one would fail-closed 401 the caller that used the other — and the callers here are the
+            // identity deletion-worker / reconciliation Lambdas, which deploy independently of this service
+            // and may still be dialing either path. See ADR-0011.
+            .exclude(
+                { path: 'api/v1/internal/account/erasure', method: RequestMethod.POST },
+                { path: 'v1/internal/account/erasure', method: RequestMethod.POST },
+            )
             .forRoutes('*');
     }
 }

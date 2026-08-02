@@ -1,5 +1,5 @@
 /**
- * `FoodAuthGuard` (ARCH-012, T-033) — the single named auth component fronting EVERY `/v1/foods/*`
+ * `FoodAuthGuard` (ARCH-012, T-033) — the single named auth component fronting EVERY `/api/v1/foods/*`
  * route. Implemented as an in-process NestJS middleware (not an API-Gateway Lambda authorizer): the
  * service sits behind a public ALB, which has no Lambda-authorizer hook, and the Clerk token verifies
  * networklessly in ~1ms in-process (plan §2A.1). Mirrors the identity service's `AuthMiddleware`.

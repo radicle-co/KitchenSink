@@ -1,6 +1,6 @@
 /**
  * Stage 2 / F2 — `FoodCatalogGateway`: the availability-disciplined **Gateway** (PoEAA) in front of
- * food-service's `GET /v1/foods/search` for the ingredient typeahead.
+ * food-service's `GET /api/v1/foods/search` for the ingredient typeahead.
  *
  * **Why a gateway and not a direct client call.** Stage 2 puts a CROSS-SERVICE HTTP round-trip on a
  * PER-KEYSTROKE path. That is "no USDA quota", but it is emphatically NOT "instant/local" (plan F2): it adds

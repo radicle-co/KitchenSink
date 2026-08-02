@@ -109,7 +109,7 @@ describe('FoodServiceClients — the target origin is not caller-influenceable',
 
         await clients().typeahead(caller()).search('chicken');
 
-        expect(calls[0]?.url.startsWith(`${FOOD_ORIGIN}/v1/foods/search`)).toBe(true);
+        expect(calls[0]?.url.startsWith(`${FOOD_ORIGIN}/api/v1/foods/search`)).toBe(true);
     });
 
     it('cannot be aimed elsewhere by the query — a URL-ish query stays a query parameter', async () => {
@@ -119,7 +119,7 @@ describe('FoodServiceClients — the target origin is not caller-influenceable',
 
         // The credential still goes to the food origin only; the hostile value is percent-encoded into
         // `?query=`, never into the request target.
-        expect(calls[0]?.url.startsWith(`${FOOD_ORIGIN}/v1/foods/search?query=`)).toBe(true);
+        expect(calls[0]?.url.startsWith(`${FOOD_ORIGIN}/api/v1/foods/search?query=`)).toBe(true);
         expect(calls[0]?.url).not.toContain('//attacker.example');
     });
 });

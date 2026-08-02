@@ -1,5 +1,5 @@
 /**
- * Stage 2 — request DTO for `POST /v1/ingredients/by-food`: admit a food-catalog suggestion into the shared
+ * Stage 2 — request DTO for `POST /api/v1/ingredients/by-food`: admit a food-catalog suggestion into the shared
  * `ingredients` catalog.
  *
  * The body carries ONLY the opaque `foodId`. There is deliberately **no `name` field**: the display name is
@@ -22,7 +22,7 @@ import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
  */
 export const MAX_FOOD_ID_LENGTH = 64;
 
-/** Body of `POST /v1/ingredients/by-food`. */
+/** Body of `POST /api/v1/ingredients/by-food`. */
 export class AddIngredientByFoodDto {
     @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
     @IsString()

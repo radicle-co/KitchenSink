@@ -1,5 +1,5 @@
 /**
- * `FoodSearchDao` (T-134/T-180, MOD-001) — the local-store search read path for `GET /v1/foods/search`.
+ * `FoodSearchDao` (T-134/T-180, MOD-001) — the local-store search read path for `GET /api/v1/foods/search`.
  * Combines **ranked full-text search** (the STORED generated `food.search_vector` + `food_search_vector_idx`
  * GIN index, `ts_rank` relevance, word-order-independent lexeme matching) with the committed `pg_trgm` GIN
  * indexes (`food_name_trgm_idx` / `food_description_trgm_idx`) as the **fuzzy/substring/typo fallback** —

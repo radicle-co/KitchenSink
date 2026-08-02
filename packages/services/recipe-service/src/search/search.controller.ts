@@ -1,5 +1,5 @@
 /**
- * T043 — the `/v1/search/recipes` REST surface (recipe discovery).
+ * T043 — the `/api/v1/search/recipes` REST surface (recipe discovery).
  *
  * Thin controller: the `@OwnerId()` decorator reads the authenticated owner key from `req.principal`
  * (set by the fail-closed `AuthMiddleware` — the app-user ULID, never the Clerk `sub`) and the
@@ -15,14 +15,18 @@ import type { RecipeSearchResponse } from './dto/search-response.dto.js';
 import { OwnerId } from '../auth/current-principal.decorator.js';
 import { SearchRateLimit } from '../common/throttle/throttle.decorators.js';
 
-@Controller('v1/search')
+// Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
+// `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
+// webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
+// inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+@Controller(['api/v1/search', 'v1/search'])
 @SearchRateLimit()
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
 export class SearchController {
     public constructor(private readonly searchService: SearchService) {}
 
     /**
-     * `GET /v1/search/recipes` — ranked, faceted, paginated full-text search over visible recipes
+     * `GET /api/v1/search/recipes` — ranked, faceted, paginated full-text search over visible recipes
      * (public recipes + the caller's own).
      *
      * @param ownerId - The verified owner key (app-user ULID) — the visibility owner key.

@@ -1,5 +1,5 @@
 /**
- * T036 — request DTO for `POST /v1/recipes/{recipeId}/photos/upload-url`.
+ * T036 — request DTO for `POST /api/v1/recipes/{recipeId}/photos/upload-url`.
  *
  * Carries the file the client intends to upload: its `contentType`, `fileName`, and `fileSize`. The
  * allowlist decision (jpeg/png/webp) and the 5 MB size pre-check are made in
@@ -9,7 +9,7 @@
  */
 import { IsInt, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
-/** Body of `POST /v1/recipes/{recipeId}/photos/upload-url`. */
+/** Body of `POST /api/v1/recipes/{recipeId}/photos/upload-url`. */
 export class CreatePhotoUploadDto {
     @IsString()
     @MinLength(1)

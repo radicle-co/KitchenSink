@@ -52,7 +52,7 @@ import {
 /** The canonical source identifier for this adapter. */
 const SOURCE = 'usda' as const;
 
-/** USDA's batch endpoint cap (`POST /v1/foods`, ≤20 keys/call counting as 1 windowed call, FR-023). */
+/** USDA's batch endpoint cap (`POST /api/v1/foods`, ≤20 keys/call counting as 1 windowed call, FR-023). */
 export const USDA_BATCH_MAX = 20;
 
 /** Maximum accepted nutrient/scalar name length (sanitization bound). */

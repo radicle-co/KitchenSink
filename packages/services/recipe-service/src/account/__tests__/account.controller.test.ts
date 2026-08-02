@@ -92,7 +92,7 @@ describe('the request body', () => {
     });
 });
 
-describe('GET /v1/account/export', () => {
+describe('GET /api/v1/account/export', () => {
     it('scopes the export to the authenticated owner id — never a client-supplied value', async () => {
         await controller.exportAccount(OWNER);
 

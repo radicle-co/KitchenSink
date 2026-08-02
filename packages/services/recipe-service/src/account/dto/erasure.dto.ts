@@ -1,5 +1,5 @@
 /**
- * T134 — the request/response DTOs for `POST /v1/account/erasure`, mirroring the `ErasureRequest` /
+ * T134 — the request/response DTOs for `POST /api/v1/account/erasure`, mirroring the `ErasureRequest` /
  * `ErasureRequestAcceptedResponse` schemas in `api.openapi.yaml` EXACTLY.
  *
  * The response carries `{ jobId, status }` and nothing else: the contract marks both `required` and
@@ -45,7 +45,7 @@ const MAX_CONFIRMATION_PHRASE_LENGTH = 100;
 const MAX_PUBLISH_ELECTION_SIZE = 1000;
 
 /**
- * Body of `POST /v1/account/erasure`. `confirmationPhrase` is REQUIRED (U7 — erasure is irreversible, so
+ * Body of `POST /api/v1/account/erasure`. `confirmationPhrase` is REQUIRED (U7 — erasure is irreversible, so
  * it must never proceed without a deliberate intent gate); a missing or empty phrase is a `400`. The
  * controller's `whitelist` `ValidationPipe` strips stray keys — notably an `ownerId`, which could never
  * redirect the erasure anyway because the owner comes from the verified token. Enforcement is belt AND

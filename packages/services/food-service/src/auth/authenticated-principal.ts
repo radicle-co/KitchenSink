@@ -1,5 +1,5 @@
 /**
- * The authenticated principal the {@link FoodAuthGuard} attaches to every `/v1/foods/*` request, and
+ * The authenticated principal the {@link FoodAuthGuard} attaches to every `/api/v1/foods/*` request, and
  * the request type augmented with it. Identity comes ONLY from the verified Clerk token (FR-038) —
  * no client-suppliable header is ever trusted.
  */

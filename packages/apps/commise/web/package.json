@@ -64,7 +64,7 @@
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
         "@vitejs/plugin-react": "^6.0.1",
-        "aws-cdk": "*",
+        "aws-cdk": "^2.1134.0",
         "esbuild": "^0.28.0",
         "eslint": "^10.0.3",
         "jsdom": "^24.0.0",

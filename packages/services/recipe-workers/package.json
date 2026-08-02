@@ -44,7 +44,7 @@
         "@types/aws-lambda": "^8.10.0",
         "@types/node": "^24.0.0",
         "@types/pg": "^8.11.10",
-        "aws-cdk": "^2.0.0",
+        "aws-cdk": "^2.1134.0",
         "esbuild": "^0.24.0",
         "tsx": "^4.0.0"
     },

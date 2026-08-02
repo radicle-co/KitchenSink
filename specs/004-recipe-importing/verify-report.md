@@ -15,7 +15,7 @@
 | plan ↔ spec             | ✅ PASS | Every FR has plan coverage; every plan element traces to an FR or a hazard control           |
 | spec ↔ product-spec     | ✅ PASS | Every story maps to a requirement; no net-new scope beyond D-001..D-004                      |
 | product-spec ↔ research | ✅ PASS | Regenerated research reflects shipped `main`; superseded conclusions banner-marked           |
-| v-model ↔ spec          | ✅ PASS | 54 requirements traced; 0 missing traceability cells across 5 matrices                       |
+| v-model ↔ spec          | ✅ PASS | 63 requirements traced; 0 missing traceability cells across 5 matrices                       |
 | **004 ↔ shipped 001**   | ✅ PASS | **No duplication of shipped capabilities** — verified by inspection against `main`           |
 | standards compliance    | ✅ PASS | §1a/§1b naming, §7.1 test tiers, §14.1 parity, library-first, localization, pattern register |
 
@@ -87,3 +87,9 @@ Re-evaluate at implementation time. Not blocking.
 
 Begin implementation at **T-001** (OpenAPI contract), test-first, in the `tasks.md` dependency order. Do not
 regenerate `release-audit-report.md` until real execution evidence exists.
+
+---
+
+> **Counts in this document are derived from the generated `v-model/traceability-matrix.md`.**
+> That file is produced by `build-matrix.sh` from the artefacts and is the authoritative source; if a
+> number here disagrees with it, this document is stale. Regenerate rather than hand-editing.

@@ -9,7 +9,7 @@
 `*.native.test.tsx` (frontend). Mutation-checked via the shipped `stryker` config.
 
 > **Regeneration note.** In the previous document set, **Matrix D (implementation verification) was entirely
-> empty** — there was no module-to-unit-test mapping at all. This plan supplies it for all 34 modules.
+> empty** — there was no module-to-unit-test mapping at all. This plan supplies it for all 36 modules.
 
 ## ID Schema
 
@@ -550,3 +550,9 @@ Additional cross-cutting frontend assertions:
 | ID         | Case                                                                  | Assert                                                    |
 | ---------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
 | UTS-036-A1 | A deliberate type, documentation, or mutation violation is introduced | The corresponding gate fails rather than passing silently |
+
+---
+
+> **Counts in this document are derived from the generated `v-model/traceability-matrix.md`.**
+> That file is produced by `build-matrix.sh` from the artefacts and is the authoritative source; if a
+> number here disagrees with it, this document is stale. Regenerate rather than hand-editing.

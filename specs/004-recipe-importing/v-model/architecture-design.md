@@ -18,7 +18,7 @@
 
 ## Overview
 
-Thirteen system components decompose into 26 architecture modules across the Kruchten 4+1 views. The
+Fifteen system components decompose into 36 architecture modules across the Kruchten 4+1 views. The
 decomposition separates **channel adapters** from the **shared pipeline** (normalize → classify → dedupe →
 draft), keeps every third-party dependency behind a **port**, and terminates at a **confirmation bridge** that
 hands work to 001's shipped write path rather than reimplementing it.
@@ -310,3 +310,9 @@ Gateway — they do **not** traverse the `t4g.nano` NAT instance, so import traf
 | System components covered (SYS)              | 13 / 13 |
 | Modules without an interface contract        | 0       |
 | Modules duplicating a shipped 001 capability | 0       |
+
+---
+
+> **Counts in this document are derived from the generated `v-model/traceability-matrix.md`.**
+> That file is produced by `build-matrix.sh` from the artefacts and is the authoritative source; if a
+> number here disagrees with it, this document is stale. Regenerate rather than hand-editing.

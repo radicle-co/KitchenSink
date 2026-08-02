@@ -27,7 +27,7 @@ preference; justification recorded in `spec.md` and `plan.md §10`.
 Recorded under the service package; the file is actually at `specs/001-commise-recipe-app/contracts/`.
 Corrected after a filesystem check.
 
-### MIN-010 — 34 modules is a lot for one feature — **Resolved (justified)**
+### MIN-010 — 36 modules is a lot for one feature — **Resolved (justified)**
 
 Reviewed for over-decomposition. Nine are pure functions that would otherwise be untestable inline; four are
 ports whose entire purpose is testability without a vendor; six are frontend leaves mandated by cross-platform

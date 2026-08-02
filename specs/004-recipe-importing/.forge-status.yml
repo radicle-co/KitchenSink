@@ -110,8 +110,10 @@ phases:
     test-plan:
         state: complete
         note: >-
-            Full V-model test set authored — acceptance (13 procedures), system (13), integration (16),
-            unit (22), plus the SC-002 fixture corpus definition that made the accuracy criterion measurable.
+            Full V-model test set authored and machine-verified: 86 acceptance test cases / 86 scenarios across
+            all 63 requirements, plus system, integration and unit tiers at 100% coverage in the generated
+            traceability matrix, and the SC-002 fixture corpus definition that made the accuracy criterion
+            measurable. Counts are derived from v-model/traceability-matrix.md, not restated by hand.
         artifacts:
             - v-model/acceptance-plan.md
             - v-model/system-test.md
@@ -171,8 +173,11 @@ gates:
           atp_scn_coverage_pct: 100
           validate_requirement_coverage: pass
           prettier: pass
-      open_findings: 14
+      open_findings: 9
       open_above_medium: 0
+      findings_note: >-
+          All 9 remaining are deliberately deferred to implementation time — none is unresolved analysis.
+          19 of 28 are closed or carry a recorded decision (D-007, D-009, D-016, D-017, D-018, ADR-0011).
       conditions:
           - Test-first confirmed failing before any implementation (red_gate)
           - No waiver for Catastrophic-hazard procedures (D-018)

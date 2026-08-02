@@ -67,14 +67,14 @@ describe.skipIf(!DATABASE_URL)('auth-layer DoS load-shed (e2e, FR-052/SC-011)', 
         // The flood: well-formed-but-invalid tokens from one source. The first `threshold` are verified
         // and fail closed with 401.
         for (let i = 0; i < SHED_THRESHOLD; i += 1) {
-            expect(await get('/v1/foods/search?query=x', 'not-a-valid-jwt', flooder)).toBe(401);
+            expect(await get('/api/v1/foods/search?query=x', 'not-a-valid-jwt', flooder)).toBe(401);
         }
 
         // Past the cap, the flooder is shed with 503 WITHOUT a signature check (verifier protected).
-        expect(await get('/v1/foods/search?query=x', 'not-a-valid-jwt', flooder)).toBe(503);
-        expect(await get('/v1/foods/search?query=x', validToken, flooder)).toBe(503); // even a valid token, while shedding
+        expect(await get('/api/v1/foods/search?query=x', 'not-a-valid-jwt', flooder)).toBe(503);
+        expect(await get('/api/v1/foods/search?query=x', validToken, flooder)).toBe(503); // even a valid token, while shedding
 
         // Per-source isolation: an innocent source's VALID token still succeeds (200) under the flood.
-        expect(await get('/v1/foods/search?query=x', validToken, innocent)).toBe(200);
+        expect(await get('/api/v1/foods/search?query=x', validToken, innocent)).toBe(200);
     });
 });

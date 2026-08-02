@@ -99,12 +99,12 @@ API Gateway is the entry point for all client traffic. HTTP API is chosen over R
 
 **Routes** mirror the USDA FDC API surface:
 
-| Route                | USDA Equivalent        | Description                 |
-| -------------------- | ---------------------- | --------------------------- |
-| `GET /foods/{fdcId}` | `GET /v1/food/{fdcId}` | Single food item by ID      |
-| `POST /foods/batch`  | `POST /v1/foods`       | Batch lookup (up to 20 IDs) |
-| `GET /foods/search`  | `GET /v1/foods/search` | Full-text food search       |
-| `GET /foods/list`    | `GET /v1/foods/list`   | Paginated food listing      |
+| Route                | USDA Equivalent            | Description                 |
+| -------------------- | -------------------------- | --------------------------- |
+| `GET /foods/{fdcId}` | `GET /api/v1/food/{fdcId}` | Single food item by ID      |
+| `POST /foods/batch`  | `POST /api/v1/foods`       | Batch lookup (up to 20 IDs) |
+| `GET /foods/search`  | `GET /api/v1/foods/search` | Full-text food search       |
+| `GET /foods/list`    | `GET /api/v1/foods/list`   | Paginated food listing      |
 
 **Request throttling** is configured at the API Gateway stage as a secondary safety net (e.g., 500 req/sec burst limit) to protect Lambda from traffic spikes independent of the USDA rate limit.
 
@@ -280,7 +280,7 @@ An EventBridge-scheduled Lambda runs daily during low-traffic hours (e.g., 3:00 
 
 **Batch strategy:**
 
-- USDA batch endpoint accepts up to 20 FDC IDs per `POST /v1/foods` request
+- USDA batch endpoint accepts up to 20 FDC IDs per `POST /api/v1/foods` request
 - 1,000 foods / 20 per batch = 50 API requests
 - At 16.67 tokens/minute, 50 requests completes in ~3 minutes
 - The warmer throttles itself to 15 requests/minute to leave buffer for organic traffic
@@ -396,7 +396,7 @@ sequenceDiagram
 
         alt Tokens available
             RL-->>L: ALLOWED (999 remaining)
-            L->>U: GET /v1/foods/search?query=chicken&api_key=...
+            L->>U: GET /api/v1/foods/search?query=chicken&api_key=...
             U-->>L: 200 OK + JSON
             L->>R: SET food:search:{hash} {data} EX 86400
             L-->>AG: 200 OK (X-Cache: MISS)
@@ -425,7 +425,7 @@ sequenceDiagram
 4. Lambda issues `GET food:search:{hash}` to Redis (sub-millisecond round trip inside VPC)
 5. **CACHE HIT**: Lambda returns cached JSON with `X-Cache: HIT`, `X-Cache-TTL: {remaining}`, and `Cache-Control: max-age={ttl}` headers. Total latency: ~10-20ms
 6. **CACHE MISS**: Lambda calls `consumeToken()` Lua script in Redis atomically
-7. **Tokens available**: Lambda retrieves the USDA API key from Secrets Manager (cached in Lambda memory after first retrieval), calls `GET /v1/foods/search?query=chicken` on the USDA API. On success, stores response in Redis with appropriate TTL (including jitter), returns to client with `X-Cache: MISS`. Total latency: ~200-600ms depending on USDA API response time
+7. **Tokens available**: Lambda retrieves the USDA API key from Secrets Manager (cached in Lambda memory after first retrieval), calls `GET /api/v1/foods/search?query=chicken` on the USDA API. On success, stores response in Redis with appropriate TTL (including jitter), returns to client with `X-Cache: MISS`. Total latency: ~200-600ms depending on USDA API response time
 8. **Tokens exhausted — stale available**: Lambda checks the `stale:` key prefix. Returns stale data with `X-Cache: STALE` and `X-Stale-Age` header. Client receives potentially outdated but functional data
 9. **Tokens exhausted — no stale data**: Lambda returns `503 Service Unavailable` with `Retry-After: {seconds_until_next_token}` header computed from the rate limiter state
 10. Lambda emits custom CloudWatch metrics for every request (cache result, latency, token count)

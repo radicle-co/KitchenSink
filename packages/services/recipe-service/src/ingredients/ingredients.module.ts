@@ -1,6 +1,6 @@
 /**
  * `IngredientsModule` — the ingredients vertical (US1 MVP + Stage-2 blended typeahead). Wires the
- * `/v1/ingredients` controller, the picker business logic ({@link IngredientsService}), the catalog DAL
+ * `/api/v1/ingredients` controller, the picker business logic ({@link IngredientsService}), the catalog DAL
  * ({@link IngredientsDal}, built over the global Drizzle provider), and the food-service seam it reads
  * nutrition and catalog suggestions through — the service NEVER queries USDA directly (data-model R5 / FR-007).
  *
@@ -53,7 +53,7 @@ import { IngredientsDal } from './dal/ingredients.dal.js';
 /**
  * Default per-keystroke bound on the catalog-blend request (ms).
  *
- * Sized against what the call actually does — food-service's `/v1/foods/search` is a local trgm+FTS query
+ * Sized against what the call actually does — food-service's `/api/v1/foods/search` is a local trgm+FTS query
  * plus two crosswalk lookups, so a healthy round-trip inside one VPC is tens of ms. 600ms therefore leaves
  * roughly an order of magnitude of headroom for a cold connection or a GC pause while still keeping the
  * WORST case comfortably under the ~300ms debounce plus a keystroke: a degraded food service costs the user a

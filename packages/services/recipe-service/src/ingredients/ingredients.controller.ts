@@ -1,5 +1,5 @@
 /**
- * T029 — `IngredientsController`: the `/v1/ingredients` HTTP surface (US1 MVP + async resolution).
+ * T029 — `IngredientsController`: the `/api/v1/ingredients` HTTP surface (US1 MVP + async resolution).
  *
  * All endpoints are authenticated behind the fail-closed Clerk `AuthMiddleware`. The `@OwnerId()`
  * decorator resolves the verified caller ULID from `req.principal` and fails closed with `401` when it is
@@ -9,11 +9,11 @@
  * ratings, account) do. Bodies are validated by class-validator DTOs under the same controller-scoped
  * `ValidationPipe` (`transform + whitelist`) the siblings use, so a stray/spoofed field is stripped:
  *
- *   - `GET /v1/ingredients/search?q=&limit=` — fuzzy + full-text autocomplete over the shared catalog
+ *   - `GET /api/v1/ingredients/search?q=&limit=` — fuzzy + full-text autocomplete over the shared catalog
  *     (`200` → `Ingredient[]`). A missing/blank `q` is a `400`.
- *   - `POST /v1/ingredients` `{ name }` — create a freeform (user-entered) ingredient (`201` →
+ *   - `POST /api/v1/ingredients` `{ name }` — create a freeform (user-entered) ingredient (`201` →
  *     `Ingredient`). A missing/blank/over-long name is a `400` (via {@link CreateIngredientDto}).
- *   - `POST /v1/ingredients/by-name` `{ name }` — add an unknown food by name through the source-agnostic
+ *   - `POST /api/v1/ingredients/by-name` `{ name }` — add an unknown food by name through the source-agnostic
  *     food service (data-model R5): persists a food-backed catalog row and returns it (`202` → `Ingredient`)
  *     with its NON-terminal `foodResolutionStatus` (`PENDING` / `UNRESOLVED`). `202 Accepted` (not `201`) is
  *     deliberate: the ingredient ROW is created synchronously, but the meaningful work — nutrition resolution
@@ -23,14 +23,14 @@
  *     A missing/blank/over-long name is a `400`. This is the ENTRY POINT of the async-resolution vertical
  *     (R5 / FR-007): `addByName` → `PENDING` (poll → `RESOLVED`) | `UNRESOLVED` (disambiguate) | terminal
  *     (`NOT_FOUND` / `FAILED`, freeform fallback).
- *   - `GET /v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model
+ *   - `GET /api/v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model
  *     R5): re-reads the food service, persists the current status (and golden-record nutrition on
  *     `RESOLVED`), and returns the refreshed `Ingredient`. A missing ingredient is a `404`. This is a
  *     read from the caller's view (idempotent, convergent) and carries the generous read limit so a
  *     client polling a `PENDING` food is never throttled into a false failure mid-resolution.
- *   - `GET /v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED`
+ *   - `GET /api/v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED`
  *     food-backed ingredient (`200` → `Candidate[]`; empty for a freeform or non-`UNRESOLVED` row).
- *   - `POST /v1/ingredients/{id}/resolve` `{ candidateIds }` — resolve an `UNRESOLVED` ingredient from a
+ *   - `POST /api/v1/ingredients/{id}/resolve` `{ candidateIds }` — resolve an `UNRESOLVED` ingredient from a
  *     candidate pick, then re-poll so the newly-`RESOLVED` nutrition is persisted (`200` → `Ingredient`).
  *     A missing/empty/oversized `candidateIds` is a `400`; a missing ingredient is a `404`.
  *
@@ -88,13 +88,17 @@ function parseLimit(raw: string | undefined): number | undefined {
     return parsed;
 }
 
-@Controller('v1/ingredients')
+// Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
+// `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
+// webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
+// inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+@Controller(['api/v1/ingredients', 'v1/ingredients'])
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
 export class IngredientsController {
     public constructor(private readonly ingredients: IngredientsService) {}
 
     /**
-     * `GET /v1/ingredients/search` — fuzzy + FTS autocomplete over the shared ingredient catalog.
+     * `GET /api/v1/ingredients/search` — fuzzy + FTS autocomplete over the shared ingredient catalog.
      *
      * @param _ownerId - The verified caller ULID (resolved by `@OwnerId()`, purely an auth assertion — the
      *   catalog is ownerless, so it is not used to scope the query, but its resolution guarantees the caller
@@ -121,7 +125,7 @@ export class IngredientsController {
     }
 
     /**
-     * `GET /v1/ingredients/suggest` — the Stage-2 BLENDED typeahead: the shared `ingredients` catalog **plus**
+     * `GET /api/v1/ingredients/suggest` — the Stage-2 BLENDED typeahead: the shared `ingredients` catalog **plus**
      * the food-service golden catalog, deduped on `food_id` and sectioned by provenance.
      *
      * **Why this is a separate route from `/search`, not a flag on it.** They are different reads with
@@ -165,7 +169,7 @@ export class IngredientsController {
     }
 
     /**
-     * `POST /v1/ingredients` — create a freeform (user-entered) ingredient.
+     * `POST /api/v1/ingredients` — create a freeform (user-entered) ingredient.
      *
      * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
      * @param body - `{ name }` (non-blank, ≤120 chars), validated by {@link CreateIngredientDto}.
@@ -179,7 +183,7 @@ export class IngredientsController {
     }
 
     /**
-     * `POST /v1/ingredients/by-name` — add an unknown food by name through the source-agnostic food service.
+     * `POST /api/v1/ingredients/by-name` — add an unknown food by name through the source-agnostic food service.
      *
      * The ENTRY POINT of the async food-resolution vertical (data-model R5 / FR-007). The food service returns
      * a NON-terminal status (`PENDING` / `UNRESOLVED`); we persist a food-backed catalog row (deduped on the
@@ -208,7 +212,7 @@ export class IngredientsController {
     }
 
     /**
-     * `POST /v1/ingredients/by-food` — Stage 2 pick: admit a `catalog` suggestion from
+     * `POST /api/v1/ingredients/by-food` — Stage 2 pick: admit a `catalog` suggestion from
      * {@link IngredientsController.suggest} as a food-backed ingredient, WITH its nutrition already backfilled.
      *
      * Returns **`200 OK`, not `202`** — the deliberate contrast with `by-name`. `by-name` is `202` because the
@@ -241,7 +245,7 @@ export class IngredientsController {
     }
 
     /**
-     * `GET /v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model R5).
+     * `GET /api/v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model R5).
      *
      * Re-reads the food service, persists the current status (and golden-record nutrition on `RESOLVED`),
      * and returns the refreshed ingredient. A freeform ingredient (no linked food) is returned unchanged.
@@ -264,7 +268,7 @@ export class IngredientsController {
     }
 
     /**
-     * `GET /v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED`
+     * `GET /api/v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED`
      * food-backed ingredient. A read (no throttle decorator). Empty for a freeform or non-`UNRESOLVED` row.
      *
      * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
@@ -283,7 +287,7 @@ export class IngredientsController {
     }
 
     /**
-     * `POST /v1/ingredients/{id}/resolve` — resolve an `UNRESOLVED` food-backed ingredient from a candidate
+     * `POST /api/v1/ingredients/{id}/resolve` — resolve an `UNRESOLVED` food-backed ingredient from a candidate
      * pick, then re-poll so the newly-`RESOLVED` golden-record nutrition is persisted. Returns `200` with
      * the resolved ingredient (an update, not a creation). A mutation → the write rate limit.
      *

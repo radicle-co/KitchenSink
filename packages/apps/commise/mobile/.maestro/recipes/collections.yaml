@@ -48,7 +48,7 @@ appId: io.commise.mobile
 
 # ADD A RECIPE (FR-009). The empty collection offers "Add a recipe", which pushes
 # CollectionRecipePickerScreen (its heading names this collection). Adding a recipe hits
-# `useAddRecipeToCollection` -> POST /v1/collections/{id}/recipes; the row then flips to the inert "In this
+# `useAddRecipeToCollection` -> POST /api/v1/collections/{id}/recipes; the row then flips to the inert "In this
 # collection" marker. Guarded on the seeded recipe (the same fixture the recipe list/edit flows drive) being
 # an add candidate, so an empty library still exercises create/rename/delete. "Done" returns to the detail
 # either way. Mobile mirror of the web Playwright add leg.

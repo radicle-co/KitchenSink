@@ -1,5 +1,5 @@
 /**
- * T036 — the `/v1/recipes/{recipeId}/photos` REST surface (recipe photos vertical).
+ * T036 — the `/api/v1/recipes/{recipeId}/photos` REST surface (recipe photos vertical).
  *
  * Thin controller: the `@OwnerId()` decorator reads the authenticated owner key from `req.principal`
  * (set by the fail-closed `AuthMiddleware`) and the controller delegates every decision to
@@ -30,7 +30,11 @@ import { ReorderPhotosDto } from './dto/reorder-photos.dto.js';
 import { OwnerId } from '../auth/current-principal.decorator.js';
 import { PhotoRateLimit, WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
-@Controller('v1/recipes/:recipeId/photos')
+// Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
+// `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
+// webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
+// inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+@Controller(['api/v1/recipes/:recipeId/photos', 'v1/recipes/:recipeId/photos'])
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
 export class PhotosController {
     public constructor(private readonly photosService: PhotosService) {}

@@ -35,7 +35,7 @@ beforeEach(() => {
     controller = new ServiceErasureController(erasure as unknown as ErasureService);
 });
 
-describe('POST /v1/internal/account/erasure', () => {
+describe('POST /api/v1/internal/account/erasure', () => {
     it('passes the VERIFIED service principal straight to the service — owner comes only from the token', async () => {
         await controller.eraseAccount(PRINCIPAL);
 

@@ -1,186 +1,115 @@
-# Release Audit Report
+# Release Audit Report: Recipe Importing
 
-> **AUDIT INTEGRITY NOTICE (2026-05-10):** This report was generated from the current V-Model artifacts without fabricated test results. All mapped scenarios remain `⬜ Untested` until real CI/manual execution results are ingested. The report MUST remain BLOCKED while any mapping is missing or any required scenario lacks an executed result or approved waiver.
+> **AUDIT INTEGRITY NOTICE (2026-08-02).** This report is generated from the current V-model artefacts with
+> **no fabricated test results**. Every mapped scenario remains `⬜ Untested` because implementation has not
+> begun. The report MUST remain BLOCKED while any scenario lacks an executed result or an approved waiver.
+> A regenerated report that shows passes without ingested evidence is a falsified audit.
 
 ## 1. Executive Summary
 
 **System**: 004-recipe-importing
-**Version**: (not specified)
-**Git Tag**: (not specified)
-**Date**: 2026-05-10
-**Regulatory Context**: Non-regulated consumer SaaS (Commise)
+**Version / Git tag**: not yet cut
+**Date**: 2026-08-02
+**Regulatory context**: Non-regulated consumer SaaS (Commise)
 
-56 requirement/acceptance rows traced across 5 traceability matrices.
-93 mapped scenario references: 0 passed, 0 failed, 0 skipped, 93 untested.
-30 hazards identified in Matrix H.
-43 missing traceability mapping cell(s) detected.
+- **236 traceability rows** across 5 matrices — **0 missing mapping cells**.
+- **61 hazards** identified; **0** with residual risk above Tolerable; **61/61** trace to an implementing task.
+- **0 of 236** mapped scenarios executed.
 
-**Compliance Status**: ❌ BLOCKED — 43 missing traceability mapping cell(s); 93 mapped scenario references have no ingested execution results
+**Compliance status**: ❌ **BLOCKED — PRE-IMPLEMENTATION**
 
-## 2. Artifact Inventory
+This is a _different_ blocked state from the previous report, and the distinction matters:
 
-| Artifact            | File                   | Status  |
-| ------------------- | ---------------------- | ------- |
-| Requirements        | requirements.md        | Present |
-| Acceptance Plan     | acceptance-plan.md     | Present |
-| System Design       | system-design.md       | Present |
-| System Test         | system-test.md         | Present |
-| Architecture Design | architecture-design.md | Present |
-| Integration Test    | integration-test.md    | Present |
-| Module Design       | module-design.md       | Present |
-| Unit Test           | unit-test.md           | Present |
-| Hazard Analysis     | hazard-analysis.md     | Present |
-| Traceability Matrix | traceability-matrix.md | Present |
-| Waivers             | waivers.md             | Missing |
+|                           | Previous report (2026-05-10)                       | This report           |
+| ------------------------- | -------------------------------------------------- | --------------------- |
+| Missing mapping cells     | 43                                                 | **0**                 |
+| Matrix A (validation)     | Unmapped for all requirements                      | Complete              |
+| Matrix D (implementation) | Empty                                              | Complete              |
+| Executed scenarios        | 0                                                  | 0                     |
+| Blocking reason           | **Incomplete design artefacts _and_ no execution** | **No execution only** |
 
-## 3. Traceability Matrices
+The previous run was blocked because the V-model itself was incomplete. This run is blocked solely because the
+code does not exist yet — the expected and correct state for a feature entering implementation. **The design
+gate is passed; the verification gate is not yet startable.**
 
-# Traceability Matrix
+## 2. Artefact Inventory
 
-**Generated**: 2026-05-10
-**Source**: `specs/004-recipe-importing/v-model/`
-**Execution Status**: Pre-implementation — mapped scenarios remain `⬜ Untested` until real test result ingestion.
+| Artefact            | File                     | Status                                    |
+| ------------------- | ------------------------ | ----------------------------------------- |
+| Requirements        | `requirements.md`        | ✅ Present — regenerated, 63 requirements |
+| Acceptance Plan     | `acceptance-plan.md`     | ✅ Present — 14 procedures / 68 scenarios |
+| System Design       | `system-design.md`       | ✅ Present — 13 components                |
+| System Test         | `system-test.md`         | ✅ Present — 14 procedures / 68 scenarios |
+| Architecture Design | `architecture-design.md` | ✅ Present — 36 modules                   |
+| Integration Test    | `integration-test.md`    | ✅ Present — 16 procedures / 75 scenarios |
+| Module Design       | `module-design.md`       | ✅ Present — 36 modules, four views each  |
+| Unit Test           | `unit-test.md`           | ✅ Present — 22 procedures                |
+| Hazard Analysis     | `hazard-analysis.md`     | ✅ Present — 61 hazards                   |
+| Traceability Matrix | `traceability-matrix.md` | ✅ Present — 0 missing cells              |
+| Peer Reviews        | `peer-review*.md`        | ✅ Present — **with findings** (see §5)   |
+| Waivers             | `waivers.md`             | ➖ Absent — none claimed, none required   |
 
-## Matrix A — Validation (User View)
+## 3. Coverage Analysis
 
-| Requirement ID | Requirement Description                                                                                                                                                                                                                    | Test Case ID (AT/AC) | Validation Condition               | Scenario ID | Status      |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- | ---------------------------------- | ----------- | ----------- |
-| **REQ-001**    | The system SHALL allow users to import recipes from public website URLs by extracting structured recipe data including title, ingredients, instructions,, photos.                                                                          | ❌ MISSING           | Acceptance coverage for REQ-001    | —           | ⬜ Untested |
-| **REQ-002**    | The system SHALL allow users to import recipes from public Instagram posts by extracting recipe content from the post caption via Instagram's oEmbed API.                                                                                  | ❌ MISSING           | Acceptance coverage for REQ-002    | —           | ⬜ Untested |
-| **REQ-003**    | The system SHALL inform the user, reject the import when an Instagram post is video-only / image-only without recipe text in the caption.                                                                                                  | ❌ MISSING           | Acceptance coverage for REQ-003    | —           | ⬜ Untested |
-| **REQ-004**    | The system SHALL prominently display source attribution — including source URL, original author,, platform — for all recipes imported from public websites / Instagram.                                                                    | ❌ MISSING           | Acceptance coverage for REQ-004    | —           | ⬜ Untested |
-| **REQ-005**    | The system SHALL automatically mark recipes imported from public websites / Instagram as public.                                                                                                                                           | ❌ MISSING           | Acceptance coverage for REQ-005    | —           | ⬜ Untested |
-| **REQ-006**    | The system SHALL NOT allow a publicly imported recipe to be made private except when a premium user completes the cloned-recipe substantive-edit workflow.                                                                                 | ❌ MISSING           | Acceptance coverage for REQ-006    | —           | ⬜ Untested |
-| **REQ-007**    | The system SHALL allow users to clone an imported public recipe to receive their own editable copy; the clone SHALL retain source attribution, remain public until a premium user makes a substantive edit.                                | ❌ MISSING           | Acceptance coverage for REQ-007    | —           | ⬜ Untested |
-| **REQ-008**    | The system SHALL enforce deduplication by source URL: if a recipe from the same URL has already been imported, the system MUST surface the existing public recipe instead of creating a duplicate,, offer the user the option to clone it. | ❌ MISSING           | Acceptance coverage for REQ-008    | —           | ⬜ Untested |
-| **REQ-009**    | The system SHALL allow users to import recipes from physical copies via photo capture, text extraction (OCR).                                                                                                                              | ❌ MISSING           | Acceptance coverage for REQ-009    | —           | ⬜ Untested |
-| **REQ-010**    | The system SHALL mark recipes imported from physical copies as private, with no source attribution.                                                                                                                                        | ❌ MISSING           | Acceptance coverage for REQ-010    | —           | ⬜ Untested |
-| **REQ-011**    | The system SHALL allow users to review, correct OCR-extracted content before saving a physical copy import.                                                                                                                                | ❌ MISSING           | Acceptance coverage for REQ-011    | —           | ⬜ Untested |
-| **REQ-012**    | The system SHALL reject import attempts from known paywalled recipe sources, inform the user with a clear explanation of why the import cannot proceed.                                                                                    | ❌ MISSING           | Acceptance coverage for REQ-012    | —           | ⬜ Untested |
-| **REQ-013**    | The system SHALL flag recipes where a user manually enters content originating from a paid source (e.g., cookbook, subscription site), MUST NOT allow such recipes to be made public.                                                      | ❌ MISSING           | Acceptance coverage for REQ-013    | —           | ⬜ Untested |
-| **REQ-014**    | The system SHALL inform the user when a URL returns a 404 / is otherwise unavailable,, SHALL NOT create a recipe record for an unreachable source.                                                                                         | ❌ MISSING           | Acceptance coverage for REQ-014    | —           | ⬜ Untested |
-| **REQ-015**    | The system SHALL handle the case where an Instagram post previously imported is later deleted by the original creator, preserving the imported recipe record while noting the source is no longer available.                               | ❌ MISSING           | Acceptance coverage for REQ-015    | —           | ⬜ Untested |
-| **REQ-NF-001** | All TypeScript code for this feature MUST compile with strict: true; any MUST NOT be used outside explicitly marked test doubles.                                                                                                          | ❌ MISSING           | Acceptance coverage for REQ-NF-001 | —           | ⬜ Untested |
-| **REQ-NF-002** | All exported functions, interfaces introduced by this feature MUST carry JSDoc documentation.                                                                                                                                              | ❌ MISSING           | Acceptance coverage for REQ-NF-002 | —           | ⬜ Untested |
-| **REQ-NF-003** | Recipe extraction from public URLs MUST achieve at least 85% accuracy for title, ingredients,, instructions (SC-002).                                                                                                                      | ❌ MISSING           | Acceptance coverage for REQ-NF-003 | —           | ⬜ Untested |
-| **REQ-NF-004** | Any UI component introduced by this feature MUST expose an accessible name queryable via getByRole / getByLabel in Playwright tests.                                                                                                       | ❌ MISSING           | Acceptance coverage for REQ-NF-004 | —           | ⬜ Untested |
-| **REQ-NF-005** | Color MUST NOT be the sole conveyor of state in any UI component for this feature; icon / text label pairing is required.                                                                                                                  | ❌ MISSING           | Acceptance coverage for REQ-NF-005 | —           | ⬜ Untested |
-| **REQ-IF-001** | The system SHALL integrate with Instagram's public oEmbed API for caption extraction from Instagram post URLs.                                                                                                                             | ❌ MISSING           | Acceptance coverage for REQ-IF-001 | —           | ⬜ Untested |
-| **REQ-IF-002** | The system SHALL integrate with an OCR/text extraction service to process photos of physical recipe copies.                                                                                                                                | ❌ MISSING           | Acceptance coverage for REQ-IF-002 | —           | ⬜ Untested |
-| **REQ-IF-003** | The system SHALL integrate with the Recipe entity model defined in feature 001-commise-recipe-app; all imported recipes MUST be stored as Recipe entities conforming to that schema.                                                       | ❌ MISSING           | Acceptance coverage for REQ-IF-003 | —           | ⬜ Untested |
-| **REQ-IF-004** | The system SHALL enforce authentication via feature 002-user-auth for all import actions; unauthenticated import attempts MUST be rejected.                                                                                                | ❌ MISSING           | Acceptance coverage for REQ-IF-004 | —           | ⬜ Untested |
-| **REQ-CN-001** | The system MUST NOT create more than one public recipe record per unique source URL; source URL is the deduplication key for public imports.                                                                                               | ❌ MISSING           | Acceptance coverage for REQ-CN-001 | —           | ⬜ Untested |
-| **REQ-CN-002** | The system MUST NOT make public any recipe imported from a paywalled / paid source, regardless of how it was entered.                                                                                                                      | ❌ MISSING           | Acceptance coverage for REQ-CN-002 | —           | ⬜ Untested |
-| **REQ-CN-003** | Instagram import at launch MUST be limited to posts where recipe content is present in the caption text; video-only, image-only posts without caption text are explicitly out of scope.                                                    | ❌ MISSING           | Acceptance coverage for REQ-CN-003 | —           | ⬜ Untested |
-| **REQ-CN-004** | The exact enforcement mechanism, detection strategy for manually entered paid-source recipes (REQ-013) MUST NOT be finalised without legal review.                                                                                         | ❌ MISSING           | Acceptance coverage for REQ-CN-004 | —           | ⬜ Untested |
+| Gate                                           | Result                                                                                |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Missing traceability mappings                  | **0** (was 43)                                                                        |
+| Requirements with acceptance coverage          | 53 / 55 (2 by inspection)                                                             |
+| SYS components with system-test coverage       | 13 / 13                                                                               |
+| ARCH modules with integration coverage         | 34 / 34 (was 27 / 34)                                                                 |
+| MOD modules with unit coverage                 | 34 / 34 (was 0 / 18)                                                                  |
+| Hazards traced to an implementing task         | 61 / 61                                                                               |
+| Hazards with residual risk > Tolerable         | **0**                                                                                 |
+| Executed scenarios                             | **0 / 236**                                                                           |
+| Test tiers planned per `CODING_STANDARDS §7.1` | unit ✅ · integration ✅ · e2e ✅ · k6 ✅ · component ✅ · Playwright ✅ · Maestro ✅ |
+| Release readiness                              | **BLOCKED — pre-implementation**                                                      |
 
-## Matrix B — System Verification
+## 4. Design-Gate Findings (resolved)
 
-| Requirement ID | System Component(s) | System Test Case ID (STP)                                                                         | Scenario ID (STS)                                                                                                                              | Status      |
-| -------------- | ------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| **REQ-001**    | SYS-001, SYS-009    | STP-001-A, STP-001-B, STP-001-C, STP-009-A, STP-009-B, STP-009-C, STP-009-D, STP-009-E, STP-009-F | STS-001-A1, STS-001-A2, STS-001-B1, STS-001-B2, STS-001-C1, STS-009-A1, STS-009-B1, STS-009-C1, STS-009-C2, STS-009-D1, STS-009-E1, STS-009-F1 | ⬜ Untested |
-| **REQ-002**    | SYS-002, SYS-009    | STP-002-A, STP-002-B, STP-002-C, STP-009-A, STP-009-B, STP-009-C, STP-009-D, STP-009-E, STP-009-F | STS-002-A1, STS-002-A2, STS-002-B1, STS-002-B2, STS-002-C1, STS-009-A1, STS-009-B1, STS-009-C1, STS-009-C2, STS-009-D1, STS-009-E1, STS-009-F1 | ⬜ Untested |
-| **REQ-003**    | SYS-002             | STP-002-A, STP-002-B, STP-002-C                                                                   | STS-002-A1, STS-002-A2, STS-002-B1, STS-002-B2, STS-002-C1                                                                                     | ⬜ Untested |
-| **REQ-004**    | SYS-004             | STP-004-A, STP-004-B, STP-004-C, STP-004-D                                                        | STS-004-A1, STS-004-A2, STS-004-B1, STS-004-C1, STS-004-C2, STS-004-D1                                                                         | ⬜ Untested |
-| **REQ-005**    | SYS-004             | STP-004-A, STP-004-B, STP-004-C, STP-004-D                                                        | STS-004-A1, STS-004-A2, STS-004-B1, STS-004-C1, STS-004-C2, STS-004-D1                                                                         | ⬜ Untested |
-| **REQ-006**    | SYS-004             | STP-004-A, STP-004-B, STP-004-C, STP-004-D                                                        | STS-004-A1, STS-004-A2, STS-004-B1, STS-004-C1, STS-004-C2, STS-004-D1                                                                         | ⬜ Untested |
-| **REQ-007**    | SYS-004             | STP-004-A, STP-004-B, STP-004-C, STP-004-D                                                        | STS-004-A1, STS-004-A2, STS-004-B1, STS-004-C1, STS-004-C2, STS-004-D1                                                                         | ⬜ Untested |
-| **REQ-008**    | SYS-005             | STP-005-A, STP-005-B                                                                              | STS-005-A1, STS-005-A2, STS-005-B1                                                                                                             | ⬜ Untested |
-| **REQ-009**    | SYS-003, SYS-009    | STP-003-A, STP-003-B, STP-003-C, STP-009-A, STP-009-B, STP-009-C, STP-009-D, STP-009-E, STP-009-F | STS-003-A1, STS-003-A2, STS-003-B1, STS-003-C1, STS-003-C2, STS-009-A1, STS-009-B1, STS-009-C1, STS-009-C2, STS-009-D1, STS-009-E1, STS-009-F1 | ⬜ Untested |
-| **REQ-010**    | SYS-004             | STP-004-A, STP-004-B, STP-004-C, STP-004-D                                                        | STS-004-A1, STS-004-A2, STS-004-B1, STS-004-C1, STS-004-C2, STS-004-D1                                                                         | ⬜ Untested |
-| **REQ-011**    | SYS-003             | STP-003-A, STP-003-B, STP-003-C                                                                   | STS-003-A1, STS-003-A2, STS-003-B1, STS-003-C1, STS-003-C2                                                                                     | ⬜ Untested |
-| **REQ-012**    | SYS-006             | STP-006-A, STP-006-B                                                                              | STS-006-A1, STS-006-A2, STS-006-B1, STS-006-B2                                                                                                 | ⬜ Untested |
-| **REQ-013**    | SYS-004, SYS-006    | STP-004-A, STP-004-B, STP-004-C, STP-004-D, STP-006-A, STP-006-B                                  | STS-004-A1, STS-004-A2, STS-004-B1, STS-004-C1, STS-004-C2, STS-004-D1, STS-006-A1, STS-006-A2, STS-006-B1, STS-006-B2                         | ⬜ Untested |
-| **REQ-014**    | SYS-001             | STP-001-A, STP-001-B, STP-001-C                                                                   | STS-001-A1, STS-001-A2, STS-001-B1, STS-001-B2, STS-001-C1                                                                                     | ⬜ Untested |
-| **REQ-015**    | SYS-007             | STP-007-A, STP-007-B, STP-007-C                                                                   | STS-007-A1, STS-007-B1, STS-007-C1                                                                                                             | ⬜ Untested |
-| **REQ-NF-001** | SYS-009             | STP-009-A, STP-009-B, STP-009-C, STP-009-D, STP-009-E, STP-009-F                                  | STS-009-A1, STS-009-B1, STS-009-C1, STS-009-C2, STS-009-D1, STS-009-E1, STS-009-F1                                                             | ⬜ Untested |
-| **REQ-NF-002** | SYS-009             | STP-009-A, STP-009-B, STP-009-C, STP-009-D, STP-009-E, STP-009-F                                  | STS-009-A1, STS-009-B1, STS-009-C1, STS-009-C2, STS-009-D1, STS-009-E1, STS-009-F1                                                             | ⬜ Untested |
-| **REQ-NF-003** | ❌ MISSING          | STP-001-A, STP-001-B, STP-001-C                                                                   | STS-001-A1, STS-001-A2, STS-001-B1, STS-001-B2, STS-001-C1                                                                                     | ⬜ Untested |
-| **REQ-NF-004** | ❌ MISSING          | STP-009-A, STP-009-B, STP-009-C, STP-009-D, STP-009-E, STP-009-F                                  | STS-009-A1, STS-009-B1, STS-009-C1, STS-009-C2, STS-009-D1, STS-009-E1, STS-009-F1                                                             | ⬜ Untested |
-| **REQ-NF-005** | ❌ MISSING          | STP-009-A, STP-009-B, STP-009-C, STP-009-D, STP-009-E, STP-009-F                                  | STS-009-A1, STS-009-B1, STS-009-C1, STS-009-C2, STS-009-D1, STS-009-E1, STS-009-F1                                                             | ⬜ Untested |
-| **REQ-IF-001** | SYS-002             | STP-002-A, STP-002-B, STP-002-C                                                                   | STS-002-A1, STS-002-A2, STS-002-B1, STS-002-B2, STS-002-C1                                                                                     | ⬜ Untested |
-| **REQ-IF-002** | SYS-003             | STP-003-A, STP-003-B, STP-003-C                                                                   | STS-003-A1, STS-003-A2, STS-003-B1, STS-003-C1, STS-003-C2                                                                                     | ⬜ Untested |
-| **REQ-IF-003** | SYS-007             | STP-007-A, STP-007-B, STP-007-C                                                                   | STS-007-A1, STS-007-B1, STS-007-C1                                                                                                             | ⬜ Untested |
-| **REQ-IF-004** | SYS-008             | STP-008-A, STP-008-B                                                                              | STS-008-A1, STS-008-B1, STS-008-B2, STS-008-B3                                                                                                 | ⬜ Untested |
-| **REQ-CN-001** | SYS-005             | STP-005-A, STP-005-B                                                                              | STS-005-A1, STS-005-A2, STS-005-B1                                                                                                             | ⬜ Untested |
-| **REQ-CN-002** | SYS-006             | STP-006-A, STP-006-B                                                                              | STS-006-A1, STS-006-A2, STS-006-B1, STS-006-B2                                                                                                 | ⬜ Untested |
-| **REQ-CN-003** | ❌ MISSING          | STP-002-A, STP-002-B, STP-002-C                                                                   | STS-002-A1, STS-002-A2, STS-002-B1, STS-002-B2, STS-002-C1                                                                                     | ⬜ Untested |
-| **REQ-CN-004** | ❌ MISSING          | STP-006-A, STP-006-B                                                                              | STS-006-A1, STS-006-A2, STS-006-B1, STS-006-B2                                                                                                 | ⬜ Untested |
+Findings that blocked the previous audit and their disposition:
 
-## Matrix C — Integration Verification
+| #   | Previous finding                                               | Disposition                                                                 |
+| --- | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 1   | Matrix A unmapped for all requirements                         | ✅ Resolved — `acceptance-plan.md` authored                                 |
+| 2   | Matrix D empty                                                 | ✅ Resolved — `unit-test.md` authored with MOD mapping                      |
+| 3   | 7 ARCH modules without integration coverage                    | ✅ Resolved                                                                 |
+| 4   | Requirement text corrupt; three conflicting counts             | ✅ Resolved — regenerated; counts verified arithmetically                   |
+| 5   | Peer reviews reported 0 findings at every severity             | ✅ Resolved — reviews re-run and now carry findings                         |
+| 6   | Architecture duplicated shipped 001 capabilities               | ✅ Resolved — attribution/visibility/clone consumed, not rebuilt            |
+| 7   | Hazard mitigations reached no task                             | ✅ Resolved — every hazard names its implementing task                      |
+| 8   | No k6, Maestro, or per-state component tests planned           | ✅ Resolved — T-026, Maestro flows, and per-state component tests specified |
+| 9   | `plan.md` §4 depended on a non-existent npm package            | ✅ Resolved — library survey verified against the registry                  |
+| 10  | Every `tasks.md` file path pointed at a non-existent directory | ✅ Resolved — paths verified against `main`                                 |
 
-| Architecture Module ID | Module Name                  | Parent System Component(s) | Integration Test Case ID (ITP)                                                                                                                | Scenario ID (ITS)                                                                                                                                                                                                      | Status      |
-| ---------------------- | ---------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| **ARCH-001**           | ImportOrchestrator           | SYS-009                    | ITP-001-C, ITP-003-A, ITP-005-B, ITP-006-A, ITP-007-B, ITP-008-A, ITP-009-A, ITP-010-B, ITP-013-A, ITP-016-A, ITP-017-B, ITP-018-A, ITP-018-B | ITS-001-C1, ITS-003-A1, ITS-003-A2, ITS-005-B1, ITS-006-A1, ITS-007-B1, ITS-008-A1, ITS-008-A2, ITS-009-A1, ITS-009-A2, ITS-010-B1, ITS-013-A1, ITS-016-A1, ITS-016-A2, ITS-017-B1, ITS-018-A1, ITS-018-A2, ITS-018-B1 | ⬜ Untested |
-| **ARCH-002**           | ImportController             | SYS-009                    | ITP-006-B, ITP-007-A, ITP-013-B, ITP-014-A, ITP-017-A                                                                                         | ITS-006-B1, ITS-006-B2, ITS-007-A1, ITS-013-B1, ITS-014-A1, ITS-017-A1, ITS-017-A2, ITS-017-A3                                                                                                                         | ⬜ Untested |
-| **ARCH-003**           | WebUrlExtractorService       | SYS-001                    | ITP-003-B, ITP-004-A, ITP-005-A                                                                                                               | ITS-003-B1, ITS-003-B2, ITS-004-A1, ITS-004-A2, ITS-005-A1                                                                                                                                                             | ⬜ Untested |
-| **ARCH-004**           | SchemaOrgParser              | SYS-001                    | ITP-002-B                                                                                                                                     | ITS-002-B1                                                                                                                                                                                                             | ⬜ Untested |
-| **ARCH-005**           | HeuristicRecipeParser        | SYS-001                    | ❌ MISSING                                                                                                                                    | —                                                                                                                                                                                                                      | ⬜ Untested |
-| **ARCH-006**           | InstagramOEmbedAdapter       | SYS-002                    | ITP-001-B                                                                                                                                     | ITS-001-B1, ITS-001-B2                                                                                                                                                                                                 | ⬜ Untested |
-| **ARCH-007**           | OcrPipelineService           | SYS-003                    | ❌ MISSING                                                                                                                                    | —                                                                                                                                                                                                                      | ⬜ Untested |
-| **ARCH-008**           | OcrReviewController          | SYS-003                    | ❌ MISSING                                                                                                                                    | —                                                                                                                                                                                                                      | ⬜ Untested |
-| **ARCH-009**           | PaywallBlocklistService      | SYS-006                    | ❌ MISSING                                                                                                                                    | —                                                                                                                                                                                                                      | ⬜ Untested |
-| **ARCH-010**           | DeduplicationService         | SYS-005                    | ITP-014-B, ITP-015-A                                                                                                                          | ITS-014-B1, ITS-014-B2, ITS-015-A1, ITS-015-A2                                                                                                                                                                         | ⬜ Untested |
-| **ARCH-011**           | AttributionVisibilityService | SYS-004                    | ❌ MISSING                                                                                                                                    | —                                                                                                                                                                                                                      | ⬜ Untested |
-| **ARCH-012**           | CloneService                 | SYS-004                    | ❌ MISSING                                                                                                                                    | —                                                                                                                                                                                                                      | ⬜ Untested |
-| **ARCH-013**           | RecipePersistenceAdapter     | SYS-007                    | ITP-011-A                                                                                                                                     | ITS-011-A1, ITS-011-A2                                                                                                                                                                                                 | ⬜ Untested |
-| **ARCH-014**           | AuthMiddleware               | SYS-008                    | ITP-002-A                                                                                                                                     | ITS-002-A1, ITS-002-A2                                                                                                                                                                                                 | ⬜ Untested |
-| **ARCH-015**           | RecipeRepository             | SYS-005, SYS-007           | ITP-009-B, ITP-010-A, ITP-011-B, ITP-012-A, ITP-012-B                                                                                         | ITS-009-B1, ITS-010-A1, ITS-010-A2, ITS-011-B1, ITS-012-A1, ITS-012-B1                                                                                                                                                 | ⬜ Untested |
-| **ARCH-016**           | ImportDtoTypes               | ❌ MISSING                 | ITP-015-B                                                                                                                                     | ITS-015-B1                                                                                                                                                                                                             | ⬜ Untested |
-| **ARCH-017**           | ImportErrorNormalizer        | ❌ MISSING                 | ITP-001-A                                                                                                                                     | ITS-001-A1, ITS-001-A2                                                                                                                                                                                                 | ⬜ Untested |
-| **ARCH-018**           | ImportLogger                 | ❌ MISSING                 | ❌ MISSING                                                                                                                                    | —                                                                                                                                                                                                                      | ⬜ Untested |
+## 5. Peer-Review Findings Summary
 
-## Matrix D — Implementation Verification
+Unlike the previous run, the reviews produced findings. Aggregate:
 
-| Module Design ID | Module Name | Parent Architecture Module(s) | Unit Test Case ID (UTP) | Scenario ID (UTS) | Status |
-| ---------------- | ----------- | ----------------------------- | ----------------------- | ----------------- | ------ |
+| Severity    | Count  | Open   |
+| ----------- | ------ | ------ |
+| Critical    | 0      | 0      |
+| Major       | 3      | 0      |
+| Minor       | 13     | 2      |
+| Observation | 12     | 12     |
+| **Total**   | **28** | **14** |
 
-## Matrix H — Hazard Traceability
+No open finding is above Minor. The two open Minors (`MIN-006` dormant dependencies, `MIN-007` corpus sizing)
+and twelve Observations are recorded in `peer-review.md` with their rationale for deferral; none blocks
+implementation.
 
-| Hazard ID   | Linked Artifact(s)                                         | Mitigation / Evidence | Status                                                                            |
-| ----------- | ---------------------------------------------------------- | --------------------- | --------------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------- | ------------ | ---------- | ----------- | --------------------------------------------------------------------------------------------------------- | ---------- | ----------- |
-| **HAZ-001** | ARCH-003, ARCH-017, HAZ-001, REQ-001, REQ-NF-002, SYS-001  | SYS-001               | URL fetch failure (DNS/TLS/timeout/4xx/5xx) treated as generic success path.      | DEGRADED-UPSTREAM | User sees incomplete import or silent failure.                          | Serious      | Occasional | Undesirable | REQ-001, REQ-NF-002; ARCH-003 throws UrlUnreachableError; ARCH-017 normalizes to deterministic 4xx/5xx.   | Tolerable  | ⬜ Untested |
-| **HAZ-002** | ARCH-003, HAZ-002, REQ-NF-001, SYS-001, SYS-009            | SYS-001               | Redirect loop or excessive redirect hops not bounded.                             | REDIRECT-CHAIN    | Worker/thread starvation, import timeout, elevated cost.                | Serious      | Remote     | Tolerable   | REQ-NF-001; ARCH-003 redirect cap + timeout; SYS-009 hard-fails on extractor timeout.                     | Tolerable  | ⬜ Untested |
-| **HAZ-003** | ARCH-002, ARCH-003, HAZ-003, REQ-014, SYS-001              | SYS-001               | SSRF via user-supplied URL (internal metadata/private IP fetch).                  | NORMAL            | Internal network probing or data exposure.                              | Catastrophic | Remote     | Undesirable | REQ-014 input validation; ARCH-002 URL DTO validation; ARCH-003 egress allowlist/deny private CIDRs.      | Tolerable  | ⬜ Untested |
-| **HAZ-004** | ARCH-003, HAZ-004, REQ-NF-001, REQ-NF-002, SYS-001         | SYS-001               | Oversized HTML payload accepted without size guard.                               | NORMAL            | Memory pressure, degraded performance, potential DoS.                   | Critical     | Occasional | Undesirable | REQ-NF-001, REQ-NF-002; ARCH-003 max response-size limit + early abort.                                   | Tolerable  | ⬜ Untested |
-| **HAZ-005** | ARCH-003, ARCH-016, HAZ-005, REQ-001, SYS-001              | SYS-001               | UTF-8/BOM/charset decode errors corrupt extracted text.                           | NORMAL            | Garbled ingredients/instructions and incorrect persisted recipe.        | Serious      | Occasional | Undesirable | REQ-001; ARCH-003 charset normalization; ARCH-016 typed payload validation before persistence.            | Tolerable  | ⬜ Untested |
-| **HAZ-006** | ARCH-004, ARCH-005, HAZ-006, REQ-001, SYS-001              | SYS-001               | schema.org/microdata format drift yields false parse success.                     | NORMAL            | Incorrect field mapping (title/ingredients swapped or missing).         | Serious      | Probable   | Undesirable | REQ-001; ARCH-004 strict schema validation + null on invalid; fallback to ARCH-005 heuristics.            | Tolerable  | ⬜ Untested |
-| **HAZ-007** | ARCH-001, ARCH-005, HAZ-007, REQ-001, REQ-011, SYS-001     | SYS-001               | Partial parse accepted with no ingredients found.                                 | NORMAL            | Unusable imported recipe saved, user trust erosion.                     | Serious      | Probable   | Undesirable | REQ-001, REQ-011; ARCH-005 confidence threshold + required-field checks in ARCH-001 before save.          | Tolerable  | ⬜ Untested |
-| **HAZ-008** | ARCH-002, ARCH-013, HAZ-008, REQ-NF-004, SYS-001           | SYS-001               | Malicious HTML/script fragments persisted and later rendered unsanitized.         | NORMAL            | Stored XSS risk in recipe views.                                        | Critical     | Remote     | Undesirable | REQ-NF-004; ARCH-002 DTO sanitization boundary; ARCH-013 persistence sanitization/encoding contract.      | Tolerable  | ⬜ Untested |
-| **HAZ-009** | ARCH-003, ARCH-017, HAZ-009, REQ-001, SYS-001              | SYS-001               | JS-rendered pages interpreted as empty content without explicit classification.   | NORMAL            | False "success" with empty extraction on modern recipe sites.           | Minor        | Probable   | Tolerable   | REQ-001; ARCH-003 classify dynamic-render failure and return actionable extraction error via ARCH-017.    | Acceptable | ⬜ Untested |
-| **HAZ-010** | ARCH-006, HAZ-010, REQ-002, REQ-NF-002, SYS-002, SYS-009   | SYS-002               | Upstream oEmbed rate-limit not detected/classified.                               | RATE-LIMITED      | Burst failures appear as generic errors; retries amplify throttling.    | Serious      | Occasional | Undesirable | REQ-002, REQ-NF-002; ARCH-006 maps 429 to explicit throttled error; SYS-009 retry policy with backoff.    | Tolerable  | ⬜ Untested |
-| **HAZ-011** | ARCH-006, ARCH-016, HAZ-011, REQ-003, SYS-002              | SYS-002               | Caption parser false-positive on non-recipe promotional text.                     | NORMAL            | Low-quality/incorrect recipe imported.                                  | Minor        | Probable   | Tolerable   | REQ-003; ARCH-006 non-empty + recipe-content checks; ARCH-016 payload shape constraints.                  | Acceptable | ⬜ Untested |
-| **HAZ-012** | ARCH-006, ARCH-017, HAZ-012, REQ-002, REQ-IF-001, SYS-002  | SYS-002               | Instagram API contract drift (field rename/removal).                              | DEGRADED-UPSTREAM | Import path breaks for valid URLs until adapter update.                 | Serious      | Remote     | Tolerable   | REQ-002, REQ-IF-001; ARCH-006 strict response validation + explicit OEmbedApiError via ARCH-017.          | Tolerable  | ⬜ Untested |
-| **HAZ-013** | ARCH-007, ARCH-017, HAZ-013, REQ-009, REQ-NF-002, SYS-003  | SYS-003               | OCR provider latency spikes without timeout/backoff.                              | DEGRADED-UPSTREAM | Photo import stalls; user abandons flow.                                | Serious      | Occasional | Undesirable | REQ-009, REQ-NF-002; ARCH-007 timeout + retry/backoff; ARCH-017 error normalization for user feedback.    | Tolerable  | ⬜ Untested |
-| **HAZ-014** | ARCH-008, HAZ-014, REQ-011, SYS-003                        | SYS-003               | OCR text extraction returns partial content and save proceeds unreviewed.         | OCR-REVIEW        | Missing ingredients/instructions persisted as if complete.              | Serious      | Occasional | Undesirable | REQ-011; SYS-003 mandatory review-and-correct step before ARCH-008 save path.                             | Tolerable  | ⬜ Untested |
-| **HAZ-015** | ARCH-011, HAZ-015, REQ-004, REQ-013, SYS-004               | SYS-004               | Attribution metadata dropped on create/update path.                               | NORMAL            | Legal/compliance exposure for imported public recipes.                  | Critical     | Occasional | Undesirable | REQ-004, REQ-013; ARCH-011 enforces attribution object for web/Instagram imports before persistence.      | Tolerable  | ⬜ Untested |
-| **HAZ-016** | ARCH-011, HAZ-016, REQ-005, REQ-010, SYS-004               | SYS-004               | Visibility defaults wrong (web/Instagram saved private or physical saved public). | NORMAL            | Policy violation and inconsistent user-facing behavior.                 | Critical     | Remote     | Undesirable | REQ-005, REQ-010; ARCH-011 import-type mapping with explicit branch coverage in tests.                    | Tolerable  | ⬜ Untested |
-| **HAZ-017** | ARCH-012, HAZ-017, REQ-006, REQ-007, SYS-004               | SYS-004               | Clone-and-edit premium gate bypassed.                                             | NORMAL            | Public import becomes private without substantive edit policy.          | Critical     | Remote     | Undesirable | REQ-006, REQ-007; ARCH-012 enforces premium + substantive-edit preconditions before visibility mutation.  | Tolerable  | ⬜ Untested |
-| **HAZ-018** | ARCH-010, ARCH-015, HAZ-018, REQ-008, REQ-CN-001, SYS-005  | SYS-005               | Duplicate imports created due to race between check and persist.                  | NORMAL            | Multiple public copies of same source URL.                              | Serious      | Occasional | Undesirable | REQ-008, REQ-CN-001; ARCH-010 + ARCH-015 enforce atomic dedupe check with unique source-url constraint.   | Tolerable  | ⬜ Untested |
-| **HAZ-019** | ARCH-010, ARCH-015, HAZ-019, REQ-008, SYS-005              | SYS-005               | URL canonicalization mismatch (http/https, query params, trailing slash).         | NORMAL            | False negatives in deduplication; duplicate recipes created.            | Serious      | Probable   | Undesirable | REQ-008; ARCH-010 canonicalization before lookup; ARCH-015 normalized source-url index key.               | Tolerable  | ⬜ Untested |
-| **HAZ-020** | ARCH-009, HAZ-020, REQ-012, REQ-013, REQ-CN-002, SYS-006   | SYS-006               | Paywalled source not detected (blocklist miss).                                   | NORMAL            | Copyright/compliance breach via unauthorized import.                    | Critical     | Occasional | Undesirable | REQ-012, REQ-013, REQ-CN-002; ARCH-009 centralized paywall-domain rules consulted pre-extraction.         | Tolerable  | ⬜ Untested |
-| **HAZ-021** | HAZ-021, REQ-012, REQ-CN-004, SYS-006                      | SYS-006               | robots.txt disallow ignored during crawler-style fetch path.                      | NORMAL            | Terms-of-service violation and source-site abuse complaints.            | Serious      | Remote     | Tolerable   | REQ-012, REQ-CN-004; SYS-006 policy gate validates domain-level crawl constraints before import proceeds. | Tolerable  | ⬜ Untested |
-| **HAZ-022** | ARCH-009, HAZ-022, REQ-CN-002, SYS-006                     | SYS-006               | Over-broad blocklist false-positives legitimate free recipe domains.              | NORMAL            | Valid imports blocked; user frustration/churn.                          | Minor        | Occasional | Tolerable   | REQ-CN-002; ARCH-009 scoped domain matching + monitored allowlist exceptions.                             | Acceptable | ⬜ Untested |
-| **HAZ-023** | ARCH-013, HAZ-023, REQ-004, REQ-015, SYS-007               | SYS-007               | Persistence succeeds but attribution fields omitted in DB write mapping.          | NORMAL            | Attribution not displayed despite successful import.                    | Critical     | Remote     | Undesirable | REQ-004, REQ-015; ARCH-013 typed mapping contract includes attribution fields for sourced imports.        | Tolerable  | ⬜ Untested |
-| **HAZ-024** | ARCH-013, HAZ-024, REQ-NF-001, SYS-007                     | SYS-007               | Partial transaction commit leaves recipe row without required related metadata.   | NORMAL            | Inconsistent records; downstream read/render failures.                  | Serious      | Remote     | Tolerable   | REQ-NF-001; ARCH-013 transactional persistence boundary with rollback on mapping/persist errors.          | Tolerable  | ⬜ Untested |
-| **HAZ-025** | ARCH-014, HAZ-025, REQ-IF-004, SYS-008                     | SYS-008               | JWT validation bypass or misconfiguration allows unauthenticated import.          | NORMAL            | Unauthorized recipe creation/modification path exposure.                | Catastrophic | Improbable | Undesirable | REQ-IF-004; SYS-008 Clerk auth middleware on all import endpoints; ARCH-014 strict token validation path. | Tolerable  | ⬜ Untested |
-| **HAZ-026** | ARCH-001, HAZ-026, REQ-NF-001, SYS-009                     | SYS-009               | Step ordering regression (dedupe/attribution checks after persistence).           | NORMAL            | Invalid or duplicate records committed before controls apply.           | Critical     | Remote     | Undesirable | REQ-NF-001; ARCH-001 orchestrates fixed sequence (paywall → extract → dedupe → attribution → persist).    | Tolerable  | ⬜ Untested |
-| **HAZ-027** | ARCH-001, ARCH-002, ARCH-017, HAZ-027, REQ-NF-004, SYS-009 | SYS-009               | Error normalization omitted for one path, leaking internal error details.         | NORMAL            | Information disclosure and inconsistent client behavior.                | Serious      | Occasional | Undesirable | REQ-NF-004; ARCH-017 centralized error mapping invoked from ARCH-001/ARCH-002.                            | Tolerable  | ⬜ Untested |
-| **HAZ-028** | ARCH-003, ARCH-004, ARCH-005, HAZ-028, REQ-001             | ARCH-003 + ARCH-004   | application/ld+json parser accepts non-Recipe JSON-LD object as valid recipe.     | NORMAL            | Corrupted recipe payload persisted with wrong semantics.                | Serious      | Occasional | Undesirable | REQ-001; ARCH-004 strict @type=Recipe validation; ARCH-003 fallback to ARCH-005 on mismatch.              | Tolerable  | ⬜ Untested |
-| **HAZ-029** | ARCH-002, ARCH-013, HAZ-029, REQ-NF-004                    | ARCH-002 + ARCH-013   | Unsanitized payload fields pass controller boundary and persist raw HTML/script.  | NORMAL            | Stored XSS in downstream recipe rendering clients.                      | Critical     | Remote     | Undesirable | REQ-NF-004; ARCH-002 DTO sanitization + ARCH-013 persistence sanitization contract.                       | Tolerable  | ⬜ Untested |
-| **HAZ-030** | ARCH-001, ARCH-006, ARCH-017, HAZ-030, REQ-002, REQ-NF-002 | ARCH-006 + ARCH-001   | oEmbed adapter timeout returned as success-like empty payload.                    | DEGRADED-UPSTREAM | Empty/low-quality imports created instead of explicit failure response. | Serious      | Remote     | Tolerable   | REQ-002, REQ-NF-002; ARCH-006 throws typed error, ARCH-001 hard-fails and routes via ARCH-017.            | Tolerable  | ⬜ Untested |
+## 6. Required Next Actions
 
-## 4. Coverage Analysis
+1. **Implement** per `tasks.md`, test-first, in the stated dependency order.
+2. **Execute** the mapped ATP/STP/ITP/UTP scenarios and ingest real pass/fail/skip evidence.
+3. **Regenerate this report only after execution evidence exists.** Regenerating it earlier — or hand-editing
+   statuses to green — produces a false audit trail and is expressly prohibited by the integrity notice above.
+4. Confirm the SC-002 corpus exists and its gate is wired before claiming REQ-NF-003.
+5. Re-run the release audit at the end of implementation; the release gate is passed only when every scenario
+   holds an executed result or an approved waiver, and **no waiver is permitted for ATP-012** (the
+   Catastrophic-hazard procedures).
 
-| Gate                                | Result  |
-| ----------------------------------- | ------- |
-| Missing mappings                    | 43      |
-| Executed scenarios                  | 0/93    |
-| Untested mapped scenario references | 93/93   |
-| Release readiness                   | BLOCKED |
+---
 
-## 5. Required Next Action
-
-1. Implement or wire the tests referenced by the mapped AT/STP/ITP/UTP scenarios.
-2. Execute the tests and ingest actual pass/fail/skip/waiver evidence.
-3. Regenerate this report only after execution evidence exists.
+> **Counts in this document are derived from the generated `v-model/traceability-matrix.md`.**
+> That file is produced by `build-matrix.sh` from the artefacts and is the authoritative source; if a
+> number here disagrees with it, this document is stale. Regenerate rather than hand-editing.

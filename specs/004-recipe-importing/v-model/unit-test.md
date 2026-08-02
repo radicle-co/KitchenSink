@@ -1,1102 +1,558 @@
 # Unit Test Plan: Recipe Importing
 
 **Feature Branch**: `004-recipe-importing`
-**Created**: 2026-05-09
-**Status**: Draft
-**Source**: `specs/004-recipe-importing/v-model/module-design.md`
+**Regenerated**: 2026-08-02
+**Status**: Approved
+**Source**: `module-design.md` (MOD-001..MOD-034)
+**Level**: Implementation verification — the pure core and each module in isolation
+**Realisation**: `src/imports/__tests__/**/*.test.ts` (backend), `__tests__/*.test.tsx` +
+`*.native.test.tsx` (frontend). Mutation-checked via the shipped `stryker` config.
 
-## Overview
-
-This document defines the Unit Test Plan for the Recipe Importing feature. Every module design (`MOD-NNN`) in `module-design.md` has one or more Test Cases (`UTP-NNN-X`), and every Test Case has one or more executable Unit Scenarios (`UTS-NNN-X#`) in white-box Arrange/Act/Assert format.
-
-Unit tests verify **internal module logic** — control flow, data transformations, state transitions, and variable boundaries. They do NOT test module boundaries (integration), user journeys (acceptance), or system-level behavior (system tests).
+> **Regeneration note.** In the previous document set, **Matrix D (implementation verification) was entirely
+> empty** — there was no module-to-unit-test mapping at all. This plan supplies it for all 36 modules.
 
 ## ID Schema
 
-- **Unit Test Case**: `UTP-{NNN}-{X}` — where NNN matches the parent MOD, X is a letter suffix (A, B, C...)
-- **Unit Test Scenario**: `UTS-{NNN}-{X}{#}` — nested under the parent UTP, with numeric suffix (1, 2, 3...)
-- Example: `UTS-001-A1` → Scenario 1 of Test Case A verifying MOD-001
-- ID lineage: from `UTS-001-A1`, a regex extracts `UTP-001-A` and `MOD-001`. To find the `ARCH-NNN` ancestor, consult the "Parent Architecture Modules" field in `module-design.md`.
+`UTP-{MOD}-{letter}` — a procedure per module concern · `UTS-{MOD}-{letter}{n}` — a case within it.
 
-## ISO 29119-4 White-Box Techniques
+## Standard applied to every case
 
-Each test case MUST identify its technique by name and anchor to a specific module design view:
-
-| Technique                       | Source View                   | What It Tests                                           |
-| ------------------------------- | ----------------------------- | ------------------------------------------------------- |
-| **Statement & Branch Coverage** | Algorithmic/Logic View        | Every line and every True/False branch outcome          |
-| **Boundary Value Analysis**     | Internal Data Structures      | Scalar variable boundaries: min-1, min, mid, max, max+1 |
-| **Equivalence Partitioning**    | Internal Data Structures      | Discrete non-scalar types: Booleans, Enums              |
-| **Strict Isolation**            | Architecture Interface View   | Every external dependency mocked/stubbed                |
-| **Error Guessing**              | Error Handling & Return Codes | Negative paths, invalid inputs, dependency exceptions   |
-| **State Transition Testing**    | State Machine View            | Every transition including invalid ones                 |
+A test that would still pass with the logic subtly broken is **coverage theatre** and does not count toward the
+mandate (`ENGINEERING_EXCELLENCE` → QSE). Every procedure below is written to fail under mutation of the
+behaviour it names. Pure modules are table-driven; impure modules receive faked ports, never live dependencies.
 
 ---
 
-## Unit Tests
+## Pure core — the highest-value unit tests
+
+### UTP-024 — CanonicalSourceUrl (MOD-024)
+
+#### Test Case: UTP-024-A (HTTP://Example.COM/Recipe/ vs http://example.com/Recipe)
+
+#### Test Case: UTP-024-B (javascript:, file:, data:, relative)
+
+| ID         | Case                                                        | Assert                                        |
+| ---------- | ----------------------------------------------------------- | --------------------------------------------- |
+| UTS-024-A1 | `HTTP://Example.COM/Recipe/` vs `http://example.com/Recipe` | Equal canonical form                          |
+| UTS-024-A2 | Trailing slash present vs absent                            | Equal                                         |
+| UTS-024-A3 | `?utm_source=x&id=5` vs `?id=5`                             | Equal — tracking stripped, meaningful kept    |
+| UTS-024-A4 | `#section` fragment                                         | Removed                                       |
+| UTS-024-A5 | `:80` on http, `:443` on https                              | Default port removed                          |
+| UTS-024-A6 | `:8080`                                                     | **Retained** — non-default port is meaningful |
+| UTS-024-A7 | Percent-encoding and IDN/punycode variants                  | Consistent canonical form                     |
+| UTS-024-B1 | `javascript:`, `file:`, `data:`, relative                   | Throws at construction                        |
+| UTS-024-B2 | Path case (`/Recipe` vs `/recipe`)                          | **Distinct** — paths are case-sensitive       |
+
+### UTP-022 — ProvenancePolicy (MOD-022)
+
+#### Test Case: UTP-022-A (Full cartesian product of [channel × attested × citationReachable])
+
+#### Test Case: UTP-022-B (Manual + attested + unreachable citation)
+
+#### Test Case: UTP-022-C (Every input combination)
+
+| ID         | Case                                                               | Assert                                                                   |
+| ---------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| UTS-022-A1 | Full cartesian product of (channel × attested × citationReachable) | Matches the REQ-014/D-003 table exactly                                  |
+| UTS-022-B1 | Manual + attested + unreachable citation                           | `imported_paid` — never public                                           |
+| UTS-022-B2 | Heuristic flag set, attestation says public                        | Classification unchanged; only `needsReview` set (HAZ-042)               |
+| UTS-022-C1 | Every input combination                                            | Never returns a public class where the citation is unreachable (HAZ-043) |
+| UTS-022-C2 | Function totality                                                  | No input yields `undefined` or throws                                    |
+
+### UTP-019 — IngredientLineParser (MOD-019)
+
+#### Test Case: UTP-019-A ("2 cups flour")
+
+#### Test Case: UTP-019-B (Every case above)
+
+| ID         | Case                               | Assert                                         |
+| ---------- | ---------------------------------- | ---------------------------------------------- |
+| UTS-019-A1 | `"2 cups flour"`                   | `{2, cup, flour}`; `raw` preserved             |
+| UTS-019-A2 | `"1½ tsp salt"` (unicode fraction) | `1.5`                                          |
+| UTS-019-A3 | `"2-3 cloves garlic"` (range)      | Lower bound, flagged for review                |
+| UTS-019-A4 | `"salt to taste"`                  | `quantity: null`, flagged, raw preserved       |
+| UTS-019-A5 | `""` / whitespace                  | Flagged; no throw                              |
+| UTS-019-A6 | `"0 cups sugar"`                   | `quantity: null` — `0` violates `CHECK (> 0)`  |
+| UTS-019-B1 | Every case above                   | `raw` is byte-identical to the input (HAZ-041) |
+| UTS-019-B2 | Any input at all                   | Never throws (total function)                  |
+
+### UTP-020 — ValueNormalizers (MOD-020)
+
+#### Test Case: UTP-020-A ("PT1H30M" / "PT45M" / "PT2H")
+
+#### Test Case: UTP-020-B ("4" / "4 servings" / "Serves 4")
+
+#### Test Case: UTP-020-C (Absent input on every normalizer)
+
+| ID         | Case                                  | Assert                                     |
+| ---------- | ------------------------------------- | ------------------------------------------ |
+| UTS-020-A1 | `"PT1H30M"` / `"PT45M"` / `"PT2H"`    | 90 / 45 / 120                              |
+| UTS-020-A2 | `"P1DT2H"`                            | 1560                                       |
+| UTS-020-A3 | Malformed / empty / negative duration | `undefined` + flag — **never 0** (HAZ-040) |
+| UTS-020-B1 | `"4"` / `"4 servings"` / `"Serves 4"` | 4                                          |
+| UTS-020-B2 | `"4-6 servings"`                      | 4, flagged                                 |
+| UTS-020-B3 | `"a crowd"` / `""` / `"0"`            | `undefined` + flag                         |
+| UTS-020-C1 | Absent input on every normalizer      | Returns empty, never a default (HAZ-040)   |
+
+### UTP-021 — ContentSanitizer (MOD-021)
+
+#### Test Case: UTP-021-A (<script>alert[1]</script>)
+
+#### Test Case: UTP-021-B (Plain text with < and &)
+
+| ID         | Case                                       | Assert                 |
+| ---------- | ------------------------------------------ | ---------------------- |
+| UTS-021-A1 | `<script>alert(1)</script>`                | Removed entirely       |
+| UTS-021-A2 | `<img src=x onerror=alert(1)>`             | Removed                |
+| UTS-021-A3 | `<b>bold</b>` (benign markup)              | Tag removed, text kept |
+| UTS-021-A4 | Entity-encoded and double-encoded payloads | Inert after decode     |
+| UTS-021-A5 | Nested/malformed markup                    | Inert                  |
+| UTS-021-B1 | Plain text with `<` and `&`                | Readable, not mangled  |
+
+### UTP-018 — NormalizerService (MOD-018)
+
+#### Test Case: UTP-018-A (Payload complete in every required field)
+
+#### Test Case: UTP-018-B (Any payload)
+
+#### Test Case: UTP-018-C (Any payload)
+
+| ID         | Case                                     | Assert                                                           |
+| ---------- | ---------------------------------------- | ---------------------------------------------------------------- |
+| UTS-018-A1 | Payload complete in every required field | `missingRequired` empty                                          |
+| UTS-018-A2 | Each required field absent in turn       | That field, and only it, appears in `missingRequired`            |
+| UTS-018-A3 | Zero ingredients / zero steps            | Both flagged — the shipped contract requires ≥1 of each          |
+| UTS-018-B1 | Any payload                              | Every text field passed through the sanitizer (no path skips it) |
+| UTS-018-C1 | Any payload                              | Pure — same input, same output; no I/O                           |
 
 ---
 
-### Module: MOD-001 (ImportOrchestrator)
+## Extraction
 
-**Parent Architecture Modules**: ARCH-001
-**Target Source File(s)**: `src/import/orchestrator.service.ts`
+### UTP-008 — JsonLdExtractor (MOD-008)
 
----
+#### Test Case: UTP-008-A (Single well-formed Recipe block)
 
-#### Test Case: UTP-001-A (orchestrateImport — happy path sequencing)
+#### Test Case: UTP-008-B (@type: "Article" only)
 
-**Technique**: Statement & Branch Coverage
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies the orchestrator calls each step in correct order: paywall check → deduplication → attribution → persistence, and returns result.
+#### Test Case: UTP-008-C (Every case)
 
-**Scenarios:**
+| ID         | Case                                | Assert                       |
+| ---------- | ----------------------------------- | ---------------------------- |
+| UTS-008-A1 | Single well-formed `Recipe` block   | All mapped fields extracted  |
+| UTS-008-A2 | Recipe nested in `@graph`           | Located                      |
+| UTS-008-A3 | `@type: ["Recipe","NewsArticle"]`   | Accepted                     |
+| UTS-008-B1 | `@type: "Article"` only             | `null` (HAZ-028)             |
+| UTS-008-B2 | Malformed JSON in one of two blocks | Valid block used; no throw   |
+| UTS-008-B3 | No JSON-LD at all                   | `null`                       |
+| UTS-008-B4 | Deeply nested / very large JSON-LD  | Bounded; no stack overflow   |
+| UTS-008-C1 | Every case                          | Never throws (port contract) |
 
-**UTS-001-A1** — Happy path, all steps succeed
+### UTP-009 / UTP-010 — Microdata and Heuristic extractors
 
-- Arrange: mock PaywallBlocklistService.checkPaywall() → void; mock DeduplicationService.findBySourceUrl() → null; mock AttributionVisibilityService.apply() → AttributedPayload; mock RecipePersistenceAdapter.save() → RecipeEntity
-- Act: orchestrator.orchestrateImport(payload)
-- Assert: verify checkPaywall called first, then deduplication, then attribution, then save; result.status === "success"
-- Mock isolation: all external calls stubbed
+| ID         | Case                              | Assert                                    |
+| ---------- | --------------------------------- | ----------------------------------------- |
+| UTS-009-A1 | Well-formed microdata Recipe      | Extracted; same shape as JSON-LD output   |
+| UTS-009-B1 | Microdata of another type         | `null`                                    |
+| UTS-010-A1 | Heading + list structure          | Title, ingredients, steps extracted       |
+| UTS-010-A2 | Strong vs weak structural signals | Confidence ordered accordingly            |
+| UTS-010-B1 | Prose with no list structure      | `null`                                    |
+| UTS-010-B2 | Pathological nesting / repetition | Completes within the CPU budget (HAZ-033) |
 
-**UTS-001-A2** — Paywall blocked
+### UTP-011 — ExtractorChainService (MOD-011)
 
-- Arrange: mock checkPaywall() → throws PaywallBlockedError
-- Act: orchestrator.orchestrateImport(payload)
-- Assert: result.status === "blocked"; verify deduplication not called
-- Mock isolation: PaywallBlocklistService stubbed
+#### Test Case: UTP-011-A (JSON-LD available)
 
-**UTS-001-A3** — Duplicate found
+#### Test Case: UTP-011-B (A strategy throws despite its contract)
 
-- Arrange: mock checkPaywall() → void; mock findBySourceUrl() → existingRecipe; mock CloneService.clone() → clonedRecipe
-- Act: orchestrator.orchestrateImport(payload)
-- Assert: result.status === "duplicate"; result.existingRecipe === existingRecipe
-- Mock isolation: DeduplicationService stubbed
-
----
-
-#### Test Case: UTP-001-B (orchestrateImport — error normalisation)
-
-**Technique**: Statement Coverage + Error Path
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies that exceptions from any step are caught and delegated to ImportErrorNormalizer.
-
-**Scenarios:**
-
-**UTS-001-B1** — Persistence error normalised
-
-- Arrange: mock save() → throws PersistenceError; mock normalizer.normalize() → ImportErrorResponse
-- Act: orchestrator.orchestrateImport(payload)
-- Assert: verify normalizer.normalize called with PersistenceError; result.status === "error"
-- Mock isolation: RecipePersistenceAdapter stubbed; ImportErrorNormalizer stubbed
-
-**UTS-001-B2** — Unknown error rethrown as-is
-
-- Arrange: mock save() → throws RangeError("unexpected")
-- Act/Assert: orchestrator.orchestrateImport(payload) throws RangeError
-- Mock isolation: RecipePersistenceAdapter stubbed
+| ID         | Case                                   | Assert                                                   |
+| ---------- | -------------------------------------- | -------------------------------------------------------- |
+| UTS-011-A1 | JSON-LD available                      | Microdata and heuristic strategies are **not** invoked   |
+| UTS-011-A2 | Only microdata available               | JSON-LD tried first, then microdata used                 |
+| UTS-011-A3 | All strategies return null             | Explicit `NoRecipeFound`, not an empty payload (HAZ-009) |
+| UTS-011-B1 | A strategy throws despite its contract | Chain isolates it and continues — defensive              |
 
 ---
 
-### Module: MOD-002 (ImportController)
+## Egress ⚠️ security-critical
 
-**Parent Architecture Modules**: ARCH-002
-**Target Source File(s)**: `src/import/import.controller.ts`
+### UTP-006 — SsrfGuard (MOD-006)
 
----
+#### Test Case: UTP-006-A (127.0.0.1, 127.1, ::1, 0.0.0.0, ::)
 
-#### Test Case: UTP-002-A (POST /import/url — DTO validation)
+#### Test Case: UTP-006-B (93.184.216.34 [public])
 
-**Technique**: Boundary Value Analysis + Equivalence Partitioning
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies DTO validation rejects invalid URLs and accepts valid ones.
+#### Test Case: UTP-006-C (Rejection message)
 
-**Scenarios:**
+Written **before** the fetcher exists. Adversarial by construction.
 
-**UTS-002-A1** — Valid URL accepted
+| ID         | Case                                                           | Assert                                          |
+| ---------- | -------------------------------------------------------------- | ----------------------------------------------- |
+| UTS-006-A1 | `127.0.0.1`, `127.1`, `::1`, `0.0.0.0`, `::`                   | Rejected                                        |
+| UTS-006-A2 | `10.0.0.1`, `172.16.0.1`, `192.168.1.1`, `fc00::1`             | Rejected                                        |
+| UTS-006-A3 | `169.254.169.254`, `fe80::1`                                   | Rejected (metadata)                             |
+| UTS-006-A4 | `100.64.0.1` (CGNAT)                                           | Rejected                                        |
+| UTS-006-A5 | Decimal (`2130706433`), octal, hex, and IPv6-mapped IPv4 forms | Rejected — no encoding bypass                   |
+| UTS-006-B1 | `93.184.216.34` (public)                                       | Accepted                                        |
+| UTS-006-B2 | Host resolving to one public **and** one private address       | Rejected — all must pass                        |
+| UTS-006-C1 | Rejection message                                              | Discloses no resolved address (no probe oracle) |
 
-- Arrange: ImportUrlDto { url: "https://www.example.com/recipe" }
-- Act: controller.importUrl(dto)
-- Assert: response.status === 202; verify orchestrator called
-- Mock isolation: ImportOrchestrator stubbed
+### UTP-005 — SourceFetcherService (MOD-005)
 
-**UTS-002-A2** — Invalid URL (missing protocol) rejected
+#### Test Case: UTP-005-A (Guard rejects)
 
-- Arrange: ImportUrlDto { url: "www.example.com/recipe" }
-- Act: controller.importUrl(dto)
-- Assert: response.status === 400; @IsUrl validation error returned
-- Mock isolation: none (fails before orchestrator)
+#### Test Case: UTP-005-B (Body exceeding the cap)
 
-**UTS-002-A3** — Empty URL rejected
+#### Test Case: UTP-005-C (Transient 503)
 
-- Arrange: ImportUrlDto { url: "" }
-- Act: controller.importUrl(dto)
-- Assert: response.status === 400
-- Mock isolation: none
+#### Test Case: UTP-005-D (Any request)
 
-**UTS-002-A4** — URL exceeds max length rejected
+#### Test Case: UTP-005-E (Many distinct domains)
 
-- Arrange: ImportUrlDto { url: "https://example.com/" + "a".repeat(2049) }
-- Act: controller.importUrl(dto)
-- Assert: response.status === 400; @MaxLength validation error
-- Mock isolation: none
+#### Test Case: UTP-005-F (Guard removed [mutation])
 
----
-
-#### Test Case: UTP-002-B (POST /import/instagram — DTO validation)
-
-**Technique**: Equivalence Partitioning
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies Instagram-specific DTO validation for Instagram post URLs.
-
-**Scenarios:**
-
-**UTS-002-B1** — Valid Instagram URL accepted
-
-- Arrange: ImportInstagramDto { postUrl: "https://www.instagram.com/p/ABC123/" }
-- Act: controller.importInstagram(dto)
-- Assert: response.status === 202
-- Mock isolation: ImportOrchestrator stubbed
-
-**UTS-002-B2** — Non-Instagram URL rejected
-
-- Arrange: ImportInstagramDto { postUrl: "https://www.google.com/" }
-- Act: controller.importInstagram(dto)
-- Assert: response.status === 400; error message indicates Instagram required
-- Mock isolation: ImportOrchestrator stubbed
+| ID         | Case                          | Assert                                             |
+| ---------- | ----------------------------- | -------------------------------------------------- |
+| UTS-005-A1 | Guard rejects                 | No socket opened                                   |
+| UTS-005-A2 | Redirect chain, hop 3 private | Guard invoked on **every** hop; refused at hop 3   |
+| UTS-005-A3 | 6 redirects                   | Refused after 5                                    |
+| UTS-005-B1 | Body exceeding the cap        | Aborted mid-stream; not fully buffered             |
+| UTS-005-B2 | Non-html content type         | Rejected                                           |
+| UTS-005-C1 | Transient 503                 | Retried ≤2 with jittered backoff                   |
+| UTS-005-C2 | 404                           | **Not** retried (4xx is not transient)             |
+| UTS-005-C3 | Breaker open                  | Fails fast without a request                       |
+| UTS-005-D1 | Any request                   | No `Authorization`/`Cookie` header (HAZ-032)       |
+| UTS-005-D2 | Any response                  | Body never passed to the logger (REQ-NF-012)       |
+| UTS-005-E1 | Many distinct domains         | Breaker map stays bounded (no unbounded growth)    |
+| UTS-005-F1 | **Guard removed (mutation)**  | The suite **fails** — proves the control is tested |
 
 ---
 
-### Module: MOD-003 (WebUrlExtractorService)
+## Lifecycle and policy
 
-**Parent Architecture Modules**: ARCH-003
-**Target Source File(s)**: `src/import/web-url-extractor.service.ts`
+### UTP-023 — PaywalledDomainsService (MOD-023)
 
----
+#### Test Case: UTP-023-A (Exact host on the list)
 
-#### Test Case: UTP-003-A (extract — schema.org parsing path)
+#### Test Case: UTP-023-B (Store throws)
 
-**Technique**: Statement & Branch Coverage + Boundary Value Analysis
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies schema.org extraction as primary path, heuristic fallback on null, and error handling for unreachable URLs.
+| ID         | Case                                     | Assert                     |
+| ---------- | ---------------------------------------- | -------------------------- |
+| UTS-023-A1 | Exact host on the list                   | Blocked                    |
+| UTS-023-A2 | Subdomain of a listed host               | Blocked                    |
+| UTS-023-A3 | `notnytimes.com` vs listed `nytimes.com` | **Permitted** (HAZ-022)    |
+| UTS-023-A4 | `NYTimes.com`, `www.nytimes.com`         | Blocked (normalized)       |
+| UTS-023-A5 | Punycode/unicode host equivalents        | Consistent                 |
+| UTS-023-B1 | Store throws                             | Fails **closed** (HAZ-044) |
+| UTS-023-B2 | Cache stampede simulation                | Single-flight refresh      |
 
-**Scenarios:**
+### UTP-025 — ImportDraftsService (MOD-025)
 
-**UTS-003-A1** — Valid schema.org JSON-LD extracted
+#### Test Case: UTP-025-A (open → confirmed, open → expired)
 
-- Arrange: mock fetch() → { status: 200, html: "<html><script type=application/ld+json>{\"@type\":\"Recipe\",...}</script></html>" }
-- Act: extractor.extract("https://example.com/recipe")
-- Assert: result.payload.recipeName === "Test Recipe"; result.extractorUsed === "schema"
-- Mock isolation: node-fetch stubbed
+#### Test Case: UTP-025-B (Load with a non-owner id)
 
-**UTS-003-A2** — No schema.org found → heuristic fallback invoked
+#### Test Case: UTP-025-C (Patch supplying a missing field)
 
-- Arrange: mock fetch() → { status: 200, html: "<html><h1>My Recipe</h1></html>" }
-- Act: extractor.extract("https://example.com/recipe")
-- Assert: result.extractorUsed === "heuristic"; result.payload !== null
-- Mock isolation: node-fetch stubbed; HeuristicRecipeParser stubbed
+#### Test Case: UTP-025-D (Expiry boundary [just before / just after])
 
-**UTS-003-A3** — URL returns 404 → UrlUnreachableError thrown
+| ID         | Case                                       | Assert                                   |
+| ---------- | ------------------------------------------ | ---------------------------------------- |
+| UTS-025-A1 | `open → confirmed`, `open → expired`       | Permitted                                |
+| UTS-025-A2 | `confirmed → open`, `expired → confirmed`  | Rejected (terminal immutability)         |
+| UTS-025-B1 | Load with a non-owner id                   | `404`, not `403` (HAZ-046)               |
+| UTS-025-B2 | Load a non-existent id                     | `404` — indistinguishable from the above |
+| UTS-025-C1 | Patch supplying a missing field            | `missingRequired` shrinks accordingly    |
+| UTS-025-C2 | Patch clearing a required field            | It reappears in `missingRequired`        |
+| UTS-025-D1 | Expiry boundary (just before / just after) | Correct classification at the edge       |
 
-- Arrange: mock fetch() → { status: 404 }
-- Act/Assert: extractor.extract("https://example.com/nonexistent") throws UrlUnreachableError
-- Mock isolation: node-fetch stubbed
+### UTP-003 — ImportJobsService (MOD-003)
 
-**UTS-003-A4** — Network timeout → UrlUnreachableError thrown
+#### Test Case: UTP-003-A (Every legal transition)
 
-- Arrange: mock fetch() → throws TimeoutError
-- Act/Assert: extractor.extract("https://example.com/slow") throws UrlUnreachableError
-- Mock isolation: node-fetch stubbed
+#### Test Case: UTP-003-B (Repeated idempotency key)
 
----
+| ID         | Case                          | Assert                                     |
+| ---------- | ----------------------------- | ------------------------------------------ |
+| UTS-003-A1 | Every legal transition        | Permitted                                  |
+| UTS-003-A2 | Every illegal transition      | Rejected                                   |
+| UTS-003-B1 | Repeated idempotency key      | Original job returned; none created        |
+| UTS-003-B2 | Same key, different principal | **Distinct** jobs — keys are per-principal |
+| UTS-003-B3 | Same key, different endpoint  | Distinct jobs                              |
 
-#### Test Case: UTP-003-B (extract — confidence scoring)
+### UTP-002 — ImportsService (MOD-002)
 
-**Technique**: Boundary Value Analysis
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies confidence score thresholds are applied correctly.
+#### Test Case: UTP-002-A (Happy path with instrumented ports)
 
-**Scenarios:**
+#### Test Case: UTP-002-B (Classification raises)
 
-**UTS-003-B1** — High-confidence schema extraction (>= 0.8) → returns full payload
+| ID         | Case                               | Assert                                          |
+| ---------- | ---------------------------------- | ----------------------------------------------- |
+| UTS-002-A1 | Happy path with instrumented ports | Exact call **order** asserted (HAZ-026)         |
+| UTS-002-A2 | Blocklist raises                   | Fetch never invoked                             |
+| UTS-002-A3 | Extraction returns null            | Normalization never invoked; typed error raised |
+| UTS-002-B1 | Classification raises              | No draft created                                |
+| UTS-002-B2 | Dedup finds an existing recipe     | Draft creation short-circuited                  |
 
-- Arrange: mock fetch() → HTML with complete schema.org Recipe object
-- Act: result = extractor.extract(url)
-- Assert: result.confidence >= 0.8; result.payload.complete === true
+### UTP-026 — DraftConfirmationService (MOD-026)
 
-**UTS-003-B2** — Low-confidence heuristic (0.3–0.7) → partial payload with warning
+#### Test Case: UTP-026-A (Complete draft)
 
-- Arrange: mock HeuristicRecipeParser.extract() → { recipeName: "Vaguely Structured Recipe", confidence: 0.45 }
-- Act: result = extractor.extract(url)
-- Assert: result.confidence === 0.45; result.partial === true
+#### Test Case: UTP-026-B (Food client throws)
 
----
+#### Test Case: UTP-026-C (Source inspection)
 
-### Module: MOD-004 (SchemaOrgParser)
+| ID         | Case               | Assert                                        |
+| ---------- | ------------------ | --------------------------------------------- |
+| UTS-026-A1 | Complete draft     | Shipped `RecipesService.create` invoked once  |
+| UTS-026-A2 | Incomplete draft   | `422`; create **not** invoked                 |
+| UTS-026-A3 | Expired draft      | `410`; create not invoked                     |
+| UTS-026-B1 | Food client throws | Confirmation still succeeds (HAZ-050)         |
+| UTS-026-C1 | Source inspection  | No visibility decision made here (REQ-CN-007) |
 
-**Parent Architecture Modules**: ARCH-004
-**Target Source File(s)**: `src/import/schema-org-parser.ts`
+### UTP-017 — FileParserService (MOD-017)
 
----
+#### Test Case: UTP-017-A (Valid JSON / YAML / Markdown)
 
-#### Test Case: UTP-004-A (parse — valid schema extraction)
+#### Test Case: UTP-017-B (.json name, ZIP magic bytes)
 
-**Technique**: Statement & Branch Coverage + Equivalence Partitioning
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies valid schema.org JSON-LD is parsed into a RecipeImportPayload; null is returned for invalid/missing schema.
+| ID         | Case                           | Assert                   |
+| ---------- | ------------------------------ | ------------------------ |
+| UTS-017-A1 | Valid JSON / YAML / Markdown   | Parsed to a common shape |
+| UTS-017-B1 | `.json` name, ZIP magic bytes  | `415` (HAZ-037)          |
+| UTS-017-B2 | YAML with hostile tags/anchors | Safe-parsed or rejected  |
+| UTS-017-B3 | Oversize input                 | Rejected before parsing  |
+| UTS-017-B4 | Schema-invalid recipe          | Field-level errors       |
 
-**Scenarios:**
+### UTP-013 / UTP-015 — Provider adapters
 
-**UTS-004-A1** — Complete Recipe schema extracted
-
-- Arrange: html = `<html><script type="application/ld+json">{"@type":"Recipe","name":"Test Recipe","recipeIngredient":["1 cup flour"],"recipeInstructions":[{"@type":"HowToStep","text":"Mix ingredients"}]}</script></html>`
-- Act: result = parser.parse(html)
-- Assert: result !== null; result.recipeName === "Test Recipe"; result.ingredients.length === 1; result.instructions.length === 1
-
-**UTS-004-A2** — No JSON-LD script tag → null returned
-
-- Arrange: html = `<html><body><p>Plain HTML page</p></body></html>`
-- Act: result = parser.parse(html)
-- Assert: result === null
-
-**UTS-004-A3** — Malformed JSON-LD → null returned (no crash)
-
-- Arrange: html = `<html><script type="application/ld+json">{"@type":"Recipe","name": invalid json here</script></html>`
-- Act: result = parser.parse(html)
-- Assert: result === null; no exception thrown
-
-**UTS-004-A4** — Non-Recipe schema type (e.g., Article) → null returned
-
-- Arrange: html = `<html><script type="application/ld+json">{"@type":"Article","headline":"News Article"}</script></html>`
-- Act: result = parser.parse(html)
-- Assert: result === null
-
----
-
-### Module: MOD-005 (HeuristicRecipeParser)
-
-**Parent Architecture Modules**: ARCH-005
-**Target Source File(s)**: `src/import/heuristic-recipe-parser.ts`
+| ID         | Case                               | Assert                                   |
+| ---------- | ---------------------------------- | ---------------------------------------- |
+| UTS-013-A1 | oEmbed 200 with a recipe caption   | Mapped payload                           |
+| UTS-013-A2 | oEmbed 429 / 5xx / bad shape       | Distinct typed errors                    |
+| UTS-013-B1 | Flag off                           | Adapter not constructed / channel absent |
+| UTS-015-A1 | Textract success / empty / timeout | Text, `OcrFailed`, `ProviderUnavailable` |
+| UTS-015-A2 | Any OCR result                     | Text never logged (HAZ-036)              |
 
 ---
 
-#### Test Case: UTP-005-A (parse — CSS selector heuristics)
+## Frontend (MOD-027..MOD-032) — every state, both platforms
 
-**Technique**: Statement & Branch Coverage + Boundary Value Analysis
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies CSS selector heuristics extract title, ingredients, and instructions from raw HTML when schema is absent.
+Each case below runs **twice**: once against the web `.tsx` leaf and once against the `.native.tsx` leaf.
+`§7.1` requires a component test for **every** path, not a representative sample.
 
-**Scenarios:**
+| ID          | Component         | States asserted                                                                                                                  |
+| ----------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| UTS-027-a\* | ImportEntry       | idle · channel-selected · submitting · submit-disabled-while-in-flight · channel-unavailable (flag off) · validation error       |
+| UTS-028-a\* | ImportProgress    | queued · running · succeeded · failed (per error class) · polling-stopped-on-unmount                                             |
+| UTS-029-a\* | ImportDraftReview | complete · each missing-required permutation · unparsed ingredient row · low-confidence field · expired · saving · save-rejected |
+| UTS-030-a\* | RecipeAttribution | web source · Instagram source · cloned-with-attribution · unverifiable source · absent (renders nothing)                         |
+| UTS-031-a\* | ImportErrorState  | one case per error code, plus a compile-time exhaustiveness assertion (`never` default)                                          |
+| UTS-032-a\* | hooks             | loading · success · error · abort-on-unmount · backoff schedule                                                                  |
 
-**UTS-005-A1** — Standard recipe blog structure parsed
+Additional cross-cutting frontend assertions:
 
-- Arrange: html with `<h1 class="recipe-title">`, `<li class="ingredient">`, `<div class="instructions">` structure
-- Act: result = parser.parse(html)
-- Assert: result.recipeName === "My Recipe"; result.ingredients.length > 0; result.confidence > 0
-
-**UTS-005-A2** — No recognizable selectors → returns null
-
-- Arrange: html = `<html><body><p>Nothing structured here</p></body></html>`
-- Act: result = parser.parse(html)
-- Assert: result === null
-
-**UTS-005-A3** — Partial structure (title only) → confidence <= 0.5
-
-- Arrange: html with `<h1 class="recipe-title">` but no ingredients or instructions
-- Act: result = parser.parse(html)
-- Assert: result !== null; result.confidence <= 0.5; result.partial === true
+| ID       | Case                                    | Assert                                                    |
+| -------- | --------------------------------------- | --------------------------------------------------------- |
+| UTS-F-a1 | Every interactive element               | Accessible name via `getByRole`/`getByLabel` (REQ-NF-004) |
+| UTS-F-a2 | Every state-conveying element           | Icon **or** text accompanies colour (REQ-NF-005)          |
+| UTS-F-a3 | Every string rendered                   | Sourced from `messages.ts`; no literal (REQ-NF-006)       |
+| UTS-F-a4 | Web and native leaves of each component | Identical exported names and type signatures (§14.3)      |
 
 ---
 
-### Module: MOD-006 (InstagramOEmbedAdapter)
+## MOD → UTP Coverage
 
-**Parent Architecture Modules**: ARCH-006
-**Target Source File(s)**: `src/import/instagram-oembed.adapter.ts`
+| MOD     | UTP     | MOD                              | UTP                                                        | MOD         | UTP                  |
+| ------- | ------- | -------------------------------- | ---------------------------------------------------------- | ----------- | -------------------- |
+| MOD-002 | UTP-002 | MOD-011                          | UTP-011                                                    | MOD-022     | UTP-022              |
+| MOD-003 | UTP-003 | MOD-013                          | UTP-013                                                    | MOD-023     | UTP-023              |
+| MOD-005 | UTP-005 | MOD-015                          | UTP-015                                                    | MOD-024     | UTP-024              |
+| MOD-006 | UTP-006 | MOD-017                          | UTP-017                                                    | MOD-025     | UTP-025              |
+| MOD-008 | UTP-008 | MOD-018                          | UTP-018                                                    | MOD-026     | UTP-026              |
+| MOD-009 | UTP-009 | MOD-019                          | UTP-019                                                    | MOD-027–032 | UTS-027..032         |
+| MOD-010 | UTP-010 | MOD-020                          | UTP-020                                                    | MOD-033–034 | ITP-015 + type tests |
+| MOD-021 | UTP-021 | MOD-001, 004, 007, 012, 014, 016 | covered via UTP-002/003/005/011/013/015 and ITP procedures |             |
 
----
+## Summary
 
-#### Test Case: UTP-006-A (fetchInstagramPost — oEmbed flow)
-
-**Technique**: Statement & Branch Coverage + Equivalence Partitioning
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies oEmbed API call, caption validation (recipe vs. non-recipe), and error mapping.
-
-**Scenarios:**
-
-**UTS-006-A1** — Valid recipe caption extracted
-
-- Arrange: mock fetch() → { status: 200, data: { title: "Chocolate Cake Recipe", html: "<blockquote>Ingredients: flour, sugar..." } }
-- Act: result = adapter.fetchInstagramPost("https://www.instagram.com/p/ABC123/")
-- Assert: result.recipeName === "Chocolate Cake Recipe"; result.source === "instagram"
-
-**UTS-006-A2** — Video-only post (no caption) → NoCaptionError thrown
-
-- Arrange: mock fetch() → { status: 200, data: { title: "", html: "<blockquote>Check out this video!</blockquote>" }
-- Act/Assert: adapter.fetchInstagramPost(url) throws NoCaptionError
-
-**UTS-006-A3** — oEmbed API returns non-200 → OEmbedApiError thrown
-
-- Arrange: mock fetch() → { status: 429, message: "Rate limited" }
-- Act/Assert: adapter.fetchInstagramPost(url) throws OEmbedApiError
-
-**UTS-006-A4** — Invalid Instagram URL format → validation error thrown
-
-- Arrange: url = "not-a-instagram-url"
-- Act/Assert: adapter.fetchInstagramPost(url) throws ValidationError
+| Metric                           | Count                                                                   |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| Unit test procedures (UTP)       | 22                                                                      |
+| Enumerated unit cases (UTS)      | 120+                                                                    |
+| Modules with unit coverage       | 34 / 34                                                                 |
+| Mutation-verified controls       | SSRF guard (UTS-005-F1), sanitizer, provenance policy, canonicalization |
+| Frontend states requiring a test | Every state, on both platforms — no sampling                            |
 
 ---
 
-## ARCH↔MOD↔UTP Traceability
+## Per-module unit procedures (Matrix D completion)
 
-| MOD ID  | MOD Name                     | UTP Count | UTS Count        |
-| ------- | ---------------------------- | --------- | ---------------- |
-| MOD-001 | ImportOrchestrator           | 2 (A, B)  | 5 (A1-A3, B1-B2) |
-| MOD-002 | ImportController             | 2 (A, B)  | 6 (A1-A4, B1-B2) |
-| MOD-003 | WebUrlExtractorService       | 2 (A, B)  | 6 (A1-A4, B1-B3) |
-| MOD-004 | SchemaOrgParser              | 1 (A)     | 4 (A1-A4)        |
-| MOD-005 | HeuristicRecipeParser        | 1 (A)     | 3 (A1-A3)        |
-| MOD-006 | InstagramOEmbedAdapter       | 1 (A)     | 4 (A1-A4)        |
-| MOD-007 | OcrPipelineService           | 2 (A, B)  | 7 (A1-A4, B1-B3) |
-| MOD-008 | OcrReviewController          | 2 (A, B)  | 5 (A1-A3, B1-B2) |
-| MOD-009 | PaywallBlocklistService      | 2 (A, B)  | 5 (A1-A3, B1-B2) |
-| MOD-010 | DeduplicationService         | 1 (A)     | 3 (A1-A3)        |
-| MOD-011 | AttributionVisibilityService | 2 (A, B)  | 5 (A1-A3, B1-B2) |
-| MOD-012 | CloneService                 | 2 (A, B)  | 6 (A1-A3, B1-B3) |
-| MOD-013 | RecipePersistenceAdapter     | 2 (A, B)  | 5 (A1-A3, B1-B2) |
-| MOD-014 | AuthMiddleware               | 2 (A, B)  | 6 (A1-A3, B1-B3) |
-| MOD-015 | RecipeRepository             | 2 (A, B)  | 6 (A1-A3, B1-B3) |
-| MOD-016 | ImportDtoTypes               | 1 (A)     | 3 (A1-A3)        |
-| MOD-017 | ImportErrorNormalizer        | 2 (A, B)  | 7 (A1-A4, B1-B3) |
-| MOD-018 | ImportLogger                 | 1 (A)     | 4 (A1-A4)        |
+> One procedure per module that had no individually-addressable entry above. Each states a real assertion —
+> these are not placeholders.
 
----
+#### Test Case: UTP-001-A (Controller delegates without embedding policy)
 
-### Module: MOD-007 (OcrPipelineService)
+**Linked Module:** MOD-001 (ImportsController)
 
-**Parent Architecture Modules**: ARCH-007
-**Target Source File(s)**: `src/import/ocr/pipeline.service.ts`
+| ID         | Case                                              | Assert                                                                                                               |
+| ---------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| UTS-001-A1 | a request reaching the controller → it is handled | the DTO is validated, the principal resolved, and the call delegated with no policy decision taken in the controller |
 
----
+#### Test Case: UTP-004-A (Worker is idempotent on redelivery)
 
-#### Test Case: UTP-007-A (processPhoto — sync path, ≤5 MB)
+**Linked Module:** MOD-004 (ImportJobWorker)
 
-**Technique**: Statement & Branch Coverage
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies synchronous path (<5 MB) calls Textract DetectDocumentText, extracts lines, computes confidence, returns OcrDraftPayload.
+| ID         | Case                                                            | Assert                                                 |
+| ---------- | --------------------------------------------------------------- | ------------------------------------------------------ |
+| UTS-004-A1 | a queue message for an already-terminal job → it is redelivered | the handler acknowledges without re-running the import |
 
-**Scenarios:**
+#### Test Case: UTP-007-A (Extractor port never throws)
 
-**UTS-007-A1** — Happy path, sync detection, lines extracted
+**Linked Module:** MOD-007 (RecipeExtractor port)
 
-- Arrange: mock textractClient.detectDocumentText() → { Blocks: [{ BlockType: 'LINE', Text: '1 cup flour', Confidence: 0.95 }, { BlockType: 'WORD', Text: 'not-a-line' }] }
-- Act: result = await service.processPhoto(Buffer.from('fake-image'))
-- Assert: result.text === '1 cup flour'; result.confidence === 0.95; result.draftId is UUID
-- Mock isolation: TextractClient stubbed
+| ID         | Case                                                                   | Assert                                                   |
+| ---------- | ---------------------------------------------------------------------- | -------------------------------------------------------- |
+| UTS-007-A1 | any document, including malformed input → it is passed to an extractor | the extractor returns a payload or null and never raises |
 
-**UTS-007-A2** — Empty response (no LINE blocks)
+#### Test Case: UTP-009-A (Microdata items are mapped to the common payload)
 
-- Arrange: mock detectDocumentText() → { Blocks: [{ BlockType: 'WORD', Text: 'orphan' }] }
-- Act: result = await service.processPhoto(Buffer.from('fake-image'))
-- Assert: result.text === ''; result.confidence === 0; result.rawBlocks.length === 1
-- Mock isolation: TextractClient stubbed
+**Linked Module:** MOD-009 (MicrodataExtractor)
 
-**UTS-007-A3** — Photo too large → async path triggered (branch)
+| ID         | Case                                                   | Assert                                                                  |
+| ---------- | ------------------------------------------------------ | ----------------------------------------------------------------------- |
+| UTS-009-A1 | a page carrying schema.org microdata → it is extracted | the mapped payload has the same shape as the JSON-LD extractor produces |
 
-- Arrange: photoBuffer.byteLength = 6_000_000; mock s3Client.putObject() → success; mock textractClient.startDocumentTextDetection() → { JobId: 'job-123' }; mock pollTextractJob() → ['line 1', 'line 2']
-- Act: result = await service.processPhoto(photoBuffer)
-- Assert: verify s3Client.putObject called once; startDocumentTextDetection called once; result.text includes 'line 1'
-- Mock isolation: S3Client stubbed; TextractClient stubbed; pollTextractJob stubbed
+#### Test Case: UTP-010-A (Confidence reflects agreeing signals)
 
-**UTS-007-A4** — Textract API error thrown → OcrServiceError(code: 'TEXTRACT_API_ERROR')
+**Linked Module:** MOD-010 (HeuristicExtractor)
 
-- Arrange: mock detectDocumentText() → throws new Error('connection refused')
-- Act/Assert: service.processPhoto(Buffer.from('image')) throws OcrServiceError with code 'TEXTRACT_API_ERROR'
-- Mock isolation: TextractClient stubbed
+| ID         | Case                                                              | Assert                                                       |
+| ---------- | ----------------------------------------------------------------- | ------------------------------------------------------------ |
+| UTS-010-A1 | pages with strong and weak structural signals → each is extracted | the strong page yields a higher confidence than the weak one |
 
----
+#### Test Case: UTP-012-A (Port contract is honoured by any adapter)
 
-#### Test Case: UTP-007-B (processPhoto — async path, S3 staging, polling)
+**Linked Module:** MOD-012 (('OEmbedProvider port', 'ARCH-012'))
 
-**Technique**: Statement & Branch Coverage + Boundary Value Analysis
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies async path uploads to S3, starts Textract job, polls until SUCCEEDED or timeout, propagates errors on FAILED or timeout.
+| ID         | Case                                                        | Assert                                                                 |
+| ---------- | ----------------------------------------------------------- | ---------------------------------------------------------------------- |
+| UTS-012-A1 | a caption provider bound to a fake → a caption is requested | the fake satisfies the port signature and returns the declared payload |
 
-**Scenarios:**
+#### Test Case: UTP-013-A (Rate limiting is classified distinctly)
 
-**UTS-007-B1** — Async job SUCCEEDED after 3 polls
+**Linked Module:** MOD-013 (('InstagramOEmbedAdapter', 'ARCH-013'))
 
-- Arrange: mock s3Client.putObject() → success; mock startDocumentTextDetection() → { JobId: 'job-456' }; mock getDocumentTextDetection() on call 1→{JobStatus:'IN_PROGRESS'}, on call 2→{JobStatus:'IN_PROGRESS'}, on call 3→{JobStatus:'SUCCEEDED', Blocks:[{BlockType:'LINE',Text:'ingredient 1'},{BlockType:'LINE',Text:'ingredient 2'}]}
-- Act: result = await service.processPhoto(Buffer.alloc(6_000_000))
-- Assert: result.text includes 'ingredient 1'; verify putObject called once
-- Mock isolation: S3Client stubbed; TextractClient stubbed
+| ID         | Case                                               | Assert                                                                |
+| ---------- | -------------------------------------------------- | --------------------------------------------------------------------- |
+| UTS-013-A1 | a provider responding 429 → a caption is requested | a throttled error is raised, distinct from a generic provider failure |
 
-**UTS-007-B2** — Async job FAILED → OcrServiceError(code: 'TEXTRACT_JOB_FAILED')
+#### Test Case: UTP-014-A (OCR port is substitutable)
 
-- Arrange: mock s3Client.putObject() → success; mock startDocumentTextDetection() → { JobId: 'job-789' }; mock getDocumentTextDetection() → { JobStatus: 'FAILED' }
-- Act/Assert: service.processPhoto(Buffer.alloc(6_000_000)) throws OcrServiceError with code 'TEXTRACT_JOB_FAILED'
-- Mock isolation: S3Client stubbed; TextractClient stubbed
+**Linked Module:** MOD-014 (('OcrProvider port', 'ARCH-014'))
 
-**UTS-007-B3** — Polling timeout (20 attempts exhausted) → OcrServiceError(code: 'TEXTRACT_TIMEOUT')
+| ID         | Case                                                           | Assert                                                                    |
+| ---------- | -------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| UTS-014-A1 | an OCR provider bound to a fake → text extraction is requested | the fake satisfies the port and the pipeline completes without the vendor |
 
-- Arrange: mock s3Client.putObject() → success; mock startDocumentTextDetection() → { JobId: 'job-timeout' }; mock getDocumentTextDetection() always → { JobStatus: 'IN_PROGRESS' }
-- Act/Assert: service.processPhoto(Buffer.alloc(6_000_000)) throws OcrServiceError with code 'TEXTRACT_TIMEOUT'
-- Mock isolation: S3Client stubbed; TextractClient stubbed; poll limits to 20 via maxAttempts=20
+#### Test Case: UTP-015-A (Provider timeout surfaces as unavailable)
 
----
+**Linked Module:** MOD-015 (('TextractAdapter', 'ARCH-015'))
 
-### Module: MOD-008 (OcrReviewController)
+| ID         | Case                                                           | Assert                                                                 |
+| ---------- | -------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| UTS-015-A1 | a provider that exceeds its deadline → extraction is attempted | a provider-unavailable error is raised and no partial text is returned |
 
-**Parent Architecture Modules**: ARCH-008
-**Target Source File(s)**: `src/import/ocr/review.controller.ts`
+#### Test Case: UTP-016-A (Source image is deleted on every terminal path)
 
----
+**Linked Module:** MOD-016 (('OcrPipelineService', 'ARCH-016'))
 
-#### Test Case: UTP-008-A (saveOcrDraft — happy path)
+| ID         | Case                                                                     | Assert                                         |
+| ---------- | ------------------------------------------------------------------------ | ---------------------------------------------- |
+| UTS-016-A1 | a stored OCR image on confirm, discard, and expiry → each path completes | the stored object is absent in all three cases |
 
-**Technique**: Statement & Branch Coverage
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies POST /import/photo/save builds payload from DTO, calls orchestrator with importType='ocr' and prebuiltPayload, maps result to 201.
+#### Test Case: UTP-027-A (Gated channels are not offered)
 
-**Scenarios:**
+**Linked Module:** MOD-027 (('ImportEntry', 'ARCH-027'))
 
-**UTS-008-A1** — Valid DTO, orchestrator returns success → 201 created
+| ID         | Case                                                                | Assert                                    |
+| ---------- | ------------------------------------------------------------------- | ----------------------------------------- |
+| UTS-027-A1 | a channel list omitting a gated channel → the entry surface renders | no affordance for that channel is present |
 
-- Arrange: mock orchestrator.orchestrate() → { status: 'success', recipe: { id: 'uuid-123', title: 'Test Recipe' } }
-- Act: result = await controller.saveOcrDraft({ draftId: 'draft-1', title: 'Test Recipe', ingredients: ['1 cup'], instructions: ['Mix'] }, mockUser)
-- Assert: result.status === 201; result.body.importStatus === 'created'; result.body.recipe.id === 'uuid-123'
-- Mock isolation: ImportOrchestrator stubbed; ImportErrorNormalizer stubbed
+#### Test Case: UTP-028-A (Polling stops at a terminal state)
 
-**UTS-008-A2** — OCR skip flag set (prebuiltPayload passed, no extraction call)
+**Linked Module:** MOD-028 (('ImportProgress', 'ARCH-028'))
 
-- Arrange: mock orchestrator.orchestrate() → { status: 'success' }
-- Act: await controller.saveOcrDraft(validDto, mockUser)
-- Assert: orchestrator.orchestrate called with importType='ocr' and prebuiltPayload defined; verify ocrPipeline.processPhoto NOT called
-- Mock isolation: ImportOrchestrator stubbed
+| ID         | Case                                                        | Assert                                          |
+| ---------- | ----------------------------------------------------------- | ----------------------------------------------- |
+| UTS-028-A1 | a job that reaches a terminal state → progress is displayed | polling ceases and no further request is issued |
 
-**UTS-008-A3** — Null sourceUrl in payload (OCR has no URL)
+#### Test Case: UTP-029-A (Save is blocked while required fields are missing)
 
-- Arrange: mock orchestrator.orchestrate() → { status: 'success' }
-- Act: const result = await controller.saveOcrDraft({ draftId: 'd1', title: 'T', ingredients: ['i'], instructions: ['s'] }, mockUser)
-- Assert: orchestrator called with request where sourceUrl is undefined in payload
-- Mock isolation: ImportOrchestrator stubbed
+**Linked Module:** MOD-029 (('ImportDraftReview', 'ARCH-029'))
 
----
+| ID         | Case                                                               | Assert                                                |
+| ---------- | ------------------------------------------------------------------ | ----------------------------------------------------- |
+| UTS-029-A1 | a draft with a missing required field → the review surface renders | the save control is disabled and the reason is stated |
 
-#### Test Case: UTP-008-B (saveOcrDraft — error handling)
+#### Test Case: UTP-030-A (Attribution renders only when a source exists)
 
-**Technique**: Statement & Branch Coverage
-**Target View**: Error Handling & Return Codes View
-**Description**: Verifies that errors from orchestrator are normalised and mapped to appropriate HTTP statuses.
+**Linked Module:** MOD-030 (('RecipeAttribution', 'ARCH-030'))
 
-**Scenarios:**
+| ID         | Case                                                         | Assert                                                    |
+| ---------- | ------------------------------------------------------------ | --------------------------------------------------------- |
+| UTS-030-A1 | recipes with and without a source → each detail view renders | the attribution block appears only for the sourced recipe |
 
-**UTS-008-B1** — PersistenceError → 500 via normalizer
+#### Test Case: UTP-031-A (Error union is exhaustive)
 
-- Arrange: mock orchestrator.orchestrate() → throws new PersistenceError('save', err); mock normalizer.normalize() → { httpStatus: 500, code: 'DB_ERROR', userMessage: '...' }
-- Act/Assert: controller.saveOcrDraft(validDto, mockUser) returns 500 response
-- Mock isolation: ImportOrchestrator stubbed; ImportErrorNormalizer stubbed
+**Linked Module:** MOD-031 (('ImportErrorState', 'ARCH-031'))
 
-**UTS-008-B2** — RecipeNotFoundError → 404 via normalizer
+| ID         | Case                                                  | Assert                                                                  |
+| ---------- | ----------------------------------------------------- | ----------------------------------------------------------------------- |
+| UTS-031-A1 | the full set of import error codes → each is rendered | each code renders distinct copy and an unhandled code fails compilation |
 
-- Arrange: mock orchestrator.orchestrate() → throws new RecipeNotFoundError('missing-id'); mock normalizer.normalize() → { httpStatus: 404, code: 'RECIPE_NOT_FOUND', userMessage: '...' }
-- Act/Assert: controller.saveOcrDraft(validDto, mockUser) returns 404 response
-- Mock isolation: ImportOrchestrator stubbed; ImportErrorNormalizer stubbed
+#### Test Case: UTP-032-A (In-flight requests abort on unmount)
 
----
+**Linked Module:** MOD-032 (('Import hooks', 'ARCH-032'))
 
-### Module: MOD-009 (PaywallBlocklistService)
+| ID         | Case                                                    | Assert                                             |
+| ---------- | ------------------------------------------------------- | -------------------------------------------------- |
+| UTS-032-A1 | a hook with a request in flight → the consumer unmounts | the request is aborted and no state update follows |
 
-**Parent Architecture Modules**: ARCH-009
-**Target Source File(s)**: `src/import/paywall-blocklist.service.ts`
+#### Test Case: UTP-033-A (Every code maps to its documented status)
 
----
+**Linked Module:** MOD-033 (ImportErrorCodes)
 
-#### Test Case: UTP-009-A (checkPaywall — blocklist matching)
+| ID         | Case                                  | Assert                                                                |
+| ---------- | ------------------------------------- | --------------------------------------------------------------------- |
+| UTS-033-A1 | each import error code → it is raised | the shipped filter maps it to the documented HTTP status and envelope |
 
-**Technique**: Boundary Value Analysis + Statement Coverage
-**Target View**: Internal State & Data Structures View
-**Description**: Verifies blocklist initialisation, URL parsing, www. stripping, and blocklist hit throws PaywallBlockedError.
+#### Test Case: UTP-034-A (Channel union is exhaustive)
 
-**Scenarios:**
+**Linked Module:** MOD-034 (ImportContracts)
 
-**UTS-009-A1** — Domain on blocklist → PaywallBlockedError thrown
+| ID         | Case                                               | Assert                                                 |
+| ---------- | -------------------------------------------------- | ------------------------------------------------------ |
+| UTS-034-A1 | the import channel union → a switch omits a member | compilation fails rather than silently falling through |
 
-- Arrange: mock configService.get('PAYWALL_BLOCKLIST') → 'bbc.com,guardian.co.uk,nytimes.com'; service.onModuleInit()
-- Act/Assert: service.checkPaywall('https://www.bbc.com/food/recipes/pasta') throws PaywallBlockedError with domain 'bbc.com'
-- Mock isolation: ConfigService stubbed
+#### Test Case: UTP-035-A (Unauthenticated request is refused before import work)
 
-**UTS-009-A2** — Domain not on blocklist → no throw
+**Linked Module:** MOD-035
 
-- Arrange: mock configService.get('PAYWALL_BLOCKLIST') → 'bbc.com,guardian.co.uk'; service.onModuleInit()
-- Act: service.checkPaywall('https://example.com/recipe')
-- Assert: no throw; returns undefined
-- Mock isolation: ConfigService stubbed
+| ID         | Case                                                  | Assert                                         |
+| ---------- | ----------------------------------------------------- | ---------------------------------------------- |
+| UTS-035-A1 | A request with no valid token reaches an import route | It is refused before any import logic executes |
 
-**UTS-009-A3** — www. prefix stripped before matching
+#### Test Case: UTP-036-A (Quality gates fail the build when violated)
 
-- Arrange: mock configService.get('PAYWALL_BLOCKLIST') → 'bbc.com'; service.onModuleInit()
-- Act/Assert: service.checkPaywall('https://www.bbc.com/recipe') throws PaywallBlockedError; verify hostname 'bbc.com' (www. stripped)
-- Mock isolation: ConfigService stubbed
+**Linked Module:** MOD-036
+
+| ID         | Case                                                                  | Assert                                                    |
+| ---------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
+| UTS-036-A1 | A deliberate type, documentation, or mutation violation is introduced | The corresponding gate fails rather than passing silently |
 
 ---
 
-#### Test Case: UTP-009-B (checkPaywall + flagManualEntry)
-
-**Technique**: Equivalence Partitioning
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies that undefined URL (OCR path) returns early without checking blocklist, and flagManualEntry marks payload as private/paywallFlagged.
-
-**Scenarios:**
-
-**UTS-009-B1** — url is undefined (OCR) → early return, no blocklist check
-
-- Arrange: mock configService.get('PAYWALL_BLOCKLIST') → 'nytimes.com'; service.onModuleInit()
-- Act: service.checkPaywall(undefined)
-- Assert: no throw; blockedDomains NOT accessed (verify getDomain never called)
-- Mock isolation: ConfigService stubbed
-
-**UTS-009-B2** — flagManualEntry sets visibility=private and paywallFlagged=true
-
-- Arrange: payload = { title: 'Recipe', ingredients: [], instructions: [], sourceUrl: 'https://premium.com/recipe', platform: 'url', extractionStrategy: 'web', confidence: 0.9 }
-- Act: result = service.flagManualEntry(payload)
-- Assert: result.visibility === 'private'; result.paywallFlagged === true
-- Mock isolation: none (pure function)
-
-**UTS-009-B3** — Malformed URL → PaywallBlockedError(code: 'INVALID_URL')
-
-- Arrange: mock configService.get('PAYWALL_BLOCKLIST') → ''; service.onModuleInit()
-- Act/Assert: service.checkPaywall('not-a-valid-url') throws PaywallBlockedError with code 'INVALID_URL'
-- Mock isolation: ConfigService stubbed
-
----
-
-### Module: MOD-010 (DeduplicationService)
-
-**Parent Architecture Modules**: ARCH-010
-**Target Source File(s)**: `src/import/deduplication.service.ts`
-
----
-
-#### Test Case: UTP-010-A (findBySourceUrl — duplicate detection logic)
-
-**Technique**: Statement & Branch Coverage + Equivalence Partitioning
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies URL undefined returns no duplicate, URL defined queries repository, and found/not-found results returned correctly.
-
-**Scenarios:**
-
-**UTS-010-A1** — URL undefined (OCR path) → { isDuplicate: false }
-
-- Arrange: url = undefined
-- Act: result = await service.findBySourceUrl(undefined)
-- Assert: result.isDuplicate === false; result.existingRecipe === null; verify recipeRepository.findBySourceUrl NOT called
-- Mock isolation: RecipeRepository stubbed
-
-**UTS-010-A2** — URL not in DB → { isDuplicate: false }
-
-- Arrange: mock recipeRepository.findBySourceUrl('https://example.com/recipe') → null
-- Act: result = await service.findBySourceUrl('https://example.com/recipe')
-- Assert: result.isDuplicate === false; result.existingRecipe === null
-- Mock isolation: RecipeRepository stubbed
-
-**UTS-010-A3** — URL found in DB → { isDuplicate: true, existingRecipe }
-
-- Arrange: mockRecipe = { id: 'existing-id', title: 'Existing Recipe' }; mock recipeRepository.findBySourceUrl('https://example.com/recipe') → mockRecipe
-- Act: result = await service.findBySourceUrl('https://example.com/recipe')
-- Assert: result.isDuplicate === true; result.existingRecipe === mockRecipe
-- Mock isolation: RecipeRepository stubbed
-
----
-
-### Module: MOD-011 (AttributionVisibilityService)
-
-**Parent Architecture Modules**: ARCH-011
-**Target Source File(s)**: `src/import/attribution-visibility.service.ts`
-
----
-
-#### Test Case: UTP-011-A (applyAttributionVisibility — attribution population)
-
-**Technique**: Statement Coverage + Equivalence Partitioning
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies attribution metadata is populated from payload fields, and visibility is set to public for url/instagram, private for ocr.
-
-**Scenarios:**
-
-**UTS-011-A1** — url import → visibility = public
-
-- Arrange: payload = { title: 'T', ingredients: ['i'], instructions: ['s'], sourceUrl: 'https://ex.com', originalAuthor: 'Chef', platform: 'web', extractionStrategy: 'web', confidence: 0.9 }
-- Act: result = service.applyAttributionVisibility(payload, 'url', 'user-123')
-- Assert: result.visibility === 'public'; result.attribution.platform === 'web'; result.attribution.importedBy === 'user-123'
-- Mock isolation: none (pure function)
-
-**UTS-011-A2** — instagram import → visibility = public
-
-- Arrange: payload with platform='instagram'
-- Act: result = service.applyAttributionVisibility(payload, 'instagram', 'user-456')
-- Assert: result.visibility === 'public'; result.attribution.platform === 'instagram'
-- Mock isolation: none
-
-**UTS-011-A3** — ocr import → visibility = private
-
-- Arrange: payload = { title: 'T', ingredients: ['i'], instructions: ['s'], sourceUrl: undefined, originalAuthor: undefined, platform: 'ocr', extractionStrategy: 'ocr', confidence: 1.0 }
-- Act: result = service.applyAttributionVisibility(payload, 'ocr', 'user-789')
-- Assert: result.visibility === 'private'; result.ownerId === 'user-789'; result.attribution.importedBy === 'user-789'
-- Mock isolation: none
-
----
-
-#### Test Case: UTP-011-B (canMakePrivate — premium clone edit enforcement)
-
-**Technique**: State Transition Testing
-**Target View**: State Machine View
-**Description**: Verifies canMakePrivate rules: already-private → true; non-premium → false; non-clone → false; substantive edit → true.
-
-**Scenarios:**
-
-**UTS-011-B1** — Recipe already private → true
-
-- Arrange: recipe = { visibility: 'private', isClone: true }; isPremium = false; editDiff = { isSubstantive: false }
-- Act: result = service.canMakePrivate(recipe, 'user-1', isPremium, editDiff)
-- Assert: result === true
-- Mock isolation: none
-
-**UTS-011-B2** — Non-premium user → false
-
-- Arrange: recipe = { visibility: 'public', isClone: true }; isPremium = false; editDiff = { isSubstantive: true }
-- Act: result = service.canMakePrivate(recipe, 'user-1', isPremium, editDiff)
-- Assert: result === false
-- Mock isolation: none
-
-**UTS-011-B3** — Non-clone recipe → false
-
-- Arrange: recipe = { visibility: 'public', isClone: false }; isPremium = true; editDiff = { isSubstantive: true }
-- Act: result = service.canMakePrivate(recipe, 'user-1', isPremium, editDiff)
-- Assert: result === false
-- Mock isolation: none
-
----
-
-### Module: MOD-012 (CloneService)
-
-**Parent Architecture Modules**: ARCH-012
-**Target Source File(s)**: `src/import/clone.service.ts`
-
----
-
-#### Test Case: UTP-012-A (cloneRecipe — happy path)
-
-**Technique**: Statement & Branch Coverage
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies cloneRecipe loads original, builds clone payload with isClone=true and new ownerId, persists, and returns entity.
-
-**Scenarios:**
-
-**UTS-012-A1** — Clone succeeds, visibility=public, attribution updated
-
-- Arrange: mock original = { id: 'orig-1', title: 'Original', visibility: 'public', isClone: false, attribution: { sourceUrl: 'https://ex.com', importedBy: 'user-old' }, ownerId: 'user-old' }; mock recipeRepository.findById('orig-1') → mock original; mock recipeRepository.save() → savedClone
-- Act: result = await service.cloneRecipe('orig-1', 'user-new')
-- Assert: result.isClone === true; result.clonedFromId === 'orig-1'; result.ownerId === 'user-new'; result.visibility === 'public'; verify save called with isClone: true
-- Mock isolation: RecipeRepository stubbed
-
-**UTS-012-A2** — Original not found → RecipeNotFoundError
-
-- Arrange: mock recipeRepository.findById('nonexistent') → null
-- Act/Assert: service.cloneRecipe('nonexistent', 'user-new') throws RecipeNotFoundError
-- Mock isolation: RecipeRepository stubbed
-
-**UTS-012-A3** — User not owner → ForbiddenError
-
-- Arrange: mock recipe = { id: 'id', ownerId: 'other-user' }; mock recipeRepository.findById('id') → mock recipe
-- Act/Assert: service.cloneRecipe('id', 'user-new') throws ForbiddenError with reason 'not_owner'
-- Mock isolation: RecipeRepository stubbed
-
----
-
-#### Test Case: UTP-012-B (applySubstantiveEdit — privacy downgrade for premium clones)
-
-**Technique**: Branch Coverage + State Transition Testing
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies that premium users can downgrade public clones to private only when edits are substantive (≥3 ingredient or ≥2 instruction or title change).
-
-**Scenarios:**
-
-**UTS-012-B1** — Non-substantive edit → visibility change NOT applied
-
-- Arrange: mock clone = { id: 'clone-1', visibility: 'public', isClone: true, ownerId: 'user-1' }; editDiff = { ingredientChanges: 1, instructionChanges: 0, titleChanged: false, isSubstantive: false }; editPayload = { visibility: 'private' }
-- Act: result = await service.applySubstantiveEdit('clone-1', editPayload, 'user-1', true)
-- Assert: result.visibility === 'public'; verify recipeRepository.update called with visibility unchanged
-- Mock isolation: RecipeRepository stubbed
-
-**UTS-012-B2** — Substantive edit + premium → visibility downgraded to private
-
-- Arrange: editDiff = { ingredientChanges: 5, instructionChanges: 0, titleChanged: false, isSubstantive: true }; editPayload = { visibility: 'private' }
-- Act: result = await service.applySubstantiveEdit('clone-1', editPayload, 'user-1', true)
-- Assert: result.visibility === 'private'; verify update called with payload.visibility = 'private'
-- Mock isolation: RecipeRepository stubbed
-
-**UTS-012-B3** — Substantive edit + non-premium → 403
-
-- Arrange: editDiff = { ingredientChanges: 5, instructionChanges: 0, titleChanged: false, isSubstantive: true }; isPremium = false
-- Act/Assert: service.applySubstantiveEdit('clone-1', editPayload, 'user-1', false) throws ForbiddenError
-- Mock isolation: RecipeRepository stubbed
-
----
-
-### Module: MOD-013 (RecipePersistenceAdapter)
-
-**Parent Architecture Modules**: ARCH-013
-**Target Source File(s)**: `src/import/adapters/recipe-persistence.adapter.ts`
-
----
-
-#### Test Case: UTP-013-A (save — happy path, mapPayloadToRow)
-
-**Technique**: Statement Coverage + Equivalence Partitioning
-**Target View**: Internal State & Data Structures View
-**Description**: Verifies save() maps AttributedPayload to row, inserts, and returns mapped entity. Also tests mapPayloadToRow field coverage.
-
-**Scenarios:**
-
-**UTS-013-A1** — Save successful → entity returned
-
-- Arrange: mock db.insert().values().returning() → [{ id: 'new-id', title: 'Test', ingredients: '[]', instructions: '[]', sourceUrl: null, originalAuthor: null, platform: 'web', visibility: 'public', ownerId: 'user-1', isClone: false, clonedFromId: null, attributionNote: null, importedAt: '2026-01-01T00:00:00Z', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }]
-- Act: result = await adapter.save(mockAttributedPayload)
-- Assert: result.id === 'new-id'; result.title === 'Test'
-- Mock isolation: DrizzleDb stubbed
-
-**UTS-013-A2** — Unique constraint violation → PersistenceError(code: 'DUPLICATE_SOURCE_URL')
-
-- Arrange: mock db.insert().values().returning() → throws { code: '23505' } // pg unique violation
-- Act/Assert: adapter.save(payload) throws PersistenceError with code 'DUPLICATE_SOURCE_URL'
-- Mock isolation: DrizzleDb stubbed
-
-**UTS-013-A3** — mapPayloadToRow serialises ingredients/instructions as JSON strings
-
-- Arrange: payload with ingredients=['a','b'], instructions=['step1']
-- Act: row = adapter.mapPayloadToRow(payload)
-- Assert: row.ingredients === '["a","b"]' (JSON string); row.instructions === '["step1"]'
-- Mock isolation: none (pure function test)
-
----
-
-#### Test Case: UTP-013-B (findBySourceUrl + updateAttributionNote)
-
-**Technique**: Statement Coverage
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies findBySourceUrl returns entity or null; updateAttributionNote calls update and propagates errors.
-
-**Scenarios:**
-
-**UTS-013-B1** — findBySourceUrl returns entity when found
-
-- Arrange: mock db.select().from().where().limit(1) → [mockRow]
-- Act: result = await adapter.findBySourceUrl('https://ex.com/recipe')
-- Assert: result !== null; result.sourceUrl === 'https://ex.com/recipe'
-- Mock isolation: DrizzleDb stubbed
-
-**UTS-013-B2** — findBySourceUrl returns null when not found
-
-- Arrange: mock db.select().from().where().limit(1) → []
-- Act: result = await adapter.findBySourceUrl('https://nonexistent.com/recipe')
-- Assert: result === null
-- Mock isolation: DrizzleDb stubbed
-
-**UTS-013-B3** — updateAttributionNote throws PersistenceError on DB failure
-
-- Arrange: mock db.update().set().where() → throws new Error('connection lost')
-- Act/Assert: adapter.updateAttributionNote('recipe-id', 'note') throws PersistenceError
-- Mock isolation: DrizzleDb stubbed
-
----
-
-### Module: MOD-014 (AuthMiddleware)
-
-**Parent Architecture Modules**: ARCH-014
-**Target Source File(s)**: `src/auth/middleware/auth.middleware.ts` (backed by `src/auth/clerk-auth.service.ts`)
-
----
-
-#### Test Case: UTP-014-A (use — happy path token verification)
-
-**Technique**: Statement & Branch Coverage
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies the middleware delegates to `ClerkAuthService.verifyToken` (networkless), attaches the verified claims to the request, and calls `next()`.
-
-**Scenarios:**
-
-**UTS-014-A1** — Valid token → user attached, `next()` called
-
-- Arrange: mock clerkAuthService.verifyToken(token) → { sub: 'user-123', email: 'test@example.com', public_metadata: {} }
-- Act: await middleware.use(req, res, next)
-- Assert: next called with no error; verify req.user = { sub: 'user-123', email: 'test@example.com', publicMetadata: {} }
-- Mock isolation: ClerkAuthService.verifyToken stubbed (no network)
-
-**UTS-014-A2** — Missing Authorization header → 401 UnauthorizedException
-
-- Arrange: req = { headers: {} }
-- Act/Assert: middleware.use(req, res, next) throws UnauthorizedException with message 'Missing Bearer token'
-- Mock isolation: none
-
-**UTS-014-A3** — Malformed Bearer token (no 'Bearer ' prefix) → 401
-
-- Arrange: req = { headers: { authorization: 'Basic abc123' } }
-- Act/Assert: middleware.use(req, res, next) throws UnauthorizedException
-- Mock isolation: none
-
----
-
-#### Test Case: UTP-014-B (use — error cases)
-
-**Technique**: Branch Coverage + Equivalence Partitioning
-**Target View**: Error Handling & Return Codes View
-**Description**: Verifies expired token, invalid signature, and unauthorized party (`azp`) all return 401.
-
-**Scenarios:**
-
-**UTS-014-B1** — Expired token → 401
-
-- Arrange: mock clerkAuthService.verifyToken() → throws new Error('token expired')
-- Act/Assert: middleware.use(req, res, next) throws UnauthorizedException
-- Mock isolation: ClerkAuthService.verifyToken stubbed
-
-**UTS-014-B2** — Invalid token signature → 401
-
-- Arrange: mock clerkAuthService.verifyToken() → throws new Error('signature verification failed')
-- Act/Assert: middleware.use(req, res, next) throws UnauthorizedException
-- Mock isolation: ClerkAuthService.verifyToken stubbed
-
-**UTS-014-B3** — Unauthorized party (`azp` not in `CLERK_AUTHORIZED_PARTIES`) → 401
-
-- Arrange: mock clerkAuthService.verifyToken() → throws Error('Invalid authorized party')
-- Act/Assert: middleware.use(req, res, next) throws UnauthorizedException
-- Mock isolation: ClerkAuthService.verifyToken stubbed
-
----
-
-### Module: MOD-015 (RecipeRepository)
-
-**Parent Architecture Modules**: ARCH-015
-**Target Source File(s)**: `src/recipes/recipe.repository.ts`
-
----
-
-#### Test Case: UTP-015-A (findBySourceUrl + findById — query logic)
-
-**Technique**: Statement Coverage + Equivalence Partitioning
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies findBySourceUrl and findById both use .limit(1) and return null when no rows found.
-
-**Scenarios:**
-
-**UTS-015-A1** — findBySourceUrl returns entity when found
-
-- Arrange: mockRow = { id: 'id-1', title: 'Found', ingredients: '[]', instructions: '[]', sourceUrl: 'https://ex.com', originalAuthor: null, platform: 'web', visibility: 'public', ownerId: 'u1', isClone: false, clonedFromId: null, attributionNote: null, importedAt: '2026-01-01', createdAt: '2026-01-01', updatedAt: '2026-01-01' }; mock db.select().from().where().limit(1) → [mockRow]
-- Act: result = await repo.findBySourceUrl('https://ex.com')
-- Assert: result.id === 'id-1'; result.title === 'Found'
-- Mock isolation: DrizzleDb stubbed
-
-**UTS-015-A2** — findById returns null when not found
-
-- Arrange: mock db.select().from().where().limit(1) → []
-- Act: result = await repo.findById('nonexistent-id')
-- Assert: result === null
-- Mock isolation: DrizzleDb stubbed
-
-**UTS-015-A3** — findById returns entity when found
-
-- Arrange: mock db.select().from().where().limit(1) → [mockRow]
-- Act: result = await repo.findById('existing-id')
-- Assert: result !== null; result.id === 'existing-id'
-- Mock isolation: DrizzleDb stubbed
-
----
-
-#### Test Case: UTP-015-B (save + update — persistence logic)
-
-**Technique**: Statement Coverage
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies save inserts with mapToRow, update sets patch plus updatedAt, both return mapped entity.
-
-**Scenarios:**
-
-**UTS-015-B1** — save returns entity with new ID
-
-- Arrange: mockInsertRow = { id: 'new-id', title: 'Saved', ingredients: '[]', instructions: '[]', sourceUrl: null, originalAuthor: null, platform: 'web', visibility: 'public', ownerId: 'u1', isClone: false, clonedFromId: null, attributionNote: null, importedAt: '2026-01-01', createdAt: '2026-01-01', updatedAt: '2026-01-01' }; mock db.insert().values().returning() → [mockInsertRow]
-- Act: result = await repo.save(mockAttributedPayload)
-- Assert: result.id === 'new-id'; result.title === 'Saved'
-- Mock isolation: DrizzleDb stubbed
-
-**UTS-015-B2** — update sets patch + updatedAt and returns updated entity
-
-- Arrange: mock db.update().set().where().returning() → [{ ...mockRow, title: 'Updated', updatedAt: '2026-05-09T00:00:00Z' }]
-- Act: result = await repo.update('id-1', { title: 'Updated' })
-- Assert: result.title === 'Updated'; verify set includes updatedAt: new Date()
-- Mock isolation: DrizzleDb stubbed
-
-**UTS-015-B3** — update on non-existent row → null returned (no row matching where clause)
-
-- Arrange: mock db.update().set().where().returning() → []
-- Act: result = await repo.update('nonexistent-id', { title: 'X' })
-- Assert: result === null
-- Mock isolation: DrizzleDb stubbed
-
----
-
-### Module: MOD-016 (ImportDtoTypes)
-
-**Parent Architecture Modules**: ARCH-016
-**Target Source File(s)**: `src/import/dto/types.ts` (pure type file)
-
----
-
-#### Test Case: UTP-016-A (DTO type compilation + validation decorators)
-
-**Technique**: Strict Isolation
-**Target View**: Internal State & Data Structures View
-**Description**: Verifies all DTO classes compile under strict: true, and class-validator decorators produce expected validation constraints.
-
-**Scenarios:**
-
-**UTS-016-A1** — ImportUrlDto: @IsUrl rejects invalid URLs
-
-- Arrange: dto = new ImportUrlDto(); dto.url = 'not-a-url'
-- Act/Assert: validate(dto) fails with IsUrl error
-- Mock isolation: none (type-level test)
-
-**UTS-016-A2** — ImportInstagramDto: host_whitelist rejects non-Instagram URLs
-
-- Arrange: dto = new ImportInstagramDto(); dto.postUrl = 'https://facebook.com/post/123'
-- Act/Assert: validate(dto) fails (not on Instagram whitelist)
-- Mock isolation: none
-
-**UTS-016-A3** — ImportPhotoSaveDto: @IsUUID, @MinLength, @ArrayMinSize enforce constraints
-
-- Arrange: dto = new ImportPhotoSaveDto(); dto.draftId = 'not-a-uuid'; dto.title = ''; dto.ingredients = []; dto.instructions = []
-- Act/Assert: validate(dto) fails with multiple errors (uuid, minLength, array min size)
-- Mock isolation: none
-
----
-
-### Module: MOD-017 (ImportErrorNormalizer)
-
-**Parent Architecture Modules**: ARCH-017
-**Target Source File(s)**: `src/import/error-normalizer.ts`
-
----
-
-#### Test Case: UTP-017-A (normalize — all known error types)
-
-**Technique**: Branch Coverage (all branches)
-**Target View**: Error Handling & Return Codes View
-**Description**: Verifies every known error class maps to the correct httpStatus, code, and userMessage.
-
-**Scenarios:**
-
-**UTS-017-A1** — PaywallBlockedError → 422, code 'PAYWALL_BLOCKED'
-
-- Arrange: err = new PaywallBlockedError('https://nytimes.com/recipe', 'nytimes.com')
-- Act: result = normalizer.normalize(err)
-- Assert: result.httpStatus === 422; result.code === 'PAYWALL_BLOCKED'; result.userMessage includes 'subscription'
-- Mock isolation: none (pure function)
-
-**UTS-017-A2** — UrlUnreachableError code 'URL_HTTP_ERROR' → 502
-
-- Arrange: err = new UrlUnreachableError('https://bad.com', 'URL_HTTP_ERROR')
-- Act: result = normalizer.normalize(err)
-- Assert: result.httpStatus === 502; result.code === 'URL_HTTP_ERROR'
-- Mock isolation: none
-
-**UTS-017-A3** — NoCaptionError code 'NON_RECIPE_CONTENT' → 422
-
-- Arrange: err = new NoCaptionError('https://ig.com/p/x', 'NON_RECIPE_CONTENT')
-- Act: result = normalizer.normalize(err)
-- Assert: result.httpStatus === 422; result.code === 'NON_RECIPE_CONTENT'; result.userMessage includes 'not appear to contain a recipe'
-- Mock isolation: none
-
-**UTS-017-A4** — PersistenceError → 500, generic message
-
-- Arrange: err = new PersistenceError('save', new Error('db connection lost'))
-- Act: result = normalizer.normalize(err)
-- Assert: result.httpStatus === 500; result.code === 'DB_ERROR'; result.userMessage does NOT include 'db connection lost' (no leak)
-- Mock isolation: none
-
----
-
-#### Test Case: UTP-017-B (normalize — unknown error + fallback)
-
-**Technique**: Branch Coverage
-**Target View**: Error Handling & Return Codes View
-**Description**: Verifies unknown errors (not instance of any known class) fall through to 500 INTERNAL_ERROR with generic message.
-
-**Scenarios:**
-
-**UTS-017-B1** — Plain Error → 500 INTERNAL_ERROR (no detail leaked)
-
-- Arrange: err = new Error('some internal detail')
-- Act: result = normalizer.normalize(err)
-- Assert: result.httpStatus === 500; result.code === 'INTERNAL_ERROR'; result.userMessage === 'An unexpected error occurred.'
-- Mock isolation: none
-
-**UTS-017-B2** — null passed → 500 INTERNAL_ERROR
-
-- Arrange: err = null
-- Act: result = normalizer.normalize(err)
-- Assert: result.httpStatus === 500; result.code === 'INTERNAL_ERROR'
-- Mock isolation: none
-
-**UTS-017-B3** — RecipeNotFoundError → 404
-
-- Arrange: err = new RecipeNotFoundError('missing-id')
-- Act: result = normalizer.normalize(err)
-- Assert: result.httpStatus === 404; result.code === 'RECIPE_NOT_FOUND'; result.userMessage === 'Recipe not found.'
-- Mock isolation: none
-
----
-
-### Module: MOD-018 (ImportLogger)
-
-**Parent Architecture Modules**: ARCH-018
-**Target Source File(s)**: `src/import/import-logger.ts`
-
----
-
-#### Test Case: UTP-018-A (log — all lifecycle events + correlation ID)
-
-**Technique**: Statement Coverage
-**Target View**: Algorithmic/Logic View
-**Description**: Verifies log() formats entry with event, correlationId (from AsyncLocalStorage), timestamp, context, and calls logger.info.
-
-**Scenarios:**
-
-**UTS-018-A1** — log('import_started') → entry with event + correlationId + timestamp
-
-- Arrange: mock AsyncLocalStorage.getStore() → { correlationId: 'corr-123' }; mock logger.info = jest.fn()
-- Act: logger.log('import_started', { userId: 'user-1', importType: 'url' })
-- Assert: logger.info called with object containing event: 'import_started', correlationId: 'corr-123', timestamp is ISO string, userId: 'user-1'
-- Mock isolation: Logger stubbed; AsyncLocalStorage stubbed
-
-**UTS-018-A2** — log('duplicate_found') with context
-
-- Arrange: mock AsyncLocalStorage.getStore() → undefined; mock logger.info = jest.fn()
-- Act: logger.log('duplicate_found', { existingId: 'existing-1', sourceUrl: 'https://ex.com' })
-- Assert: logger.info called with entry where event === 'duplicate_found'; correlationId is UUID (generated fresh); timestamp is ISO
-- Mock isolation: Logger stubbed; AsyncLocalStorage stubbed
-
-**UTS-018-A3** — logError('import_failed') → error.code and error.message extracted, logger.error called
-
-- Arrange: err = new PersistenceError('save', new Error('connection lost')); mock logger.error = jest.fn()
-- Act: logger.logError('import_failed', err, { correlationId: 'corr-456' })
-- Assert: logger.error called with object where event === 'import_failed'; error.code === 'DB_ERROR'; error.message is present; correlationId === 'corr-456'
-- Mock isolation: Logger stubbed
-
-**UTS-018-A4** — logger.info throws → silently swallowed (log never propagates)
-
-- Arrange: mock logger.info = jest.fn().mockImplementation(() => { throw new Error('logger broken') })
-- Act: logger.log('import_started', {})
-- Assert: no exception propagated (logError catches its own logger exceptions)
-- Mock isolation: Logger stubbed with throw behaviour
-
-## Mock Registry
-
-Each UTP that touches an external dependency MUST list the dependency mock in its setup. Mock entries identify the dependency name, mock type (stub, fake, spy, or in-memory adapter), owning MOD-NNN, and reset behavior between scenarios.
+> **Counts in this document are derived from the generated `v-model/traceability-matrix.md`.**
+> That file is produced by `build-matrix.sh` from the artefacts and is the authoritative source; if a
+> number here disagrees with it, this document is stale. Regenerate rather than hand-editing.

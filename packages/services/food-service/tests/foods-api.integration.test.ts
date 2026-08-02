@@ -1,5 +1,5 @@
 /**
- * Per-endpoint + auth-matrix HTTP integration tests for the source-agnostic `/v1/foods/*` API, driven
+ * Per-endpoint + auth-matrix HTTP integration tests for the source-agnostic `/api/v1/foods/*` API, driven
  * over the booted Nest app against a REAL Postgres (`DATABASE_URL`). Re-added in Phase 3/4 (T-130–T-145)
  * to replace the superseded fdcId-keyed `foods-api.integration.test` parked in the prior slice.
  *
@@ -101,7 +101,7 @@ function principalFor(token: string): {
     }
 }
 
-describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgres)', () => {
+describe.skipIf(!DATABASE_URL)('/api/v1/foods/* HTTP API (booted Nest + real Postgres)', () => {
     let app: INestApplication;
     let pool: pg.Pool;
     let baseUrl: string;
@@ -245,17 +245,17 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
     // ── Auth matrix (T-033/T-047/T-048) ───────────────────────────────────────────────────────────
     describe('auth gate', () => {
         it('rejects a request with no token (401) before any work (FR-035)', async () => {
-            const res = await call('GET', `/v1/foods/${ulid()}`);
+            const res = await call('GET', `/api/v1/foods/${ulid()}`);
             expect(res.status).toBe(401);
         });
 
         it('rejects an invalid/expired/wrong-azp token (401)', async () => {
-            const res = await call('GET', `/v1/foods/${ulid()}`, { token: 'garbage' });
+            const res = await call('GET', `/api/v1/foods/${ulid()}`, { token: 'garbage' });
             expect(res.status).toBe(401);
         });
 
         it('does NOT create a row or enqueue for an unauthenticated POST (401, no side effects)', async () => {
-            const res = await call('POST', '/v1/foods', { body: { name: 'broccoli' } });
+            const res = await call('POST', '/api/v1/foods', { body: { name: 'broccoli' } });
             expect(res.status).toBe(401);
 
             const rows = await pool.query('SELECT count(*)::int AS n FROM food');
@@ -265,7 +265,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         });
 
         it('ignores a forged x-debug-sub / x-authorizer-context and keys provenance on the app-user ULID', async () => {
-            const res = await call('POST', '/v1/foods', {
+            const res = await call('POST', '/api/v1/foods', {
                 token: 'user',
                 body: { name: 'forge test' },
                 headers: { 'x-debug-sub': 'forged_admin', 'x-authorizer-context': '{"sub":"forged_admin"}' },
@@ -278,7 +278,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         });
 
         it('accepts an azp-allowlisted M2M token and keys provenance on its svc_* id (FR-047)', async () => {
-            const res = await call('POST', '/v1/foods', { token: 'm2m', body: { name: 'service add' } });
+            const res = await call('POST', '/api/v1/foods', { token: 'm2m', body: { name: 'service add' } });
             expect(res.status).toBe(202);
 
             const requesters = await pool.query('SELECT requester_id FROM fetch_requesters');
@@ -286,7 +286,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         });
 
         it('DEFERS a user enqueue with 401 when external_id has not synced yet, recording no row (CR-002/U1)', async () => {
-            const res = await call('POST', '/v1/foods', { token: 'user_nosync', body: { name: 'pre-sync add' } });
+            const res = await call('POST', '/api/v1/foods', { token: 'user_nosync', body: { name: 'pre-sync add' } });
             expect(res.status).toBe(401);
 
             // No food, no queue row, no requester — the raw sub is NEVER recorded.
@@ -297,22 +297,22 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         });
 
         it('enforces precedence 401 > 400: a malformed id with a bad token → 401 (not 400)', async () => {
-            const res = await call('GET', '/v1/foods/not-a-ulid', { token: 'garbage' });
+            const res = await call('GET', '/api/v1/foods/not-a-ulid', { token: 'garbage' });
             expect(res.status).toBe(401);
         });
 
         it('enforces precedence 403 > 400 on /refetch: valid token w/o scope + malformed id → 403', async () => {
-            const res = await call('POST', '/v1/foods/not-a-ulid/refetch', { token: 'user' });
+            const res = await call('POST', '/api/v1/foods/not-a-ulid/refetch', { token: 'user' });
             expect(res.status).toBe(403);
         });
     });
 
-    // ── GET /v1/foods/{id} (T-131) ─────────────────────────────────────────────────────────────────
-    describe('GET /v1/foods/{id}', () => {
+    // ── GET /api/v1/foods/{id} (T-131) ─────────────────────────────────────────────────────────────────
+    describe('GET /api/v1/foods/{id}', () => {
         it('returns 200 + the golden record (no source call) for a RESOLVED food', async () => {
             const id = await seedResolved('Broccoli, raw');
 
-            const res = await call('GET', `/v1/foods/${id}`, { token: 'user' });
+            const res = await call('GET', `/api/v1/foods/${id}`, { token: 'user' });
 
             expect(res.status).toBe(200);
             const body = res.body as {
@@ -332,48 +332,48 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
 
         it('returns 202 for a PENDING food', async () => {
             const id = await seedFood('PENDING', 'pending food');
-            const res = await call('GET', `/v1/foods/${id}`, { token: 'user' });
+            const res = await call('GET', `/api/v1/foods/${id}`, { token: 'user' });
             expect(res.status).toBe(202);
             expect((res.body as { status: string }).status).toBe('PENDING');
         });
 
         it('returns 202 for an UNRESOLVED food', async () => {
             const { id } = await seedUnresolved('broccoli');
-            const res = await call('GET', `/v1/foods/${id}`, { token: 'user' });
+            const res = await call('GET', `/api/v1/foods/${id}`, { token: 'user' });
             expect(res.status).toBe(202);
             expect((res.body as { status: string }).status).toBe('UNRESOLVED');
         });
 
         it('returns 404 with the status in the body for a NOT_FOUND food', async () => {
             const id = await seedFood('NOT_FOUND', 'ghost food');
-            const res = await call('GET', `/v1/foods/${id}`, { token: 'user' });
+            const res = await call('GET', `/api/v1/foods/${id}`, { token: 'user' });
             expect(res.status).toBe(404);
             expect((res.body as { status: string }).status).toBe('NOT_FOUND');
         });
 
         it('returns 404 for a FAILED food', async () => {
             const id = await seedFood('FAILED', 'failed food');
-            const res = await call('GET', `/v1/foods/${id}`, { token: 'user' });
+            const res = await call('GET', `/api/v1/foods/${id}`, { token: 'user' });
             expect(res.status).toBe(404);
             expect((res.body as { status: string }).status).toBe('FAILED');
         });
 
         it('returns 404 for an unknown id', async () => {
-            const res = await call('GET', `/v1/foods/${ulid()}`, { token: 'user' });
+            const res = await call('GET', `/api/v1/foods/${ulid()}`, { token: 'user' });
             expect(res.status).toBe(404);
         });
 
         it('returns 400 for a malformed ULID (with a valid token)', async () => {
-            const res = await call('GET', '/v1/foods/not-a-ulid', { token: 'user' });
+            const res = await call('GET', '/api/v1/foods/not-a-ulid', { token: 'user' });
             expect(res.status).toBe(400);
         });
     });
 
-    // ── GET /v1/foods/{id}/status (T-132) ──────────────────────────────────────────────────────────
-    describe('GET /v1/foods/{id}/status', () => {
+    // ── GET /api/v1/foods/{id}/status (T-132) ──────────────────────────────────────────────────────────
+    describe('GET /api/v1/foods/{id}/status', () => {
         it('returns the status + golden record for a RESOLVED food', async () => {
             const id = await seedResolved('Broccoli, raw');
-            const res = await call('GET', `/v1/foods/${id}/status`, { token: 'user' });
+            const res = await call('GET', `/api/v1/foods/${id}/status`, { token: 'user' });
             expect(res.status).toBe(200);
             const body = res.body as { status: string; food?: unknown };
             expect(body.status).toBe('RESOLVED');
@@ -389,11 +389,11 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
 
         it('returns the status (no food) for a PENDING food and 404 for an unknown id', async () => {
             const id = await seedFood('PENDING', 'pending poll');
-            const ok = await call('GET', `/v1/foods/${id}/status`, { token: 'user' });
+            const ok = await call('GET', `/api/v1/foods/${id}/status`, { token: 'user' });
             expect(ok.status).toBe(200);
             expect((ok.body as { status: string; food?: unknown }).food).toBeUndefined();
 
-            const missing = await call('GET', `/v1/foods/${ulid()}/status`, { token: 'user' });
+            const missing = await call('GET', `/api/v1/foods/${ulid()}/status`, { token: 'user' });
             expect(missing.status).toBe(404);
         });
 
@@ -407,7 +407,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
                 [failed, 'FAILED'],
                 [unresolved, 'UNRESOLVED'],
             ] as const) {
-                const res = await call('GET', `/v1/foods/${id}/status`, { token: 'user' });
+                const res = await call('GET', `/api/v1/foods/${id}/status`, { token: 'user' });
                 expect(res.status).toBe(200);
                 const body = res.body as { status: string; food?: unknown };
                 expect(body.status).toBe(status);
@@ -416,11 +416,11 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         });
     });
 
-    // ── GET /v1/foods/{id}/candidates (T-133) ──────────────────────────────────────────────────────
-    describe('GET /v1/foods/{id}/candidates', () => {
+    // ── GET /api/v1/foods/{id}/candidates (T-133) ──────────────────────────────────────────────────────
+    describe('GET /api/v1/foods/{id}/candidates', () => {
         it('lists the candidate set for an UNRESOLVED food (no fdcId)', async () => {
             const { id } = await seedUnresolved('broccoli');
-            const res = await call('GET', `/v1/foods/${id}/candidates`, { token: 'user' });
+            const res = await call('GET', `/api/v1/foods/${id}/candidates`, { token: 'user' });
             expect(res.status).toBe(200);
             const body = res.body as { candidates: { source: string; externalKey: string }[] };
             expect(body.candidates).toHaveLength(2);
@@ -430,25 +430,25 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
 
         it('returns an empty candidate set for a RESOLVED food', async () => {
             const id = await seedResolved('Broccoli, raw');
-            const res = await call('GET', `/v1/foods/${id}/candidates`, { token: 'user' });
+            const res = await call('GET', `/api/v1/foods/${id}/candidates`, { token: 'user' });
             expect(res.status).toBe(200);
             expect((res.body as { candidates: unknown[] }).candidates).toEqual([]);
         });
 
         it('returns 404 for an unknown id', async () => {
-            const res = await call('GET', `/v1/foods/${ulid()}/candidates`, { token: 'user' });
+            const res = await call('GET', `/api/v1/foods/${ulid()}/candidates`, { token: 'user' });
             expect(res.status).toBe(404);
         });
     });
 
-    // ── GET /v1/foods/search (T-134) ───────────────────────────────────────────────────────────────
-    describe('GET /v1/foods/search', () => {
+    // ── GET /api/v1/foods/search (T-134) ───────────────────────────────────────────────────────────────
+    describe('GET /api/v1/foods/search', () => {
         it('returns ranked matches and never an unrelated food', async () => {
             await seedResolved('Chicken breast, raw', '1');
             await seedResolved('Chicken thigh, raw', '2');
             await seedResolved('Beef steak', '3');
 
-            const res = await call('GET', '/v1/foods/search?query=chicken%20breast', { token: 'user' });
+            const res = await call('GET', '/api/v1/foods/search?query=chicken%20breast', { token: 'user' });
             expect(res.status).toBe(200);
             const names = (res.body as { results: { name: string }[] }).results.map((r) => r.name);
             expect(names).toContain('Chicken breast, raw');
@@ -458,17 +458,17 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         it('fuzzy-matches a misspelled query (avacado → Avocado, raw)', async () => {
             await seedResolved('Avocado, raw', '10');
             await seedResolved('Banana, raw', '11');
-            const res = await call('GET', '/v1/foods/search?query=avacado', { token: 'user' });
+            const res = await call('GET', '/api/v1/foods/search?query=avacado', { token: 'user' });
             const names = (res.body as { results: { name: string }[] }).results.map((r) => r.name);
             expect(names).toContain('Avocado, raw');
         });
 
         it('resolves a known external_key crosswalk to the food id, and empty for no match', async () => {
             const id = await seedResolved('Broccoli, raw', '171688');
-            const cross = await call('GET', '/v1/foods/search?query=171688', { token: 'user' });
+            const cross = await call('GET', '/api/v1/foods/search?query=171688', { token: 'user' });
             expect((cross.body as { results: { id: string }[] }).results.map((r) => r.id)).toContain(id);
 
-            const none = await call('GET', '/v1/foods/search?query=zzzznotathing', { token: 'user' });
+            const none = await call('GET', '/api/v1/foods/search?query=zzzznotathing', { token: 'user' });
             expect((none.body as { results: unknown[] }).results).toEqual([]);
         });
 
@@ -476,22 +476,22 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
             const id = await seedResolved('Branded cereal', '900001');
             await pool.query(`UPDATE food SET barcode = $2 WHERE id = $1`, [id, '0123456789012']);
 
-            const res = await call('GET', '/v1/foods/search?query=0123456789012', { token: 'user' });
+            const res = await call('GET', '/api/v1/foods/search?query=0123456789012', { token: 'user' });
             expect(res.status).toBe(200);
             expect((res.body as { results: { id: string }[] }).results.map((r) => r.id)).toContain(id);
         });
 
         it('returns an empty result set (never a source call) for an empty/whitespace query', async () => {
-            const res = await call('GET', '/v1/foods/search?query=%20%20', { token: 'user' });
+            const res = await call('GET', '/api/v1/foods/search?query=%20%20', { token: 'user' });
             expect(res.status).toBe(200);
             expect((res.body as { results: unknown[] }).results).toEqual([]);
         });
     });
 
-    // ── POST /v1/foods (T-140) ─────────────────────────────────────────────────────────────────────
-    describe('POST /v1/foods', () => {
+    // ── POST /api/v1/foods (T-140) ─────────────────────────────────────────────────────────────────────
+    describe('POST /api/v1/foods', () => {
         it('adds by name → 202 + id, with exactly one fetch_queue row', async () => {
-            const res = await call('POST', '/v1/foods', { token: 'user', body: { name: 'Broccoli' } });
+            const res = await call('POST', '/api/v1/foods', { token: 'user', body: { name: 'Broccoli' } });
             expect(res.status).toBe(202);
             const body = res.body as { id: string; status: string };
             expect(body.status).toBe('PENDING');
@@ -501,8 +501,8 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         });
 
         it('dedups a concurrent re-add of the same normalized name to one row/id', async () => {
-            const first = await call('POST', '/v1/foods', { token: 'user', body: { name: 'Spinach' } });
-            const second = await call('POST', '/v1/foods', { token: 'user', body: { name: '  spinach ' } });
+            const first = await call('POST', '/api/v1/foods', { token: 'user', body: { name: 'Spinach' } });
+            const second = await call('POST', '/api/v1/foods', { token: 'user', body: { name: '  spinach ' } });
             expect((first.body as { id: string }).id).toBe((second.body as { id: string }).id);
 
             const foods = await pool.query('SELECT count(*)::int AS n FROM food');
@@ -510,7 +510,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         });
 
         it('rejects an empty/whitespace name with 400, nothing enqueued', async () => {
-            const res = await call('POST', '/v1/foods', { token: 'user', body: { name: '   ' } });
+            const res = await call('POST', '/api/v1/foods', { token: 'user', body: { name: '   ' } });
             expect(res.status).toBe(400);
             const foods = await pool.query('SELECT count(*)::int AS n FROM food');
             expect(foods.rows[0].n).toBe(0);
@@ -519,7 +519,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         it('re-adds an already-RESOLVED name inline (RESOLVED, no fresh enqueue / no source budget burned)', async () => {
             const seeded = await seedResolved('Already resolved', '700001');
 
-            const res = await call('POST', '/v1/foods', { token: 'user', body: { name: 'Already resolved' } });
+            const res = await call('POST', '/api/v1/foods', { token: 'user', body: { name: 'Already resolved' } });
             expect(res.status).toBe(202);
             const body = res.body as { id: string; status: string; estimatedWaitSeconds?: number };
             expect(body.id).toBe(seeded);
@@ -531,12 +531,12 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         });
     });
 
-    // ── POST /v1/foods/batch (T-143) ───────────────────────────────────────────────────────────────
-    describe('POST /v1/foods/batch', () => {
+    // ── POST /api/v1/foods/batch (T-143) ───────────────────────────────────────────────────────────────
+    describe('POST /api/v1/foods/batch', () => {
         it('returns a per-item partial: inline RESOLVED hits + PENDING misses', async () => {
             await seedResolved('Chicken breast, raw', '1');
 
-            const res = await call('POST', '/v1/foods/batch', {
+            const res = await call('POST', '/api/v1/foods/batch', {
                 token: 'user',
                 body: { names: ['Chicken breast, raw', 'Quinoa', 'Lentils'] },
             });
@@ -547,7 +547,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         });
 
         it('collapses an intra-batch duplicate name to one item', async () => {
-            const res = await call('POST', '/v1/foods/batch', {
+            const res = await call('POST', '/api/v1/foods/batch', {
                 token: 'user',
                 body: { names: ['Kale', 'kale', '  KALE '] },
             });
@@ -556,19 +556,19 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
 
         it('rejects a batch over 100 names with 400, nothing enqueued', async () => {
             const names = Array.from({ length: 101 }, (_, i) => `food ${i}`);
-            const res = await call('POST', '/v1/foods/batch', { token: 'user', body: { names } });
+            const res = await call('POST', '/api/v1/foods/batch', { token: 'user', body: { names } });
             expect(res.status).toBe(400);
             const foods = await pool.query('SELECT count(*)::int AS n FROM food');
             expect(foods.rows[0].n).toBe(0);
         });
     });
 
-    // ── PATCH /v1/foods/{id} (T-142) ───────────────────────────────────────────────────────────────
-    describe('PATCH /v1/foods/{id}', () => {
+    // ── PATCH /api/v1/foods/{id} (T-142) ───────────────────────────────────────────────────────────────
+    describe('PATCH /api/v1/foods/{id}', () => {
         it('resolves from a valid pick → 200 RESOLVED and clears the candidate set', async () => {
             const { id, candidateIds } = await seedUnresolved('broccoli');
 
-            const res = await call('PATCH', `/v1/foods/${id}`, {
+            const res = await call('PATCH', `/api/v1/foods/${id}`, {
                 token: 'user',
                 body: { candidateIds: [candidateIds[0]] },
             });
@@ -585,7 +585,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
 
         it('rejects a candidate not in the food set with 409, status unchanged', async () => {
             const { id } = await seedUnresolved('broccoli');
-            const res = await call('PATCH', `/v1/foods/${id}`, { token: 'user', body: { candidateIds: [ulid()] } });
+            const res = await call('PATCH', `/api/v1/foods/${id}`, { token: 'user', body: { candidateIds: [ulid()] } });
             expect(res.status).toBe(409);
             const food = await pool.query('SELECT status FROM food WHERE id = $1', [id]);
             expect(food.rows[0].status).toBe('UNRESOLVED');
@@ -593,27 +593,30 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
 
         it('is an idempotent 200 no-op on an already-RESOLVED food', async () => {
             const id = await seedResolved('Broccoli, raw');
-            const res = await call('PATCH', `/v1/foods/${id}`, { token: 'user', body: { candidateIds: [ulid()] } });
+            const res = await call('PATCH', `/api/v1/foods/${id}`, { token: 'user', body: { candidateIds: [ulid()] } });
             expect(res.status).toBe(200);
             expect((res.body as { status: string }).status).toBe('RESOLVED');
         });
 
         it('rejects a malformed body (no candidateIds) with 400', async () => {
             const { id } = await seedUnresolved('broccoli');
-            const res = await call('PATCH', `/v1/foods/${id}`, { token: 'user', body: {} });
+            const res = await call('PATCH', `/api/v1/foods/${id}`, { token: 'user', body: {} });
             expect(res.status).toBe(400);
         });
 
         it('rejects a resolve on a PENDING (not-awaiting-disambiguation) food with 409 (NotResolvableError)', async () => {
             const id = await seedFood('PENDING', 'pending resolve');
-            const res = await call('PATCH', `/v1/foods/${id}`, { token: 'user', body: { candidateIds: [ulid()] } });
+            const res = await call('PATCH', `/api/v1/foods/${id}`, { token: 'user', body: { candidateIds: [ulid()] } });
             expect(res.status).toBe(409);
             const food = await pool.query('SELECT status FROM food WHERE id = $1', [id]);
             expect(food.rows[0].status).toBe('PENDING');
         });
 
         it('returns 404 when resolving an unknown id', async () => {
-            const res = await call('PATCH', `/v1/foods/${ulid()}`, { token: 'user', body: { candidateIds: [ulid()] } });
+            const res = await call('PATCH', `/api/v1/foods/${ulid()}`, {
+                token: 'user',
+                body: { candidateIds: [ulid()] },
+            });
             expect(res.status).toBe(404);
         });
 
@@ -624,7 +627,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
                 `INSERT INTO source_call_log (source, called_at) SELECT 'usda', now() FROM generate_series(1, 5)`,
             );
 
-            const res = await call('PATCH', `/v1/foods/${id}`, {
+            const res = await call('PATCH', `/api/v1/foods/${id}`, {
                 token: 'user',
                 body: { candidateIds: [candidateIds[0]] },
             });
@@ -641,7 +644,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
                 `INSERT INTO source_call_log (source, called_at) SELECT 'usda', now() FROM generate_series(1, 4)`,
             );
 
-            const res = await call('PATCH', `/v1/foods/${id}`, {
+            const res = await call('PATCH', `/api/v1/foods/${id}`, {
                 token: 'user',
                 body: { candidateIds: [candidateIds[0]] },
             });
@@ -650,17 +653,17 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         });
     });
 
-    // ── POST /v1/foods/{id}/refetch (T-145) ────────────────────────────────────────────────────────
-    describe('POST /v1/foods/{id}/refetch', () => {
+    // ── POST /api/v1/foods/{id}/refetch (T-145) ────────────────────────────────────────────────────────
+    describe('POST /api/v1/foods/{id}/refetch', () => {
         it('rejects a valid token without the admin scope with 403', async () => {
             const id = await seedResolved('Broccoli, raw');
-            const res = await call('POST', `/v1/foods/${id}/refetch`, { token: 'user' });
+            const res = await call('POST', `/api/v1/foods/${id}/refetch`, { token: 'user' });
             expect(res.status).toBe(403);
         });
 
         it('re-enqueues for an admin-scoped token (202)', async () => {
             const id = await seedResolved('Broccoli, raw');
-            const res = await call('POST', `/v1/foods/${id}/refetch`, { token: 'admin' });
+            const res = await call('POST', `/api/v1/foods/${id}/refetch`, { token: 'admin' });
             expect(res.status).toBe(202);
 
             const queue = await pool.query('SELECT status FROM fetch_queue WHERE food_id = $1', [id]);
@@ -668,7 +671,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         });
 
         it('returns 404 for an admin refetch of an unknown id (scope passes, food missing)', async () => {
-            const res = await call('POST', `/v1/foods/${ulid()}/refetch`, { token: 'admin' });
+            const res = await call('POST', `/api/v1/foods/${ulid()}/refetch`, { token: 'admin' });
             expect(res.status).toBe(404);
         });
     });
@@ -678,7 +681,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
         it('returns 503 + Retry-After at the queue-depth ceiling', async () => {
             await seedPendingQueue(10, 'user_1'); // FOOD_MAX_QUEUE_DEPTH=10
 
-            const res = await call('POST', '/v1/foods', { token: 'user', body: { name: 'one too many' } });
+            const res = await call('POST', '/api/v1/foods', { token: 'user', body: { name: 'one too many' } });
             expect(res.status).toBe(503);
             expect(res.headers.get('retry-after')).toBeTruthy();
         });
@@ -687,10 +690,10 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* HTTP API (booted Nest + real Postgre
             // Seed keyed by the flooder's app-user ULID — the same requester id its token now resolves to.
             await seedPendingQueue(9, FLOODER_ULID); // near ceiling (>=9), flooder pending=9 > threshold(2)
 
-            const shed = await call('POST', '/v1/foods', { token: 'flooder', body: { name: 'flooder add' } });
+            const shed = await call('POST', '/api/v1/foods', { token: 'flooder', body: { name: 'flooder add' } });
             expect(shed.status).toBe(503);
 
-            const light = await call('POST', '/v1/foods', { token: 'user', body: { name: 'light add' } });
+            const light = await call('POST', '/api/v1/foods', { token: 'user', body: { name: 'light add' } });
             expect(light.status).toBe(202);
         });
     });

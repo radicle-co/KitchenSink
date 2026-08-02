@@ -7,7 +7,7 @@
  * two places the semantics diverge:
  *
  *  1. **It is a backstop, not the only trigger.** `ErasureService` sends eagerly on
- *     `POST /v1/account/erasure`, so a healthy job never reaches this sweeper. It exists for the job
+ *     `POST /api/v1/account/erasure`, so a healthy job never reaches this sweeper. It exists for the job
  *     whose send failed, or whose message was lost, or whose worker died — which is why it re-dispatches
  *     on STALENESS rather than on sight. Re-dispatching a job that is merely slow puts two workers on one
  *     owner: idempotent, but wasteful and lock-contending.

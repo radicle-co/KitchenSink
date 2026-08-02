@@ -1,6 +1,6 @@
 /**
  * `AdmissionService` (T-144/T-052) — enqueue backpressure + near-ceiling flood-shed. Gates NEW enqueues
- * (`POST /v1/foods`, `/batch`) ONLY; reads and `PATCH`-resolves are never admitted through here and are
+ * (`POST /api/v1/foods`, `/batch`) ONLY; reads and `PATCH`-resolves are never admitted through here and are
  * never shed (FR-046/FR-043b). Fail-closed with `503` + `Retry-After` — NEVER a per-`sub` `429` quota
  * rejection (auth ≠ rate limiting; D-FAIRNESS).
  *

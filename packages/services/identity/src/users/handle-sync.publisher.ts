@@ -1,6 +1,6 @@
 /**
  * The identity-side producer for the handle-sync fan-out (W8-a.2 / decision 6). When a user renames via
- * `PATCH /v1/users/me`, identity publishes `{ userId, displayName, sourceTimestamp }` to the global
+ * `PATCH /api/v1/users/me`, identity publishes `{ userId, displayName, sourceTimestamp }` to the global
  * handle-sync SNS topic; the recipe-workers consumer fans it out to the denormalized recipe/version handles.
  *
  * A port so the service depends on an interface, not the SNS SDK: production uses the SNS impl; local dev /

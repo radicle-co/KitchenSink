@@ -7,7 +7,7 @@
  *
  * **The one invariant that lives here: the insert never reads first.** "Is there already an in-flight
  * job for this owner?" is NOT answered with a SELECT followed by an INSERT — that is a TOCTOU window,
- * and two concurrent `POST /v1/account/erasure` calls would both see "no job" and both insert. Instead
+ * and two concurrent `POST /api/v1/account/erasure` calls would both see "no job" and both insert. Instead
  * the INSERT is issued unconditionally and `ON CONFLICT DO NOTHING` defers the decision to the
  * `idx_erasure_jobs_active_owner` partial unique index, which Postgres evaluates atomically. The loser
  * of the race gets zero rows back — a fact, not an error — and the service turns that into the idempotent

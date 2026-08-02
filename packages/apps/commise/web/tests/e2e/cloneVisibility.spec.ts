@@ -8,7 +8,7 @@ import { signInWithTicket } from './utils/auth';
  * Clone + visibility happy path (T080), driven through the real web UI with the recipe-service contract
  * intercepted (`utils/recipeApi`). Clone: opening a public recipe you don't own and cloning it lands you on
  * the copy. Visibility: an owner on a premium plan can switch their public recipe to private (the gate reads
- * the viewer's `account.subscriptionTier` via `/v1/users/me`, which the mock serves). Role/label selectors
+ * the viewer's `account.subscriptionTier` via `/api/v1/users/me`, which the mock serves). Role/label selectors
  * only. The real backend is covered by the recipe-service's own e2e + k6.
  */
 test.describe('clone + visibility (T080)', () => {

@@ -1,6 +1,6 @@
 /**
  * `ProfileServiceClient` (DA10-c) — the typed client for the Commise identity/account profile endpoints
- * (`GET`/`PATCH`/`DELETE /v1/users/me`), given the SAME shape as `@kitchensink/recipe-service-client`'s
+ * (`GET`/`PATCH`/`DELETE /api/v1/users/me`), given the SAME shape as `@kitchensink/recipe-service-client`'s
  * `RecipeServiceClient`: an injected {@link TokenSource} (a literal token or a per-request callback, so a
  * rotated Clerk session token is always current), typed methods returning DTOs from
  * `@kitchensink/identity-service`, and typed errors (`./errors.js`) for `400`/`401`/`403`/`404`. Replaces
@@ -33,11 +33,11 @@ import {
  * The single authoritative path for reading/updating/deleting the current user's profile.
  *
  * The identity service exposes this as `@Controller('v1/users')` with `@Get`/`@Patch`/`@Delete('me')`
- * (`packages/services/identity/src/users/users.controller.ts`) — i.e. `GET`/`PATCH`/`DELETE /v1/users/me`.
- * There is deliberately no `/v1/profiles/me` route; the web and mobile clients had historically drifted to
+ * (`packages/services/identity/src/users/users.controller.ts`) — i.e. `GET`/`PATCH`/`DELETE /api/v1/users/me`.
+ * There is deliberately no `/api/v1/profiles/me` route; the web and mobile clients had historically drifted to
  * different paths, and this constant is now the one place either platform encodes it.
  */
-export const PROFILE_ME_PATH = '/v1/users/me';
+export const PROFILE_ME_PATH = '/api/v1/users/me';
 
 /**
  * A bearer token supplied either as a literal or a (sync/async) per-request callback. The callback
@@ -47,7 +47,7 @@ export const PROFILE_ME_PATH = '/v1/users/me';
  */
 export type TokenSource = string | ((options?: { readonly forceRefresh?: boolean }) => string | Promise<string>);
 
-/** The identity service's `DELETE /v1/users/me` response body (`DeleteUserMeResponseDto`). */
+/** The identity service's `DELETE /api/v1/users/me` response body (`DeleteUserMeResponseDto`). */
 export interface DeleteAccountResult {
     readonly sub: string;
     readonly deletedAt: string;
@@ -103,7 +103,7 @@ export class ProfileServiceClient {
     }
 
     /**
-     * `GET /v1/users/me` — read the signed-in viewer's identity profile.
+     * `GET /api/v1/users/me` — read the signed-in viewer's identity profile.
      *
      * @param options - Per-call token/refresh options.
      * @returns The viewer's profile (`user` + `account`).
@@ -115,7 +115,7 @@ export class ProfileServiceClient {
     }
 
     /**
-     * `PATCH /v1/users/me` — update the signed-in viewer's profile.
+     * `PATCH /api/v1/users/me` — update the signed-in viewer's profile.
      *
      * @param input - The fields to update.
      * @param options - Per-call token/refresh options.
@@ -128,7 +128,7 @@ export class ProfileServiceClient {
     }
 
     /**
-     * `DELETE /v1/users/me` — request deletion of the signed-in viewer's account (`202 Accepted`).
+     * `DELETE /api/v1/users/me` — request deletion of the signed-in viewer's account (`202 Accepted`).
      *
      * @param options - Per-call token/refresh options.
      * @returns The accepted-deletion acknowledgement.
@@ -185,7 +185,7 @@ export class ProfileServiceClient {
         }
 
         // A no-content success, or a `202 Accepted` read as text first (matching the identity service's
-        // `DELETE /v1/users/me`, which DOES return a JSON body on 202 — this only short-circuits a genuinely
+        // `DELETE /api/v1/users/me`, which DOES return a JSON body on 202 — this only short-circuits a genuinely
         // empty body, e.g. a `204`).
         const text = await response.text();
 

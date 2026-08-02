@@ -80,7 +80,7 @@ export const formatDurationMinutes = (minutes: number, template: string): string
 
 // ─── Quick-filter chips (L4) ─────────────────────────────────────────────────────────────────────────
 //
-// The list's quick-filter chips are CLIENT-SIDE predicates over the already-loaded page: `GET /v1/recipes`
+// The list's quick-filter chips are CLIENT-SIDE predicates over the already-loaded page: `GET /api/v1/recipes`
 // (the owner library list) takes no filter params — only `/search` does (see `filters/model.ts`'s module
 // doc) — so a chip narrows the rows the container already has, it never issues a new request. Dietary-flag
 // and cuisine chips match by literal string equality against real recipe data (the container derives

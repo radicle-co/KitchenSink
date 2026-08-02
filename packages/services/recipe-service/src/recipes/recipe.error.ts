@@ -51,7 +51,7 @@ export function ingredientNotFound(id: string): RecipeDomainError {
 /**
  * `UNKNOWN_INGREDIENT` (→ 400) — Stage 2: the picked food-catalog hit cannot back an ingredient row.
  *
- * Raised by `POST /v1/ingredients/by-food` when the referenced food has no usable golden record: it is
+ * Raised by `POST /api/v1/ingredients/by-food` when the referenced food has no usable golden record: it is
  * unknown/terminal to the food service, still mid-resolution (`PENDING`/`UNRESOLVED`), or resolved but
  * nameless. A single code covers all three deliberately — from the caller's side they are one fact ("this
  * food id is not admissible as an ingredient right now"), and collapsing them avoids confirming whether a
@@ -76,7 +76,7 @@ export function notOwner(id: string): RecipeDomainError {
 
 /**
  * `UNKNOWN_INGREDIENT` — a recipe ingredient line references an `ingredientId` that has no row in the
- * shared ingredients catalog. The client must resolve ingredients (via `/v1/ingredients`) before
+ * shared ingredients catalog. The client must resolve ingredients (via `/api/v1/ingredients`) before
  * attaching them to a recipe; this fails the write fast with a 400 instead of a raw FK 500.
  */
 export function unknownIngredient(ingredientId: string): RecipeDomainError {

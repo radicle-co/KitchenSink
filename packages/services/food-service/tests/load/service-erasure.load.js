@@ -1,6 +1,6 @@
 // Service-principal account-erasure load scenario (CR-002 / U4b — food's internal machine-auth route).
 //
-// The food mirror of recipe-service's `service-erasure.load.js`. Exercises `POST /v1/internal/account/erasure`,
+// The food mirror of recipe-service's `service-erasure.load.js`. Exercises `POST /api/v1/internal/account/erasure`,
 // guarded NOT by Clerk but by a single-target EdDSA service token pinning the FOOD audience
 // (`FoodServiceErasureGuard`). Two ramping-vus scenarios run together:
 //   - `erase`  — presents a VALID single-target token (bound to a distinct synthetic, non-existent
@@ -73,7 +73,7 @@ export const options = {
 
 /** POST the erasure with the given bearer; the target requester is BOUND IN THE TOKEN (no body). */
 function postErasure(bearer, op) {
-    return http.post(`${BASE_URL}/v1/internal/account/erasure`, null, {
+    return http.post(`${BASE_URL}/api/v1/internal/account/erasure`, null, {
         headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' },
         tags: { operation: op },
     });

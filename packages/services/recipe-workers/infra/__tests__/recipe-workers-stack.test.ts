@@ -353,7 +353,7 @@ describe('RecipeWorkersStack — RDS IAM auth + per-stage database', () => {
  *
  * Everything asserted here is the difference between "the erasure worker is deployed" and "the erasure
  * worker can be invoked". T136 landed the worker body with no queue and no event source, so until these
- * resources exist the Lambda is inert and every `POST /v1/account/erasure` is a durable row that nothing
+ * resources exist the Lambda is inert and every `POST /api/v1/account/erasure` is a durable row that nothing
  * ever drains.
  */
 describe('RecipeWorkersStack — account erasure', () => {

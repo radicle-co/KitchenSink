@@ -49,7 +49,7 @@ function fromCatalog(foodId: string, name: string, score = 0.9): IngredientSugge
     return { provenance: 'catalog', foodId, name, score };
 }
 
-/** The `GET /v1/ingredients/suggest` envelope the picker consumes. */
+/** The `GET /api/v1/ingredients/suggest` envelope the picker consumes. */
 function blended(
     suggestions: readonly IngredientSuggestion[],
     catalogAvailability: IngredientCatalogAvailability = 'ok',

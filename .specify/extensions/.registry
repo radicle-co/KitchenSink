@@ -1,49 +1,6 @@
 {
   "schema_version": "1.0",
   "extensions": {
-    "v-model": {
-      "version": "0.6.0",
-      "source": "local",
-      "manifest_hash": "sha256:e89860aa0c9734f5bcc4823e38bb039671d958d755f7d14e6f382693bc1b6f89",
-      "enabled": true,
-      "priority": 10,
-      "registered_commands": {
-        "copilot": [
-          "speckit.v-model.requirements",
-          "speckit.v-model.acceptance",
-          "speckit.v-model.system-design",
-          "speckit.v-model.system-test",
-          "speckit.v-model.architecture-design",
-          "speckit.v-model.integration-test",
-          "speckit.v-model.module-design",
-          "speckit.v-model.unit-test",
-          "speckit.v-model.hazard-analysis",
-          "speckit.v-model.impact-analysis",
-          "speckit.v-model.peer-review",
-          "speckit.v-model.test-results",
-          "speckit.v-model.audit-report",
-          "speckit.v-model.trace"
-        ],
-        "opencode": [
-          "speckit.v-model.requirements",
-          "speckit.v-model.acceptance",
-          "speckit.v-model.system-design",
-          "speckit.v-model.system-test",
-          "speckit.v-model.architecture-design",
-          "speckit.v-model.integration-test",
-          "speckit.v-model.module-design",
-          "speckit.v-model.unit-test",
-          "speckit.v-model.hazard-analysis",
-          "speckit.v-model.impact-analysis",
-          "speckit.v-model.peer-review",
-          "speckit.v-model.test-results",
-          "speckit.v-model.audit-report",
-          "speckit.v-model.trace"
-        ]
-      },
-      "registered_skills": [],
-      "installed_at": "2026-04-18T02:15:45.046456+00:00"
-    },
     "agent-context": {
       "version": "1.0.0",
       "source": "local",
@@ -245,6 +202,65 @@
       },
       "registered_skills": [],
       "installed_at": "2026-06-20T18:53:29.309644+00:00"
+    },
+    "v-model": {
+      "version": "0.6.0",
+      "source": "local",
+      "manifest_hash": "sha256:e89860aa0c9734f5bcc4823e38bb039671d958d755f7d14e6f382693bc1b6f89",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.v-model.requirements",
+          "speckit.v-model.acceptance",
+          "speckit.v-model.system-design",
+          "speckit.v-model.system-test",
+          "speckit.v-model.architecture-design",
+          "speckit.v-model.integration-test",
+          "speckit.v-model.module-design",
+          "speckit.v-model.unit-test",
+          "speckit.v-model.hazard-analysis",
+          "speckit.v-model.impact-analysis",
+          "speckit.v-model.peer-review",
+          "speckit.v-model.test-results",
+          "speckit.v-model.audit-report",
+          "speckit.v-model.trace"
+        ],
+        "copilot": [
+          "speckit.v-model.requirements",
+          "speckit.v-model.acceptance",
+          "speckit.v-model.system-design",
+          "speckit.v-model.system-test",
+          "speckit.v-model.architecture-design",
+          "speckit.v-model.integration-test",
+          "speckit.v-model.module-design",
+          "speckit.v-model.unit-test",
+          "speckit.v-model.hazard-analysis",
+          "speckit.v-model.impact-analysis",
+          "speckit.v-model.peer-review",
+          "speckit.v-model.test-results",
+          "speckit.v-model.audit-report",
+          "speckit.v-model.trace"
+        ],
+        "opencode": [
+          "speckit.v-model.requirements",
+          "speckit.v-model.acceptance",
+          "speckit.v-model.system-design",
+          "speckit.v-model.system-test",
+          "speckit.v-model.architecture-design",
+          "speckit.v-model.integration-test",
+          "speckit.v-model.module-design",
+          "speckit.v-model.unit-test",
+          "speckit.v-model.hazard-analysis",
+          "speckit.v-model.impact-analysis",
+          "speckit.v-model.peer-review",
+          "speckit.v-model.test-results",
+          "speckit.v-model.audit-report",
+          "speckit.v-model.trace"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-02T18:49:52.575017+00:00"
     }
   }
 }

@@ -98,31 +98,31 @@ Both the `/api` segment and the `/v{N}` version segment are required. Neither ma
 
 Any spec, plan, or contract that uses `/api/*` without a version segment, or `/v1/*` without the `/api` prefix, is non-conformant and blocks engineering handoff for that feature.
 
-### Current State (2026-08-02)
+### Current State (2026-08-02) — SATISFIED
 
-Superseded the 2026-05-10 entry.
-
-- **Features 007–014: conformant.** Normalized to `/api/v1/*` in the 2026-08-02 spec sweep — 82 bare
-  `/v1/*` references plus every unprefixed shorthand endpoint. The only paths deliberately left
-  unprefixed are third-party URLs the platform does not own (Instacart's `/idp/api/v1/products/*`).
-- **`docs/api-conventions.md` now exists**, authored under feature 005. AC-002-d is satisfied.
-- **Feature 005: conformant** — adopts `app.setGlobalPrefix('api/v1', { exclude: ['health'] })`.
-- **Features 004 and 006: being corrected.** Both were reconciled against shipped `main` and still carry
-  bare `/v1/*`; both will be updated to `/api/v1/*` in their own branches (owner direction, 2026-08-02).
-  006's `review.md` closes PRF-006-16 on "the platform's plain-segment convention,
-  `POST /v1/recipes/nutrition-batch`" — **that finding is superseded.** Its stated rationale also
-  misattributed ownership: a feature spec does not own a service. The recipe service is owned by the
-  repository owner, not by feature 006, so PRF-006-16 was never an ownership-backed exemption from a
-  portfolio rule.
-- **Shipped services: migration in progress.** `identity-service`, `food-service`, `recipe-service`, and
-  `identity-webhooks` serve `v1/*` today; `main` is being migrated to `/api/v1/*` under separate work
-  (owner direction, 2026-08-02). Until that lands, this rule is **aspirational for shipped code and
-  binding for specs**. Migration surface is enumerated in `docs/api-conventions.md` §6 (that file lands
-  with feature 005); its highest-risk step is Playwright's `page.route('**/v1/**')` globs, which fail
-  silently rather than loudly.
-
-**Disposition: `/api/v1/*` is the portfolio-wide target with no standing exceptions.** Every feature spec
-and every shipped service converges on it. No feature holds an exemption.
+- **Implemented in code, not just in specs.** All three deployable services (identity, food, recipe) serve
+  every versioned endpoint at the canonical `/api/v1/*`. Route-path contract tests per service pin it.
+- Feature 001: `contracts/api.openapi.yaml` now uses `/api/v1/*` for every path key — ✅.
+- Feature 002: `contracts/identity-api.openapi.json` server base path is `/api/v1` — ✅.
+- Features 011 and 014 were authored against `/api/v1/*` and needed no change — ✅.
+- **Features 007–010, 012, 013: normalized in the 2026-08-02 spec sweep** — 82 bare `/v1/*` references
+  plus every unprefixed shorthand endpoint. The only paths deliberately left alone are third-party URLs
+  the platform does not own (Instacart's `/idp/api/v1/products/*`) — ✅.
+- ⚠️ **Feature 006 is the last holdout.** Its branch still carries bare `/v1/*`, and its `review.md` closes
+  PRF-006-16 on "the platform's plain-segment convention, `POST /v1/recipes/nutrition-batch`". **That
+  finding is superseded** — and its stated rationale misattributed ownership: a feature spec does not own a
+  service. The recipe service is owned by the repository owner, not by feature 006, so PRF-006-16 was never
+  an ownership-backed exemption from a portfolio rule. Correct it before 006 merges.
+- `docs/api-conventions.md` now exists and references this rule (AC-002-d) — ✅.
+- **One deliberate, documented exception to "no bare `/v1/*`":** every endpoint ALSO answers on its original
+  bare `/v1/*` path as a DEPRECATED ALIAS, because consumers outside this repository hold those URLs — the
+  Clerk dashboard webhook endpoint, plus already-shipped mobile builds and cached web bundles with
+  build-time-inlined endpoints. This is not a violation of GR-002: the canonical path is `/api/v1/*` and all
+  new code targets it. Retiring the alias has an ordered prerequisite list (Clerk dashboard first). See
+  [ADR-0011](../docs/architecture/decisions/0011-api-version-prefix.md).
+- **`/health` and `/health/ready` are exempt by design** — operational probes, not API surface. They stay at
+  the origin root because the shared-ALB target-group health check and the deploy smoke steps dial them
+  there; CDK assertions pin `HealthCheckPath: '/health'` per service.
 
 ---
 
@@ -597,10 +597,18 @@ The `Circle` entity is owned by Feature 011. The `CreatorProfile` entity is owne
 - **AC-014-c**: Every audience change is audit-logged (compliance requirement).
 - **AC-014-d**: `price_cents` appears **only** on a `published-lesson` audience. Courses are purchasable
   (`013-FR-003`); recipes and collections are not. A priced recipe audience is a violation.
-- **AC-014-e**: **Ingestion provenance sets the initial scope.** A recipe created from an external source is
-  `public` only when that source is **publicly and freely available and not otherwise marked or licensed**
-  against republication — paywall, subscription, explicit reservation, or a licence forbidding
-  redistribution or derivatives. Otherwise it is created `private`, and the system MUST NOT auto-publish it.
+- **AC-014-e**: **Ingestion provenance sets the initial scope, and there is exactly ONE implementation of
+  the rule.** A recipe created from an external source is `public` only when that source is **publicly and
+  freely available and not otherwise marked or licensed** against republication — paywall, subscription,
+  explicit reservation, or a licence forbidding redistribution or derivatives. Otherwise it is created
+  `private`, and the system MUST NOT auto-publish it.
+
+    The decision is made by the **shipped pure policy** `evaluateVisibility`
+    (`packages/services/recipe-service/src/recipes/domain/visibility-policy.ts`), keyed on the shipped
+    `sourceType` taxonomy — `imported_public`, `imported_physical`, `imported_paid`, `user_created`. No
+    feature may reimplement it: `004-FR-011` states this explicitly, and `011` calls it rather than deciding
+    visibility itself. `imported_paid` may **never** be public; `imported_physical` is private-only.
+
 - **AC-014-f**: **Attribution and source linking are required** for every ingested recipe, whichever scope
   it lands in, and a recipe MUST NOT be publishable while attribution is absent.
 
@@ -619,10 +627,13 @@ licensed, or paywalled against republication.
   before publishing). The `circle` scope with member read-only access is `011` US-006.
 - **`012`** carried a `premium recipe` / `paid follow` model in both its spec and its v-model. **Withdrawn**
   2026-08-02; `012` now keeps a Retired Requirement IDs register so the withdrawn IDs are never reused.
-- ⚠️ **`004-FR-011` needs a carve-out and has not been changed here.** It currently reads that imports from
-  public websites or Instagram MUST be marked public, with no exception. Under AC-014-e it needs
-  "**unless the source is otherwise marked or licensed** against republication". `004` is being worked on
-  its own branch, so this is recorded rather than applied — see `spec-sweep-2026-08-02.md`.
+- ✅ **`004` conforms — the carve-out landed on `main` while this sweep was open** (PRs #80, #82).
+  `004-FR-011` no longer says imports are always public: it classifies by provenance into the four
+  `sourceType` values and delegates enforcement to 001's shipped `evaluateVisibility`. `004-FR-013` creates
+  physical-copy imports private; `004-FR-014` rejects known paywalled sources before any outbound request;
+  `004-FR-014a` requires attestation plus a source citation for pasted content; `004-FR-028` gates every
+  non-public import channel behind premium. An earlier revision of this sweep flagged the carve-out as
+  missing — it is not.
 
 ---
 

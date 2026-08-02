@@ -42,10 +42,14 @@ export const options = {
 
 export function savePath() {
     // 1) Create the recipe (version 1).
-    const createRes = http.post(`${BASE_URL}/v1/recipes`, JSON.stringify(makeRecipePayload(`arch-${__VU}-${__ITER}`)), {
-        headers: jsonHeaders(),
-        tags: { operation: 'createRecipe' },
-    });
+    const createRes = http.post(
+        `${BASE_URL}/api/v1/recipes`,
+        JSON.stringify(makeRecipePayload(`arch-${__VU}-${__ITER}`)),
+        {
+            headers: jsonHeaders(),
+            tags: { operation: 'createRecipe' },
+        },
+    );
     saveTrend.add(createRes.timings.duration);
     const created = check(createRes, { 'createRecipe 201': (r) => r.status === 201 });
     if (!created) {
@@ -58,7 +62,7 @@ export function savePath() {
     try {
         id = createRes.json('id');
         version = createRes.json('version') || 1;
-    } catch (_err) {
+    } catch {
         id = null;
     }
     if (!id) {
@@ -73,7 +77,7 @@ export function savePath() {
         title: `Updated Load Test Recipe ${__VU}-${__ITER}`,
         description: 'archive-queued update — measures save latency under async archival',
     };
-    const updateRes = http.patch(`${BASE_URL}/v1/recipes/${id}`, JSON.stringify(updateBody), {
+    const updateRes = http.patch(`${BASE_URL}/api/v1/recipes/${id}`, JSON.stringify(updateBody), {
         headers: jsonHeaders(),
         tags: { operation: 'updateRecipe' },
     });

@@ -15,7 +15,7 @@ interface HealthStatus {
  * up?" and must NOT depend on the DB, or a transient RDS blip would make ECS kill an otherwise-healthy
  * container. Readiness (`GET /health/ready`) answers "can this instance serve traffic?" by probing the
  * DB pool, so the ALB can drain a node whose database is unreachable (ARCH-PS-3). Both routes are
- * unauthenticated: the `FoodAuthGuard` is mounted only on `/v1/foods/*`.
+ * unauthenticated: the `FoodAuthGuard` is mounted only on `/api/v1/foods/*`.
  */
 @Controller('health')
 export class HealthController {

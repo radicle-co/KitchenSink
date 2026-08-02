@@ -48,14 +48,14 @@ afterEach(() => {
 });
 
 describe('useUserProfile (web)', () => {
-    it('fetches the signed-in user profile from /v1/users/me and returns it', async () => {
+    it('fetches the signed-in user profile from /api/v1/users/me and returns it', async () => {
         const { result } = renderHook(() => useUserProfile(), { wrapper });
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
         expect(result.current.data?.account.subscriptionTier).toBe('premium');
         const [url, init] = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
-        expect(url).toContain('/v1/users/me');
+        expect(url).toContain('/api/v1/users/me');
         expect(init.method).toBe('GET');
     });
 

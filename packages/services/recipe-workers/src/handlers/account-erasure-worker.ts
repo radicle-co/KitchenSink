@@ -72,7 +72,7 @@ import { logger } from '../common/logger.js';
  * exported because this module's tests and callers already address it here.
  *
  * It moved out for the same reason {@link ownerMediaPrefix} did: it now has a PRODUCER in another package
- * (`recipe-service`'s `ErasureService` enqueues on `POST /v1/account/erasure`) as well as this consumer,
+ * (`recipe-service`'s `ErasureService` enqueues on `POST /api/v1/account/erasure`) as well as this consumer,
  * and a wire contract that each side declares its own copy of is a contract that drifts. One definition,
  * imported by both.
  *

@@ -1,6 +1,6 @@
 /**
  * Typed error hierarchy for {@link ProfileServiceClient} (DA10-c). Each maps an identity-service HTTP
- * status (`GET`/`PATCH`/`DELETE /v1/users/me`) to a discriminable error so a downstream caller (web/mobile
+ * status (`GET`/`PATCH`/`DELETE /api/v1/users/me`) to a discriminable error so a downstream caller (web/mobile
  * UI) handles outcomes by type, not by inspecting status codes. Every error extends `Error`, calls
  * `Object.setPrototypeOf` (so `instanceof` survives transpilation), and ships an `is*` guard
  * (CODING_STANDARDS). Mirrors the shape — and, per the repo's own precedent
@@ -11,7 +11,7 @@
  * Status → error map: `400` → {@link BadRequestError}, `401` → {@link UnauthorizedError}, `403` →
  * {@link ForbiddenError}, `404` → {@link NotFoundError}, anything else → {@link UnexpectedResponseError}.
  * `409`/`410` are deliberately NOT modeled here — unlike the recipe service's optimistic-concurrency and
- * GDPR-erasure flows, none of `GET`/`PATCH`/`DELETE /v1/users/me` can produce them.
+ * GDPR-erasure flows, none of `GET`/`PATCH`/`DELETE /api/v1/users/me` can produce them.
  */
 
 /** Base class for all profile-service client errors. Carries the originating HTTP status + domain code. */

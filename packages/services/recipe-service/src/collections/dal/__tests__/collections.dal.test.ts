@@ -5,7 +5,7 @@
  * awaited, so these tests pin the DAL's SHAPE — which builders it invokes and how it maps rows — without
  * a database. The real SQL semantics (tombstone exclusion actually filtering, `ON CONFLICT` idempotency,
  * no-cascade delete) are asserted against Docker Postgres in
- * `__tests__/integration/collections/crud.integration.spec.ts`.
+ * `__tests__/integration/collections/crud.integration.test.ts`.
  */
 import { describe, it, expect } from 'vitest';
 import { RecipeErrorCode } from '@kitchensink/recipe-core';

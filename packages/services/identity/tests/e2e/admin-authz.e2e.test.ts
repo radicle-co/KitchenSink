@@ -87,8 +87,8 @@ describe('admin authZ — ScopesGuard e2e', () => {
         await app?.close();
     });
 
-    it('denies GET /v1/admin/users with 403 when the caller lacks admin:users', async () => {
-        const res = await fetch(`${baseUrl}/v1/admin/users`, {
+    it('denies GET /api/v1/admin/users with 403 when the caller lacks admin:users', async () => {
+        const res = await fetch(`${baseUrl}/api/v1/admin/users`, {
             headers: { [TEST_SCOPES_HEADER]: 'billing:read' },
         });
 
@@ -96,14 +96,14 @@ describe('admin authZ — ScopesGuard e2e', () => {
         expect(adminServiceStub.listUsers).not.toHaveBeenCalled();
     });
 
-    it('denies GET /v1/admin/users with 403 (fail-closed) when there is no authenticated caller at all', async () => {
-        const res = await fetch(`${baseUrl}/v1/admin/users`);
+    it('denies GET /api/v1/admin/users with 403 (fail-closed) when there is no authenticated caller at all', async () => {
+        const res = await fetch(`${baseUrl}/api/v1/admin/users`);
 
         expect(res.status).toBe(403);
     });
 
-    it('allows GET /v1/admin/users with 200 when the caller has admin:users', async () => {
-        const res = await fetch(`${baseUrl}/v1/admin/users`, {
+    it('allows GET /api/v1/admin/users with 200 when the caller has admin:users', async () => {
+        const res = await fetch(`${baseUrl}/api/v1/admin/users`, {
             headers: { [TEST_SCOPES_HEADER]: 'admin:users' },
         });
 
@@ -111,14 +111,14 @@ describe('admin authZ — ScopesGuard e2e', () => {
         expect(adminServiceStub.listUsers).toHaveBeenCalled();
     });
 
-    it('allows POST /v1/admin/users/:userId/suspend with 200 when the caller has admin:users', async () => {
+    it('allows POST /api/v1/admin/users/:userId/suspend with 200 when the caller has admin:users', async () => {
         const suspendStub = vi
             .fn()
             .mockResolvedValue({ sub: 'target', status: 'suspended', suspendedAt: new Date().toISOString() });
 
         (adminServiceStub as unknown as { suspendUser: typeof suspendStub }).suspendUser = suspendStub;
 
-        const res = await fetch(`${baseUrl}/v1/admin/users/target/suspend`, {
+        const res = await fetch(`${baseUrl}/api/v1/admin/users/target/suspend`, {
             method: 'POST',
             headers: { [TEST_SCOPES_HEADER]: 'admin:users' },
         });
@@ -129,12 +129,12 @@ describe('admin authZ — ScopesGuard e2e', () => {
         expect(suspendStub).toHaveBeenCalledWith('target', expect.objectContaining({ userId: expect.any(String) }));
     });
 
-    it('denies POST /v1/admin/users/:userId/suspend with 403 when the caller lacks admin:users', async () => {
+    it('denies POST /api/v1/admin/users/:userId/suspend with 403 when the caller lacks admin:users', async () => {
         const suspendStub = vi.fn();
 
         (adminServiceStub as unknown as { suspendUser: typeof suspendStub }).suspendUser = suspendStub;
 
-        const res = await fetch(`${baseUrl}/v1/admin/users/target/suspend`, {
+        const res = await fetch(`${baseUrl}/api/v1/admin/users/target/suspend`, {
             method: 'POST',
             headers: { [TEST_SCOPES_HEADER]: '' },
         });

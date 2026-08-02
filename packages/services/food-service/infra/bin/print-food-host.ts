@@ -8,7 +8,7 @@
  * definition to shell callers, which is what stops the deploy workflows from growing a second, drifting copy
  * of it in YAML.
  *
- * Its consumer is the recipe deploy (issue #120): recipe reads the food service's `/v1/foods/*` API, so both
+ * Its consumer is the recipe deploy (issue #120): recipe reads the food service's `/api/v1/foods/*` API, so both
  * `sandbox-deploy.yml` and `prod-deploy.yml` must tell the recipe service which food origin to call
  * (`RECIPE_FOOD_SERVICE_URL`). It prints the origin and NOTHING else on stdout (diagnostics go to stderr), so
  * a workflow can capture it directly.

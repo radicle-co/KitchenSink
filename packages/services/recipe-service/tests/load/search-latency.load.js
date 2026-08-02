@@ -1,6 +1,6 @@
 // Search-latency load scenario.
 //
-// Drives the full-text recipe search endpoint (GET /v1/search/recipes) under ramping concurrency with
+// Drives the full-text recipe search endpoint (GET /api/v1/search/recipes) under ramping concurrency with
 // a mix of queries, cuisines, and repeated dietary-flag filters, and asserts search p95 < 2s via
 // `options.thresholds`. A breach exits k6 non-zero and fails the run.
 //
@@ -49,7 +49,7 @@ export function searchPath() {
     params.push('dietaryFlags=vegetarian');
     params.push('tags=load-test');
 
-    const res = http.get(`${BASE_URL}/v1/search/recipes?${params.join('&')}`, {
+    const res = http.get(`${BASE_URL}/api/v1/search/recipes?${params.join('&')}`, {
         headers: authHeaders(),
         tags: { operation: 'searchRecipes' },
     });

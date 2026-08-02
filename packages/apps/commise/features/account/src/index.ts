@@ -1,6 +1,6 @@
 /**
  * @module @commise/features-account — cross-platform account/profile logic shared by the Commise web +
- * mobile apps: the typed `ProfileServiceClient` (DA10-c) owning the `GET`/`PATCH`/`DELETE /v1/users/me`
+ * mobile apps: the typed `ProfileServiceClient` (DA10-c) owning the `GET`/`PATCH`/`DELETE /api/v1/users/me`
  * CLOSURE contract + its typed error hierarchy, the security-relevant account-state (suspended /
  * impersonation) derivation, the `profileQueries` `queryOptions` factory (B12) owning the shared cache
  * key/policy, the pure account-ERASURE domain logic (CR-002 / U4b — the confirmation-phrase gate and the

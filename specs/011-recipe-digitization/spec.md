@@ -199,9 +199,11 @@ Key need: reliable OCR on printed + handwritten text + side-by-side correction U
 >
 > 001 owns the visibility field; 011 owns the Circle primitive and the `circle` scope.
 >
-> **Where 011 lands**: a photo-digitized recipe is always `private` on creation — a cookbook page, recipe
-> card, or handwritten note is not a publicly available source, so the "unless otherwise marked" carve-out
-> never makes it public by default. The owner may publish it afterwards if they hold the rights.
+> **Where 011 lands**: a photo-digitized recipe is `sourceType: 'imported_physical'`, which the shipped
+> policy makes **private-only**. 011 MUST call `evaluateVisibility`
+> (`packages/services/recipe-service/src/recipes/domain/visibility-policy.ts`) rather than deciding
+> visibility itself — the same constraint `004-FR-011` carries. The "unless otherwise marked" carve-out
+> never applies here: a cookbook page, recipe card, or handwritten note is not a publicly available source.
 
 ### Accessibility (FR-023 … FR-026) — supports US-002, US-004, US-007, US-008
 

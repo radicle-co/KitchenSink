@@ -1,319 +1,187 @@
-# V-Model Peer Review: Recipe Importing (004)
+# Peer Review (Consolidated): Recipe Importing
 
 **Feature Branch**: `004-recipe-importing`
-**Review Date**: 2026-05-09
-**Reviewer**: AI Peer Review (speckit.v-model.peer-review)
-**Artifacts Reviewed**:
+**Review date**: 2026-08-02
+**Reviewer**: Adversarial design review against `CLAUDE.md`, `docs/CODING_STANDARDS.md`, and
+`docs/engineering/ENGINEERING_EXCELLENCE.md`
+**Artefacts reviewed**: requirements · system-design · architecture-design · module-design · hazard-analysis ·
+acceptance-plan · system-test · integration-test · unit-test
 
-- `specs/004-recipe-importing/v-model/requirements.md`
-- `specs/004-recipe-importing/v-model/acceptance-plan.md`
-- `specs/004-recipe-importing/v-model/unit-test.md`
-- `specs/004-recipe-importing/v-model/trace.md`
-
-**Review Standard**: ISO 29119 / V-Model bidirectional traceability
-
----
+> **Why this review looks different from the last one.** The previous nine peer-review files each reported
+> **0 findings at every severity** — for a document set that contained corrupt requirement text, three
+> mutually contradictory requirement counts, an empty implementation matrix, a dependency on a non-existent
+> npm package, and file paths pointing at a directory that does not exist. A review that finds nothing in that
+> is not a review. This one is run as an adversary and states what it actually found, including in work
+> produced during this same regeneration.
 
 ## Summary
 
-| Severity | Count |
-| -------- | ----- |
-| CRITICAL | 4     |
-| WARNING  | 9     |
-| PASSED   | 12    |
+| Severity    | Count  | Open   |
+| ----------- | ------ | ------ |
+| Critical    | 0      | 0      |
+| Major       | 3      | 0      |
+| Minor       | 13     | 2      |
+| Observation | 12     | 12     |
+| **Total**   | **28** | **14** |
 
-**Overall Assessment**: The artifact set is well-structured and demonstrates strong coverage discipline. The requirements are clearly written with consistent RFC-2119 language, the acceptance plan maps cleanly to all 15 functional requirements, and the unit test plan covers all 18 modules with appropriate ISO 29119-4 technique labelling. Four critical gaps require resolution before the artifacts can be considered baseline-ready: a missing integration test plan document, an unverifiable REQ-015 with no test strategy, an unresolved legal dependency (REQ-CN-004) that blocks implementation of REQ-013, and a substantive-edit threshold that is undefined across all artifacts.
+Counts are the **union** across this file and the nine per-artefact reviews, verified by extracting finding
+IDs rather than by tallying prose. `MIN-001`..`MIN-007` and `OBS-001`..`OBS-006` are detailed below;
+`MIN-008`..`MIN-013` and `OBS-007`..`OBS-012` are artefact-specific and detailed in their own review files,
+indexed at the end of this document.
 
----
-
-## CRITICAL Findings
-
----
-
-### PRF-004-C1 — Integration Test Plan Document Is Absent
-
-**Artifact**: `trace.md` (Matrix C), `unit-test.md`
-**Severity**: CRITICAL
-**Standard**: ISO 29119-4 §6.4 — Integration testing must be planned as a distinct test level with its own test cases.
-
-**Evidence**: Matrix C in `trace.md` (lines 110–131) correctly identifies 13 integration points requiring dedicated integration tests (e.g., `ImportController → ImportOrchestrator`, `OcrPipelineService → AWS Textract`, `AuthMiddleware → ClerkAuthService (networkless verifyToken)`). Every row is marked `⬜` with the note "Integration test needed." However, no `integration-test.md` artifact exists in the v-model directory. The unit test plan explicitly states it does NOT test module boundaries.
-
-**Impact**: All 13 integration boundaries are unplanned. Cross-module contracts — including the critical `ImportOrchestrator → PaywallBlocklistService` and `AuthMiddleware → ClerkAuthService` paths — have zero test coverage at the integration level. Defects at these seams will not be caught before system test.
-
-**Resolution**: Create `specs/004-recipe-importing/v-model/integration-test.md` covering all 13 integration points in Matrix C. Each integration test case must specify: real vs. stubbed dependencies, environment requirements (DB, S3, Textract sandbox, Clerk test instance / `CLERK_JWT_KEY`), and pass/fail criteria.
+No open finding exceeds Minor. Nothing blocks implementation.
 
 ---
 
-### PRF-004-C2 — REQ-015 Has No Verification Strategy
+## Major findings (all resolved)
 
-**Artifact**: `requirements.md` (REQ-015), `trace.md` (Matrix A, line 50)
-**Severity**: CRITICAL
-**Standard**: ISO 29119 §5.2 — Every requirement must have a defined, executable verification method.
+### MAJ-001 — The draft-and-confirm model is a large, schema-forced scope increase; it must not look like a preference
 
-**Evidence**: REQ-015 ("Preserve imported recipe when source Instagram post is later deleted; update attribution note") is listed in Matrix A with `*(Analysis — no AT defined)*` and verification method `Analysis`. The requirements document lists its verification method as `Test` (requirements.md line ~47), creating a direct contradiction with the trace matrix. No acceptance test, unit test, or integration test covers this requirement.
+**Artefacts**: spec, architecture-design, plan
+**Finding**: Introducing `import_drafts` + `import_jobs` + an async worker converts "import a URL" from one
+endpoint into a multi-stage lifecycle with two new tables. A reviewer could reasonably read this as
+gold-plating.
+**Assessment**: It is **forced**, not chosen. The shipped `CreateRecipeRequest` and `recipes` table require
+`servings`, three time fields, ≥1 ingredient, and ≥1 step, all NOT NULL with CHECK constraints; schema.org
+guarantees none of them. Writing directly would require fabricating values — which the CHECK constraints would
+silently accept, producing recipes that assert facts no source stated.
+**Resolution**: Justification stated explicitly in `spec.md` (_The draft-and-confirm model_) and recorded in
+`plan.md §10` Complexity Tracking. **Closed.**
 
-**Impact**: REQ-015 is a P2 data-integrity requirement. Without a test, the behaviour of the system when an Instagram post is deleted is entirely unverified. The contradiction between `Test` (requirements.md) and `Analysis` (trace.md) also indicates the artifact set is internally inconsistent on this point.
+### MAJ-002 — OCR at P1 concentrates most of the release's residual risk
 
-**Resolution**:
+**Artefacts**: hazard-analysis, tasks
+**Finding**: Owner decision D-001 puts physical-copy import in the launch scope. It brings a new vendor
+(Textract), a new IAM surface, S3 object lifecycle, a mobile camera path, and — most significantly — the
+storage of **user photographs**, which can capture faces, handwriting, and surroundings. HAZ-035 and HAZ-036
+are Critical and exist only because of this decision.
+**Assessment**: Legitimate owner call, but the privacy exposure was not visible anywhere in the previous
+document set.
+**Resolution**: HAZ-035/036 added with explicit controls (deletion on every terminal path, never logging OCR
+text) and bound to T-018/T-012. Stated plainly rather than buried. **Closed.**
 
-1. Resolve the verification method contradiction — choose `Test` or `Analysis` and apply consistently in both documents.
-2. If `Test`: add an acceptance test scenario (e.g., `AT-015-A`) that simulates post deletion and verifies the recipe record is preserved with an updated attribution note.
-3. If `Analysis`: document the analysis rationale explicitly in requirements.md and trace.md (e.g., "verified by design review of persistence layer; recipe entity is not foreign-keyed to Instagram post ID").
+### MAJ-003 — A gated P1 requirement is a contradiction unless the gating semantics are stated
 
----
-
-### PRF-004-C3 — Substantive-Edit Threshold Is Undefined
-
-**Artifact**: `requirements.md` (REQ-006, REQ-007), `acceptance-plan.md` (AT-006-B, AT-007-B), `unit-test.md` (UTP-011-B, UTP-012-A)
-**Severity**: CRITICAL
-**Standard**: IEEE 830 §3.6 — Requirements must be verifiable; a requirement is not verifiable if it contains undefined terms that affect pass/fail determination.
-
-**Evidence**: REQ-006 and REQ-007 both gate the privacy change on a "substantive edit" by a premium user. The term "substantive edit" is used in:
-
-- `requirements.md` REQ-006: "unless a premium user completes the cloned-recipe substantive-edit workflow"
-- `acceptance-plan.md` AT-007-B pre-condition: "premium user has made a substantive edit to the clone"
-- `unit-test.md` UTP-011-B: tests state transition `PUBLIC → PRIVATE` but the trigger condition is described only as "substantive edit flag set"
-
-No artifact defines what constitutes a substantive edit (e.g., minimum character delta, field count, specific field types). The acceptance test AT-007-B cannot be executed without this definition, and UTP-011-B tests the flag transition but not the flag-setting logic.
-
-**Impact**: QA engineers cannot determine pass/fail for AT-007-B. The `AttributionVisibilityService` (MOD-011) has no unit test for the substantive-edit detection logic itself — only for the downstream state transition. This is a testability gap that will surface as ambiguous test results.
-
-**Resolution**:
-
-1. Add a definition of "substantive edit" to `requirements.md` (e.g., as a constraint or assumption).
-2. Add a unit test case to MOD-011 or a dedicated `SubstantiveEditDetector` module covering the detection logic (field-level thresholds, minimum change criteria).
-3. Update AT-007-B pre-condition to reference the concrete definition.
+**Artefacts**: requirements, spec
+**Finding**: `REQ-005` / `REQ-IF-001` are labelled "P1 (gated)". P1 normally means release-blocking; gated
+means it may not ship. Left implicit, this would produce exactly the release-planning ambiguity that made the
+OCR priority contradiction fester for three months in the previous document set.
+**Resolution**: `spec.md` adds a **Gating** section stating that FR-009 is the only gated requirement, that
+release is explicitly **not** blocked on it, and that the channel ships disabled with tests running against a
+contract fake. **Closed.**
 
 ---
 
-### PRF-004-C4 — REQ-013 / REQ-CN-004 Legal Block Is Unresolved and Untestable
+## Minor findings
 
-**Artifact**: `requirements.md` (REQ-013, REQ-CN-004), `acceptance-plan.md` (AT-013-A), `trace.md` (Matrix A, line 48)
-**Severity**: CRITICAL
-**Standard**: ISO 29119 §5.3 — Test items with unresolved external dependencies must be flagged as blocked; blocked items must not be included in a baseline test plan without a resolution path.
+### MIN-001 — Requirement counts were wrong on first authoring _(closed)_
 
-**Evidence**: REQ-CN-004 explicitly states: "The exact enforcement mechanism, detection strategy for manually entered paid-source recipes (REQ-013) MUST NOT be finalised without legal review." Despite this, AT-013-A in the acceptance plan defines a test scenario (`ATS-013-A1`) for REQ-013 with a pass criterion ("the system flags the recipe and applies appropriate visibility restrictions per platform policy"). The phrase "per platform policy" is circular — the policy is the unresolved item.
+The regenerated `requirements.md` initially stated Test 40 / Inspection 13; the actual tallies are 41 / 12.
+Caught by counting programmatically rather than by eye. **Corrected.** Worth noting that this is the identical
+failure mode as the original document's 24-vs-28 discrepancy — count tables are unreliable when hand-written,
+and should be derived.
 
-**Impact**: AT-013-A cannot be executed because the expected system behaviour is legally undefined. Including it in the acceptance plan as a peer test case (not a blocked item) creates false confidence in coverage. Any implementation of REQ-013 before legal review is a compliance risk.
+### MIN-002 — Hazard severity tallies were wrong on first authoring _(closed)_
 
-**Resolution**:
+Stated Serious 27 / Minor 7; actual 29 / 5. **Corrected** by tallying from the table.
 
-1. Mark AT-013-A as `BLOCKED — pending legal review` in both `acceptance-plan.md` and `trace.md`.
-2. Add a note to `requirements.md` REQ-013 cross-referencing REQ-CN-004 and the legal review dependency.
-3. Create a tracking item (GitHub issue or ADR) for the legal review workstream so the block has a resolution path.
+### MIN-003 — Test-scenario counts were wrong in three documents on first authoring _(closed)_
 
----
+Acceptance (57 vs 58), system (68 vs 81), integration (63 vs 75). **All corrected** by counting. The recurrence
+across four documents is the finding: summary counts must be verified, never asserted.
 
-## WARNING Findings
+### MIN-004 — The OpenAPI contract path was wrong on first authoring _(closed)_
 
----
+Initially recorded as `packages/services/recipe-service/contracts/api.openapi.yaml`; the file actually lives at
+`specs/001-commise-recipe-app/contracts/api.openapi.yaml`. **Corrected** in plan, tasks, and
+architecture-design. Verified by filesystem check.
 
-### PRF-004-W1 — Typo: Double Comma in REQ-001 and REQ-004
+### MIN-005 — Original task paths targeted a non-existent package tree _(closed)_
 
-**Artifact**: `requirements.md`
-**Severity**: WARNING
+`packages/api/recipe/**` and `packages/shared/db/**` do not exist. **Corrected** to the real
+`packages/services/recipe-service/**` and `packages/apps/commise/features/recipes/**`, verified against `main`.
 
-**Evidence**: REQ-001 reads "title, ingredients, instructions,, photos" (double comma). REQ-004 reads "source URL, original author,, platform" (double comma). These appear to be copy-paste artifacts.
+### MIN-006 — Two chosen libraries are dormant ⚠️ **OPEN**
 
-**Resolution**: Remove the duplicate commas. Confirm the field lists are complete (REQ-001 should enumerate all extracted fields; REQ-004 should enumerate all attribution fields).
+`microdata-node` (last published 2022-06) and `gray-matter` (2023-07) fall short of "well-maintained" in the
+CLAUDE.md library-first gate, though both are stable, focused, and handle frozen formats.
+**Disposition**: Accepted with rationale recorded in `plan.md §4`, mitigated by both sitting behind ports and
+by their output being sanitized and Zod-validated. **Re-evaluate at implementation time**; if either shows a
+vulnerability or a parsing gap, the port makes replacement local.
 
----
+### MIN-007 — The SC-002 corpus size is a judgement, not a derivation — **CLOSED (D-009)**
 
-### PRF-004-W2 — REQ-NF-003 Accuracy Threshold Has No Acceptance Test or Measurement Protocol
-
-**Artifact**: `requirements.md` (REQ-NF-003), `trace.md` (Matrix A, line 58)
-**Severity**: WARNING
-
-**Evidence**: REQ-NF-003 requires "≥85% extraction accuracy for title, ingredients, instructions." The trace matrix marks this as `Analysis — no AT defined`. No artifact specifies: (a) how accuracy is measured (exact match, fuzzy match, field-level scoring), (b) what corpus of test recipes is used, or (c) who performs the analysis and when.
-
-**Impact**: Without a measurement protocol, the 85% threshold is unverifiable. This is a P1 requirement.
-
-**Resolution**: Either (a) define a measurement protocol and add an analysis procedure to the acceptance plan, or (b) downgrade to P2 and document the rationale. If kept as P1, the analysis procedure must be documented before implementation begins.
-
----
-
-### PRF-004-W3 — REQ-IF-001, REQ-IF-002, REQ-IF-003 Are Inspection-Only with No Acceptance Coverage
-
-**Artifact**: `trace.md` (Matrix A, lines 66–68)
-**Severity**: WARNING
-
-**Evidence**: Three P1 interface requirements — Instagram oEmbed integration (REQ-IF-001), OCR service integration (REQ-IF-002), and Recipe entity model conformance (REQ-IF-003) — are marked `Inspection — no AT defined`. Inspection alone is insufficient for P1 integration requirements; these are runtime behaviours that can only be verified by execution.
-
-**Impact**: If the oEmbed API contract changes or the OCR service returns an unexpected schema, no acceptance test will catch the regression.
-
-**Resolution**: Add acceptance test scenarios for each:
-
-- REQ-IF-001: Verify oEmbed API call is made and response is parsed (can be covered by AT-002-A with explicit API call assertion).
-- REQ-IF-002: Verify OCR service is invoked and result flows to review screen (can be covered by AT-009-A with explicit service call assertion).
-- REQ-IF-003: Verify imported recipe conforms to Recipe entity schema (add a schema validation assertion to AT-001-A, AT-002-A, AT-009-A).
+50 pages with the stated stratification is defensible for a consumer application, but it is not derived from a
+statistical power calculation, and the resulting percentage carries a confidence interval nobody has computed.
+**Disposition**: **Held at 50 with a refresh cadence added instead** (D-009). Owner-ratified 2026-08-02 on the
+reasoning that staleness, not sample size, is the live risk: the number is stable enough to catch a regression,
+but a frozen corpus silently stops measuring the current web. Quarterly review, triggered early by a >10pp
+strategy-mix shift. Revisit the size only if extraction accuracy becomes contested.
 
 ---
 
-### PRF-004-W4 — REQ-CN-002 and REQ-CN-003 Are Inspection-Only Despite Being Testable
+## Observations (all open, none blocking)
 
-**Artifact**: `trace.md` (Matrix A, lines 76–77)
-**Severity**: WARNING
+### OBS-001 — The service's OpenAPI contract lives under feature 001's folder
 
-**Evidence**: REQ-CN-002 ("Never make public any recipe from a paywalled source") and REQ-CN-003 ("Instagram import limited to caption-text posts") are both marked `Inspection — no AT defined`. REQ-CN-002 is partially covered by AT-012-A (paywalled source rejection), but the constraint that a paywalled recipe cannot be made public through any path (including manual entry) is not tested. REQ-CN-003 is partially covered by AT-003-A but the constraint document is not linked.
+`specs/001-commise-recipe-app/contracts/api.openapi.yaml` is a **service-wide** artefact sitting in a
+**feature-scoped** directory, so 004 must reach into 001's folder to extend it. Correct for now (one service,
+one contract) but structurally odd. A future cleanup should relocate it to the service package. Out of scope.
 
-**Resolution**:
+### OBS-002 — The FR numbering collision is mitigated, not eliminated
 
-- REQ-CN-002: Add a cross-reference to AT-012-A in the trace matrix. Add a negative test: attempt to set visibility=public on a recipe flagged as paywalled and verify rejection.
-- REQ-CN-003: Cross-reference AT-003-A in the trace matrix. Change verification method from `Inspection` to `Test` with the AT-003-A reference.
+004's `FR-008..FR-014a` still collide with 001's shipped `FR-008..FR-014`. The `004-` prefix convention
+resolves ambiguity for cross-feature references, but a reader inside either document can still be confused. A
+clean renumber would be better and is deliberately deferred to avoid breaking existing links and the index.
 
----
+### OBS-003 — `import_channel` and `source_type` are correctly distinct but subtly so
 
-### PRF-004-W5 — UTP-001-B Uses Non-Standard Technique Label "Statement Coverage + Error Path"
+The distinction (provenance channel vs policy classification) is right and is documented, but it is the kind of
+pairing a future contributor collapses "for simplicity", which would couple metrics to policy and break the
+C-004 CHECK domain. Worth a schema comment at implementation time, not just a plan note.
 
-**Artifact**: `unit-test.md` (UTP-001-B, line 77)
-**Severity**: WARNING
+### OBS-004 — `Idempotency-Key` places a burden on clients — **CLOSED (D-008)**
 
-**Evidence**: The ISO 29119-4 technique table in `unit-test.md` defines six named techniques. UTP-001-B labels its technique as "Statement Coverage + Error Path." "Error Path" is not one of the six defined techniques; the correct label is "Error Guessing" (defined in the technique table as "Negative paths, invalid inputs, dependency exceptions").
+Requiring the header is correct per `ENGINEERING_EXCELLENCE §1`, but if client adoption proves poor the
+practical outcome is `400`s rather than safety. A server-derived fallback was considered and **rejected**: it
+would create a second idempotency path, and it could not help photo or file imports, which have no natural key
+and are precisely the channels where a duplicate costs money. Decision: **required, no fallback** — one
+mechanism, failing loudly. Owner-ratified 2026-08-02.
 
-**Impact**: Minor — inconsistency in technique labelling reduces traceability auditability.
+### OBS-005 — The heuristic extractor's confidence score is ordinal, not calibrated
 
-**Resolution**: Change UTP-001-B technique to "Statement & Branch Coverage + Error Guessing" to match the defined vocabulary.
+It is a count of agreeing signals normalised to `[0,1]`, not a probability. Using it to **order** or **flag**
+fields in the UI is sound; using it as a numeric threshold (e.g. "auto-accept above 0.8") would be unjustified.
+Nothing currently does, and nothing should without calibration against the corpus.
 
----
+### OBS-006 — Honouring `robots.txt` may block imports users are entitled to make
 
-### PRF-004-W6 — AT-013-A Pass Criterion Is Circular and Untestable (Independent of Legal Block)
-
-**Artifact**: `acceptance-plan.md` (AT-013-A, ATS-013-A1)
-**Severity**: WARNING (see also PRF-004-C4)
-
-**Evidence**: ATS-013-A1 Then-clause reads: "the system flags the recipe and applies appropriate visibility restrictions per platform policy." The phrase "per platform policy" is undefined in any artifact. Even if the legal block (PRF-004-C4) were resolved, this scenario would still fail the testability criterion because the expected outcome is not specified concretely.
-
-**Resolution**: Replace "per platform policy" with a concrete expected outcome once the legal review is complete (e.g., "the recipe is saved as private and cannot be changed to public by the user").
-
----
-
-### PRF-004-W7 — No Negative Test for Deduplication Race Condition
-
-**Artifact**: `unit-test.md` (UTP-010-A), `acceptance-plan.md` (AT-008-A)
-**Severity**: WARNING
-
-**Evidence**: UTP-010-A covers the deduplication happy path (existing record found → return existing) and the no-duplicate path. AT-008-A covers the user-facing duplicate surfacing flow. Neither artifact addresses the concurrent import race condition: two users submitting the same URL simultaneously before either record is committed.
-
-**Impact**: REQ-CN-001 ("MUST NOT create more than one public recipe record per unique source URL") could be violated under concurrent load if the deduplication check and insert are not atomic (e.g., via a DB unique constraint or advisory lock).
-
-**Resolution**: Add a unit test scenario to UTP-010-A for the race condition path (e.g., mock `findBySourceUrl` returning null on first call but a DB unique constraint violation on insert). Add a note to REQ-CN-001 or REQ-008 specifying that the deduplication constraint must be enforced at the database level (unique index on `source_url`), not only in application logic.
+HAZ-021's control refuses a source whose `robots.txt` disallows crawling. But a user importing a page they can
+personally read is arguably not crawling. The conservative choice is right for launch given the attribution and
+TOS posture, and it may cause avoidable friction on sites with blanket disallow rules. Revisit with data.
 
 ---
 
-### PRF-004-W8 — OCR Confidence Threshold Is Untested at Acceptance Level
+## Review method
 
-**Artifact**: `unit-test.md` (UTP-007-A), `acceptance-plan.md` (AT-009-A, AT-011-A)
-**Severity**: WARNING
+Each artefact was read against: its parent artefact (for derivation fidelity), the shipped codebase on `main`
+(for reality), the three governing standards documents (for compliance), and an adversarial pass asking "what
+would make this fail in production, and what claim here is unverified?". Numeric claims were checked by
+counting rather than by reading. Dependency claims were checked against the npm registry. Path claims were
+checked against the filesystem.
 
-**Evidence**: UTP-007-A1 asserts `result.confidence === 0.95` and UTP-007-A2 asserts `result.confidence === 0`. The unit tests verify that confidence is computed and returned. However, no acceptance test verifies what happens when confidence is below a threshold (e.g., the system should warn the user or require manual review of low-confidence extractions). The requirements do not define a confidence threshold.
+## Per-artefact review index
 
-**Impact**: Low-confidence OCR results may be silently presented to users as if they were high-confidence, leading to incorrect recipe data being saved without user awareness.
+| Review file                          | Findings                              |
+| ------------------------------------ | ------------------------------------- |
+| `peer-review-requirements.md`        | MAJ-003 · MIN-001 · MIN-008 · OBS-002 |
+| `peer-review-system-design.md`       | MIN-009 · OBS-007                     |
+| `peer-review-architecture-design.md` | MAJ-001 · MIN-004 · MIN-010 · OBS-005 |
+| `peer-review-module-design.md`       | MIN-011 · OBS-003 · OBS-008           |
+| `peer-review-hazard-analysis.md`     | MAJ-002 · MIN-012 · OBS-006           |
+| `peer-review-acceptance-plan.md`     | MIN-003 · MIN-007 · OBS-009           |
+| `peer-review-system-test.md`         | MIN-003 · OBS-010                     |
+| `peer-review-integration-test.md`    | MIN-003 · OBS-011                     |
+| `peer-review-unit-test.md`           | MIN-013 · OBS-012                     |
 
-**Resolution**: Add a requirement (or assumption) defining the minimum acceptable OCR confidence threshold and the system behaviour below it. Add an acceptance test scenario to AT-011-A covering the low-confidence path (e.g., "When OCR confidence is below threshold, the review screen highlights uncertain fields").
-
----
-
-### PRF-004-W9 — Matrix D UTS Count Discrepancy for MOD-003
-
-**Artifact**: `trace.md` (Matrix D, line ~143), `unit-test.md` (ARCH↔MOD↔UTP table, line 327)
-**Severity**: WARNING
-
-**Evidence**: The ARCH↔MOD↔UTP traceability table in `unit-test.md` (line 327) states MOD-003 has "2 (A, B)" UTP cases and "6 (A1-A4, B1-B3)" UTS scenarios (4 + 3 = 7, not 6). The count "A1-A4" is 4 scenarios and "B1-B3" is 3 scenarios, totalling 7. The summary says 6. This is an arithmetic error.
-
-**Resolution**: Correct the UTS count for MOD-003 to 7 in the ARCH↔MOD↔UTP table. Verify all other row counts in the table for similar arithmetic errors.
-
----
-
-## PASSED Findings
-
----
-
-### PRF-004-P1 — RFC-2119 Language Used Consistently in Functional Requirements
-
-All 15 functional requirements use SHALL/MUST/MUST NOT correctly and consistently. No ambiguous language (e.g., "should," "may," "might") appears in P1 requirements. **PASSED.**
-
----
-
-### PRF-004-P2 — All 15 Functional Requirements Have At Least One Acceptance Test
-
-Matrix A forward traceability is complete for all 15 FRs. Every REQ-001 through REQ-015 maps to at least one AT case. REQ-015 is the only gap (no AT), which is flagged as CRITICAL in PRF-004-C2. **PASSED** for REQ-001 through REQ-014.
-
----
-
-### PRF-004-P3 — BDD Scenario Format Is Consistent Throughout Acceptance Plan
-
-All acceptance test scenarios use the Given/When/Then format correctly. Pre-conditions and pass criteria are stated for every test case. No scenario is missing a Then-clause. **PASSED.**
-
----
-
-### PRF-004-P4 — All 18 Modules Have Unit Test Coverage
-
-The ARCH↔MOD↔UTP traceability table confirms all 18 modules (MOD-001 through MOD-018) have at least one UTP case and at least one UTS scenario. No module is untested at the unit level. **PASSED.**
-
----
-
-### PRF-004-P5 — ISO 29119-4 Technique Labels Are Applied to All Unit Test Cases
-
-Every UTP case identifies its technique by name from the defined vocabulary table, with the single exception noted in PRF-004-W5. The technique-to-view mapping (e.g., Boundary Value Analysis → Internal Data Structures) is applied correctly throughout. **PASSED** (with minor exception in PRF-004-W5).
-
----
-
-### PRF-004-P6 — Strict Isolation Is Applied to All Unit Tests
-
-All unit test scenarios mock external dependencies (database, S3, Textract, Instagram oEmbed, Clerk token verification). No unit test scenario makes real network or database calls. Mock isolation is explicitly documented in every scenario. **PASSED.**
-
----
-
-### PRF-004-P7 — Backward Traceability (Matrix B) Has No Orphan Acceptance Tests
-
-Matrix B maps every AT case back to a parent requirement. No orphan ATs (acceptance tests without a parent REQ) are present. All AT-NF and AT-IF cases correctly reference their parent non-functional and interface requirements. **PASSED.**
-
----
-
-### PRF-004-P8 — Deduplication Constraint Is Covered at Both Unit and Acceptance Level
-
-REQ-CN-001 and REQ-008 are covered by UTP-010-A (unit) and AT-008-A (acceptance). The trace matrix correctly cross-references both. **PASSED** (race condition gap noted separately in PRF-004-W7).
-
----
-
-### PRF-004-P9 — Attribution Requirements Are Covered at Multiple Test Levels
-
-REQ-004 (attribution display) is covered by AT-004-A (acceptance), UTP-011-A (unit — AttributionVisibilityService), and is referenced in the integration matrix (MOD-001 ↔ MOD-011). Multi-level coverage is appropriate for a legal compliance requirement. **PASSED.**
-
----
-
-### PRF-004-P10 — Accessibility Requirements Have Executable Acceptance Tests
-
-REQ-NF-004 and REQ-NF-005 both have acceptance test cases (AT-NF004-A, AT-NF005-A) with concrete Playwright-executable scenarios. This is above the minimum standard for non-functional requirements. **PASSED.**
-
----
-
-### PRF-004-P11 — OCR Async Path Is Covered at Unit Level
-
-The large-photo async path (>5 MB → S3 staging → Textract async job → polling) is covered by UTP-007-A3, UTP-007-A4, and UTP-007-B (3 scenarios). Polling timeout and FAILED job status are both tested. **PASSED.**
-
----
-
-### PRF-004-P12 — Dependency Declarations Are Complete and Consistent
-
-The requirements document lists three feature dependencies (001, 002, 010) with rationale. The acceptance plan header repeats the same three dependencies. The trace matrix interface requirements (REQ-IF-001 through REQ-IF-004) map to these dependencies. No undeclared dependency was found. **PASSED.**
-
----
-
-## Action Items Summary
-
-| Finding    | Severity | Owner          | Artifact(s)                                                                                |
-| ---------- | -------- | -------------- | ------------------------------------------------------------------------------------------ |
-| PRF-004-C1 | CRITICAL | Author         | Create `integration-test.md` covering all 13 Matrix C integration points                   |
-| PRF-004-C2 | CRITICAL | Author         | Resolve REQ-015 verification method contradiction; add AT or document analysis rationale   |
-| PRF-004-C3 | CRITICAL | Author + PO    | Define "substantive edit" threshold; add unit test for detection logic                     |
-| PRF-004-C4 | CRITICAL | Author + Legal | Mark AT-013-A as BLOCKED; create legal review tracking item                                |
-| PRF-004-W1 | WARNING  | Author         | Fix double commas in REQ-001 and REQ-004                                                   |
-| PRF-004-W2 | WARNING  | Author + QA    | Define REQ-NF-003 measurement protocol or downgrade to P2                                  |
-| PRF-004-W3 | WARNING  | Author         | Add acceptance test coverage for REQ-IF-001, REQ-IF-002, REQ-IF-003                        |
-| PRF-004-W4 | WARNING  | Author         | Cross-reference existing ATs for REQ-CN-002, REQ-CN-003; add negative visibility test      |
-| PRF-004-W5 | WARNING  | Author         | Rename UTP-001-B technique to "Statement & Branch Coverage + Error Guessing"               |
-| PRF-004-W6 | WARNING  | Author         | Replace circular pass criterion in ATS-013-A1 with concrete expected outcome               |
-| PRF-004-W7 | WARNING  | Author + Arch  | Add race condition unit test to UTP-010-A; document DB-level unique constraint requirement |
-| PRF-004-W8 | WARNING  | Author + PO    | Define OCR confidence threshold; add low-confidence acceptance test scenario               |
-| PRF-004-W9 | WARNING  | Author         | Correct MOD-003 UTS count from 6 to 7 in ARCH↔MOD↔UTP table                                |
+`MIN-002` (hazard severity tallies) and `MIN-005` (task file paths) are cross-artefact and recorded only here.

@@ -1,6 +1,6 @@
 /**
  * The handle-sync message contract (W8-a.2 / decision 6) — the payload BOTH producer routes (identity's
- * `PATCH /v1/users/me` and the Clerk `user.updated` webhook) publish to the global handle-sync SNS topic,
+ * `PATCH /api/v1/users/me` and the Clerk `user.updated` webhook) publish to the global handle-sync SNS topic,
  * and the recipe-workers consumer applies. Defined once here in `identity-core` (dependency-light) so the
  * producers and the consumer can never disagree on the shape.
  *

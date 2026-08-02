@@ -183,6 +183,19 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::TargetGroup', 1);
     });
 
+    // ADR-0011: every VERSIONED endpoint moved under the canonical `/api/{version}/` prefix, but `/health`
+    // deliberately did NOT — this target group's health check dials it at the ORIGIN ROOT, and so do the
+    // prod/sandbox deploy smoke steps. Nothing in CDK pinned that path before, so a well-meaning "move
+    // /health under /api for consistency" would have synthesized a health check against a route the service
+    // no longer serves: every task would fail its check, the target group would drain to zero healthy hosts,
+    // and the deploy would roll back with no test having objected. This assertion is that objection.
+    it('health-checks the UNPREFIXED /health at the origin root (ADR-0011)', () => {
+        serviceTemplate.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', {
+            HealthCheckPath: '/health',
+            Matcher: { HttpCode: '200' },
+        });
+    });
+
     it('creates the service A-record (aliased to the shared ALB)', () => {
         serviceTemplate.resourceCountIs('AWS::Route53::RecordSet', 1);
         serviceTemplate.hasResourceProperties('AWS::Route53::RecordSet', {
@@ -242,7 +255,7 @@ describe('Food worker + service wiring', () => {
             .map((container) => (container.Environment ?? []).map((entry: any) => entry.Name as string));
 
     it('injects FOOD_SERVICE_PRINCIPAL_JWT_KEY so the internal erasure route can verify service tokens (CR-002/U4b/R11)', () => {
-        // The API container (which serves /v1/internal/account/erasure) carries the PUBLIC verification key.
+        // The API container (which serves /api/v1/internal/account/erasure) carries the PUBLIC verification key.
         // Without it the FoodServiceErasureAuthService fail-closes and every service-principal erase is 401.
         const withErasureKey = containerEnvSets(synthFoodTemplate('test', 'sandbox')).filter((envNames) =>
             envNames.includes('FOOD_SERVICE_PRINCIPAL_JWT_KEY'),
@@ -252,7 +265,7 @@ describe('Food worker + service wiring', () => {
     });
 
     it('non-prod wires Clerk auth env with the azp PATTERN + preview mode (not the exact-match list)', () => {
-        // Without CLERK_JWT_KEY the FoodAuthGuard fail-closes and every /v1/foods/* request is 401.
+        // Without CLERK_JWT_KEY the FoodAuthGuard fail-closes and every /api/v1/foods/* request is 401.
         // Non-prod (sandbox / pr-{N}) runs the self-owned preview pattern in transition mode (ADR-0001).
         const withClerk = containerEnvSets(synthFoodTemplate('test', 'sandbox')).filter(
             (envNames) =>

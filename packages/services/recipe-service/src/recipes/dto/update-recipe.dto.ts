@@ -1,5 +1,5 @@
 /**
- * T023 — request DTO for `PATCH /v1/recipes/{id}` (update recipe, optimistic concurrency).
+ * T023 — request DTO for `PATCH /api/v1/recipes/{id}` (update recipe, optimistic concurrency).
  *
  * Mirrors `UpdateRecipeRequest` in `contracts/api.openapi.yaml`: `expectedVersion` is REQUIRED (the
  * client's last-known `currentVersion`, used for the T033 optimistic-concurrency check); every content
@@ -33,7 +33,7 @@ import {
     RecipeIngredientInputDto,
 } from './create-recipe.dto.js';
 
-/** Body of `PATCH /v1/recipes/{id}`. */
+/** Body of `PATCH /api/v1/recipes/{id}`. */
 export class UpdateRecipeDto {
     @IsInt()
     @Min(1)

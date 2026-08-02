@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 describe('useUserProfile (mobile)', () => {
-    it('GETs /v1/users/me with a template + skipCache-true (always force-refreshed) token', async () => {
+    it('GETs /api/v1/users/me with a template + skipCache-true (always force-refreshed) token', async () => {
         const getToken = vi.fn().mockResolvedValue('tok_fresh');
         useAuthMock.mockReturnValue({ getToken, isSignedIn: true } as unknown as ReturnType<typeof useAuth>);
 
@@ -54,7 +54,7 @@ describe('useUserProfile (mobile)', () => {
             string,
             RequestInit & { headers: Record<string, string> },
         ];
-        expect(url).toContain('/v1/users/me');
+        expect(url).toContain('/api/v1/users/me');
         expect(init.method).toBe('GET');
         expect(init.headers['authorization']).toBe('Bearer tok_fresh');
         expect(result.current.data).toEqual(profile);
@@ -88,7 +88,7 @@ describe('useUserProfile (mobile)', () => {
 });
 
 describe('useUpdateProfile (mobile)', () => {
-    it('PATCHes /v1/users/me with a NON-forced (cache-allowed) token and the update body', async () => {
+    it('PATCHes /api/v1/users/me with a NON-forced (cache-allowed) token and the update body', async () => {
         const getToken = vi.fn().mockResolvedValue('tok_cached');
         useAuthMock.mockReturnValue({ getToken } as unknown as ReturnType<typeof useAuth>);
 
@@ -102,15 +102,15 @@ describe('useUpdateProfile (mobile)', () => {
             string,
             RequestInit & { headers: Record<string, string> },
         ];
-        expect(url).toContain('/v1/users/me');
-        expect(url).not.toContain('/v1/profiles/me');
+        expect(url).toContain('/api/v1/users/me');
+        expect(url).not.toContain('/api/v1/profiles/me');
         expect(init.method).toBe('PATCH');
         expect(init.body).toBe(JSON.stringify({ displayName: 'Ada Lovelace', avatarUrl: null }));
     });
 });
 
 describe('useDeleteAccount (mobile)', () => {
-    it('DELETEs /v1/users/me then signs out', async () => {
+    it('DELETEs /api/v1/users/me then signs out', async () => {
         const getToken = vi.fn().mockResolvedValue('tok_cached');
         const signOut = vi.fn().mockResolvedValue(undefined);
         useAuthMock.mockReturnValue({ getToken, signOut } as unknown as ReturnType<typeof useAuth>);
@@ -127,7 +127,7 @@ describe('useDeleteAccount (mobile)', () => {
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
         const [url, init] = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
-        expect(url).toContain('/v1/users/me');
+        expect(url).toContain('/api/v1/users/me');
         expect(init.method).toBe('DELETE');
         expect(signOut).toHaveBeenCalledTimes(1);
     });

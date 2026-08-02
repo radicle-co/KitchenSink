@@ -1,7 +1,7 @@
 /**
  * Tests for `useAvatarUpload` (U2) — the native avatar upload orchestration behind the profile screen's
  * image-picker flow. It mirrors the recipe-photo upload model: presign against the identity service
- * (`POST /v1/users/me/avatar/presign`) with the exact bytes' type + size, then PUT the blob to the
+ * (`POST /api/v1/users/me/avatar/presign`) with the exact bytes' type + size, then PUT the blob to the
  * returned presigned S3 URL, and hand back the durable public URL for the profile PATCH to persist.
  *
  * `@clerk/expo` (the native token source) and the global `fetch` are mocked, so these cover the hook's own
@@ -57,7 +57,7 @@ describe('useAvatarUpload', () => {
 
         // 1) Presign: POST to the identity avatar endpoint, carrying the blob's real type + size.
         const [presignUrl, presignInit] = fetchMock.mock.calls[0] as [string, RequestInit];
-        expect(presignUrl).toContain('/v1/users/me/avatar/presign');
+        expect(presignUrl).toContain('/api/v1/users/me/avatar/presign');
         expect(presignUrl).toContain('type=image%2Fpng');
         expect(presignUrl).toContain('size=2048');
         expect(presignInit.method).toBe('POST');

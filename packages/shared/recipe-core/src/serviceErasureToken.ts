@@ -77,7 +77,7 @@ export const ERASURE_TRIGGER_SOURCES = ['user', 'service'] as const;
 
 /**
  * Who/what triggered an erasure job (R8 audit). `user` — the account owner via the confirmation-gated
- * `POST /v1/account/erasure`; `service` — the deletion-worker's verified service principal via the
+ * `POST /api/v1/account/erasure`; `service` — the deletion-worker's verified service principal via the
  * internal route (a `user.deleted`/close event), which skips the phrase because the signed token IS the
  * authorization.
  */

@@ -160,6 +160,19 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         template.resourceCountIs('AWS::Route53::RecordSet', 1);
     });
 
+    // ADR-0011: every VERSIONED endpoint moved under the canonical `/api/{version}/` prefix, but `/health`
+    // deliberately did NOT — this target group's health check dials it at the ORIGIN ROOT, and so do the
+    // prod/sandbox deploy smoke steps. Nothing in CDK pinned that path before, so a well-meaning "move
+    // /health under /api for consistency" would have synthesized a health check against a route the service
+    // no longer serves: every task would fail its check, the target group would drain to zero healthy hosts,
+    // and the deploy would roll back with no test having objected. This assertion is that objection.
+    it('health-checks the UNPREFIXED /health at the origin root (ADR-0011)', () => {
+        template.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', {
+            HealthCheckPath: '/health',
+            Matcher: { HttpCode: '200' },
+        });
+    });
+
     it('provisions exactly one ECS API service (recipe workers are a separate package)', () => {
         template.resourceCountIs('AWS::ECS::Service', 1);
     });
@@ -241,7 +254,7 @@ describe('Account-erasure queue wiring', () => {
     });
 
     it('injects RECIPE_SERVICE_PRINCIPAL_JWT_KEY so the internal erasure route can verify service tokens (CR-002/U4a)', () => {
-        // The API container serves `POST /v1/internal/account/erasure`, whose ServiceErasureAuthService
+        // The API container serves `POST /api/v1/internal/account/erasure`, whose ServiceErasureAuthService
         // verifies the deletion-worker's single-target EdDSA token against this PUBLIC key. U4a deferred the
         // wiring, so the route fail-closed (401) on every deployed stage — the identity fan-out's recipe leg
         // could never succeed. Mirrors food-service's identical assertion for its own leg.

@@ -26,7 +26,7 @@ import {
 async function getUserProfile(accessToken: string): Promise<UserProfile> {
     const api = buildApiClient(accessToken);
 
-    return api.get<UserProfile>('/v1/users/me');
+    return api.get<UserProfile>('/api/v1/users/me');
 }
 
 export async function ProfileContent({

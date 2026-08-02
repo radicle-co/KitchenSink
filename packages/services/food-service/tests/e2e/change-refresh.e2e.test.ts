@@ -117,7 +117,7 @@ describe.skipIf(!DATABASE_URL)('change-refresh + UNRESOLVED TTL full-stack e2e',
     }
 
     async function addAndDrain(name: string): Promise<{ id: string; status: string }> {
-        const res = await call('POST', '/v1/foods', { token: userToken, body: { name } });
+        const res = await call('POST', '/api/v1/foods', { token: userToken, body: { name } });
         const id = (res.body as { id: string }).id;
 
         return { id, status: await drainUntilTerminal(id) };
@@ -133,7 +133,7 @@ describe.skipIf(!DATABASE_URL)('change-refresh + UNRESOLVED TTL full-stack e2e',
 
     /** Read a food's golden record over HTTP (200 → record). */
     async function getFood(id: string): Promise<{ status: number; body: Record<string, unknown> }> {
-        const res = await call('GET', `/v1/foods/${id}`, { token: userToken });
+        const res = await call('GET', `/api/v1/foods/${id}`, { token: userToken });
 
         return { status: res.status, body: (res.body ?? {}) as Record<string, unknown> };
     }
@@ -267,10 +267,10 @@ describe.skipIf(!DATABASE_URL)('change-refresh + UNRESOLVED TTL full-stack e2e',
         const { id, status } = await addAndDrain('broccoli');
         expect(status).toBe('UNRESOLVED');
 
-        const candidates = await call('GET', `/v1/foods/${id}/candidates`, { token: userToken });
+        const candidates = await call('GET', `/api/v1/foods/${id}/candidates`, { token: userToken });
         const set = (candidates.body as { candidates: { candidateId: string; externalKey: string }[] }).candidates;
         const rawPick = set.find((c) => c.externalKey === keys[0])!;
-        const pick = await call('PATCH', `/v1/foods/${id}`, {
+        const pick = await call('PATCH', `/api/v1/foods/${id}`, {
             token: userToken,
             body: { candidateIds: [rawPick.candidateId] },
         });
@@ -289,10 +289,10 @@ describe.skipIf(!DATABASE_URL)('change-refresh + UNRESOLVED TTL full-stack e2e',
             { name: 'Yogurt, vanilla', externalKey: 'ek-vanilla', itemVersion: 'v1' },
         ]);
         const { id } = await addAndDrain('yogurt');
-        const candidates = await call('GET', `/v1/foods/${id}/candidates`, { token: userToken });
+        const candidates = await call('GET', `/api/v1/foods/${id}/candidates`, { token: userToken });
         const set = (candidates.body as { candidates: { candidateId: string; externalKey: string }[] }).candidates;
         const pickId = set.find((c) => c.externalKey === keys[0])!.candidateId;
-        await call('PATCH', `/v1/foods/${id}`, { token: userToken, body: { candidateIds: [pickId] } });
+        await call('PATCH', `/api/v1/foods/${id}`, { token: userToken, body: { candidateIds: [pickId] } });
 
         // The picked item itself changed upstream → refresh legitimately re-pulls it.
         stub.mutateItem(keys[0], { description: 'plain, updated', itemVersion: 'v2' });
@@ -322,7 +322,7 @@ describe.skipIf(!DATABASE_URL)('change-refresh + UNRESOLVED TTL full-stack e2e',
         ]);
         const { id, status } = await addAndDrain('avocado');
         expect(status).toBe('UNRESOLVED');
-        const beforeExpire = (await call('GET', `/v1/foods/${id}/candidates`, { token: userToken })).body as {
+        const beforeExpire = (await call('GET', `/api/v1/foods/${id}/candidates`, { token: userToken })).body as {
             id: string;
             candidates: { source: string; externalKey: string; name: string; summary: string | null }[];
         };
@@ -353,14 +353,14 @@ describe.skipIf(!DATABASE_URL)('change-refresh + UNRESOLVED TTL full-stack e2e',
 
         // The set is cleared but the food STAYS UNRESOLVED (never swept to NOT_FOUND) → GET 202.
         expect(await foodStatus(id)).toBe('UNRESOLVED');
-        expect((await call('GET', `/v1/foods/${id}`, { token: userToken })).status).toBe(202);
-        const emptyCandidates = await call('GET', `/v1/foods/${id}/candidates`, { token: userToken });
+        expect((await call('GET', `/api/v1/foods/${id}`, { token: userToken })).status).toBe(202);
+        const emptyCandidates = await call('GET', `/api/v1/foods/${id}/candidates`, { token: userToken });
         expect((emptyCandidates.body as { candidates: unknown[] }).candidates).toEqual([]);
 
         // The next add-by-name for the same food re-fans-out against the normal budget; now it resolves.
         stub.reset();
         stub.programResolve('avocado', { name: 'Avocado, raw' });
-        const readd = await call('POST', '/v1/foods', { token: userToken, body: { name: 'avocado' } });
+        const readd = await call('POST', '/api/v1/foods', { token: userToken, body: { name: 'avocado' } });
         expect(readd.status).toBe(202);
         expect((readd.body as { id: string }).id).toBe(id); // same logical food id
         expect(await drainUntilTerminal(id)).toBe('RESOLVED');
@@ -373,14 +373,14 @@ describe.skipIf(!DATABASE_URL)('change-refresh + UNRESOLVED TTL full-stack e2e',
             { name: 'Mango, dried', externalKey: 'ek-mango-dried' },
         ]);
         const { id } = await addAndDrain('mango');
-        const candidates = await call('GET', `/v1/foods/${id}/candidates`, { token: userToken });
+        const candidates = await call('GET', `/api/v1/foods/${id}/candidates`, { token: userToken });
         const set = (candidates.body as { candidates: { candidateId: string; externalKey: string }[] }).candidates;
         const pickId = set.find((c) => c.externalKey === keys[0])!.candidateId;
-        await call('PATCH', `/v1/foods/${id}`, { token: userToken, body: { candidateIds: [pickId] } });
+        await call('PATCH', `/api/v1/foods/${id}`, { token: userToken, body: { candidateIds: [pickId] } });
         expect(await foodStatus(id)).toBe('RESOLVED');
 
         const callsBefore = stub.calls.searchByName;
-        const readd = await call('POST', '/v1/foods', { token: userToken, body: { name: 'mango' } });
+        const readd = await call('POST', '/api/v1/foods', { token: userToken, body: { name: 'mango' } });
         // An add for an already-RESOLVED food does not re-fan-out (no scarce source budget burned).
         expect((readd.body as { id: string }).id).toBe(id);
         expect(stub.calls.searchByName).toBe(callsBefore);

@@ -21,8 +21,8 @@ The AI Integration architecture decomposes eight system components into seventee
 
 | ARCH ID  | Name                         | Description                                                                                                                                                                                                                                                                                                                            | Parent System Components  | Type      |
 | -------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | --------- |
-| ARCH-001 | ProviderConfigRepository     | Reads, writes, and deletes AI provider credential records in PostgreSQL. Applies AES-256 encryption to `apiKey` before persistence and decrypts on retrieval.                                                                                                                                                                          | SYS-001                   | Service   |
-| ARCH-002 | ProviderConfigService        | Orchestrates BYOK credential lifecycle: validates provider type, delegates persistence to ARCH-001, masks keys for API responses, and emits `NoProviderConfiguredError` when no key is set.                                                                                                                                            | SYS-001                   | Component |
+| ARCH-001 | ByokKeyRepository            | Reads, writes, and deletes AI provider credential REFERENCES in PostgreSQL (`user_byok_keys.secret_arn`). Performs no cryptography and never handles key material — the raw key lives only in AWS Secrets Manager (ARCH-002 owns that I/O).                                                                                            | SYS-001                   | Service   |
+| ARCH-002 | ByokService                  | Orchestrates BYOK credential lifecycle: validates provider type, delegates persistence to ARCH-001, masks keys for API responses, and emits `NoProviderConfiguredError` when no key is set.                                                                                                                                            | SYS-001                   | Component |
 | ARCH-003 | ProviderSetupGuide           | Detects missing provider configuration and returns a structured setup-required response that the UI renders as an onboarding flow. Invoked by ARCH-005 before dispatching generation.                                                                                                                                                  | SYS-001                   | Component |
 | ARCH-004 | AIProviderAdapter            | Abstracts external AI provider HTTP calls (OpenAI, Gemini, Anthropic). Accepts a normalized `GenerationRequest`, maps to provider-specific payload, enforces 15-second timeout, returns `RecipeDraft`.                                                                                                                                 | SYS-002                   | Adapter   |
 | ARCH-005 | RecipeGenerationService      | Orchestrates in-app recipe generation: retrieves credentials via ARCH-002, checks premium entitlement via ARCH-016, dispatches to ARCH-004, and returns `RecipeDraft` to ARCH-006.                                                                                                                                                     | SYS-002                   | Component |
@@ -31,8 +31,8 @@ The AI Integration architecture decomposes eight system components into seventee
 | ARCH-008 | OAuthAuthorizationServer     | Implements OAuth 2.0 authorization code flow: issues authorization codes, exchanges codes for access tokens (RS256 JWT), validates `redirect_uri`, enforces `recipes:read` / `recipes:create` scopes.                                                                                                                                  | SYS-004                   | Service   |
 | ARCH-009 | AgentConsentManager          | Stores and retrieves user consent grants (agent platform, granted scopes, grant date). Exposes revocation endpoint that invalidates all tokens for a given agent authorization.                                                                                                                                                        | SYS-004                   | Component |
 | ARCH-010 | AgentTokenValidator          | Validates Bearer tokens on external agent API requests: verifies RS256 JWT signature, checks expiry, extracts `userId` and `scopes[]`. Returns `UnauthorizedError` on failure.                                                                                                                                                         | SYS-004, SYS-005          | Library   |
-| ARCH-011 | AgentRecipeReadController    | Handles `GET /agent/recipes` requests from authorized external agents. Validates token scope (`recipes:read`) via ARCH-010, fetches user's recipe collection, returns structured JSON.                                                                                                                                                 | SYS-005                   | Component |
-| ARCH-012 | AgentRecipeCreateController  | Handles `POST /agent/recipes` requests from authorized external agents. Validates token scope (`recipes:create`) via ARCH-010, delegates persistence to ARCH-007, returns created `recipeId`.                                                                                                                                          | SYS-005                   | Component |
+| ARCH-011 | AgentRecipeReadController    | Handles `POST /api/v1/ai/mcp` → `recipes_list` requests from authorized external agents. Validates token scope (`recipes:read`) via ARCH-010, fetches user's recipe collection, returns structured JSON.                                                                                                                               | SYS-005                   | Component |
+| ARCH-012 | AgentRecipeCreateController  | Handles `POST /api/v1/ai/mcp` → `recipe_save` requests from authorized external agents. Validates token scope (`recipes:create`) via ARCH-010, delegates persistence to ARCH-007, returns created `recipeId`.                                                                                                                          | SYS-005                   | Component |
 | ARCH-013 | InstructionOptimizerService  | Orchestrates AI instruction optimization: validates recipe ownership, checks premium entitlement via ARCH-016, retrieves credentials via ARCH-002, dispatches to ARCH-004 with optimization mode, returns `optimizedInstructions[]`.                                                                                                   | SYS-006                   | Component |
 | ARCH-014 | OptimizationReviewController | Presents optimized instructions to the user for accept/reject. Routes accept to ARCH-007 (patch recipe instructions), routes reject to discard. Ensures no changes applied without user confirmation.                                                                                                                                  | SYS-006                   | Component |
 | ARCH-015 | AuthGuardMiddleware          | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — Enforces authentication on all AI and agent endpoints by delegating to `002-user-auth`. Attaches `userId` to request context. Returns 401 for unauthenticated requests.                                                                           | SYS-007                   | Utility   |
@@ -49,7 +49,7 @@ sequenceDiagram
     participant Guard as ARCH-015 AuthGuardMiddleware
     participant Premium as ARCH-016 PremiumEntitlementGuard
     participant GenSvc as ARCH-005 RecipeGenerationService
-    participant CfgSvc as ARCH-002 ProviderConfigService
+    participant CfgSvc as ARCH-002 ByokService
     participant Setup as ARCH-003 ProviderSetupGuide
     participant Adapter as ARCH-004 AIProviderAdapter
     participant Preview as ARCH-006 RecipePreviewController
@@ -61,7 +61,7 @@ sequenceDiagram
     Guard->>Premium: CheckPremium(userId)
     Premium-->>Client: 402 if not premium
     Premium->>GenSvc: Generate(userId, criteria)
-    GenSvc->>CfgSvc: GetProviderCredentials(userId)
+    GenSvc->>CfgSvc: resolvePreferredProvider(userId)
     alt No provider configured
         CfgSvc-->>Setup: NoProviderConfiguredError
         Setup-->>Client: 422 + setup-required payload
@@ -141,7 +141,7 @@ sequenceDiagram
 
 ## Interface View — API Contracts (Kruchten 4+1)
 
-### ARCH-001: ProviderConfigRepository
+### ARCH-001: ByokKeyRepository
 
 | Direction | Name     | Type                                                             | Format    | Constraints                                          |
 | --------- | -------- | ---------------------------------------------------------------- | --------- | ---------------------------------------------------- |
@@ -151,7 +151,7 @@ sequenceDiagram
 | Output    | config   | `{ providerId: string, provider: string, encryptedKey: Buffer }` | Object    | Null if not found                                    |
 | Exception | DBError  | `DatabaseError`                                                  | Error     | Thrown on connection failure or constraint violation |
 
-### ARCH-002: ProviderConfigService
+### ARCH-002: ByokService
 
 | Direction | Name                      | Type                                                      | Format | Constraints                                       |
 | --------- | ------------------------- | --------------------------------------------------------- | ------ | ------------------------------------------------- |
@@ -309,15 +309,15 @@ sequenceDiagram
 
 ### Data Flow: BYOK Recipe Generation
 
-| Stage | Module                            | Input Format                                               | Transformation                                                | Output Format                                          |
-| ----- | --------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------ |
-| 1     | ARCH-015 AuthMiddleware           | HTTP request + Clerk session token                         | Verify token networklessly (CLERK_JWT_KEY) → extract `userId` | Request context `{ userId }`                           |
-| 2     | ARCH-016 PremiumEntitlementGuard  | `{ userId }`                                               | Query 010-subscriptions → check active premium                | `{ isPremium: true }` or 402                           |
-| 3     | ARCH-005 RecipeGenerationService  | `{ userId, criteria: GenerationRequest }`                  | Orchestrate credential fetch + provider dispatch              | `RecipeDraft`                                          |
-| 4     | ARCH-002 ProviderConfigService    | `{ userId }`                                               | Decrypt stored API key from ARCH-001                          | `{ provider, apiKey }`                                 |
-| 5     | ARCH-004 AIProviderAdapter        | `{ provider, apiKey, criteria }`                           | Map to provider payload → HTTP call → parse response          | `RecipeDraft { title, ingredients[], instructions[] }` |
-| 6     | ARCH-006 RecipePreviewController  | `RecipeDraft`                                              | Present to user → await accept/decline                        | `{ userAction: 'accept' \| 'decline' }`                |
-| 7     | ARCH-007 RecipePersistenceAdapter | `{ userId, recipeDraft, source: 'ai' }` (accept path only) | Map to Recipe entity → persist to PostgreSQL                  | `{ recipeId: UUID }`                                   |
+| Stage | Module                            | Input Format                                               | Transformation                                                                            | Output Format                                          |
+| ----- | --------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 1     | ARCH-015 AuthMiddleware           | HTTP request + Clerk session token                         | Verify token networklessly (CLERK_JWT_KEY) → extract `userId`                             | Request context `{ userId }`                           |
+| 2     | ARCH-016 PremiumEntitlementGuard  | `{ userId }`                                               | Query 010-subscriptions → check active premium                                            | `{ isPremium: true }` or 402                           |
+| 3     | ARCH-005 RecipeGenerationService  | `{ userId, criteria: GenerationRequest }`                  | Orchestrate credential fetch + provider dispatch                                          | `RecipeDraft`                                          |
+| 4     | ARCH-002 ByokService              | `{ userId }`                                               | Resolve the stored ARN via ARCH-001, then fetch the key from Secrets Manager just-in-time | `{ provider, apiKey }`                                 |
+| 5     | ARCH-004 AIProviderAdapter        | `{ provider, apiKey, criteria }`                           | Map to provider payload → HTTP call → parse response                                      | `RecipeDraft { title, ingredients[], instructions[] }` |
+| 6     | ARCH-006 RecipePreviewController  | `RecipeDraft`                                              | Present to user → await accept/decline                                                    | `{ userAction: 'accept' \| 'decline' }`                |
+| 7     | ARCH-007 RecipePersistenceAdapter | `{ userId, recipeDraft, source: 'ai' }` (accept path only) | Map to Recipe entity → persist to PostgreSQL                                              | `{ recipeId: UUID }`                                   |
 
 ### Data Flow: External Agent Recipe Creation
 
@@ -330,11 +330,11 @@ sequenceDiagram
 
 ### Data Flow: AI Provider Credential Storage
 
-| Stage | Module                            | Input Format                               | Transformation                                                | Output Format                         |
-| ----- | --------------------------------- | ------------------------------------------ | ------------------------------------------------------------- | ------------------------------------- |
-| 1     | ARCH-015 AuthMiddleware           | HTTP request + Clerk session token         | Verify token networklessly (CLERK_JWT_KEY) → extract `userId` | Request context `{ userId }`          |
-| 2     | ARCH-002 ProviderConfigService    | `{ userId, provider, apiKey }`             | Validate provider enum → delegate to ARCH-001                 | Validated config object               |
-| 3     | ARCH-001 ProviderConfigRepository | `{ userId, provider, apiKey (plaintext) }` | AES-256 encrypt `apiKey` → upsert to PostgreSQL               | `{ providerId, provider, maskedKey }` |
+| Stage | Module                     | Input Format                       | Transformation                                                | Output Format                         |
+| ----- | -------------------------- | ---------------------------------- | ------------------------------------------------------------- | ------------------------------------- |
+| 1     | ARCH-015 AuthMiddleware    | HTTP request + Clerk session token | Verify token networklessly (CLERK_JWT_KEY) → extract `userId` | Request context `{ userId }`          |
+| 2     | ARCH-002 ByokService       | `{ userId, provider, apiKey }`     | Validate provider enum → delegate to ARCH-001                 | Validated config object               |
+| 3     | ARCH-001 ByokKeyRepository | `{ userId, provider, secretArn }`  | Persist the Secrets Manager ARN only — no key material        | `{ providerId, provider, maskedKey }` |
 
 ---
 

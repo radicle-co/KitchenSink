@@ -38,7 +38,7 @@ const MOCK_S3_ORIGIN = 'https://mock-s3.recipe-photos.e2e.example.com';
 /**
  * Recipe-service route mocks for the web E2E specs (T079/T080/T104/T109/T110). The recipe pages are
  * auth-gated server shells that render CLIENT containers fetching the recipe service via TanStack Query in
- * the browser, so a `page.route` glob over the `/v1/` API intercepts every call. This installs a small
+ * the browser, so a `page.route` glob over the `/api/v1/` API intercepts every call. This installs a small
  * in-memory store so a happy path is
  * coherent across requests (create → the list/detail reflect it, edit bumps the version, delete removes it,
  * clone yields a new recipe, visibility toggles, a collection's membership changes, search narrows). The
@@ -326,7 +326,7 @@ export function makeRecipeVersion(over: Partial<RecipeVersion> = {}): RecipeVers
  * `@kitchensink/recipe-service-client` `Collection` (core `Collection` plus the pull-provenance projections
  * `sourceOwnerHandle`/`sourceCollectionName`/`lastPulledAt`, W5 Task 5) — with the MEMBERSHIP held alongside
  * as `recipeIds` — a join, exactly as the service holds one, rather than an embedded recipe array. `GET
- * /v1/collections/{id}` composes `recipes` from the recipe store at read time, so removing a member is
+ * /api/v1/collections/{id}` composes `recipes` from the recipe store at read time, so removing a member is
  * observable for the same reason it is in production.
  */
 export interface MockCollection extends Collection {
@@ -380,7 +380,7 @@ function toRecipeMetadata(detail: RecipeDetail): Recipe {
 }
 
 /**
- * Project a stored recipe to the row `GET /v1/recipes` returns: metadata PLUS the composed
+ * Project a stored recipe to the row `GET /api/v1/recipes` returns: metadata PLUS the composed
  * `ingredients`/`steps`, but WITHOUT `photos`/`nutrition` (the service's `RecipeResponse` documents both as
  * "ABSENT on list/search"). Typed `Recipe`, which is what the client contract promises the list page. Pure.
  *
@@ -512,13 +512,13 @@ const catalogIngredient: Ingredient = {
 
 /**
  * Search Stage 2 — the food-catalog side of the blended typeahead: a golden record with NO `ingredients` row
- * yet. Picking it must go through `POST /v1/ingredients/by-food` (which the router below admits as
+ * yet. Picking it must go through `POST /api/v1/ingredients/by-food` (which the router below admits as
  * {@link admittedCatalogIngredient}), never straight onto a recipe line — it has no ingredient id.
  */
 const catalogSuggestionFoodId = 'food_black_pepper';
 const catalogSuggestionName = 'Pepper, black, ground';
 
-/** The `ingredients` row `POST /v1/ingredients/by-food` creates for {@link catalogSuggestionFoodId}. */
+/** The `ingredients` row `POST /api/v1/ingredients/by-food` creates for {@link catalogSuggestionFoodId}. */
 const admittedCatalogIngredient: Ingredient = {
     id: 'ing_black_pepper',
     name: catalogSuggestionName,
@@ -661,7 +661,7 @@ export interface MockRecipeApiOptions {
      * "the viewer has nothing yet"; a convenient default is not a neutral one.
      */
     readonly recipes?: readonly RecipeDetail[];
-    /** The viewer's subscription tier surfaced at `/v1/users/me` (defaults to premium so private is enabled). */
+    /** The viewer's subscription tier surfaced at `/api/v1/users/me` (defaults to premium so private is enabled). */
     readonly tier?: 'free' | 'premium';
     /** The app-user id the viewer owns recipes as (matches the recipe `ownerId` so owner controls show). */
     readonly viewerId?: string;
@@ -701,13 +701,13 @@ export interface MockRecipeApiOptions {
      */
     readonly authorHandles?: Readonly<Record<string, string>>;
     /**
-     * Page size for `GET /v1/collections` (W5/C7 "Load more" pagination). Defaults to the service's own
+     * Page size for `GET /api/v1/collections` (W5/C7 "Load more" pagination). Defaults to the service's own
      * default (20, `pageQuerySchema`) so every existing small seed still renders on a single page with no
      * `hasMore`; a pagination spec overrides this to a small number rather than seeding 21+ collections.
      */
     readonly collectionsPageSize?: number;
     /**
-     * A recipe's version history (W6 Task 6), keyed by recipe id — `GET /v1/recipes/{id}/versions` serves
+     * A recipe's version history (W6 Task 6), keyed by recipe id — `GET /api/v1/recipes/{id}/versions` serves
      * these DESCENDING by `versionNumber` regardless of the array order given here (mirrors the service's
      * real `ORDER BY version_number DESC`, `versions.dal.ts`). A recipe absent here has no version history
      * (an empty list) — the honest default for a recipe seeded without one. Restoring a version APPENDS a
@@ -761,12 +761,12 @@ export async function mockRecipeApi(
     let nextFreeformIngredientId = 1;
     // The ingredient CATALOG this mock has handed out (id → `isUserEntered`), so a recipe write can resolve
     // each line's flag from the catalog exactly as the service does — the wire input never carries it. Seeded
-    // with the food-backed typeahead double; every freeform `POST /v1/ingredients` registers its own row.
+    // with the food-backed typeahead double; every freeform `POST /api/v1/ingredients` registers its own row.
     const ingredientCatalog = new Map<string, boolean>([[catalogIngredient.id, catalogIngredient.isUserEntered]]);
     const resolveUserEntered: ResolveUserEntered = (ingredientId) => ingredientCatalog.get(ingredientId) ?? false;
     // Photos (T067/CP-6/P3): a recipe id → its confirmed photos, in display order. Seeded from each
     // recipe's embedded `photos` so a spec that pre-seeds a cover photo sees it on both the detail's
-    // embedded list AND `GET /v1/recipes/{id}/photos`, exactly as the two stay in sync in production.
+    // embedded list AND `GET /api/v1/recipes/{id}/photos`, exactly as the two stay in sync in production.
     const photoStore = new Map<string, RecipePhoto[]>();
     let nextPhotoId = 1;
     // One-shot photo-upload failure countdown (w3/e7): decremented on every presign call while positive.
@@ -830,7 +830,7 @@ export async function mockRecipeApi(
         collections.set(collection.id, collection);
     }
 
-    await page.route('**/v1/**', async (route) => {
+    await page.route('**/api/v1/**', async (route) => {
         const request = route.request();
         const method = request.method();
         const url = new URL(request.url());
@@ -839,7 +839,7 @@ export async function mockRecipeApi(
             request.postData() ? JSON.parse(request.postData() as string) : {};
 
         // Identity profile → drives the premium visibility gate.
-        if (path.endsWith('/v1/users/me')) {
+        if (path.endsWith('/api/v1/users/me')) {
             return route.fulfill({
                 json: {
                     user: { id: viewerId, displayName: 'E2E', email: 'e2e@example.com', status: 'active' },
@@ -855,12 +855,12 @@ export async function mockRecipeApi(
         //    result ids become `ingredientIds` filter values.
         //  - `/suggest` — the BLENDED envelope the ingredient PICKER reads: the caller's own rows plus
         //    food-catalog golden records that have no `ingredients` row yet, sectioned by provenance.
-        // Matched BEFORE the bare `/v1/ingredients` create route so the longer paths win.
-        if (path.endsWith('/v1/ingredients/search')) {
+        // Matched BEFORE the bare `/api/v1/ingredients` create route so the longer paths win.
+        if (path.endsWith('/api/v1/ingredients/search')) {
             return route.fulfill({ json: [catalogIngredient] });
         }
 
-        if (path.endsWith('/v1/ingredients/suggest')) {
+        if (path.endsWith('/api/v1/ingredients/suggest')) {
             return route.fulfill({
                 json: {
                     suggestions: [
@@ -880,7 +880,7 @@ export async function mockRecipeApi(
         // Search Stage 2's pick path: admit a catalog suggestion as a food-backed row that ALREADY carries
         // nutrition (the server does the golden-record read + backfill before responding — hence 200, not the
         // 202 `by-name` returns). An unknown food id is a 400, mirroring `UNKNOWN_INGREDIENT`.
-        if (path.endsWith('/v1/ingredients/by-food') && method === 'POST') {
+        if (path.endsWith('/api/v1/ingredients/by-food') && method === 'POST') {
             const { foodId } = body() as { foodId?: string };
 
             if (foodId !== catalogSuggestionFoodId) {
@@ -893,7 +893,7 @@ export async function mockRecipeApi(
             return route.fulfill({ json: admittedCatalogIngredient });
         }
 
-        if (path.endsWith('/v1/ingredients') && method === 'POST') {
+        if (path.endsWith('/api/v1/ingredients') && method === 'POST') {
             const { name } = body() as { name?: string };
             const freeform: Ingredient = {
                 id: `ing_freeform_${nextFreeformIngredientId++}`,
@@ -913,7 +913,7 @@ export async function mockRecipeApi(
 
         // Presign: mint a mock S3 URL under MOCK_S3_ORIGIN; the object key encodes the recipe + a counter
         // so a confirm can be traced back to the presign that minted it, exactly as the real key does.
-        const uploadUrlPath = path.match(/\/v1\/recipes\/([^/]+)\/photos\/upload-url$/);
+        const uploadUrlPath = path.match(/\/api\/v1\/recipes\/([^/]+)\/photos\/upload-url$/);
 
         if (uploadUrlPath && method === 'POST') {
             // A short artificial delay so the busy affordance the hook drives (`uploading`) is observable
@@ -947,8 +947,8 @@ export async function mockRecipeApi(
         }
 
         // Confirm: record the uploaded key against the recipe, appended at the next display order — the
-        // same shape `POST /v1/recipes/{id}/photos/confirm` returns (201, the created `RecipePhoto`).
-        const confirmPhotoPath = path.match(/\/v1\/recipes\/([^/]+)\/photos\/confirm$/);
+        // same shape `POST /api/v1/recipes/{id}/photos/confirm` returns (201, the created `RecipePhoto`).
+        const confirmPhotoPath = path.match(/\/api\/v1\/recipes\/([^/]+)\/photos\/confirm$/);
 
         if (confirmPhotoPath && method === 'POST') {
             const id = confirmPhotoPath[1] as string;
@@ -974,7 +974,7 @@ export async function mockRecipeApi(
         // upload-first Replace). Re-derives `order` so the surviving photos stay 1..N with no gap — the same
         // renumbering the service does, and what makes "the cover is the lowest-order photo" keep holding.
         // Matched BEFORE the bare `/photos` list route so the longer path wins.
-        const deletePhotoPath = path.match(/\/v1\/recipes\/([^/]+)\/photos\/([^/]+)$/);
+        const deletePhotoPath = path.match(/\/api\/v1\/recipes\/([^/]+)\/photos\/([^/]+)$/);
 
         if (deletePhotoPath && method === 'DELETE') {
             const id = deletePhotoPath[1] as string;
@@ -989,7 +989,7 @@ export async function mockRecipeApi(
         }
 
         // List (edit surface mounts the uploader): the recipe's confirmed photos, in order.
-        const photosListPath = path.match(/\/v1\/recipes\/([^/]+)\/photos$/);
+        const photosListPath = path.match(/\/api\/v1\/recipes\/([^/]+)\/photos$/);
 
         if (photosListPath && method === 'GET') {
             const id = photosListPath[1] as string;
@@ -1003,7 +1003,7 @@ export async function mockRecipeApi(
 
         // Restore: rewrite the recipe from the target version's snapshot and APPEND a new, higher-numbered
         // version recording the restore (never rewrites history — mirrors `RecipesService.restore`).
-        const restoreVersionPath = path.match(/\/v1\/recipes\/([^/]+)\/versions\/([^/]+)\/restore$/);
+        const restoreVersionPath = path.match(/\/api\/v1\/recipes\/([^/]+)\/versions\/([^/]+)\/restore$/);
 
         if (restoreVersionPath && method === 'POST') {
             const id = restoreVersionPath[1] as string;
@@ -1066,7 +1066,7 @@ export async function mockRecipeApi(
 
         // A single version snapshot — served for completeness; the version-history container reads
         // Preview/Compare data straight off the already-loaded list (`useRecipeVersions`), never this route.
-        const singleVersionPath = path.match(/\/v1\/recipes\/([^/]+)\/versions\/([^/]+)$/);
+        const singleVersionPath = path.match(/\/api\/v1\/recipes\/([^/]+)\/versions\/([^/]+)$/);
 
         if (singleVersionPath && method === 'GET') {
             const id = singleVersionPath[1] as string;
@@ -1077,7 +1077,7 @@ export async function mockRecipeApi(
         }
 
         // The version list — newest-first, mirroring the service's real `ORDER BY version_number DESC`.
-        const versionsListPath = path.match(/\/v1\/recipes\/([^/]+)\/versions$/);
+        const versionsListPath = path.match(/\/api\/v1\/recipes\/([^/]+)\/versions$/);
 
         if (versionsListPath && method === 'GET') {
             const id = versionsListPath[1] as string;
@@ -1087,7 +1087,7 @@ export async function mockRecipeApi(
         }
 
         // Clone → a new recipe owned by the viewer, attributed to the source.
-        const clone = path.match(/\/v1\/recipes\/([^/]+)\/clone$/);
+        const clone = path.match(/\/api\/v1\/recipes\/([^/]+)\/clone$/);
 
         if (clone && method === 'POST') {
             const source = store.get(clone[1] as string);
@@ -1105,7 +1105,7 @@ export async function mockRecipeApi(
         }
 
         // Visibility toggle.
-        const visibility = path.match(/\/v1\/recipes\/([^/]+)\/visibility$/);
+        const visibility = path.match(/\/api\/v1\/recipes\/([^/]+)\/visibility$/);
 
         if (visibility && method === 'PATCH') {
             const id = visibility[1] as string;
@@ -1130,7 +1130,7 @@ export async function mockRecipeApi(
         //   - a recipe the viewer cannot READ (private, not theirs) → 404, indistinguishable from missing (Sc9);
         //   - the viewer's OWN recipe → 403 (Sc8) — the owner already knows it exists, so this may be explicit;
         //   - otherwise PUT returns 200 with the recomputed detail (Sc6/Sc7), DELETE returns 204 (Sc10).
-        const ratingPath = path.match(/\/v1\/recipes\/([^/]+)\/rating$/);
+        const ratingPath = path.match(/\/api\/v1\/recipes\/([^/]+)\/rating$/);
 
         if (ratingPath && (method === 'PUT' || method === 'DELETE')) {
             const id = ratingPath[1] as string;
@@ -1175,7 +1175,7 @@ export async function mockRecipeApi(
         }
 
         // Single recipe: get / update / delete.
-        const single = path.match(/\/v1\/recipes\/([^/]+)$/);
+        const single = path.match(/\/api\/v1\/recipes\/([^/]+)$/);
 
         if (single) {
             const id = single[1] as string;
@@ -1283,7 +1283,7 @@ export async function mockRecipeApi(
         }
 
         // Recipes: list + create.
-        if (path.endsWith('/v1/recipes')) {
+        if (path.endsWith('/api/v1/recipes')) {
             if (method === 'GET') {
                 return route.fulfill({ json: paginate([...store.values()].map(toRecipeListRow)) });
             }
@@ -1329,7 +1329,7 @@ export async function mockRecipeApi(
         // ─── Collections (T109) ─────────────────────────────────────────────────────────────────
         // Membership: remove a recipe from a collection (204). Matched BEFORE the collection routes so
         // the longer path wins.
-        const member = path.match(/\/v1\/collections\/([^/]+)\/recipes\/([^/]+)$/);
+        const member = path.match(/\/api\/v1\/collections\/([^/]+)\/recipes\/([^/]+)$/);
 
         if (member && method === 'DELETE') {
             const current = collections.get(member[1] as string);
@@ -1347,7 +1347,7 @@ export async function mockRecipeApi(
         }
 
         // Membership: add a recipe to a collection (201 with the join record).
-        const members = path.match(/\/v1\/collections\/([^/]+)\/recipes$/);
+        const members = path.match(/\/api\/v1\/collections\/([^/]+)\/recipes$/);
 
         if (members && method === 'POST') {
             const current = collections.get(members[1] as string);
@@ -1374,7 +1374,7 @@ export async function mockRecipeApi(
         // Clone (FR-011): a new PRIVATE collection owned by the viewer, seeded from the source's current
         // (viewer-visible) members as `clone_seed`, with source attribution FROZEN at clone time (W5 Task 2)
         // — matched BEFORE the single-collection route so the longer path wins.
-        const cloneCollectionPath = path.match(/\/v1\/collections\/([^/]+)\/clone$/);
+        const cloneCollectionPath = path.match(/\/api\/v1\/collections\/([^/]+)\/clone$/);
 
         if (cloneCollectionPath && method === 'POST') {
             const sourceId = cloneCollectionPath[1] as string;
@@ -1424,7 +1424,7 @@ export async function mockRecipeApi(
         // PREVIEW a pull without mutating (W5 Task 5 / decision 7) — 200 with the `{ added, removed,
         // unchanged }` diff, echoed back on commit as the drift baseline. Matched BEFORE the commit route
         // (`/pull-from-source$`) so the longer, more specific path wins.
-        const previewPullPath = path.match(/\/v1\/collections\/([^/]+)\/pull-from-source\/preview$/);
+        const previewPullPath = path.match(/\/api\/v1\/collections\/([^/]+)\/pull-from-source\/preview$/);
 
         if (previewPullPath && method === 'POST') {
             const id = previewPullPath[1] as string;
@@ -1461,7 +1461,7 @@ export async function mockRecipeApi(
         // (decision 7 — never silently apply a different set than the caller confirmed). Otherwise, the
         // `added` set is appended as `'pull'`-provenance members and `lastPulledAt` is stamped — even when
         // `added` is empty, "last pulled" means the user synced, not "something changed" (W5 Task 3).
-        const commitPullPath = path.match(/\/v1\/collections\/([^/]+)\/pull-from-source$/);
+        const commitPullPath = path.match(/\/api\/v1\/collections\/([^/]+)\/pull-from-source$/);
 
         if (commitPullPath && method === 'POST') {
             const id = commitPullPath[1] as string;
@@ -1526,7 +1526,7 @@ export async function mockRecipeApi(
         }
 
         // Single collection: get (with members) / update / delete.
-        const singleCollection = path.match(/\/v1\/collections\/([^/]+)$/);
+        const singleCollection = path.match(/\/api\/v1\/collections\/([^/]+)$/);
 
         if (singleCollection) {
             const id = singleCollection[1] as string;
@@ -1564,7 +1564,7 @@ export async function mockRecipeApi(
         }
 
         // Collections: list (the caller's own, REALLY paginated — W5/C7 "Load more") + create.
-        if (path.endsWith('/v1/collections')) {
+        if (path.endsWith('/api/v1/collections')) {
             if (method === 'GET') {
                 const owned = [...collections.values()].filter((collection) => collection.ownerId === viewerId);
                 const requestedPage = Number(url.searchParams.get('page') ?? '1');
@@ -1600,7 +1600,7 @@ export async function mockRecipeApi(
         }
 
         // ─── Search (T110 / FR-006 search + filter) ───────────────────────────────────────────────
-        if (path.endsWith('/v1/search/recipes')) {
+        if (path.endsWith('/api/v1/search/recipes')) {
             const term = (url.searchParams.get('query') ?? '').trim().toLowerCase();
             const dietaryFlags = url.searchParams.getAll('dietaryFlags');
             const tags = url.searchParams.getAll('tags');
@@ -1656,15 +1656,20 @@ export async function mockRecipeApi(
             return route.fulfill({ json: response });
         }
 
-        // Pass everything else through untouched — critically Clerk's Frontend API, which ALSO lives under
-        // `/v1/` (`/v1/client`, `/v1/environment`, token minting). 404-ing those would break `getToken()`
-        // and hang every recipe request that awaits a token. Only the recipe/identity endpoints matched
-        // above are mocked; the rest reach the real network.
+        // Pass everything else through untouched. Only the recipe/identity endpoints matched above are
+        // mocked; the rest reach the real network.
+        //
+        // Clerk's Frontend API (`/v1/client`, `/v1/environment`, token minting) is no longer a hazard here:
+        // the glob is `**/api/v1/**`, and Clerk serves its routes at the bare `/v1/*`, so those requests
+        // never enter this handler at all. Before the platform moved to the `/api/{version}/` prefix the
+        // glob was `**/v1/**`, which DID capture Clerk — and 404-ing those would break `getToken()` and hang
+        // every recipe request awaiting a token. If you ever widen this glob back toward `**/v1/**`, restore
+        // that pass-through reasoning with it.
         return route.continue();
     });
 
     // The direct-to-S3 PUT the hook sends to the presigned `uploadUrl` above — a distinct origin, so it
-    // needs its own route (the `/v1/**` glob above only matches the recipe-service's own origin/path).
+    // needs its own route (the `/api/v1/**` glob above only matches the recipe-service's own origin/path).
     await page.route(`${MOCK_S3_ORIGIN}/**`, (route) => route.fulfill({ status: 200, body: '' }));
 
     return store;

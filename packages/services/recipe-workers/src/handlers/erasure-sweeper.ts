@@ -10,7 +10,7 @@ import { emitMetric } from '../common/metrics.js';
 
 /**
  * Scheduled account-erasure sweeper (T136b / C-007 / D7) — the durability backstop behind
- * `POST /v1/account/erasure`, and the owner of the decision to give up. VPC-attached DB consumer.
+ * `POST /api/v1/account/erasure`, and the owner of the decision to give up. VPC-attached DB consumer.
  *
  * **It is not the archive sweeper with the nouns swapped.** The archive sweeper is its path's ONLY
  * trigger, so it dispatches every due row on sight, every minute. Erasure inverts that: `ErasureService`

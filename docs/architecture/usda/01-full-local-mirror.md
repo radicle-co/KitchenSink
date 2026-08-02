@@ -149,13 +149,13 @@ The API layer translates HTTP requests from the recipe application into PostgreS
 
 **API surface:**
 
-| Method | Path                 | Description                                       |
-| ------ | -------------------- | ------------------------------------------------- |
-| GET    | `/v1/foods/{fdcId}`  | Retrieve a single food item with nutrients        |
-| POST   | `/v1/foods`          | Batch lookup by fdcId array (up to 100 items)     |
-| GET    | `/v1/foods/search`   | Full-text + filter search against PostgreSQL      |
-| GET    | `/v1/foods/list`     | Paginated listing with dataType/brandOwner filter |
-| GET    | `/v1/nutrients/{id}` | Nutrient definition lookup                        |
+| Method | Path                     | Description                                       |
+| ------ | ------------------------ | ------------------------------------------------- |
+| GET    | `/api/v1/foods/{fdcId}`  | Retrieve a single food item with nutrients        |
+| POST   | `/api/v1/foods`          | Batch lookup by fdcId array (up to 100 items)     |
+| GET    | `/api/v1/foods/search`   | Full-text + filter search against PostgreSQL      |
+| GET    | `/api/v1/foods/list`     | Paginated listing with dataType/brandOwner filter |
+| GET    | `/api/v1/nutrients/{id}` | Nutrient definition lookup                        |
 
 The batch endpoint accepts up to 100 `fdcId` values in a single request, enabling recipe apps to hydrate an entire ingredient list in one round trip.
 

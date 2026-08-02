@@ -1,6 +1,6 @@
 /**
  * `useUserProfile` / `useUpdateProfile` / `useDeleteAccount` — the mobile read/update/delete of the
- * signed-in viewer's identity profile (`GET`/`PATCH`/`DELETE /v1/users/me`), mirroring the web hook
+ * signed-in viewer's identity profile (`GET`/`PATCH`/`DELETE /api/v1/users/me`), mirroring the web hook
  * (`web/src/hooks/useUserProfile.ts`) so both platforms gate identically (CODING_STANDARDS §14).
  *
  * DA10-c: all three now go through the typed `ProfileServiceClient`, constructed once per render via

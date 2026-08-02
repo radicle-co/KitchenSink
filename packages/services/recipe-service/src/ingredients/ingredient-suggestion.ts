@@ -11,7 +11,7 @@
  *    picker can put it on a recipe line immediately, with whatever nutrition the row already carries.
  *  - `catalog` — a food-service golden record with **no `ingredients` row yet**. It has NO ingredient id and
  *    (per `SearchResultView`) NO nutrition; picking it must first ADMIT it into the catalog
- *    (`POST /v1/ingredients/by-food`, which creates the row and backfills nutrition in one round-trip).
+ *    (`POST /api/v1/ingredients/by-food`, which creates the row and backfills nutrition in one round-trip).
  *
  * Collapsing those into one shape would force a fabricated ingredient id — the exact class of bug that ends
  * with a foreign-key violation or a nutrition-less recipe line. Parse, don't validate: the union makes the
@@ -57,7 +57,7 @@ export type IngredientSuggestion =
     | {
           /** A food-service golden record with no `ingredients` row yet — must be admitted on pick. */
           readonly provenance: 'catalog';
-          /** The opaque `food_id` to admit via `POST /v1/ingredients/by-food`. */
+          /** The opaque `food_id` to admit via `POST /api/v1/ingredients/by-food`. */
           readonly foodId: string;
           /** The golden display name. */
           readonly name: string;
@@ -65,7 +65,7 @@ export type IngredientSuggestion =
           readonly score: number;
       };
 
-/** The `GET /v1/ingredients/suggest` response envelope. */
+/** The `GET /api/v1/ingredients/suggest` response envelope. */
 export interface IngredientSuggestions {
     /** The blended, deduped, sectioned suggestions (local section first). */
     readonly suggestions: readonly IngredientSuggestion[];

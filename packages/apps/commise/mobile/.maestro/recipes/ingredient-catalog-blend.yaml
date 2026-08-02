@@ -7,7 +7,7 @@ appId: io.commise.mobile
 # WHAT THIS FLOW ASSERTS, AND WHY IT IS THE F2 PATH RATHER THAN THE CATALOG PICK.
 # The Maestro job is deliberately self-contained: it boots recipe-service + Postgres on the runner and
 # NOTHING ELSE (see the `mobile-maestro` job in `.github/workflows/_ci.yml`). The food service (003) is not
-# there — so `GET /v1/ingredients/suggest` genuinely degrades, every time, deterministically. That makes the
+# there — so `GET /api/v1/ingredients/suggest` genuinely degrades, every time, deterministically. That makes the
 # F2 contract the one Stage-2 behaviour this environment can prove for real, and it is also the
 # higher-risk half: a bug here does not lose a section, it breaks the typeahead outright and blocks recipe
 # creation. Asserting the catalog-pick happy path here would instead require a food service the job does not

@@ -2,7 +2,7 @@
  * U4 (FR-1/FR-2/FR-4/SC-hold) — the food-API load-test journey.
  *
  * Each VU iteration runs the realistic user journey against the deployed food service:
- *   search a varied corpus query  ->  add-by-name (POST /v1/foods)  ->  poll status to a terminal
+ *   search a varied corpus query  ->  add-by-name (POST /api/v1/foods)  ->  poll status to a terminal
  * lifecycle state (or a bounded timeout), with think-time between steps. VU `i` authenticates as a
  * distinct Clerk user `i` from a pre-minted pool (see auth/provision-users.mjs), so the load looks like
  * N distinct users, not one.
@@ -252,7 +252,7 @@ export default function () {
     const auth = { headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' } };
 
     // 1. Search.
-    const searchRes = http.get(`${BASE_URL}/v1/foods/search?query=${encodeURIComponent(pickQuery())}`, {
+    const searchRes = http.get(`${BASE_URL}/api/v1/foods/search?query=${encodeURIComponent(pickQuery())}`, {
         ...auth,
         tags: { step: 'search' },
     });
@@ -269,7 +269,10 @@ export default function () {
 
     // 2. Add by name (202 + id).
     const q = pickQuery();
-    const addRes = http.post(`${BASE_URL}/v1/foods`, JSON.stringify({ name: q }), { ...auth, tags: { step: 'add' } });
+    const addRes = http.post(`${BASE_URL}/api/v1/foods`, JSON.stringify({ name: q }), {
+        ...auth,
+        tags: { step: 'add' },
+    });
     const addOk = gate(addRes, 'add', 202);
     check(addRes, { 'add 202': () => addOk });
 
@@ -298,7 +301,7 @@ export default function () {
     let terminal = null;
 
     while ((Date.now() - startedAt) / 1000 < POLL_TIMEOUT_S) {
-        const statusRes = http.get(`${BASE_URL}/v1/foods/${foodId}/status`, { ...auth, tags: { step: 'poll' } });
+        const statusRes = http.get(`${BASE_URL}/api/v1/foods/${foodId}/status`, { ...auth, tags: { step: 'poll' } });
 
         if (!gate(statusRes, 'poll', 200)) {
             break; // shed/5xx/401 — stop polling this item
@@ -326,7 +329,7 @@ export default function () {
             let persisted = false;
 
             if (terminal === 'UNRESOLVED') {
-                const candRes = http.get(`${BASE_URL}/v1/foods/${foodId}/candidates`, {
+                const candRes = http.get(`${BASE_URL}/api/v1/foods/${foodId}/candidates`, {
                     ...auth,
                     tags: { step: 'candidates' },
                 });
@@ -334,7 +337,7 @@ export default function () {
                 const list = body?.candidates ?? body?.items ?? body?.results ?? (Array.isArray(body) ? body : []);
                 persisted = Array.isArray(list) && list.length > 0;
             } else {
-                const detailRes = http.get(`${BASE_URL}/v1/foods/${foodId}`, { ...auth, tags: { step: 'detail' } });
+                const detailRes = http.get(`${BASE_URL}/api/v1/foods/${foodId}`, { ...auth, tags: { step: 'detail' } });
                 persisted = detailRes.status === 200 && Boolean(detailRes.json('id'));
             }
 

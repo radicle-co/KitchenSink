@@ -35,12 +35,12 @@ Instrumented proof, captured at the instant of the click on `/en/settings` (Chro
 ```
 [state at click]  windowClerk=object  clerkLoaded=false  clerkStatus="loading"
                   client=<undefined>  hasSessionCookie=true
-[FAPI after click] <<< NO /v1/client/sessions?_method=DELETE — no revoke was ever issued >>>
+[FAPI after click] <<< NO /api/v1/client/sessions?_method=DELETE — no revoke was ever issued >>>
 [after]           url=/en  h1="Welcome to Commise"  __client_uat=1785157346  __session present
 ```
 
 The same click, taken **after** `Clerk.loaded === true`, issues
-`POST /v1/client/sessions?_method=DELETE` → `200 {"sessions":[]}`, clears `__session`, sets `__client_uat=0`,
+`POST /api/v1/client/sessions?_method=DELETE` → `200 {"sessions":[]}`, clears `__session`, sets `__client_uat=0`,
 and the Backend API reports the session `status=removed`. Sign-out itself works — what was missing was waiting
 for Clerk to load, and checking that the sign-out had actually taken effect before telling the viewer they left.
 

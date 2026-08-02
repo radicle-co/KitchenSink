@@ -1,5 +1,5 @@
 /**
- * The pure row→export Data Mappers for `GET /v1/account/export`.
+ * The pure row→export Data Mappers for `GET /api/v1/account/export`.
  *
  * Every function here is a pure transformation from a persisted row to its `AccountExport` fragment:
  * `timestamptz` values normalized to ISO-8601 strings, nulls carried through explicitly (a portability

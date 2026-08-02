@@ -9,19 +9,19 @@ settings:
   auto_execute_hooks: true
 hooks:
   after_tasks:
-  - extension: v-model
-    command: speckit.v-model.trace
-    enabled: true
-    optional: true
-    prompt: Run traceability matrix to validate requirement coverage?
-    description: Builds the traceability matrix after tasks are generated
-    condition: null
   - extension: speckit-superpowers-bridge
     command: speckit.speckit-superpowers-bridge.handoff
     enabled: true
     optional: false
     prompt: Execute speckit.speckit-superpowers-bridge.handoff?
     description: Create the Superpowers handoff after Spec Kit task generation
+    condition: null
+  - extension: v-model
+    command: speckit.v-model.trace
+    enabled: true
+    optional: true
+    prompt: Run traceability matrix to validate requirement coverage?
+    description: Builds the traceability matrix after tasks are generated
     condition: null
   after_specify:
   - extension: agent-context

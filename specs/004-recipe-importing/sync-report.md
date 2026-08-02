@@ -1,86 +1,54 @@
 # Sync-Verify Report: 004-recipe-importing
 
-**Feature**: `004-recipe-importing`  
-**Date**: 2026-06-02  
-**Phase**: pre-implement  
-**Layers Checked**: L1, L2, L3, L4, L6, L7  
-**Layers Skipped**: L5 (zero completed tasks)  
-
----
+**Date**: 2026-08-02
+**Phase**: pre-implement (post-reconciliation)
+**Layers checked**: L1, L2, L3, L4, L6, L7 · **Skipped**: L5 (zero completed tasks)
 
 ## Verdict
 
-**PASS with warnings**
+✅ **PASS** — no CRITICAL, no WARNING, 3 INFO (see `verify-report.md`).
 
-Research ↔ product-spec alignment is strong; spec ↔ plan coverage is complete for all Must-have FRs; tasks dependency graph mirrors plan implementation order. Two INFO-level path-convention deviations in tasks.md; FR-014a and OCR-scope deltas are correctly flagged as pending across multiple artifacts. No CRITICAL or blocking issues found.
+The prior run (2026-06-02) passed with warnings and recorded four INFO drifts, **all of which are now closed**:
 
----
+| Prior | Drift                                                       | Status                                                                                                                     |
+| ----- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| D-001 | tasks.md used `src/web/` and `src/mobile/` path conventions | ✅ **Closed** — and the intermediate "fix" to `packages/api/recipe/` was also wrong; paths are now verified against `main` |
+| D-002 | FR-012 (OCR) P1 in spec vs P3 in plan                       | ✅ **Closed** — owner decision D-001: P1 at launch, consistent everywhere                                                  |
+| D-003 | FR-014a had no operational rule                             | ✅ **Closed** — owner decision D-003                                                                                       |
+| D-004 | OCR provider unresolved                                     | ✅ **Closed** — AWS Textract behind an `OcrProvider` port                                                                  |
 
-## Layer Summaries
+## Layer summaries
 
-### L1 – research/ ↔ product-spec/
-- **State**: PASSED
-- **Evidence**: research/README.md correctly maps 5 domain docs to spec.md FRs. product-spec/README.md links to spec.md, plan.md, user-journey.md, metrics.md, wireframes/. research/codebase-analysis.md uses `packages/apps/commise/{web,mobile}`.
-- **Drift**: None.
+**L1 research ↔ product-spec** — PASSED. `codebase-analysis.md` and `tech-stack.md` regenerated against shipped
+`main`; superseded conclusions in `research.md` are banner-marked rather than silently retained.
 
-### L2 – product-spec/ ↔ spec.md
-- **State**: PASSED
-- **Evidence**: product-spec.md traces every MoSCoW story to FR-008..FR-014a. US-401 through US-410 cover URL import, Instagram import, attribution, visibility, physical copy, paywall, clone, and error recovery. FR-014a is explicitly marked “legal review required” and never invented in downstream artifacts.
-- **Drift**: US-405 (OCR/physical copy) maps to FR-012, which is P1 in spec.md but treated as phased-P3 in plan/tasks. Consistently documented as deferred, so downgraded to INFO.
+**L2 product-spec ↔ spec** — PASSED. Every story (US-401..US-414) maps to a requirement. Four stories are new
+and correspond to capabilities that were always implied but never written down. US-408 promoted to Must Have
+because the shipped schema makes it load-bearing.
 
-### L3 – spec.md ↔ plan.md
-- **State**: PASSED with warnings
-- **Evidence**: Every FR in spec.md has a corresponding plan.md section:
-  - FR-008 → §1 URL Import Path, §4 extraction stack, §5 JSON/YAML/MD formats
-  - FR-009 → §1 Instagram Import Path
-  - FR-010 → §2 attribution fields (`attributionHtml`, `sourceUrl`)
-  - FR-011 → §2 visibility rules, §3 response shapes
-  - FR-012 → §1 File Import Path (partial), §9 P3
-  - FR-013 → §2 private marking for file/OCR imports
-  - FR-014 → §2 PAYWALLED_DOMAINS, §6 blocklist enforcement
-  - FR-014a → §3 paywalled response, §8 open question #3
-- **WARNING**: FR-012 (OCR/physical copy) is P1 in spec.md but plan.md defers it to §9 “OCR import (P3)”. Acknowledged as open question in §8.
+**L3 spec ↔ plan** — PASSED. Every FR has plan coverage. Plan §2 is now a **delta** against the shipped schema
+rather than a re-declaration of columns that already exist. Library survey registry-verified.
 
-### L4 – plan.md ↔ tasks.md
-- **State**: PASSED with warnings
-- **Evidence**: Plan implementation order (§9) maps 1:1 to task dependency graph. T-001..T-015 cover DB migration, entity extension, URL endpoint, extractors, deduplication, paywall, file import, Instagram, clone, web UI, mobile UI, integration tests, and OCR.
-- **WARNING**: Tasks T-011, T-012 use file paths `src/web/components/...` and `src/web/features/...` instead of monorepo `packages/apps/commise/web/...`. T-013 uses `src/mobile/screens/...` instead of `packages/apps/commise/mobile/...`.
-- **WARNING**: T-015 (OCR) depends on unresolved open question in plan.md §8 (“OCR library: AWS Textract vs Tesseract vs Google Cloud Vision?”).
+**L4 plan ↔ tasks** — PASSED. Task order mirrors `plan.md §9`. All paths verified to exist. Web+mobile paired
+throughout. Hazard mitigations present in acceptance criteria — previously absent entirely.
 
-### L5 – SKIPPED
-- Zero completed tasks; no code↔tasks verification performed.
+**L5** — SKIPPED (zero completed tasks).
 
-### L6 – code ↔ tasks (INFO only)
-- No implementation changes exist. Old path conventions (`src/web/`, `src/mobile/`) in tasks.md flagged as INFO per monorepo note.
+**L6 code ↔ tasks** — PASSED as a _reference_ check: no implementation exists, but every referenced package,
+contract file, and convention was verified against `main`.
 
-### L7 – cross-links
-- **State**: PASSED
-- **Evidence**: 
-  - spec.md → `../001-commise-recipe-app/spec.md`, `../002-user-auth/spec.md`, `../010-subscriptions/spec.md` — all directories exist.
-  - product-spec/README.md → `../spec.md`, `../plan.md`, `../v-model/requirements.md` — all exist.
-  - research/README.md → `../spec.md`, `../plan.md`, `../tasks.md` — all exist.
-  - tasks.md references `plan.md §7`, `plan.md §5`, `plan.md §2` — valid section anchors.
-  - verify-report.md exists from prior Product Forge phase.
+**L7 cross-links** — PASSED. All spec dependency links resolve. The OpenAPI contract reference points at its
+real location (`specs/001-commise-recipe-app/contracts/api.openapi.yaml`); the earlier draft of this
+regeneration pointed at a non-existent path and was corrected.
 
----
+## Drift inventory
 
-## Drift Inventory
+| ID    | Layer | Severity | Description                                                    |
+| ----- | ----- | -------- | -------------------------------------------------------------- |
+| I-001 | L7    | INFO     | Service-wide OpenAPI contract lives in feature 001's folder    |
+| I-002 | L2/L3 | INFO     | FR numbering collides with 001; mitigated by the `004-` prefix |
+| I-003 | L3    | INFO     | Two dormant dependencies accepted with rationale (MIN-006)     |
 
-| ID | Layer | Severity | Artifact | Description |
-|----|-------|----------|----------|-------------|
-| D-001 | L4 | INFO | tasks.md | File paths use old `src/web/` and `src/mobile/` conventions instead of `packages/apps/commise/{web,mobile}/`. |
-| D-002 | L3 | INFO | spec.md / plan.md | FR-012 (OCR/physical copy) is P1 in spec.md but deferred to P3 in plan.md §9 — open question in §8. |
-| D-003 | L2/L3 | INFO | Multiple | FR-014a (paywalled manual paste) remains “legal review required” with no operational rule defined. Correctly surfaced as warning. |
-| D-004 | L4 | INFO | tasks.md | T-015 OCR provider choice unresolved (AWS Textract vs Tesseract vs Google Cloud Vision). |
+## Recommendation
 
----
-
-## Recommendations
-
-1. **Path conventions**: Update tasks.md file references to `packages/apps/commise/web/...` and `packages/apps/commise/mobile/...` before implementation starts.
-2. **FR-014a**: Do not block development; keep flagged for legal review while building blocking infrastructure (manual-flag field, audit log).
-3. **OCR scope**: Confirm P3 vs P1 scope with product owner before implementation begins; if P3, adjust acceptance criteria in spec.md to match.
-
----
-
-*Report generated by sync-verify 7-layer scan. Read-only sources; zero completed tasks; L5 skipped.*
+Proceed to implementation. Re-run sync-verify after T-014 (first complete channel) to exercise layer L5.

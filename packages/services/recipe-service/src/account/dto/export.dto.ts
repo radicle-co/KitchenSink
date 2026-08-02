@@ -1,5 +1,5 @@
 /**
- * The response DTOs for `GET /v1/account/export` — the GDPR Art. 15 (access) / Art. 20 (portability)
+ * The response DTOs for `GET /api/v1/account/export` — the GDPR Art. 15 (access) / Art. 20 (portability)
  * export of the CALLER'S OWN recipe-domain personal data, mirroring the `AccountExport` schema in
  * `api.openapi.yaml`.
  *
@@ -154,7 +154,7 @@ export interface AuthorHandleExport {
 }
 
 /**
- * The complete `GET /v1/account/export` document: every recipe-domain personal-data root the caller
+ * The complete `GET /api/v1/account/export` document: every recipe-domain personal-data root the caller
  * owns, as a single structured, machine-readable JSON payload (Art. 20 portability).
  *
  * `ownerId` echoes the VERIFIED token owner the export was scoped to (never a client-supplied value), so

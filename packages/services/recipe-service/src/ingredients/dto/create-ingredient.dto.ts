@@ -1,5 +1,5 @@
 /**
- * T029 — request DTO for `POST /v1/ingredients` and `POST /v1/ingredients/by-name`, mirroring the
+ * T029 — request DTO for `POST /api/v1/ingredients` and `POST /api/v1/ingredients/by-name`, mirroring the
  * `CreateIngredientRequest` schema in `contracts/api.openapi.yaml`.
  *
  * Both routes take the SAME body — a single display `name` — so they share one DTO (one piece of
@@ -15,7 +15,7 @@ import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 /** Max length of a freeform/food display name (mirrors the OpenAPI `CreateIngredientRequest.name`). */
 export const MAX_INGREDIENT_NAME_LENGTH = 120;
 
-/** Body of `POST /v1/ingredients` and `POST /v1/ingredients/by-name`. */
+/** Body of `POST /api/v1/ingredients` and `POST /api/v1/ingredients/by-name`. */
 export class CreateIngredientDto {
     @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
     @IsString()

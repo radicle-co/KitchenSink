@@ -1,5 +1,5 @@
 /**
- * Response DTO for the food service-principal erasure route `POST /v1/internal/account/erasure`
+ * Response DTO for the food service-principal erasure route `POST /api/v1/internal/account/erasure`
  * (CR-002 / U4b / R11).
  *
  * There is NO request body — the target owner is bound in the verified token, never supplied. The response

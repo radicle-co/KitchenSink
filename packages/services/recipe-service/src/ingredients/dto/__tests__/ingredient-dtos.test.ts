@@ -20,7 +20,7 @@ const createMeta: ArgumentMetadata = { type: 'body', metatype: CreateIngredientD
 const resolveMeta: ArgumentMetadata = { type: 'body', metatype: ResolveIngredientDto };
 const byFoodMeta: ArgumentMetadata = { type: 'body', metatype: AddIngredientByFoodDto };
 
-describe('AddIngredientByFoodDto (POST /v1/ingredients/by-food — Stage 2 pick)', () => {
+describe('AddIngredientByFoodDto (POST /api/v1/ingredients/by-food — Stage 2 pick)', () => {
     it('trims a valid food id and exposes the trimmed value on the instance', async () => {
         const dto = (await pipe.transform(
             { foodId: '  01J0000000000000000000FOOD  ' },
@@ -50,7 +50,7 @@ describe('AddIngredientByFoodDto (POST /v1/ingredients/by-food — Stage 2 pick)
     });
 });
 
-describe('CreateIngredientDto (POST /v1/ingredients and /by-name)', () => {
+describe('CreateIngredientDto (POST /api/v1/ingredients and /by-name)', () => {
     it('trims a valid name and exposes the trimmed value on the instance', async () => {
         const dto = (await pipe.transform({ name: '  Grandma spice  ' }, createMeta)) as CreateIngredientDto;
 
@@ -85,7 +85,7 @@ describe('CreateIngredientDto (POST /v1/ingredients and /by-name)', () => {
     });
 });
 
-describe('ResolveIngredientDto (POST /v1/ingredients/{id}/resolve)', () => {
+describe('ResolveIngredientDto (POST /api/v1/ingredients/{id}/resolve)', () => {
     it('trims each picked candidate id and exposes the trimmed array on the instance', async () => {
         const dto = (await pipe.transform(
             { candidateIds: ['  cand-1  ', 'cand-2'] },

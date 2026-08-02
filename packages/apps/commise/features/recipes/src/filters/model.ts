@@ -5,9 +5,9 @@
  * (`RecipeFilterBar.native.tsx`) bars and by both apps' persistence edges (web = URL query params, mobile =
  * component state), so the two platforms can never drift on filter semantics. No React, no platform APIs.
  *
- * Scope is driven by the API contract, not guesswork: `GET /v1/search/recipes` is the only endpoint that
+ * Scope is driven by the API contract, not guesswork: `GET /api/v1/search/recipes` is the only endpoint that
  * accepts these filters AND returns `facets`, and it facets exactly two dimensions — `dietaryFlags` and
- * `tags` — plus the caller-supplied `maxTotalTime` bound. `GET /v1/recipes` (the owner's library list) has
+ * `tags` — plus the caller-supplied `maxTotalTime` bound. `GET /api/v1/recipes` (the owner's library list) has
  * neither facets nor filter params, so the faceted bar belongs on the search-backed surface. The remaining
  * search params (`cuisine`, `maxPrepTime`, `maxCookTime`, `ingredientIds`) are forwarded by the client but
  * are not faceted by the service, so nothing drives a chip for them yet — adding one is additive here and in
@@ -346,7 +346,7 @@ export function clearRecipeFilters(): RecipeFilterState {
 
 /**
  * Project the filter state + search term onto the `RecipeSearchParams` the client forwards to
- * `GET /v1/search/recipes`. Omits every empty dimension and a blank/whitespace query, so the request is a
+ * `GET /api/v1/search/recipes`. Omits every empty dimension and a blank/whitespace query, so the request is a
  * pure subset — only what is actually constrained. Pure.
  *
  * @param state - The filter state.

@@ -33,7 +33,7 @@ export const addRecipeSchema = z.object({
 
 /**
  * `CloneCollectionRequest` (FR-011) — both fields optional, so the body itself is optional: a plain
- * `POST /v1/collections/{id}/clone` with no body inherits the source's name/description. Bounds mirror
+ * `POST /api/v1/collections/{id}/clone` with no body inherits the source's name/description. Bounds mirror
  * `createCollectionSchema` so a clone can never carry a name the create path would have rejected.
  */
 export const cloneCollectionSchema = z.object({

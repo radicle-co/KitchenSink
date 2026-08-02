@@ -9,7 +9,7 @@
  * `user_id` is the app-user ULID — a user-keyed table, so it is the FOURTH GDPR erasure root (W8-a.10),
  * swept by the erasure worker. `source_timestamp` is `profiles.updatedAt` written in the SAME transaction
  * as the displayName change (a single clock), so the monotonic guard is race-correct across both producer
- * routes (the Clerk `user.updated` webhook and identity's `PATCH /v1/users/me`).
+ * routes (the Clerk `user.updated` webhook and identity's `PATCH /api/v1/users/me`).
  */
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import { pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';

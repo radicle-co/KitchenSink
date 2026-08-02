@@ -32,7 +32,7 @@
  * | {@link classifyDependencyWiring} | the running task is configured for the WRONG food service (or none) |
  * | {@link classifyDependencyReachability} | this PR's food service is absent, unrouted, or erroring |
  *
- * ⛔ The trap in the reachability check: `GET /v1/foods/search` answers **401 by design** — food requires a
+ * ⛔ The trap in the reachability check: `GET /api/v1/foods/search` answers **401 by design** — food requires a
  * Clerk-verified token. So "200 or bust" would fail every correctly-wired preview. A 401 from the real host
  * is PROOF (DNS, the shared-ALB host rule and food's own auth layer all had to work to produce it); a
  * transport failure, or the shared ALB's default `404 text/plain` for an unmatched host (ADR-0003), proves
@@ -41,6 +41,19 @@
  * The classifiers are pure so they are unit-tested directly; {@link main} owns all I/O.
  */
 import { parseArgs } from 'node:util';
+
+/** The CANONICAL food catalog-search path this smoke probes — every endpoint lives under `/api/{version}/`. */
+const FOOD_SEARCH_PATH = '/api/v1/foods/search?q=smoke';
+
+/**
+ * The same probe on the DEPRECATED bare-`v1` alias, used only as a rollout fallback.
+ *
+ * Food deploys independently of recipe (and the ADR-0010 gate may skip it), so a food service that predates
+ * the `/api` prefix answers an app 404 on {@link FOOD_SEARCH_PATH} while still serving this alias. Probing it
+ * turns that version skew into a warning instead of a false deploy failure. See ADR-0011; this constant can
+ * be deleted once every stage is known to serve the canonical path.
+ */
+const LEGACY_FOOD_SEARCH_PATH = '/v1/foods/search?q=smoke';
 
 /** The outcome of one smoke assertion. `reason` is written to be actionable in a CI log. */
 export interface SmokeVerdict {
@@ -213,7 +226,7 @@ export function classifyDependencyWiring(expected: string, configured: string | 
 /**
  * This stage's food service actually answers. Pure.
  *
- * **A 401 is the PASS.** The probe is deliberately unauthenticated, and `GET /v1/foods/search` requires a
+ * **A 401 is the PASS.** The probe is deliberately unauthenticated, and `GET /api/v1/foods/search` requires a
  * Clerk-verified token, so `401` (or `403`) is the only correct answer — and producing it means DNS
  * resolved, the shared ALB matched this PR's host rule, and the food service's own auth layer ran. Nothing
  * short of a working, correctly-routed food service can answer that way.
@@ -231,7 +244,36 @@ export function classifyDependencyWiring(expected: string, configured: string | 
  * @param dependency - The dependency's origin, named in every verdict so the log says which host was probed.
  * @param observed - What the probe saw.
  */
-export function classifyDependencyReachability(dependency: string, observed: DependencyObservation): SmokeVerdict {
+export function classifyDependencyReachability(
+    dependency: string,
+    observed: DependencyObservation,
+    legacyObserved?: DependencyObservation,
+): SmokeVerdict {
+    // ROLLOUT SAFETY (ADR-0011). `observed` is the CANONICAL `/api/v1/foods/search` probe. Food deploys
+    // independently of recipe, and the ADR-0010 deploy gate can legitimately skip food's deploy while still
+    // running this smoke — so a food service that predates the `/api` prefix answers an app-level 404 on
+    // canonical while still serving the deprecated `/v1` alias. Resolve that against the alias BEFORE the
+    // canonical 404 becomes a verdict: the ecosystem this check exists to prove is intact, so failing the
+    // deploy would be a false red. Only an app 404 (not the ALB's `text/plain` default) is a skew candidate.
+    if (
+        legacyObserved !== undefined &&
+        observed.outcome === 'responded' &&
+        observed.status === 404 &&
+        !(observed.contentType ?? '').includes('text/plain')
+    ) {
+        const viaLegacy = classifyDependencyReachability(dependency, legacyObserved);
+
+        if (viaLegacy.ok) {
+            return {
+                ok: true,
+                reason:
+                    `${dependency} 404s the canonical /api/v1/foods/search but answers on the DEPRECATED /v1 ` +
+                    `alias — a version skew, not an outage: ${viaLegacy.reason}. The deployed food service ` +
+                    'predates the /api version prefix (ADR-0011); redeploy it to retire this warning',
+            };
+        }
+    }
+
     if (observed.outcome === 'no-response') {
         return {
             ok: false,
@@ -272,7 +314,7 @@ export function classifyDependencyReachability(dependency: string, observed: Dep
             : {
                   ok: false,
                   reason:
-                      `${dependency} is routed but answered 404 for /v1/foods/search — the deployed food ` +
+                      `${dependency} is routed but answered 404 for /api/v1/foods/search — the deployed food ` +
                       'service predates that endpoint (a stale image), so recipe calls a route it does not serve',
               };
     }
@@ -329,9 +371,9 @@ export interface SmokeTarget {
  *
  * @sideEffect Performs a network request.
  */
-async function probeDependency(foodOrigin: string): Promise<DependencyObservation> {
+async function probeDependency(foodOrigin: string, path: string): Promise<DependencyObservation> {
     try {
-        const response = await fetch(`${foodOrigin}/v1/foods/search?q=smoke`, {
+        const response = await fetch(`${foodOrigin}${path}`, {
             headers: { accept: 'application/json' },
             // Never follow a redirect: a 3xx is itself a finding (see the classifier), and following one
             // could turn a misroute into a misleading 200 from somewhere else entirely.
@@ -364,7 +406,7 @@ export async function runSmoke(target: SmokeTarget): Promise<readonly SmokeVerdi
 
     verdicts.push(classifyHealth(health.status));
 
-    const preflight = await fetch(`${baseUrl}/v1/recipes`, {
+    const preflight = await fetch(`${baseUrl}/api/v1/recipes`, {
         method: 'OPTIONS',
         headers: {
             origin: webOrigin,
@@ -386,7 +428,17 @@ export async function runSmoke(target: SmokeTarget): Promise<readonly SmokeVerdi
         // Wiring first: if the task is pointed at the wrong food service, the reachability verdict below is
         // about a host this deployment does not actually call, and reading them in this order says so.
         verdicts.push(classifyDependencyWiring(foodOrigin, configuredFoodOrigin));
-        verdicts.push(classifyDependencyReachability(foodOrigin, await probeDependency(foodOrigin)));
+
+        const canonical = await probeDependency(foodOrigin, FOOD_SEARCH_PATH);
+        // Only spend a second request when canonical looks like an app-level 404, i.e. the one shape a
+        // pre-`/api`-prefix food service produces. See classifyDependencyReachability for why.
+        const isAppNotFound =
+            canonical.outcome === 'responded' &&
+            canonical.status === 404 &&
+            !(canonical.contentType ?? '').includes('text/plain');
+        const legacy = isAppNotFound ? await probeDependency(foodOrigin, LEGACY_FOOD_SEARCH_PATH) : undefined;
+
+        verdicts.push(classifyDependencyReachability(foodOrigin, canonical, legacy));
     }
 
     return verdicts;

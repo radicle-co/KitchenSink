@@ -8,7 +8,7 @@
  *  1. **suggestion pick** (`selectSuggestion`) — clicking a row in the BLENDED result list (search Stage 2).
  *     Dispatches on provenance: one of the user's own `ingredients` rows resolves through `selectMatch` (an
  *     `UNRESOLVED` one opens disambiguation — {@link nextMatchAction}); a food-CATALOG hit is first ADMITTED
- *     (`POST /v1/ingredients/by-food`, which creates the row and backfills its nutrition in one round-trip)
+ *     (`POST /api/v1/ingredients/by-food`, which creates the row and backfills its nutrition in one round-trip)
  *     and the line resolves from that response.
  *  2. **addByName** (`findNutrition`, the PRIMARY entry point for a typed name NOT in the list) — adds the food
  *     by name through the source-agnostic food service; routes by the returned status like a catalog-hit.
@@ -20,7 +20,7 @@
  * caller's `onResolved` and resets the picker to a blank search.
  *
  * **Search Stage 2 (blended typeahead).** The search read is `useSuggestIngredients`
- * (`GET /v1/ingredients/suggest`), which returns a discriminated `local | catalog` union sectioned by
+ * (`GET /api/v1/ingredients/suggest`), which returns a discriminated `local | catalog` union sectioned by
  * provenance plus a `catalogAvailability` flag. The local-only `useSearchIngredients` deliberately stays with
  * the recipe-SEARCH ingredient filter (`useIngredientFilterSearch`), whose result ids are filter values — a
  * food with no `ingredients` row could match no recipe there. The endpoint degrades to local-only rather than
@@ -101,7 +101,7 @@ export interface UseIngredientResolverResult {
     /**
      * Pick a blended suggestion (search Stage 2) — the ONE action a result row wires. Dispatches on
      * provenance: one of the user's own rows goes straight through {@link selectMatch}; a food-catalog hit is
-     * first ADMITTED into the catalog (`POST /v1/ingredients/by-food`, which also backfills its nutrition)
+     * first ADMITTED into the catalog (`POST /api/v1/ingredients/by-food`, which also backfills its nutrition)
      * and only then resolves the line.
      */
     readonly selectSuggestion: (suggestion: IngredientSuggestion) => void;

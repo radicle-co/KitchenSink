@@ -1,5 +1,5 @@
 /**
- * The `/v1/internal/account` REST surface for the food service — the service-principal erasure route
+ * The `/api/v1/internal/account` REST surface for the food service — the service-principal erasure route
  * (CR-002 / U4b / R11), the food mirror of recipe-service's U4a `ServiceErasureController`.
  *
  * A STRUCTURALLY-DISTINCT controller from {@link import('./foods.controller.js').FoodsController}, on its
@@ -25,13 +25,17 @@ import type { ServicePrincipal } from '../auth/service-principal.js';
 import { UserErasureService } from './user-erasure.service.js';
 import type { FoodServiceErasureAcceptedResponse } from './dto/service-erasure.dto.js';
 
-@Controller('v1/internal/account')
+// Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
+// `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
+// webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
+// inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+@Controller(['api/v1/internal/account', 'v1/internal/account'])
 @UseGuards(FoodServiceErasureGuard)
 export class ServiceErasureController {
     public constructor(private readonly erasure: UserErasureService) {}
 
     /**
-     * `POST /v1/internal/account/erasure` — erase the token-bound owner's food footprint (R11) on behalf of
+     * `POST /api/v1/internal/account/erasure` — erase the token-bound owner's food footprint (R11) on behalf of
      * a verified service principal (the identity deletion-worker / erasure-reconciliation, on a
      * `user.deleted`/close event).
      *

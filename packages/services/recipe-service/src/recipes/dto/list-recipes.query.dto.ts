@@ -1,5 +1,5 @@
 /**
- * T023 — query DTO for `GET /v1/recipes` (list the caller's recipes with pagination).
+ * T023 — query DTO for `GET /api/v1/recipes` (list the caller's recipes with pagination).
  *
  * Mirrors the `Page`/`PageSize` parameters + the `sortBy` enum in `contracts/api.openapi.yaml`:
  * `page` ≥ 1 (default 1), `pageSize` in 1..100 (default 20), `sortBy` ∈ {updatedAt, createdAt, title}
@@ -15,7 +15,7 @@ export const RECIPE_LIST_SORT_BY = ['updatedAt', 'createdAt', 'title'] as const;
 /** A list sort key. */
 export type RecipeListSortBy = (typeof RECIPE_LIST_SORT_BY)[number];
 
-/** Query parameters of `GET /v1/recipes`. */
+/** Query parameters of `GET /api/v1/recipes`. */
 export class ListRecipesQueryDto {
     @IsOptional()
     @Type(() => Number)

@@ -38,7 +38,7 @@ describe('FoodServiceClient — request build + token attach', () => {
         expect(result).toEqual({ id: 'food_1', status: 'PENDING', estimatedWaitSeconds: 30 });
         expect(fetchMock).toHaveBeenCalledTimes(1);
         const [url, init] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0]!;
-        expect(url).toBe(`${BASE}/v1/foods`); // trailing slash on baseUrl normalized
+        expect(url).toBe(`${BASE}/api/v1/foods`); // trailing slash on baseUrl normalized
         expect(init.method).toBe('POST');
         expect(init.headers['authorization']).toBe('Bearer tok-123');
         expect(init.headers['content-type']).toBe('application/json');
@@ -67,7 +67,7 @@ describe('FoodServiceClient — request build + token attach', () => {
         await client.search('kale');
 
         const [url, init] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0]!;
-        expect(url).toBe(`${BASE}/v1/foods/search?query=kale`);
+        expect(url).toBe(`${BASE}/api/v1/foods/search?query=kale`);
         expect(init.headers['authorization']).toBeUndefined();
     });
 
@@ -77,7 +77,7 @@ describe('FoodServiceClient — request build + token attach', () => {
 
         await client.search('chicken breast');
         const [searchUrl] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0]!;
-        expect(searchUrl).toBe(`${BASE}/v1/foods/search?query=chicken%20breast`);
+        expect(searchUrl).toBe(`${BASE}/api/v1/foods/search?query=chicken%20breast`);
     });
 });
 
@@ -174,7 +174,7 @@ describe('FoodServiceClient — status → typed error mapping', () => {
 
         expect(result).toEqual({ id: 'food_1', status: 'RESOLVED' });
         const [url, init] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0]!;
-        expect(url).toBe(`${BASE}/v1/foods/food_1`);
+        expect(url).toBe(`${BASE}/api/v1/foods/food_1`);
         expect(init.method).toBe('PATCH');
         expect(JSON.parse(init.body)).toEqual({ candidateIds: ['cand_1', 'cand_2'] });
     });

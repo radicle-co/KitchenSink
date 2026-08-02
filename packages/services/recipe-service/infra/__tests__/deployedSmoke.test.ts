@@ -34,7 +34,7 @@
  *   4. `classifyDependencyWiring`      — the RUNNING recipe task is configured for THIS PR's food service.
  *   5. `classifyDependencyReachability`— that food origin actually answers.
  *
- * Check 5 is the one with a trap: `food-pr-{N}.commise.app/v1/foods/search` answers **401 by design** (it
+ * Check 5 is the one with a trap: `food-pr-{N}.commise.app/api/v1/foods/search` answers **401 by design** (it
  * requires a Clerk-verified token). So "200 or bust" is exactly the wrong assertion — a 401 from the real
  * host is PROOF of reachability (DNS → shared-ALB host rule → the food service's own auth layer all had to
  * work to produce it), whereas a transport failure or the shared ALB's default `404 text/plain` proves the
@@ -76,7 +76,7 @@ describe('classifyPreflight', () => {
     });
 
     it('FAILS on a 401 — the exact defect that shipped', () => {
-        // The deployed service answered `OPTIONS /v1/recipes` with 401 "Missing bearer token" because its
+        // The deployed service answered `OPTIONS /api/v1/recipes` with 401 "Missing bearer token" because its
         // auth middleware ran before CORS. Browsers never attach credentials to a preflight, so this makes
         // the API unreachable from every browser while `GET /health` still returns 200.
         const verdict = classifyPreflight(ORIGIN, { status: 401 });
@@ -168,7 +168,7 @@ describe("classifyDependencyWiring — the RUNNING recipe task points at THIS PR
 });
 
 describe('classifyDependencyReachability — 401 proves reachability; unreachable and the ALB 404 do not', () => {
-    // ⛔ The trap. `GET /v1/foods/search` without a Clerk token is SUPPOSED to be rejected, so demanding a
+    // ⛔ The trap. `GET /api/v1/foods/search` without a Clerk token is SUPPOSED to be rejected, so demanding a
     // 200 here would fail every correctly-wired preview. What the probe proves is that the request reached
     // the food service at all: DNS resolved, the shared ALB matched this PR's host rule, and food's auth
     // layer ran. That is the whole assertion.
@@ -232,6 +232,48 @@ describe('classifyDependencyReachability — 401 proves reachability; unreachabl
         expect(verdict.ok).toBe(false);
         expect(verdict.reason).toMatch(/route|endpoint/i);
         expect(verdict.reason).not.toMatch(/listener rule/i);
+    });
+
+    // ROLLOUT SAFETY (ADR-0011). The probe dials the CANONICAL `/api/v1/foods/search`, but the food service
+    // deploys independently of recipe — and the sandbox deploy gate (ADR-0010) can legitimately SKIP food's
+    // deploy and still run this smoke. So a food service that predates the `/api` prefix answers a JSON 404
+    // on canonical while still happily serving the deprecated `/v1` alias. That is a VERSION SKEW, not a
+    // broken deployment: the ecosystem this check exists to prove (DNS → ALB host rule → food's auth layer)
+    // is demonstrably intact. Failing the deploy for it would be a false red, so the probe retries the alias
+    // and this classifier passes on the alias's own evidence — while saying plainly that the dependency has
+    // not shipped the prefix yet, so the signal is never silently lost.
+    it('PASSES when canonical 404s but the DEPRECATED alias answers 401 — a version skew, not an outage', () => {
+        const verdict = classifyDependencyReachability(
+            FOOD_ORIGIN,
+            { outcome: 'responded', status: 404, contentType: 'application/json; charset=utf-8' },
+            { outcome: 'responded', status: 401, contentType: 'application/json; charset=utf-8' },
+        );
+
+        expect(verdict.ok).toBe(true);
+        expect(verdict.reason).toMatch(/deprecated|alias/i);
+        expect(verdict.reason).toMatch(/401/);
+    });
+
+    it('still FAILS when neither the canonical path nor the alias answers usefully', () => {
+        const verdict = classifyDependencyReachability(
+            FOOD_ORIGIN,
+            { outcome: 'responded', status: 404, contentType: 'application/json; charset=utf-8' },
+            { outcome: 'responded', status: 404, contentType: 'application/json; charset=utf-8' },
+        );
+
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toMatch(/route|endpoint/i);
+    });
+
+    it('ignores an alias observation when the canonical path already answered 401', () => {
+        const verdict = classifyDependencyReachability(
+            FOOD_ORIGIN,
+            { outcome: 'responded', status: 401 },
+            { outcome: 'responded', status: 500 },
+        );
+
+        expect(verdict.ok).toBe(true);
+        expect(verdict.reason).not.toMatch(/deprecated|alias/i);
     });
 
     // An UNAUTHENTICATED 200 is not good news: the catalog requires a Clerk-verified token, so either the

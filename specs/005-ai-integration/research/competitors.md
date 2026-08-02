@@ -62,7 +62,7 @@ Feature 005 targets the gap between those models: in-app BYOK generation plus OA
 
 ## Feature Parity Matrix
 
-| Capability                                              | ChefGPT    | SideChef AI | DishGen   | Whisk AI              | Commise 005 Target                    |
+| Capability                                              | ChefGPT    | SideChef AI | DishGen   | Whisk AI              | Commise 005 Target                      |
 | ------------------------------------------------------- | ---------- | ----------- | --------- | --------------------- | --------------------------------------- |
 | In-app AI recipe generation                             | ✅         | ✅          | ✅        | ✅                    | ✅ (FR-016)                             |
 | Save generated recipe after preview                     | ✅         | ✅          | ✅        | ✅                    | ✅ (FR-017, FR-020)                     |
@@ -75,7 +75,7 @@ Feature 005 targets the gap between those models: in-app BYOK generation plus OA
 
 ## Pricing / Cost Posture Comparison
 
-| Model                  | Typical Competitor Posture                      | Commise 005 Strategy                                                  |
+| Model                  | Typical Competitor Posture                      | Commise 005 Strategy                                                    |
 | ---------------------- | ----------------------------------------------- | ----------------------------------------------------------------------- |
 | AI call cost bearer    | Platform pays, recovers via subscription/upsell | User pays their provider directly (BYOK)                                |
 | Marginal cost exposure | Scales with user generation volume              | Near-zero inference pass-through cost                                   |

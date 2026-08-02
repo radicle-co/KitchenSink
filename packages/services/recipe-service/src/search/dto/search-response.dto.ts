@@ -1,5 +1,5 @@
 /**
- * T043 — the response envelope for `GET /v1/search/recipes`.
+ * T043 — the response envelope for `GET /api/v1/search/recipes`.
  *
  * Wraps the ranked {@link RecipeSearchResult} hits (from `@kitchensink/recipe-core`) with the facet
  * aggregations the DAL computes ({@link RecipeSearchFacets}) and the pagination metadata the client uses
@@ -10,7 +10,7 @@ import type { RecipeSearchResult } from '@kitchensink/recipe-core';
 
 import type { RecipeSearchFacets } from '../dal/search.dal.js';
 
-/** The `GET /v1/search/recipes` response body. */
+/** The `GET /api/v1/search/recipes` response body. */
 export interface RecipeSearchResponse {
     /** The ranked page of hits. */
     results: RecipeSearchResult[];

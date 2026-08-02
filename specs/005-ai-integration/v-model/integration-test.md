@@ -34,55 +34,77 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 ---
 
-### Module Verification: ARCH-001 (ProviderConfigRepository)
+### Module Verification: ARCH-001 (ByokKeyRepository)
 
 **Parent System Components**: SYS-001
 
-#### Test Case: ITP-001-A (ProviderConfigRepository correctly persists and retrieves encrypted credentials via ProviderConfigService)
+> **Revised 2026-08-02.** These cases previously verified that ARCH-001 "encrypts the key, persists it"
+> and returns a "decrypted `{ provider, apiKey }` … with the plaintext key intact". That contract was
+> rejected (see `module-design.md` MOD-001 and `plan.md` §2.2): ARCH-001 never receives, stores, or
+> returns key material. The ARCH-002 → ARCH-001 interface now carries a Secrets Manager **ARN**.
+
+#### Test Case: ITP-001-A (ByokKeyRepository persists and retrieves an ARN reference, never key material)
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that ARCH-001 accepts a `{ userId, provider, apiKey }` payload from ARCH-002, encrypts the key, persists it, and returns a masked credential record conforming to the defined output contract.
+**Description**: Verifies that ARCH-001 accepts a `{ userId, provider, secretArn }` payload from ARCH-002, persists it against the composite `(user_id, provider)` key, and returns a record carrying no credential.
 
 - **Integration Scenario: ITS-001-A1**
-    - **Given** ARCH-002 ProviderConfigService holds a validated `{ userId: UUID, provider: 'openai', apiKey: 'sk-...' }` payload
-    - **When** ARCH-002 sends the payload to ARCH-001 via `saveProviderConfig()`
-    - **Then** ARCH-001 returns `{ providerId: UUID, provider: 'openai', maskedKey: 'sk-...****' }` to ARCH-002 with HTTP-level status 200
+    - **Given** ARCH-002 ByokService has written the raw key to Secrets Manager and holds `{ userId: ULID, provider: 'openai', secretArn: 'arn:aws:secretsmanager:…' }`
+    - **When** ARCH-002 sends the payload to ARCH-001 via `upsertByokKeyRef()`
+    - **Then** ARCH-001 returns `{ id, userId, provider: 'openai', secretArn, keyVersion: 1, isActive: true }`, and the returned object contains **no** `apiKey` field
 
 - **Integration Scenario: ITS-001-A2**
-    - **Given** ARCH-002 requests retrieval of credentials for a `userId` that has a stored record
-    - **When** ARCH-002 calls ARCH-001 `getProviderConfig(userId)`
-    - **Then** ARCH-001 returns a decrypted `{ provider, apiKey }` object to ARCH-002 with the plaintext key intact
+    - **Given** ARCH-002 requests the reference for a `userId` that has a stored record
+    - **When** ARCH-002 calls ARCH-001 `getByokKeyRef(userId, provider)`
+    - **Then** ARCH-001 returns the ARN reference only — resolving it to a key is ARCH-002's responsibility, and ARCH-001 makes no AWS call
 
-#### Test Case: ITP-001-B (ProviderConfigRepository propagates DatabaseError to ProviderConfigService on persistence failure)
+- **Integration Scenario: ITS-001-A3**
+    - **Given** a record already exists for `(userId, 'openai')`
+    - **When** ARCH-002 upserts a new ARN for the **same** provider, then upserts an ARN for `'anthropic'`
+    - **Then** the openai row is replaced with `keyVersion` incremented, and the anthropic row is created **alongside** it — proving decision D-005 (one key per provider, up to three concurrently) against the real composite constraint
+
+#### Test Case: ITP-001-B (ByokKeyRepository propagates DatabaseError to ByokService on persistence failure)
 
 **Technique**: Interface Fault Injection
 **Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-001 surfaces a `DatabaseError` to ARCH-002 when the PostgreSQL write fails, and does not silently swallow the error.
+**Description**: Verifies that ARCH-001 surfaces a `DatabaseError` to ARCH-002 when the PostgreSQL write fails, and does not silently swallow it. ARCH-002 depends on this signal to trigger its compensating secret-delete.
 
 - **Integration Scenario: ITS-001-B1**
     - **Given** ARCH-001's PostgreSQL connection is unavailable (simulated connection drop)
-    - **When** ARCH-002 sends a `saveProviderConfig()` call to ARCH-001
+    - **When** ARCH-002 sends an `upsertByokKeyRef()` call to ARCH-001
     - **Then** ARCH-001 propagates a `DatabaseError` to ARCH-002 and no partial record is committed
+
+- **Integration Scenario: ITS-001-B2**
+    - **Given** the same failure, and ARCH-002 has already written the secret to Secrets Manager
+    - **When** ARCH-002 receives the `DatabaseError`
+    - **Then** ARCH-002 deletes the just-written secret before rethrowing, leaving **no orphaned key material** that nothing references
+    - _Rationale_: without this, every transient DB fault permanently leaks a billable, unreferenced secret.
 
 ---
 
-### Module Verification: ARCH-002 (ProviderConfigService)
+### Module Verification: ARCH-002 (ByokService)
 
 **Parent System Components**: SYS-001
 
-#### Test Case: ITP-002-A (ProviderConfigService delivers decrypted credentials to RecipeGenerationService)
+#### Test Case: ITP-002-A (ByokService resolves a key just-in-time from Secrets Manager for RecipeGenerationService)
 
 **Technique**: Data Flow Testing
 **Target View**: Data Flow View
-**Description**: Verifies the credential retrieval chain: ARCH-005 requests credentials from ARCH-002, which fetches and decrypts via ARCH-001, and returns `{ provider, apiKey }` to ARCH-005 in the correct format.
+**Description**: Verifies the credential retrieval chain: ARCH-005 requests credentials from ARCH-002, which reads the ARN via ARCH-001, fetches the key from Secrets Manager, and returns `{ provider, apiKey }` to ARCH-005.
 
 - **Integration Scenario: ITS-002-A1**
-    - **Given** ARCH-001 holds an AES-256-encrypted credential record for `userId`
-    - **When** ARCH-005 RecipeGenerationService calls ARCH-002 `GetProviderCredentials(userId)`
-    - **Then** ARCH-002 returns `{ provider: 'openai', apiKey: '<plaintext>' }` to ARCH-005 with no masking applied
+    - **Given** ARCH-001 holds an ARN reference for `userId` and Secrets Manager holds the corresponding key
+    - **When** ARCH-005 RecipeGenerationService calls ARCH-002 `resolvePreferredProvider(userId)`
+    - **Then** ARCH-002 returns `{ provider: 'openai', apiKey: '<fetched from Secrets Manager>' }` to ARCH-005, having made exactly **one** `getSecretValue` call, and retains the key on no field after returning
 
-#### Test Case: ITP-002-B (ProviderConfigService emits NoProviderConfiguredError to RecipeGenerationService when no key is set)
+- **Integration Scenario: ITS-002-A2**
+    - **Given** the ARN row exists but the secret has been deleted out-of-band
+    - **When** ARCH-005 calls ARCH-002 `resolvePreferredProvider(userId)`
+    - **Then** ARCH-002 raises `ByokSecretMissingError` (a data-integrity fault), **not** `NoProviderConfiguredError`
+    - _Rationale_: conflating the two would route a real inconsistency into the "please configure a provider" flow, hiding it permanently.
+
+#### Test Case: ITP-002-B (ByokService emits NoProviderConfiguredError to RecipeGenerationService when no key is set)
 
 **Technique**: Interface Fault Injection
 **Target View**: Interface View + Process View
@@ -90,8 +112,8 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 - **Integration Scenario: ITS-002-B1**
     - **Given** ARCH-001 has no credential record for the requesting `userId`
-    - **When** ARCH-005 calls ARCH-002 `GetProviderCredentials(userId)`
-    - **Then** ARCH-002 emits `NoProviderConfiguredError` to ARCH-005, which routes the error to ARCH-003 ProviderSetupGuide
+    - **When** ARCH-005 calls ARCH-002 `resolvePreferredProvider(userId)`
+    - **Then** ARCH-002 emits `NoProviderConfiguredError` to ARCH-005, which routes the error to ARCH-003 ProviderSetupGuide, and **no** Secrets Manager call is made
 
 ---
 
@@ -350,7 +372,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 **Description**: Verifies that ARCH-011 calls ARCH-010 for token validation, and only proceeds to fetch the recipe collection when `recipes:read` scope is confirmed.
 
 - **Integration Scenario: ITS-011-A1**
-    - **Given** an external agent sends `GET /agent/recipes` with a valid token containing `scopes: ['recipes:read']`
+    - **Given** an external agent sends `POST /api/v1/ai/mcp` → `recipes_list` with a valid token containing `scopes: ['recipes:read']`
     - **When** ARCH-011 calls ARCH-010 `ValidateToken()` and receives `{ userId, scopes: ['recipes:read'] }`
     - **Then** ARCH-011 fetches the user's recipe collection and returns structured JSON to the agent
 
@@ -361,7 +383,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 **Description**: Verifies that ARCH-011 returns HTTP 403 when ARCH-010 confirms the token is valid but lacks `recipes:read` scope.
 
 - **Integration Scenario: ITS-011-B1**
-    - **Given** an external agent sends `GET /agent/recipes` with a token containing only `scopes: ['recipes:create']`
+    - **Given** an external agent sends `POST /api/v1/ai/mcp` → `recipes_list` with a token containing only `scopes: ['recipes:create']`
     - **When** ARCH-011 calls ARCH-010 and receives `{ userId, scopes: ['recipes:create'] }`
     - **Then** ARCH-011 returns HTTP 403 `{ error: 'insufficient_scope' }` to the agent without fetching any recipe data
 
@@ -378,7 +400,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 **Description**: Verifies the agent recipe creation data flow: ARCH-010 validates scope, ARCH-012 validates the `RecipeDraft` schema, and ARCH-007 persists the entity, returning `recipeId`.
 
 - **Integration Scenario: ITS-012-A1**
-    - **Given** an external agent sends `POST /agent/recipes` with a valid token (`scopes: ['recipes:create']`) and a well-formed `RecipeDraft`
+    - **Given** an external agent sends `POST /api/v1/ai/mcp` → `recipe_save` with a valid token (`scopes: ['recipes:create']`) and a well-formed `RecipeDraft`
     - **When** ARCH-012 calls ARCH-010 for validation and receives `{ userId, scopes: ['recipes:create'] }`, then sends `{ userId, recipeDraft, source: 'agent' }` to ARCH-007
     - **Then** ARCH-007 returns `{ recipeId: UUID }` to ARCH-012, which returns HTTP 201 `{ recipeId }` to the agent
 
@@ -389,7 +411,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 **Description**: Verifies that ARCH-012 validates the `RecipeDraft` schema and does not forward malformed payloads to ARCH-007.
 
 - **Integration Scenario: ITS-012-B1**
-    - **Given** an external agent sends `POST /agent/recipes` with a valid token but a `RecipeDraft` missing the required `title` field
+    - **Given** an external agent sends `POST /api/v1/ai/mcp` → `recipe_save` with a valid token but a `RecipeDraft` missing the required `title` field
     - **When** ARCH-012 validates the payload schema
     - **Then** ARCH-012 returns HTTP 400 `{ error: 'invalid_recipe_draft' }` to the agent without calling ARCH-007
 
@@ -564,19 +586,19 @@ Each test case identifies its technique by name and anchors to a specific archit
 
 ## Test Harness & Mocking Strategy
 
-| Test Case | External Dependency                   | Mock/Stub Strategy                                        | Rationale                                                         |
-| --------- | ------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------- |
-| ITP-001-A | PostgreSQL (ProviderConfigRepository) | In-memory test database (pg-mem or testcontainers)        | Isolates ARCH-001↔ARCH-002 boundary from production DB            |
-| ITP-001-B | PostgreSQL connection                 | Stub: connection pool throws `DatabaseError`              | Simulates DB failure without infrastructure dependency            |
-| ITP-004-A | External AI provider HTTP endpoint    | HTTP stub (nock / msw): returns valid provider response   | Isolates ARCH-004 from live provider; deterministic response      |
-| ITP-004-B | External AI provider HTTP endpoint    | HTTP stub: delays response > 15 s                         | Triggers timeout path without real network dependency             |
-| ITP-008-A | RS256 key pair                        | Test key pair generated at test setup                     | Enables JWT signing/verification without production secrets       |
-| ITP-009-B | Token store / consent grant store     | In-memory store with revocation flag                      | Simulates revocation without persistent storage                   |
-| ITP-010-B | RS256 key pair + consent store        | Expired test JWT + revoked grant stub                     | Covers both expiry and revocation paths                           |
-| ITP-015-C | Clerk session-token validation        | Spy on request context assignment; concurrent test runner | Verifies per-request isolation under concurrency                  |
-| ITP-016-C | `010-subscriptions` integration       | Fake: returns consistent `isPremium` for concurrent calls | Verifies no race condition in entitlement check                   |
-| ITP-017-A | TypeScript compiler (`tsc`)           | Real compiler invoked in CI; no mock needed               | Compile-time enforcement requires actual `tsc --strict` execution |
-| ITP-017-B | ESLint                                | Real ESLint invoked in CI; no mock needed                 | Lint-time enforcement requires actual ESLint run                  |
+| Test Case | External Dependency                | Mock/Stub Strategy                                        | Rationale                                                         |
+| --------- | ---------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------- |
+| ITP-001-A | PostgreSQL (ByokKeyRepository)     | In-memory test database (pg-mem or testcontainers)        | Isolates ARCH-001↔ARCH-002 boundary from production DB            |
+| ITP-001-B | PostgreSQL connection              | Stub: connection pool throws `DatabaseError`              | Simulates DB failure without infrastructure dependency            |
+| ITP-004-A | External AI provider HTTP endpoint | HTTP stub (nock / msw): returns valid provider response   | Isolates ARCH-004 from live provider; deterministic response      |
+| ITP-004-B | External AI provider HTTP endpoint | HTTP stub: delays response > 15 s                         | Triggers timeout path without real network dependency             |
+| ITP-008-A | RS256 key pair                     | Test key pair generated at test setup                     | Enables JWT signing/verification without production secrets       |
+| ITP-009-B | Token store / consent grant store  | In-memory store with revocation flag                      | Simulates revocation without persistent storage                   |
+| ITP-010-B | RS256 key pair + consent store     | Expired test JWT + revoked grant stub                     | Covers both expiry and revocation paths                           |
+| ITP-015-C | Clerk session-token validation     | Spy on request context assignment; concurrent test runner | Verifies per-request isolation under concurrency                  |
+| ITP-016-C | `010-subscriptions` integration    | Fake: returns consistent `isPremium` for concurrent calls | Verifies no race condition in entitlement check                   |
+| ITP-017-A | TypeScript compiler (`tsc`)        | Real compiler invoked in CI; no mock needed               | Compile-time enforcement requires actual `tsc --strict` execution |
+| ITP-017-B | ESLint                             | Real ESLint invoked in CI; no mock needed                 | Lint-time enforcement requires actual ESLint run                  |
 
 ---
 

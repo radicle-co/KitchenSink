@@ -163,12 +163,21 @@ created `private`. Attribution and source linking are required either way.
 The canonical rule now lives in **[GR-014](./governance-rules.md#gr-014-audience-and-sharing-model)**
 (`AC-014-e`, `AC-014-f`) rather than being restated per feature.
 
-⚠️ **Hand-off — `004-FR-011` needs the carve-out and was NOT changed here.** It currently reads that
-imports from public websites or Instagram MUST be marked public, **with no exception**, and that they MUST
-NOT be made private unless cloned and substantively edited. Under `AC-014-e` it needs "unless the source is
-otherwise marked or licensed against republication". `004` is being worked on its own branch, so this is
-recorded rather than applied. **Do not plan `004` without it** — as written, it would auto-publish
-paywalled and licence-restricted content.
+✅ **Hand-off closed — `004` already conforms on `main`.** While this sweep was open, PRs #80 and #82
+landed the provenance model in 004: `004-FR-011` now classifies imports into the shipped `sourceType`
+taxonomy (`imported_public`, `imported_physical`, `imported_paid`, `user_created`) and **delegates
+enforcement to 001's shipped pure policy** `evaluateVisibility`
+(`packages/services/recipe-service/src/recipes/domain/visibility-policy.ts`) rather than reimplementing it.
+`004-FR-013` creates physical-copy imports private; `004-FR-014` rejects known paywalled sources before any
+outbound request; `004-FR-014a` requires attestation plus a source citation; `004-FR-028` gates every
+non-public import channel behind premium.
+
+An earlier revision of this sweep flagged the carve-out as missing and warned that 004 "would auto-publish
+paywalled content". **That is no longer true** — and the policy is stricter than the ruling required:
+`imported_paid` may _never_ be public, permanently.
+
+`GR-014` `AC-014-e` was rewritten to point at that one shipped implementation instead of restating the rule,
+so the portfolio keeps a single authoritative representation.
 
 ### 4.5 ✅ Audience model corrected (GR-014, `2.0.0 → 3.0.0`)
 

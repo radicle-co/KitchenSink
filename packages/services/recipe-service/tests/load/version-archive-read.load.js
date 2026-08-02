@@ -1,7 +1,7 @@
 // Version-archive-read load scenario (W8-a.7).
 //
 // Load-tests the READ side of the transparent S3 version-archive fallback: `GET
-// /v1/recipes/{id}/versions/{n}` for a version evicted past the DB retention window, whose snapshot
+// /api/v1/recipes/{id}/versions/{n}` for a version evicted past the DB retention window, whose snapshot
 // exists ONLY in the S3 archive (never in `recipe_versions`). The endpoint reads it back from S3 and
 // returns it in the SAME shape a DB row would — the user never sees S3. Contrast with
 // save-under-archive.load.js, which measures the WRITE side (a save must return without waiting on the
@@ -11,7 +11,7 @@
 // only import k6's built-in modules — see lib/common.js's docstring — and this fixture needs direct
 // Postgres + S3 access). It is idempotent (fixed ids) and seeds the recipe this script's
 // ARCHIVE_FIXTURE_RECIPE_ID (lib/common.js) addresses; mirrors
-// tests/e2e/version-archive-fallback.e2e.spec.ts's setup (create → prune the DB row → PUT to the S3
+// tests/e2e/version-archive-fallback.e2e.test.ts's setup (create → prune the DB row → PUT to the S3
 // archive bucket).
 //
 //   DATABASE_URL=postgres://... npx tsx tests/load/prepare-version-archive-fixture.ts
@@ -55,7 +55,7 @@ export const options = {
 };
 
 export function archiveReadPath() {
-    const res = http.get(`${BASE_URL}/v1/recipes/${ARCHIVE_FIXTURE_RECIPE_ID}/versions/1`, {
+    const res = http.get(`${BASE_URL}/api/v1/recipes/${ARCHIVE_FIXTURE_RECIPE_ID}/versions/1`, {
         headers: authHeaders(),
         tags: { operation: 'getArchivedVersion' },
     });

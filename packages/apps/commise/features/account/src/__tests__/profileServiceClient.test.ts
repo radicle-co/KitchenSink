@@ -30,13 +30,13 @@ function stubFetch(response: { status: number; body?: unknown; text?: string }) 
 }
 
 describe('ProfileServiceClient — request shape', () => {
-    it('targets GET /v1/users/me — the route the identity service actually exposes', () => {
-        // Guards against the historical drift where mobile PATCHed /v1/profiles/me (a route that does not
+    it('targets GET /api/v1/users/me — the route the identity service actually exposes', () => {
+        // Guards against the historical drift where mobile PATCHed /api/v1/profiles/me (a route that does not
         // exist server-side).
-        expect(PROFILE_ME_PATH).toBe('/v1/users/me');
+        expect(PROFILE_ME_PATH).toBe('/api/v1/users/me');
     });
 
-    it('getMe() sends GET /v1/users/me with the bearer token and returns the parsed profile', async () => {
+    it('getMe() sends GET /api/v1/users/me with the bearer token and returns the parsed profile', async () => {
         const profile = { user: { displayName: 'Ada' }, account: {} };
         const fetchMock = stubFetch({ status: 200, body: profile });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
@@ -51,7 +51,7 @@ describe('ProfileServiceClient — request shape', () => {
         expect(result).toEqual(profile);
     });
 
-    it('patchMe() PATCHes the update as a JSON body to /v1/users/me — NOT /v1/profiles/me', async () => {
+    it('patchMe() PATCHes the update as a JSON body to /api/v1/users/me — NOT /api/v1/profiles/me', async () => {
         const updated = { user: { displayName: 'Ada Lovelace' }, account: {} };
         const fetchMock = stubFetch({ status: 200, body: updated });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
@@ -60,14 +60,14 @@ describe('ProfileServiceClient — request shape', () => {
 
         const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit & { headers: Record<string, string> }];
         expect(url).toBe(`${BASE}${PROFILE_ME_PATH}`);
-        expect(url).not.toContain('/v1/profiles/me');
+        expect(url).not.toContain('/api/v1/profiles/me');
         expect(init.method).toBe('PATCH');
         expect(init.body).toBe(JSON.stringify({ displayName: 'Ada Lovelace', avatarUrl: null }));
         expect(init.headers['content-type']).toBe('application/json');
         expect(result).toEqual(updated);
     });
 
-    it('deleteMe() DELETEs /v1/users/me and returns the accepted-deletion body', async () => {
+    it('deleteMe() DELETEs /api/v1/users/me and returns the accepted-deletion body', async () => {
         const accepted = { sub: 'usr_1', deletedAt: '2026-07-24T00:00:00.000Z', message: 'Account deletion queued' };
         const fetchMock = stubFetch({ status: 202, body: accepted });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });

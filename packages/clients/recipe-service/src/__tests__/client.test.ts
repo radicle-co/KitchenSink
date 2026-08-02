@@ -170,7 +170,7 @@ describe('RecipeServiceClient — request build + token attach', () => {
 
         expect(result).toEqual(created);
         const req = requestAt(fetchMock);
-        expect(req.url).toBe(`${BASE}/v1/recipes`); // trailing slash on baseUrl normalized
+        expect(req.url).toBe(`${BASE}/api/v1/recipes`); // trailing slash on baseUrl normalized
         expect(req.method).toBe('POST');
         expect(req.headers.get('authorization')).toBe('Bearer tok-123');
         expect(req.headers.get('content-type')).toBe('application/json');
@@ -198,7 +198,7 @@ describe('RecipeServiceClient — request build + token attach', () => {
         await client.searchIngredients('kale');
 
         const req = requestAt(fetchMock);
-        expect(req.url).toBe(`${BASE}/v1/ingredients/search?q=kale`);
+        expect(req.url).toBe(`${BASE}/api/v1/ingredients/search?q=kale`);
         expect(req.headers.get('authorization')).toBeNull();
     });
 
@@ -216,7 +216,7 @@ describe('RecipeServiceClient — request build + token attach', () => {
         await client.searchRecipes({ query: 'chicken pie', dietaryFlags: ['vegan', 'gluten_free'], page: 2 });
 
         expect(requestAt(fetchMock).url).toBe(
-            `${BASE}/v1/search/recipes?query=chicken+pie&dietaryFlags=vegan&dietaryFlags=gluten_free&page=2`,
+            `${BASE}/api/v1/search/recipes?query=chicken+pie&dietaryFlags=vegan&dietaryFlags=gluten_free&page=2`,
         );
     });
 
@@ -227,7 +227,7 @@ describe('RecipeServiceClient — request build + token attach', () => {
         await expect(client.deleteRecipe('rec/1')).resolves.toBeUndefined();
 
         const req = requestAt(fetchMock);
-        expect(req.url).toBe(`${BASE}/v1/recipes/rec%2F1`);
+        expect(req.url).toBe(`${BASE}/api/v1/recipes/rec%2F1`);
         expect(req.method).toBe('DELETE');
     });
 });
@@ -390,7 +390,7 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
 
         expect(result).toEqual(updated);
         const req = requestAt(fetchMock);
-        expect(req.url).toBe(`${BASE}/v1/recipes/rec_1`);
+        expect(req.url).toBe(`${BASE}/api/v1/recipes/rec_1`);
         expect(req.method).toBe('PATCH');
         expect(JSON.parse(req.body as string)).toEqual({ expectedVersion: 5, title: 'New' });
     });

@@ -55,7 +55,7 @@ describe('IngredientsController', () => {
         controller = new IngredientsController(mocks as unknown as IngredientsService);
     });
 
-    describe('GET /v1/ingredients/search', () => {
+    describe('GET /api/v1/ingredients/search', () => {
         it('trims q, parses limit, and delegates to the service', async () => {
             const rows = [makeIngredient({ id: 'a' })];
             mocks.search.mockResolvedValue(rows);
@@ -85,7 +85,7 @@ describe('IngredientsController', () => {
         });
     });
 
-    describe('GET /v1/ingredients/suggest (Stage 2 — the blended typeahead)', () => {
+    describe('GET /api/v1/ingredients/suggest (Stage 2 — the blended typeahead)', () => {
         it('trims q, parses limit, and delegates to suggest — NOT to the local-only search', async () => {
             const envelope = { suggestions: [], catalogAvailability: 'ok' as const };
             mocks.suggest.mockResolvedValue(envelope);
@@ -119,7 +119,7 @@ describe('IngredientsController', () => {
         });
     });
 
-    describe('POST /v1/ingredients/by-food (Stage 2 — the catalog pick)', () => {
+    describe('POST /api/v1/ingredients/by-food (Stage 2 — the catalog pick)', () => {
         it('forwards the (DTO-validated) foodId to addByFoodId and returns the nourished ingredient', async () => {
             const admitted = makeIngredient({
                 id: 'i9',
@@ -188,7 +188,7 @@ describe('IngredientsController', () => {
         });
     });
 
-    describe('POST /v1/ingredients', () => {
+    describe('POST /api/v1/ingredients', () => {
         it('forwards the (DTO-validated) name to createFreeform', async () => {
             const created = makeIngredient({ id: 'f1', isUserEntered: true });
             mocks.createFreeform.mockResolvedValue(created);
@@ -200,7 +200,7 @@ describe('IngredientsController', () => {
         });
     });
 
-    describe('POST /v1/ingredients/by-name (async food resolution — the vertical entry point)', () => {
+    describe('POST /api/v1/ingredients/by-name (async food resolution — the vertical entry point)', () => {
         it('routes to addByName (NOT createFreeform) and returns the non-terminal ingredient', async () => {
             const added = makeIngredient({
                 id: 'i1',
@@ -219,7 +219,7 @@ describe('IngredientsController', () => {
         });
     });
 
-    describe('GET /v1/ingredients/{id}/status (poll)', () => {
+    describe('GET /api/v1/ingredients/{id}/status (poll)', () => {
         it('delegates the poll to the service', async () => {
             const refreshed = makeIngredient({ id: ID, foodResolutionStatus: FoodResolutionStatus.RESOLVED });
             mocks.refreshStatus.mockResolvedValue(refreshed);
@@ -231,7 +231,7 @@ describe('IngredientsController', () => {
         });
     });
 
-    describe('GET /v1/ingredients/{id}/candidates', () => {
+    describe('GET /api/v1/ingredients/{id}/candidates', () => {
         it('delegates to the service', async () => {
             const candidates = [makeCandidateView({ candidateId: 'c1' })];
             mocks.getCandidates.mockResolvedValue(candidates);
@@ -243,7 +243,7 @@ describe('IngredientsController', () => {
         });
     });
 
-    describe('POST /v1/ingredients/{id}/resolve', () => {
+    describe('POST /api/v1/ingredients/{id}/resolve', () => {
         it('forwards the (DTO-validated) picked candidate ids and returns the resolved ingredient', async () => {
             const resolved = makeIngredient({ id: ID, foodResolutionStatus: FoodResolutionStatus.RESOLVED });
             mocks.resolve.mockResolvedValue(resolved);

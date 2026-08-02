@@ -1,5 +1,5 @@
 /**
- * CR-001 / FR-013 — request DTO for `PUT /v1/recipes/{id}/rating` (`SetRecipeRatingRequest` in
+ * CR-001 / FR-013 — request DTO for `PUT /api/v1/recipes/{id}/rating` (`SetRecipeRatingRequest` in
  * `contracts/api.openapi.yaml`).
  *
  * Carries ONLY `stars` (whole 1–5). There is deliberately no rater field: the rater is the verified
@@ -10,7 +10,7 @@
  */
 import { IsInt, Max, Min } from 'class-validator';
 
-/** Body of `PUT /v1/recipes/{id}/rating`. */
+/** Body of `PUT /api/v1/recipes/{id}/rating`. */
 export class SetRatingDto {
     @IsInt()
     @Min(1)

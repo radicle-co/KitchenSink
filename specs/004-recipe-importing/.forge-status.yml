@@ -1,91 +1,128 @@
 # Product Forge Lifecycle Status
 # Feature: 004-recipe-importing
-# Last updated: 2026-05-10
+# Last updated: 2026-08-02
 
 feature: 004-recipe-importing
-mode: retroactive-bootstrap
+feature_mode: v-model # Product Forge v1.7.0 (v3 schema) mode resolution — matches 003's convention.
+# WHY v-model: this feature carries the full V1..V9 artifact set (requirements, system-design,
+# architecture-design, module-design, hazard-analysis, acceptance/system/integration/unit test plans,
+# trace, traceability-matrix, release-audit-report, 10 peer reviews) and config sets
+# default_speckit_mode: v-model. The field was absent, so gate-risk.js resolved "standard" and
+# misclassified the feature. Recorded 2026-08-02.
+mode: reconciled # original provenance (legacy field)
 pilot: true
 
 phases:
     problem-discovery:
         state: skipped
-        reason: Problem already validated via parent foundation feature and existing spec.
+        reason: Problem validated via the parent foundation feature (001) and the existing spec.
         artifact: null
 
     research:
         state: complete
-        bootstrapped_from:
-            - research/research.md
-            - plan.md
-            - AGENTS.md
-            - package.json
+        note: >-
+            codebase-analysis.md and tech-stack.md REGENERATED 2026-08-02 against shipped main; the prior
+            versions predated the 001 merge and named a package tree that does not exist. research.md retained
+            as a historical record with a superseded-in-part banner.
         artifacts:
-            - research/competitors.md
-            - research/ux-patterns.md
+            - research/README.md
+            - research/research.md
             - research/codebase-analysis.md
             - research/tech-stack.md
+            - research/competitors.md
+            - research/ux-patterns.md
             - research/metrics-roi.md
-            - research/README.md
-        completed_at: 2026-05-09
+        completed_at: 2026-08-02
 
     product-spec:
         state: complete
-        bootstrapped_from:
-            - spec.md
-            - plan.md
-            - tasks.md
-            - v-model/requirements.md
+        note: >-
+            Regenerated for the draft-and-confirm model. US-408 promoted to Must Have; US-405 resolved to
+            launch scope; US-411..US-414 added; new wireframes for draft review, progress, and photo capture.
         artifacts:
             - product-spec/product-spec.md
             - product-spec/user-journey.md
-            - product-spec/wireframes/
             - product-spec/metrics.md
+            - product-spec/wireframes/
             - product-spec/README.md
-        completed_at: 2026-05-09
+        completed_at: 2026-08-02
 
     revalidation:
-        state: pending
-        note: Awaiting human review via /speckit.product-forge.revalidate.
+        state: complete
+        note: >-
+            Owner decisions D-001 (OCR at P1, AWS Textract), D-002 (Instagram specified but gated on the Meta
+            credential), D-003 (attestation + citation + advisory heuristics), D-004 (blocklist as an
+            admin-managed table) recorded 2026-08-02. All three previously pending inputs resolved.
         artifact: review.md
+        completed_at: 2026-08-02
 
     bridge:
         state: complete
-        note: spec.md already exists from SpecKit flow; bridge is a no-op.
+        note: spec.md is the canonical requirement source; no separate bridge artefact needed.
         artifact: spec.md
 
     plan:
         state: complete
+        note: >-
+            Regenerated. Adds the pattern register and Complexity Tracking table required by CLAUDE.md and
+            CODING_STANDARDS §14.1, and a registry-verified library survey replacing a non-existent dependency.
         artifact: plan.md
+        completed_at: 2026-08-02
 
     tasks:
         state: complete
+        note: >-
+            Regenerated. Paths corrected against main; web+mobile tasks paired per §14.1; k6, Maestro, and
+            per-state component tests added; SSRF and sanitization folded into acceptance criteria.
         artifact: tasks.md
+        completed_at: 2026-08-02
 
     pre-impl-review:
-        state: skipped
-        reason: Retroactive bootstrap for existing feature planning artifacts.
-        artifact: null
+        state: complete
+        note: Adversarial peer review run across all nine V-model artefacts; 28 findings, 0 Critical, 0 open above Minor.
+        artifact: v-model/peer-review.md
+        completed_at: 2026-08-02
 
     implement:
         state: not-started
-        note: tasks.md present but no T-IDs marked complete.
+        note: >-
+            No T-IDs complete. Pre-implement gaps are now closed: traceability is machine-verified (0 missing
+            cells), every task declares Test-first with its failing-test IDs, and gate-review.md exists.
+        red_gate:
+            status: ready-to-confirm
+            note: >-
+                Every task in tasks.md now carries `Test-first: true` with the specific test IDs that must be
+                confirmed FAILING before implementation. The gate is now evaluable — it was not before. It is
+                NOT yet confirmed: no tests exist to run, because implementation has not begun. The first act
+                of Phase 6 is to write those tests and observe them fail.
+            tests: []
 
     code-review:
         state: not-applicable
-        reason: No implementation changes in this bootstrap task.
+        reason: No implementation yet.
 
     verify:
         state: complete
-        note: verify-report.md generated with PASS and warning-only gaps.
+        note: verify-report.md regenerated 2026-08-02; 0 CRITICAL, 0 WARNING, 3 INFO.
         artifact: verify-report.md
-        completed_at: 2026-05-09
+        completed_at: 2026-08-02
 
     test-plan:
         state: complete
-        artifact: testing/test-plan.md
+        note: >-
+            Full V-model test set authored and machine-verified: 86 acceptance test cases / 86 scenarios across
+            all 63 requirements, plus system, integration and unit tiers at 100% coverage in the generated
+            traceability matrix, and the SC-002 fixture corpus definition that made the accuracy criterion
+            measurable. Counts are derived from v-model/traceability-matrix.md, not restated by hand.
+        artifacts:
+            - v-model/acceptance-plan.md
+            - v-model/system-test.md
+            - v-model/integration-test.md
+            - v-model/unit-test.md
 
     test-run:
         state: not-started
+        note: Blocked on implementation, by design.
 
     release-readiness:
         state: not-started
@@ -95,26 +132,72 @@ phases:
 
 v-model:
     state: complete
+    note: >-
+        Fully regenerated 2026-08-02. Traceability now has ZERO missing cells across five matrices (was 43
+        missing, with Matrix A unmapped and Matrix D empty). Architecture reconciled against shipped 001 —
+        attribution, clone, and the C-004 visibility policy are consumed, not rebuilt.
     artifacts:
         - v-model/requirements.md
         - v-model/system-design.md
         - v-model/architecture-design.md
         - v-model/module-design.md
         - v-model/hazard-analysis.md
+        - v-model/acceptance-plan.md
+        - v-model/system-test.md
+        - v-model/integration-test.md
+        - v-model/unit-test.md
         - v-model/traceability-matrix.md
+        - v-model/trace.md
         - v-model/release-audit-report.md
+        - v-model/peer-review.md
         - v-model/peer-review-requirements.md
-        - v-model/peer-review-acceptance-plan.md
         - v-model/peer-review-system-design.md
-        - v-model/peer-review-system-test.md
         - v-model/peer-review-architecture-design.md
-        - v-model/peer-review-integration-test.md
         - v-model/peer-review-module-design.md
-        - v-model/peer-review-unit-test.md
         - v-model/peer-review-hazard-analysis.md
+        - v-model/peer-review-acceptance-plan.md
+        - v-model/peer-review-system-test.md
+        - v-model/peer-review-integration-test.md
+        - v-model/peer-review-unit-test.md
+
+gates:
+    - phase: pre-impl-review
+      decision: approved
+      risk: high
+      routing: block
+      reviewed_sha: uncommitted
+      surface: gate-review.md
+      evidence:
+          traceability_missing_cells: 0
+          requirement_coverage_pct: 100
+          atp_scn_coverage_pct: 100
+          validate_requirement_coverage: pass
+          prettier: pass
+      open_findings: 9
+      open_above_medium: 0
+      findings_note: >-
+          All 9 remaining are deliberately deferred to implementation time — none is unresolved analysis.
+          19 of 28 are closed or carry a recorded decision (D-007, D-009, D-016, D-017, D-018, ADR-0011).
+      conditions:
+          - Test-first confirmed failing before any implementation (red_gate)
+          - No waiver for Catastrophic-hazard procedures (D-018)
+          - SC-002 corpus must gate CI before REQ-NF-003 is claimed
+          - Re-evaluate dormant dependencies (F-001) at implementation time
 
 status:
-    overall: pass
+    overall: ready-for-implementation
+    release_audit: BLOCKED-PRE-IMPLEMENTATION
     notes:
-        - Product Forge artifacts bootstrapped retroactively from existing 004 sources.
-        - V-model parity pass completed on 2026-05-10: hazard-analysis, traceability-matrix, release-audit-report, and peer-review-hazard-analysis authored/generated.
+        - >-
+            'overall' and 'release_audit' are DIFFERENT claims and must not be conflated. The design gate is
+            passed; the release gate is blocked solely because no code exists to test yet. The prior status
+            file claimed overall 'pass' while its own phase table showed revalidation pending — that
+            contradiction is fixed.
+        - >-
+            Scope reconciled against shipped 001 (PR #73, merged 2026-07-30). 004 owns INGESTION only.
+        - >-
+            One requirement (FR-009, Instagram) is gated on an external Meta credential and ships disabled.
+            Release does not depend on it.
+        - >-
+            Two peer-review Minors remain open (MIN-006 dormant dependencies, MIN-007 corpus sizing) plus
+            twelve Observations. None blocks implementation.

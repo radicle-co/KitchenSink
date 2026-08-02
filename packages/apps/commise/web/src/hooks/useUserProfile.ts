@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * `useUserProfile` — the web client read of the signed-in viewer's identity profile (`GET /v1/users/me`),
+ * `useUserProfile` — the web client read of the signed-in viewer's identity profile (`GET /api/v1/users/me`),
  * exposing `account.subscriptionTier` so client components can gate premium-only capabilities (e.g. making a
  * recipe private, C-004). This mirrors the mobile hook (`apps/commise/mobile/src/hooks/useUserProfile.ts`)
  * so web and mobile gate identically — the enforced cross-platform rule (CODING_STANDARDS §14).

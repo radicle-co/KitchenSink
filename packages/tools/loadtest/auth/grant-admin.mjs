@@ -3,7 +3,7 @@
  *
  * Creates a dedicated Clerk user, grants `food:admin` via `public_metadata` (the food guard reads scopes
  * from the verified token's `public_metadata`, so the grant MUST precede the token mint), mints a session
- * token, and verifies it against `/v1/foods/admin/queue` (200 = grant took effect). Writes `admin.json`
+ * token, and verifies it against `/api/v1/foods/admin/queue` (200 = grant took effect). Writes `admin.json`
  * (the same `{ userId, sessionId, devJwt, cookie, jwt }` handle shape the collector refreshes and the
  * orchestrator tears down). This observer is deliberately OUTSIDE the VU pool so load traffic stays
  * "ordinary user" shaped.
@@ -137,7 +137,7 @@ async function main() {
         let status = 0;
 
         for (let attempt = 0; attempt < 5; attempt += 1) {
-            const check = await fetch(`${FOOD_BASE_URL}/v1/foods/admin/queue`, {
+            const check = await fetch(`${FOOD_BASE_URL}/api/v1/foods/admin/queue`, {
                 headers: { Authorization: `Bearer ${jwt}` },
             });
             status = check.status;
@@ -157,7 +157,7 @@ async function main() {
 
         if (status !== 200) {
             throw new Error(
-                `admin verify got ${status} from /v1/foods/admin/queue after retries (service unavailable?).`,
+                `admin verify got ${status} from /api/v1/foods/admin/queue after retries (service unavailable?).`,
             );
         }
 
@@ -166,7 +166,7 @@ async function main() {
             `${JSON.stringify({ userId, sessionId, devJwt, cookie, jwt }, null, 2)}\n`,
         );
         console.log(
-            `Observer ready (${ADMIN_SCOPE}); /v1/foods/admin/queue -> 200. Wrote ${join(OUT_DIR, 'admin.json')}.`,
+            `Observer ready (${ADMIN_SCOPE}); /api/v1/foods/admin/queue -> 200. Wrote ${join(OUT_DIR, 'admin.json')}.`,
         );
     } catch (err) {
         console.error(`Grant failed, deleting observer ${userId}: ${err?.message ?? err}`);

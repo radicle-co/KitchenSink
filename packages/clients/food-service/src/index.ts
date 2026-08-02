@@ -1,6 +1,6 @@
 /**
  * `@kitchensink/food-service-client` (T-057) — the typed client for our own source-agnostic
- * `/v1/foods/*` API. Attaches a user-session or M2M bearer token and maps the food service's HTTP
+ * `/api/v1/foods/*` API. Attaches a user-session or M2M bearer token and maps the food service's HTTP
  * contract (`202`/`200` results; `401`/`403`/`400`/`404`/`409`/`503` typed errors; no per-user `429`,
  * `CandidateMismatch` → `409`) to typed results/errors. Named-only barrel (CODING_STANDARDS).
  */

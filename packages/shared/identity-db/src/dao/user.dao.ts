@@ -85,7 +85,7 @@ export class UserDAO {
      * Coherent `users`/`profiles` sync for `user.updated` (S-I3, corrected). `users.name`/
      * `users.picture` are the Clerk MIRROR — the last-synced Clerk value — and are the gate.
      * `profiles.displayName`/`avatarUrl` is the EFFECTIVE value the app renders, which a user can
-     * override independent of Clerk via self-service `PATCH /v1/users/me`.
+     * override independent of Clerk via self-service `PATCH /api/v1/users/me`.
      *
      * The ORIGINAL bug gated on `users.name`, which this webhook path never wrote — the baseline never
      * moved, so an A→B→A Clerk rename froze `profiles.displayName` at B (the B→A revert compared

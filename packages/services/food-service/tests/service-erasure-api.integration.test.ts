@@ -1,7 +1,7 @@
 /**
  * HTTP integration test for the food service-principal internal erasure route (CR-002 / U4b / R11), driven
  * over the booted Nest app against a REAL Postgres (`DATABASE_URL`). This is the food mirror of
- * recipe-service's U4a `service-erasure.integration.spec.ts`.
+ * recipe-service's U4a `service-erasure.integration.test.ts`.
  *
  * It proves the FULL wired stack — routing, the {@link FoodServiceErasureGuard}, the REAL `jose`
  * verification (against a genuinely-signed Ed25519 token; no auth mocks), and {@link UserErasureService}
@@ -32,7 +32,7 @@ import { generateServiceKeypair, signServiceErasureToken, type ServiceKeypair } 
 const OWNER = '01J9ZK8N7QF3B2X4M6T0V5C1AB';
 const OTHER = '01J9ZK8N7QF3B2X4M6T0V5C1AD';
 
-describe.skipIf(!DATABASE_URL)('POST /v1/internal/account/erasure (booted Nest + real Postgres)', () => {
+describe.skipIf(!DATABASE_URL)('POST /api/v1/internal/account/erasure (booted Nest + real Postgres)', () => {
     let app: INestApplication;
     let pool: pg.Pool;
     let baseUrl: string;
@@ -43,7 +43,7 @@ describe.skipIf(!DATABASE_URL)('POST /v1/internal/account/erasure (booted Nest +
         if (token) {
             headers['authorization'] = `Bearer ${token}`;
         }
-        const response = await fetch(`${baseUrl}/v1/internal/account/erasure`, { method: 'POST', headers });
+        const response = await fetch(`${baseUrl}/api/v1/internal/account/erasure`, { method: 'POST', headers });
         const text = await response.text();
 
         return { status: response.status, body: text ? JSON.parse(text) : undefined };

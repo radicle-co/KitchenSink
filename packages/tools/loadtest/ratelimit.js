@@ -95,7 +95,7 @@ export default function () {
 
     // Unique per (tag, VU, iter) → always cache-missing → forces a real USDA search that charges the window.
     const name = `zzq ${RUN_TAG} ${__VU} ${__ITER} nonfood`;
-    const res = http.post(`${BASE_URL}/v1/foods`, JSON.stringify({ name }), {
+    const res = http.post(`${BASE_URL}/api/v1/foods`, JSON.stringify({ name }), {
         headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
         tags: { step: 'burst-add' },
     });

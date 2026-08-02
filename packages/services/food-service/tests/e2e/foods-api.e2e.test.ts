@@ -1,5 +1,5 @@
 /**
- * Full-stack e2e for the source-agnostic `/v1/foods/*` API (T-190). Boots the REAL Nest app against a
+ * Full-stack e2e for the source-agnostic `/api/v1/foods/*` API (T-190). Boots the REAL Nest app against a
  * REAL Postgres (`DATABASE_URL`) with the REAL {@link FoodAuthGuard} → `@kitchensink/clerk-verify`
  * (NO auth mock — every request carries a genuinely-signed RS256 token, see `tests/support/jwt.ts`),
  * and drives the fan-out worker deterministically by constructing a {@link FoodConsumerService} over
@@ -80,7 +80,7 @@ function programmedResolve(name: string): string {
     return name;
 }
 
-describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real Postgres + worker drain)', () => {
+describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + real Postgres + worker drain)', () => {
     let app: INestApplication;
     let pool: pg.Pool;
     let baseUrl: string;
@@ -152,7 +152,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
 
     /** Add a name through the real API and drain to its terminal status; returns the id + status. */
     async function addAndDrain(token: string, name: string): Promise<{ id: string; status: string }> {
-        const res = await call('POST', '/v1/foods', { token, body: { name } });
+        const res = await call('POST', '/api/v1/foods', { token, body: { name } });
         const id = (res.body as { id: string }).id;
 
         return { id, status: await drainUntilTerminal(id) };
@@ -228,14 +228,14 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
         it('rejects every endpoint with no token → 401', async () => {
             const id = ulid();
             const cases: [string, string][] = [
-                ['GET', `/v1/foods/${id}`],
-                ['GET', `/v1/foods/${id}/status`],
-                ['GET', `/v1/foods/${id}/candidates`],
-                ['GET', '/v1/foods/search?query=x'],
-                ['POST', '/v1/foods'],
-                ['POST', '/v1/foods/batch'],
-                ['PATCH', `/v1/foods/${id}`],
-                ['POST', `/v1/foods/${id}/refetch`],
+                ['GET', `/api/v1/foods/${id}`],
+                ['GET', `/api/v1/foods/${id}/status`],
+                ['GET', `/api/v1/foods/${id}/candidates`],
+                ['GET', '/api/v1/foods/search?query=x'],
+                ['POST', '/api/v1/foods'],
+                ['POST', '/api/v1/foods/batch'],
+                ['PATCH', `/api/v1/foods/${id}`],
+                ['POST', `/api/v1/foods/${id}/refetch`],
             ];
 
             for (const [method, path] of cases) {
@@ -245,12 +245,12 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
         });
 
         it('rejects a malformed token and an expired token → 401', async () => {
-            expect((await call('GET', `/v1/foods/${ulid()}`, { token: 'not-a-jwt' })).status).toBe(401);
-            expect((await call('GET', `/v1/foods/${ulid()}`, { token: expiredToken })).status).toBe(401);
+            expect((await call('GET', `/api/v1/foods/${ulid()}`, { token: 'not-a-jwt' })).status).toBe(401);
+            expect((await call('GET', `/api/v1/foods/${ulid()}`, { token: expiredToken })).status).toBe(401);
         });
 
         it('does NOT create a food/queue row for an unauthenticated POST (401 before any effect)', async () => {
-            const res = await call('POST', '/v1/foods', { body: { name: 'unauth broccoli' } });
+            const res = await call('POST', '/api/v1/foods', { body: { name: 'unauth broccoli' } });
             expect(res.status).toBe(401);
 
             expect((await pool.query('SELECT count(*)::int AS n FROM food')).rows[0].n).toBe(0);
@@ -259,7 +259,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
 
         it('accepts an azp-allowlisted M2M token and keys provenance on its svc_* id (FR-047)', async () => {
             stub.programResolve('service add');
-            const res = await call('POST', '/v1/foods', { token: m2mToken, body: { name: 'service add' } });
+            const res = await call('POST', '/api/v1/foods', { token: m2mToken, body: { name: 'service add' } });
             expect(res.status).toBe(202);
 
             const requesters = await pool.query('SELECT requester_id FROM fetch_requesters');
@@ -269,8 +269,8 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
         it('rejects /refetch without the food:admin scope → 403, allows it with the scope → 202', async () => {
             const { id } = await addAndDrain(userToken, programmedResolve('Refetch me'));
 
-            expect((await call('POST', `/v1/foods/${id}/refetch`, { token: userToken })).status).toBe(403);
-            expect((await call('POST', `/v1/foods/${id}/refetch`, { token: adminToken })).status).toBe(202);
+            expect((await call('POST', `/api/v1/foods/${id}/refetch`, { token: userToken })).status).toBe(403);
+            expect((await call('POST', `/api/v1/foods/${id}/refetch`, { token: adminToken })).status).toBe(202);
         });
     });
 
@@ -279,7 +279,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
         it('POST 202 + one queue row → drain → RESOLVED golden record (per-100g, provenance, no fdcId)', async () => {
             const externalKey = stub.programResolve('Broccoli, raw', { description: 'Raw broccoli florets' });
 
-            const add = await call('POST', '/v1/foods', { token: userToken, body: { name: 'Broccoli, raw' } });
+            const add = await call('POST', '/api/v1/foods', { token: userToken, body: { name: 'Broccoli, raw' } });
             expect(add.status).toBe(202);
             const id = (add.body as { id: string; status: string }).id;
             expect((add.body as { status: string }).status).toBe('PENDING');
@@ -288,11 +288,11 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             ).toBe(1);
 
             // PENDING read → 202 before the worker runs.
-            expect((await call('GET', `/v1/foods/${id}`, { token: userToken })).status).toBe(202);
+            expect((await call('GET', `/api/v1/foods/${id}`, { token: userToken })).status).toBe(202);
 
             expect(await drainUntilTerminal(id)).toBe('RESOLVED');
 
-            const got = await call('GET', `/v1/foods/${id}`, { token: userToken });
+            const got = await call('GET', `/api/v1/foods/${id}`, { token: userToken });
             expect(got.status).toBe(200);
             const food = got.body as {
                 id: string;
@@ -312,7 +312,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             expect(JSON.stringify(food)).not.toContain(externalKey);
 
             // status transitioned PENDING → RESOLVED and now carries the golden record.
-            const status = await call('GET', `/v1/foods/${id}/status`, { token: userToken });
+            const status = await call('GET', `/api/v1/foods/${id}/status`, { token: userToken });
             expect((status.body as { status: string; food?: unknown }).status).toBe('RESOLVED');
             // Same underlying record as the GET above — no mutation happened in between.
             expect((status.body as { food?: unknown }).food).toEqual(food);
@@ -325,8 +325,8 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
 
         it('dedups a same-normalized-name re-add to one id/row', async () => {
             stub.programResolve('Spinach');
-            const first = await call('POST', '/v1/foods', { token: userToken, body: { name: 'Spinach' } });
-            const second = await call('POST', '/v1/foods', { token: userToken, body: { name: '  spinach ' } });
+            const first = await call('POST', '/api/v1/foods', { token: userToken, body: { name: 'Spinach' } });
+            const second = await call('POST', '/api/v1/foods', { token: userToken, body: { name: '  spinach ' } });
             expect((first.body as { id: string }).id).toBe((second.body as { id: string }).id);
             expect((await pool.query('SELECT count(*)::int AS n FROM food')).rows[0].n).toBe(1);
         });
@@ -342,16 +342,16 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
 
             const { id, status } = await addAndDrain(userToken, 'broccoli');
             expect(status).toBe('UNRESOLVED');
-            expect((await call('GET', `/v1/foods/${id}`, { token: userToken })).status).toBe(202);
+            expect((await call('GET', `/api/v1/foods/${id}`, { token: userToken })).status).toBe(202);
 
-            const candidates = await call('GET', `/v1/foods/${id}/candidates`, { token: userToken });
+            const candidates = await call('GET', `/api/v1/foods/${id}/candidates`, { token: userToken });
             expect(candidates.status).toBe(200);
             const set = (candidates.body as { candidates: { candidateId: string; externalKey: string }[] }).candidates;
             expect(set).toHaveLength(2);
             expect(JSON.stringify(candidates.body)).not.toContain('fdcId');
 
             // A non-member pick → 409, status unchanged.
-            const mismatch = await call('PATCH', `/v1/foods/${id}`, {
+            const mismatch = await call('PATCH', `/api/v1/foods/${id}`, {
                 token: userToken,
                 body: { candidateIds: [ulid()] },
             });
@@ -359,7 +359,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             expect(await foodStatus(id)).toBe('UNRESOLVED');
 
             // A valid pick → 200 RESOLVED (re-fetched through the stub) + candidate set cleared.
-            const pick = await call('PATCH', `/v1/foods/${id}`, {
+            const pick = await call('PATCH', `/api/v1/foods/${id}`, {
                 token: userToken,
                 body: { candidateIds: [set[0]!.candidateId] },
             });
@@ -369,10 +369,10 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             expect(
                 (await pool.query('SELECT count(*)::int AS n FROM food_candidates WHERE food_id = $1', [id])).rows[0].n,
             ).toBe(0);
-            expect((await call('GET', `/v1/foods/${id}`, { token: userToken })).status).toBe(200);
+            expect((await call('GET', `/api/v1/foods/${id}`, { token: userToken })).status).toBe(200);
 
             // PATCH again on a RESOLVED food → idempotent 200 no-op.
-            const again = await call('PATCH', `/v1/foods/${id}`, {
+            const again = await call('PATCH', `/api/v1/foods/${id}`, {
                 token: userToken,
                 body: { candidateIds: [ulid()] },
             });
@@ -388,11 +388,11 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             const { id, status } = await addAndDrain(userToken, 'phantom food');
             expect(status).toBe('NOT_FOUND');
 
-            const got = await call('GET', `/v1/foods/${id}`, { token: userToken });
+            const got = await call('GET', `/api/v1/foods/${id}`, { token: userToken });
             expect(got.status).toBe(404);
             expect((got.body as { status: string }).status).toBe('NOT_FOUND');
 
-            const poll = await call('GET', `/v1/foods/${id}/status`, { token: userToken });
+            const poll = await call('GET', `/api/v1/foods/${id}/status`, { token: userToken });
             expect(poll.status).toBe(200);
             expect((poll.body as { status: string }).status).toBe('NOT_FOUND');
 
@@ -403,14 +403,14 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
     });
 
     // ── Batch (FR-012/FR-045) ───────────────────────────────────────────────────────────────────────
-    describe('POST /v1/foods/batch', () => {
+    describe('POST /api/v1/foods/batch', () => {
         it('mixed batch → per-item partial (inline RESOLVED hit + PENDING misses)', async () => {
             const { id: resolvedId } = await addAndDrain(userToken, programmedResolve('Chicken breast, raw'));
             expect(await foodStatus(resolvedId)).toBe('RESOLVED');
             stub.programResolve('Quinoa');
             stub.programResolve('Lentils');
 
-            const res = await call('POST', '/v1/foods/batch', {
+            const res = await call('POST', '/api/v1/foods/batch', {
                 token: userToken,
                 body: { names: ['Chicken breast, raw', 'Quinoa', 'Lentils'] },
             });
@@ -422,7 +422,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
 
         it('collapses an intra-batch duplicate name to one item', async () => {
             stub.programResolve('Kale');
-            const res = await call('POST', '/v1/foods/batch', {
+            const res = await call('POST', '/api/v1/foods/batch', {
                 token: userToken,
                 body: { names: ['Kale', 'kale', '  KALE '] },
             });
@@ -431,14 +431,14 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
 
         it('rejects a batch over 100 names → 400, nothing enqueued', async () => {
             const names = Array.from({ length: 101 }, (_, i) => `batch food ${i}`);
-            const res = await call('POST', '/v1/foods/batch', { token: userToken, body: { names } });
+            const res = await call('POST', '/api/v1/foods/batch', { token: userToken, body: { names } });
             expect(res.status).toBe(400);
             expect((await pool.query('SELECT count(*)::int AS n FROM food')).rows[0].n).toBe(0);
         });
     });
 
     // ── Search (FR-008/FR-009 — never a source call) ────────────────────────────────────────────────
-    describe('GET /v1/foods/search', () => {
+    describe('GET /api/v1/foods/search', () => {
         it('ranks fuzzy/substring hits, crosswalks external_key + barcode, and never calls a source', async () => {
             const chickenKey = stub.programResolve('Chicken breast, raw', {
                 externalKey: 'ek-chicken-1',
@@ -449,23 +449,23 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             await addAndDrain(userToken, 'Beef steak');
 
             // Substring/fuzzy: matches chicken, never the unrelated beef.
-            const fuzzy = await call('GET', '/v1/foods/search?query=chicken', { token: userToken });
+            const fuzzy = await call('GET', '/api/v1/foods/search?query=chicken', { token: userToken });
             expect(fuzzy.status).toBe(200);
             const names = (fuzzy.body as { results: { name: string }[] }).results.map((row) => row.name);
             expect(names).toContain('Chicken breast, raw');
             expect(names).not.toContain('Beef steak');
 
             // external_key crosswalk → the chicken id.
-            const byKey = await call('GET', `/v1/foods/search?query=${chickenKey}`, { token: userToken });
+            const byKey = await call('GET', `/api/v1/foods/search?query=${chickenKey}`, { token: userToken });
             expect((byKey.body as { results: { id: string }[] }).results.map((row) => row.id)).toContain(chickenId);
 
             // barcode crosswalk → the chicken id.
-            const byBarcode = await call('GET', '/v1/foods/search?query=0123456789012', { token: userToken });
+            const byBarcode = await call('GET', '/api/v1/foods/search?query=0123456789012', { token: userToken });
             expect((byBarcode.body as { results: { id: string }[] }).results.map((row) => row.id)).toContain(chickenId);
 
             // No match → empty AND zero source calls during the search.
             const before = stub.calls.searchByName;
-            const none = await call('GET', '/v1/foods/search?query=zzzznotathing', { token: userToken });
+            const none = await call('GET', '/api/v1/foods/search?query=zzzznotathing', { token: userToken });
             expect((none.body as { results: unknown[] }).results).toEqual([]);
             expect(stub.calls.searchByName).toBe(before);
         });
@@ -476,7 +476,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
 
             // "breast chicken" is NOT a substring — only the ranked FTS lexeme path matches the reversed phrase.
             const before = stub.calls.searchByName;
-            const res = await call('GET', '/v1/foods/search?query=breast%20chicken', { token: userToken });
+            const res = await call('GET', '/api/v1/foods/search?query=breast%20chicken', { token: userToken });
             expect(res.status).toBe(200);
             expect((res.body as { results: { id: string }[] }).results.map((row) => row.id)).toContain(id);
             expect(stub.calls.searchByName).toBe(before);
@@ -492,7 +492,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             const { id, status } = await addAndDrain(userToken, 'kombucha scoby');
             expect(status).toBe('FAILED');
 
-            const got = await call('GET', `/v1/foods/${id}`, { token: userToken });
+            const got = await call('GET', `/api/v1/foods/${id}`, { token: userToken });
             expect(got.status).toBe(404);
             expect((got.body as { status: string }).status).toBe('FAILED');
 
@@ -504,15 +504,15 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
     });
 
     // ── Admin operational-query endpoints (FR-039 / US-10, T-184) ────────────────────────────────────
-    describe('GET /v1/foods/admin/* operational metrics', () => {
+    describe('GET /api/v1/foods/admin/* operational metrics', () => {
         it('unauth → 401; authenticated non-admin → 403; admin → 200 with the operational signals', async () => {
             // Unauthenticated → 401 (the guard, before any handler).
-            expect((await call('GET', '/v1/foods/admin/metrics')).status).toBe(401);
-            expect((await call('GET', '/v1/foods/admin/queue')).status).toBe(401);
+            expect((await call('GET', '/api/v1/foods/admin/metrics')).status).toBe(401);
+            expect((await call('GET', '/api/v1/foods/admin/queue')).status).toBe(401);
 
             // Authenticated but missing the food:admin scope → 403 (FR-039/FR-051).
-            expect((await call('GET', '/v1/foods/admin/metrics', { token: userToken })).status).toBe(403);
-            expect((await call('GET', '/v1/foods/admin/queue', { token: userToken })).status).toBe(403);
+            expect((await call('GET', '/api/v1/foods/admin/metrics', { token: userToken })).status).toBe(403);
+            expect((await call('GET', '/api/v1/foods/admin/queue', { token: userToken })).status).toBe(403);
 
             // Seed a known operational state: a RESOLVED food, a NOT_FOUND tombstone, and pending rows.
             const { id: resolvedId } = await addAndDrain(userToken, programmedResolve('Admin resolved'));
@@ -522,7 +522,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             await seedActiveQueue(3);
 
             // Admin → 200 with the dashboard signals.
-            const metrics = await call('GET', '/v1/foods/admin/metrics', { token: adminToken });
+            const metrics = await call('GET', '/api/v1/foods/admin/metrics', { token: adminToken });
             expect(metrics.status).toBe(200);
             const body = metrics.body as {
                 queue: { pending: number; inFlight: number; tombstone: number };
@@ -536,7 +536,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             expect(body.sources[0]!.hardCap).toBeGreaterThan(0);
 
             // The focused queue-depth endpoint also requires the admin scope and returns the depths.
-            const queue = await call('GET', '/v1/foods/admin/queue', { token: adminToken });
+            const queue = await call('GET', '/api/v1/foods/admin/queue', { token: adminToken });
             expect(queue.status).toBe(200);
             expect((queue.body as { pending: number }).pending).toBeGreaterThanOrEqual(3);
         });
@@ -548,7 +548,7 @@ describe.skipIf(!DATABASE_URL)('/v1/foods/* full-stack e2e (booted Nest + real P
             await seedActiveQueue(25); // FOOD_MAX_QUEUE_DEPTH=25
             stub.programResolve('one too many');
 
-            const res = await call('POST', '/v1/foods', { token: userToken, body: { name: 'one too many' } });
+            const res = await call('POST', '/api/v1/foods', { token: userToken, body: { name: 'one too many' } });
             expect(res.status).toBe(503);
             expect(res.headers.get('retry-after')).toBeTruthy();
         });

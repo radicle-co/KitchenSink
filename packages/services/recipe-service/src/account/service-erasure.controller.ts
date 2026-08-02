@@ -1,5 +1,5 @@
 /**
- * The `/v1/internal/account` REST surface — the GREENFIELD service-principal erasure route (CR-002 / U4a).
+ * The `/api/v1/internal/account` REST surface — the GREENFIELD service-principal erasure route (CR-002 / U4a).
  *
  * A STRUCTURALLY-DISTINCT controller from {@link AccountController}, on its own `internal` path prefix, so
  * the machine-auth path never shares a handler, a body shape, or a guard chain with the user path:
@@ -27,13 +27,17 @@ import { ServiceErasurePrincipal } from '../auth/service-principal.decorator.js'
 import type { ServicePrincipal } from '../auth/service-principal.js';
 import type { ServiceErasureAcceptedResponse } from './dto/service-erasure.dto.js';
 
-@Controller('v1/internal/account')
+// Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
+// `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
+// webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
+// inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
+@Controller(['api/v1/internal/account', 'v1/internal/account'])
 @UseGuards(ServiceErasureGuard)
 export class ServiceErasureController {
     public constructor(private readonly erasure: ErasureService) {}
 
     /**
-     * `POST /v1/internal/account/erasure` — trigger erasure of the token-bound target account on behalf of
+     * `POST /api/v1/internal/account/erasure` — trigger erasure of the token-bound target account on behalf of
      * a verified service principal (the identity deletion-worker, on a `user.deleted`/close event).
      *
      * The owner is the verified token's bound claim (`@ServiceErasurePrincipal().ownerId`) — never a body

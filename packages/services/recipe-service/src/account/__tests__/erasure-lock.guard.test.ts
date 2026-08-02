@@ -13,7 +13,7 @@
  *   - **The lock statuses** — only a `queued`/`running` job (what `findActiveJob` returns) blocks; a
  *     terminal job does not exist in that set, so it never even reaches this guard's decision.
  *     → `describe('mutating methods')`
- *   - **`@SkipErasureLock()`** — the one exemption (`POST /v1/account/erasure` itself), checked BEFORE
+ *   - **`@SkipErasureLock()`** — the one exemption (`POST /api/v1/account/erasure` itself), checked BEFORE
  *     the DAL call so the exempted route also avoids the extra round trip.
  *     → `describe('the @SkipErasureLock() exemption')`
  *   - **Fail-closed auth is upstream, not duplicated here** — a mutating request with no principal is

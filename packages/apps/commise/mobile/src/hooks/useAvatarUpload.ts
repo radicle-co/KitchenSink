@@ -1,7 +1,7 @@
 /**
  * `useAvatarUpload` — the native avatar upload orchestration behind the profile screen's image-picker flow
  * (U2). It mirrors the recipe-photo model rather than reinventing it: the identity service exposes a
- * presigned-PUT contract (`POST /v1/users/me/avatar/presign`), so the client never streams image bytes
+ * presigned-PUT contract (`POST /api/v1/users/me/avatar/presign`), so the client never streams image bytes
  * through the API — it asks for a short-lived S3 URL scoped to the exact type + size, PUTs the blob straight
  * to S3, and persists only the durable public URL (via the profile PATCH the caller already owns).
  *
@@ -59,7 +59,7 @@ export function useAvatarUpload(): UseAvatarUpload {
             const query = `type=${encodeURIComponent(contentType)}&size=${blob.size}`;
             const presign = await apiRequest<AvatarPresignResponse>(
                 getIdentityToken,
-                `/v1/users/me/avatar/presign?${query}`,
+                `/api/v1/users/me/avatar/presign?${query}`,
                 { method: 'POST' },
             );
 

@@ -526,7 +526,7 @@ export class RecipesService {
     /**
      * Resolve each DTO ingredient line against the shared catalog, yielding the denormalized link rows
      * the DAL persists. Each line's `ingredientId` MUST already exist (the client resolves ingredients
-     * via `/v1/ingredients` first); an unknown id fails fast with `UNKNOWN_INGREDIENT`. The catalog is
+     * via `/api/v1/ingredients` first); an unknown id fails fast with `UNKNOWN_INGREDIENT`. The catalog is
      * the source of truth for the persisted `ingredientName` / `isUserEntered`, and array order becomes
      * `sortOrder`.
      *

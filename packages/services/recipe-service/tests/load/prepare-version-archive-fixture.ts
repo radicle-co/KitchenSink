@@ -6,7 +6,7 @@
  * ONLY in the S3 archive (never in `recipe_versions`) therefore has to happen OUTSIDE k6, the same way
  * `prepare-db.mjs` applies migrations + seeds the ingredient catalog before a k6 run.
  *
- * Mirrors `tests/e2e/version-archive-fallback.e2e.spec.ts`'s fixture, but SQL-only and idempotent (fixed
+ * Mirrors `tests/e2e/version-archive-fallback.e2e.test.ts`'s fixture, but SQL-only and idempotent (fixed
  * ids, `ON CONFLICT (id) DO NOTHING`) rather than create-via-API-then-delete: it inserts the `recipes`
  * row directly at `current_version = 1` and deliberately writes NO `recipe_versions` row for it — the
  * "evicted past the DB retention window" state the async version-archive worker would otherwise produce

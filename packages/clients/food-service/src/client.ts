@@ -1,5 +1,5 @@
 /**
- * `FoodServiceClient` (T-057) — the typed client for our own source-agnostic `/v1/foods/*` API. It is
+ * `FoodServiceClient` (T-057) — the typed client for our own source-agnostic `/api/v1/foods/*` API. It is
  * the single integration point downstream services (001 recipes, 006 meal-planning, 007 grocery, 009
  * nutrition) and internal jobs use, so they never hand-roll URLs, token attachment, or status mapping.
  *
@@ -79,7 +79,7 @@ export class FoodServiceClient {
     }
 
     /**
-     * `POST /v1/foods` — add a food by name (`202`).
+     * `POST /api/v1/foods` — add a food by name (`202`).
      *
      * @param name - The display name to resolve.
      * @returns The created/deduped food id + status.
@@ -88,7 +88,7 @@ export class FoodServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async addByName(name: string): Promise<AddResult> {
-        const res = await this.send('POST', '/v1/foods', { name });
+        const res = await this.send('POST', '/api/v1/foods', { name });
 
         if (res.status === 202) {
             return res.body as AddResult;
@@ -98,7 +98,7 @@ export class FoodServiceClient {
     }
 
     /**
-     * `POST /v1/foods/batch` — add up to 100 names; per-item partial result.
+     * `POST /api/v1/foods/batch` — add up to 100 names; per-item partial result.
      *
      * @param names - The names to add (≤100; over → `400`).
      * @returns Per-item results (inline hits + pending misses).
@@ -106,7 +106,7 @@ export class FoodServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async batch(names: readonly string[]): Promise<BatchResult> {
-        const res = await this.send('POST', '/v1/foods/batch', { names });
+        const res = await this.send('POST', '/api/v1/foods/batch', { names });
 
         if (res.status >= 200 && res.status < 300) {
             return res.body as BatchResult;
@@ -116,7 +116,7 @@ export class FoodServiceClient {
     }
 
     /**
-     * `GET /v1/foods/{id}` — read the golden record, or a non-terminal pending state.
+     * `GET /api/v1/foods/{id}` — read the golden record, or a non-terminal pending state.
      *
      * @param id - The internal food id.
      * @returns `RESOLVED` with the golden record, else a `PENDING`/`UNRESOLVED` result.
@@ -124,7 +124,7 @@ export class FoodServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async getById(id: string): Promise<GetFoodResult> {
-        const res = await this.send('GET', `/v1/foods/${encodeURIComponent(id)}`);
+        const res = await this.send('GET', `/api/v1/foods/${encodeURIComponent(id)}`);
 
         if (res.status === 200) {
             return { status: 'RESOLVED', food: res.body as FoodView };
@@ -140,7 +140,7 @@ export class FoodServiceClient {
     }
 
     /**
-     * `GET /v1/foods/{id}/status` — lifecycle poll (never enqueues).
+     * `GET /api/v1/foods/{id}/status` — lifecycle poll (never enqueues).
      *
      * @param id - The internal food id.
      * @returns The status (plus the golden record when `RESOLVED`).
@@ -148,7 +148,7 @@ export class FoodServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async getStatus(id: string): Promise<StatusResult> {
-        const res = await this.send('GET', `/v1/foods/${encodeURIComponent(id)}/status`);
+        const res = await this.send('GET', `/api/v1/foods/${encodeURIComponent(id)}/status`);
 
         if (res.status === 200) {
             return res.body as StatusResult;
@@ -158,7 +158,7 @@ export class FoodServiceClient {
     }
 
     /**
-     * `GET /v1/foods/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED` food.
+     * `GET /api/v1/foods/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED` food.
      *
      * @param id - The internal food id.
      * @returns The (non-expired) candidate set (empty for a non-`UNRESOLVED` food).
@@ -166,7 +166,7 @@ export class FoodServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async getCandidates(id: string): Promise<CandidatesResult> {
-        const res = await this.send('GET', `/v1/foods/${encodeURIComponent(id)}/candidates`);
+        const res = await this.send('GET', `/api/v1/foods/${encodeURIComponent(id)}/candidates`);
 
         if (res.status === 200) {
             return res.body as CandidatesResult;
@@ -176,7 +176,7 @@ export class FoodServiceClient {
     }
 
     /**
-     * `GET /v1/foods/search?query=` — local fuzzy/crosswalk search (never calls a source).
+     * `GET /api/v1/foods/search?query=` — local fuzzy/crosswalk search (never calls a source).
      *
      * @param query - The search query.
      * @returns Ranked results, or an empty set on no local match.
@@ -184,7 +184,7 @@ export class FoodServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async search(query: string): Promise<SearchResult> {
-        const res = await this.send('GET', `/v1/foods/search?query=${encodeURIComponent(query)}`);
+        const res = await this.send('GET', `/api/v1/foods/search?query=${encodeURIComponent(query)}`);
 
         if (res.status === 200) {
             return res.body as SearchResult;
@@ -194,7 +194,7 @@ export class FoodServiceClient {
     }
 
     /**
-     * `PATCH /v1/foods/{id}` — resolve an `UNRESOLVED` food from a candidate pick.
+     * `PATCH /api/v1/foods/{id}` — resolve an `UNRESOLVED` food from a candidate pick.
      *
      * @param id - The internal food id.
      * @param candidateIds - The picked candidate row ids (validated to the food's own set).
@@ -205,7 +205,7 @@ export class FoodServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async resolve(id: string, candidateIds: readonly string[]): Promise<ResolveResult> {
-        const res = await this.send('PATCH', `/v1/foods/${encodeURIComponent(id)}`, { candidateIds });
+        const res = await this.send('PATCH', `/api/v1/foods/${encodeURIComponent(id)}`, { candidateIds });
 
         if (res.status === 200) {
             return res.body as ResolveResult;

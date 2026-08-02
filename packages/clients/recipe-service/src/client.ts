@@ -1,6 +1,6 @@
 /**
  * `RecipeServiceClient` (T-004 / T-095) — the typed client for the Commise recipe management API
- * (`/v1/recipes`, `/v1/ingredients`, `/v1/collections`, `/v1/search`, `/v1/account`). It is the single
+ * (`/api/v1/recipes`, `/api/v1/ingredients`, `/api/v1/collections`, `/api/v1/search`, `/api/v1/account`). It is the single
  * integration point the web and mobile apps use so they never hand-roll URLs, token attachment, or
  * status mapping. Modeled directly on `@kitchensink/food-service-client`.
  *
@@ -284,7 +284,7 @@ export class RecipeServiceClient {
     // ─── Recipes ────────────────────────────────────────────────────────────────────────────────
 
     /**
-     * `POST /v1/recipes` — create a recipe (`201`).
+     * `POST /api/v1/recipes` — create a recipe (`201`).
      *
      * @param input - The recipe draft.
      * @returns The created recipe.
@@ -292,13 +292,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async createRecipe(input: CreateRecipeInput): Promise<RecipeDetail> {
-        const res = await this.send('POST', '/v1/recipes', input);
+        const res = await this.send('POST', '/api/v1/recipes', input);
 
         return this.expect(res, 201, recipeDetailSchema);
     }
 
     /**
-     * `GET /v1/recipes` — list the caller's recipes (paginated).
+     * `GET /api/v1/recipes` — list the caller's recipes (paginated).
      *
      * @param params - Pagination + sort.
      * @returns A paginated page of recipes.
@@ -306,7 +306,7 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async listRecipes(params: ListRecipesParams = {}): Promise<PaginatedResponse<Recipe>> {
-        const res = await this.send('GET', '/v1/recipes', undefined, {
+        const res = await this.send('GET', '/api/v1/recipes', undefined, {
             page: params.page,
             pageSize: params.pageSize,
             sortBy: params.sortBy,
@@ -316,7 +316,7 @@ export class RecipeServiceClient {
     }
 
     /**
-     * `GET /v1/recipes/{id}` — read a recipe by id.
+     * `GET /api/v1/recipes/{id}` — read a recipe by id.
      *
      * @param id - The recipe id.
      * @returns The recipe.
@@ -324,13 +324,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async getRecipeById(id: string): Promise<RecipeDetail> {
-        const res = await this.send('GET', `/v1/recipes/${encodeURIComponent(id)}`);
+        const res = await this.send('GET', `/api/v1/recipes/${encodeURIComponent(id)}`);
 
         return this.expect(res, 200, recipeDetailSchema);
     }
 
     /**
-     * `PATCH /v1/recipes/{id}` — update a recipe with optimistic concurrency.
+     * `PATCH /api/v1/recipes/{id}` — update a recipe with optimistic concurrency.
      *
      * @param id - The recipe id.
      * @param input - The partial update carrying the caller's `expectedVersion`.
@@ -339,26 +339,26 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async updateRecipe(id: string, input: UpdateRecipeInput): Promise<RecipeDetail> {
-        const res = await this.send('PATCH', `/v1/recipes/${encodeURIComponent(id)}`, input);
+        const res = await this.send('PATCH', `/api/v1/recipes/${encodeURIComponent(id)}`, input);
 
         return this.expect(res, 200, recipeDetailSchema);
     }
 
     /**
-     * `DELETE /v1/recipes/{id}` — soft-delete (tombstone) a recipe (`204`).
+     * `DELETE /api/v1/recipes/{id}` — soft-delete (tombstone) a recipe (`204`).
      *
      * @param id - The recipe id.
      * @throws {ForbiddenError} when not the owner; {@link NotFoundError} when absent.
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async deleteRecipe(id: string): Promise<void> {
-        const res = await this.send('DELETE', `/v1/recipes/${encodeURIComponent(id)}`);
+        const res = await this.send('DELETE', `/api/v1/recipes/${encodeURIComponent(id)}`);
 
         return this.expectNoContent(res, 204);
     }
 
     /**
-     * `POST /v1/recipes/{id}/clone` — clone a public recipe into the caller's library (`201`).
+     * `POST /api/v1/recipes/{id}/clone` — clone a public recipe into the caller's library (`201`).
      *
      * @param id - The source recipe id.
      * @returns The newly created clone.
@@ -366,13 +366,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async cloneRecipe(id: string): Promise<RecipeDetail> {
-        const res = await this.send('POST', `/v1/recipes/${encodeURIComponent(id)}/clone`);
+        const res = await this.send('POST', `/api/v1/recipes/${encodeURIComponent(id)}/clone`);
 
         return this.expect(res, 201, recipeDetailSchema);
     }
 
     /**
-     * `PATCH /v1/recipes/{id}/visibility` — set a recipe's visibility.
+     * `PATCH /api/v1/recipes/{id}/visibility` — set a recipe's visibility.
      *
      * @param id - The recipe id.
      * @param visibility - The new visibility.
@@ -381,13 +381,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async setRecipeVisibility(id: string, visibility: RecipeVisibility): Promise<RecipeDetail> {
-        const res = await this.send('PATCH', `/v1/recipes/${encodeURIComponent(id)}/visibility`, { visibility });
+        const res = await this.send('PATCH', `/api/v1/recipes/${encodeURIComponent(id)}/visibility`, { visibility });
 
         return this.expect(res, 200, recipeDetailSchema);
     }
 
     /**
-     * `PUT /v1/recipes/{id}/rating` — set the caller's rating of a recipe (idempotent upsert, FR-013).
+     * `PUT /api/v1/recipes/{id}/rating` — set the caller's rating of a recipe (idempotent upsert, FR-013).
      *
      * The rater is the authenticated caller (the bearer token) — there is deliberately no rater field in
      * the body. Re-rating replaces the caller's previous rating; sending the same request twice has the
@@ -401,13 +401,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async setRecipeRating(id: string, input: SetRecipeRatingInput): Promise<RecipeDetail> {
-        const res = await this.send('PUT', `/v1/recipes/${encodeURIComponent(id)}/rating`, input);
+        const res = await this.send('PUT', `/api/v1/recipes/${encodeURIComponent(id)}/rating`, input);
 
         return this.expect(res, 200, recipeDetailSchema);
     }
 
     /**
-     * `DELETE /v1/recipes/{id}/rating` — remove the caller's rating of a recipe (`204`, FR-013).
+     * `DELETE /api/v1/recipes/{id}/rating` — remove the caller's rating of a recipe (`204`, FR-013).
      *
      * Idempotent: removing a rating that does not exist still succeeds with `204`.
      *
@@ -416,7 +416,7 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async deleteRecipeRating(id: string): Promise<void> {
-        const res = await this.send('DELETE', `/v1/recipes/${encodeURIComponent(id)}/rating`);
+        const res = await this.send('DELETE', `/api/v1/recipes/${encodeURIComponent(id)}/rating`);
 
         return this.expectNoContent(res, 204);
     }
@@ -424,7 +424,7 @@ export class RecipeServiceClient {
     // ─── Ingredients ────────────────────────────────────────────────────────────────────────────
 
     /**
-     * `GET /v1/ingredients/search` — typeahead ingredient search (thin proxy over the food service).
+     * `GET /api/v1/ingredients/search` — typeahead ingredient search (thin proxy over the food service).
      *
      * @param query - The name query.
      * @param limit - Max results (1–50; server default 10).
@@ -433,13 +433,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async searchIngredients(query: string, limit?: number): Promise<readonly Ingredient[]> {
-        const res = await this.send('GET', '/v1/ingredients/search', undefined, { q: query, limit });
+        const res = await this.send('GET', '/api/v1/ingredients/search', undefined, { q: query, limit });
 
         return this.expect(res, 200, z.array(ingredientSchema));
     }
 
     /**
-     * `GET /v1/ingredients/suggest` — the BLENDED ingredient typeahead (search Stage 2): the recipe-service
+     * `GET /api/v1/ingredients/suggest` — the BLENDED ingredient typeahead (search Stage 2): the recipe-service
      * `ingredients` catalog **plus** the food-service golden catalog, deduped on the opaque food id and
      * sectioned by provenance (all `local` suggestions precede all `catalog` ones).
      *
@@ -458,13 +458,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async suggestIngredients(query: string, limit?: number): Promise<IngredientSuggestions> {
-        const res = await this.send('GET', '/v1/ingredients/suggest', undefined, { q: query, limit });
+        const res = await this.send('GET', '/api/v1/ingredients/suggest', undefined, { q: query, limit });
 
         return this.expectUnvalidated<IngredientSuggestions>(res, 200);
     }
 
     /**
-     * `POST /v1/ingredients/by-food` — admit a `catalog` suggestion as a food-backed ingredient (`200`).
+     * `POST /api/v1/ingredients/by-food` — admit a `catalog` suggestion as a food-backed ingredient (`200`).
      *
      * The Stage-2 pick path. The server reads the food's golden record, creates (or dedup-returns) the
      * `ingredients` row with the food service's OWN display name, and writes the per-100g nutrition +
@@ -483,13 +483,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async addIngredientByFood(foodId: string): Promise<Ingredient> {
-        const res = await this.send('POST', '/v1/ingredients/by-food', { foodId });
+        const res = await this.send('POST', '/api/v1/ingredients/by-food', { foodId });
 
         return this.expect(res, 200, ingredientSchema);
     }
 
     /**
-     * `POST /v1/ingredients` — create a freeform ingredient (`201`).
+     * `POST /api/v1/ingredients` — create a freeform ingredient (`201`).
      *
      * @param name - The ingredient name.
      * @returns The created ingredient.
@@ -497,13 +497,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async createIngredient(name: string): Promise<Ingredient> {
-        const res = await this.send('POST', '/v1/ingredients', { name });
+        const res = await this.send('POST', '/api/v1/ingredients', { name });
 
         return this.expect(res, 201, ingredientSchema);
     }
 
     /**
-     * `POST /v1/ingredients/by-name` — add an unknown food by name through the source-agnostic food service
+     * `POST /api/v1/ingredients/by-name` — add an unknown food by name through the source-agnostic food service
      * (`202`, data-model R5). The ENTRY POINT of the async-resolution vertical: the server persists a
      * food-backed catalog row and returns it with a NON-terminal `foodResolutionStatus` (`PENDING` /
      * `UNRESOLVED`). `202 Accepted` (not `201`) signals that nutrition resolution is asynchronous and
@@ -516,13 +516,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async addIngredientByName(name: string): Promise<Ingredient> {
-        const res = await this.send('POST', '/v1/ingredients/by-name', { name });
+        const res = await this.send('POST', '/api/v1/ingredients/by-name', { name });
 
         return this.expect(res, 202, ingredientSchema);
     }
 
     /**
-     * `GET /v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model R5).
+     * `GET /api/v1/ingredients/{id}/status` — poll a food-backed ingredient's async resolution (data-model R5).
      *
      * The server re-reads the food service, persists the current status (and golden-record nutrition once
      * `RESOLVED`), and returns the refreshed ingredient. Poll while `foodResolutionStatus` is `PENDING`;
@@ -534,13 +534,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async getIngredientStatus(id: string): Promise<Ingredient> {
-        const res = await this.send('GET', `/v1/ingredients/${encodeURIComponent(id)}/status`);
+        const res = await this.send('GET', `/api/v1/ingredients/${encodeURIComponent(id)}/status`);
 
         return this.expect(res, 200, ingredientSchema);
     }
 
     /**
-     * `GET /v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED` ingredient.
+     * `GET /api/v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED` ingredient.
      *
      * @param id - The ingredient id.
      * @returns The candidate foods to pick from (empty for a freeform or non-`UNRESOLVED` ingredient).
@@ -548,13 +548,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async getIngredientCandidates(id: string): Promise<readonly IngredientCandidate[]> {
-        const res = await this.send('GET', `/v1/ingredients/${encodeURIComponent(id)}/candidates`);
+        const res = await this.send('GET', `/api/v1/ingredients/${encodeURIComponent(id)}/candidates`);
 
         return this.expectUnvalidated<readonly IngredientCandidate[]>(res, 200);
     }
 
     /**
-     * `POST /v1/ingredients/{id}/resolve` — resolve an `UNRESOLVED` ingredient from a candidate pick (`200`).
+     * `POST /api/v1/ingredients/{id}/resolve` — resolve an `UNRESOLVED` ingredient from a candidate pick (`200`).
      *
      * The server resolves the food from the chosen candidate id(s) then re-polls so the newly-`RESOLVED`
      * nutrition is persisted; the returned ingredient carries the resolved status + nutrition.
@@ -566,7 +566,7 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async resolveIngredient(id: string, candidateIds: readonly string[]): Promise<Ingredient> {
-        const res = await this.send('POST', `/v1/ingredients/${encodeURIComponent(id)}/resolve`, { candidateIds });
+        const res = await this.send('POST', `/api/v1/ingredients/${encodeURIComponent(id)}/resolve`, { candidateIds });
 
         return this.expect(res, 200, ingredientSchema);
     }
@@ -574,7 +574,7 @@ export class RecipeServiceClient {
     // ─── Versions ───────────────────────────────────────────────────────────────────────────────
 
     /**
-     * `GET /v1/recipes/{id}/versions` — list a recipe's recent versions (up to 10).
+     * `GET /api/v1/recipes/{id}/versions` — list a recipe's recent versions (up to 10).
      *
      * @param id - The recipe id.
      * @returns The version list.
@@ -582,13 +582,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async listRecipeVersions(id: string): Promise<readonly RecipeVersion[]> {
-        const res = await this.send('GET', `/v1/recipes/${encodeURIComponent(id)}/versions`);
+        const res = await this.send('GET', `/api/v1/recipes/${encodeURIComponent(id)}/versions`);
 
         return this.expect(res, 200, z.array(recipeVersionSchema));
     }
 
     /**
-     * `GET /v1/recipes/{id}/versions/{versionNumber}` — read a specific version snapshot.
+     * `GET /api/v1/recipes/{id}/versions/{versionNumber}` — read a specific version snapshot.
      *
      * @param id - The recipe id.
      * @param versionNumber - The 1-based version number.
@@ -599,14 +599,14 @@ export class RecipeServiceClient {
     public async getRecipeVersion(id: string, versionNumber: number): Promise<RecipeVersion> {
         const res = await this.send(
             'GET',
-            `/v1/recipes/${encodeURIComponent(id)}/versions/${encodeURIComponent(String(versionNumber))}`,
+            `/api/v1/recipes/${encodeURIComponent(id)}/versions/${encodeURIComponent(String(versionNumber))}`,
         );
 
         return this.expect(res, 200, recipeVersionSchema);
     }
 
     /**
-     * `POST /v1/recipes/{id}/versions/{versionNumber}/restore` — restore a recipe to a prior version.
+     * `POST /api/v1/recipes/{id}/versions/{versionNumber}/restore` — restore a recipe to a prior version.
      *
      * @param id - The recipe id.
      * @param versionNumber - The version to restore from.
@@ -617,7 +617,7 @@ export class RecipeServiceClient {
     public async restoreRecipeVersion(id: string, versionNumber: number): Promise<RestoreVersionResponse> {
         const res = await this.send(
             'POST',
-            `/v1/recipes/${encodeURIComponent(id)}/versions/${encodeURIComponent(String(versionNumber))}/restore`,
+            `/api/v1/recipes/${encodeURIComponent(id)}/versions/${encodeURIComponent(String(versionNumber))}/restore`,
         );
 
         return this.expect(res, 200, restoreVersionResponseSchema);
@@ -626,7 +626,7 @@ export class RecipeServiceClient {
     // ─── Photos ─────────────────────────────────────────────────────────────────────────────────
 
     /**
-     * `POST /v1/recipes/{id}/photos/upload-url` — mint a presigned S3 URL for a direct client upload.
+     * `POST /api/v1/recipes/{id}/photos/upload-url` — mint a presigned S3 URL for a direct client upload.
      *
      * @param id - The recipe id.
      * @param request - File name, content type, and size (≤ 5 MiB).
@@ -635,13 +635,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async createPhotoUploadUrl(id: string, request: PhotoUploadUrlRequest): Promise<UploadUrlResponse> {
-        const res = await this.send('POST', `/v1/recipes/${encodeURIComponent(id)}/photos/upload-url`, request);
+        const res = await this.send('POST', `/api/v1/recipes/${encodeURIComponent(id)}/photos/upload-url`, request);
 
         return this.expectUnvalidated<UploadUrlResponse>(res, 200);
     }
 
     /**
-     * `POST /v1/recipes/{id}/photos/confirm` — associate an uploaded object key with the recipe (`201`).
+     * `POST /api/v1/recipes/{id}/photos/confirm` — associate an uploaded object key with the recipe (`201`).
      *
      * @param id - The recipe id.
      * @param request - The uploaded object key + content type.
@@ -650,13 +650,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async confirmPhotoUpload(id: string, request: PhotoConfirmRequest): Promise<RecipePhoto> {
-        const res = await this.send('POST', `/v1/recipes/${encodeURIComponent(id)}/photos/confirm`, request);
+        const res = await this.send('POST', `/api/v1/recipes/${encodeURIComponent(id)}/photos/confirm`, request);
 
         return this.expect(res, 201, recipePhotoSchema);
     }
 
     /**
-     * `GET /v1/recipes/{id}/photos` — list a recipe's photos.
+     * `GET /api/v1/recipes/{id}/photos` — list a recipe's photos.
      *
      * @param id - The recipe id.
      * @returns The photos, in display order.
@@ -664,13 +664,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async listRecipePhotos(id: string): Promise<readonly RecipePhoto[]> {
-        const res = await this.send('GET', `/v1/recipes/${encodeURIComponent(id)}/photos`);
+        const res = await this.send('GET', `/api/v1/recipes/${encodeURIComponent(id)}/photos`);
 
         return this.expect(res, 200, z.array(recipePhotoSchema));
     }
 
     /**
-     * `DELETE /v1/recipes/{id}/photos/{photoId}` — delete a photo (`204`).
+     * `DELETE /api/v1/recipes/{id}/photos/{photoId}` — delete a photo (`204`).
      *
      * @param id - The recipe id.
      * @param photoId - The photo id.
@@ -680,14 +680,14 @@ export class RecipeServiceClient {
     public async deleteRecipePhoto(id: string, photoId: string): Promise<void> {
         const res = await this.send(
             'DELETE',
-            `/v1/recipes/${encodeURIComponent(id)}/photos/${encodeURIComponent(photoId)}`,
+            `/api/v1/recipes/${encodeURIComponent(id)}/photos/${encodeURIComponent(photoId)}`,
         );
 
         return this.expectNoContent(res, 204);
     }
 
     /**
-     * `PATCH /v1/recipes/{id}/photos/reorder` — set the final display order of a recipe's photos.
+     * `PATCH /api/v1/recipes/{id}/photos/reorder` — set the final display order of a recipe's photos.
      *
      * @param id - The recipe id.
      * @param photoIds - The photo ids in the desired order (1–10).
@@ -696,7 +696,7 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async reorderRecipePhotos(id: string, photoIds: readonly string[]): Promise<readonly RecipePhoto[]> {
-        const res = await this.send('PATCH', `/v1/recipes/${encodeURIComponent(id)}/photos/reorder`, { photoIds });
+        const res = await this.send('PATCH', `/api/v1/recipes/${encodeURIComponent(id)}/photos/reorder`, { photoIds });
 
         return this.expect(res, 200, z.array(recipePhotoSchema));
     }
@@ -704,7 +704,7 @@ export class RecipeServiceClient {
     // ─── Collections ────────────────────────────────────────────────────────────────────────────
 
     /**
-     * `POST /v1/collections` — create a collection (`201`).
+     * `POST /api/v1/collections` — create a collection (`201`).
      *
      * @param request - Name + optional description/visibility.
      * @returns The created collection.
@@ -712,13 +712,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async createCollection(request: CreateCollectionRequest): Promise<Collection> {
-        const res = await this.send('POST', '/v1/collections', request);
+        const res = await this.send('POST', '/api/v1/collections', request);
 
         return this.expect(res, 201, collectionResponseSchema);
     }
 
     /**
-     * `GET /v1/collections` — list the caller's collections (paginated).
+     * `GET /api/v1/collections` — list the caller's collections (paginated).
      *
      * @param params - Pagination.
      * @returns A paginated page of collections.
@@ -726,7 +726,7 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async listCollections(params: ListCollectionsParams = {}): Promise<PaginatedResponse<Collection>> {
-        const res = await this.send('GET', '/v1/collections', undefined, {
+        const res = await this.send('GET', '/api/v1/collections', undefined, {
             page: params.page,
             pageSize: params.pageSize,
         });
@@ -735,7 +735,7 @@ export class RecipeServiceClient {
     }
 
     /**
-     * `GET /v1/collections/{id}` — read a collection with its member recipes.
+     * `GET /api/v1/collections/{id}` — read a collection with its member recipes.
      *
      * @param id - The collection id.
      * @returns The collection + recipes.
@@ -743,13 +743,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async getCollectionById(id: string): Promise<CollectionWithRecipes> {
-        const res = await this.send('GET', `/v1/collections/${encodeURIComponent(id)}`);
+        const res = await this.send('GET', `/api/v1/collections/${encodeURIComponent(id)}`);
 
         return this.expectUnvalidated<CollectionWithRecipes>(res, 200);
     }
 
     /**
-     * `PATCH /v1/collections/{id}` — update a collection.
+     * `PATCH /api/v1/collections/{id}` — update a collection.
      *
      * @param id - The collection id.
      * @param request - The partial update (at least one field).
@@ -758,26 +758,26 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async updateCollection(id: string, request: UpdateCollectionRequest): Promise<Collection> {
-        const res = await this.send('PATCH', `/v1/collections/${encodeURIComponent(id)}`, request);
+        const res = await this.send('PATCH', `/api/v1/collections/${encodeURIComponent(id)}`, request);
 
         return this.expect(res, 200, collectionResponseSchema);
     }
 
     /**
-     * `DELETE /v1/collections/{id}` — delete a collection (`204`).
+     * `DELETE /api/v1/collections/{id}` — delete a collection (`204`).
      *
      * @param id - The collection id.
      * @throws {ForbiddenError} when not the owner; {@link NotFoundError} when absent.
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async deleteCollection(id: string): Promise<void> {
-        const res = await this.send('DELETE', `/v1/collections/${encodeURIComponent(id)}`);
+        const res = await this.send('DELETE', `/api/v1/collections/${encodeURIComponent(id)}`);
 
         return this.expectNoContent(res, 204);
     }
 
     /**
-     * `POST /v1/collections/{id}/recipes` — add a recipe to a collection (`201`).
+     * `POST /api/v1/collections/{id}/recipes` — add a recipe to a collection (`201`).
      *
      * @param id - The collection id.
      * @param recipeId - The recipe to add.
@@ -786,13 +786,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async addRecipeToCollection(id: string, recipeId: string): Promise<CollectionRecipeMembership> {
-        const res = await this.send('POST', `/v1/collections/${encodeURIComponent(id)}/recipes`, { recipeId });
+        const res = await this.send('POST', `/api/v1/collections/${encodeURIComponent(id)}/recipes`, { recipeId });
 
         return this.expectUnvalidated<CollectionRecipeMembership>(res, 201);
     }
 
     /**
-     * `DELETE /v1/collections/{id}/recipes/{recipeId}` — remove a recipe from a collection (`204`).
+     * `DELETE /api/v1/collections/{id}/recipes/{recipeId}` — remove a recipe from a collection (`204`).
      *
      * @param id - The collection id.
      * @param recipeId - The recipe to remove.
@@ -802,14 +802,14 @@ export class RecipeServiceClient {
     public async removeRecipeFromCollection(id: string, recipeId: string): Promise<void> {
         const res = await this.send(
             'DELETE',
-            `/v1/collections/${encodeURIComponent(id)}/recipes/${encodeURIComponent(recipeId)}`,
+            `/api/v1/collections/${encodeURIComponent(id)}/recipes/${encodeURIComponent(recipeId)}`,
         );
 
         return this.expectNoContent(res, 204);
     }
 
     /**
-     * `POST /v1/collections/{id}/clone` — clone a collection into the caller's library (`201`).
+     * `POST /api/v1/collections/{id}/clone` — clone a collection into the caller's library (`201`).
      *
      * @param id - The source collection id.
      * @param request - Optional name/description overrides.
@@ -818,13 +818,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async cloneCollection(id: string, request?: CloneCollectionRequest): Promise<Collection> {
-        const res = await this.send('POST', `/v1/collections/${encodeURIComponent(id)}/clone`, request);
+        const res = await this.send('POST', `/api/v1/collections/${encodeURIComponent(id)}/clone`, request);
 
         return this.expect(res, 201, collectionResponseSchema);
     }
 
     /**
-     * `POST /v1/collections/{id}/pull-from-source/preview` — PREVIEW a pull without mutating (W5 Task 5).
+     * `POST /api/v1/collections/{id}/pull-from-source/preview` — PREVIEW a pull without mutating (W5 Task 5).
      * Read-only: the server runs this in a read-only transaction, so it is structurally incapable of
      * writing. Show the returned diff to the caller, then echo it back as `previewedDiff` on
      * {@link pullCollectionFromSource} so the commit can detect drift between preview and commit.
@@ -835,13 +835,13 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async previewPullFromSource(id: string): Promise<PullDiff> {
-        const res = await this.send('POST', `/v1/collections/${encodeURIComponent(id)}/pull-from-source/preview`);
+        const res = await this.send('POST', `/api/v1/collections/${encodeURIComponent(id)}/pull-from-source/preview`);
 
         return this.expect(res, 200, pullDiffSchema);
     }
 
     /**
-     * `POST /v1/collections/{id}/pull-from-source` — pull new recipes from a cloned collection's source.
+     * `POST /api/v1/collections/{id}/pull-from-source` — pull new recipes from a cloned collection's source.
      *
      * @param id - The (cloned) collection id.
      * @param body - Optionally echoes the `previewedDiff` from {@link previewPullFromSource}; when present,
@@ -856,7 +856,7 @@ export class RecipeServiceClient {
         id: string,
         body?: { readonly previewedDiff?: PullDiff },
     ): Promise<PullFromSourceResponse> {
-        const res = await this.send('POST', `/v1/collections/${encodeURIComponent(id)}/pull-from-source`, body);
+        const res = await this.send('POST', `/api/v1/collections/${encodeURIComponent(id)}/pull-from-source`, body);
 
         return this.expectUnvalidated<PullFromSourceResponse>(res, 200);
     }
@@ -864,7 +864,7 @@ export class RecipeServiceClient {
     // ─── Search & account ───────────────────────────────────────────────────────────────────────
 
     /**
-     * `GET /v1/search/recipes` — full-text recipe search with facets.
+     * `GET /api/v1/search/recipes` — full-text recipe search with facets.
      *
      * @param params - Query, filters, pagination, and sort.
      * @returns Ranked results + facet counts.
@@ -872,7 +872,7 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async searchRecipes(params: RecipeSearchParams = {}): Promise<RecipeSearchResponse> {
-        const res = await this.send('GET', '/v1/search/recipes', undefined, {
+        const res = await this.send('GET', '/api/v1/search/recipes', undefined, {
             query: params.query,
             cuisine: params.cuisine,
             dietaryFlags: params.dietaryFlags,
@@ -890,7 +890,7 @@ export class RecipeServiceClient {
     }
 
     /**
-     * `POST /v1/account/erasure` — request GDPR account erasure (`202`, idempotent).
+     * `POST /api/v1/account/erasure` — request GDPR account erasure (`202`, idempotent).
      *
      * @param request - Optional confirmation phrase.
      * @returns The (possibly pre-existing) erasure job id + status.
@@ -898,7 +898,7 @@ export class RecipeServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async requestAccountErasure(request?: ErasureRequest): Promise<ErasureRequestAcceptedResponse> {
-        const res = await this.send('POST', '/v1/account/erasure', request);
+        const res = await this.send('POST', '/api/v1/account/erasure', request);
 
         return this.expectUnvalidated<ErasureRequestAcceptedResponse>(res, 202);
     }

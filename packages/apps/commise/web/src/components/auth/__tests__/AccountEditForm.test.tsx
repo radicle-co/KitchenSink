@@ -2,7 +2,7 @@
 /**
  * Authoritative state-matrix tests for the profile-edit form (U3 — supersedes the pre-U3
  * `tests/components/auth/AccountEditForm.test.tsx`). Covers every UI path: initial values + localized labels,
- * required-field validation, a successful save wired to `PATCH /v1/users/me` (NOT `/v1/profiles/me`) plus
+ * required-field validation, a successful save wired to `PATCH /api/v1/users/me` (NOT `/api/v1/profiles/me`) plus
  * `router.refresh`, the localized in-flight busy label, the localized generic failure alert that never echoes
  * the raw server error (B17), and the localized missing-token guard. The real identity client is exercised
  * against a mocked `fetch` so the wire is asserted; copy resolves through the default ('en') locale.
@@ -71,7 +71,7 @@ describe('AccountEditForm (U3) — rendering', () => {
 });
 
 describe('AccountEditForm (U3) — submit', () => {
-    it('PATCHes /v1/users/me with the edited values and refreshes on success', async () => {
+    it('PATCHes /api/v1/users/me with the edited values and refreshes on success', async () => {
         const user = userEvent.setup();
         const fetchMock = vi.fn().mockResolvedValue({
             ok: true,
@@ -84,8 +84,8 @@ describe('AccountEditForm (U3) — submit', () => {
         await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 
         const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-        expect(url).toContain('/v1/users/me');
-        expect(url).not.toContain('/v1/profiles/me');
+        expect(url).toContain('/api/v1/users/me');
+        expect(url).not.toContain('/api/v1/profiles/me');
         expect(init.method).toBe('PATCH');
         expect(init.body).toBe(JSON.stringify({ displayName: 'Test User', avatarUrl: null }));
         await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));

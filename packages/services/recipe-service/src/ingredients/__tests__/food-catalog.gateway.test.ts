@@ -1,6 +1,6 @@
 /**
  * Stage-2 F2 — unit tests for {@link FoodCatalogGateway}, the availability-disciplined Gateway in front of
- * food-service's `/v1/foods/search` on the per-keystroke typeahead path.
+ * food-service's `/api/v1/foods/search` on the per-keystroke typeahead path.
  *
  * The load-bearing contract this suite pins is NEGATIVE: the gateway must NEVER throw and never return a
  * rejected promise, whatever the food service does (timeout, 5xx, auth failure, malformed payload). Every

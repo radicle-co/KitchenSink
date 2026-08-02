@@ -192,6 +192,19 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::TargetGroup', 1);
     });
 
+    // ADR-0011: every VERSIONED endpoint moved under the canonical `/api/{version}/` prefix, but `/health`
+    // deliberately did NOT — this target group's health check dials it at the ORIGIN ROOT, and so do the
+    // prod/sandbox deploy smoke steps. Nothing in CDK pinned that path before, so a well-meaning "move
+    // /health under /api for consistency" would have synthesized a health check against a route the service
+    // no longer serves: every task would fail its check, the target group would drain to zero healthy hosts,
+    // and the deploy would roll back with no test having objected. This assertion is that objection.
+    it('health-checks the UNPREFIXED /health at the origin root (ADR-0011)', () => {
+        serviceTemplate.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', {
+            HealthCheckPath: '/health',
+            Matcher: { HttpCode: '200' },
+        });
+    });
+
     it('still creates the service A-record (aliased to the shared ALB)', () => {
         serviceTemplate.resourceCountIs('AWS::Route53::RecordSet', 1);
         serviceTemplate.hasResourceProperties('AWS::Route53::RecordSet', {

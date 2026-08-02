@@ -3,7 +3,7 @@
 /**
  * @module auth/AccountEraseForm — the account ERASURE control + orchestration (web; CR-002 / U4b).
  *
- * ERASURE is the IRREVERSIBLE action: `POST /v1/account/erasure` permanently destroys the account and its
+ * ERASURE is the IRREVERSIBLE action: `POST /api/v1/account/erasure` permanently destroys the account and its
  * personal data. Distinct from CLOSURE ({@link import('./AccountCloseForm.js').AccountCloseForm}). This is
  * the orchestrational half of the orchestration/render split: it owns the recipe fetch (the donate-election
  * source), the erasure mutation ("Command"), and the ephemeral form state, and hands them to the pure,

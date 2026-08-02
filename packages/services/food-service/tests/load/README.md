@@ -24,7 +24,7 @@ A threshold breach makes `k6 run` exit non-zero, which fails the invoking CI job
 
 ## The internal erasure route needs EdDSA tokens minted OUTSIDE k6
 
-`POST /v1/internal/account/erasure` is guarded by a single-target EdDSA service token pinning the **food**
+`POST /api/v1/internal/account/erasure` is guarded by a single-target EdDSA service token pinning the **food**
 audience (`FoodServiceErasureGuard`), NOT Clerk. k6's goja runtime cannot sign Ed25519, so — exactly as the
 recipe suite's `prepare-db.mjs` / version-archive fixture seed state before a run — `prepare-erasure-tokens.ts`
 mints the tokens first (with `jose`, against the shared `@kitchensink/recipe-core` wire contract) and the k6

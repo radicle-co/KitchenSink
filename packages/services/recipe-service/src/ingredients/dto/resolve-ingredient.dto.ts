@@ -1,5 +1,5 @@
 /**
- * T029 — request DTO for `POST /v1/ingredients/{id}/resolve`, mirroring the `ResolveIngredientRequest`
+ * T029 — request DTO for `POST /api/v1/ingredients/{id}/resolve`, mirroring the `ResolveIngredientRequest`
  * schema in `contracts/api.openapi.yaml`.
  *
  * Carries the picked candidate ids for disambiguating an `UNRESOLVED` food-backed ingredient. This is only
@@ -17,7 +17,7 @@ import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsNotEmpty, IsString } from 'clas
  */
 export const MAX_CANDIDATE_IDS = 20;
 
-/** Body of `POST /v1/ingredients/{id}/resolve`. */
+/** Body of `POST /api/v1/ingredients/{id}/resolve`. */
 export class ResolveIngredientDto {
     @Transform(({ value }) =>
         Array.isArray(value) ? value.map((id) => (typeof id === 'string' ? id.trim() : id)) : value,

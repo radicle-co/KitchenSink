@@ -10,7 +10,7 @@ import { SearchDal, FACET_SAMPLE_SIZE } from './dal/search.dal.js';
 /**
  * Search module. Owns ranked full-text recipe search + facet aggregation. Wires the {@link SearchDal}
  * over the global Drizzle client, the {@link SearchService} that shapes the paginated envelope, and the
- * {@link SearchController} REST surface (`/v1/search/recipes`). The global `AuthMiddleware` (applied in
+ * {@link SearchController} REST surface (`/api/v1/search/recipes`). The global `AuthMiddleware` (applied in
  * `AppModule`) populates `req.principal`, whose `userId` scopes visibility to public + owned recipes.
  */
 @Module({

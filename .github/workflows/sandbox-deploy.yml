@@ -447,7 +447,7 @@ jobs:
     # variables, so a platform change cannot leave this job pointing at something stale.
     #
     # `needs: deploy-food` makes the food-before-recipe ordering EXPLICIT (issue #120). The recipe service reads
-    # food's `/v1/foods/*` API on the per-keystroke ingredient path, and its `RECIPE_FOOD_SERVICE_URL` names
+    # food's `/api/v1/foods/*` API on the per-keystroke ingredient path, and its `RECIPE_FOOD_SERVICE_URL` names
     # THIS PR's food host — which only exists once the food stack has created its listener rule + A-record. The
     # two jobs previously ran concurrently, so any ordering was luck.
     #
@@ -715,7 +715,7 @@ jobs:
             # it — a CORS preflight is sent without credentials, so a service whose auth runs first answers
             # 401 and is unusable from every browser while staying 200 to curl — and none of that proves the
             # ECOSYSTEM is wired. The last two flags add that (issue #124): the running task must be
-            # configured for THIS PR's food service, and that host must answer. `food-pr-{N}/v1/foods/search`
+            # configured for THIS PR's food service, and that host must answer. `food-pr-{N}/api/v1/foods/search`
             # answers 401 BY DESIGN (it needs a Clerk token), and the smoke treats that 401 as the PASS —
             # only a transport failure or the shared ALB's default 404 is a failure. Runs on EVERY event, so
             # a preview left half-wired is reported even by a push that deployed nothing; the image-currency

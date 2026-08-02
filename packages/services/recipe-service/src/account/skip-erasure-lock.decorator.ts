@@ -1,9 +1,9 @@
 /**
  * `@SkipErasureLock()` — exempts a single mutating handler from {@link ErasureLockGuard} (HAZ-052).
  *
- * Exactly one route needs this: `POST /v1/account/erasure` itself. `ErasureLockGuard` locks a mutating
+ * Exactly one route needs this: `POST /api/v1/account/erasure` itself. `ErasureLockGuard` locks a mutating
  * request once a `queued`/`running` `account_erasure_jobs` row exists for the caller — but that same row
- * is what makes a REPEAT `POST /v1/account/erasure` idempotent (C-007: it returns `202` with the
+ * is what makes a REPEAT `POST /api/v1/account/erasure` idempotent (C-007: it returns `202` with the
  * EXISTING job, never a second enqueue). Without this exemption the lock would shadow its own gateway:
  * the very endpoint that reports "erasure is already in flight" would itself start answering `423`
  * instead. The exemption is declared at the route (via `Reflector.getAllAndOverride`, mirroring

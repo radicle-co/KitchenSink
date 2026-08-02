@@ -22,9 +22,10 @@
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@types/aws-lambda": "^8.10.147",
+        "@types/debug": "^4.1.12",
         "@types/express": "^5.0.6",
         "@types/node": "^24.0.0",
-        "aws-cdk": "*",
+        "aws-cdk": "^2.1134.0",
         "dotenv": "*",
         "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
@@ -32,8 +33,7 @@
         "prettier": "^3.0.0",
         "tsx": "*",
         "typescript": "^5.9.3",
-        "vitest": "^4.0.0",
-        "@types/debug": "^4.1.12"
+        "vitest": "^4.0.0"
     },
     "dependencies": {
         "@aws-lambda-powertools/logger": "^2.33.1",

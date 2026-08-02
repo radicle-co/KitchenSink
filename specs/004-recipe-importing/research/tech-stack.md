@@ -1,98 +1,56 @@
-# Tech Stack Rationale: Recipe Importing
+# Tech Stack — 004 Recipe Importing
 
-**Branch**: `004-recipe-importing` | **Date**: 2026-05-09
-**Status**: Complete | **Sources**: [research.md](./research.md), [plan.md](../plan.md), [tasks.md](../tasks.md)
+**Regenerated**: 2026-08-02
+**Method**: every package below was verified against the npm registry on 2026-08-02 (existence, current
+version, last publish date). Nothing here is asserted from memory.
 
----
+> **Regeneration note.** The previous plan's primary extraction dependency was `schema-org-js`, which **does
+> not exist** — the registry returns 404. It was the foundation of the requirement carrying the 85% accuracy
+> criterion, and nothing downstream caught it. Hence the verification discipline in this revision.
 
-## Overview
+## Selected dependencies
 
-Feature 004 extends the existing Commise stack with import-specific extraction, normalization, and policy controls. Technology selection is constrained by existing TypeScript/NestJS architecture and source-attribution requirements.
+| Need                    | Package                        | Version · last publish   | Why this one                                                                |
+| ----------------------- | ------------------------------ | ------------------------ | --------------------------------------------------------------------------- |
+| HTML parsing/selectors  | `cheerio`                      | 1.2.0 · 2026-07          | Actively maintained; far lighter than a full DOM emulation                  |
+| JSON-LD extraction      | _(none — `JSON.parse` + Zod)_  | zod already a dep        | The format needs no library; the **risk** is validation, which Zod covers   |
+| Microdata               | `microdata-node`               | 2.0.0 · 2022-06          | Small, focused, frozen format. ⚠️ dormant — see risk below                  |
+| Ingredient-line parsing | `parse-ingredient`             | 2.2.0 · 2026-04          | Actively maintained; the alternative is dormant since 2022                  |
+| ISO-8601 durations      | `iso8601-duration`             | 2.1.4 · 2026-06          | The library-first gate explicitly forbids hand-rolled date math             |
+| URL canonicalization    | `normalize-url`                | 9.0.1 · 2026-05          | HAZ-019 is precisely the bug a hand-rolled version produces                 |
+| Timeout/retry/breaker   | `cockatiel`                    | 4.0.0 · 2026-05          | TS-native; covers timeout + retry + breaker + bulkhead in one               |
+| HTML sanitization       | `sanitize-html`                | 2.17.6 · 2026-07         | Server-side, no DOM required                                                |
+| Magic-byte file typing  | `file-type`                    | **already a dependency** | Already in the recipe service; the gate names this explicitly               |
+| YAML                    | `yaml`                         | 2.9.0 · 2026             | Maintained successor to `js-yaml`                                           |
+| Markdown frontmatter    | `gray-matter`                  | 4.0.3 · 2023-07          | Ubiquitous, stable, frozen format. ⚠️ dormant — see risk below              |
+| Private-IP detection    | `ipaddr.js`                    | 2.4.0 · 2026             | Correct CIDR handling incl. IPv6; hand-rolling this is how SSRF guards fail |
+| OCR                     | `@aws-sdk/client-textract`     | 3.1101 · 2026-07         | Already an AWS-native stack; IAM rather than a new vendor secret            |
+| HTTP client             | `undici` (Node built-in fetch) | runtime                  | Provides the custom dispatcher the SSRF pinning requires                    |
 
----
+## Deliberately rejected
 
-## 1. Extraction and Parsing Stack
+| Rejected                      | Instead            | Reason                                                           |
+| ----------------------------- | ------------------ | ---------------------------------------------------------------- |
+| `schema-org-js`               | —                  | **Does not exist.** Registry 404.                                |
+| RDFa parsing (any)            | —                  | No maintained Node parser; negligible recipe usage (C-007)       |
+| `jsdom`                       | `cheerio`          | Full DOM emulation is far heavier than extraction needs          |
+| `recipe-ingredient-parser-v2` | `parse-ingredient` | Dormant since 2022                                               |
+| `opossum`                     | `cockatiel`        | Breaker only; we need timeout + retry + bulkhead too             |
+| `isomorphic-dompurify`        | `sanitize-html`    | Requires a DOM; unnecessary server-side overhead                 |
+| `axios`                       | `undici`           | No need, and undici gives the dispatcher SSRF pinning depends on |
+| Tesseract (self-hosted)       | Textract           | Container + model operations we don't want to own                |
+| Google Cloud Vision           | Textract           | A second cloud vendor and a second credential path               |
 
-### Primary choice: Schema.org-first extraction pipeline
+## Dependency risk — stated, not buried
 
-- JSON-LD parsing for `Recipe` entities
-- Ordered fallback chain: Microdata → RDFa → heuristic HTML
+`microdata-node` (2022) and `gray-matter` (2023) fall short of "actively maintained". Both are accepted on the
+grounds that they parse **frozen formats**, are small and focused, sit behind ports (so replacement is local),
+and produce output that is Zod-validated and sanitized before use — so neither is on a trust boundary.
 
-**Rationale**:
+This is recorded as an open finding (`MIN-006` in `../v-model/peer-review.md`) to be re-evaluated at
+implementation time rather than quietly accepted.
 
-- Matches `plan.md` extraction strategy and `research.md` RQ-1/RQ-2 findings.
-- Preserves deterministic behavior and clear test boundaries per extractor.
+## Platform stack (unchanged, inherited)
 
-### Optional helper libraries
-
-- `recipe-scrapers` for broad host compatibility bootstrap
-- `cheerio` for DOM traversal
-- `zod` for extraction result validation
-
----
-
-## 2. Transport and Resilience Stack
-
-### URL fetch controls
-
-- 10s timeout
-- bounded redirect chain
-- per-user rate limiting
-- circuit breaker after repeated failure
-
-**Rationale**:
-
-- Prevents parser pipeline from becoming unbounded on hostile or unstable pages.
-- Provides stable user feedback windows for import UI loading states.
-
----
-
-## 3. Platform Integrations
-
-### Instagram import
-
-- oEmbed metadata path for caption-based recipe extraction
-- explicit unsupported-state handling for posts without recipe text
-
-**Rationale**:
-
-- Aligns to `FR-009` and task acceptance criteria while minimizing dependency scope.
-
-### OCR (physical copy)
-
-- AWS Textract preferred in baseline research, but launch-phase uncertain
-- treated as phased rollout due to quality/cost and implementation uncertainty
-
-**Rationale**:
-
-- `FR-012` requires capability, but plan identifies OCR as later-order/open-question item.
-
----
-
-## 4. Data Validation and Contract Layer
-
-- Zod DTO/schema validation for imported structures
-- strict typed response contracts for import outcomes (`imported`, `already_imported`, `paywalled_source`, `unsupported_source`)
-
-**Rationale**:
-
-- Supports predictable error-recovery UX and end-to-end traceability across API + clients.
-
----
-
-## 5. Policy and Compliance Controls
-
-- Domain blocklist for known paywalled sources (`FR-014`)
-- attribution lock semantics for imported public recipes (`FR-010`, `FR-011`)
-- legal-policy placeholder for manual paid-source paste (`FR-014a`)
-
-**Rationale**:
-
-- Converts legal/product constraints into explicit runtime behavior without overcommitting to unresolved enforcement heuristics.
-
----
-
-## 6. Implementation Compatibility with Existing Monorepo
-
-- TypeScript strict mode and JSDoc requirements remain inherited constraints (`NFR-001`, `NFR-002`).
-- Existing build/lint/test/typecheck turbo workflows can validate import modules and UI surfaces without introducing a separate pipeline.
+NestJS 11 · Drizzle ORM · PostgreSQL 16 · Zod 4 · class-validator (DTOs) · Next.js 15 / React 19 · Expo 57 /
+RN 0.86 · Vitest · Playwright · Maestro · k6 · Stryker · AWS ECS Fargate + S3 + SQS behind the shared ALB.

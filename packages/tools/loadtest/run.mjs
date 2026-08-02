@@ -148,7 +148,7 @@ function buildReport() {
         return Object.values(t).every((x) => (typeof x === 'object' && x !== null ? x.ok === true : x === false));
     };
 
-    // Each sample's `queue` is the /v1/foods/admin/queue body: { pending, inFlight, tombstone }.
+    // Each sample's `queue` is the /api/v1/foods/admin/queue body: { pending, inFlight, tombstone }.
     const queueDepths = server.map((s) => s?.queue?.pending).filter((n) => typeof n === 'number');
     const maxQueue = queueDepths.length ? Math.max(...queueDepths) : null;
 

@@ -18,7 +18,7 @@ type AnyReq = {
 };
 
 function makeReq(overrides: Partial<AnyReq> = {}): AnyReq {
-    return { headers: {}, originalUrl: '/v1/users/me', path: '/v1/users/me', ...overrides };
+    return { headers: {}, originalUrl: '/api/v1/users/me', path: '/api/v1/users/me', ...overrides };
 }
 
 const userCtx = {

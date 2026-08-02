@@ -14,9 +14,9 @@ const TINY_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
  * Recipe photo upload happy path (CP-6/P3 photo-upload user story; the tier the `useRecipePhotoUpload`
  * headless hook + web `RecipePhotoUploaderContainer` were missing) driven through the real web UI (Next dev
  * server + Clerk session + client hooks + TanStack Query) with the recipe-service HTTP contract intercepted
- * — `mockRecipeApi` stubs the presign (`POST /v1/recipes/:id/photos/upload-url`), the direct-to-S3 `PUT`,
- * and the confirm (`POST /v1/recipes/:id/photos/confirm`) the hook drives in sequence, plus the photo list
- * (`GET /v1/recipes/:id/photos`) the container reads from. The real service + S3 integration is covered
+ * — `mockRecipeApi` stubs the presign (`POST /api/v1/recipes/:id/photos/upload-url`), the direct-to-S3 `PUT`,
+ * and the confirm (`POST /api/v1/recipes/:id/photos/confirm`) the hook drives in sequence, plus the photo list
+ * (`GET /api/v1/recipes/:id/photos`) the container reads from. The real service + S3 integration is covered
  * separately by the recipe-service's own e2e/k6 tiers; this spec verifies the full UI integration: picking a
  * file drives the busy affordance for the duration of the (artificially delayed) presign call, then the
  * confirmed photo renders and the busy state resolves. Playwright IS this user story's integration test

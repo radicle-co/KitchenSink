@@ -16,6 +16,10 @@ export default defineConfig({
             'infra/__tests__/**/*.test.ts',
             'scripts/__tests__/**/*.test.ts',
         ],
+        // The integration tier owns `tests/__integration__/` and runs from `vitest.integration.config.ts`
+        // (Constitution Principle IV: integration tests MUST NOT bleed into the default `test` task).
+        // Without this exclude the `tests/**/*.test.ts(x)` globs above swallow them back into the unit run.
+        exclude: ['node_modules', 'dist', 'tests/__integration__/**'],
         environment: 'jsdom',
         setupFiles: ['./tests/setup.ts'],
         globals: true,

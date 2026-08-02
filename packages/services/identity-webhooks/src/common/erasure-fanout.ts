@@ -5,11 +5,11 @@
  * `userId`) into the two verified service-principal HTTP calls that erase that user's footprint outside
  * identity:
  *
- *  1. **recipe FIRST** — `POST {recipeBaseUrl}/v1/internal/account/erasure` (U4a). Recipe-first so the
+ *  1. **recipe FIRST** — `POST {recipeBaseUrl}/api/v1/internal/account/erasure` (U4a). Recipe-first so the
  *     election-bearing job exists before the Clerk `user.deleted` echo can land (R9). Recipe enforces
  *     R9 authoritatively via its `idx_erasure_jobs_active_owner` partial-unique index, so a second call
  *     for the same owner is an idempotent no-op — this gateway simply calls it.
- *  2. **food** — `POST {foodBaseUrl}/v1/internal/account/erasure` (R11). Removes the user's
+ *  2. **food** — `POST {foodBaseUrl}/api/v1/internal/account/erasure` (R11). Removes the user's
  *     `fetch_requesters` rows (`eraseUser`), keyed by the same app ULID (U1's re-key). Idempotent
  *     (deleting already-gone rows removes 0).
  *
@@ -30,7 +30,7 @@ import { SERVICE_ERASURE_TOKEN_AUDIENCE, SERVICE_ERASURE_TOKEN_AUDIENCE_FOOD } f
 import { mintServiceErasureToken } from './service-erasure-token.js';
 
 /** The internal-erasure path both services mount (recipe U4a; food U4b mirror). */
-const INTERNAL_ERASURE_PATH = '/v1/internal/account/erasure';
+const INTERNAL_ERASURE_PATH = '/api/v1/internal/account/erasure';
 
 /** Per-leg request timeout — the internal erasure enqueue is a fast durable-write + return. */
 const REQUEST_TIMEOUT_MS = 10_000;

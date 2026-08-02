@@ -68,7 +68,7 @@ const FoodOperationalConfigSchema = z.object({
     FOOD_DEMOTE_THRESHOLD: z.coerce.number().int().positive().default(50),
     // Hard `fetch_queue` depth ceiling; new enqueues fail closed with 503 at/above it (FR-046).
     FOOD_MAX_QUEUE_DEPTH: z.coerce.number().int().positive().default(10_000),
-    // Max names accepted in one `POST /v1/foods/batch` (FR-045); over → 400.
+    // Max names accepted in one `POST /api/v1/foods/batch` (FR-045); over → 400.
     FOOD_MAX_BATCH_NAMES: z.coerce.number().int().positive().default(100),
     // NOT_FOUND tombstone TTL (FR-025): an add after this many days may re-attempt the fan-out.
     FOOD_NOT_FOUND_TTL_DAYS: z.coerce.number().int().positive().default(30),

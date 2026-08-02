@@ -1,7 +1,7 @@
 # Sync & Verify Report
 ## Feature: `014-notification-service`
 
-**Worktree**: `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth`  
+**Worktree**: `<repo root>`  
 **Scan date**: 2026-06-02  
 **Mode**: Pre-implement 7-layer sync-verify (L1–L4, L6–L7; L5 skipped per instructions)  
 **Scan scope**: READ-ONLY; all paths absolute.
@@ -30,8 +30,8 @@
 - Q-008 ordering guarantee (per-recipient FIFO / best-effort global) is correctly attributed to industry practice and matched in product-spec open-question resolutions.
 
 **Evidence**
-- `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/research/codebase-analysis.md` §33
-- `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/product-spec/user-journey.md` §32
+- `specs/014-notification-service/research/codebase-analysis.md` §33
+- `specs/014-notification-service/product-spec/user-journey.md` §32
 
 ---
 
@@ -44,8 +44,8 @@
 - US-008..US-011 map to FR-010/FR-020/FR-021 (US-008), FR-017/FR-018 (US-011) and inline spec-risk references (US-009, US-010).
 
 **Evidence**
-- `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/spec.md` §46 (API Surface), §47 (Scope / Exclusions)
-- `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/plan.md` §14 (Must Have stories addressed)
+- `specs/014-notification-service/spec.md` §46 (API Surface), §47 (Scope / Exclusions)
+- `specs/014-notification-service/plan.md` §14 (Must Have stories addressed)
 
 ---
 
@@ -58,9 +58,9 @@
 - Architecture choice (hybrid push + durable replay) is a valid implementation specialization of spec.md Q-001 transport-open decision.
 
 **Evidence**
-- `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/plan.md` §40–55 (Transport and Queue Architecture)
-- `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/plan.md` §74–93 (API routes table)
-- `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/plan.md` §28–36 (Governance Alignment)
+- `specs/014-notification-service/plan.md` §40–55 (Transport and Queue Architecture)
+- `specs/014-notification-service/plan.md` §74–93 (API routes table)
+- `specs/014-notification-service/plan.md` §28–36 (Governance Alignment)
 
 ---
 
@@ -73,8 +73,8 @@
 - Dependency graph DAG is acyclic and matches declared task order.
 
 **Evidence**
-- `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/tasks.md` §10–18 (Dependency Graph)
-- `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/tasks.md` §25–83 (Phase 1–2 tasks with US/FR tags)
+- `specs/014-notification-service/tasks.md` §10–18 (Dependency Graph)
+- `specs/014-notification-service/tasks.md` §25–83 (Phase 1–2 tasks with US/FR tags)
 
 ---
 
@@ -92,8 +92,8 @@
 - Expected for pre-implement phase. No action required.
 
 **Evidence**
-- `ls /home/brandon/Development/KitchenSink/.worktrees/002-user-auth/packages/services/notification-service = NOT_FOUND`
-- `ls /home/brandon/Development/KitchenSink/.worktrees/002-user-auth/packages/shared/notifications = NOT_FOUND`
+- `ls packages/services/notification-service = NOT_FOUND`
+- `ls packages/shared/notifications = NOT_FOUND`
 - `tasks.md` shows all task checkboxes `[ ]` unmarked.
 
 ---
@@ -114,9 +114,9 @@
 - External sibling-feature cross-references (`../002-user-auth/`, `../001-commise-recipe-app/`, etc.) are out-of-scope for internal 014 drift.
 
 **Evidence**
-- `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/review.md` §100–106
-- `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/plan.md` §3–4
-- `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/spec.md` §12–17
+- `specs/014-notification-service/review.md` §100–106
+- `specs/014-notification-service/plan.md` §3–4
+- `specs/014-notification-service/spec.md` §12–17
 
 ---
 

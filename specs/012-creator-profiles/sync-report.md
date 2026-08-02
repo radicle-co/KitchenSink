@@ -1,7 +1,7 @@
 # Sync-Verify Report: 012-creator-profiles
 
 **Generated**: 2026-06-02  
-**Worktree**: `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth`  
+**Worktree**: `<repo root>`  
 **Scope**: Pre-implementation 7-layer scan (L1–L4, L6, L7; L5 skipped)  
 **Mode**: READ-ONLY — no code changes  
 
@@ -183,11 +183,11 @@ This confirms the gap is known but unresolved.
 
 | Artifact | Absolute Path | Status |
 |----------|---------------|--------|
-| spec.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/spec.md` | Read |
-| product-spec/product-spec.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/product-spec/product-spec.md` | Read |
-| plan.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/plan.md` | Read |
-| tasks.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/tasks.md` | Read |
-| research.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/research.md` | Read |
-| v-model/requirements.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/v-model/requirements.md` | Read |
-| v-model/release-audit-report.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/v-model/release-audit-report.md` | Read |
-| verify-report.md | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/verify-report.md` | Read |
+| spec.md | `specs/012-creator-profiles/spec.md` | Read |
+| product-spec/product-spec.md | `specs/012-creator-profiles/product-spec/product-spec.md` | Read |
+| plan.md | `specs/012-creator-profiles/plan.md` | Read |
+| tasks.md | `specs/012-creator-profiles/tasks.md` | Read |
+| research.md | `specs/012-creator-profiles/research.md` | Read |
+| v-model/requirements.md | `specs/012-creator-profiles/v-model/requirements.md` | Read |
+| v-model/release-audit-report.md | `specs/012-creator-profiles/v-model/release-audit-report.md` | Read |
+| verify-report.md | `specs/012-creator-profiles/verify-report.md` | Read |

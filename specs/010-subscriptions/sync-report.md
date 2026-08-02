@@ -1,7 +1,7 @@
 # Sync-Verify Report: 010-subscriptions
 
 **Run Date**: 2026-06-02 (Pre-Implementation)
-**Feature Path**: `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/010-subscriptions/`
+**Feature Path**: `specs/010-subscriptions/`
 **Layers Scanned**: L1, L2, L3, L4, L7 | L5 Skipped | L6 INFO
 
 ## Executive Summary
@@ -137,7 +137,7 @@ Ensure all referenced features and paths exist; flag any `apps/X` broken referen
 
 ### Evidence
 
-- `spec.md` Dependencies table references 002-user-auth (required), 001-commise-recipe-app, 004-recipe-importing, 005-ai-integration, 006-meal-planning, 007-grocery-lists, 009-nutrition-planning — all present in sibling `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/` directories.
+- `spec.md` Dependencies table references 002-user-auth (required), 001-commise-recipe-app, 004-recipe-importing, 005-ai-integration, 006-meal-planning, 007-grocery-lists, 009-nutrition-planning — all present in sibling `specs/` directories.
 - `research/codebase-analysis.md` references `packages/apps/commise/web` and `packages/apps/commise/mobile` as valid monorepo workspace paths.
 - No stray `apps/X` path references found in artifact body text.
 

@@ -7,8 +7,8 @@
     "scanned_layers": ["L1", "L2", "L3", "L4", "L7"],
     "skipped_layers": ["L5"],
     "monorepo": {
-        "web_root": "/home/brandon/Development/KitchenSink/packages/apps/commise/web",
-        "mobile_root": "/home/brandon/Development/KitchenSink/packages/apps/commise/mobile",
+        "web_root": "packages/apps/commise/web",
+        "mobile_root": "packages/apps/commise/mobile",
         "shared_src_exists": false
     },
     "overall_status": "PASS",

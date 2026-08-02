@@ -66,7 +66,7 @@ Implementation follows the V-Model decomposition in [`v-model/system-design.md`]
 
 Rule reference: [`governance-rules.md#gr-002-api-url-prefix-standard`](../governance-rules.md#gr-002-api-url-prefix-standard)
 
-All 012 contracts remain under `/api/v1/*` (no bare `/api/*` and no bare `/api/v1/*`), including profile, collections, follow, analytics, and widget endpoints.
+All 012 contracts remain under `/api/v1/*` (no bare `/api/*` without a version, and no bare `/v1/*` without the `/api` segment), including profile, collections, follow, analytics, and widget endpoints.
 
 ### GR-007 — Shared Type Library Ownership
 

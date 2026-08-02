@@ -2,7 +2,7 @@
 
 > Feature: `011-recipe-digitization` | Date: 2026-06-02 | Pre-implement 7-layer scan
 > Layers checked: **L1, L2, L3, L4, L7** | Skipped: **L5** | Info-only: **L6**
-> Worktree: `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth`
+> Worktree: `<repo root>`
 
 ---
 

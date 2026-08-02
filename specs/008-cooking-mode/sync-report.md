@@ -6,13 +6,13 @@
 
 ## Scan Parameters
 
-| Parameter                 | Value                                                                                    |
-| ------------------------- | ---------------------------------------------------------------------------------------- |
-| Feature absolute          | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/008-cooking-mode/` |
-| Monorepo                  | `packages/apps/commise/{web,mobile}/`                                                    |
-| L5 (code ↔ tests)         | **Skipped per directive**                                                                |
-| L6 (missing-impl)         | **INFO** — no code changes performed                                                     |
-| `apps/X` refs in tasks.md | Flagged **INFO** (uses legacy monorepo shorthand)                                        |
+| Parameter                 | Value                                             |
+| ------------------------- | ------------------------------------------------- |
+| Feature absolute          | `specs/008-cooking-mode/`                         |
+| Monorepo                  | `packages/apps/commise/{web,mobile}/`             |
+| L5 (code ↔ tests)         | **Skipped per directive**                         |
+| L6 (missing-impl)         | **INFO** — no code changes performed              |
+| `apps/X` refs in tasks.md | Flagged **INFO** (uses legacy monorepo shorthand) |
 
 ---
 
@@ -121,46 +121,46 @@
 
 - `packages/apps/commise/web/src/` — **No `features/cooking-mode/` directory.** Existing code: auth-only middleware, pages, components, hooks, lib, types (all Clerk-related).
 - `packages/apps/commise/mobile/src/` — **No `features/cooking-mode/` directory.** Existing code: auth-only screens, components, hooks, services, storage.
-- `packages/shared/` — **Does not exist.** No shared cooking types, session store, timer service, or wake lock utilities found.
+- `packages/shared/cooking/` — **Does not exist.** `packages/shared/` itself is present and ships `recipe-core`, `identity-core`, `identity-db`, and `clerk-verify`; the missing target is the planned `cooking` package. No shared cooking types, session store, timer service, or wake lock utilities found.
 - `packages/apps/commise/web/package.json` — `expo-keep-awake` **not present**; no cooking-mode deps.
 - `packages/apps/commise/mobile/package.json` — `expo-keep-awake` **not present**.
 
 ### Task implementation status (all 32 tasks NOT STARTED)
 
-| Task  | Target file (from tasks.md)                                                | Exists?                  |
-| ----- | -------------------------------------------------------------------------- | ------------------------ |
-| T-001 | `packages/shared/cooking/src/types.ts`                                     | No (shared/src/ missing) |
-| T-002 | `packages/shared/cooking/src/session-store.ts`                             | No                       |
-| T-003 | `packages/shared/cooking/src/timer-service.ts`                             | No                       |
-| T-004 | `packages/shared/cooking/src/wake-lock.ts`                                 | No                       |
-| T-005 | `packages/shared/cooking/src/wake-lock-rn.ts`                              | No                       |
-| T-006 | `packages/shared/cooking/src/recipe-api.ts`                                | No                       |
-| T-007 | `packages/shared/cooking/src/offline-cache.ts`                             | No                       |
-| T-008 | `apps/web/src/features/cooking-mode/CookingModeScreen.tsx`                 | No                       |
-| T-009 | `apps/mobile/src/features/cooking-mode/CookingModeScreen.tsx`              | No                       |
-| T-010 | `apps/web/src/features/cooking-mode/StepDisplay.tsx`                       | No                       |
-| T-011 | `apps/mobile/src/features/cooking-mode/StepDisplay.tsx`                    | No                       |
-| T-012 | `apps/web/src/features/cooking-mode/StepNavigation.tsx`                    | No                       |
-| T-013 | `apps/mobile/src/features/cooking-mode/StepNavigation.tsx`                 | No                       |
-| T-014 | Web gesture wiring                                                         | No                       |
-| T-015 | Mobile gesture wiring                                                      | No                       |
-| T-016 | `apps/web/src/features/cooking-mode/TimerBadge.tsx`                        | No                       |
-| T-017 | `apps/mobile/src/features/cooking-mode/TimerBadge.tsx`                     | No                       |
-| T-018 | `apps/web/src/features/cooking-mode/ActiveTimers.tsx` + `TimerCard.tsx`    | No                       |
-| T-019 | `apps/mobile/src/features/cooking-mode/ActiveTimers.tsx` + `TimerCard.tsx` | No                       |
-| T-020 | Web timer alert wiring                                                     | No                       |
-| T-021 | Mobile timer alert wiring                                                  | No                       |
-| T-022 | Web wake-lock screen integration                                           | No                       |
-| T-023 | Mobile wake-lock screen integration                                        | No                       |
-| T-024 | Web session resume                                                         | No                       |
-| T-025 | Mobile session resume                                                      | No                       |
-| T-026 | Web offline handling                                                       | No                       |
-| T-027 | Mobile offline handling                                                    | No                       |
-| T-028 | Accessibility audit                                                        | No                       |
-| T-029 | Keyboard navigation (web)                                                  | No                       |
-| T-030 | Voice control (web)                                                        | No                       |
-| T-031 | Voice control (mobile)                                                     | No                       |
-| T-032 | E2E tests (Playwright / Detox)                                             | No                       |
+| Task  | Target file (from tasks.md)                                                | Exists?                        |
+| ----- | -------------------------------------------------------------------------- | ------------------------------ |
+| T-001 | `packages/shared/cooking/src/types.ts`                                     | No (`shared/cooking/` missing) |
+| T-002 | `packages/shared/cooking/src/session-store.ts`                             | No                             |
+| T-003 | `packages/shared/cooking/src/timer-service.ts`                             | No                             |
+| T-004 | `packages/shared/cooking/src/wake-lock.ts`                                 | No                             |
+| T-005 | `packages/shared/cooking/src/wake-lock-rn.ts`                              | No                             |
+| T-006 | `packages/shared/cooking/src/recipe-api.ts`                                | No                             |
+| T-007 | `packages/shared/cooking/src/offline-cache.ts`                             | No                             |
+| T-008 | `apps/web/src/features/cooking-mode/CookingModeScreen.tsx`                 | No                             |
+| T-009 | `apps/mobile/src/features/cooking-mode/CookingModeScreen.tsx`              | No                             |
+| T-010 | `apps/web/src/features/cooking-mode/StepDisplay.tsx`                       | No                             |
+| T-011 | `apps/mobile/src/features/cooking-mode/StepDisplay.tsx`                    | No                             |
+| T-012 | `apps/web/src/features/cooking-mode/StepNavigation.tsx`                    | No                             |
+| T-013 | `apps/mobile/src/features/cooking-mode/StepNavigation.tsx`                 | No                             |
+| T-014 | Web gesture wiring                                                         | No                             |
+| T-015 | Mobile gesture wiring                                                      | No                             |
+| T-016 | `apps/web/src/features/cooking-mode/TimerBadge.tsx`                        | No                             |
+| T-017 | `apps/mobile/src/features/cooking-mode/TimerBadge.tsx`                     | No                             |
+| T-018 | `apps/web/src/features/cooking-mode/ActiveTimers.tsx` + `TimerCard.tsx`    | No                             |
+| T-019 | `apps/mobile/src/features/cooking-mode/ActiveTimers.tsx` + `TimerCard.tsx` | No                             |
+| T-020 | Web timer alert wiring                                                     | No                             |
+| T-021 | Mobile timer alert wiring                                                  | No                             |
+| T-022 | Web wake-lock screen integration                                           | No                             |
+| T-023 | Mobile wake-lock screen integration                                        | No                             |
+| T-024 | Web session resume                                                         | No                             |
+| T-025 | Mobile session resume                                                      | No                             |
+| T-026 | Web offline handling                                                       | No                             |
+| T-027 | Mobile offline handling                                                    | No                             |
+| T-028 | Accessibility audit                                                        | No                             |
+| T-029 | Keyboard navigation (web)                                                  | No                             |
+| T-030 | Voice control (web)                                                        | No                             |
+| T-031 | Voice control (mobile)                                                     | No                             |
+| T-032 | E2E tests (Playwright / Detox)                                             | No                             |
 
 **Assessment**: Expected pre-implementation gap. No implementation files exist; this is consistent with `.forge-status.yml` showing `implement: not-started`.
 

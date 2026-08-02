@@ -3,7 +3,7 @@
 > Generated: 2026-06-02  
 > Scan: 7-layer sync-verify, pre-implement  
 > Layers: L1, L2, L3, L4, L7 executed; L5 skipped; L6 = INFO  
-> Monorepo root: `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth`
+> Monorepo root: `<repo root>`
 
 ---
 

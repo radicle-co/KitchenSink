@@ -1,7 +1,7 @@
 # Sync-Verify Report: 005-ai-integration
 
 **Run Date**: 2026-06-02 (Pre-Implementation)
-**Feature Path**: `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/005-ai-integration/`
+**Feature Path**: `specs/005-ai-integration/`
 **Layers Scanned**: L1, L2, L3, L4, L7 | L5 Skipped | L6 INFO
 
 ## Executive Summary

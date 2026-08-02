@@ -49,6 +49,16 @@
  * same reason: guessing is what compiled `http://localhost:3000` into a shipped bundle.
  */
 
+/**
+ * Where the PR number may come from, in PRECEDENCE order.
+ *
+ * `PREVIEW_PR_NUMBER` is injected per-deployment by CI (`vercel deploy --build-env`) and wins, because CI
+ * knows the number for certain. `VERCEL_GIT_PULL_REQUEST_ID` is Vercel's own, populated only for a
+ * deployment it can associate with an OPEN pull request — which a branch's FIRST deployment never is, since
+ * the push necessarily precedes `gh pr create`.
+ */
+const PR_NUMBER_SOURCES = ['PREVIEW_PR_NUMBER', 'VERCEL_GIT_PULL_REQUEST_ID'] as const;
+
 /** The `{pr}` placeholder a per-PR endpoint template must carry. */
 const PR_PLACEHOLDER = '{pr}';
 
@@ -89,17 +99,34 @@ export function substitutePrNumber(template: string, prNumber: string): string {
  *   value is substituted straight into a hostname, so anything else is a typo or an injection attempt.
  */
 function requirePrNumber(environment: BuildEnvironment): string {
-    const raw = environment['VERCEL_GIT_PULL_REQUEST_ID']?.trim() ?? '';
+    for (const name of PR_NUMBER_SOURCES) {
+        const raw = environment[name]?.trim() ?? '';
 
-    if (!/^\d+$/.test(raw)) {
-        throw new Error(
-            `VERCEL_GIT_PULL_REQUEST_ID must be the pull request number, but was '${raw}'. A preview build ` +
-                'that does not belong to a PR has no per-PR backend to talk to: every PR deploys its own ' +
-                'recipe service, so there is no shared non-prod instance to fall back to.',
-        );
+        if (raw === '') {
+            continue;
+        }
+
+        // A source that is SET but malformed is a misconfiguration, not a reason to try the next one:
+        // falling through would build this preview against a different PR's backend, silently.
+        if (!/^\d+$/.test(raw)) {
+            throw new Error(
+                `${name} must be the pull request number, but was '${raw}'. It is substituted straight into ` +
+                    'a hostname, so anything else is a typo or an injection attempt.',
+            );
+        }
+
+        return raw;
     }
 
-    return raw;
+    throw new Error(
+        `No pull request number: none of ${PR_NUMBER_SOURCES.join(', ')} is set. A preview build that does ` +
+            'not belong to a PR has no per-PR backend to talk to — every PR deploys its own recipe service, ' +
+            'so there is no shared non-prod instance to fall back to. Note that Vercel leaves ' +
+            'VERCEL_GIT_PULL_REQUEST_ID EMPTY for a deployment created by a branch push before that ' +
+            'branch has an open PR, which is unavoidable (the push precedes the PR). CI therefore deploys ' +
+            'the preview itself on `pull_request: opened` and injects PREVIEW_PR_NUMBER explicitly — see ' +
+            'the "Deploy this PR\'s Vercel preview" step in .github/workflows/sandbox-web-preview.yml.',
+    );
 }
 
 /**

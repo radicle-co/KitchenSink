@@ -14,6 +14,8 @@
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import pg from 'pg';
 
+import { assertBootstrapPostconditions } from '../db-bootstrap/postconditions.js';
+
 const { Pool } = pg;
 
 /** Minimal shape of a CloudFormation custom-resource event (only the fields this handler reads). */
@@ -125,6 +127,15 @@ export const handler = async (event: CustomResourceEvent): Promise<CustomResourc
 
     try {
         await bootstrap(pool, foodDatabaseName, isProd);
+        // Read back what the DDL claimed to do. CloudFormation only records whether this handler threw, so
+        // without this the resource reports success for a bootstrap that did nothing — which is exactly how a
+        // placeholder shipped to prod and left `food_app` nonexistent behind a green deploy.
+        await assertBootstrapPostconditions(pool, {
+            role: 'food_app',
+            databaseName: foodDatabaseName,
+            // Prod has no per-PR databases, so its role deliberately has no CREATEDB (ADR-0006).
+            requireCreateDb: !isProd,
+        });
     } finally {
         await pool.end();
     }

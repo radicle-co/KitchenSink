@@ -127,6 +127,52 @@ describe('resolveBuildEndpoints', () => {
         );
     });
 
+    // ── The PR number may be injected explicitly, because Vercel cannot always supply it ───────────────
+    //
+    // Vercel deploys on PUSH, and populates VERCEL_GIT_PULL_REQUEST_ID only for a deployment it can
+    // associate with an OPEN pull request. A branch's FIRST deployment is therefore always PR-less — the
+    // push necessarily precedes `gh pr create` — so that variable is empty and this module used to hard-fail
+    // every new branch's preview. Observed on PR #77:
+    //   Error: VERCEL_GIT_PULL_REQUEST_ID must be the pull request number, but was ''.
+    //
+    // CI closes that gap by deploying the preview itself on `pull_request: opened` and passing the number
+    // through `vercel deploy --build-env PREVIEW_PR_NUMBER=<n>` — a PER-DEPLOYMENT value, which is the one
+    // thing a dashboard environment variable structurally cannot be.
+    it("prefers an explicitly injected PREVIEW_PR_NUMBER over Vercel's own id", () => {
+        // CI knows the PR number for certain; Vercel's association is best-effort. When both are present the
+        // explicit one wins, so a CI-triggered redeploy is never at the mercy of that association.
+        expect(resolveBuildEndpoints({ ...PREVIEW, PREVIEW_PR_NUMBER: '77' })['NEXT_PUBLIC_RECIPE_API_URL']).toBe(
+            'https://recipe-pr-77.commise.app',
+        );
+    });
+
+    it('falls back to VERCEL_GIT_PULL_REQUEST_ID when no explicit number is injected', () => {
+        // The ordinary path: a push to a branch that already has an open PR, deployed by Vercel's own git
+        // integration. Verified live — a 07-30 preview resolved recipe-pr-76 with no CI involvement.
+        expect(resolveBuildEndpoints(PREVIEW)['NEXT_PUBLIC_RECIPE_API_URL']).toBe('https://recipe-pr-73.commise.app');
+        expect(
+            resolveBuildEndpoints({ ...PREVIEW, PREVIEW_PR_NUMBER: '   ' })['NEXT_PUBLIC_RECIPE_API_URL'],
+            'a blank explicit value is treated as absent, not as a failure',
+        ).toBe('https://recipe-pr-73.commise.app');
+    });
+
+    it('does NOT silently fall back when an injected PREVIEW_PR_NUMBER is malformed', () => {
+        // A set-but-invalid explicit value is a CI misconfiguration. Falling through to Vercel's id would
+        // build a bundle for a DIFFERENT PR than the one CI meant, which is the exact class of silent
+        // wrong-backend bug this module exists to prevent — so it must name the variable and fail.
+        expect(() => resolveBuildEndpoints({ ...PREVIEW, PREVIEW_PR_NUMBER: '77/../evil' })).toThrow(
+            /PREVIEW_PR_NUMBER/,
+        );
+    });
+
+    it('names BOTH sources when neither is set, so the operator knows the CI lever exists', () => {
+        const attempt = (): unknown =>
+            resolveBuildEndpoints({ ...PREVIEW, VERCEL_GIT_PULL_REQUEST_ID: undefined, PREVIEW_PR_NUMBER: undefined });
+
+        expect(attempt).toThrow(/PREVIEW_PR_NUMBER/);
+        expect(attempt).toThrow(/VERCEL_GIT_PULL_REQUEST_ID/);
+    });
+
     it('omits an endpoint whose template is unset, leaving env validation to fail loudly', () => {
         // Deliberately NOT a throw: the caller may legitimately supply one endpoint by template and the
         // other directly. `src/config/env.ts` is the single place that decides an endpoint is missing.

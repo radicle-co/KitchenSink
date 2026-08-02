@@ -545,6 +545,44 @@ describe('RecipeForm (web) — B8 error accessibility wiring (aria-invalid + ari
 });
 
 describe('RecipeForm (web) — difficulty picker', () => {
+    /** The difficulty chips sit inside a `bg-card` section, so that is the surface behind them. */
+    const CARD = semantic.card;
+
+    // REGRESSION: the selected chip layered `bg-seafoam text-white` on top of a base that already set
+    // `bg-white text-charcoal`. Tailwind orders utilities by its own EMISSION order, not by the order they
+    // appear in the class attribute, so `.bg-white` (emitted later) beat `.bg-seafoam` while `.text-white`
+    // (emitted later) beat `.text-charcoal` — the selected label rendered white-on-white, invisible in every
+    // browser, in dev and in prod. Worse, `values.difficulty === option.value` is `undefined === undefined`
+    // for "Not stated", so a FRESH form opened with a blank pill.
+    //
+    // The existing focus-ring test above measures only the ring, never text-against-fill, which is how this
+    // survived. `utilityContrast` THROWS on exactly this ambiguity (two palette-coloured utilities of one
+    // role), so on the shipped code this goes red before it ever computes a ratio.
+    it.each([
+        ['Not stated', undefined],
+        ['Easy', 'easy'],
+        ['Medium', 'medium'],
+        ['Hard', 'hard'],
+    ])('renders the selected %s chip legibly (its own fill, not the card behind it)', (label, value) => {
+        renderForm({
+            values:
+                value === undefined
+                    ? filledValues()
+                    : filledValues({ difficulty: value as 'easy' | 'medium' | 'hard' }),
+        });
+
+        const chip = screen.getByRole('radio', { name: label }).parentElement;
+
+        if (chip === null) {
+            throw new Error(`Expected the "${label}" radio to sit inside its chip label.`);
+        }
+
+        // The chip text is `text-body-sm` — normal-size body copy, so WCAG AA is 4.5:1, not the 3:1
+        // large-text allowance. Seafoam-on-white measures ~4.67, so this threshold has real teeth.
+        expect(utilityContrast(chip.className, { surface: CARD }), `${label} selected chip label`) //
+            .toBeGreaterThanOrEqual(4.5);
+    });
+
     it('renders a radiogroup with Easy/Medium/Hard and an explicit Not stated option', () => {
         renderForm();
 

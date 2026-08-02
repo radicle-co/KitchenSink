@@ -74,21 +74,21 @@ export const options = {
 // source afterwards, so there is always a genuine pending pull for both scenarios to exercise.
 export function setup() {
     const seedRecipe = http.post(
-        `${BASE_URL}/v1/recipes`,
+        `${BASE_URL}/api/v1/recipes`,
         JSON.stringify({ ...makeRecipePayload('pull-seed'), visibility: 'public' }),
         { headers: jsonHeaders(), tags: { operation: 'seedRecipe' } },
     );
     const seedRecipeId = seedRecipe.status === 201 ? seedRecipe.json('id') : null;
 
     const source = http.post(
-        `${BASE_URL}/v1/collections`,
+        `${BASE_URL}/api/v1/collections`,
         JSON.stringify({ name: 'Pull load source', visibility: 'public' }),
         { headers: jsonHeaders(), tags: { operation: 'seedSourceCollection' } },
     );
     const sourceId = source.status === 201 ? source.json('id') : null;
 
     if (sourceId && seedRecipeId) {
-        http.post(`${BASE_URL}/v1/collections/${sourceId}/recipes`, JSON.stringify({ recipeId: seedRecipeId }), {
+        http.post(`${BASE_URL}/api/v1/collections/${sourceId}/recipes`, JSON.stringify({ recipeId: seedRecipeId }), {
             headers: jsonHeaders(),
             tags: { operation: 'seedSourceMembership' },
         });
@@ -96,7 +96,7 @@ export function setup() {
 
     let cloneId = null;
     if (sourceId) {
-        const clone = http.post(`${BASE_URL}/v1/collections/${sourceId}/clone`, null, {
+        const clone = http.post(`${BASE_URL}/api/v1/collections/${sourceId}/clone`, null, {
             headers: authHeaders(),
             tags: { operation: 'seedClone' },
         });
@@ -115,7 +115,7 @@ export function previewPath(data) {
         return;
     }
 
-    const res = http.post(`${BASE_URL}/v1/collections/${cloneId}/pull-from-source/preview`, null, {
+    const res = http.post(`${BASE_URL}/api/v1/collections/${cloneId}/pull-from-source/preview`, null, {
         headers: authHeaders(),
         tags: { operation: 'previewPull' },
     });
@@ -137,14 +137,14 @@ export function commitPath(data) {
     // Give this commit something genuine to pull: a fresh recipe added to the source that the clone
     // does not have yet.
     const recipe = http.post(
-        `${BASE_URL}/v1/recipes`,
+        `${BASE_URL}/api/v1/recipes`,
         JSON.stringify({ ...makeRecipePayload(`pull-${__VU}-${__ITER}`), visibility: 'public' }),
         { headers: jsonHeaders(), tags: { operation: 'createPendingRecipe' } },
     );
     const recipeId = recipe.status === 201 ? recipe.json('id') : null;
 
     if (recipeId) {
-        http.post(`${BASE_URL}/v1/collections/${sourceId}/recipes`, JSON.stringify({ recipeId }), {
+        http.post(`${BASE_URL}/api/v1/collections/${sourceId}/recipes`, JSON.stringify({ recipeId }), {
             headers: jsonHeaders(),
             tags: { operation: 'addPendingRecipe' },
         });
@@ -152,7 +152,7 @@ export function commitPath(data) {
 
     // No `previewedDiff` echoed — apply directly (the documented back-compatible mode), so concurrent
     // commits against the same clone never race into a 409 PULL_DRIFT.
-    const commit = http.post(`${BASE_URL}/v1/collections/${cloneId}/pull-from-source`, JSON.stringify({}), {
+    const commit = http.post(`${BASE_URL}/api/v1/collections/${cloneId}/pull-from-source`, JSON.stringify({}), {
         headers: jsonHeaders(),
         tags: { operation: 'commitPull' },
     });

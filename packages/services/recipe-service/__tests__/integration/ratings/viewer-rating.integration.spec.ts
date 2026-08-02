@@ -84,7 +84,7 @@ describe.skipIf(!hasDatabaseUrl)('RecipeDetail.viewerRating (integration)', () =
     }
 
     async function getDetail(recipeId: string): Promise<RecipeDetailBody> {
-        const res = await fetch(`${baseUrl}/v1/recipes/${recipeId}`);
+        const res = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}`);
         expect(res.status).toBe(200);
         return (await res.json()) as RecipeDetailBody;
     }

@@ -1,5 +1,5 @@
 /**
- * CR-002 / U4a — `POST /v1/internal/account/erasure` (the GREENFIELD service-principal erasure path)
+ * CR-002 / U4a — `POST /api/v1/internal/account/erasure` (the GREENFIELD service-principal erasure path)
  * against the REAL stack: a booted Nest app + Docker Postgres + LocalStack SQS, with a genuinely
  * EdDSA-signed service token verified end to end (no mocks) by the real `ServiceErasureAuthService`.
  *
@@ -134,7 +134,7 @@ describe.skipIf(!hasDatabaseUrl)('service-principal account erasure (CR-002 / U4
 
     /** POST to the internal service route with the given bearer token (or none). */
     const postServiceErasure = (bearer?: string): Promise<Response> =>
-        fetch(`${baseUrl}/v1/internal/account/erasure`, {
+        fetch(`${baseUrl}/api/v1/internal/account/erasure`, {
             method: 'POST',
             headers: bearer !== undefined ? { authorization: `Bearer ${bearer}` } : {},
         });
@@ -274,7 +274,7 @@ describe.skipIf(!hasDatabaseUrl)('service-principal account erasure (CR-002 / U4
         it('rejects a SERVICE token on the USER route — 401 (the Clerk middleware does not admit it)', async () => {
             const serviceToken = await signServiceErasureToken(trusted.privateKeyPem, { ownerId: OWNER });
 
-            const response = await fetch(`${baseUrl}/v1/account/erasure`, {
+            const response = await fetch(`${baseUrl}/api/v1/account/erasure`, {
                 method: 'POST',
                 headers: { authorization: `Bearer ${serviceToken}`, 'content-type': 'application/json' },
                 body: JSON.stringify({ confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE }),

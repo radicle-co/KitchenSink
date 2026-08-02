@@ -59,7 +59,7 @@ export const options = {
 
 // Seed one recipe once so the get-by-id path has a stable target id.
 export function setup() {
-    const res = http.post(`${BASE_URL}/v1/recipes`, JSON.stringify(makeRecipePayload('seed')), {
+    const res = http.post(`${BASE_URL}/api/v1/recipes`, JSON.stringify(makeRecipePayload('seed')), {
         headers: jsonHeaders(),
         tags: { operation: 'seedRecipe' },
     });
@@ -67,7 +67,7 @@ export function setup() {
     if (res.status === 201) {
         try {
             seedId = res.json('id');
-        } catch (_err) {
+        } catch {
             seedId = null;
         }
     }
@@ -75,7 +75,7 @@ export function setup() {
 }
 
 export function readPath(data) {
-    const list = http.get(`${BASE_URL}/v1/recipes?page=1&pageSize=20&sortBy=updatedAt`, {
+    const list = http.get(`${BASE_URL}/api/v1/recipes?page=1&pageSize=20&sortBy=updatedAt`, {
         headers: authHeaders(),
         tags: { operation: 'listRecipes' },
     });
@@ -84,7 +84,7 @@ export function readPath(data) {
 
     const seedId = data && data.seedId;
     if (seedId) {
-        const get = http.get(`${BASE_URL}/v1/recipes/${seedId}`, {
+        const get = http.get(`${BASE_URL}/api/v1/recipes/${seedId}`, {
             headers: authHeaders(),
             tags: { operation: 'getRecipe' },
         });
@@ -95,7 +95,7 @@ export function readPath(data) {
 }
 
 export function writePath() {
-    const res = http.post(`${BASE_URL}/v1/recipes`, JSON.stringify(makeRecipePayload(`${__VU}-${__ITER}`)), {
+    const res = http.post(`${BASE_URL}/api/v1/recipes`, JSON.stringify(makeRecipePayload(`${__VU}-${__ITER}`)), {
         headers: jsonHeaders(),
         tags: { operation: 'createRecipe' },
     });

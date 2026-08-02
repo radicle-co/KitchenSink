@@ -1,7 +1,7 @@
 /**
  * T045 — optimistic-concurrency conflict integration test (T033 behavior over real HTTP + Postgres).
  *
- * Verifies that a stale `expectedVersion` on `PATCH /v1/recipes/{id}` is rejected with `409` +
+ * Verifies that a stale `expectedVersion` on `PATCH /api/v1/recipes/{id}` is rejected with `409` +
  * `VERSION_CONFLICT` carrying `details.currentVersion`. Booted against the harness with a dev-auth
  * owner; skipped when the harness DB is not configured.
  */
@@ -47,7 +47,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe update version conflict (integration)',
     });
 
     it('rejects a stale expectedVersion with 409 VERSION_CONFLICT and the current version', async () => {
-        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+        const createRes = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(CREATE_PAYLOAD),
@@ -57,7 +57,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe update version conflict (integration)',
         expect(created.currentVersion).toBe(1);
 
         // First update succeeds and bumps the version to 2.
-        const firstPatch = await fetch(`${baseUrl}/v1/recipes/${created.id}`, {
+        const firstPatch = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ expectedVersion: 1, title: 'Conflict Recipe v2' }),
@@ -65,7 +65,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe update version conflict (integration)',
         expect(firstPatch.status).toBe(200);
 
         // Second update reuses the now-stale expectedVersion 1 → conflict.
-        const stalePatch = await fetch(`${baseUrl}/v1/recipes/${created.id}`, {
+        const stalePatch = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ expectedVersion: 1, title: 'Conflict Recipe stale' }),

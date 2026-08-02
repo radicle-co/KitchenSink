@@ -1,5 +1,5 @@
 /**
- * W8-b Task 7 — e2e proof of the Collections CRUD surface (`/v1/collections`) through the fully
+ * W8-b Task 7 — e2e proof of the Collections CRUD surface (`/api/v1/collections`) through the fully
  * ASSEMBLED recipe app against the real Postgres harness. The unit/integration tiers already exhaust
  * `CollectionsService`'s branches; this pins the client-visible HTTP contract: status codes, response
  * shapes, real pagination over the actual DAL `ORDER BY created_at DESC` + `LIMIT`/`OFFSET`, and the
@@ -70,7 +70,7 @@ describe.skipIf(!hasDatabaseUrl)('collections CRUD (e2e, assembled app)', () => 
     });
 
     async function createCollection(name: string, description?: string): Promise<Response> {
-        return fetch(`${booted.baseUrl}/v1/collections`, {
+        return fetch(`${booted.baseUrl}/api/v1/collections`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ name, ...(description !== undefined ? { description } : {}) }),
@@ -98,14 +98,14 @@ describe.skipIf(!hasDatabaseUrl)('collections CRUD (e2e, assembled app)', () => 
         expect(createdBody.visibility).toBe('private');
         const id = createdBody.id;
 
-        const got = await fetch(`${booted.baseUrl}/v1/collections/${id}`);
+        const got = await fetch(`${booted.baseUrl}/api/v1/collections/${id}`);
         expect(got.status).toBe(200);
         const gotBody = (await got.json()) as CollectionBody & { recipes: unknown[] };
         expect(gotBody.id).toBe(id);
         expect(gotBody.recipeCount).toBe(0);
         expect(gotBody.recipes).toEqual([]);
 
-        const renamed = await fetch(`${booted.baseUrl}/v1/collections/${id}`, {
+        const renamed = await fetch(`${booted.baseUrl}/api/v1/collections/${id}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ name: 'Renamed E2E collection' }),
@@ -116,11 +116,11 @@ describe.skipIf(!hasDatabaseUrl)('collections CRUD (e2e, assembled app)', () => 
         // The description survives a name-only PATCH (partial update, not a full replace).
         expect(renamedBody.description).toBe('a description');
 
-        const deleted = await fetch(`${booted.baseUrl}/v1/collections/${id}`, { method: 'DELETE' });
+        const deleted = await fetch(`${booted.baseUrl}/api/v1/collections/${id}`, { method: 'DELETE' });
         expect(deleted.status).toBe(204);
 
         // Delete actually removes the row — a subsequent GET is 404, not a stale 200.
-        const afterDelete = await fetch(`${booted.baseUrl}/v1/collections/${id}`);
+        const afterDelete = await fetch(`${booted.baseUrl}/api/v1/collections/${id}`);
         expect(afterDelete.status).toBe(404);
     });
 
@@ -141,7 +141,7 @@ describe.skipIf(!hasDatabaseUrl)('collections CRUD (e2e, assembled app)', () => 
         }
         // ids[4] ("Page E2E 5") is newest; ids[0] ("Page E2E 1") is oldest.
 
-        const page1Res = await fetch(`${booted.baseUrl}/v1/collections?page=1&pageSize=3`);
+        const page1Res = await fetch(`${booted.baseUrl}/api/v1/collections?page=1&pageSize=3`);
         expect(page1Res.status).toBe(200);
         const page1 = (await page1Res.json()) as CollectionPageBody;
         expect(page1.total).toBe(5);
@@ -150,7 +150,7 @@ describe.skipIf(!hasDatabaseUrl)('collections CRUD (e2e, assembled app)', () => 
         expect(page1.hasMore).toBe(true);
         expect(page1.data).toHaveLength(3);
 
-        const page2Res = await fetch(`${booted.baseUrl}/v1/collections?page=2&pageSize=3`);
+        const page2Res = await fetch(`${booted.baseUrl}/api/v1/collections?page=2&pageSize=3`);
         expect(page2Res.status).toBe(200);
         const page2 = (await page2Res.json()) as CollectionPageBody;
         expect(page2.total).toBe(5);
@@ -194,7 +194,7 @@ describe.skipIf(!hasDatabaseUrl)('collections CRUD (e2e, assembled app)', () => 
             expect(body.code).toBe('COLLECTION_LIMIT_REACHED');
 
             // The rejected attempt did not write a row: the total stays at exactly 50.
-            const listed = await fetch(`${booted.baseUrl}/v1/collections?page=1&pageSize=1`);
+            const listed = await fetch(`${booted.baseUrl}/api/v1/collections?page=1&pageSize=1`);
             const listedBody = (await listed.json()) as CollectionPageBody;
             expect(listedBody.total).toBe(50);
         },
@@ -203,12 +203,12 @@ describe.skipIf(!hasDatabaseUrl)('collections CRUD (e2e, assembled app)', () => 
     it("ownership boundary: another user's collection is 403 NOT_OWNER for get/rename/delete (not 404, not leaked-through), and is left untouched", async () => {
         const otherId = await seedOtherCollection('Not yours');
 
-        const got = await fetch(`${booted.baseUrl}/v1/collections/${otherId}`);
+        const got = await fetch(`${booted.baseUrl}/api/v1/collections/${otherId}`);
         expect(got.status).toBe(403);
         const gotBody = (await got.json()) as ApiErrorBody;
         expect(gotBody.code).toBe('NOT_OWNER');
 
-        const renamed = await fetch(`${booted.baseUrl}/v1/collections/${otherId}`, {
+        const renamed = await fetch(`${booted.baseUrl}/api/v1/collections/${otherId}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ name: 'hacked' }),
@@ -216,7 +216,7 @@ describe.skipIf(!hasDatabaseUrl)('collections CRUD (e2e, assembled app)', () => 
         expect(renamed.status).toBe(403);
         expect(((await renamed.json()) as ApiErrorBody).code).toBe('NOT_OWNER');
 
-        const deleted = await fetch(`${booted.baseUrl}/v1/collections/${otherId}`, { method: 'DELETE' });
+        const deleted = await fetch(`${booted.baseUrl}/api/v1/collections/${otherId}`, { method: 'DELETE' });
         expect(deleted.status).toBe(403);
         expect(((await deleted.json()) as ApiErrorBody).code).toBe('NOT_OWNER');
 

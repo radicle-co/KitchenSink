@@ -1,7 +1,7 @@
 /**
  * T098 — recipe CRUD lifecycle integration test (real Nest app + Docker Postgres + LocalStack).
  *
- * Drives the `/v1/recipes` HTTP surface end to end against the harness (booted by `bootRecipeApp`,
+ * Drives the `/api/v1/recipes` HTTP surface end to end against the harness (booted by `bootRecipeApp`,
  * migrated + seeded by `tests/global-setup.ts`). The dev-auth bypass injects a fixed owner ULID so the
  * routes authenticate without a Clerk token. Runs only when the harness DB is configured — otherwise
  * skipped in lockstep with the global setup (`describe.skipIf(!hasDatabaseUrl)`).
@@ -58,7 +58,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
 
     it('creates, reads, lists, updates, and soft-deletes a recipe', async () => {
         // Create
-        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+        const createRes = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(CREATE_PAYLOAD),
@@ -71,19 +71,19 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
         expect(created.steps[0]?.stepNumber).toBe(1);
 
         // Read
-        const getRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`);
+        const getRes = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`);
         expect(getRes.status).toBe(200);
         const fetched = (await getRes.json()) as RecipeBody;
         expect(fetched.id).toBe(created.id);
 
         // List
-        const listRes = await fetch(`${baseUrl}/v1/recipes?page=1&pageSize=50`);
+        const listRes = await fetch(`${baseUrl}/api/v1/recipes?page=1&pageSize=50`);
         expect(listRes.status).toBe(200);
         const list = (await listRes.json()) as PaginatedBody;
         expect(list.data.some((recipe) => recipe.id === created.id)).toBe(true);
 
         // Update (optimistic concurrency: expectedVersion must match)
-        const patchRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`, {
+        const patchRes = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ expectedVersion: 1, title: 'Integration CRUD Recipe (edited)' }),
@@ -94,16 +94,16 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
         expect(updated.currentVersion).toBe(2);
 
         // Soft-delete
-        const deleteRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`, { method: 'DELETE' });
+        const deleteRes = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`, { method: 'DELETE' });
         expect(deleteRes.status).toBe(204);
 
         // Gone from reads
-        const goneRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`);
+        const goneRes = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`);
         expect(goneRes.status).toBe(404);
     });
 
     it('rejects a create with 101 ingredients (REQ-003a — cap is 100)', async () => {
-        const res = await fetch(`${baseUrl}/v1/recipes`, {
+        const res = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
@@ -119,7 +119,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
     });
 
     it('rejects a create with 51 tags (REQ-007 — cap is 50)', async () => {
-        const res = await fetch(`${baseUrl}/v1/recipes`, {
+        const res = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
@@ -131,7 +131,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
     });
 
     it('rejects a create with a negative prepTimeMinutes (REQ-005a)', async () => {
-        const res = await fetch(`${baseUrl}/v1/recipes`, {
+        const res = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ ...CREATE_PAYLOAD, prepTimeMinutes: -1 }),
@@ -140,7 +140,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
     });
 
     it('rejects a create with zero servings (REQ-006 — servings must be positive)', async () => {
-        const res = await fetch(`${baseUrl}/v1/recipes`, {
+        const res = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ ...CREATE_PAYLOAD, servings: 0 }),
@@ -149,7 +149,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
     });
 
     it('allows PATCH to modify a recipe description, and the change persists (REQ-002b)', async () => {
-        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+        const createRes = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ ...CREATE_PAYLOAD, title: 'Description Update Recipe', description: 'Original.' }),
@@ -157,7 +157,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
         expect(createRes.status).toBe(201);
         const created = (await createRes.json()) as RecipeBody & { description?: string };
 
-        const patchRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`, {
+        const patchRes = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ expectedVersion: created.currentVersion, description: 'Updated description.' }),
@@ -167,7 +167,7 @@ describe.skipIf(!hasDatabaseUrl)('recipes CRUD lifecycle (integration)', () => {
         expect(updated.description).toBe('Updated description.');
 
         // Persisted — not just echoed on the response.
-        const getRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`);
+        const getRes = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`);
         const fetched = (await getRes.json()) as RecipeBody & { description?: string };
         expect(fetched.description).toBe('Updated description.');
     });

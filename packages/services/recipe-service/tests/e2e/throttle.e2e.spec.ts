@@ -6,7 +6,7 @@
  * middleware, the exception filter, and real HTTP — via `bootRecipeApp`, and asserts the behaviour a
  * client actually sees:
  *
- *   - Reads are NOT capped at the photo limit (the original defect): 15 sequential `GET /v1/recipes` all
+ *   - Reads are NOT capped at the photo limit (the original defect): 15 sequential `GET /api/v1/recipes` all
  *     succeed, where the bug returned `429` from the 11th.
  *   - A write route IS throttled: the write limit + 1 requests produce a final `429`, and none of the
  *     preceding requests are `429`. Invalid bodies are used deliberately — the guard runs BEFORE the
@@ -39,9 +39,9 @@ describe.skipIf(!hasDatabaseUrl)('recipe-service rate limiting (e2e, assembled a
         await booted?.close();
     });
 
-    it('does NOT cap reads at the photo limit — 15 sequential GET /v1/recipes all succeed', async () => {
+    it('does NOT cap reads at the photo limit — 15 sequential GET /api/v1/recipes all succeed', async () => {
         for (let i = 0; i < 15; i += 1) {
-            const response = await fetch(`${booted.baseUrl}/v1/recipes?page=1&pageSize=20`);
+            const response = await fetch(`${booted.baseUrl}/api/v1/recipes?page=1&pageSize=20`);
             expect(response.status).toBe(200);
         }
     });
@@ -53,7 +53,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe-service rate limiting (e2e, assembled a
         for (let i = 0; i < attempts; i += 1) {
             // Invalid body: rejected by the controller ValidationPipe (which runs AFTER the guard), so the
             // request counts toward the limit but persists nothing.
-            const response = await fetch(`${booted.baseUrl}/v1/recipes`, {
+            const response = await fetch(`${booted.baseUrl}/api/v1/recipes`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({}),
@@ -85,7 +85,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe-service rate limiting (e2e, assembled a
         const previousDevUser = process.env['RECIPE_DEV_AUTH_USER_ID'];
 
         const postInvalidRecipe = async (): Promise<number> => {
-            const response = await fetch(`${booted.baseUrl}/v1/recipes`, {
+            const response = await fetch(`${booted.baseUrl}/api/v1/recipes`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({}),

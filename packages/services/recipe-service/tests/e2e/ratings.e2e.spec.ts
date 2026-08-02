@@ -2,7 +2,7 @@
  * CR-001 / FR-013 — e2e proof of the rating write surface through the fully ASSEMBLED recipe app
  * (`ThrottlerModule` + global guard, `AuthMiddleware`, `ApiExceptionFilter`, real HTTP) via
  * `bootRecipeApp`. Where the integration spec exhausts the aggregate/authorization branches, this pins
- * the client-visible HTTP contract of `PUT`/`DELETE /v1/recipes/{id}/rating`: the status codes and the
+ * the client-visible HTTP contract of `PUT`/`DELETE /api/v1/recipes/{id}/rating`: the status codes and the
  * response shape a caller actually receives.
  *
  * The booted app authenticates as the RATER (dev bypass). Recipes are seeded via a direct pg pool so the
@@ -46,7 +46,7 @@ describe.skipIf(!hasDatabaseUrl)('rating write surface (e2e, assembled app)', ()
     it('PUT then DELETE a rating on a public recipe: 200 (RecipeDetail) then 204', async () => {
         const recipe = await seedRecipe(OTHER_OWNER, 'public', 'E2E rate');
 
-        const put = await fetch(`${booted.baseUrl}/v1/recipes/${recipe}/rating`, {
+        const put = await fetch(`${booted.baseUrl}/api/v1/recipes/${recipe}/rating`, {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ stars: 4 }),
@@ -57,14 +57,14 @@ describe.skipIf(!hasDatabaseUrl)('rating write surface (e2e, assembled app)', ()
         expect(body.ratingCount).toBe(1);
         expect(body.averageRating).toBe(4);
 
-        const del = await fetch(`${booted.baseUrl}/v1/recipes/${recipe}/rating`, { method: 'DELETE' });
+        const del = await fetch(`${booted.baseUrl}/api/v1/recipes/${recipe}/rating`, { method: 'DELETE' });
         expect(del.status).toBe(204);
     });
 
     it("PUT on the caller's own recipe is 403", async () => {
         const own = await seedRecipe(RATER, 'public', 'E2E own');
 
-        const put = await fetch(`${booted.baseUrl}/v1/recipes/${own}/rating`, {
+        const put = await fetch(`${booted.baseUrl}/api/v1/recipes/${own}/rating`, {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ stars: 5 }),
@@ -75,7 +75,7 @@ describe.skipIf(!hasDatabaseUrl)('rating write surface (e2e, assembled app)', ()
     it('PUT on a private recipe the caller cannot see is 404 (not 403 — no existence leak)', async () => {
         const secret = await seedRecipe(OTHER_OWNER, 'private', 'E2E secret');
 
-        const put = await fetch(`${booted.baseUrl}/v1/recipes/${secret}/rating`, {
+        const put = await fetch(`${booted.baseUrl}/api/v1/recipes/${secret}/rating`, {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ stars: 5 }),
@@ -94,7 +94,7 @@ describe.skipIf(!hasDatabaseUrl)('rating write surface (e2e, assembled app)', ()
         );
         const draftId = rows[0]!.id;
 
-        const put = await fetch(`${booted.baseUrl}/v1/recipes/${draftId}/rating`, {
+        const put = await fetch(`${booted.baseUrl}/api/v1/recipes/${draftId}/rating`, {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ stars: 5 }),

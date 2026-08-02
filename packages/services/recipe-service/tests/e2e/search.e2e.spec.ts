@@ -1,6 +1,6 @@
 /**
  * W8-a.1 / W8-a.3 / W8-a.9 — e2e proof of the search read surface through the fully ASSEMBLED recipe app
- * (`GET /v1/search/recipes`) against the real Postgres harness. Pins the client-visible HTTP contract for
+ * (`GET /api/v1/search/recipes`) against the real Postgres harness. Pins the client-visible HTTP contract for
  * the three shipped search changes at the DB level, where the unit tests can only assert SQL shape:
  *
  *   - **Draft exclusion (W8-a.3, security):** a `visibility=public, status=draft` recipe owned by someone
@@ -128,7 +128,7 @@ describe.skipIf(!hasDatabaseUrl)('search read surface (e2e, assembled app)', () 
 
     async function search(params: Record<string, string>): Promise<SearchBody> {
         const qs = new URLSearchParams({ query: TOKEN, ...params }).toString();
-        const res = await fetch(`${booted.baseUrl}/v1/search/recipes?${qs}`);
+        const res = await fetch(`${booted.baseUrl}/api/v1/search/recipes?${qs}`);
         expect(res.status).toBe(200);
         return (await res.json()) as SearchBody;
     }

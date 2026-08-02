@@ -83,9 +83,9 @@ describe.skipIf(!hasDatabaseUrl)('ClerkAuthService real JWT verification (ARCH-0
         await booted?.close();
     });
 
-    /** `GET /v1/recipes` with the given `Authorization` header value (or none). */
+    /** `GET /api/v1/recipes` with the given `Authorization` header value (or none). */
     async function listRecipes(authorization?: string): Promise<Response> {
-        return fetch(`${baseUrl}/v1/recipes`, {
+        return fetch(`${baseUrl}/api/v1/recipes`, {
             headers: authorization !== undefined ? { authorization } : {},
         });
     }
@@ -157,7 +157,7 @@ describe.skipIf(!hasDatabaseUrl)('ClerkAuthService real JWT verification (ARCH-0
         // owner-scoped WRITE below proves `req.principal.userId` was genuinely populated from THIS
         // token's `external_id`, not a dev-bypass constant (no other spec in this file, or the wider
         // integration suite, ever authenticates as `VALID_OWNER_ULID`).
-        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+        const createRes = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { authorization: `Bearer ${validToken}`, 'content-type': 'application/json' },
             body: JSON.stringify(MINIMAL_RECIPE_PAYLOAD),

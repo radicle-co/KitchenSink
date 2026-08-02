@@ -83,7 +83,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe clone + visibility (e2e, assembled app)
     }
 
     async function clone(id: string): Promise<Response> {
-        return fetch(`${booted.baseUrl}/v1/recipes/${id}/clone`, {
+        return fetch(`${booted.baseUrl}/api/v1/recipes/${id}/clone`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({}),
@@ -152,13 +152,13 @@ describe.skipIf(!hasDatabaseUrl)('recipe clone + visibility (e2e, assembled app)
     it('visibility read-scoping: owner sees their private recipe (200); a non-owner gets 404, never 403 or leaked content', async () => {
         const privateId = await seedRecipe(OWNER, 'private', 'published', 'Owner Only');
 
-        const ownerRead = await asPrincipal(OWNER, () => fetch(`${booted.baseUrl}/v1/recipes/${privateId}`));
+        const ownerRead = await asPrincipal(OWNER, () => fetch(`${booted.baseUrl}/api/v1/recipes/${privateId}`));
         expect(ownerRead.status).toBe(200);
         const ownerBody = (await ownerRead.json()) as RecipeBody;
         expect(ownerBody.id).toBe(privateId);
         expect(ownerBody.visibility).toBe('private');
 
-        const nonOwnerRead = await fetch(`${booted.baseUrl}/v1/recipes/${privateId}`); // still CLONER
+        const nonOwnerRead = await fetch(`${booted.baseUrl}/api/v1/recipes/${privateId}`); // still CLONER
         expect(nonOwnerRead.status).toBe(404);
         expect(((await nonOwnerRead.json()) as ApiErrorBody).code).toBe('RECIPE_NOT_FOUND');
     });
@@ -166,7 +166,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe clone + visibility (e2e, assembled app)
     it('visibility read-scoping: a non-owner CAN see a public, published recipe (200)', async () => {
         const publicId = await seedRecipe(OWNER, 'public', 'published', 'Everyone Can See');
 
-        const res = await fetch(`${booted.baseUrl}/v1/recipes/${publicId}`); // CLONER, non-owner
+        const res = await fetch(`${booted.baseUrl}/api/v1/recipes/${publicId}`); // CLONER, non-owner
         expect(res.status).toBe(200);
         const body = (await res.json()) as RecipeBody;
         expect(body.id).toBe(publicId);
@@ -174,7 +174,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe clone + visibility (e2e, assembled app)
     });
 
     it('a freshly-created recipe defaults to public/published (C-004 free-tier default), matching the code', async () => {
-        const res = await fetch(`${booted.baseUrl}/v1/recipes`, {
+        const res = await fetch(`${booted.baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({

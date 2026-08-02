@@ -54,14 +54,14 @@ describe.skipIf(!hasDatabaseUrl)('recipe version history populates (integration)
     });
 
     const listVersions = async (recipeId: string): Promise<VersionBody[]> => {
-        const res = await fetch(`${baseUrl}/v1/recipes/${recipeId}/versions`);
+        const res = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}/versions`);
         expect(res.status).toBe(200);
         return (await res.json()) as VersionBody[];
     };
 
     it('records a version on create and on each edit, and restore reverts + records one more', async () => {
         // Create → version 1 exists (history is no longer empty).
-        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+        const createRes = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(CREATE_BODY),
@@ -74,7 +74,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe version history populates (integration)
         expect(afterCreate[0]?.versionNumber).toBe(1);
 
         // Edit → version 2, newest-first.
-        const patchRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`, {
+        const patchRes = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ expectedVersion: 1, title: 'Edited Title' }),
@@ -88,11 +88,14 @@ describe.skipIf(!hasDatabaseUrl)('recipe version history populates (integration)
         // new version is recorded (no double).
         const v1 = afterEdit.find((version) => version.versionNumber === 1);
         expect(v1).toBeDefined();
-        const restoreRes = await fetch(`${baseUrl}/v1/recipes/${created.id}/versions/${v1!.versionNumber}/restore`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({}),
-        });
+        const restoreRes = await fetch(
+            `${baseUrl}/api/v1/recipes/${created.id}/versions/${v1!.versionNumber}/restore`,
+            {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({}),
+            },
+        );
         expect(restoreRes.status).toBe(200);
 
         // The restore returns the { recipe, restoredFromVersion, currentVersion } envelope.
@@ -106,7 +109,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe version history populates (integration)
         expect(restored.recipe.title).toBe('Original Title'); // content reverted to version 1
 
         // The recipe's title reverted to version 1's content.
-        const getRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`);
+        const getRes = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`);
         const recipe = (await getRes.json()) as RecipeBody;
         expect(recipe.title).toBe('Original Title');
 

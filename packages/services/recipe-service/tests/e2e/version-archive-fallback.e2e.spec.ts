@@ -46,7 +46,7 @@ describe.skipIf(!hasDatabaseUrl)('transparent S3 version fallback (e2e, assemble
 
     it('reads a pruned version back from the S3 archive instead of 404', async () => {
         // 1) Create a recipe → v1, with a real recipe_versions row.
-        const create = await fetch(`${booted.baseUrl}/v1/recipes`, {
+        const create = await fetch(`${booted.baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
@@ -95,7 +95,7 @@ describe.skipIf(!hasDatabaseUrl)('transparent S3 version fallback (e2e, assemble
         );
 
         // 4) GET the version → the endpoint transparently falls back to S3 (200, not 404).
-        const res = await fetch(`${booted.baseUrl}/v1/recipes/${recipeId}/versions/1`);
+        const res = await fetch(`${booted.baseUrl}/api/v1/recipes/${recipeId}/versions/1`);
         expect(res.status).toBe(200);
         const body = (await res.json()) as { versionNumber: number; snapshot: { title: string } };
         expect(body.versionNumber).toBe(1);

@@ -1,5 +1,5 @@
 /**
- * `GET /v1/account/export` against the REAL stack (booted Nest app + Docker Postgres). The service half
+ * `GET /api/v1/account/export` against the REAL stack (booted Nest app + Docker Postgres). The service half
  * of the GDPR Art. 15 (access) / Art. 20 (portability) export — the read-only mirror of the erasure path.
  *
  * The unit tier (`src/account/__tests__/*`, `src/account/dal/__tests__/*`) already pins the DAL's query
@@ -168,7 +168,7 @@ describe.skipIf(!hasDatabaseUrl)('account export HTTP (integration)', () => {
     }
 
     async function fetchExport(): Promise<{ status: number; body: AccountExport }> {
-        const response = await fetch(`${baseUrl}/v1/account/export`);
+        const response = await fetch(`${baseUrl}/api/v1/account/export`);
 
         return { status: response.status, body: (await response.json()) as AccountExport };
     }

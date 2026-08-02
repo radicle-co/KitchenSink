@@ -1,5 +1,5 @@
 /**
- * Stage 2 — BLENDED-TYPEAHEAD integration (`GET /v1/ingredients/suggest`).
+ * Stage 2 — BLENDED-TYPEAHEAD integration (`GET /api/v1/ingredients/suggest`).
  *
  * Proven over the REAL {@link IngredientsDal} against Docker Postgres (migrated + seeded by
  * `tests/global-setup.ts`) with only the external food service (003) stubbed — at the

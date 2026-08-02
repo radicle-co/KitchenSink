@@ -57,7 +57,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe version restore snapshot is best-effort
         // Create → version 1. `currentVersion` is now 1, so restoring v1 will drive `recipes.update` to
         // `expectedVersion: 1`, bumping `currentVersion` to 2 — restore's own snapshot write will then
         // target `(recipe.id, versionNumber: 2)`.
-        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+        const createRes = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(CREATE_BODY),
@@ -80,7 +80,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe version restore snapshot is best-effort
 
         // Restore version 1. `recipes.update` commits the reverted content; the restore's OWN snapshot
         // write then collides on the unique index and throws — the fix must swallow that, not 500.
-        const restoreRes = await fetch(`${baseUrl}/v1/recipes/${created.id}/versions/1/restore`, {
+        const restoreRes = await fetch(`${baseUrl}/api/v1/recipes/${created.id}/versions/1/restore`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({}),
@@ -99,7 +99,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe version restore snapshot is best-effort
         expect(restored.recipe.title).toBe('Original Title');
 
         // The DB agrees: the recipe's live content reverted, independent of the version-history write.
-        const getRes = await fetch(`${baseUrl}/v1/recipes/${created.id}`);
+        const getRes = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`);
         const recipe = (await getRes.json()) as RecipeBody;
         expect(recipe.title).toBe('Original Title');
 

@@ -1,7 +1,7 @@
 /**
  * T103 + T129 + W5 Task 2 — collection-clone integration test (real Nest app + Docker Postgres).
  *
- * Drives `POST /v1/collections/{id}/clone` end to end and proves what a mocked DAL cannot:
+ * Drives `POST /api/v1/collections/{id}/clone` end to end and proves what a mocked DAL cannot:
  *   1. **The access boundary is real SQL** (T103) — a public collection holding one public and one
  *      PRIVATE recipe (owned by the source owner, not the cloner) clones with the public recipe only.
  *      The unit spec pins that the cloner is passed as the viewer; this pins that the viewer-scoped
@@ -113,7 +113,7 @@ describe.skipIf(!hasDatabaseUrl)('collection clone (FR-011 integration)', () => 
     });
 
     it("clones a public collection with the source's PUBLIC recipe only, never its private one", async () => {
-        const res = await fetch(`${baseUrl}/v1/collections/${sourceId}/clone`, { method: 'POST' });
+        const res = await fetch(`${baseUrl}/api/v1/collections/${sourceId}/clone`, { method: 'POST' });
         expect(res.status).toBe(201);
         const clone = (await res.json()) as CollectionBody;
 
@@ -142,7 +142,7 @@ describe.skipIf(!hasDatabaseUrl)('collection clone (FR-011 integration)', () => 
     });
 
     it('applies the optional name override from CloneCollectionRequest', async () => {
-        const res = await fetch(`${baseUrl}/v1/collections/${sourceId}/clone`, {
+        const res = await fetch(`${baseUrl}/api/v1/collections/${sourceId}/clone`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ name: 'My Own Name' }),
@@ -156,7 +156,7 @@ describe.skipIf(!hasDatabaseUrl)('collection clone (FR-011 integration)', () => 
         "freezes source attribution at clone time — a LATER rename of the source owner's handle does " +
             'not change what a re-read of the clone reports (CR-003: deliberately not synced)',
         async () => {
-            const cloneRes = await fetch(`${baseUrl}/v1/collections/${sourceId}/clone`, { method: 'POST' });
+            const cloneRes = await fetch(`${baseUrl}/api/v1/collections/${sourceId}/clone`, { method: 'POST' });
             expect(cloneRes.status).toBe(201);
             const clone = (await cloneRes.json()) as CollectionBody;
             expect(clone.sourceOwnerHandle).toBe(SOURCE_OWNER_HANDLE);
@@ -168,7 +168,7 @@ describe.skipIf(!hasDatabaseUrl)('collection clone (FR-011 integration)', () => 
                 .set({ displayName: 'clara-renamed', sourceTimestamp: new Date() })
                 .where(eq(authorHandles.userId, SOURCE_OWNER));
 
-            const getRes = await fetch(`${baseUrl}/v1/collections/${clone.id}`);
+            const getRes = await fetch(`${baseUrl}/api/v1/collections/${clone.id}`);
             expect(getRes.status).toBe(200);
             const reread = (await getRes.json()) as CollectionBody;
 
@@ -193,7 +193,7 @@ describe.skipIf(!hasDatabaseUrl)('collection clone (FR-011 integration)', () => 
             .values({ ownerId: SOURCE_OWNER, name: 'Not Yours', visibility: 'private' })
             .returning({ id: collections.id });
 
-        const res = await fetch(`${baseUrl}/v1/collections/${priv!.id}/clone`, { method: 'POST' });
+        const res = await fetch(`${baseUrl}/api/v1/collections/${priv!.id}/clone`, { method: 'POST' });
 
         expect(res.status).toBe(404);
         // And nothing was created for the caller off the back of it.

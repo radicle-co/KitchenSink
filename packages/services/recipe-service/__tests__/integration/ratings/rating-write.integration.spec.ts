@@ -1,5 +1,5 @@
 /**
- * CR-001 / FR-013 — the rating WRITE path (`PUT`/`DELETE /v1/recipes/{id}/rating`) end to end against the
+ * CR-001 / FR-013 — the rating WRITE path (`PUT`/`DELETE /api/v1/recipes/{id}/rating`) end to end against the
  * REAL booted Nest app + Docker Postgres. Where the sibling `aggregate-trigger` spec proves the trigger
  * in isolation via raw SQL, this proves the whole write path: the DAL upsert/delete, the authorization
  * (visibility + own-recipe), and — the crux — that a `PUT` re-reads and returns the recipe with its
@@ -81,7 +81,7 @@ describe.skipIf(!hasDatabaseUrl)('rating write path (integration)', () => {
     }
 
     async function putRating(id: string, stars: number): Promise<Response> {
-        return fetch(`${baseUrl}/v1/recipes/${id}/rating`, {
+        return fetch(`${baseUrl}/api/v1/recipes/${id}/rating`, {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ stars }),
@@ -105,7 +105,7 @@ describe.skipIf(!hasDatabaseUrl)('rating write path (integration)', () => {
         expect(body.nutrition).toBeTypeOf('object');
 
         // And a fresh GET agrees (the aggregate is persisted, not a per-response fabrication).
-        const get = await fetch(`${baseUrl}/v1/recipes/${recipe}`);
+        const get = await fetch(`${baseUrl}/api/v1/recipes/${recipe}`);
         expect(((await get.json()) as RecipeDetailBody).averageRating).toBe(5);
     });
 
@@ -130,7 +130,7 @@ describe.skipIf(!hasDatabaseUrl)('rating write path (integration)', () => {
             SECOND_RATER,
         ]);
 
-        const get = await fetch(`${baseUrl}/v1/recipes/${recipe}`);
+        const get = await fetch(`${baseUrl}/api/v1/recipes/${recipe}`);
         const body = (await get.json()) as RecipeDetailBody;
         expect(body.ratingCount).toBe(2);
         expect(body.averageRating).toBe(3.5); // (5 + 2) / 2 — a sum would be 7, "latest" would be 2
@@ -178,10 +178,10 @@ describe.skipIf(!hasDatabaseUrl)('rating write path (integration)', () => {
         const recipe = await seedRecipe(OTHER_OWNER, 'public', 'Delete me');
         await putRating(recipe, 4);
 
-        const del = await fetch(`${baseUrl}/v1/recipes/${recipe}/rating`, { method: 'DELETE' });
+        const del = await fetch(`${baseUrl}/api/v1/recipes/${recipe}/rating`, { method: 'DELETE' });
         expect(del.status).toBe(204);
 
-        const get = await fetch(`${baseUrl}/v1/recipes/${recipe}`);
+        const get = await fetch(`${baseUrl}/api/v1/recipes/${recipe}`);
         const body = (await get.json()) as RecipeDetailBody;
         expect(body.ratingCount).toBe(0);
         // Unrated → the average is ABSENT (never a real 0-star score).
@@ -191,14 +191,14 @@ describe.skipIf(!hasDatabaseUrl)('rating write path (integration)', () => {
     it('DELETE is idempotent — removing a rating the caller never made still returns 204', async () => {
         const recipe = await seedRecipe(OTHER_OWNER, 'public', 'Never rated');
 
-        const del = await fetch(`${baseUrl}/v1/recipes/${recipe}/rating`, { method: 'DELETE' });
+        const del = await fetch(`${baseUrl}/api/v1/recipes/${recipe}/rating`, { method: 'DELETE' });
         expect(del.status).toBe(204);
     });
 
     it('DELETE 404s (not 403) for a private recipe the caller cannot see', async () => {
         const privateNotMine = await seedRecipe(OTHER_OWNER, 'private', 'Secret to delete');
 
-        const del = await fetch(`${baseUrl}/v1/recipes/${privateNotMine}/rating`, { method: 'DELETE' });
+        const del = await fetch(`${baseUrl}/api/v1/recipes/${privateNotMine}/rating`, { method: 'DELETE' });
         expect(del.status).toBe(404);
     });
 });

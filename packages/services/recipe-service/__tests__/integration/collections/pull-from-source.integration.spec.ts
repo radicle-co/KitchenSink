@@ -1,7 +1,7 @@
 /**
  * T129 — pull-from-source integration test (real Nest app + Docker Postgres).
  *
- * Drives `POST /v1/collections/{id}/pull-from-source` end to end over a real clone. Proves the FR-011
+ * Drives `POST /api/v1/collections/{id}/pull-from-source` end to end over a real clone. Proves the FR-011
  * reconciliation rules against actual rows rather than a mocked DAL:
  *   - a recipe added to the SOURCE after the clone arrives with `added_via = 'pull'`;
  *   - a recipe the cloner added themselves keeps its `manual` provenance (never overwritten);
@@ -71,14 +71,14 @@ describe.skipIf(!hasDatabaseUrl)('collection pull-from-source (FR-011 integratio
 
     /** Clone the shared source as the dev-bypass principal and return the new collection's id. */
     async function cloneSource(): Promise<string> {
-        const res = await fetch(`${baseUrl}/v1/collections/${sourceId}/clone`, { method: 'POST' });
+        const res = await fetch(`${baseUrl}/api/v1/collections/${sourceId}/clone`, { method: 'POST' });
         expect(res.status).toBe(201);
 
         return ((await res.json()) as CollectionBody).id;
     }
 
     async function pull(collectionId: string): Promise<Response> {
-        return fetch(`${baseUrl}/v1/collections/${collectionId}/pull-from-source`, { method: 'POST' });
+        return fetch(`${baseUrl}/api/v1/collections/${collectionId}/pull-from-source`, { method: 'POST' });
     }
 
     async function membershipsOf(collectionId: string): Promise<{ recipeId: string; addedVia: string }[]> {
@@ -136,7 +136,7 @@ describe.skipIf(!hasDatabaseUrl)('collection pull-from-source (FR-011 integratio
         // still EMPTY, so the cloner's own row is the only one for `shared`. Seeding the source first
         // would make it a clone_seed row and the "don't overwrite MY addition" case would go untested.
         const cloneId = await cloneSource();
-        await fetch(`${baseUrl}/v1/collections/${cloneId}/recipes`, {
+        await fetch(`${baseUrl}/api/v1/collections/${cloneId}/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ recipeId: shared }),
@@ -182,7 +182,9 @@ describe.skipIf(!hasDatabaseUrl)('collection pull-from-source (FR-011 integratio
 
         // FR-011's "no longer accessible" clause: the recipe is gone from the clone's READ via the
         // membership-IDOR guard — no row deletion needed, and it would return if it went public again.
-        const view = (await (await fetch(`${baseUrl}/v1/collections/${cloneId}`)).json()) as CollectionWithRecipesBody;
+        const view = (await (
+            await fetch(`${baseUrl}/api/v1/collections/${cloneId}`)
+        ).json()) as CollectionWithRecipesBody;
         expect(view.recipes.map((r) => r.id)).not.toContain(wentPrivate);
 
         await db.delete(recipeCollections).where(eq(recipeCollections.collectionId, sourceId));
@@ -203,7 +205,7 @@ describe.skipIf(!hasDatabaseUrl)('collection pull-from-source (FR-011 integratio
         expect(firstPulledAt).toBeGreaterThanOrEqual(beforeFirstPull);
         expect(firstPulledAt).toBeLessThanOrEqual(afterFirstPull);
 
-        const getBody = (await (await fetch(`${baseUrl}/v1/collections/${cloneId}`)).json()) as {
+        const getBody = (await (await fetch(`${baseUrl}/api/v1/collections/${cloneId}`)).json()) as {
             lastPulledAt?: string;
         };
         expect(getBody.lastPulledAt).toBe(firstBody.collection.lastPulledAt);
@@ -220,7 +222,7 @@ describe.skipIf(!hasDatabaseUrl)('collection pull-from-source (FR-011 integratio
     });
 
     it('400s COLLECTION_NOT_CLONED on a collection that was never cloned', async () => {
-        const created = await fetch(`${baseUrl}/v1/collections`, {
+        const created = await fetch(`${baseUrl}/api/v1/collections`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ name: 'Authored Directly' }),

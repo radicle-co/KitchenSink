@@ -2,7 +2,7 @@
  * T051 — Clone + visibility (US2) integration spec (real Nest app + Docker Postgres via
  * `tests/global-setup.ts`).
  *
- * Drives the `POST /v1/recipes/{id}/clone` and `PATCH /v1/recipes/{id}/visibility` HTTP surfaces end to
+ * Drives the `POST /api/v1/recipes/{id}/clone` and `PATCH /api/v1/recipes/{id}/visibility` HTTP surfaces end to
  * end against a live database, asserting the invariants the fake-DB unit tests cannot:
  *
  * - **Clone (FR-011)** — attribution is RETAINED for an imported source and RECORDED to the original
@@ -132,7 +132,7 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
             sourceType: 'user_created',
         });
 
-        const res = await fetch(`${baseUrl}/v1/recipes/${sourceId}/clone`, {
+        const res = await fetch(`${baseUrl}/api/v1/recipes/${sourceId}/clone`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({}),
@@ -176,7 +176,7 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
                 sourceAttribution: 'Famous Chef',
             });
 
-            const res = await fetch(`${closeAuthorApp.baseUrl}/v1/recipes/${sourceId}/clone`, {
+            const res = await fetch(`${closeAuthorApp.baseUrl}/api/v1/recipes/${sourceId}/clone`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({}),
@@ -218,7 +218,7 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
         });
 
         for (const notViewableId of [privateId, publicDraftId]) {
-            const res = await fetch(`${baseUrl}/v1/recipes/${notViewableId}/clone`, {
+            const res = await fetch(`${baseUrl}/api/v1/recipes/${notViewableId}/clone`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({}),
@@ -234,7 +234,7 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
         const metaId = await seedRecipe(db, { ownerId: CLONER, title: 'Rename Only', sourceType: 'user_created' });
 
         // Content edit → substantive.
-        const contentRes = await fetch(`${baseUrl}/v1/recipes/${contentId}`, {
+        const contentRes = await fetch(`${baseUrl}/api/v1/recipes/${contentId}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ expectedVersion: 1, steps: [{ instruction: 'A brand new step' }] }),
@@ -243,7 +243,7 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
         expect((await readRow(db, contentId)).hasSubstantiveEdit).toBe(true);
 
         // Metadata-only edit → NOT substantive.
-        const metaRes = await fetch(`${baseUrl}/v1/recipes/${metaId}`, {
+        const metaRes = await fetch(`${baseUrl}/api/v1/recipes/${metaId}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ expectedVersion: 1, title: 'Renamed Only' }),
@@ -261,7 +261,7 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
         });
 
         // Free-tier user_created is public-only → private denied.
-        const denied = await fetch(`${baseUrl}/v1/recipes/${id}/visibility`, {
+        const denied = await fetch(`${baseUrl}/api/v1/recipes/${id}/visibility`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ visibility: 'private' }),
@@ -270,7 +270,7 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
         expect((await denied.json()).code).toBe('INVALID_VISIBILITY');
 
         // Public is always allowed for user_created; visibility unchanged but the call succeeds.
-        const allowed = await fetch(`${baseUrl}/v1/recipes/${id}/visibility`, {
+        const allowed = await fetch(`${baseUrl}/api/v1/recipes/${id}/visibility`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ visibility: 'public' }),
@@ -293,7 +293,7 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
             steps: [{ instruction: 'Mix' }],
         };
 
-        const denied = await fetch(`${baseUrl}/v1/recipes`, {
+        const denied = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ ...createBody, visibility: 'private' }),
@@ -309,7 +309,7 @@ describe.skipIf(!hasDatabaseUrl)('Clone + visibility US2 (integration)', () => {
         expect(count).toBe(0);
 
         // The same create with public (the free-tier-allowed value) succeeds.
-        const allowed = await fetch(`${baseUrl}/v1/recipes`, {
+        const allowed = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ ...createBody, visibility: 'public' }),

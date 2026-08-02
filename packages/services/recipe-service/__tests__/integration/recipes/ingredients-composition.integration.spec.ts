@@ -1,8 +1,8 @@
 /**
  * T043b (integration) — recipe↔ingredient composition against the real Nest app + Docker Postgres.
  *
- * Proves the seam end to end over HTTP: `POST /v1/recipes` persists `recipe_ingredients` link rows for
- * each line (resolved against the seeded catalog), `GET /v1/recipes/{id}` composes them back into the
+ * Proves the seam end to end over HTTP: `POST /api/v1/recipes` persists `recipe_ingredients` link rows for
+ * each line (resolved against the seeded catalog), `GET /api/v1/recipes/{id}` composes them back into the
  * response `ingredients` array in author order, `PATCH` replaces the whole link set, and an unknown
  * `ingredientId` is rejected with 400 `UNKNOWN_INGREDIENT` rather than a raw FK 500. Skipped in lockstep
  * with the global setup when the harness DB is not configured.
@@ -56,7 +56,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
     });
 
     it('persists ingredient links on create and composes them on read', async () => {
-        const createResponse = await fetch(`${baseUrl}/v1/recipes`, {
+        const createResponse = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
@@ -77,7 +77,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
         ]);
 
         // ...and again on a fresh read (JOIN recipe_ingredients → ingredients).
-        const getResponse = await fetch(`${baseUrl}/v1/recipes/${created.id}`);
+        const getResponse = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`);
         expect(getResponse.status).toBe(200);
         const fetched = (await getResponse.json()) as RecipeBody;
         expect(fetched.ingredients.map((line) => line.ingredientId)).toEqual([FLOUR.id, SUGAR.id]);
@@ -85,7 +85,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
 
     it('replaces the whole link set on update', async () => {
         const created = (await (
-            await fetch(`${baseUrl}/v1/recipes`, {
+            await fetch(`${baseUrl}/api/v1/recipes`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({
@@ -95,7 +95,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
             })
         ).json()) as RecipeBody;
 
-        const patchResponse = await fetch(`${baseUrl}/v1/recipes/${created.id}`, {
+        const patchResponse = await fetch(`${baseUrl}/api/v1/recipes/${created.id}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
@@ -105,14 +105,14 @@ describe.skipIf(!hasDatabaseUrl)('recipe↔ingredient composition (integration)'
         });
         expect(patchResponse.status).toBe(200);
 
-        const fetched = (await (await fetch(`${baseUrl}/v1/recipes/${created.id}`)).json()) as RecipeBody;
+        const fetched = (await (await fetch(`${baseUrl}/api/v1/recipes/${created.id}`)).json()) as RecipeBody;
         expect(fetched.ingredients).toEqual([
             { ingredientId: SUGAR.id, name: 'Sugar', quantity: 3, unit: 'tsp', isUserEntered: true },
         ]);
     });
 
     it('rejects an unknown ingredientId with 400 UNKNOWN_INGREDIENT', async () => {
-        const response = await fetch(`${baseUrl}/v1/recipes`, {
+        const response = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({

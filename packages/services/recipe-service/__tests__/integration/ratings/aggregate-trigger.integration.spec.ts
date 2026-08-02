@@ -4,7 +4,7 @@
  * this trigger, so this is the tier that proves the database — not application code — keeps them correct
  * under insert / update / delete / bulk-delete / FK-cascade / concurrent-write.
  *
- * Why a direct pg pool (not the booted app): the write path (`PUT/DELETE /v1/recipes/{id}/rating`) does
+ * Why a direct pg pool (not the booted app): the write path (`PUT/DELETE /api/v1/recipes/{id}/rating`) does
  * not exist yet — it is a later task. The trigger fires on ANY write to `recipe_ratings`, so raw SQL
  * against the schema exercises exactly the invariant this task owns, and two independent connections are
  * what the deterministic lost-update proof needs. Only a real Postgres has the trigger, the FOR UPDATE

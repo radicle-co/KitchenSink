@@ -39,7 +39,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
 
     /** Create the shared freeform ingredient over HTTP and return its id. */
     async function createFreeform(): Promise<string> {
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients`, {
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ name: FREEFORM_NAME }),
@@ -54,7 +54,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
     it('GET /{id}/status on a freeform ingredient returns it unchanged (200, no food call)', async () => {
         const id = await createFreeform();
 
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/${id}/status`);
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/${id}/status`);
 
         expect(res.status).toBe(200);
         const body = (await res.json()) as { id: string; foodResolutionStatus?: string };
@@ -65,7 +65,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
     it('GET /{id}/candidates on a freeform ingredient is an empty list (200)', async () => {
         const id = await createFreeform();
 
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/${id}/candidates`);
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/${id}/candidates`);
 
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual([]);
@@ -74,7 +74,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
     it('POST /{id}/resolve on a freeform ingredient is a no-op that returns it (200)', async () => {
         const id = await createFreeform();
 
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/${id}/resolve`, {
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/${id}/resolve`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ candidateIds: ['cand-1'] }),
@@ -87,7 +87,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
     it('POST /{id}/resolve with an empty candidateIds is a 400', async () => {
         const id = await createFreeform();
 
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/${id}/resolve`, {
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/${id}/resolve`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ candidateIds: [] }),
@@ -101,7 +101,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
         // integration tiers (where the food client is stubbable). Here we pin that the async-resolution ENTRY
         // POINT is actually wired into the assembled app: a mounted route validates a blank name to 400 (a
         // MISSING route would 404), and validation short-circuits before the un-stubbed food client is touched.
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/by-name`, {
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/by-name`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ name: '   ' }),
@@ -125,7 +125,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
     it('GET /suggest still returns 200 with the LOCAL section when the food service is ABSENT (F2)', async () => {
         await createFreeform();
 
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/suggest?q=${encodeURIComponent(FREEFORM_NAME)}`);
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/suggest?q=${encodeURIComponent(FREEFORM_NAME)}`);
 
         expect(res.status).toBe(200);
         const body = (await res.json()) as {
@@ -144,7 +144,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
     it('GET /suggest degrades within a BOUNDED time (never the 8s default, whichever degradation applies)', async () => {
         const startedAt = Date.now();
 
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/suggest?q=${encodeURIComponent(FREEFORM_NAME)}`);
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/suggest?q=${encodeURIComponent(FREEFORM_NAME)}`);
 
         expect(res.status).toBe(200);
         // Generous upper bound — the assertion is that a bound EXISTS on a per-keystroke path, not a
@@ -153,13 +153,13 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
     });
 
     it('GET /suggest with a blank q is a 400 (route mounted, query validated)', async () => {
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/suggest?q=%20%20`);
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/suggest?q=%20%20`);
 
         expect(res.status).toBe(400);
     });
 
     it('GET /suggest with a non-numeric limit is a 400', async () => {
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/suggest?q=spice&limit=abc`);
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/suggest?q=spice&limit=abc`);
 
         expect(res.status).toBe(400);
     });
@@ -168,7 +168,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
         // Mirrors the `/by-name` proof: a mounted route validates to 400 (a MISSING route would 404), and
         // validation short-circuits before the un-stubbed food client is touched. The admitted-with-nutrition
         // happy path (F1) is proven at the unit + integration tiers, where the food client is stubbable.
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/by-food`, {
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/by-food`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ foodId: '   ' }),
@@ -181,7 +181,7 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
         // The whitelist must drop `name` before the service sees the body. Proven negatively at the assembled
         // boundary: with only a blank `foodId`, the request is a 400 regardless of what else was sent — a DTO
         // that accepted `name` as an alternative label would not fail closed like this.
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/by-food`, {
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/by-food`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ foodId: '   ', name: 'Definitely not chicken' }),
@@ -191,13 +191,13 @@ describe.skipIf(!hasDatabaseUrl)('ingredient async-resolution surface (e2e, asse
     });
 
     it('GET /{id}/status for a non-existent ingredient is a 404', async () => {
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/${MISSING_ID}/status`);
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/${MISSING_ID}/status`);
 
         expect(res.status).toBe(404);
     });
 
     it('GET /{id}/candidates for a malformed (non-UUID) id is a 400 (ParseUUIDPipe)', async () => {
-        const res = await fetch(`${booted.baseUrl}/v1/ingredients/not-a-uuid/candidates`);
+        const res = await fetch(`${booted.baseUrl}/api/v1/ingredients/not-a-uuid/candidates`);
 
         expect(res.status).toBe(400);
     });

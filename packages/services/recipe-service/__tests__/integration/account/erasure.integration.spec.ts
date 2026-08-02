@@ -1,11 +1,11 @@
 /**
- * T137 — `POST /v1/account/erasure` against the REAL stack (booted Nest app + Docker Postgres +
+ * T137 — `POST /api/v1/account/erasure` against the REAL stack (booted Nest app + Docker Postgres +
  * LocalStack SQS). The service half of the GDPR right-to-erasure path (C-007 / D7).
  *
  * Requirement → test map:
  *
  *   * C-007 "a first request enqueues a job" (`api.openapi.yaml` → `requestAccountErasure` → 202)
- *     → `describe('POST /v1/account/erasure over the wire')`
+ *     → `describe('POST /api/v1/account/erasure over the wire')`
  *       → 'answers 202 — not the POST default 201 — and durably records a queued job'
  *       → 'sends exactly one real erasure message carrying the authenticated owner'
  *   * C-007 "duplicate while queued/running → 202 with the EXISTING job id, no second enqueue"
@@ -13,10 +13,10 @@
  *       → 'settle to ONE job and ONE message, handing both callers the same job id'
  *       → 'are arbitrated by idx_erasure_jobs_active_owner, not by application code'
  *   * C-007 "after a completed job → 410 ALREADY_ERASED"
- *     → `describe('POST /v1/account/erasure over the wire')`
+ *     → `describe('POST /api/v1/account/erasure over the wire')`
  *       → 'answers 410 with the contract ALREADY_ERASED body once a prior job completed'
  *   * `ErasureRequest.confirmationPhrase` REQUIRED (U7) — a mismatched, empty, or absent phrase → 400
- *     → `describe('POST /v1/account/erasure over the wire')`
+ *     → `describe('POST /api/v1/account/erasure over the wire')`
  *       → 'answers 400 for a mismatched confirmation phrase without recording a job'
  *       → 'REJECTS a request with no body and no content-type with 400 — the phrase is required (U7)'
  *
@@ -95,7 +95,7 @@ describe.skipIf(!hasDatabaseUrl)('account erasure HTTP + queue (T137 integration
     let sqs: SQSClient;
 
     beforeAll(async () => {
-        // Lift the rate limit OFF this suite's subject. `POST /v1/account/erasure` is currently capped at
+        // Lift the rate limit OFF this suite's subject. `POST /api/v1/account/erasure` is currently capped at
         // 10 requests/minute — verified empirically, the 11th returns 429 — because no controller in the
         // service applies `@Throttle`, so all three named groups in `throttle.config.ts` apply to every
         // route at once and the most restrictive (`RATE_LIMIT_PHOTO_UPLOAD`, default 10) governs. That is
@@ -178,7 +178,7 @@ describe.skipIf(!hasDatabaseUrl)('account erasure HTTP + queue (T137 integration
 
     /** POST an erasure request. Omitting `body` sends no body and no content-type at all. */
     const postErasure = (body?: unknown): Promise<Response> =>
-        fetch(`${baseUrl}/v1/account/erasure`, {
+        fetch(`${baseUrl}/api/v1/account/erasure`, {
             method: 'POST',
             ...(body === undefined
                 ? {}
@@ -193,7 +193,7 @@ describe.skipIf(!hasDatabaseUrl)('account erasure HTTP + queue (T137 integration
             .where(eq(accountErasureJobs.ownerId, OWNER));
     }
 
-    describe('POST /v1/account/erasure over the wire', () => {
+    describe('POST /api/v1/account/erasure over the wire', () => {
         it('answers 202 — not the POST default 201 — and durably records a queued job', async () => {
             const response = await postErasure(CONFIRMED);
 

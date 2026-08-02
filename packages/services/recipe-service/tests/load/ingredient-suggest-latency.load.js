@@ -1,6 +1,6 @@
 // Blended-ingredient-typeahead latency scenario (search Stage 2).
 //
-// Drives GET /v1/ingredients/suggest under ramping concurrency. This route is the one place in the recipe
+// Drives GET /api/v1/ingredients/suggest under ramping concurrency. This route is the one place in the recipe
 // service where a CROSS-SERVICE HTTP call sits on a PER-KEYSTROKE path, so it is also the one place where the
 // F2 availability budget has to hold under load rather than just in a unit test:
 //
@@ -57,7 +57,7 @@ export const options = {
 export function suggestPath() {
     const prefix = PREFIXES[(__ITER + __VU) % PREFIXES.length];
 
-    const res = http.get(`${BASE_URL}/v1/ingredients/suggest?q=${encodeURIComponent(prefix)}&limit=10`, {
+    const res = http.get(`${BASE_URL}/api/v1/ingredients/suggest?q=${encodeURIComponent(prefix)}&limit=10`, {
         headers: authHeaders(),
         tags: { operation: 'suggestIngredients' },
     });

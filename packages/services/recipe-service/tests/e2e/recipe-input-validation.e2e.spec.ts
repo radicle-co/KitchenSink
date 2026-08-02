@@ -42,7 +42,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe input validation caps + value rejection
     });
 
     async function create(body: Record<string, unknown>): Promise<Response> {
-        return fetch(`${booted.baseUrl}/v1/recipes`, {
+        return fetch(`${booted.baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(body),

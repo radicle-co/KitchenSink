@@ -186,8 +186,8 @@ async function main() {
         try {
             const token = await freshAdminToken();
             const [queue, metrics, cloudwatch] = await Promise.all([
-                getJson('/v1/foods/admin/queue', token),
-                getJson('/v1/foods/admin/metrics', token),
+                getJson('/api/v1/foods/admin/queue', token),
+                getJson('/api/v1/foods/admin/metrics', token),
                 cloudwatchSnapshot(),
             ]);
 

@@ -100,7 +100,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo delete lifecycle — S3 delete + 
         // The REAL, DI-resolved port the app wires photo-delete against (see module docstring above).
         cdn = booted.app.get(PHOTOS_CDN);
 
-        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+        const createRes = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(RECIPE_PAYLOAD),
@@ -117,7 +117,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo delete lifecycle — S3 delete + 
     it('deletes the S3 original + thumbnail, invalidates BOTH CDN paths, and drops the photo from the list', async () => {
         // Upload + confirm a real, decodable PNG so confirm's thumbnail generation actually produces a
         // second stored object — this test needs BOTH keys to exist so the delete path has two to clean up.
-        const presignRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/upload-url`, {
+        const presignRes = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}/photos/upload-url`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
@@ -135,7 +135,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo delete lifecycle — S3 delete + 
         });
         expect(putRes.ok).toBe(true);
 
-        const confirmRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/confirm`, {
+        const confirmRes = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}/photos/confirm`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ key: presigned.key, contentType: 'image/png' }),
@@ -150,7 +150,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo delete lifecycle — S3 delete + 
 
         invalidateSpy = vi.spyOn(cdn, 'invalidate');
 
-        const deleteRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/${photo.id}`, { method: 'DELETE' });
+        const deleteRes = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}/photos/${photo.id}`, { method: 'DELETE' });
         expect(deleteRes.status).toBe(204);
 
         // 1. Both S3 objects are genuinely gone (real HEAD 404s, not a mocked assertion).
@@ -162,15 +162,18 @@ describe.skipIf(!hasDatabaseUrl)('recipe photo delete lifecycle — S3 delete + 
         expect(invalidateSpy).toHaveBeenCalledWith(expect.arrayContaining([`/${photo.key}`, `/${thumbnailKey}`]));
 
         // 3. The photo no longer appears in the recipe's list.
-        const listRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos`);
+        const listRes = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}/photos`);
         const list = (await listRes.json()) as PhotoBody[];
         expect(list.some((entry) => entry.id === photo.id)).toBe(false);
     });
 
     it('404s deleting an already-deleted (or unknown) photo id', async () => {
-        const deleteRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/00000000-0000-4000-8000-00000000dead`, {
-            method: 'DELETE',
-        });
+        const deleteRes = await fetch(
+            `${baseUrl}/api/v1/recipes/${recipeId}/photos/00000000-0000-4000-8000-00000000dead`,
+            {
+                method: 'DELETE',
+            },
+        );
         expect(deleteRes.status).toBe(404);
     });
 });

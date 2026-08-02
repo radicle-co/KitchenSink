@@ -1,6 +1,6 @@
 // Service-principal account-erasure load scenario (CR-002 / U4a — the internal machine-auth route).
 //
-// Exercises `POST /v1/internal/account/erasure`, guarded NOT by Clerk but by a single-target EdDSA service
+// Exercises `POST /api/v1/internal/account/erasure`, guarded NOT by Clerk but by a single-target EdDSA service
 // token (`ServiceErasureGuard`). Two ramping-vus scenarios run together:
 //   - `erase`  — presents a VALID single-target token (bound to a distinct synthetic, non-existent owner)
 //                and asserts 202 accepted + p95 latency. The erase is an idempotent no-op on a synthetic
@@ -74,7 +74,7 @@ export const options = {
 
 /** POST the erasure with the given bearer; the target owner is BOUND IN THE TOKEN (no body). */
 function postErasure(bearer, op) {
-    return http.post(`${BASE_URL}/v1/internal/account/erasure`, null, {
+    return http.post(`${BASE_URL}/api/v1/internal/account/erasure`, null, {
         headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' },
         tags: { operation: op },
     });

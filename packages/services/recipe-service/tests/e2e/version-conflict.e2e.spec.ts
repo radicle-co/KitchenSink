@@ -40,7 +40,7 @@ describe.skipIf(!hasDatabaseUrl)('enriched version conflict (e2e, assembled app)
 
     /** Create a recipe through the API so it gets a real v1 version snapshot; returns its id. */
     async function createRecipe(): Promise<string> {
-        const res = await fetch(`${booted.baseUrl}/v1/recipes`, {
+        const res = await fetch(`${booted.baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
@@ -59,7 +59,7 @@ describe.skipIf(!hasDatabaseUrl)('enriched version conflict (e2e, assembled app)
     }
 
     async function update(id: string, expectedVersion: number, title: string): Promise<Response> {
-        return fetch(`${booted.baseUrl}/v1/recipes/${id}`, {
+        return fetch(`${booted.baseUrl}/api/v1/recipes/${id}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ expectedVersion, title }),

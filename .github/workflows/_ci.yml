@@ -676,8 +676,8 @@ jobs:
         # `npm run dev`, so a developer machine and CI resolve identical origins.
         #
         # These localhost values are the CORRECT ones for this suite, not a placeholder: every spec mocks the
-        # API with the ORIGIN-AGNOSTIC glob `page.route('**/v1/**')` (tests/e2e/utils/recipeApi.ts, plus the
-        # two narrower `**/v1/...` routes in accountDangerZone/ingredientCatalogPick), and no spec ever builds
+        # API with the ORIGIN-AGNOSTIC glob `page.route('**/api/v1/**')` (tests/e2e/utils/recipeApi.ts, plus the
+        # two narrower `**/api/v1/...` routes in accountDangerZone/ingredientCatalogPick), and no spec ever builds
         # a URL out of these vars — so the browser-side origin only has to be a valid absolute URL. Port 3000
         # is the Playwright dev server itself and nothing listens on 4000, which means the SERVER-side SSR
         # prefetch (which `page.route` cannot intercept) fails and each page degrades to its client fetch —

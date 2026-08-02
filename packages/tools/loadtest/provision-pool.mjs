@@ -5,7 +5,7 @@
  * from one machine trips a multi-minute cool-down. Clerk's BACKEND API can create a session + mint a
  * session token directly (POST /sessions, POST /sessions/{id}/tokens) — no FAPI, no per-IP throttle. The
  * resulting token has no `azp`, which the food guard accepts (Clerk's verifyToken only checks `azp` when
- * present). Confirmed: GET /v1/foods/search → 200 with such a token.
+ * present). Confirmed: GET /api/v1/foods/search → 200 with such a token.
  *
  * PERSISTENT: users have STABLE emails (test-{name}@radcile.com) and are created-or-REUSED, never torn
  * down by a load run — so the pool survives across runs (only `npm run sweep` deletes them). Each run
@@ -158,7 +158,7 @@ async function provisionAdmin() {
     let verified = 0;
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
-        const res = await fetch(`${FOOD_BASE_URL}/v1/foods/admin/queue`, {
+        const res = await fetch(`${FOOD_BASE_URL}/api/v1/foods/admin/queue`, {
             headers: { Authorization: `Bearer ${session.jwt}` },
         });
         verified = res.status;

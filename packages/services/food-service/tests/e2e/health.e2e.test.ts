@@ -92,7 +92,7 @@ describe.skipIf(!DATABASE_URL)('food-service E2E (booted app + Docker Postgres)'
         await pool.query(`DELETE FROM food WHERE id = 'e2e-health-probe'`);
     });
 
-    // TODO(Phase 2, T-061/T-063): E2E `GET /v1/foods/:id` — cache-hit 200 (no USDA call),
+    // TODO(Phase 2, T-061/T-063): E2E `GET /api/v1/foods/:id` — cache-hit 200 (no USDA call),
     //   cache-miss → 202 + a `fetch_queue` row, then the worker drains and a re-request returns 200,
     //   plus concurrent same-fdcId dedup and batch partial-success, all through the booted HTTP API.
     // TODO(Phase 3, T-023): assert the fetch-completion fan-out lands on EventBridge via LocalStack

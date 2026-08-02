@@ -73,7 +73,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe version retention (integration)', () =>
 
     it('leaves EVERY version in Postgres and records the over-retention ones in the outbox', async () => {
         // Create the golden recipe the versions attach to (recipe_versions.recipe_id is an FK).
-        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+        const createRes = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(CREATE_PAYLOAD),
@@ -126,7 +126,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe version retention (integration)', () =>
     });
 
     it('re-enqueues idempotently, so a repeated save cannot fan out duplicate archive work', async () => {
-        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+        const createRes = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(CREATE_PAYLOAD),

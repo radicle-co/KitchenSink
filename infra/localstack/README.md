@@ -51,5 +51,5 @@ and the `e2e-food` CI job (from a GitHub Actions secret) at that point.
 
 - **Foundation (in place now):** compose file, `localstack:up` / `localstack:down` scripts, the
   `e2e-food` CI job, and the booted-app + Postgres `/health` E2E.
-- **Phase 2/3 (to come):** `GET /v1/foods/:id` cache-hit / cache-miss → queue → worker drain, dedup,
+- **Phase 2/3 (to come):** `GET /api/v1/foods/:id` cache-hit / cache-miss → queue → worker drain, dedup,
   batch partial-success, and the EventBridge fan-out assertion via LocalStack.

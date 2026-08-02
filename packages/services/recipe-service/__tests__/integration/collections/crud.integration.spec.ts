@@ -272,7 +272,7 @@ describe.skipIf(!hasDatabaseUrl)('Collections CRUD + membership (integration)', 
     // W5 Task 4: the source-indicator checkbox (C3) needs each member's provenance on the collection
     // embed. Seed the three provenance kinds directly through the DAL (clone_seed/pull are normally only
     // written internally by cloneCollection/pullFromSource, not a public "add with provenance" endpoint)
-    // and assert `GET /v1/collections/:id` (service.getCollection, the controller's exact call) reports
+    // and assert `GET /api/v1/collections/:id` (service.getCollection, the controller's exact call) reports
     // each member's addedVia correctly.
     it("exposes each member's addedVia matching how it entered the collection", async () => {
         const collection = await service.createCollection(OWNER, { name: 'Provenance' });

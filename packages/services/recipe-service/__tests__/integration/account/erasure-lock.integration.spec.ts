@@ -7,19 +7,19 @@
  *
  * Requirement → test map:
  *
- *   - **The gap HAZ-052 closes, proven closed** — `POST /v1/recipes` and `POST /v1/collections` return
+ *   - **The gap HAZ-052 closes, proven closed** — `POST /api/v1/recipes` and `POST /api/v1/collections` return
  *     `423 ERASURE_IN_PROGRESS` (not 201) while the owner has a `queued`/`running` erasure job, and no
  *     row is written.
  *     → `describe('mutations are locked while an erasure job is in flight')`
- *   - **Reads stay unblocked** — `GET /v1/recipes` still `200`s for the same locked owner.
+ *   - **Reads stay unblocked** — `GET /api/v1/recipes` still `200`s for the same locked owner.
  *     → `describe('reads are never locked')`
  *   - **Per-owner isolation** — a DIFFERENT owner's mutation is unaffected by the first owner's lock.
  *     → `describe('the lock is scoped to the owner, not global')`
  *   - **Terminal jobs do not lock** — once the job is `completed`/`failed`, mutations are allowed again.
  *     → `describe('a terminal job does not lock')`
- *   - **The erasure-request endpoint itself is exempt** — `POST /v1/account/erasure` still answers its
+ *   - **The erasure-request endpoint itself is exempt** — `POST /api/v1/account/erasure` still answers its
  *     own C-007 idempotent `202` (not `423`) while a job is in flight.
- *     → `describe('POST /v1/account/erasure is exempt from its own lock')`
+ *     → `describe('POST /api/v1/account/erasure is exempt from its own lock')`
  *
  * Runs only when the harness DB is configured — otherwise skipped in lockstep with the global setup.
  */
@@ -89,14 +89,14 @@ describe.skipIf(!hasDatabaseUrl)('ErasureLockGuard over the wire (HAZ-052 integr
     }
 
     const postRecipe = (): Promise<Response> =>
-        fetch(`${baseUrl}/v1/recipes`, {
+        fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(RECIPE_PAYLOAD),
         });
 
     const postCollection = (): Promise<Response> =>
-        fetch(`${baseUrl}/v1/collections`, {
+        fetch(`${baseUrl}/api/v1/collections`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ name: 'Erasure Lock Probe' }),
@@ -104,7 +104,7 @@ describe.skipIf(!hasDatabaseUrl)('ErasureLockGuard over the wire (HAZ-052 integr
 
     describe('mutations are locked while an erasure job is in flight', () => {
         it.each<ErasureJobStatus>(['queued', 'running'])(
-            'rejects POST /v1/recipes with 423 ERASURE_IN_PROGRESS while the job is %s, and writes nothing',
+            'rejects POST /api/v1/recipes with 423 ERASURE_IN_PROGRESS while the job is %s, and writes nothing',
             async (status) => {
                 await seedJob(OWNER, status);
 
@@ -119,7 +119,7 @@ describe.skipIf(!hasDatabaseUrl)('ErasureLockGuard over the wire (HAZ-052 integr
             },
         );
 
-        it('rejects POST /v1/collections with 423 while an erasure job is queued, and writes nothing', async () => {
+        it('rejects POST /api/v1/collections with 423 while an erasure job is queued, and writes nothing', async () => {
             await seedJob(OWNER, 'queued');
 
             const response = await postCollection();
@@ -137,10 +137,10 @@ describe.skipIf(!hasDatabaseUrl)('ErasureLockGuard over the wire (HAZ-052 integr
     });
 
     describe('reads are never locked', () => {
-        it('still answers GET /v1/recipes with 200 while the owner has a queued erasure job', async () => {
+        it('still answers GET /api/v1/recipes with 200 while the owner has a queued erasure job', async () => {
             await seedJob(OWNER, 'queued');
 
-            const response = await fetch(`${baseUrl}/v1/recipes`);
+            const response = await fetch(`${baseUrl}/api/v1/recipes`);
 
             expect(response.status).toBe(200);
         });
@@ -162,7 +162,7 @@ describe.skipIf(!hasDatabaseUrl)('ErasureLockGuard over the wire (HAZ-052 integr
 
     describe('a terminal job does not lock', () => {
         it.each<ErasureJobStatus>(['completed', 'failed'])(
-            'allows POST /v1/recipes once the owner’s only job is %s',
+            'allows POST /api/v1/recipes once the owner’s only job is %s',
             async (status) => {
                 await seedJob(OWNER, status);
 
@@ -173,11 +173,11 @@ describe.skipIf(!hasDatabaseUrl)('ErasureLockGuard over the wire (HAZ-052 integr
         );
     });
 
-    describe('POST /v1/account/erasure is exempt from its own lock', () => {
+    describe('POST /api/v1/account/erasure is exempt from its own lock', () => {
         it('still answers 202 with the C-007 idempotent outcome — never 423 — while a job is in flight', async () => {
             await seedJob(OWNER, 'queued');
 
-            const response = await fetch(`${baseUrl}/v1/account/erasure`, {
+            const response = await fetch(`${baseUrl}/api/v1/account/erasure`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE }),

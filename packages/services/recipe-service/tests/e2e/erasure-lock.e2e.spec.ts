@@ -57,7 +57,7 @@ describe.skipIf(!hasDatabaseUrl)('erasure write-lock (e2e, assembled app)', () =
     it('answers 423 ERASURE_IN_PROGRESS for a mutating request while erasure is queued', async () => {
         await seedQueuedJob();
 
-        const response = await fetch(`${booted.baseUrl}/v1/collections`, {
+        const response = await fetch(`${booted.baseUrl}/api/v1/collections`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ name: 'e2e erasure-lock probe' }),
@@ -68,18 +68,18 @@ describe.skipIf(!hasDatabaseUrl)('erasure write-lock (e2e, assembled app)', () =
         expect(body.code).toBe('ERASURE_IN_PROGRESS');
     });
 
-    it('leaves reads untouched — GET /v1/collections still 200s while erasure is queued', async () => {
+    it('leaves reads untouched — GET /api/v1/collections still 200s while erasure is queued', async () => {
         await seedQueuedJob();
 
-        const response = await fetch(`${booted.baseUrl}/v1/collections`);
+        const response = await fetch(`${booted.baseUrl}/api/v1/collections`);
 
         expect(response.status).toBe(200);
     });
 
-    it('does not lock itself out — POST /v1/account/erasure still answers its own 202 while queued', async () => {
+    it('does not lock itself out — POST /api/v1/account/erasure still answers its own 202 while queued', async () => {
         await seedQueuedJob();
 
-        const response = await fetch(`${booted.baseUrl}/v1/account/erasure`, {
+        const response = await fetch(`${booted.baseUrl}/api/v1/account/erasure`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE }),

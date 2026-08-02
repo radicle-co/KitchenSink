@@ -48,7 +48,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe optimistic concurrency (integration)', 
 
     it('lets exactly one of two same-base-version updates win; the loser gets 409 and does not persist', async () => {
         const created = (await (
-            await fetch(`${baseUrl}/v1/recipes`, {
+            await fetch(`${baseUrl}/api/v1/recipes`, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify(CREATE_PAYLOAD),
@@ -58,7 +58,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe optimistic concurrency (integration)', 
 
         // Two edits racing from version 1, each renaming to a distinguishable title.
         const patch = (title: string): Promise<Response> =>
-            fetch(`${baseUrl}/v1/recipes/${created.id}`, {
+            fetch(`${baseUrl}/api/v1/recipes/${created.id}`, {
                 method: 'PATCH',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ expectedVersion: 1, title }),
@@ -82,7 +82,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe optimistic concurrency (integration)', 
 
         // The persisted state is the WINNER's — the loser's title never clobbered it, and the version is
         // exactly 2 (a single successful bump), proving no second write slipped through.
-        const finalState = (await (await fetch(`${baseUrl}/v1/recipes/${created.id}`)).json()) as RecipeBody;
+        const finalState = (await (await fetch(`${baseUrl}/api/v1/recipes/${created.id}`)).json()) as RecipeBody;
         expect(finalState.title).toBe(winner.title);
         expect(finalState.currentVersion).toBe(2);
     });

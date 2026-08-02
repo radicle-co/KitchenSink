@@ -96,7 +96,7 @@ describe.skipIf(!hasDatabaseUrl)('pull-from-source preview + drift (e2e, assembl
     it('preview returns the diff and mutates nothing (read-only)', async () => {
         const before = await membershipCount(cloneId);
 
-        const res = await fetch(`${booted.baseUrl}/v1/collections/${cloneId}/pull-from-source/preview`, {
+        const res = await fetch(`${booted.baseUrl}/api/v1/collections/${cloneId}/pull-from-source/preview`, {
             method: 'POST',
         });
         expect(res.status).toBe(200);
@@ -108,7 +108,7 @@ describe.skipIf(!hasDatabaseUrl)('pull-from-source preview + drift (e2e, assembl
     });
 
     it('commit with a matching echoed diff applies the added set', async () => {
-        const commit = await fetch(`${booted.baseUrl}/v1/collections/${cloneId}/pull-from-source`, {
+        const commit = await fetch(`${booted.baseUrl}/api/v1/collections/${cloneId}/pull-from-source`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ previewedDiff: { added: [recB], removed: [], unchanged: [recA] } }),
@@ -124,7 +124,7 @@ describe.skipIf(!hasDatabaseUrl)('pull-from-source preview + drift (e2e, assembl
         await pool.query('DELETE FROM recipe_collections WHERE collection_id = $1 AND recipe_id = $2', [cloneId, recA]);
         const before = await membershipCount(cloneId);
 
-        const commit = await fetch(`${booted.baseUrl}/v1/collections/${cloneId}/pull-from-source`, {
+        const commit = await fetch(`${booted.baseUrl}/api/v1/collections/${cloneId}/pull-from-source`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ previewedDiff: { added: [], removed: [], unchanged: [recA, recB] } }),

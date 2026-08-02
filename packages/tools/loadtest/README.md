@@ -132,7 +132,7 @@ run.mjs                      U5 — orchestrate setup → k6 → observe → rep
 
 ```bash
 # One-time per run: a dedicated food:admin observer (kept OUT of the VU pool).
-npm run grant-admin                            # writes admin.json; verifies /v1/foods/admin/queue -> 200
+npm run grant-admin                            # writes admin.json; verifies /api/v1/foods/admin/queue -> 200
 
 # Sample the service's own operational truth over the window (refreshes the ~60s admin token itself).
 DURATION_S=180 INTERVAL_S=10 \

@@ -59,7 +59,7 @@ describe.skipIf(!hasDatabaseUrl)('per-serving nutrition via a stored portion (in
     });
 
     it('scales per-100g nutrition by a matching portion for a volumetric unit', async () => {
-        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+        const createRes = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({

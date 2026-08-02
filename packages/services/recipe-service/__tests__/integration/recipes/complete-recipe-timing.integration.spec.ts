@@ -18,7 +18,7 @@
  * mechanics — "the test harness records a timestamp when the Create Recipe action is invoked... the
  * execution log is written as JSON containing `startTime`, `endTime`, and `elapsedMs` fields" — applied to
  * the backend leg of the "complete recipe" journey (Glossary: >=1 ingredient, >=1 instruction, >=1
- * photo — `POST /v1/recipes` with content, then the presign → upload → confirm photo flow). If the
+ * photo — `POST /api/v1/recipes` with content, then the presign → upload → confirm photo flow). If the
  * backend leg were slow or broken, no UI-level 5-minute budget could ever be met regardless of how fast a
  * human fills the form; this is the regression tripwire for THAT half of the budget, not a substitute for
  * the SYS-016/SYS-017 UI-level acceptance test the requirement is actually owned by.
@@ -92,7 +92,7 @@ describe.skipIf(!hasDatabaseUrl)('complete-recipe creation — backend-leg timin
         const startedAt = new Date();
 
         // 1. Create the recipe with >=1 ingredient and >=1 instruction in one call.
-        const createRes = await fetch(`${baseUrl}/v1/recipes`, {
+        const createRes = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(COMPLETE_RECIPE_PAYLOAD),
@@ -101,7 +101,7 @@ describe.skipIf(!hasDatabaseUrl)('complete-recipe creation — backend-leg timin
         const recipeId = ((await createRes.json()) as RecipeBody).id;
 
         // 2. Attach >=1 photo — the third Glossary "complete recipe" element (presign → PUT → confirm).
-        const presignRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/upload-url`, {
+        const presignRes = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}/photos/upload-url`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
@@ -120,7 +120,7 @@ describe.skipIf(!hasDatabaseUrl)('complete-recipe creation — backend-leg timin
         });
         expect(putRes.ok).toBe(true);
 
-        const confirmRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/confirm`, {
+        const confirmRes = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}/photos/confirm`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ key: presigned.key, contentType: 'image/png' }),

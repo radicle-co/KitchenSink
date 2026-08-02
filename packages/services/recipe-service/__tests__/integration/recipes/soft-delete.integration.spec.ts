@@ -2,7 +2,7 @@
  * T126 — C-007 / FR-002 soft-delete tombstone integration test (real Nest app + Docker Postgres +
  * LocalStack S3).
  *
- * Proves the guarantee that separates a soft delete from a hard one: `DELETE /v1/recipes/{id}` hides the
+ * Proves the guarantee that separates a soft delete from a hard one: `DELETE /api/v1/recipes/{id}` hides the
  * recipe from every normal API, but the ROW SURVIVES with `deleted_at` stamped, retained indefinitely
  * until an explicit GDPR erasure (C-007). Nothing else in the suite pins that: `recipes/crud` asserts
  * only 204-then-404, which a hard `DELETE FROM recipes` would satisfy identically — so a regression to a
@@ -14,7 +14,7 @@
  * `recipe_photos.recipe_id` FK's `ON DELETE CASCADE` never fires (cascades trigger on row deletion, not
  * on an update), and the photo row + its S3 object are left completely untouched. `recipe-service`
  * itself contains no automatic/scheduled process that purges S3 objects at all: the only S3-delete code
- * path is `PhotosService.delete()` (`DELETE /v1/recipes/{id}/photos/{photoId}`, an explicit per-photo
+ * path is `PhotosService.delete()` (`DELETE /api/v1/recipes/{id}/photos/{photoId}`, an explicit per-photo
  * user action this suite never invokes), and the actual GDPR hard-purge (DB rows + the dual-bucket S3
  * sweep) lives entirely in the DOWNSTREAM `@kitchensink/recipe-workers` erasure worker — see
  * `erasure.integration.spec.ts`'s scope note ("recipe-service does not, and must not, depend on its own
@@ -130,7 +130,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe soft-delete tombstones (C-007 integrati
 
     /** Presign, PUT, and confirm a real PNG onto `recipeId`, returning its `recipe_photos` row + S3 key. */
     async function attachPhoto(recipeId: string): Promise<PhotoBody> {
-        const presignRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/upload-url`, {
+        const presignRes = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}/photos/upload-url`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
@@ -149,7 +149,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe soft-delete tombstones (C-007 integrati
         });
         expect(putRes.ok).toBe(true);
 
-        const confirmRes = await fetch(`${baseUrl}/v1/recipes/${recipeId}/photos/confirm`, {
+        const confirmRes = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}/photos/confirm`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ key: presigned.key, contentType: 'image/png' }),
@@ -161,7 +161,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe soft-delete tombstones (C-007 integrati
 
     /** Create a recipe over HTTP and return its id. */
     async function createRecipe(title: string): Promise<string> {
-        const res = await fetch(`${baseUrl}/v1/recipes`, {
+        const res = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ ...CREATE_PAYLOAD, title }),
@@ -188,7 +188,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe soft-delete tombstones (C-007 integrati
         const before = await readRaw(id);
         expect(before?.deletedAt).toBeNull();
 
-        const deleteRes = await fetch(`${baseUrl}/v1/recipes/${id}`, { method: 'DELETE' });
+        const deleteRes = await fetch(`${baseUrl}/api/v1/recipes/${id}`, { method: 'DELETE' });
         expect(deleteRes.status).toBe(204);
 
         // THE C-007 guarantee: the row is still there, now carrying a tombstone. A hard delete makes
@@ -207,7 +207,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe soft-delete tombstones (C-007 integrati
         // nothing.
         expect(await objectExists(photo.key)).toBe(true);
 
-        const deleteRes = await fetch(`${baseUrl}/v1/recipes/${id}`, { method: 'DELETE' });
+        const deleteRes = await fetch(`${baseUrl}/api/v1/recipes/${id}`, { method: 'DELETE' });
         expect(deleteRes.status).toBe(204);
 
         // REQ-019a: the recipe row survives as a tombstone (re-pinned here so this test is self-contained
@@ -237,12 +237,12 @@ describe.skipIf(!hasDatabaseUrl)('recipe soft-delete tombstones (C-007 integrati
         const keptId = await createRecipe('Kept In List');
         const doomedId = await createRecipe('Dropped From List');
 
-        const before = (await (await fetch(`${baseUrl}/v1/recipes?page=1&pageSize=50`)).json()) as PaginatedBody;
+        const before = (await (await fetch(`${baseUrl}/api/v1/recipes?page=1&pageSize=50`)).json()) as PaginatedBody;
         expect(before.data.map((r) => r.id)).toEqual(expect.arrayContaining([keptId, doomedId]));
 
-        expect((await fetch(`${baseUrl}/v1/recipes/${doomedId}`, { method: 'DELETE' })).status).toBe(204);
+        expect((await fetch(`${baseUrl}/api/v1/recipes/${doomedId}`, { method: 'DELETE' })).status).toBe(204);
 
-        const after = (await (await fetch(`${baseUrl}/v1/recipes?page=1&pageSize=50`)).json()) as PaginatedBody;
+        const after = (await (await fetch(`${baseUrl}/api/v1/recipes?page=1&pageSize=50`)).json()) as PaginatedBody;
         const ids = after.data.map((r) => r.id);
         expect(ids).not.toContain(doomedId);
         // Asserting the sibling SURVIVES stops a mutation that empties the list wholesale from passing,
@@ -254,13 +254,13 @@ describe.skipIf(!hasDatabaseUrl)('recipe soft-delete tombstones (C-007 integrati
     it('answers a repeat DELETE with 404 and never moves the original tombstone', async () => {
         const id = await createRecipe('Idempotent Re-delete');
 
-        expect((await fetch(`${baseUrl}/v1/recipes/${id}`, { method: 'DELETE' })).status).toBe(204);
+        expect((await fetch(`${baseUrl}/api/v1/recipes/${id}`, { method: 'DELETE' })).status).toBe(204);
         const firstTombstone = (await readRaw(id))?.deletedAt;
         expect(firstTombstone).toBeInstanceOf(Date);
 
         // The DAL's `deleted_at IS NULL` guard makes the second delete match zero rows → 404, so the
         // recorded moment of deletion stays put (a re-stamp would falsify the retention audit trail).
-        expect((await fetch(`${baseUrl}/v1/recipes/${id}`, { method: 'DELETE' })).status).toBe(404);
+        expect((await fetch(`${baseUrl}/api/v1/recipes/${id}`, { method: 'DELETE' })).status).toBe(404);
         expect((await readRaw(id))?.deletedAt).toEqual(firstTombstone);
     });
 });

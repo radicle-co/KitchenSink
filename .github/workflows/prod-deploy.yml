@@ -9,6 +9,15 @@ on:
             - 'packages/services/identity-webhooks/**'
             - 'packages/services/identity-webhooks/infra/**'
             - 'packages/services/identity/infra/**'
+            # The feature services. These must be listed even though the `food`/`recipe` deploy flags below are
+            # computed from their own paths-filter groups: a filter can only classify a run that STARTED, so
+            # while these were absent a food-only or recipe-only merge never fired this workflow at all, and
+            # those legs deployed only when a change happened to ride along with an identity/global one.
+            # Keep in step with the `food`/`recipe` filters — prod-deploy-reachability.test.ts asserts it.
+            - 'packages/services/food-service/**'
+            - 'packages/services/recipe-service/**'
+            - 'packages/services/recipe-workers/**'
+            - 'packages/shared/recipe-core/**'
             - 'Dockerfile'
             - '.github/workflows/prod-deploy.yml'
     workflow_dispatch:
@@ -69,20 +78,28 @@ jobs:
                   deploy_global=false
                   deploy_service=false
                   deploy_webhooks=false
-                  if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.changes.outputs.global }}" = "true" ]; then
+                  # On a PUSH, feature services deploy ONLY when their own paths changed. Unlike identity they
+                  # are not implied by a `global` change, so an infra-only commit cannot roll a feature service
+                  # to prod as a side effect.
+                  deploy_food=false
+                  deploy_recipe=false
+                  # A workflow_dispatch is an explicit operator action, not a side effect, so it deploys
+                  # EVERYTHING — feature services included. Excluding them left no way to bring a feature
+                  # service up for the first time (or roll one back) short of touching its sources, which is
+                  # how the food and recipe legs came to exist for months without ever running once.
+                  if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                    deploy_global=true; deploy_service=true; deploy_webhooks=true
+                    deploy_food=true; deploy_recipe=true
+                  fi
+                  if [ "${{ steps.changes.outputs.global }}" = "true" ]; then
                     deploy_global=true; deploy_service=true; deploy_webhooks=true
                   fi
                   if [ "${{ steps.changes.outputs.service }}" = "true" ]; then deploy_service=true; fi
                   if [ "${{ steps.changes.outputs.webhooks }}" = "true" ]; then deploy_webhooks=true; fi
-                  run_migrations=false
-                  if [ "$deploy_service" = "true" ] || [ "$deploy_webhooks" = "true" ]; then run_migrations=true; fi
-                  # Feature services deploy ONLY when their own paths changed. Unlike identity they are not
-                  # implied by a `global` change, so an infra-only commit cannot roll a feature service to
-                  # prod as a side effect.
-                  deploy_food=false
-                  deploy_recipe=false
                   if [ "${{ steps.changes.outputs.food }}" = "true" ]; then deploy_food=true; fi
                   if [ "${{ steps.changes.outputs.recipe }}" = "true" ]; then deploy_recipe=true; fi
+                  run_migrations=false
+                  if [ "$deploy_service" = "true" ] || [ "$deploy_webhooks" = "true" ]; then run_migrations=true; fi
                   {
                     echo "deploy_global=$deploy_global"
                     echo "deploy_service=$deploy_service"

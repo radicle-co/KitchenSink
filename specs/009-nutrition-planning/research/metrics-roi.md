@@ -23,7 +23,7 @@ This document captures portfolio-level metrics and ROI hypotheses for feature 00
 
 - **Source**: `FR-037`, API design in `plan.md`
 - **Target**: p95 compliance endpoint response under 500ms for single-plan daily/weekly queries.
-- **Measurement**: API telemetry on `/v1/nutrition-plans/{id}/compliance`.
+- **Measurement**: API telemetry on `/api/v1/nutrition-plans/{id}/compliance`.
 
 ### OQ-003: Accessibility Conformance
 

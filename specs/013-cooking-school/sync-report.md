@@ -57,7 +57,7 @@
 | --- | --- | --- |
 | Task coverage exists for all Must Have US/FRs | ✅ | T024-T052 cover authoring, ingest, enrollment, progress |
 | Tasks checked vs unchecked | ❌ CRITICAL | **0/85** checked; 0 execution evidence |
-| Implementation workspaces exist | ❌ CRITICAL | 0 files found for `packages/api/cooking-school-*`, `packages/shared/cooking-school-*`, `packages/apps/commise/{web,mobile}` feature areas |
+| Implementation workspaces exist | ❌ CRITICAL | 0 files found for `packages/services/cooking-school-*`, `packages/shared/cooking-school-*`, `packages/apps/commise/{web,mobile}` feature areas |
 
 **Evidence:**
 - `tasks.md` contains 85 tasks (T001-T085 with gaps) — all unchecked.
@@ -104,7 +104,7 @@
 
 - **Finding:** Zero feature-level code files found in planned monorepo workspaces.
 - **Impact:** L4 cannot show forward traceability to code artifacts.
-- **Fix path:** Scaffold `packages/api/cooking-school-api`, `packages/shared/cooking-school-contracts`, and relevant web/mobile feature directories per `plan.md` §Scope Baseline.
+- **Fix path:** Scaffold `packages/services/cooking-school-service`, `packages/shared/cooking-school-contracts`, and relevant web/mobile feature directories per `plan.md` §Scope Baseline.
 
 ### CR-003 (L7): Required Cross-Feature Integration Evidence Missing
 

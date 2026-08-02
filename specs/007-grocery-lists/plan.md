@@ -98,22 +98,22 @@ interface IngredientAggregator {
 
 ### Endpoints
 
-| Method | Path                                           | Auth     | Description                     |
-| ------ | ---------------------------------------------- | -------- | ------------------------------- |
-| POST   | `/v1/grocery-lists`                            | Required | Generate from meal plan         |
-| GET    | `/v1/grocery-lists`                            | Required | List user's grocery lists       |
-| GET    | `/v1/grocery-lists/{id}`                       | Required | Get list with items             |
-| PUT    | `/v1/grocery-lists/{id}`                       | Required | Update items (mark have/need)   |
-| DELETE | `/v1/grocery-lists/{id}`                       | Required | Delete list                     |
-| POST   | `/v1/grocery-lists/{id}/items/{itemId}/pantry` | Required | Mark item as "in pantry"        |
-| DELETE | `/v1/grocery-lists/{id}/items/{itemId}/pantry` | Required | Remove pantry flag              |
-| POST   | `/v1/grocery-lists/{id}/order`                 | Required | Initiate online order (premium) |
-| GET    | `/v1/grocery-lists/{id}/order-status`          | Required | Poll order status               |
+| Method | Path                                               | Auth     | Description                     |
+| ------ | -------------------------------------------------- | -------- | ------------------------------- |
+| POST   | `/api/v1/grocery-lists`                            | Required | Generate from meal plan         |
+| GET    | `/api/v1/grocery-lists`                            | Required | List user's grocery lists       |
+| GET    | `/api/v1/grocery-lists/{id}`                       | Required | Get list with items             |
+| PUT    | `/api/v1/grocery-lists/{id}`                       | Required | Update items (mark have/need)   |
+| DELETE | `/api/v1/grocery-lists/{id}`                       | Required | Delete list                     |
+| POST   | `/api/v1/grocery-lists/{id}/items/{itemId}/pantry` | Required | Mark item as "in pantry"        |
+| DELETE | `/api/v1/grocery-lists/{id}/items/{itemId}/pantry` | Required | Remove pantry flag              |
+| POST   | `/api/v1/grocery-lists/{id}/order`                 | Required | Initiate online order (premium) |
+| GET    | `/api/v1/grocery-lists/{id}/order-status`          | Required | Poll order status               |
 
 ### Request/Response Shapes
 
 ```typescript
-// POST /v1/grocery-lists
+// POST /api/v1/grocery-lists
 Request:
 {
   "mealPlanId": "mp_abc123",  // optional — can be empty list
@@ -150,10 +150,10 @@ Response:
 
 ## 4. Unit Conversion Utility
 
-Shared across 003, 006, 007. Placed in `packages/shared/src/`:
+Shared across 003, 006, 007. Placed in `packages/shared/`:
 
 ```typescript
-// packages/shared/src/culinary-units.ts
+// packages/shared/culinary-units/src/index.ts
 
 interface UnitConversion {
     // Parse "2 cups", "1/2 tsp", "400g" → { quantity: number, unit: string }
@@ -265,7 +265,7 @@ The following questions were open in earlier drafts. Decisions are recorded here
 
 ### 2. Order status mechanism: polling, not webhooks
 
-**Decision**: Client-driven polling at 30-second intervals via `GET /v1/grocery-lists/:id/order-status`. The server caches the last-known status for 30 seconds to avoid hammering the store API.
+**Decision**: Client-driven polling at 30-second intervals via `GET /api/v1/grocery-lists/:id/order-status`. The server caches the last-known status for 30 seconds to avoid hammering the store API.
 
 **Rationale**: Neither Walmart nor Instacart guarantees webhook delivery in their publicly documented APIs. Polling is simpler to implement, test without a live integration, and degrade gracefully. When a partner agreement is in place and webhook delivery is confirmed, this decision is revisited.
 

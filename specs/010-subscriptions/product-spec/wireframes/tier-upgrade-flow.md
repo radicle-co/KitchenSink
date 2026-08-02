@@ -39,7 +39,7 @@
 ### Step 3: Checkout Redirect
 
 ```
-POST /v1/billing/checkout -> checkoutUrl
+POST /api/v1/billing/checkout -> checkoutUrl
 Redirect -> Stripe hosted checkout
 ```
 

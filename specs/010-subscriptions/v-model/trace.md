@@ -74,42 +74,42 @@
 
 ## Matrix B: Backward Traceability (ATP → REQ)
 
-| ATP-ID   | Acceptance Test                               | REQ-ID                             | Requirement                             | Justification                                                             |
-| -------- | --------------------------------------------- | ---------------------------------- | --------------------------------------- | ------------------------------------------------------------------------- |
-| AC-001   | Free tier on creation                         | REQ-001                            | New users start free                    | Business rule: all new users begin on free tier by default                |
-| AC-002   | Free-tier recipe CRUD                         | REQ-002                            | CRUD for own recipes                    | Core recipe management is a free-tier entitlement per FR-040              |
-| AC-003   | Free-tier share/clone                         | REQ-003                            | Share and clone recipes                 | Sharing and cloning are free-tier entitlements per FR-040                 |
-| AC-004   | Free-tier basic import                        | REQ-004                            | Basic recipe importing                  | Basic importing is a free-tier entitlement per FR-040                     |
-| AC-005   | Free-tier manual meal planning                | REQ-005                            | Manual meal assignment                  | Manual meal planning is a free-tier entitlement per FR-040                |
-| AC-006   | Free-tier grocery list                        | REQ-006                            | Grocery list without ordering           | Grocery list generation is a free-tier entitlement per FR-040             |
-| AC-007   | Free-tier cooking mode                        | REQ-007                            | Cooking mode access                     | Cooking mode is a free-tier entitlement per FR-040                        |
-| AC-008   | Free recipe public                            | REQ-008                            | Free recipes always public              | Private recipe visibility is premium-only; free recipes cannot be private |
-| AC-009   | Premium private recipes                       | REQ-009                            | Private visibility for premium          | Premium entitlement unlocks private recipe visibility                     |
-| AC-010   | Premium AI recipe generation                  | REQ-010                            | AI recipe gen for premium               | AI recipe generation is a premium entitlement (gates 005 FR-016)          |
-| AC-011   | Premium AI meal suggestions                   | REQ-011                            | AI suggestions for premium              | AI meal suggestions are a premium entitlement (gates 006 FR-025)          |
-| AC-012   | Premium auto meal plans                       | REQ-012                            | Auto-generated plans for premium        | Auto-generated meal plans are a premium entitlement (gates 006 FR-026)    |
-| AC-013   | Premium food waste optimization               | REQ-013                            | Waste optimization for premium          | Food waste optimization is a premium entitlement (gates 006 FR-027)       |
-| AC-014   | Premium AI instruction optimization           | REQ-014                            | AI instruction opt for premium          | AI instruction optimization is a premium entitlement (gates 005 FR-019)   |
-| AC-015   | Premium grocery ordering                      | REQ-015                            | Online ordering for premium             | Online grocery ordering is a premium entitlement (gates 007 FR-031)       |
-| AC-016   | Premium trainer nutrition planning            | REQ-016                            | Trainer planning for premium            | Trainer nutrition planning is a premium entitlement (gates 009 FR-038)    |
-| AC-017   | Premium clone-to-private                      | REQ-017                            | Clone-to-private for premium            | Clone-to-private for imported recipes is a premium entitlement            |
-| AC-018   | Upgrade prompt for gated features             | REQ-018, REQ-CN-002                | Upgrade prompt required                 | Upgrade prompts drive premium conversion per FR-042                       |
-| AC-019   | Premium feature preview                       | REQ-019                            | Teaser in upgrade prompt                | Feature value preview motivates conversion per User Story 1, Scenario 3   |
-| AC-020   | Immediate access on upgrade                   | REQ-020                            | Premium features unlocked on upgrade    | Immediate access on upgrade per User Story 1, Scenario 5                  |
-| AC-021   | Data retained on lapse                        | REQ-021                            | Data retention on lapse                 | Data retention required per FR-043                                        |
-| AC-022   | Non-premium features retained on lapse        | REQ-022                            | Free features remain on lapse           | Non-premium functionality retention on lapse per FR-043                   |
-| AC-023   | Premium features locked on lapse              | REQ-023                            | Premium locked on lapse                 | Premium features locked on lapse per User Story 1, Scenario 6             |
-| AC-024   | Private recipes stay private on lapse         | REQ-024                            | Private stays private on lapse          | Previously private recipes remain private after subscription lapse        |
-| AC-025   | Upgrade prompt for each gated feature         | REQ-018                            | Each premium feature shows prompt       | Each gated feature must display upgrade prompt                            |
-| AC-026   | Upgrade prompt dismissible                    | REQ-018                            | Prompt can be dismissed                 | Prompt dismisses; user remains on free tier                               |
-| AC-027   | Premium users can cancel                      | REQ-025                            | Cancel subscription                     | Users must be able to cancel their subscription                           |
-| AC-028   | Canceled subscription active until period end | REQ-026                            | Canceled remains active                 | Canceled subscription stays active until current period ends              |
-| AT-010-A | Type safety + JSDoc                           | REQ-NF-001, REQ-NF-002             | Strict mode + documentation             | NFRs for type safety and maintainability                                  |
-| AT-010-B | Accessibility + color/icon                    | REQ-NF-003, REQ-NF-004             | Accessible names + color not sole state | NFRs for accessibility compliance                                         |
-| AT-010-C | Auth + recipe integration                     | REQ-IF-001, REQ-IF-002, REQ-CN-004 | Clerk + Recipe App integration          | Required dependencies for identity and content access                     |
-| AT-010-D | Stripe lifecycle                              | REQ-IF-003                         | Stripe integration                      | Payment and subscription lifecycle management                             |
-| AT-010-E | State change latency                          | REQ-CN-001                         | 5-second state change processing        | Constraint for user experience                                            |
-| AT-010-F | Co-deployment with 002                        | REQ-CN-003                         | Cannot deploy without Clerk             | Runtime failure prevention                                                |
+| ATP-ID   | Acceptance Test                               | REQ-ID                             | Requirement                             | Justification                                                               |
+| -------- | --------------------------------------------- | ---------------------------------- | --------------------------------------- | --------------------------------------------------------------------------- |
+| AC-001   | Free tier on creation                         | REQ-001                            | New users start free                    | Business rule: all new users begin on free tier by default                  |
+| AC-002   | Free-tier recipe CRUD                         | REQ-002                            | CRUD for own recipes                    | Core recipe management is a free-tier entitlement per FR-040                |
+| AC-003   | Free-tier share/clone                         | REQ-003                            | Share and clone recipes                 | Sharing and cloning are free-tier entitlements per FR-040                   |
+| AC-004   | Free-tier basic import                        | REQ-004                            | Basic recipe importing                  | Basic importing is a free-tier entitlement per FR-040                       |
+| AC-005   | Free-tier manual meal planning                | REQ-005                            | Manual meal assignment                  | Manual meal planning is a free-tier entitlement per FR-040                  |
+| AC-006   | Free-tier grocery list                        | REQ-006                            | Grocery list without ordering           | Grocery list generation is a free-tier entitlement per FR-040               |
+| AC-007   | Free-tier cooking mode                        | REQ-007                            | Cooking mode access                     | Cooking mode is a free-tier entitlement per FR-040                          |
+| AC-008   | Free recipe public                            | REQ-008                            | Free recipes always public              | Private recipe visibility is premium-only; free recipes cannot be private   |
+| AC-009   | Premium private recipes                       | REQ-009                            | Private visibility for premium          | Premium entitlement unlocks private recipe visibility                       |
+| AC-010   | Premium AI recipe generation                  | REQ-010                            | AI recipe gen for premium               | AI recipe generation is a premium entitlement (gates 005 005-FR-016)        |
+| AC-011   | Premium AI meal suggestions                   | REQ-011                            | AI suggestions for premium              | AI meal suggestions are a premium entitlement (gates 006 006-FR-025)        |
+| AC-012   | Premium auto meal plans                       | REQ-012                            | Auto-generated plans for premium        | Auto-generated meal plans are a premium entitlement (gates 006 006-FR-026)  |
+| AC-013   | Premium food waste optimization               | REQ-013                            | Waste optimization for premium          | Food waste optimization is a premium entitlement (gates 006 006-FR-027)     |
+| AC-014   | Premium AI instruction optimization           | REQ-014                            | AI instruction opt for premium          | AI instruction optimization is a premium entitlement (gates 005 005-FR-019) |
+| AC-015   | Premium grocery ordering                      | REQ-015                            | Online ordering for premium             | Online grocery ordering is a premium entitlement (gates 007 007-FR-031)     |
+| AC-016   | Premium trainer nutrition planning            | REQ-016                            | Trainer planning for premium            | Trainer nutrition planning is a premium entitlement (gates 009 009-FR-038)  |
+| AC-017   | Premium clone-to-private                      | REQ-017                            | Clone-to-private for premium            | Clone-to-private for imported recipes is a premium entitlement              |
+| AC-018   | Upgrade prompt for gated features             | REQ-018, REQ-CN-002                | Upgrade prompt required                 | Upgrade prompts drive premium conversion per FR-042                         |
+| AC-019   | Premium feature preview                       | REQ-019                            | Teaser in upgrade prompt                | Feature value preview motivates conversion per User Story 1, Scenario 3     |
+| AC-020   | Immediate access on upgrade                   | REQ-020                            | Premium features unlocked on upgrade    | Immediate access on upgrade per User Story 1, Scenario 5                    |
+| AC-021   | Data retained on lapse                        | REQ-021                            | Data retention on lapse                 | Data retention required per FR-043                                          |
+| AC-022   | Non-premium features retained on lapse        | REQ-022                            | Free features remain on lapse           | Non-premium functionality retention on lapse per FR-043                     |
+| AC-023   | Premium features locked on lapse              | REQ-023                            | Premium locked on lapse                 | Premium features locked on lapse per User Story 1, Scenario 6               |
+| AC-024   | Private recipes stay private on lapse         | REQ-024                            | Private stays private on lapse          | Previously private recipes remain private after subscription lapse          |
+| AC-025   | Upgrade prompt for each gated feature         | REQ-018                            | Each premium feature shows prompt       | Each gated feature must display upgrade prompt                              |
+| AC-026   | Upgrade prompt dismissible                    | REQ-018                            | Prompt can be dismissed                 | Prompt dismisses; user remains on free tier                                 |
+| AC-027   | Premium users can cancel                      | REQ-025                            | Cancel subscription                     | Users must be able to cancel their subscription                             |
+| AC-028   | Canceled subscription active until period end | REQ-026                            | Canceled remains active                 | Canceled subscription stays active until current period ends                |
+| AT-010-A | Type safety + JSDoc                           | REQ-NF-001, REQ-NF-002             | Strict mode + documentation             | NFRs for type safety and maintainability                                    |
+| AT-010-B | Accessibility + color/icon                    | REQ-NF-003, REQ-NF-004             | Accessible names + color not sole state | NFRs for accessibility compliance                                           |
+| AT-010-C | Auth + recipe integration                     | REQ-IF-001, REQ-IF-002, REQ-CN-004 | Clerk + Recipe App integration          | Required dependencies for identity and content access                       |
+| AT-010-D | Stripe lifecycle                              | REQ-IF-003                         | Stripe integration                      | Payment and subscription lifecycle management                               |
+| AT-010-E | State change latency                          | REQ-CN-001                         | 5-second state change processing        | Constraint for user experience                                              |
+| AT-010-F | Co-deployment with 002                        | REQ-CN-003                         | Cannot deploy without Clerk             | Runtime failure prevention                                                  |
 
 ---
 

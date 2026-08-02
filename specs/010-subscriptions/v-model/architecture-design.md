@@ -83,7 +83,7 @@ sequenceDiagram
     participant TA as ARCH-002 TierAssignmentService
     participant Pub as ARCH-016 EventPublisher
 
-    Provider->>WH: POST /webhooks/subscription (signed)
+    Provider->>WH: POST /api/v1/webhooks/subscription (signed)
     WH->>Sig: validateHMAC(payload, signature)
     Sig-->>WH: valid
     WH->>Log: persist(event)

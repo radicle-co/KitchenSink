@@ -96,7 +96,7 @@ Scope: Supports Epic A/B outcomes through grouping, fast interactions, and clear
 
 As an authenticated user, I can generate a grocery list from a meal plan so that all ingredients are aggregated in one place.
 
-**FRs**: [FR-028](../spec.md#feature-requirements), [FR-045](../../001-commise-recipe-app/spec.md)
+**FRs**: [FR-028](../spec.md#feature-requirements), [001-FR-045](../../001-commise-recipe-app/spec.md)
 
 ### US-002: Deduplicate and Sum Ingredient Quantities
 

@@ -13,10 +13,17 @@ Root `package.json` workspaces:
 
 ```json
 "workspaces": [
-  "packages/tools/*",
-  "packages/apps/commise/web",
-  "packages/apps/commise/mobile",
-  "packages/ui"
+    "packages/tools/*",
+    "packages/services/*",
+    "packages/shared/*",
+    "packages/utils/*",
+    "packages/infra/*",
+    "packages/apps/commise/web",
+    "packages/apps/commise/mobile",
+    "packages/apps/commise/ui",
+    "packages/apps/commise/i18n",
+    "packages/apps/commise/features/*",
+    "packages/clients/*"
 ]
 ```
 
@@ -58,7 +65,7 @@ Per `plan.md`, subscriptions is a cross-cutting concern centered on backend bill
 ### Internal dependency graph
 
 ```
-JwtAuthGuard -> PlanGuard -> gated route handlers
+AuthMiddleware (Clerk session token) -> PlanGuard -> gated route handlers
                 |
                 -> account.plan + account.subscriptionStatus
 
@@ -88,7 +95,7 @@ This is sufficient for FR-040..043 gating and retention logic.
 
 1. **rawBody requirement** in Nest bootstrap is mandatory for webhook signature verification.
 2. **Idempotency persistence** is non-optional because Stripe retries webhooks.
-3. **Guard composition order** (`JwtAuthGuard` then `PlanGuard`) must remain deterministic.
+3. **Auth ordering** — `AuthMiddleware` must populate `req.user` before `PlanGuard` runs; middleware precedes guards in Nest, so this holds by construction, but `PlanGuard` MUST fail closed if `req.user` is absent.
 4. **Error contract stability** for `PREMIUM_REQUIRED` is required by frontend interceptors.
 
 ---

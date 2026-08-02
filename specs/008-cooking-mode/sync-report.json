@@ -146,8 +146,8 @@
                 {
                     "id": "L6-001",
                     "severity": "INFO",
-                    "message": "packages/shared/src/ does not exist; no shared cooking types/session/timer/wake-lock code present.",
-                    "expected_target": "packages/shared/src/cooking/"
+                    "message": "packages/shared/cooking/ does not exist; no shared cooking types/session/timer/wake-lock code present.",
+                    "expected_target": "packages/shared/cooking/src/"
                 },
                 {
                     "id": "L6-002",

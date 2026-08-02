@@ -810,7 +810,7 @@ N/A — Stateless (CI utility; each run is independent; no retained state)
 ### Module: MOD-015 (AccessibilityComplianceValidator)
 
 **Parent Architecture Modules**: ARCH-015
-**Target Source File(s)**: `tests/accessibility/subscription-ui.a11y.spec.ts`
+**Target Source File(s)**: `tests/e2e/subscription-ui.a11y.spec.ts`
 
 #### Algorithmic / Logic View
 

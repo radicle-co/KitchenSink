@@ -12,9 +12,16 @@ Root workspaces from `package.json`:
 ```json
 "workspaces": [
     "packages/tools/*",
+    "packages/services/*",
+    "packages/shared/*",
+    "packages/utils/*",
+    "packages/infra/*",
     "packages/apps/commise/web",
     "packages/apps/commise/mobile",
-    "packages/ui"
+    "packages/apps/commise/ui",
+    "packages/apps/commise/i18n",
+    "packages/apps/commise/features/*",
+    "packages/clients/*"
 ]
 ```
 
@@ -30,7 +37,7 @@ Based on `plan.md` + `tasks.md` locations:
 | ------------------------------ | ----------------------------------------------------------------------------------------- |
 | Grocery API module             | `packages/apps/commise/api/src/grocery-lists/`                                          |
 | Store API clients              | `packages/apps/commise/api/src/grocery-lists/store-clients/`                            |
-| Shared unit conversion utility | `packages/shared/src/culinary-units.ts` (as planned)                                      |
+| Shared unit conversion utility | `packages/shared/culinary-units/src/index.ts` (as planned)                                      |
 | Web grocery list UI            | `packages/apps/commise/web` routes/components                                           |
 | Mobile parity UI               | `packages/apps/commise/mobile` screens/components (if included in implementation scope) |
 

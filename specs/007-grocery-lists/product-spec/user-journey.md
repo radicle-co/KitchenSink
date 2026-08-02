@@ -26,7 +26,7 @@ sequenceDiagram
     participant AGG as Aggregator Service
     participant DB as Grocery Tables
 
-    U->>API: POST /v1/grocery-lists/from-meal-plan { mealPlanId }
+    U->>API: POST /api/v1/grocery-lists/from-meal-plan { mealPlanId }
     API->>MP: Fetch meal plan recipes + servings
     MP-->>API: Planned recipe IDs + quantities
     API->>AGG: Aggregate + dedupe ingredients
@@ -51,20 +51,20 @@ sequenceDiagram
     participant PAN as Pantry Service
     participant DB as Grocery Tables
 
-    U->>API: GET /v1/grocery-lists/{id}
+    U->>API: GET /api/v1/grocery-lists/{id}
     API-->>U: Grouped sections + summary
 
-    U->>API: POST /v1/grocery-lists/{id}/items/{itemId}/pantry
+    U->>API: POST /api/v1/grocery-lists/{id}/items/{itemId}/pantry
     API->>PAN: Mark already-have
     PAN->>DB: Update is_pantry=true
     API-->>U: Updated summary (toOrderItems decremented)
 
     U->>U: Swipe-to-check item
-    U->>API: PATCH /v1/grocery-lists/{id}/items/{itemId} { isOrdered: true }
+    U->>API: PATCH /api/v1/grocery-lists/{id}/items/{itemId} { isOrdered: true }
     API->>DB: Persist item status
     API-->>U: Updated progress
 
-    U->>API: POST /v1/grocery-lists/{id}/items { "2 avocados" }
+    U->>API: POST /api/v1/grocery-lists/{id}/items { "2 avocados" }
     API->>DB: Insert manual line item
     API-->>U: Item added in produce section
 
@@ -85,16 +85,16 @@ sequenceDiagram
     participant STORE as Store API Adapter
     participant SUB as Subscription (010)
 
-    U->>API: POST /v1/grocery-lists/{id}/order
+    U->>API: POST /api/v1/grocery-lists/{id}/order
     API->>SUB: Check premium entitlement
 
     alt Non-premium
         API-->>U: 403 Premium required + upgrade prompt
     else Premium but no store configured
         API-->>U: Setup required guidance
-        U->>API: POST /v1/grocery-lists/store/connect
+        U->>API: POST /api/v1/grocery-lists/store/connect
         API-->>U: Store connected
-        U->>API: POST /v1/grocery-lists/{id}/order (retry)
+        U->>API: POST /api/v1/grocery-lists/{id}/order (retry)
     else Premium + store configured
         API->>MAP: Map grocery items to store products
         MAP->>STORE: Search/create cart payload
@@ -137,19 +137,19 @@ sequenceDiagram
 
     U->>U: Tap "New List"
     U->>U: Enter list name; leave meal plan picker empty
-    U->>API: POST /v1/grocery-lists { name: "Weekend shop", mealPlanId: null }
+    U->>API: POST /api/v1/grocery-lists { name: "Weekend shop", mealPlanId: null }
     API->>DB: Insert grocery_list (meal_plan_id = NULL)
     DB-->>API: listId
     API-->>U: 201 Created (empty list)
 
-    U->>API: POST /v1/grocery-lists/{id}/items { displayName: "Avocados", quantity: "2" }
+    U->>API: POST /api/v1/grocery-lists/{id}/items { displayName: "Avocados", quantity: "2" }
     API->>DB: Insert manual item
     API-->>U: Item added
 
     Note right of U: FR-032, SC-009
 ```
 
-**Also covered**: User can alternatively pick a meal plan from the dropdown on the same "New List" form, which triggers `POST /v1/grocery-lists { mealPlanId: "mp_xyz" }` and generates a full aggregated list.
+**Also covered**: User can alternatively pick a meal plan from the dropdown on the same "New List" form, which triggers `POST /api/v1/grocery-lists { mealPlanId: "mp_xyz" }` and generates a full aggregated list.
 
 ---
 

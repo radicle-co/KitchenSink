@@ -25,13 +25,13 @@ User manages via Stripe Customer Portal (no custom UI needed)
 
 ### Stripe Billing Stack
 
-| Component               | Technology                                  | Rationale                                                 |
-| ----------------------- | ------------------------------------------- | --------------------------------------------------------- |
-| Checkout                | Stripe Checkout (hosted)                    | PCI-compliant; no custom payment UI                       |
-| Subscription management | Stripe Customer Portal                      | Handles upgrade/downgrade/cancel; no custom UI            |
-| Webhook handling        | `@golevelup/nestjs-stripe` v3.0.0           | NestJS DI, auto signature verification, decorator routing |
-| Idempotency             | `webhook_events` table                      | Stripe retries for 72h; must be deduplicated              |
-| Feature gating          | `@RequirePremium()` decorator + `PlanGuard` | Composable with `JwtAuthGuard`, testable                  |
+| Component               | Technology                                  | Rationale                                                   |
+| ----------------------- | ------------------------------------------- | ----------------------------------------------------------- |
+| Checkout                | Stripe Checkout (hosted)                    | PCI-compliant; no custom payment UI                         |
+| Subscription management | Stripe Customer Portal                      | Handles upgrade/downgrade/cancel; no custom UI              |
+| Webhook handling        | `@golevelup/nestjs-stripe` v3.0.0           | NestJS DI, auto signature verification, decorator routing   |
+| Idempotency             | `webhook_events` table                      | Stripe retries for 72h; must be deduplicated                |
+| Feature gating          | `@RequirePremium()` decorator + `PlanGuard` | Runs after `AuthMiddleware` (Clerk); fails closed, testable |
 
 ### Subscription States
 
@@ -102,17 +102,17 @@ CREATE INDEX idx_accounts_stripe_subscription_id ON accounts(stripe_subscription
 
 ### Billing Endpoints
 
-| Method | Path                       | Auth             | Description                                                |
-| ------ | -------------------------- | ---------------- | ---------------------------------------------------------- |
-| `POST` | `/v1/billing/checkout`     | Required         | Create Stripe Checkout Session → redirect to Stripe        |
-| `POST` | `/v1/billing/portal`       | Required         | Create Stripe Customer Portal session → redirect to Stripe |
-| `GET`  | `/v1/billing/subscription` | Required         | Get current subscription status                            |
-| `POST` | `/v1/billing/webhook`      | Stripe signature | Handle all Stripe webhook events                           |
+| Method | Path                           | Auth             | Description                                                |
+| ------ | ------------------------------ | ---------------- | ---------------------------------------------------------- |
+| `POST` | `/api/v1/billing/checkout`     | Required         | Create Stripe Checkout Session → redirect to Stripe        |
+| `POST` | `/api/v1/billing/portal`       | Required         | Create Stripe Customer Portal session → redirect to Stripe |
+| `GET`  | `/api/v1/billing/subscription` | Required         | Get current subscription status                            |
+| `POST` | `/api/v1/billing/webhook`      | Stripe signature | Handle all Stripe webhook events                           |
 
 ### Request/Response Shapes
 
 ```typescript
-// POST /v1/billing/checkout
+// POST /api/v1/billing/checkout
 Request (empty body — uses user's existing Stripe customer or creates one):
 {}
 
@@ -121,7 +121,7 @@ Response:
   "checkoutUrl": "https://checkout.stripe.com/c/pay/..."
 }
 
-// POST /v1/billing/portal
+// POST /api/v1/billing/portal
 Request (empty body):
 {}
 
@@ -130,7 +130,7 @@ Response:
   "portalUrl": "https://billing.stripe.com/session/..."
 }
 
-// GET /v1/billing/subscription
+// GET /api/v1/billing/subscription
 Response:
 {
   "plan": "premium",
@@ -158,17 +158,17 @@ Response:
 
 ### @RequirePremium() Applied Per Feature
 
-| Feature                     | Spec | FR     | Endpoint                                  | Guard               |
-| --------------------------- | ---- | ------ | ----------------------------------------- | ------------------- |
-| Private recipe visibility   | 001  | FR-003 | `PATCH /recipes/:id/visibility`           | `@RequirePremium()` |
-| Clone-to-private (imported) | 004  | FR-011 | `POST /recipes/import` (visibility param) | `@RequirePremium()` |
-| AI recipe generation        | 005  | FR-016 | `POST /ai/generate`                       | `@RequirePremium()` |
-| AI instruction optimization | 005  | FR-019 | `POST /ai/optimize-instructions`          | `@RequirePremium()` |
-| AI meal suggestions         | 006  | FR-025 | `POST /meal-plans/suggest`                | `@RequirePremium()` |
-| Auto-generated meal plans   | 006  | FR-026 | `POST /meal-plans/generate`               | `@RequirePremium()` |
-| Food waste optimization     | 006  | FR-027 | `POST /meal-plans/optimize-waste`         | `@RequirePremium()` |
-| Online grocery ordering     | 007  | FR-031 | `POST /grocery-lists/:id/order`           | `@RequirePremium()` |
-| Trainer nutrition planning  | 009  | FR-038 | `POST /nutrition/client-plans`            | `@RequirePremium()` |
+| Feature                     | Spec | FR         | Endpoint                                         | Guard               |
+| --------------------------- | ---- | ---------- | ------------------------------------------------ | ------------------- |
+| Private recipe visibility   | 001  | 001-FR-003 | `PATCH /api/v1/recipes/:id/visibility`           | `@RequirePremium()` |
+| Clone-to-private (imported) | 004  | 004-FR-011 | `POST /api/v1/recipes/import` (visibility param) | `@RequirePremium()` |
+| AI recipe generation        | 005  | 005-FR-016 | `POST /api/v1/ai/generate`                       | `@RequirePremium()` |
+| AI instruction optimization | 005  | 005-FR-019 | `POST /api/v1/ai/optimize-instructions`          | `@RequirePremium()` |
+| AI meal suggestions         | 006  | 006-FR-025 | `POST /api/v1/meal-plans/suggest`                | `@RequirePremium()` |
+| Auto-generated meal plans   | 006  | 006-FR-026 | `POST /api/v1/meal-plans/generate`               | `@RequirePremium()` |
+| Food waste optimization     | 006  | 006-FR-027 | `POST /api/v1/meal-plans/optimize-waste`         | `@RequirePremium()` |
+| Online grocery ordering     | 007  | 007-FR-031 | `POST /api/v1/grocery-lists/:id/order`           | `@RequirePremium()` |
+| Trainer nutrition planning  | 009  | 009-FR-038 | `POST /api/v1/nutrition/client-plans`            | `@RequirePremium()` |
 
 ### PlanGuard Implementation
 
@@ -233,7 +233,7 @@ src/
 │   ├── billing.controller.ts      -- checkout, portal, subscription endpoints
 │   ├── billing.service.ts          -- Stripe checkout/portal session creation
 │   ├── webhook/
-│   │   ├── webhook.controller.ts   -- /v1/billing/webhook (Stripe signature verified)
+│   │   ├── webhook.controller.ts   -- /api/v1/billing/webhook (Stripe signature verified)
 │   │   ├── webhook.service.ts     -- routes events to handlers, idempotency check
 │   │   └── handlers/
 │   │       ├── checkout.handler.ts

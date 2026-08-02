@@ -92,7 +92,7 @@ T-018 ──→ T-026 ──→ T-027
   **Acceptance**: Each gated endpoint returns `403 PREMIUM_REQUIRED` for free-tier users; premium users pass through.
 
 - [ ] **T-007** [P1] [US-001] Unit tests for `PlanGuard` and `@RequirePremium()`  
-  — `packages/services/identity/src/billing/guards/plan.guard.spec.ts`  
+  — `packages/services/identity/src/billing/guards/__tests__/plan.guard.test.ts`  
   **Depends on**: T-005, T-006  
   **Implements**: FR-041, NFR-001  
   **Acceptance**: All tests pass; coverage ≥ 90% on guard file.
@@ -134,7 +134,7 @@ T-018 ──→ T-026 ──→ T-027
   **Acceptance**: E2E tests confirm `401` without JWT, correct `200` responses with valid token.
 
 - [ ] **T-013** [P1] [US-002] Unit tests for `BillingService`  
-  — `packages/services/identity/src/billing/billing.service.spec.ts`  
+  — `packages/services/identity/src/billing/__tests__/billing.service.test.ts`  
   **Depends on**: T-009, T-010, T-011  
   **Implements**: FR-041, NFR-001  
   **Acceptance**: All tests pass; coverage ≥ 85% on `billing.service.ts`; error paths (missing customer, Stripe API errors) covered.
@@ -149,7 +149,7 @@ T-018 ──→ T-026 ──→ T-027
   — `packages/services/identity/src/billing/webhook/webhook.controller.ts`  
   **Depends on**: T-008  
   **Implements**: FR-043 (webhook routing per plan.md §3, §5)  
-  **Acceptance**: `POST /v1/billing/webhook` registered; no JWT auth; invalid signatures return `400`; `rawBody: true` confirmed in `main.ts`.
+  **Acceptance**: `POST /api/v1/billing/webhook` registered; no JWT auth; invalid signatures return `400`; `rawBody: true` confirmed in `main.ts`.
 
 - [ ] **T-015** [P0] [US-003] Implement `WebhookService` with Stripe idempotency  
   — `packages/services/identity/src/billing/webhook/webhook.service.ts`  
@@ -218,7 +218,7 @@ T-018 ──→ T-026 ──→ T-027
   **Acceptance**: Premium action on mobile shows upgrade bottom sheet; tapping CTA opens system browser to web checkout URL.
 
 - [ ] **T-025** [P2] [US-004] E2E tests — upgrade flow (Playwright)  
-  — `packages/apps/commise/web/e2e/upgrade-flow.spec.ts`  
+  — `packages/apps/commise/web/tests/e2e/upgrade-flow.spec.ts`  
   **Depends on**: T-022, T-023  
   **Implements**: FR-042, NFR-003  
   **Acceptance**: Free user hits gated feature → upgrade prompt appears; `past_due` banner visible on dashboard; premium user accesses gated feature without prompt.

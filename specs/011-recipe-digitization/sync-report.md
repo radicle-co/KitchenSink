@@ -59,7 +59,7 @@
 | L4.1  | Forward (plan → tasks)  | **WARNING** | `analyze-report.md` identifies 4 plan↔tasks drift issues: **I1** invitation table naming (`circle_invitations` vs `circle_invites`), **I2** entity terminology divergence, **I3** FR-027 route scope incorrectly maps circle endpoints, **G1** missing Circle deletion audience revert in FR/NFR matrices. |
 | L4.2  | Backward (tasks → plan) | **PASS**    | Tasks T001..T100 map to plan architectural slices; traceability matrix and dependency graph present.                                                                                                                                                                                                       |
 
-**Evidence:** `tasks.md` declares all 100 tasks; dependency graph matches plan phases; task-file paths align with proposed `packages/api/*` and `packages/shared/*` structure.
+**Evidence:** `tasks.md` declares all 100 tasks; dependency graph matches plan phases; task-file paths align with proposed `packages/services/*` and `packages/shared/*` structure.
 
 ---
 

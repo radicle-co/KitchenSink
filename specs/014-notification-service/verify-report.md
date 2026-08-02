@@ -50,7 +50,7 @@
 - **Where**: `specs/014-notification-service/tasks.md`; workspace package paths referenced by tasks.
 - **Evidence**:
     - `53` total tasks (`T001`–`T066` with gaps by design, 53 defined entries) and all are unchecked.
-    - Referenced implementation paths (e.g., `packages/api/notifications-api/*`, `packages/shared/notifications/*`, `specs/014-notification-service/contracts/*`) are not present yet.
+    - Referenced implementation paths (e.g., `packages/services/notification-service/*`, `packages/shared/notifications/*`, `specs/014-notification-service/contracts/*`) are not present yet.
 - **Why WARNING (not CRITICAL)**: No task is falsely marked complete without corresponding code; this is a bootstrap/no-implementation state.
 - **Recommendation**: Begin Phase 1 scaffolding (`T001`–`T009`) before rerunning full verification.
 

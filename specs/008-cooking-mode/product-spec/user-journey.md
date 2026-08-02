@@ -26,7 +26,7 @@ sequenceDiagram
     participant Device as Device Runtime
 
     U->>App: Open recipe detail and tap "Start Cooking"
-    App->>API: GET /v1/recipes/{id}/instructions
+    App->>API: GET /api/v1/recipes/{id}/instructions
     API-->>App: instructions[]
 
     Note right of App: FR-032: one-step-at-a-time large text

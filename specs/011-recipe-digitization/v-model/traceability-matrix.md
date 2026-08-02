@@ -45,7 +45,7 @@
 | **REQ-035**    | The system SHALL, during owner account deletion, promote the oldest non-owner member to owner and, if none exist, apply Circle soft-delete behavior mapped to FR-033 with promotion audit events. [FROZEN-PENDING-RESOLUTION: G1]                                                            | ❌ MISSING           | Acceptance coverage for REQ-035 | —           | ⬜ Untested |
 | **REQ-036**    | The system SHALL purge digitization_jobs.raw_ocr_json 90 days after job creation regardless of job state and SHALL retain parsed_json for row lifetime.                                                                                                                                      | ❌ MISSING           | Acceptance coverage for REQ-036 | —           | ⬜ Untested |
 | **REQ-037**    | The OCR subsystem SHALL define and consume a provider-agnostic OcrProvider interface that includes input shape, confidence schema (token and overall), language output, error taxonomy, and timeout contract.                                                                                | ❌ MISSING           | Acceptance coverage for REQ-037 | —           | ⬜ Untested |
-| **REQ-038**    | CI SHALL fail when any packages/api/ or packages/shared/ directory is missing corresponding root workspace registration and required TS project references.                                                                                                                                  | ❌ MISSING           | Acceptance coverage for REQ-038 | —           | ⬜ Untested |
+| **REQ-038**    | CI SHALL fail when any packages/services/ or packages/shared/ directory is missing corresponding root workspace registration and required TS project references.                                                                                                                             | ❌ MISSING           | Acceptance coverage for REQ-038 | —           | ⬜ Untested |
 | **REQ-039**    | Circle deletion and owner-deletion critical paths SHALL use SERIALIZABLE isolation or REPEATABLE READ with SELECT ... FOR UPDATE locking as specified in addendum and plan notes.                                                                                                            | ❌ MISSING           | Acceptance coverage for REQ-039 | —           | ⬜ Untested |
 | **REQ-040**    | Upload and queue UX SHALL display explicit offline-failure copy, persist queued-local state, and retry on reconnect using idempotency keys.                                                                                                                                                  | ❌ MISSING           | Acceptance coverage for REQ-040 | —           | ⬜ Untested |
 | **REQ-041**    | Frontend implementation tasks T057–T067 SHALL evaluate packages/ui primitives first and SHALL document any new primitive additions with rationale in the designated index/process artifacts.                                                                                                 | ❌ MISSING           | Acceptance coverage for REQ-041 | —           | ⬜ Untested |
@@ -60,8 +60,8 @@
 | **REQ-050**    | OCR queue architecture SHALL support at least 20 concurrent jobs per user without UI blocking and SHALL alarm on queue depth and DLQ conditions.                                                                                                                                             | ❌ MISSING           | Acceptance coverage for REQ-050 | —           | ⬜ Untested |
 | **REQ-051**    | Outlier detection SHALL trigger within 1 hour when any Circle exceeds 100 members or any user owns 25 or more Circles.                                                                                                                                                                       | ❌ MISSING           | Acceptance coverage for REQ-051 | —           | ⬜ Untested |
 | **REQ-052**    | A daily purge process SHALL remove all eligible raw_ocr_json values older than 90 days and emit digitization.raw_ocr.purged.count when eligible records exist.                                                                                                                               | ❌ MISSING           | Acceptance coverage for REQ-052 | —           | ⬜ Untested |
-| **REQ-053**    | @kitchensink/shared-audience SHALL export AudienceScope including private, circle, public-profile, and published-lesson, and SHALL export Audience with optional ref_id and price_cents.                                                                                                     | ❌ MISSING           | Acceptance coverage for REQ-053 | —           | ⬜ Untested |
-| **REQ-054**    | @kitchensink/circles-api SHALL expose listCirclesForUser, isMember, and resolveAudience service contracts as the public integration surface for downstream consumers.                                                                                                                        | ❌ MISSING           | Acceptance coverage for REQ-054 | —           | ⬜ Untested |
+| **REQ-053**    | @kitchensink/audience SHALL export AudienceScope including private, circle, public-profile, and published-lesson, and SHALL export Audience with optional ref_id and price_cents.                                                                                                            | ❌ MISSING           | Acceptance coverage for REQ-053 | —           | ⬜ Untested |
+| **REQ-054**    | @kitchensink/circles-service SHALL expose listCirclesForUser, isMember, and resolveAudience service contracts as the public integration surface for downstream consumers.                                                                                                                    | ❌ MISSING           | Acceptance coverage for REQ-054 | —           | ⬜ Untested |
 | **REQ-055**    | When circles service is unavailable, consumer-facing audience resolution SHALL degrade by excluding circle scope and surfacing a temporary unavailability path without data leakage.                                                                                                         | ❌ MISSING           | Acceptance coverage for REQ-055 | —           | ⬜ Untested |
 | **REQ-056**    | Circle invitation persistence terminology SHALL be canonicalized across feature artifacts before implementation (circle_invitations vs circle_invites). [FROZEN-PENDING-RESOLUTION: I1][FROZEN-PENDING-RESOLUTION: I2]                                                                       | ❌ MISSING           | Acceptance coverage for REQ-056 | —           | ⬜ Untested |
 | **REQ-057**    | Invitation links SHALL be reusable until owner revocation, and link revocation SHALL rotate to a new active token.                                                                                                                                                                           | ❌ MISSING           | Acceptance coverage for REQ-057 | —           | ⬜ Untested |
@@ -146,55 +146,55 @@
 
 ## Matrix C — Integration Verification
 
-| Architecture Module ID | Module Name                                           | Parent System Component(s) | Integration Test Case ID (ITP) | Scenario ID (ITS) | Status      |
-| ---------------------- | ----------------------------------------------------- | -------------------------- | ------------------------------ | ----------------- | ----------- |
-| **ARCH-001**           | Capture UI Shell (Web)                                | SYS-001                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-002**           | Capture UI Shell (Mobile)                             | SYS-001                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-003**           | Pre-signed Upload Client                              | SYS-001, SYS-002, SYS-004  | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-004**           | Offline Capture Queue                                 | SYS-001                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-005**           | Digitization Job Intake Controller                    | SYS-002                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-006**           | Image Pre-flight Validator                            | SYS-003                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-007**           | S3 Photo Object Adapter                               | SYS-004                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-008**           | OCR Job Dispatcher (SQS Producer)                     | SYS-005                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-009**           | OCR Worker Lambda Runtime                             | SYS-005                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-010**           | OcrProvider Interface (@kitchensink/digitization-ocr) | SYS-006                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-011**           | OCR Provider Adapter (Default)                        | SYS-006                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-012**           | OCR Parser & Field Normalizer                         | SYS-007                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-013**           | OCR Payload Persistence                               | SYS-007, SYS-025           | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-014**           | Correction API Controller                             | SYS-008                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-015**           | Accept-All Eligibility Evaluator                      | SYS-008, SYS-009           | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-016**           | Correction UI (Web)                                   | SYS-009                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-017**           | Correction UI (Mobile)                                | SYS-009                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-018**           | Recipe Save Bridge Controller                         | SYS-010                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-019**           | Job Lifecycle Controller                              | SYS-011                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-020**           | Job Listing Controller                                | SYS-012                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-021**           | Circle Domain Service                                 | SYS-013                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-022**           | Circle Audience Rewriter                              | SYS-014                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-023**           | Circle Soft-Delete & Restore Worker                   | SYS-015                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-024**           | Circle Membership Audit Logger                        | SYS-016                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-025**           | Circle Outlier Monitor                                | SYS-017                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-026**           | Circle Invitation Service                             | SYS-018                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-027**           | Clerk Session-Token Authenticator (NestJS Middleware) | SYS-019                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-028**           | RFC 7807 Error Envelope Filter                        | SYS-020                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-029**           | @kitchensink/shared-audience Library                  | SYS-021                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-030**           | API Versioning Convention Module                      | SYS-022                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-031**           | Audience Resolution Fallback                          | SYS-023                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-032**           | Invitation Acceptance UI (Accessibility Surface)      | SYS-024                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-033**           | raw_ocr_json Privacy Purge Job                        | SYS-025                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-034**           | Observability & Telemetry Pipeline                    | SYS-026                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-035**           | Release Readiness & Canary Gate Controller            | SYS-027                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-036**           | Feature Flag Gateway Client                           | SYS-028                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-037**           | Test Convention Governance Linter                     | SYS-029                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-038**           | Workspace & CI Guardrails                             | SYS-030                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-039**           | Transactional Isolation Enforcer                      | SYS-031                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-040**           | UI Primitive Reuse Inspection                         | SYS-032                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-041**           | Request-Scoped Logger                                 | ❌ MISSING                 | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-042**           | Configuration & Secrets Loader                        | ❌ MISSING                 | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-043**           | Sentry Integration Adapter                            | SYS-026                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-044**           | Idempotency Key Helper                                | ❌ MISSING                 | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-045**           | Outbox / Domain Event Publisher                       | ❌ MISSING                 | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-046**           | OpenTelemetry Tracing Bootstrap                       | SYS-026                    | ❌ MISSING                     | —                 | ⬜ Untested |
-| **ARCH-047**           | Drizzle ORM Persistence Context                       | ❌ MISSING                 | ❌ MISSING                     | —                 | ⬜ Untested |
+| Architecture Module ID | Module Name                                               | Parent System Component(s) | Integration Test Case ID (ITP) | Scenario ID (ITS) | Status      |
+| ---------------------- | --------------------------------------------------------- | -------------------------- | ------------------------------ | ----------------- | ----------- |
+| **ARCH-001**           | Capture UI Shell (Web)                                    | SYS-001                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-002**           | Capture UI Shell (Mobile)                                 | SYS-001                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-003**           | Pre-signed Upload Client                                  | SYS-001, SYS-002, SYS-004  | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-004**           | Offline Capture Queue                                     | SYS-001                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-005**           | Digitization Job Intake Controller                        | SYS-002                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-006**           | Image Pre-flight Validator                                | SYS-003                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-007**           | S3 Photo Object Adapter                                   | SYS-004                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-008**           | OCR Job Dispatcher (SQS Producer)                         | SYS-005                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-009**           | OCR Worker Lambda Runtime                                 | SYS-005                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-010**           | OcrProvider Interface (@kitchensink/digitization-workers) | SYS-006                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-011**           | OCR Provider Adapter (Default)                            | SYS-006                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-012**           | OCR Parser & Field Normalizer                             | SYS-007                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-013**           | OCR Payload Persistence                                   | SYS-007, SYS-025           | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-014**           | Correction API Controller                                 | SYS-008                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-015**           | Accept-All Eligibility Evaluator                          | SYS-008, SYS-009           | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-016**           | Correction UI (Web)                                       | SYS-009                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-017**           | Correction UI (Mobile)                                    | SYS-009                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-018**           | Recipe Save Bridge Controller                             | SYS-010                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-019**           | Job Lifecycle Controller                                  | SYS-011                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-020**           | Job Listing Controller                                    | SYS-012                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-021**           | Circle Domain Service                                     | SYS-013                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-022**           | Circle Audience Rewriter                                  | SYS-014                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-023**           | Circle Soft-Delete & Restore Worker                       | SYS-015                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-024**           | Circle Membership Audit Logger                            | SYS-016                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-025**           | Circle Outlier Monitor                                    | SYS-017                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-026**           | Circle Invitation Service                                 | SYS-018                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-027**           | Clerk Session-Token Authenticator (NestJS Middleware)     | SYS-019                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-028**           | RFC 7807 Error Envelope Filter                            | SYS-020                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-029**           | @kitchensink/audience Library                             | SYS-021                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-030**           | API Versioning Convention Module                          | SYS-022                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-031**           | Audience Resolution Fallback                              | SYS-023                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-032**           | Invitation Acceptance UI (Accessibility Surface)          | SYS-024                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-033**           | raw_ocr_json Privacy Purge Job                            | SYS-025                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-034**           | Observability & Telemetry Pipeline                        | SYS-026                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-035**           | Release Readiness & Canary Gate Controller                | SYS-027                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-036**           | Feature Flag Gateway Client                               | SYS-028                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-037**           | Test Convention Governance Linter                         | SYS-029                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-038**           | Workspace & CI Guardrails                                 | SYS-030                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-039**           | Transactional Isolation Enforcer                          | SYS-031                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-040**           | UI Primitive Reuse Inspection                             | SYS-032                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-041**           | Request-Scoped Logger                                     | ❌ MISSING                 | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-042**           | Configuration & Secrets Loader                            | ❌ MISSING                 | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-043**           | Sentry Integration Adapter                                | SYS-026                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-044**           | Idempotency Key Helper                                    | ❌ MISSING                 | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-045**           | Outbox / Domain Event Publisher                           | ❌ MISSING                 | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-046**           | OpenTelemetry Tracing Bootstrap                           | SYS-026                    | ❌ MISSING                     | —                 | ⬜ Untested |
+| **ARCH-047**           | Drizzle ORM Persistence Context                           | ❌ MISSING                 | ❌ MISSING                     | —                 | ⬜ Untested |
 
 ## Matrix D — Implementation Verification
 

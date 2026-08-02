@@ -61,7 +61,7 @@ sequenceDiagram
 
 | Module(s)                                                  | Target Package/Workspace                   |
 | ---------------------------------------------------------- | ------------------------------------------ |
-| ARCH-001..ARCH-004, ARCH-006..ARCH-010, ARCH-013..ARCH-019 | `@kitchensink/creator-profiles-api`        |
+| ARCH-001..ARCH-004, ARCH-006..ARCH-010, ARCH-013..ARCH-019 | `@kitchensink/creator-profiles-service`    |
 | ARCH-011                                                   | `@kitchensink/creator-profiles-widget`     |
 | ARCH-012                                                   | creator analytics scheduled Lambda package |
 | ARCH-020                                                   | shared platform audit/telemetry package    |

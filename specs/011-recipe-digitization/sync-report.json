@@ -120,7 +120,7 @@
             "name": "Implementation readiness (INFO)",
             "verdict": "INFO",
             "severity": "INFO",
-            "evidence": "implement phase is not-started. 0/100 tasks complete. Code evidence found only for T001 (workspace globs added to root package.json workspaces?) and T006 (tsconfig path aliases). No packages/api/* or packages/shared/audience packages exist yet. No implementation code to verify against spec."
+            "evidence": "implement phase is not-started. 0/100 tasks complete. Code evidence found only for T001 (workspace globs added to root package.json workspaces?) and T006 (tsconfig path aliases). No packages/services/* or packages/shared/audience packages exist yet. No implementation code to verify against spec."
         },
         {
             "id": "L6-apps-ref",
@@ -138,7 +138,7 @@
             "name": "Constitution alignment pre-impl audit",
             "verdict": "WARNING",
             "severity": "WARNING",
-            "evidence": "analyze-report C1-C4: test naming conflicts (*.spec.ts vs constitution *.test.ts), missing test-header traceability task, missing per-PR schema isolation for Aurora DSQL, and missing generate:types ordering gate."
+            "evidence": "analyze-report C1 RESOLVED 2026-08-02 (test naming normalized to CODING_STANDARDS v1.3.0: vitest .test.ts, Playwright-only .spec.ts under tests/e2e/); C2-C4 remain open, missing test-header traceability task, missing per-PR schema isolation for Aurora DSQL, and missing generate:types ordering gate."
         }
     ]
 }

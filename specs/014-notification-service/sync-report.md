@@ -88,11 +88,11 @@
 
 **Result: INFO**
 
-- All 66 tasks unchecked. Implementation package paths (`packages/api/notifications-api/*`, `packages/shared/notifications/*`) do not exist on disk.
+- All 66 tasks unchecked. Implementation package paths (`packages/services/notification-service/*`, `packages/shared/notifications/*`) do not exist on disk.
 - Expected for pre-implement phase. No action required.
 
 **Evidence**
-- `ls /home/brandon/Development/KitchenSink/.worktrees/002-user-auth/packages/api/notifications-api = NOT_FOUND`
+- `ls /home/brandon/Development/KitchenSink/.worktrees/002-user-auth/packages/services/notification-service = NOT_FOUND`
 - `ls /home/brandon/Development/KitchenSink/.worktrees/002-user-auth/packages/shared/notifications = NOT_FOUND`
 - `tasks.md` shows all task checkboxes `[ ]` unmarked.
 
@@ -140,7 +140,7 @@ All 7 Must Have stories have end-to-end traceability across the artifact chain.
 
 | Flag | Severity | Detail |
 |------|----------|--------|
-| `apps/X` refs | INFO | No `apps/X` references found in the artifact chain. Task file paths use `packages/api/` and `packages/shared/` conventions, consistent with monorepo `packages/apps/commise/{web,mobile}`. |
+| `apps/X` refs | INFO | No `apps/X` references found in the artifact chain. Task file paths use `packages/services/` and `packages/shared/` conventions, consistent with monorepo `packages/apps/commise/{web,mobile}`. |
 
 ---
 

@@ -158,7 +158,7 @@
 
 ### Evidence
 - `packages/apps/commise/` exists with `web/` and `mobile/` (React / React Native)
-- `packages/api/` exists as empty `.gitkeep` (no NestJS backend in this branch)
+- `packages/services/` is workspace-registered and ships five services (`identity`, `identity-webhooks`, `food-service`, `recipe-service`, `recipe-workers`); 007 adds `grocery-service`. The empty leftover is `packages/api/`, which is **not** a workspace root.
 - Searched entire `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/packages/` for `grocery`, `pantry`, `culinary`, `aggregator` — **0 matches**
 - No Drizzle schema files, no migration files, no NestJS controllers/services/modules
 
@@ -210,7 +210,7 @@
 | SC-009 | ✅ | ✅ | ✅ | ✅ | ✅ (REQ-CN-004) |
 
 ### apps/X Reference Notes
-- ℹ️ **INFO**: `research/codebase-analysis.md` references `packages/apps/commise/api/src/grocery-lists/` — this directory does not exist in the current monorepo (packages/api is empty). This is expected pre-implementation drift; actual API backend will likely be in `packages/services/identity/` or a new API package.
+- ✅ **RESOLVED (2026-08-02)**: the API-location ambiguity is closed. `packages/api/` is an empty leftover and is **not** a workspace root; 007's backend is `packages/services/grocery-service/`, matching the shipped `packages/services/<domain>-service` convention (`food-service`, `recipe-service`) and 005's `ai-service`. All paths in `plan.md`, `tasks.md`, and `research/` were updated accordingly.
 
 ### Findings
 - ✅ All required dependency specs present on disk
@@ -226,7 +226,7 @@
 1. **Before implementation**: Ensure `006-meal-planning` grocery-list generation hook exists (T-006 depends on meal plan APIs).
 2. **Post-implementation re-scan**: Re-run L5 and L6 after T-001..T-012 complete to validate code ↔ tasks traceability.
 3. **Store adapter caution**: Walmart API key and Instacart partner agreement are still external blockers. Keep store tasks mock-only until credentials available.
-4. **Monorepo path drift**: Clarify whether `packages/api/` or a new `packages/apps/commise/api/` is the canonical API location before module scaffolding.
+4. ~~**Monorepo path drift**~~ — **CLOSED (2026-08-02)**. Canonical API location is `packages/services/grocery-service/`; `packages/api/` is an empty leftover, not a workspace root.
 
 ---
 

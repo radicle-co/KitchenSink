@@ -102,7 +102,7 @@ Source: [Instacart IDP Overview](https://docs.instacart.com/developer_platform_a
 
 ### Key Endpoints
 
-#### `POST /idp/v1/products/shopping_list` — Create Shopping List Page
+#### `POST /idp/api/v1/products/shopping_list` — Create Shopping List Page
 
 Creates a hosted Instacart shopping list page and returns a shareable link. Users click the link, select a store, add products to cart, and check out on Instacart.
 
@@ -142,7 +142,7 @@ interface InstacartMeasurement {
 
 Source: [Create Shopping List Page](https://docs.instacart.com/developer_platform_api/api/products/create_shopping_list_page/) (2026-04-29)
 
-#### `POST /idp/v1/products/recipe` — Create Recipe Page
+#### `POST /idp/api/v1/products/recipe` — Create Recipe Page
 
 Creates a recipe-specific page with ingredient-to-product matching. Supports `enable_pantry_items` so users can mark items they already have.
 
@@ -162,7 +162,7 @@ Source: [Connect AI Agent to Instacart with MCP](https://docs.instacart.com/deve
 GroceryListService
   → aggregateIngredients(mealPlanId)
   → normalizeUnits(ingredients)
-  → POST /idp/v1/products/shopping_list
+  → POST /idp/api/v1/products/shopping_list
   ← { link: "https://www.instacart.com/store/..." }
   → return link to client (redirect or deep link)
 ```

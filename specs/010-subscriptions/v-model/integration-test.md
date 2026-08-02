@@ -520,7 +520,7 @@ And ARCH-002 receives { userId, targetTier: 'free', reason: 'registration' }
 ##### ITS-011-A1
 
 ```gherkin
-Given a valid signed POST /webhooks/subscription request with X-Signature header
+Given a valid signed POST /api/v1/webhooks/subscription request with X-Signature header
 When ARCH-011 SubscriptionWebhookController receives the request
 Then ARCH-011 calls ARCH-012 validateHMAC(payload: Buffer, signature: string)
 And ARCH-012 returns { valid: true }
@@ -550,7 +550,7 @@ And ARCH-011 returns HTTP 200 { received: true } after ARCH-009 completes
 ##### ITS-011-C1
 
 ```gherkin
-Given a POST /webhooks/subscription request with a tampered or missing X-Signature header
+Given a POST /api/v1/webhooks/subscription request with a tampered or missing X-Signature header
 When ARCH-011 SubscriptionWebhookController calls ARCH-012 validateHMAC(payload, signature)
 Then ARCH-012 throws a signature validation error
 And ARCH-011 returns HTTP 401 { error: 'Invalid signature' }

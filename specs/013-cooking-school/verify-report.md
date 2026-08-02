@@ -18,11 +18,11 @@
 
 ## Layer 1: Code ↔ Tasks
 
-| Check                                   | Status | Finding                                                                                                                                                                                                    |
-| --------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| All tasks have verifiable code          | ❌     | `tasks.md` contains 69 tasks (`T001`-`T085` with gaps), but no implementation workspaces/files were found for planned targets (no `packages/api/cooking-school-*`, no `packages/shared/cooking-school-*`). |
-| No unchecked tasks                      | ❌     | `tasks.md` has `0` checked and `69` unchecked tasks.                                                                                                                                                       |
-| Task count matches implementation scope | ❌     | Planned implementation scope is non-trivial (API, shared contracts, ingest, enrollment, analytics), but observable implementation scope is `0` feature code files.                                         |
+| Check                                   | Status | Finding                                                                                                                                                                                                         |
+| --------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| All tasks have verifiable code          | ❌     | `tasks.md` contains 69 tasks (`T001`-`T085` with gaps), but no implementation workspaces/files were found for planned targets (no `packages/services/cooking-school-*`, no `packages/shared/cooking-school-*`). |
+| No unchecked tasks                      | ❌     | `tasks.md` has `0` checked and `69` unchecked tasks.                                                                                                                                                            |
+| Task count matches implementation scope | ❌     | Planned implementation scope is non-trivial (API, shared contracts, ingest, enrollment, analytics), but observable implementation scope is `0` feature code files.                                              |
 
 `CODE_TASKS_COVERAGE`: **0/69 (0.0%)** tasks with verifiable implementation evidence.
 
@@ -30,11 +30,11 @@
 
 ## Layer 2: Code ↔ Plan
 
-| Planned Component                                                           | Implemented | Notes                                                                                               |
-| --------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------- |
-| Feature 013 API/workspace deliverables in `plan.md` + `tasks.md`            | ❌          | No corresponding feature implementation directories found in `packages/api/` or `packages/shared/`. |
-| M7 end-to-end demo path (educator publish + learner purchase/enroll/access) | ❌          | `plan.md` defines this as exit evidence; no code or test execution evidence exists yet.             |
-| Verification artifact requirement (`verify-report.md`)                      | ✅          | This report now exists.                                                                             |
+| Planned Component                                                           | Implemented | Notes                                                                                                    |
+| --------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------- |
+| Feature 013 API/workspace deliverables in `plan.md` + `tasks.md`            | ❌          | No corresponding feature implementation directories found in `packages/services/` or `packages/shared/`. |
+| M7 end-to-end demo path (educator publish + learner purchase/enroll/access) | ❌          | `plan.md` defines this as exit evidence; no code or test execution evidence exists yet.                  |
+| Verification artifact requirement (`verify-report.md`)                      | ✅          | This report now exists.                                                                                  |
 
 ---
 
@@ -102,7 +102,7 @@ Advisory result: strategic alignment is strong at artifact level; runtime adhere
 - **Layer:** Code ↔ Tasks
 - **Finding:** `tasks.md` defines 69 implementation tasks, with no verifiable feature implementation code.
 - **Impact:** Full traceability chain cannot be closed at implementation layer.
-- **Evidence:** `specs/013-cooking-school/tasks.md`; absence of `packages/api/cooking-school-*` and `packages/shared/cooking-school-*`.
+- **Evidence:** `specs/013-cooking-school/tasks.md`; absence of `packages/services/cooking-school-*` and `packages/shared/cooking-school-*`.
 - **Suggested fix:** Execute implementation tasks and create planned workspaces/modules before re-running verify-full.
 
 ### CRITICAL-002

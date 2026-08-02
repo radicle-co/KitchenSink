@@ -5,10 +5,14 @@
 > Last Updated: 2026-05-12
 
 **Mode**: Retroactive bootstrap
-**Milestone**: M7 (Minas Tirith)
-**Public Launch**: Post-1.0 (in v1)
-**Launch Plan**: [`v1-launch-plan.md`](../v1-launch-plan.md)
 **Governance Rules**: [`governance-rules.md`](../governance-rules.md)
+
+## Milestone Assignment
+
+- **Milestone**: `M7` Minas Tirith
+- **Public launch**: Post-1.0 (in v1)
+- **Source of truth**: ../v1-launch-plan.md
+- **Last updated**: 2026-08-02
 
 ---
 

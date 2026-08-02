@@ -4,9 +4,13 @@
 **Created**: 2026-05-09
 **Status**: Pending initial human review
 **Mode**: Retroactive bootstrap
-**Milestone**: `M5` Isengard
-**Public Launch**: 1.0 (end of `M6`)
-**Launch Plan**: [`v1-launch-plan.md`](../v1-launch-plan.md)
+
+## Milestone Assignment
+
+- **Milestone**: `M5` Isengard
+- **Public launch**: 1.0
+- **Source of truth**: ../v1-launch-plan.md
+- **Last updated**: 2026-08-02
 
 ---
 

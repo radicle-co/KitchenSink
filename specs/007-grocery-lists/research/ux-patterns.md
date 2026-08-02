@@ -21,7 +21,7 @@ Expected UX characteristics:
 - Generated-at timestamp + source meal plan reference
 - Clear recompute action when meal plan changes
 
-**FR coverage**: FR-028, FR-045
+**FR coverage**: FR-028, 001-FR-045
 
 ---
 

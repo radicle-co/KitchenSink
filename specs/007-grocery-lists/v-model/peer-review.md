@@ -79,7 +79,7 @@ Overall artifact quality is **high**. The requirements are well-structured, the 
 
 **Problem**: "Inspection" as a verification method is only valid when a concrete inspection procedure exists (e.g., a code review checklist item, a linting rule, a PR gate). Without a defined procedure, REQ-CN-003 has effectively zero verifiable coverage. This is a scope-boundary constraint — if violated, manual ingredient entry could silently enter the codebase.
 
-**Required Action**: Either (a) add a concrete inspection checklist entry to `trace.md` Matrix A (e.g., "PR reviewer confirms no `POST /grocery-lists/items` endpoint accepts free-text ingredient body"), or (b) convert to a unit test that asserts the `generateList` service only accepts `mealPlanId` as input and rejects any direct ingredient payload.
+**Required Action**: Either (a) add a concrete inspection checklist entry to `trace.md` Matrix A (e.g., "PR reviewer confirms no `POST /api/v1/grocery-lists/items` endpoint accepts free-text ingredient body"), or (b) convert to a unit test that asserts the `generateList` service only accepts `mealPlanId` as input and rejects any direct ingredient payload.
 
 ---
 
@@ -116,7 +116,7 @@ Overall artifact quality is **high**. The requirements are well-structured, the 
 
 **Problem**: Matrix B references `AT-CN-001-A` as if it exists, but the acceptance plan document does not define it. This is a phantom reference — the traceability matrix claims coverage that the test plan does not provide.
 
-**Required Action**: Add `AT-CN-001-A` to `acceptance-plan.md` with at least one BDD scenario: unauthenticated `GET /grocery-lists` returns HTTP 401 with no data leakage.
+**Required Action**: Add `AT-CN-001-A` to `acceptance-plan.md` with at least one BDD scenario: unauthenticated `GET /api/v1/grocery-lists` returns HTTP 401 with no data leakage.
 
 ---
 

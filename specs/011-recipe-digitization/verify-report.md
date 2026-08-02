@@ -56,7 +56,7 @@
     - Checklist completion is **0/57**.
     - Verifiable file evidence exists for **2/57** checklist tasks (`T001` via `package.json`, `T006` via existing `tsconfig*.json` paths).
     - Planned implementation packages from `plan.md` are not present yet:
-      `packages/api/digitization-api`, `packages/api/circles-api`, `packages/api/digitization-ocr`, `packages/shared/audience`.
+      `packages/services/digitization-service`, `packages/services/circles-service`, `packages/services/digitization-workers`, `packages/shared/audience`.
 - **Impact**: End-to-end implementation traceability is currently an expected pre-implementation gap, not a contradiction.
 
 ### W-002: `plan.md` does not explicitly cite all FRs present in `spec.md`

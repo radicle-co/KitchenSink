@@ -54,7 +54,7 @@ sequenceDiagram
     participant S as ARCH-002 NutritionPlanService
     participant R as ARCH-003 NutritionPlanRepository
 
-    Client->>C: POST /nutrition-plans { name, dailyCalories, protein, carbs, fat }
+    Client->>C: POST /api/v1/nutrition-plans { name, dailyCalories, protein, carbs, fat }
     C->>Auth: verifyToken(token) → AuthenticatedUser
     Auth-->>C: { userId, roles }
     C->>S: createPlan(userId, planData)
@@ -81,7 +81,7 @@ sequenceDiagram
     participant USDA as ARCH-016 USDAFoodDataAdapter
     participant RA as ARCH-017 RecipeAppAdapter
 
-    Client->>CC: GET /nutrition-plans/:id/compliance
+    Client->>CC: GET /api/v1/nutrition-plans/:id/compliance
     CC->>Auth: verifyToken(token) → AuthenticatedUser
     Auth-->>CC: { userId }
     CC->>CS: analyse(nutritionPlanId, userId)
@@ -113,7 +113,7 @@ sequenceDiagram
     participant CR as ARCH-012 ConsentRepository
     participant PS as ARCH-002 NutritionPlanService
 
-    Trainer->>TC: POST /trainer/clients/:clientId/nutrition-plans
+    Trainer->>TC: POST /api/v1/trainer/clients/:clientId/nutrition-plans
     TC->>Auth: verifyToken(token) → { userId, roles }
     Auth-->>TC: { userId: trainerId, roles: [trainer] }
     TC->>Sub: checkPremium(trainerId)
@@ -144,7 +144,7 @@ sequenceDiagram
     participant CS as ARCH-008 ComplianceAnalyserService
     participant RA as ARCH-017 RecipeAppAdapter
 
-    Client->>AC: GET /nutrition-plans/:id/swap-suggestions
+    Client->>AC: GET /api/v1/nutrition-plans/:id/swap-suggestions
     AC->>Auth: verifyToken(token) → { userId }
     Auth-->>AC: { userId }
     AC->>Sub: checkPremium(userId)

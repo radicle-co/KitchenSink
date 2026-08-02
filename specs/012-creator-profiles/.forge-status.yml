@@ -118,7 +118,7 @@ entity_ownership:
 
 cross_feature_references:
     - feature: 010-subscriptions
-      relationship: tip jars, premium recipes, paid follows extend 010 billing model
+      relationship: tip jar and creator earnings extend 010 billing model (premium recipes and paid follows withdrawn 2026-08-02)
     - feature: 013-cooking-school
       relationship: educator profiles reference CreatorProfile entity
     - feature: 002-user-auth

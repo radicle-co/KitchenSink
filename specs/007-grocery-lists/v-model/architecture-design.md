@@ -21,15 +21,15 @@ The Grocery Lists & Online Ordering architecture decomposes six system component
 
 | ARCH ID  | Name                     | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Parent System Components | Type      |
 | -------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ | --------- |
-| ARCH-001 | GroceryListController    | NestJS REST controller exposing `POST /grocery-lists/generate`, `GET /grocery-lists/:id`, and `DELETE /grocery-lists/:id`. Validates DTOs, delegates to GroceryListService, and serialises responses. Applies AuthMiddleware and rate-limit decorators.                                                                                                                                                                                                            | SYS-001, SYS-002         | Component |
+| ARCH-001 | GroceryListController    | NestJS REST controller exposing `POST /api/v1/grocery-lists/generate`, `GET /api/v1/grocery-lists/:id`, and `DELETE /api/v1/grocery-lists/:id`. Validates DTOs, delegates to GroceryListService, and serialises responses. Applies AuthMiddleware and rate-limit decorators.                                                                                                                                                                                       | SYS-001, SYS-002         | Component |
 | ARCH-002 | GroceryListService       | Domain service orchestrating list generation: fetches meal plan via MealPlanAdapter, fetches recipe ingredients via RecipeAdapter, invokes IngredientAggregator, persists result via GroceryListRepository. Enforces 5-second timeout (REQ-003).                                                                                                                                                                                                                   | SYS-001                  | Service   |
 | ARCH-003 | IngredientAggregator     | Pure domain module: accepts a flat array of `{ingredientId, quantity, unit}` tuples, invokes UsdaAdapter for canonical identity and unit normalisation, deduplicates by canonical ingredient ID, sums quantities, and returns `GroceryListItem[]`.                                                                                                                                                                                                                 | SYS-001                  | Component |
-| ARCH-004 | ListStateController      | NestJS REST controller exposing `PATCH /grocery-lists/:id/items/:itemId` (mark already-have), `GET /grocery-lists/:id/items` (filtered view). Applies AuthMiddleware. Delegates to ListStateService.                                                                                                                                                                                                                                                               | SYS-002                  | Component |
+| ARCH-004 | ListStateController      | NestJS REST controller exposing `PATCH /api/v1/grocery-lists/:id/items/:itemId` (mark already-have), `GET /api/v1/grocery-lists/:id/items` (filtered view). Applies AuthMiddleware. Delegates to ListStateService.                                                                                                                                                                                                                                                 | SYS-002                  | Component |
 | ARCH-005 | ListStateService         | Domain service managing grocery list item state: reads/writes `alreadyHave` flag, enforces exclusion of flagged items from shopping view and order submission queries. Delegates persistence to GroceryListRepository.                                                                                                                                                                                                                                             | SYS-002                  | Service   |
 | ARCH-006 | GroceryListRepository    | Drizzle ORM repository for `grocery_lists` and `grocery_list_items` tables. Provides typed CRUD operations, optimistic locking for concurrent flag updates, and query methods that filter `alreadyHave = true` items.                                                                                                                                                                                                                                              | SYS-001, SYS-002         | Component |
-| ARCH-007 | OnlineOrderingController | NestJS REST controller exposing `POST /grocery-lists/:id/order`. Applies AuthMiddleware and SubscriptionGuard (premium gate). Delegates to OnlineOrderingService. Returns order status and provider order ID.                                                                                                                                                                                                                                                      | SYS-003, SYS-004         | Component |
+| ARCH-007 | OnlineOrderingController | NestJS REST controller exposing `POST /api/v1/grocery-lists/:id/order`. Applies AuthMiddleware and SubscriptionGuard (premium gate). Delegates to OnlineOrderingService. Returns order status and provider order ID.                                                                                                                                                                                                                                               | SYS-003, SYS-004         | Component |
 | ARCH-008 | OnlineOrderingService    | Domain service orchestrating order submission: reads active list items (excluding `alreadyHave`) via ListStateService, resolves store config via StoreConfigService, maps ingredients to provider SKUs via IngredientMappingRepository, submits via GroceryStoreAdapter. Handles API outage with retry + graceful degradation.                                                                                                                                     | SYS-003                  | Service   |
-| ARCH-009 | StoreConfigController    | NestJS REST controller exposing `GET /store-configs`, `POST /store-configs`, `DELETE /store-configs/:id`. Applies AuthMiddleware. Delegates to StoreConfigService. Returns setup guidance when no config exists.                                                                                                                                                                                                                                                   | SYS-004                  | Component |
+| ARCH-009 | StoreConfigController    | NestJS REST controller exposing `GET /api/v1/store-configs`, `POST /api/v1/store-configs`, `DELETE /api/v1/store-configs/:id`. Applies AuthMiddleware. Delegates to StoreConfigService. Returns setup guidance when no config exists.                                                                                                                                                                                                                              | SYS-004                  | Component |
 | ARCH-010 | StoreConfigService       | Domain service managing grocery store integration configurations: validates provider credentials, persists encrypted store configs, and provides lookup by userId. Returns setup guidance payload when no config is found (REQ-007).                                                                                                                                                                                                                               | SYS-004                  | Service   |
 | ARCH-011 | StoreConfigRepository    | Drizzle ORM repository for `store_configs` table. Stores encrypted provider credentials (AES-256-GCM via AWS KMS). Provides lookup by userId and provider enum.                                                                                                                                                                                                                                                                                                    | SYS-004                  | Component |
 | ARCH-012 | AuthMiddleware           | NestJS middleware applied to all grocery list and ordering endpoints. Extracts the Clerk session token (Bearer) from the `Authorization` header, verifies it networklessly via the public `CLERK_JWT_KEY` (no JWKS round trip) enforcing authorized parties (`azp` / `CLERK_AUTHORIZED_PARTIES`), read-through-resolves the app user from the `sub` claim, and attaches `userId` to request context. Rejects on invalid/missing/expired token or disallowed `azp`. | SYS-005                  | Utility   |
@@ -50,7 +50,7 @@ sequenceDiagram
     participant R6 as ARCH-006 GroceryListRepository
     participant E14 as ARCH-014 ExternalAdapters
 
-    Client->>C1: POST /grocery-lists/generate {mealPlanId}
+    Client->>C1: POST /api/v1/grocery-lists/generate {mealPlanId}
     C1->>G12: verifyToken(token) [networkless, CLERK_JWT_KEY + azp]
     G12->>G12: read-through resolve user from sub claim
     G12-->>C1: userId attached to context
@@ -84,7 +84,7 @@ sequenceDiagram
     participant S5 as ARCH-005 ListStateService
     participant R6 as ARCH-006 GroceryListRepository
 
-    Client->>C4: PATCH /grocery-lists/:id/items/:itemId {alreadyHave: true}
+    Client->>C4: PATCH /api/v1/grocery-lists/:id/items/:itemId {alreadyHave: true}
     C4->>G12: verifyToken(token) [networkless]
     G12-->>C4: userId
     C4->>S5: markAlreadyHave(listId, itemId, userId, true)
@@ -114,7 +114,7 @@ sequenceDiagram
     participant S10 as ARCH-010 StoreConfigService
     participant E14 as ARCH-014 ExternalAdapters
 
-    Client->>C7: POST /grocery-lists/:id/order
+    Client->>C7: POST /api/v1/grocery-lists/:id/order
     C7->>G12: verifyToken(token) [networkless]
     G12-->>C7: userId
     C7->>G13: checkSubscription(userId)
@@ -150,14 +150,14 @@ sequenceDiagram
 
 ### ARCH-001: GroceryListController
 
-| Direction | Name          | Type              | Format                              | Constraints                                  |
-| --------- | ------------- | ----------------- | ----------------------------------- | -------------------------------------------- |
-| Input     | mealPlanId    | string (UUID)     | `POST /grocery-lists/generate` body | Required; must reference existing meal plan  |
-| Input     | Authorization | string            | `Bearer <jwt>` header               | Required; validated by AuthMiddleware        |
-| Output    | GroceryList   | object            | `{id, userId, mealPlanId, items[]}` | 201 on success                               |
-| Exception | 400           | ValidationError   | `{statusCode, message, errors[]}`   | Invalid DTO                                  |
-| Exception | 401           | UnauthorizedError | `{statusCode, message}`             | Missing or invalid JWT                       |
-| Exception | 504           | TimeoutError      | `{statusCode, message}`             | Generation exceeded 5-second limit (REQ-003) |
+| Direction | Name          | Type              | Format                                     | Constraints                                  |
+| --------- | ------------- | ----------------- | ------------------------------------------ | -------------------------------------------- |
+| Input     | mealPlanId    | string (UUID)     | `POST /api/v1/grocery-lists/generate` body | Required; must reference existing meal plan  |
+| Input     | Authorization | string            | `Bearer <jwt>` header                      | Required; validated by AuthMiddleware        |
+| Output    | GroceryList   | object            | `{id, userId, mealPlanId, items[]}`        | 201 on success                               |
+| Exception | 400           | ValidationError   | `{statusCode, message, errors[]}`          | Invalid DTO                                  |
+| Exception | 401           | UnauthorizedError | `{statusCode, message}`                    | Missing or invalid JWT                       |
+| Exception | 504           | TimeoutError      | `{statusCode, message}`                    | Generation exceeded 5-second limit (REQ-003) |
 
 ### ARCH-002: GroceryListService
 
@@ -236,7 +236,7 @@ sequenceDiagram
 
 | Direction | Name        | Type            | Format                                | Constraints                              |
 | --------- | ----------- | --------------- | ------------------------------------- | ---------------------------------------- |
-| Input     | provider    | string (enum)   | `POST /store-configs` body            | Required; must be supported provider     |
+| Input     | provider    | string (enum)   | `POST /api/v1/store-configs` body     | Required; must be supported provider     |
 | Input     | credentials | object          | provider-specific credential shape    | Required; validated per provider schema  |
 | Output    | StoreConfig | object          | `{id, provider, active, setupGuide?}` | setupGuide present when no config exists |
 | Exception | 400         | ValidationError | `{statusCode, message}`               | Invalid provider or credential shape     |
@@ -329,7 +329,7 @@ ARCH-001 GroceryListController
 ### Flow 2: Grocery List → Online Order
 
 ```text
-[Client: POST /grocery-lists/:id/order]
+[Client: POST /api/v1/grocery-lists/:id/order]
         │ JWT token
         ▼
 ARCH-012 AuthMiddleware (networkless verify: CLERK_JWT_KEY + azp)
@@ -362,7 +362,7 @@ ARCH-007 OnlineOrderingController
 ### Flow 3: Item Flag Update
 
 ```text
-[Client: PATCH /grocery-lists/:id/items/:itemId]
+[Client: PATCH /api/v1/grocery-lists/:id/items/:itemId]
         │ {alreadyHave: boolean}
         ▼
 ARCH-012 AuthMiddleware

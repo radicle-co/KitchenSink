@@ -953,7 +953,7 @@ This feature is **non-regulated**. No safety-critical taxonomy is applied.
     - No loss of instance/request correlation data.
 - Trace to SYS-NNN: `SYS-020`, `SYS-003`, `SYS-019`
 
-### Architecture Module Integration: ARCH-029 — `@kitchensink/shared-audience` Library (View: Logical)
+### Architecture Module Integration: ARCH-029 — `@kitchensink/audience` Library (View: Logical)
 
 #### Test Case: ITP-029-A — Shared audience type contract export
 
@@ -1119,7 +1119,7 @@ This feature is **non-regulated**. No safety-critical taxonomy is applied.
 - Technique: **Interface Testing**
 - Modules Under Test: `ARCH-035`, `ARCH-034`, `ARCH-036`
 - Preconditions:
-    - Endpoint `POST /internal/canary/promote` available
+    - Endpoint `POST /api/v1/internal/canary/promote` available
     - Feature values include `digitization|circles`
 - Test Steps:
     1. Submit promotion request `{ feature, from, to }`.
@@ -1289,7 +1289,7 @@ This feature is **non-regulated**. No safety-critical taxonomy is applied.
 #### Test Case: ITP-040-A — Primitive inspection record contract
 
 - Technique: **Interface Testing**
-- Modules Under Test: `ARCH-040`, `packages/ui` governance docs, lint rule boundary
+- Modules Under Test: `ARCH-040`, `packages/apps/commise/ui` governance docs, lint rule boundary
 - Preconditions:
     - Frontend task change includes new or reused primitive
 - Test Steps:

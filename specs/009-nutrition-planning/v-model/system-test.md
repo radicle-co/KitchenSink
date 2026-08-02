@@ -41,42 +41,42 @@ Each test case MUST identify its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that `POST /nutrition-plans` accepts a well-formed payload and returns a persisted `NutritionPlan` object with all required fields.
+**Description**: Verifies that `POST /api/v1/nutrition-plans` accepts a well-formed payload and returns a persisted `NutritionPlan` object with all required fields.
 
 - **System Scenario: STS-001-A1**
     - **Given** the Auth Integration Adapter (SYS-011) returns a valid `AuthenticatedUser` for the provided JWT
-    - **When** `POST /nutrition-plans` is called with `{ name: "Bulk Phase", dailyCalories: 2800, protein: 180, carbs: 320, fat: 80, period: "weekly" }`
+    - **When** `POST /api/v1/nutrition-plans` is called with `{ name: "Bulk Phase", dailyCalories: 2800, protein: 180, carbs: 320, fat: 80, period: "weekly" }`
     - **Then** the response status is `201`, the body contains a `NutritionPlan` with a non-null `id`, `userId` matching the authenticated user, and all submitted macro fields
 
 - **System Scenario: STS-001-A2**
     - **Given** the Auth Integration Adapter (SYS-011) returns a valid `AuthenticatedUser`
-    - **When** `POST /nutrition-plans` is called with a payload missing the required `dailyCalories` field
+    - **When** `POST /api/v1/nutrition-plans` is called with a payload missing the required `dailyCalories` field
     - **Then** the response status is `400` with a structured validation error body
 
 - **System Scenario: STS-001-A3**
     - **Given** no JWT is present in the request headers
-    - **When** `POST /nutrition-plans` is called with an otherwise valid payload
+    - **When** `POST /api/v1/nutrition-plans` is called with an otherwise valid payload
     - **Then** the response status is `401` and the plan is not persisted to PostgreSQL
 
 #### Test Case: STP-001-B (Retrieve Nutrition Plan — Boundary and Authorization)
 
 **Technique**: Boundary Value Analysis
 **Target View**: Data Design View
-**Description**: Verifies that `GET /nutrition-plans/:id` enforces row-level security and returns the correct entity from PostgreSQL.
+**Description**: Verifies that `GET /api/v1/nutrition-plans/:id` enforces row-level security and returns the correct entity from PostgreSQL.
 
 - **System Scenario: STS-001-B1**
     - **Given** a `NutritionPlan` with `id = "plan-abc"` exists in PostgreSQL owned by `userId = "user-1"`
-    - **When** `GET /nutrition-plans/plan-abc` is called with a JWT resolving to `userId = "user-1"`
+    - **When** `GET /api/v1/nutrition-plans/plan-abc` is called with a JWT resolving to `userId = "user-1"`
     - **Then** the response status is `200` and the body matches the stored `NutritionPlan` record
 
 - **System Scenario: STS-001-B2**
     - **Given** a `NutritionPlan` with `id = "plan-abc"` exists owned by `userId = "user-1"`
-    - **When** `GET /nutrition-plans/plan-abc` is called with a JWT resolving to `userId = "user-2"` (different owner, non-trainer)
+    - **When** `GET /api/v1/nutrition-plans/plan-abc` is called with a JWT resolving to `userId = "user-2"` (different owner, non-trainer)
     - **Then** the response status is `403` and no plan data is returned
 
 - **System Scenario: STS-001-B3**
     - **Given** no `NutritionPlan` exists with `id = "plan-xyz"`
-    - **When** `GET /nutrition-plans/plan-xyz` is called with a valid JWT
+    - **When** `GET /api/v1/nutrition-plans/plan-xyz` is called with a valid JWT
     - **Then** the response status is `404`
 
 #### Test Case: STP-001-C (Auth Dependency Fault Injection)
@@ -87,7 +87,7 @@ Each test case MUST identify its technique by name:
 
 - **System Scenario: STS-001-C1**
     - **Given** SYS-011 throws `UnauthorizedError` for all JWT validation calls
-    - **When** `POST /nutrition-plans` is called with any payload
+    - **When** `POST /api/v1/nutrition-plans` is called with any payload
     - **Then** the response status is `401`, no database write occurs, and the error is not swallowed
 
 ---
@@ -100,21 +100,21 @@ Each test case MUST identify its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that `POST /nutrition-plans/:id/link` correctly associates a meal plan and validates existence via SYS-008.
+**Description**: Verifies that `POST /api/v1/nutrition-plans/:id/link` correctly associates a meal plan and validates existence via SYS-008.
 
 - **System Scenario: STS-002-A1**
     - **Given** `NutritionPlan` with `id = "plan-1"` exists and SYS-008 confirms `mealPlanId = "mp-1"` exists
-    - **When** `POST /nutrition-plans/plan-1/link` is called with `{ mealPlanId: "mp-1" }`
+    - **When** `POST /api/v1/nutrition-plans/plan-1/link` is called with `{ mealPlanId: "mp-1" }`
     - **Then** the response status is `200`, the returned `NutritionPlan` contains a `linkedMealPlanId = "mp-1"`, and the `MealPlanLink` record is persisted in PostgreSQL
 
 - **System Scenario: STS-002-A2**
     - **Given** `NutritionPlan` with `id = "plan-1"` already has `linkedMealPlanId = "mp-1"`
-    - **When** `POST /nutrition-plans/plan-1/link` is called again with `{ mealPlanId: "mp-1" }`
+    - **When** `POST /api/v1/nutrition-plans/plan-1/link` is called again with `{ mealPlanId: "mp-1" }`
     - **Then** the response status is `409` with a conflict error body
 
 - **System Scenario: STS-002-A3**
     - **Given** SYS-008 returns `MealPlanNotFoundError` for `mealPlanId = "mp-999"`
-    - **When** `POST /nutrition-plans/plan-1/link` is called with `{ mealPlanId: "mp-999" }`
+    - **When** `POST /api/v1/nutrition-plans/plan-1/link` is called with `{ mealPlanId: "mp-999" }`
     - **Then** the response status is `404` and no `MealPlanLink` record is created
 
 #### Test Case: STP-002-B (Meal Planning Adapter Fault Injection)
@@ -125,7 +125,7 @@ Each test case MUST identify its technique by name:
 
 - **System Scenario: STS-002-B1**
     - **Given** SYS-008 is unavailable (network timeout / service error)
-    - **When** `POST /nutrition-plans/plan-1/link` is called with a valid `mealPlanId`
+    - **When** `POST /api/v1/nutrition-plans/plan-1/link` is called with a valid `mealPlanId`
     - **Then** the response status is `502` or `503`, no `MealPlanLink` record is written, and the error is logged
 
 ---
@@ -138,16 +138,16 @@ Each test case MUST identify its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that `GET /nutrition-plans/:id/compliance` returns a structured `ComplianceResult` with gap/excess indicators.
+**Description**: Verifies that `GET /api/v1/nutrition-plans/:id/compliance` returns a structured `ComplianceResult` with gap/excess indicators.
 
 - **System Scenario: STS-003-A1**
     - **Given** `NutritionPlan` targets `{ dailyCalories: 2000, protein: 150, carbs: 200, fat: 70 }` and the linked meal plan totals `{ calories: 1800, protein: 130, carbs: 210, fat: 65 }`
-    - **When** `GET /nutrition-plans/plan-1/compliance` is called
+    - **When** `GET /api/v1/nutrition-plans/plan-1/compliance` is called
     - **Then** the response body contains `ComplianceResult` with `calories: { gap: 200 }`, `protein: { gap: 20 }`, `carbs: { excess: 10 }`, `fat: { gap: 5 }` and no persistence occurs (in-memory computation)
 
 - **System Scenario: STS-003-A2**
     - **Given** `NutritionPlan` with `id = "plan-no-link"` has no linked meal plan
-    - **When** `GET /nutrition-plans/plan-no-link/compliance` is called
+    - **When** `GET /api/v1/nutrition-plans/plan-no-link/compliance` is called
     - **Then** the response status is `404` with an error indicating no linked meal plan
 
 #### Test Case: STP-003-B (Calculation Accuracy — Boundary Value Analysis)
@@ -169,12 +169,12 @@ Each test case MUST identify its technique by name:
 
 - **System Scenario: STS-003-C1**
     - **Given** SYS-009 throws `FoodDataUnavailableError`
-    - **When** `GET /nutrition-plans/plan-1/compliance` is called
+    - **When** `GET /api/v1/nutrition-plans/plan-1/compliance` is called
     - **Then** the response status is `502` or `503` and no partial compliance result is returned
 
 - **System Scenario: STS-003-C2**
     - **Given** SYS-010 throws a network error
-    - **When** `GET /nutrition-plans/plan-1/compliance` is called
+    - **When** `GET /api/v1/nutrition-plans/plan-1/compliance` is called
     - **Then** the response status is `502` or `503` and the error is propagated without silent data loss
 
 ---
@@ -191,12 +191,12 @@ Each test case MUST identify its technique by name:
 
 - **System Scenario: STS-004-A1**
     - **Given** three `NutritionPlan` records exist in PostgreSQL for `userId = "user-1"` and two for `userId = "user-2"`
-    - **When** `GET /nutrition-plans` is called with a JWT resolving to `userId = "user-1"`
+    - **When** `GET /api/v1/nutrition-plans` is called with a JWT resolving to `userId = "user-1"`
     - **Then** the response body contains exactly three plans, all with `userId = "user-1"`, ordered by creation date descending
 
 - **System Scenario: STS-004-A2**
     - **Given** no `NutritionPlan` records exist for `userId = "user-new"`
-    - **When** `GET /nutrition-plans` is called with a JWT resolving to `userId = "user-new"`
+    - **When** `GET /api/v1/nutrition-plans` is called with a JWT resolving to `userId = "user-new"`
     - **Then** the response status is `200` and the body contains an empty array
 
 #### Test Case: STP-004-B (SYS-001 Dependency Fault Injection)
@@ -207,7 +207,7 @@ Each test case MUST identify its technique by name:
 
 - **System Scenario: STS-004-B1**
     - **Given** the PostgreSQL connection used by SYS-001 is unavailable
-    - **When** `GET /nutrition-plans` is called
+    - **When** `GET /api/v1/nutrition-plans` is called
     - **Then** the response status is `503` and no partial plan list is returned
 
 ---
@@ -220,26 +220,26 @@ Each test case MUST identify its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that `POST /nutrition-plans/for-client` enforces trainer role, consent, and premium subscription before creating a plan.
+**Description**: Verifies that `POST /api/v1/nutrition-plans/for-client` enforces trainer role, consent, and premium subscription before creating a plan.
 
 - **System Scenario: STS-005-A1**
     - **Given** JWT resolves to a user with `role = "trainer"`, SYS-006 returns `ConsentStatus.GRANTED` for `{ trainerId, clientId }`, and SYS-012 returns `SubscriptionStatus.ACTIVE`
-    - **When** `POST /nutrition-plans/for-client` is called with `{ clientUserId: "client-1", planData: { ... } }`
+    - **When** `POST /api/v1/nutrition-plans/for-client` is called with `{ clientUserId: "client-1", planData: { ... } }`
     - **Then** the response status is `201` and the returned `NutritionPlan` has `userId = "client-1"` (owned by client)
 
 - **System Scenario: STS-005-A2**
     - **Given** JWT resolves to a user with `role = "member"` (not trainer)
-    - **When** `POST /nutrition-plans/for-client` is called
+    - **When** `POST /api/v1/nutrition-plans/for-client` is called
     - **Then** the response status is `403` and no plan is created
 
 - **System Scenario: STS-005-A3**
     - **Given** JWT resolves to a trainer, but SYS-006 returns `ConsentStatus.NOT_GRANTED`
-    - **When** `POST /nutrition-plans/for-client` is called
+    - **When** `POST /api/v1/nutrition-plans/for-client` is called
     - **Then** the response status is `403` with a consent-specific error body and no plan is created
 
 - **System Scenario: STS-005-A4**
     - **Given** JWT resolves to a trainer with consent granted, but SYS-012 returns `SubscriptionStatus.INACTIVE`
-    - **When** `POST /nutrition-plans/for-client` is called
+    - **When** `POST /api/v1/nutrition-plans/for-client` is called
     - **Then** the response status is `402` and no plan is created
 
 #### Test Case: STP-005-B (Consent and Subscription Fault Injection)
@@ -250,12 +250,12 @@ Each test case MUST identify its technique by name:
 
 - **System Scenario: STS-005-B1**
     - **Given** SYS-006 throws `ConsentNotGrantedError` due to service unavailability
-    - **When** `POST /nutrition-plans/for-client` is called by a trainer
+    - **When** `POST /api/v1/nutrition-plans/for-client` is called by a trainer
     - **Then** the response status is `403` or `503` and no plan is created (safe failure)
 
 - **System Scenario: STS-005-B2**
     - **Given** SYS-012 throws `SubscriptionRequiredError` due to service unavailability
-    - **When** `POST /nutrition-plans/for-client` is called by a trainer with consent
+    - **When** `POST /api/v1/nutrition-plans/for-client` is called by a trainer with consent
     - **Then** the response status is `402` or `503` and no plan is created (safe failure)
 
 ---
@@ -306,21 +306,21 @@ Each test case MUST identify its technique by name:
 
 **Technique**: Interface Contract Testing
 **Target View**: Interface View
-**Description**: Verifies that `GET /nutrition-plans/:id/swap-suggestions` returns `SwapSuggestion[]` only when a compliance gap exists and the user has a premium subscription.
+**Description**: Verifies that `GET /api/v1/nutrition-plans/:id/swap-suggestions` returns `SwapSuggestion[]` only when a compliance gap exists and the user has a premium subscription.
 
 - **System Scenario: STS-007-A1**
     - **Given** SYS-012 returns `SubscriptionStatus.ACTIVE` and SYS-003 returns a `ComplianceResult` with a caloric gap of 300 kcal
-    - **When** `GET /nutrition-plans/plan-1/swap-suggestions` is called with a premium JWT
+    - **When** `GET /api/v1/nutrition-plans/plan-1/swap-suggestions` is called with a premium JWT
     - **Then** the response status is `200` and the body contains a non-empty `SwapSuggestion[]` with recipe alternatives sourced from SYS-010
 
 - **System Scenario: STS-007-A2**
     - **Given** SYS-012 returns `SubscriptionStatus.INACTIVE`
-    - **When** `GET /nutrition-plans/plan-1/swap-suggestions` is called
+    - **When** `GET /api/v1/nutrition-plans/plan-1/swap-suggestions` is called
     - **Then** the response status is `402` and no suggestions are returned
 
 - **System Scenario: STS-007-A3**
     - **Given** SYS-012 returns `SubscriptionStatus.ACTIVE` but SYS-003 returns no compliance gap (all targets met)
-    - **When** `GET /nutrition-plans/plan-1/swap-suggestions` is called
+    - **When** `GET /api/v1/nutrition-plans/plan-1/swap-suggestions` is called
     - **Then** the response status is `404` with an error indicating no compliance gap exists
 
 #### Test Case: STP-007-B (Compliance and Recipe Adapter Fault Injection)
@@ -331,7 +331,7 @@ Each test case MUST identify its technique by name:
 
 - **System Scenario: STS-007-B1**
     - **Given** SYS-003 throws `ComplianceUnavailableError`
-    - **When** `GET /nutrition-plans/plan-1/swap-suggestions` is called
+    - **When** `GET /api/v1/nutrition-plans/plan-1/swap-suggestions` is called
     - **Then** the response status is `502` or `503` and no partial suggestions are returned
 
 ---

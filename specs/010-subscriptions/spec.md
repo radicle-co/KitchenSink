@@ -8,15 +8,15 @@
 
 ## Dependencies
 
-| Spec                                                            | Relationship                                                                                 |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [002-user-auth](../002-user-auth/spec.md)           | **Required** — subscription tier is a property of the authenticated user                     |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Referenced** — gates private recipe visibility (FR-003)                                    |
-| [004-recipe-importing](../004-recipe-importing/spec.md)         | **Referenced** — gates clone-to-private for imported recipes (FR-011)                        |
-| [005-ai-integration](../005-ai-integration/spec.md)             | **Referenced** — gates AI generation and instruction optimization (FR-016, FR-019)           |
-| [006-meal-planning](../006-meal-planning/spec.md)               | **Referenced** — gates AI meal suggestions, auto-generation, waste optimization (FR-025–027) |
-| [007-grocery-lists](../007-grocery-lists/spec.md)               | **Referenced** — gates online ordering (FR-031)                                              |
-| [009-nutrition-planning](../009-nutrition-planning/spec.md)     | **Referenced** — gates trainer nutrition planning (FR-038)                                   |
+| Spec                                                        | Relationship                                                                                                         |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — subscription tier is a property of the authenticated user                                             |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Referenced** — gates private recipe visibility (001-FR-003)                                                        |
+| [004-recipe-importing](../004-recipe-importing/spec.md)     | **Referenced** — gates clone-to-private for imported recipes (004-FR-011)                                            |
+| [005-ai-integration](../005-ai-integration/spec.md)         | **Referenced** — gates AI generation and instruction optimization (005-FR-016, 005-FR-019)                           |
+| [006-meal-planning](../006-meal-planning/spec.md)           | **Referenced** — gates AI meal suggestions, auto-generation, waste optimization (006-FR-025, 006-FR-026, 006-FR-027) |
+| [007-grocery-lists](../007-grocery-lists/spec.md)           | **Referenced** — gates online ordering (007-FR-031)                                                                  |
+| [009-nutrition-planning](../009-nutrition-planning/spec.md) | **Referenced** — gates trainer nutrition planning (009-FR-038)                                                       |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -35,7 +35,7 @@ New users start on a free tier that provides core functionality: creating, viewi
 3. **Given** a free-tier user, **When** they attempt to use AI recipe generation, **Then** they see a preview or teaser of the feature with a prompt to upgrade.
 4. **Given** a free-tier user, **When** they attempt to use food waste optimization in meal planning, **Then** they are prompted to upgrade.
 5. **Given** a user upgrades to premium, **When** they access premium features, **Then** all premium functionality is immediately available, including the ability to set recipes to private.
-6. **Given** a premium user, **When** their subscription lapses, **Then** they retain access to all their data but premium features are locked until renewal. Previously private recipes remain private (except imported/attributed recipes, which MUST remain public per source TOS and FR-011), but no new recipes can be set to private until renewal.
+6. **Given** a premium user, **When** their subscription lapses, **Then** they retain access to all their data but premium features are locked until renewal. Previously private recipes remain private (except imported/attributed recipes, which MUST remain public per source TOS and 004-FR-011), but no new recipes can be set to private until renewal.
 
 ---
 
@@ -53,6 +53,23 @@ New users start on a free tier that provides core functionality: creating, viewi
 - **FR-041**: System MUST provide a premium tier that unlocks: private recipe visibility, AI recipe generation, AI meal suggestions, auto-generated meal plans, food waste optimization, AI instruction optimization, online grocery ordering, and trainer nutrition planning. Premium is available at **$6.99/month** or **$59.99/year** (annual saves ~29%). New subscribers receive a **14-day free trial** before the first charge.
 - **FR-042**: System MUST gate premium features with clear upgrade prompts that preview the feature value for free-tier users. Prompts follow a three-tier hierarchy: (1) contextual inline teaser at the feature entry point, (2) modal/bottom-sheet on active invocation, (3) pricing page accessible from any CTA and from account settings.
 - **FR-043**: System MUST retain all user data and non-premium functionality if a premium subscription lapses. Existing private recipes remain private after downgrade; the lapsed user cannot create new private recipes until they renew. A **7-day grace period** applies after a failed payment before premium access is removed.
+- **FR-044**: System MUST make a user's subscription tier readable by **every** service, not only the identity service, by publishing it into the Clerk session token as a signed claim (`public_metadata`), using the same mechanism that already carries admin `scopes`/`permissions`. The claim MUST be refreshed when the tier changes, and every consumer MUST **fail closed** — treat an absent or unreadable claim as `free`, never as premium. _(**DRAFT**, added 2026-08-02.)_
+
+    **Why this is a requirement and not an implementation note.** `accounts.subscription_tier` already ships
+    (`text`, `notNull`, default `'free'`, with an `updateSubscriptionTier` DAO method), but it is **not** a
+    token claim: `@kitchensink/clerk-verify` reads only `scopes` and `permissions` from signed
+    `public_metadata`, and the sole cross-service account endpoint (`/api/v1/internal/account`) is
+    **erasure-only**. So identity can gate on tier today and **no other service can**. Without this,
+    `@RequirePremium()` is enforceable only inside the identity service, which is not where most gated
+    features live.
+
+    **What it unblocks** — all entitlement gating, none of which needs marketplace payments:
+    `001-FR-003` (only premium users may set their own recipes **private** — the gate lives in the recipe
+    service, not identity); `013` course access control; and
+    the three rows feature 006 deferred (`006-FR-025`, `006-FR-026`, `006-FR-027`), which were parked
+    citing exactly this missing mechanism. **Staleness is the design question to settle**: a signed claim
+    is only as fresh as the token, so define the maximum tolerated lag between a tier change and enforcement,
+    and whether downgrade requires forced token refresh or revocation.
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -78,3 +95,24 @@ New users start on a free tier that provides core functionality: creating, viewi
 - **Family plan is out of scope for v1.** Family/household multi-seat subscriptions are a future consideration only. No FR, no architecture, and no task covers family plans in this release. A dedicated spec change is required before any family-plan work begins.
 - **Web is the primary billing surface.** Stripe Checkout and the Stripe Customer Portal are web-only. Mobile users see upgrade prompts and are deep-linked to the web checkout URL. Native in-app purchase (App Store / Play Store IAP) is out of scope for v1.
 - Imported, attributed recipes are always public regardless of subscription tier, in compliance with source Terms of Service.
+- **Marketplace payments are out of scope for v1 — but entitlement gating is NOT.** Keep these separate;
+  conflating them over-blocks downstream work.
+    - **In scope / available**: gating any feature on the caller's subscription tier. `FR-040` … `FR-044`
+      cover it, and `FR-044` is what makes it enforceable outside the identity service.
+    - **Out of scope**: anything that moves money **to a creator** — one-time payments (tips), per-item
+      purchases, creator-defined subscription tiers, revenue splitting, and payouts.
+
+    **Downstream requirements that depend on the deferred half**, surfaced by the 2026-08-02 spec sweep:
+    - `012-creator-profiles` `012-FR-031`–`034` (DRAFT) — tip jar and creator-earnings surface. (An
+      earlier revision also listed premium recipes and paid follows; both are **withdrawn** — recipe
+      visibility is binary private/public and owned by 001, so 012 has no gated content to sell.)
+    - `013-cooking-school` `013-FR-010` — "Revenue share: platform 20%, educator 80% (pro tier: 15%/85%
+      via 010)", with course revenue "disbursed via 010's payout model".
+
+    Entitlement **gating** is not blocked by this. Gating the premium tier's own features — private recipe
+    visibility (`001-FR-003`), AI generation, meal suggestions — needs only `FR-044`, and 013's course
+    access control gates on the learner's entitlement the same way.
+
+    Marketplace payments need their own spec — in 010 or a dedicated payments feature — including the
+    money-transmission and tax posture that splitting third-party revenue implies (e.g. Stripe Connect, 1099
+    reporting). **Do not plan creator compensation against 010 as it stands.**

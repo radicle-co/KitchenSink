@@ -118,7 +118,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 **Artifact Remediation**:
 
-- Generate `011/verify-report.md` (currently absent — only `sync-verify-report.md` exists).
+- ~~Generate `011/verify-report.md`~~ — **it exists** (verified 2026-08-02), alongside `sync-verify-report.md`, `analyze-report.md`, and `pre-impl-review.md`; the 2026-05-12 claim that it was absent is stale.
 - Burn down findings to `0 CRITICAL, 0 WARNING`.
 - Close 128 untested + 117 missing trace refs in `011/v-model/traceability-matrix.md`.
 - V-Model regen + test execution.
@@ -225,6 +225,8 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 - Burn down `010/verify-report.md`: 1 critical / 6 warning → 0 / 0. Close 127 untested + 36 missing trace refs.
 - Confirm subscription gating mechanism per [GR-012](./governance-rules.md#gr-012-subscription-gating-mechanism).
+- **Ship `010-FR-044` — the subscription tier as a signed token claim.** Without it `@RequirePremium()` is enforceable only inside the identity service. It needs no merchant capability, and it unblocks all entitlement gating: `001-FR-003` (private recipe visibility is the premium gate, enforced in the recipe service), 013 course access control, and the three rows 006 deferred (`006-FR-025`–`027`).
+- **Decide the marketplace-payments question.** This is the _compensation_ half only — anything that moves money **to a creator**: the tip jar (`012-FR-031`–`033`), the creator-earnings surface (`012-FR-034`), and `013-FR-010`'s 20%/80% share. Either bring it into 010's scope here or stand up a dedicated payments feature; `M7` monetization is blocked on the answer, but `M7` _gating_ is not.
 - V-Model regen + test execution.
 - Add a payments-compliance review: PCI scope assessment, SCA support, refund / cancel / dunning flows tested against sandbox cards on web and mobile (incl. App Store / Play Store IAP if applicable).
 
@@ -252,12 +254,14 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Artifact Remediation**:
 
 - **`012`**:
-    - Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md` from the existing `spec.md` + `product-spec/` (none of these artifacts exist today).
+    - ~~Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md`~~ — **all four now exist** (verified 2026-08-02); the 2026-05-12 claim that none existed is stale.
     - Burn down findings to `0 CRITICAL, 0 WARNING`.
     - Close 102 untested + 32 missing trace refs.
     - Integrate creator monetization tier with `010` subscription gating.
+    - ~~**Author FRs for the monetization surface.**~~ Done 2026-08-02 — `012-FR-031` … `012-FR-034` (tip jar + creator-earnings surface) authored as **DRAFT**. Premium recipes and paid follows were drafted and then **withdrawn** on the owner ruling that recipe visibility is binary private/public.
+    - ⚠️ **Marketplace payments are unspecified — this blocks creator COMPENSATION, not gating.** 010 provides no one-time payments or payouts (its scope is `010-FR-040`…`044`). Blocked: `012-FR-031`–`034` and `013-FR-010`. **Not blocked**: entitlement gating of the premium tier's own features and 013 course access control, which need only `010-FR-044`. Marketplace payments need their own spec, including the money-transmission and tax posture that splitting third-party revenue implies.
 - **`013`**:
-    - Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md` from the existing `spec.md` + `product-spec/` (none of these artifacts exist today).
+    - ~~Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md`~~ — **all four now exist** (verified 2026-08-02); the 2026-05-12 claim that none existed is stale.
     - Burn down findings to `0 CRITICAL, 0 WARNING`.
     - Close 204 untested + 34 missing trace refs.
 - V-Model regen + test execution for both.
@@ -283,7 +287,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 **Artifact Remediation**:
 
-- Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md` from existing `spec.md` + `product-spec/` + `research/` (none of these four artifacts exist today).
+- ~~Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md`~~ — **all four now exist** (verified 2026-08-02); the 2026-05-12 claim that none existed is stale.
 - Burn down findings to `0 CRITICAL, 0 WARNING`.
 - Close 620 untested + 31 missing trace refs (largest gap in the portfolio).
 - Confirm notification system ownership per [GR-011](./governance-rules.md#gr-011-notification-system-ownership).
@@ -324,15 +328,18 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 ## 6. Decision Log
 
-| Date       | Decision                                                                                     | Decided by          |
-| ---------- | -------------------------------------------------------------------------------------------- | ------------------- |
-| 2026-05-12 | Full `001`–`014` package stays in v1 scope (no deferral to v2).                              | Director of Product |
-| 2026-05-12 | Auth (`002`) ships first; recipes/ingredients (`001`, `003`, `004`) ship next.               | Director of Product |
-| 2026-05-12 | `005` AI work is concentrated in `M5`, after Beta — no AI carve-out into earlier milestones. | Director of Product |
-| 2026-05-12 | `011` Recipe Digitization assigned to `M2`, runs in parallel with `M3`.                      | Director of Product |
-| 2026-05-12 | Commise Beta is the public-launch event at end of `M4`; `006` is in Beta.                    | Director of Product |
-| 2026-05-12 | Commise 1.0 is the public-launch event at end of `M6`; gated by Beta exit criteria.          | Director of Product |
-| 2026-05-12 | Internal milestone naming convention adopted: `Milestone <Cool Name>` (Tolkien locations).   | Director of Product |
+| Date       | Decision                                                                                                                                                                                                                                                                                                                                    | Decided by          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| 2026-05-12 | Full `001`–`014` package stays in v1 scope (no deferral to v2).                                                                                                                                                                                                                                                                             | Director of Product |
+| 2026-05-12 | Auth (`002`) ships first; recipes/ingredients (`001`, `003`, `004`) ship next.                                                                                                                                                                                                                                                              | Director of Product |
+| 2026-05-12 | `005` AI work is concentrated in `M5`, after Beta — no AI carve-out into earlier milestones.                                                                                                                                                                                                                                                | Director of Product |
+| 2026-05-12 | `011` Recipe Digitization assigned to `M2`, runs in parallel with `M3`.                                                                                                                                                                                                                                                                     | Director of Product |
+| 2026-05-12 | Commise Beta is the public-launch event at end of `M4`; `006` is in Beta.                                                                                                                                                                                                                                                                   | Director of Product |
+| 2026-05-12 | Commise 1.0 is the public-launch event at end of `M6`; gated by Beta exit criteria.                                                                                                                                                                                                                                                         | Director of Product |
+| 2026-05-12 | Internal milestone naming convention adopted: `Milestone <Cool Name>` (Tolkien locations).                                                                                                                                                                                                                                                  | Director of Product |
+| 2026-08-02 | GR-002 upheld portfolio-wide with **no exceptions**: `007`–`014` normalized to `/api/v1/*`; `004` and `006` correcting in their own branches; shipped `main` migrating under separate work. 006's PRF-006-16 (plain-segment) is superseded — a feature spec does not own a service.                                                         | Owner               |
+| 2026-08-02 | GR-003 upheld as _locality + qualified cross-refs_; FR IDs **not** renumbered to 1-based, matching `004`/`005`/`006` precedent. `007`↔`008` FR-032/033 collision fixed by qualification.                                                                                                                                                    | Owner               |
+| 2026-08-02 | Recipe visibility is **binary** (`private` \| `public`). Private may be shared read-only via a Circle. Ingested recipes are `public` only if the source is publicly and freely available **and not otherwise marked or licensed**; attribution is always required. Premium recipes and paid follows **withdrawn**. GR-014 amended (v3.0.0). | Owner               |
 
 ---
 

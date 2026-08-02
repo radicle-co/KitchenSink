@@ -92,12 +92,12 @@
       "result": "INFO",
       "severity": "INFO",
       "details": [
-        "All 66 tasks are unchecked. Implementation paths referenced in tasks (packages/api/notifications-api/*, packages/shared/notifications/*) do not exist on disk.",
+        "All 66 tasks are unchecked. Implementation paths referenced in tasks (packages/services/notification-service/*, packages/shared/notifications/*) do not exist on disk.",
         "Expected given pre-implement phase. No action required."
       ],
       "evidence": [
         "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/tasks.md (unchecked checkboxes throughout)",
-        "ls /home/brandon/Development/KitchenSink/.worktrees/002-user-auth/packages/api/notifications-api = NOT_FOUND",
+        "ls /home/brandon/Development/KitchenSink/.worktrees/002-user-auth/packages/services/notification-service = NOT_FOUND",
         "ls /home/brandon/Development/KitchenSink/.worktrees/002-user-auth/packages/shared/notifications = NOT_FOUND"
       ]
     },
@@ -131,8 +131,8 @@
     {
       "flag": "apps/X references",
       "severity": "INFO",
-      "detail": "Monorepo path conventions in tasks.md use packages/api/ and packages/shared/. No apps/X references in artifact chain.",
-      "evidence": "tasks.md §26: packages/api/notifications-api/*, packages/shared/notifications/*"
+      "detail": "Monorepo path conventions in tasks.md use packages/services/ and packages/shared/. No apps/X references in artifact chain.",
+      "evidence": "tasks.md §26: packages/services/notification-service/*, packages/shared/notifications/*"
     }
   ]
 }

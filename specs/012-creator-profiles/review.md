@@ -5,11 +5,15 @@
 > Last Updated: 2026-05-12
 
 **Mode**: retroactive-bootstrap
-**Milestone**: M7 (Minas Tirith)
-**Public Launch**: Post-1.0 (in v1, end of `M7`)
-**Launch Plan**: [`v1-launch-plan.md`](../v1-launch-plan.md)
 
 **Governance Rules**: [`governance-rules.md`](../governance-rules.md)
+
+## Milestone Assignment
+
+- **Milestone**: `M7` Minas Tirith
+- **Public launch**: Post-1.0 (in v1)
+- **Source of truth**: ../v1-launch-plan.md
+- **Last updated**: 2026-08-02
 
 ## Current Status
 
@@ -43,7 +47,7 @@ Planning baseline used:
 **Rule reference**: [`governance-rules.md#gr-002-api-url-prefix-standard`](../governance-rules.md#gr-002-api-url-prefix-standard)
 
 - Plan/tasks constrain all 012 routes to `/api/v1/*`.
-- No bare `/api/*` or bare `/v1/*` routes are introduced in 012 planning artifacts.
+- No bare `/api/*` or bare `/api/v1/*` routes are introduced in 012 planning artifacts.
 
 **Status**: **Planned compliant** (implementation validation pending).
 
@@ -51,7 +55,7 @@ Planning baseline used:
 
 **Rule reference**: [`governance-rules.md#gr-007-shared-type-library-ownership`](../governance-rules.md#gr-007-shared-type-library-ownership)
 
-- Plan/tasks require shared entity imports from `@kitchensink/shared-recipe-core`.
+- Plan/tasks require shared entity imports from `@kitchensink/recipe-core`.
 - Local duplicate shared domain types are explicitly disallowed in task planning.
 
 **Status**: **Planned compliant** (implementation validation pending).

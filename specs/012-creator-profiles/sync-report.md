@@ -129,7 +129,7 @@ This confirms the gap is known but unresolved.
 ### Evidence
 
 - **No implementation files found** for planned creator-profiles modules.
-- `packages/api/creator-profiles-api` does **not** exist in the worktree.
+- `packages/services/creator-profiles-service` does **not** exist in the worktree.
 - No `creator_profiles`, `creator_follows`, `creator_collections` schema files exist outside spec artifacts.
 - `glob("**/*creator*")` returned zero implementation matches.
 
@@ -161,12 +161,12 @@ This confirms the gap is known but unresolved.
 | Rule | Status | Evidence |
 |------|--------|----------|
 | GR-002 API URL Prefix Standard | ✅ PASS | `spec.md` §67: "All endpoints under `/api/v1/`"; `tasks.md` `T005`, `T015`, `T019`, etc. all use `/api/v1/*`. |
-| GR-007 Shared Type Library Ownership | ✅ PASS | `tasks.md` `T004` requires imports from `@kitchensink/shared-recipe-core` and forbids local duplicates. |
+| GR-007 Shared Type Library Ownership | ✅ PASS | `tasks.md` `T004` requires imports from `@kitchensink/recipe-core` and forbids local duplicates. |
 | GR-014 Audience and Sharing Model | ✅ PASS | `spec.md` §31 correctly scopes `public-profile` vs `circle` (011) and `published-lesson` (013). |
 
 ### Monorepo Path References
 
-- `tasks.md` references `packages/api/creator-profiles-api/*` as a new package path. This does not match the existing workspace list in the root README (`packages/apps/commise/{web,mobile}`, `packages/ui`, `packages/tools/*`), but `T001` explicitly calls for workspace registration, so the path is planned, not stale.
+- `tasks.md` references `packages/services/creator-profiles-service/*` as a new package path. This does not match the existing workspace list in the root README (`packages/apps/commise/{web,mobile}`, `packages/apps/commise/ui`, `packages/tools/*`), but `T001` explicitly calls for workspace registration, so the path is planned, not stale.
 - No bare `apps/X` path references were found in task paths. All paths use `packages/` prefix or are underspecified controller-level references. No INFO flags raised on monorepo path mismatches.
 
 ---

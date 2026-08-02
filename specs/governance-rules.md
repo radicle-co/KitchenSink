@@ -1,7 +1,7 @@
 # KitchenSink Cross-Feature Governance Rules
 
-**Version**: 1.0.0
-**Ratified**: 2026-05-10
+**Version**: 3.0.0
+**Ratified**: 2026-05-10 | **Last amended**: 2026-08-02
 **Authority**: Senior Product Owner, cross-feature governance
 **Scope**: All features 001–014 and any future feature in this portfolio
 **Status**: Active — enforced from this date forward
@@ -105,6 +105,14 @@ Any spec, plan, or contract that uses `/api/*` without a version segment, or `/v
 - Feature 001: `contracts/api.openapi.yaml` now uses `/api/v1/*` for every path key — ✅.
 - Feature 002: `contracts/identity-api.openapi.json` server base path is `/api/v1` — ✅.
 - Features 011 and 014 were authored against `/api/v1/*` and needed no change — ✅.
+- **Features 007–010, 012, 013: normalized in the 2026-08-02 spec sweep** — 82 bare `/v1/*` references
+  plus every unprefixed shorthand endpoint. The only paths deliberately left alone are third-party URLs
+  the platform does not own (Instacart's `/idp/api/v1/products/*`) — ✅.
+- ⚠️ **Feature 006 is the last holdout.** Its branch still carries bare `/v1/*`, and its `review.md` closes
+  PRF-006-16 on "the platform's plain-segment convention, `POST /v1/recipes/nutrition-batch`". **That
+  finding is superseded** — and its stated rationale misattributed ownership: a feature spec does not own a
+  service. The recipe service is owned by the repository owner, not by feature 006, so PRF-006-16 was never
+  an ownership-backed exemption from a portfolio rule. Correct it before 006 merges.
 - `docs/api-conventions.md` now exists and references this rule (AC-002-d) — ✅.
 - **One deliberate, documented exception to "no bare `/v1/*`":** every endpoint ALSO answers on its original
   bare `/v1/*` path as a DEPRECATED ALIAS, because consumers outside this repository hold those URLs — the
@@ -143,9 +151,38 @@ No cross-feature FR reference may use an unqualified `FR-NNN` ID.
 
 An unqualified `FR-NNN` reference in a feature's artifact that refers to a requirement in a different feature is a documentation defect. It does not block handoff but must be corrected before the referencing feature enters implementation.
 
-### Current State (2026-05-10)
+### Current State (2026-08-02)
 
-The [`cross-feature-FR-index.md`](./cross-feature-FR-index.md) artifact exists and records active cross-feature FR citations. Existing legacy prose may still show spaced forms such as `001 FR-045`; the normalized registry value is `{feature}-FR-{NNN}` and must be used for new references.
+The [`cross-feature-FR-index.md`](./cross-feature-FR-index.md) registry exists and records active
+cross-feature citations. The normalized value is `{feature}-FR-{NNN}`; legacy prose may still show spaced
+forms such as `001 FR-045`.
+
+**Features 007–014 are conformant as of the 2026-08-02 sweep** — 62 unqualified cross-feature references
+were qualified (61 in 010's gating tables and v-model, 2 in 007). Verified mechanically: for every feature,
+zero bare `FR-NNN` references remain that fall outside that feature's own defined set.
+
+**Numbering is deliberately NOT 1-based per feature.** This rule requires _locality_ and _qualified
+cross-references_; it does not mandate a starting number. Features carry overlapping ranges by design —
+001 owns FR-001…046, 004 FR-008…028, 005 FR-015…022, 006 FR-022…041, 007 FR-028…033, 008 FR-032…035,
+009 FR-036…039, 010 FR-040…043, while 003, 011, 012, 013, and 014 number from 001. Numeric collision across
+features is therefore expected and accepted (004's `verify-report.md` records it as INFO I-002, "mitigated
+by the mandatory `004-` prefix"); the qualifier, not the number, carries the meaning.
+
+Two genuine defects of this class were fixed in the sweep, both of which the collision-tolerant model relies
+on qualifiers to prevent:
+
+- **007 ↔ 008 both defined FR-032 and FR-033 with different meanings** (007: Shopping Lists page and
+  meal-plan back-link; 008: Cooking Mode step display and step navigation), in the same milestone `M3`.
+- **Two abbreviated ranges in 010 cited FRs their named owner does not define** — `008 | FR-032–037`
+  (008 defines only FR-032…035; 036–037 belong to 009) and `006 | FR-020–024` (006 starts at FR-022).
+  Both were narrowed to the owner's real set and enumerated rather than abbreviated, per the precedent
+  006 set in PRF-006-14.
+
+⚠️ **Registry not updated by this sweep — deliberate hand-off.** `cross-feature-FR-index.md` has
+**uncommitted in-flight edits in both the 005 and 006 worktrees**. Editing it here would have produced a
+three-way conflict and risked clobbering that work. The rows the sweep newly qualified (007's `001-FR-045`,
+and 010's `plan.md` / `research.md` citations of 001, 004, 005, 006, 007, 008, 009) must be registered once
+005's and 006's changes land. Tracked in `spec-sweep-2026-08-02.md`.
 
 ---
 
@@ -293,11 +330,16 @@ The package lives at `packages/shared/recipe-core/` and is published as `@kitche
 
 Any feature that defines its own local copy of a shared entity type is in violation. The local type must be removed and replaced with the import from `@kitchensink/shared-recipe-core`.
 
-### Current State (2026-05-10)
+### Current State (2026-08-02)
 
-- `@kitchensink/shared-recipe-core` does not exist. No feature has a task to create it.
-- Feature 001's `tasks.md` must be updated to add this task before handoff is approved.
-- This is a **blocking** constraint for engineering handoff of Feature 001.
+Superseded the 2026-05-10 entry. **The blocking constraint is cleared.**
+
+- The package **exists and ships** at `packages/shared/recipe-core/`, as required.
+- ⚠️ **It is published as `@kitchensink/recipe-core`, not `@kitchensink/shared-recipe-core`.** The shipped
+  name is authoritative; the eight downstream features were corrected to it in the 2026-08-02 sweep.
+  The `shared-` prefix in this rule's body is a GR-009 artifact — see the GR-009 note below, which records
+  that no shipped package follows the `{group}-{name}` pattern.
+- `packages/shared/*` also ships `clerk-verify`, `identity-core`, and `identity-db`.
 
 ---
 
@@ -338,31 +380,78 @@ A feature plan or CDK definition that specifies Node.js 22.x or lower is non-con
 
 ### Rule
 
-All npm packages in this monorepo **MUST** follow the naming pattern:
+**Amended 2026-08-02** — see [Change Log](#change-log) v2.0.0. The original `@kitchensink/{group}-{name}`
+pattern was ratified when no implementation packages existed. Twenty-six now do and **none** follow it, so
+the rule is restated to describe the two scopes actually in use. The superseded pattern is preserved at the
+end of this section.
 
-```
-@kitchensink/{group}-{name}
-```
+Package **scope** is determined by what consumes the package, and **placement** determines the name:
 
-Group examples: `data`, `shared`, `auth`, `ui`, `apps`, `tools`.
+| Scope           | Contains                                                 | Directory                                                     | Name                  |
+| --------------- | -------------------------------------------------------- | ------------------------------------------------------------- | --------------------- |
+| `@kitchensink/` | Platform: services, workers, clients, shared libs, tools | `packages/{services,shared,clients,tools,utils,infra}/{name}` | `@kitchensink/{name}` |
+| `@commise/`     | The Commise product's apps and UI-facing packages        | `packages/apps/commise/{name}`                                | `@commise/{name}`     |
 
-**Canonical examples**:
+Within `@kitchensink/`, the **name carries the role as a suffix**, not a group as a prefix:
 
-- `@kitchensink/shared-recipe-core`
-- `@kitchensink/data-usda`
-- `@kitchensink/auth-client`
-- `@kitchensink/auth-server`
-- `@kitchensink/ui-components`
+| Role                       | Suffix            | Example                              | Directory                           |
+| -------------------------- | ----------------- | ------------------------------------ | ----------------------------------- |
+| Deployable HTTP service    | `-service`        | `@kitchensink/recipe-service`        | `packages/services/recipe-service/` |
+| Lambda / background worker | `-workers`        | `@kitchensink/recipe-workers`        | `packages/services/recipe-workers/` |
+| Typed client for a service | `-service-client` | `@kitchensink/recipe-service-client` | `packages/clients/recipe-service/`  |
+| Shared library             | _(none)_          | `@kitchensink/recipe-core`           | `packages/shared/recipe-core/`      |
+| Tooling config             | _(none)_          | `@kitchensink/eslint`                | `packages/tools/eslint/`            |
+
+Within `@commise/`, a front-end feature package is `@commise/features-{domain}` in
+`packages/apps/commise/features/{domain}/`.
+
+**Canonical examples** (all shipped):
+
+- `@kitchensink/recipe-core`, `@kitchensink/identity-service`, `@kitchensink/recipe-workers`,
+  `@kitchensink/food-service-client`, `@kitchensink/clerk-verify`
+- `@commise/web`, `@commise/mobile`, `@commise/ui`, `@commise/features-recipes`
+
+> **Superseded (v1.0.0, 2026-05-10)**: `@kitchensink/{group}-{name}` with group examples `data`, `shared`,
+> `auth`, `ui`, `apps`, `tools`, and canonical examples `@kitchensink/shared-recipe-core`,
+> `@kitchensink/data-usda`, `@kitchensink/auth-client`, `@kitchensink/auth-server`,
+> `@kitchensink/ui-components`. **No package was ever published under this pattern.** It is recorded here
+> rather than deleted, per the amendment process's "no rule may be silently removed".
 
 ### Acceptance Criteria
 
-- **AC-009-a**: Every `package.json` in `packages/` uses the `@kitchensink/{group}-{name}` naming pattern.
-- **AC-009-b**: Feature plans that reference package names use this convention.
-- **AC-009-c**: No package uses a bare `@kitchensink/{name}` pattern without a group segment.
+- **AC-009-a**: Every `package.json` under `packages/` uses `@kitchensink/{name}` or `@commise/{name}`,
+  with the scope chosen per the table above.
+- **AC-009-b**: Feature plans that reference package names use this convention, and place each package in
+  the directory its scope and role dictate.
+- **AC-009-c**: A deployable HTTP service is named `-service` and a worker bundle `-workers`. A shared
+  library takes no role suffix. No package invents a third scope.
+- **AC-009-d**: A new package's name and directory are checked against this rule at plan time, not after
+  it is published — renaming a published workspace package breaks every importer.
 
-### Current State (2026-05-10)
+### Violation
 
-No implementation packages exist yet. This rule applies when packages are created during implementation.
+A package whose scope, directory, or role suffix disagrees with the table above is non-conformant and must
+be corrected **before it is first published**. Renaming after publication is a breaking change to every
+importer and requires its own migration.
+
+### Current State (2026-08-02)
+
+**Conformant.** The amendment restated the rule to match the 26 shipped packages, so the portfolio is
+conformant by construction rather than by 26 renames.
+
+- `@kitchensink/`: `recipe-core`, `identity-core`, `identity-db`, `clerk-verify`, `identity-service`,
+  `identity-webhooks`, `food-service`, `recipe-service`, `recipe-workers`, `food-service-client`,
+  `recipe-service-client`, `usda-client`, `identity-utils`, `infra-global`, `service-test-harness`,
+  `loadtest`, `eslint`, `prettier`, `typescript`, `vitest`, `esbuild`.
+- `@commise/`: `web`, `mobile`, `ui`, `i18n`, `features-recipes`, `features-account`, `features-core`,
+  `test-utils`.
+- Features 007–014 were corrected to these forms in the 2026-08-02 sweep, and to
+  `@kitchensink/{domain}-service` / `-workers` for new packages, matching feature 005's `ai-service`.
+- ⚠️ **One inconsistency the amendment does not paper over**: `@commise/test-utils` sits in
+  `packages/tools/test-utils/`, which is a `@kitchensink/` directory by the table above. Every other
+  tooling package (`eslint`, `prettier`, `typescript`, `vitest`, `esbuild`) is `@kitchensink/`. This is
+  either a mis-scoped package or a deliberate exception; it is **not** resolved here because renaming it
+  is a code change, not a spec change. Tracked in `spec-sweep-2026-08-02.md`.
 
 ---
 
@@ -484,20 +573,67 @@ The following persona names are banned from user-facing persona sections: `Jorda
 
 All shareable entities (recipes, collections, meal plans, lessons, profiles) **MUST** use the unified audience model defined in `cross-feature-consistency-report.md` §10. Ad-hoc per-feature sharing concepts are prohibited.
 
-**Canonical audience scopes**: `private`, `circle`, `public-profile`, `published-lesson`.
+**Canonical audience scopes**: `private`, `circle`, `public`, `public-profile`, `published-lesson`.
+
+**Amended 2026-08-02** — see [Change Log](#change-log) v3.0.0.
+
+**Recipe visibility is binary.** A recipe is `private` or `public`. There is **no premium, paywalled, or
+purchasable recipe state**, and no feature may introduce one.
+
+- `private` — owner only. It MAY be shared with contacts **read-only** via `circle`; sharing grants read
+  access, never write access, and is never a sale.
+- `public` — readable by any authenticated user (`001-FR-004`).
+- `public-profile` — a **surfacing** concern only: displaying a creator's already-`public` content on their
+  `@handle` page. It is **not** a third visibility state, and a recipe does not need a `CreatorProfile` to
+  be publicly readable.
 
 The `Circle` entity is owned by Feature 011. The `CreatorProfile` entity is owned by Feature 012. Features that need these entities must declare a dependency on the owning feature.
 
 ### Acceptance Criteria
 
-- **AC-014-a**: Features 001, 004, 006, 007, 010, 011, 012, 013 use the `audience` field with `{ scope, ref_id?, price_cents? }` shape on all shareable entities.
+- **AC-014-a**: Features 001, 004, 006, 007, 010, 011, 012, 013 use the `audience` field with
+  `{ scope, ref_id? }` shape on all shareable entities.
 - **AC-014-b**: No feature defines its own sharing primitive that duplicates `Circle` or `CreatorProfile`.
 - **AC-014-c**: Every audience change is audit-logged (compliance requirement).
+- **AC-014-d**: `price_cents` appears **only** on a `published-lesson` audience. Courses are purchasable
+  (`013-FR-003`); recipes and collections are not. A priced recipe audience is a violation.
+- **AC-014-e**: **Ingestion provenance sets the initial scope, and there is exactly ONE implementation of
+  the rule.** A recipe created from an external source is `public` only when that source is **publicly and
+  freely available and not otherwise marked or licensed** against republication — paywall, subscription,
+  explicit reservation, or a licence forbidding redistribution or derivatives. Otherwise it is created
+  `private`, and the system MUST NOT auto-publish it.
 
-### Current State (2026-05-10)
+    The decision is made by the **shipped pure policy** `evaluateVisibility`
+    (`packages/services/recipe-service/src/recipes/domain/visibility-policy.ts`), keyed on the shipped
+    `sourceType` taxonomy — `imported_public`, `imported_physical`, `imported_paid`, `user_created`. No
+    feature may reimplement it: `004-FR-011` states this explicitly, and `011` calls it rather than deciding
+    visibility itself. `imported_paid` may **never** be public; `imported_physical` is private-only.
 
-- The unified audience model is defined in `cross-feature-consistency-report.md` §10.
-- No feature has implemented it yet. This rule applies when features enter implementation.
+- **AC-014-f**: **Attribution and source linking are required** for every ingested recipe, whichever scope
+  it lands in, and a recipe MUST NOT be publishable while attribution is absent.
+
+### Violation
+
+Introducing a paywalled or purchasable recipe state — by any name — is a violation of this rule, as is
+carrying `price_cents` on a recipe audience or auto-publishing an ingested recipe whose source was marked,
+licensed, or paywalled against republication.
+
+### Current State (2026-08-02)
+
+- The unified audience model is defined in `cross-feature-consistency-report.md` §10, amended in step with
+  this rule.
+- **`011`** records the model and owns the primitives: `011-FR-021a` (a photo-digitized recipe is created
+  `private` — its source is not publicly available) and `011-FR-021b` (attribution required, and required
+  before publishing). The `circle` scope with member read-only access is `011` US-006.
+- **`012`** carried a `premium recipe` / `paid follow` model in both its spec and its v-model. **Withdrawn**
+  2026-08-02; `012` now keeps a Retired Requirement IDs register so the withdrawn IDs are never reused.
+- ✅ **`004` conforms — the carve-out landed on `main` while this sweep was open** (PRs #80, #82).
+  `004-FR-011` no longer says imports are always public: it classifies by provenance into the four
+  `sourceType` values and delegates enforcement to 001's shipped `evaluateVisibility`. `004-FR-013` creates
+  physical-copy imports private; `004-FR-014` rejects known paywalled sources before any outbound request;
+  `004-FR-014a` requires attestation plus a source citation for pasted content; `004-FR-028` gates every
+  non-public import channel behind premium. An earlier revision of this sweep flagged the carve-out as
+  missing — it is not.
 
 ---
 
@@ -519,6 +655,8 @@ Downgrading a CRITICAL rule to WARNING requires explicit product owner approval 
 
 ## Change Log
 
-| Version | Date       | Author                                          | Summary                                                                                                                                                                                                                                                                                                        |
-| ------- | ---------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1.0.0   | 2026-05-10 | Senior Product Owner (cross-feature governance) | Initial ratification. Converts all CRITICAL and WARNING findings from `cross-feature-consistency-report.md` into enforceable rules with acceptance criteria. Corrects all release audit reports to BLOCKED status. Establishes release readiness gate (GR-001) as the primary blocker for engineering handoff. |
+| Version | Date       | Author                                          | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------- | ---------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.0.0   | 2026-05-10 | Senior Product Owner (cross-feature governance) | Initial ratification. Converts all CRITICAL and WARNING findings from `cross-feature-consistency-report.md` into enforceable rules with acceptance criteria. Corrects all release audit reports to BLOCKED status. Establishes release readiness gate (GR-001) as the primary blocker for engineering handoff.                                                                                                                                                                                                                                                               |
+| 3.0.0   | 2026-08-02 | Repository owner                                | **GR-014 amended** (MAJOR — incompatible redefinition): recipe visibility declared **binary** (`private` \| `public`); the missing `public` scope added, and `public-profile` demoted to a surfacing concern rather than a third visibility state; `circle` clarified as read-only; `price_cents` removed from the audience shape and restricted to `published-lesson`; ingestion-provenance and attribution criteria added (AC-014-d/e/f). Withdraws the premium-recipe and paid-follow model portfolio-wide. `cross-feature-consistency-report.md` S-004 amended to match. |
+| 2.0.0   | 2026-08-02 | Repository owner                                | **GR-009 amended** (MAJOR — incompatible redefinition): the `@kitchensink/{group}-{name}` pattern was ratified when no packages existed and none of the 26 shipped packages follow it. Restated to the two scopes actually in use, `@kitchensink/{name}` and `@commise/{name}`, with role suffixes (`-service`, `-workers`, `-service-client`) replacing group prefixes. Superseded pattern preserved in-section. **GR-002/GR-003/GR-007 Current State** refreshed against shipped `main`; GR-002 confirmed portfolio-wide with no exceptions.                               |

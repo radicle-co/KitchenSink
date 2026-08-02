@@ -50,11 +50,11 @@ sequenceDiagram
   participant Split as ARCH-007 Revenue Share Engine
   participant Snapshot as ARCH-019 Policy Snapshot Store
   participant Ent as ARCH-004 Playback Entitlement Service
-  Client->>Enroll: POST /courses/:id/enroll
+  Client->>Enroll: POST /api/v1/courses/:id/enroll
   Enroll->>Split: computeSplit(tier, amount)
   Enroll->>Snapshot: persistPolicySnapshot(version,text)
   Enroll-->>Client: enrollment created
-  Client->>Ent: GET /lessons/:id
+  Client->>Ent: GET /api/v1/lessons/:id
   Ent-->>Client: signed playback url
 ```
 

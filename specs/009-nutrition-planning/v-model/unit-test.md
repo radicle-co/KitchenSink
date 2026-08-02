@@ -45,7 +45,7 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 
 **Technique**: Statement & Branch Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies POST /nutrition-plans calls ClerkAuthService, delegates to service, returns 201 with response DTO.
+**Description**: Verifies POST /api/v1/nutrition-plans calls ClerkAuthService, delegates to service, returns 201 with response DTO.
 
 **Scenarios:**
 
@@ -216,7 +216,7 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 
 **Technique**: Statement Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies GET /nutrition-plans/dashboard computes today's calories, macro progress percentages, and plan summary.
+**Description**: Verifies GET /api/v1/nutrition-plans/dashboard computes today's calories, macro progress percentages, and plan summary.
 
 **Scenarios:**
 
@@ -390,7 +390,7 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 
 **Technique**: Statement Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies GET /nutrition-plans/:id/compliance fetches today's logged items, sums macros, and returns compliance analysis.
+**Description**: Verifies GET /api/v1/nutrition-plans/:id/compliance fetches today's logged items, sums macros, and returns compliance analysis.
 
 **Scenarios:**
 
@@ -519,7 +519,7 @@ Unit tests verify **internal module logic** — control flow, data transformatio
 
 **Technique**: Statement Coverage
 **Target View**: Algorithmic/Logic View
-**Description**: Verifies POST /nutrition-plans/:id/swap-recommendations calls AI service to suggest compliant recipe swaps.
+**Description**: Verifies POST /api/v1/nutrition-plans/:id/swap-recommendations calls AI service to suggest compliant recipe swaps.
 
 **Scenarios:**
 

@@ -201,7 +201,7 @@ Aggregated snapshots written by a scheduled Lambda (daily cron). Metrics stored 
 
 ## 5. API Contract Summary
 
-Base: `/api/v1/`. Runtime: Node 24.x. Package: `@kitchensink/creator-profiles-api`.
+Base: `/api/v1/`. Runtime: Node 24.x. Package: `@kitchensink/creator-profiles-service`.
 
 | Method | Path                                       | Auth  | Description                                                                      |
 | ------ | ------------------------------------------ | ----- | -------------------------------------------------------------------------------- |

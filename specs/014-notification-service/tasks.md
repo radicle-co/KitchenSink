@@ -53,7 +53,7 @@ T-020 ◄── T-019
   - **Implements**: FR-001, FR-004
   - **Acceptance**: Package compiles; `npm run build` passes for the package.
 
-- [ ] **T-002** [P] [US-001] Define shared envelope types (`NotificationEnvelope`, `RecipientDescriptor`, `RecipientKind`) in `@kitchensink/shared-notification-types`. — `packages/shared/notification-types/src/envelope.types.ts`
+- [ ] **T-002** [P] [US-001] Define shared envelope types (`NotificationEnvelope`, `RecipientDescriptor`, `RecipientKind`) in `@kitchensink/notification-types`. — `packages/shared/notification-types/src/envelope.types.ts`
   - **Depends on**: T-001
   - **Implements**: FR-001, FR-004
   - **Acceptance**: Types imported cleanly by `notification-service` tests.

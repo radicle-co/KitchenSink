@@ -5,10 +5,14 @@
 > Last Updated: 2026-05-12
 
 **Mode**: Product Forge remediation (planning artifacts)
-**Milestone**: M8 (Mordor)
-**Public Launch**: Post-1.0 (in v1, end of `M8`)
-**Launch Plan**: [`v1-launch-plan.md`](../v1-launch-plan.md)
 **Governance Rules**: [`governance-rules.md`](../governance-rules.md)
+
+## Milestone Assignment
+
+- **Milestone**: `M8` Mordor
+- **Public launch**: Post-1.0 (in v1)
+- **Source of truth**: ../v1-launch-plan.md
+- **Last updated**: 2026-08-02
 
 ---
 
@@ -52,13 +56,13 @@ Source: [`../v1-launch-plan.md`](../v1-launch-plan.md) (§3.9 `M8` Milestone Mor
 
 Source rules: [`../governance-rules.md`](../governance-rules.md).
 
-| Rule                                                                                                | Planning status   | Evidence                                                                                      |
-| --------------------------------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------- |
-| [GR-002 API URL Prefix Standard](../governance-rules.md#gr-002-api-url-prefix-standard)             | Planned compliant | `plan.md` and `tasks.md` constrain routes to `/api/v1/notifications/*`.                       |
-| [GR-007 Shared Type Library Ownership](../governance-rules.md#gr-007-shared-type-library-ownership) | Planned compliant | Tasks explicitly require `@kitchensink/shared-recipe-core`; duplicate local types prohibited. |
-| [GR-011 Notification System Ownership](../governance-rules.md#gr-011-notification-system-ownership) | Planned compliant | 014 designated as owner interface; producer-integration tasks enumerated.                     |
-| [GR-008 Node.js Runtime Version](../governance-rules.md#gr-008-nodejs-runtime-version)              | Planned compliant | Node 24.x included as setup constraint/tasks.                                                 |
-| [GR-009 Package Naming Convention](../governance-rules.md#gr-009-package-naming-convention)         | Planned compliant | Naming checks included in setup/governance tasks.                                             |
+| Rule                                                                                                | Planning status   | Evidence                                                                               |
+| --------------------------------------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------- |
+| [GR-002 API URL Prefix Standard](../governance-rules.md#gr-002-api-url-prefix-standard)             | Planned compliant | `plan.md` and `tasks.md` constrain routes to `/api/v1/notifications/*`.                |
+| [GR-007 Shared Type Library Ownership](../governance-rules.md#gr-007-shared-type-library-ownership) | Planned compliant | Tasks explicitly require `@kitchensink/recipe-core`; duplicate local types prohibited. |
+| [GR-011 Notification System Ownership](../governance-rules.md#gr-011-notification-system-ownership) | Planned compliant | 014 designated as owner interface; producer-integration tasks enumerated.              |
+| [GR-008 Node.js Runtime Version](../governance-rules.md#gr-008-nodejs-runtime-version)              | Planned compliant | Node 24.x included as setup constraint/tasks.                                          |
+| [GR-009 Package Naming Convention](../governance-rules.md#gr-009-package-naming-convention)         | Planned compliant | Naming checks included in setup/governance tasks.                                      |
 
 No production compliance claim is made until implementation + verification evidence is attached.
 

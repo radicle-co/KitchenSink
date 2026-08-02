@@ -24,18 +24,18 @@ sequenceDiagram
     participant MP as Meal Planning (006)
     participant DB as Nutrition DB
 
-    U->>API: POST /v1/nutrition-plans (targets)
+    U->>API: POST /api/v1/nutrition-plans (targets)
     Note right: FR-036
     API->>DB: Insert nutrition_plans row
     DB-->>API: plan_id
     API-->>U: 201 Created
 
-    U->>API: POST /v1/nutrition-plans/{id}/link (meal_plan_id)
+    U->>API: POST /api/v1/nutrition-plans/{id}/link (meal_plan_id)
     Note right: FR-037
     API->>DB: Insert meal_plan_nutrition_link
     API-->>U: 200 Linked
 
-    U->>API: GET /v1/nutrition-plans/{id}/compliance
+    U->>API: GET /api/v1/nutrition-plans/{id}/compliance
     API->>MP: Fetch daily rollups (actuals)
     MP-->>API: calories/protein/carbs/fat by day
     API->>DB: Compute + persist compliance snapshot
@@ -60,16 +60,16 @@ sequenceDiagram
     API->>DB: Store consent timestamp + status
     Note right: REQ-008 (assumption-derived)
 
-    T->>API: POST /v1/trainer/clients/{clientId}/nutrition-plan
+    T->>API: POST /api/v1/trainer/clients/{clientId}/nutrition-plan
     Note right: FR-038
     API->>DB: Insert nutrition_plan (trainer-owned for client)
     API-->>T: 201 Created
 
-    C->>API: GET /v1/nutrition-plans
+    C->>API: GET /api/v1/nutrition-plans
     API-->>C: Includes trainer-assigned plan
     Note right: FR-038
 
-    T->>API: GET /v1/trainer/clients/{clientId}/compliance
+    T->>API: GET /api/v1/trainer/clients/{clientId}/compliance
     API-->>T: Weekly adherence summary
 ```
 
@@ -85,7 +85,7 @@ sequenceDiagram
     participant API as Nutrition API
     participant R as Recipe Service
 
-    C->>API: GET /v1/nutrition-plans/{id}/compliance
+    C->>API: GET /api/v1/nutrition-plans/{id}/compliance
     API-->>C: Status = under protein, over carbs
 
     C->>API: Request guidance

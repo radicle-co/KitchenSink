@@ -95,7 +95,7 @@
       "findings": [
         "L4.1 All 10 Must Have FRs and 5 Must Have USs have task coverage (verified T024-T052 decomposition)",
         "L4.2 NO tasks are checked (0/85); no execution evidence exists",
-        "L4.3 CRITICAL: No implementation files found for planned workspaces (packages/api/cooking-school-*, packages/shared/cooking-school-*, packages/apps/commise/{web,mobile} feature files)",
+        "L4.3 CRITICAL: No implementation files found for planned workspaces (packages/services/cooking-school-*, packages/shared/cooking-school-*, packages/apps/commise/{web,mobile} feature files)",
         "L4.4 CRITICAL: This is a pre-implement state; task-to-code traceability cannot yet be closed"
       ]
     },
@@ -144,7 +144,7 @@
       "severity": "CRITICAL",
       "artifact": "plan.md / tasks.md",
       "finding": "No implementation code found for planned API, shared contracts, web, or mobile packages.",
-      "target": "packages/api/cooking-school-*, packages/shared/cooking-school-*, packages/apps/commise/{web,mobile}",
+      "target": "packages/services/cooking-school-*, packages/shared/cooking-school-*, packages/apps/commise/{web,mobile}",
       "evidence": "Glob searches returned 0 files for planned workspaces.",
       "monorepo_impact": true
     },

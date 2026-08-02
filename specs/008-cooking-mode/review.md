@@ -4,9 +4,13 @@
 **Created**: 2026-05-09
 **Status**: Pending initial human review
 **Mode**: Retroactive bootstrap
-**Milestone**: `M3` Rohan
-**Public Launch**: Beta (end of `M4`)
-**Launch Plan**: [`v1-launch-plan.md`](../v1-launch-plan.md)
+
+## Milestone Assignment
+
+- **Milestone**: `M3` Rohan
+- **Public launch**: Beta
+- **Source of truth**: ../v1-launch-plan.md
+- **Last updated**: 2026-08-02
 
 ---
 

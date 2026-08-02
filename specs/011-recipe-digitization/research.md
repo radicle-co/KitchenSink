@@ -77,14 +77,14 @@ Alex uses the app daily across multiple features. He might digitize a few recipe
 
 No implementation exists yet. The following packages will be introduced:
 
-| Package                         | Group          | Purpose                                                                                     |
-| ------------------------------- | -------------- | ------------------------------------------------------------------------------------------- |
-| `@kitchensink/digitization-ocr` | `digitization` | Lambda function: receives S3 key, runs OCR/handwriting recognition, returns structured JSON |
-| `@kitchensink/digitization-api` | `digitization` | NestJS module: `DigitizationJob` CRUD, pre-signed URL generation, correction save           |
-| `@kitchensink/circles-api`      | `circles`      | NestJS module: `Circle` entity, membership, invitations, audience resolution                |
-| `@kitchensink/shared-audience`  | `shared`       | Shared library: `AudienceScope` type, `{ scope, ref_id?, price_cents? }` shape (S-004)      |
+| Package                             | Group          | Purpose                                                                                         |
+| ----------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| `@kitchensink/digitization-workers` | `digitization` | Lambda function: receives S3 key, runs OCR/handwriting recognition, returns structured JSON     |
+| `@kitchensink/digitization-service` | `digitization` | NestJS module: `DigitizationJob` CRUD, pre-signed URL generation, correction save               |
+| `@kitchensink/circles-service`      | `circles`      | NestJS module: `Circle` entity, membership, invitations, audience resolution                    |
+| `@kitchensink/audience`             | `shared`       | Shared library: `AudienceScope` type, `{ scope, ref_id? }` shape (S-004, amended GR-014 v3.0.0) |
 
-The `Circle` entity and `@kitchensink/shared-audience` are cross-feature primitives. Features 001, 006, and 007 will import from `@kitchensink/circles-api` and `@kitchensink/shared-audience` respectively — they do not own these packages.
+The `Circle` entity and `@kitchensink/audience` are cross-feature primitives. Features 001, 006, and 007 will import from `@kitchensink/circles-service` and `@kitchensink/audience` respectively — they do not own these packages.
 
 **Database tables** (PostgreSQL 16, Drizzle ORM):
 
@@ -104,7 +104,7 @@ Inherits portfolio-wide standards (§8):
 - **Runtime**: Node.js 24.x (S-003) — including the OCR Lambda.
 - **API**: NestJS 11, paths under `/api/v1/*` (S-001).
 - **Packages**: `@kitchensink/{group}-{name}` (S-002).
-- **OCR**: AWS Textract (printed text + handwriting). Called from the `@kitchensink/digitization-ocr` Lambda; results stored as JSON in `digitization_jobs.raw_ocr_json`.
+- **OCR**: AWS Textract (printed text + handwriting). Called from the `@kitchensink/digitization-workers` Lambda; results stored as JSON in `digitization_jobs.raw_ocr_json`.
 - **Storage**: S3 for photo originals; pre-signed PUT URLs from the API (NFR-002).
 - **Queue**: SQS for async OCR jobs (consistent with 001's version-archive queue pattern).
 - **ORM**: Drizzle ORM + `pg` (node-postgres), consistent with 001.

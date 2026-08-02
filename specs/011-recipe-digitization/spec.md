@@ -25,7 +25,7 @@ Decades of family recipes exist only on paper — fragile, unsearchable, and loc
 
 - **Competitor analysis:** Cookmate has correction UX but no social layer; Google Lens has best-in-class handwriting OCR but no recipe normalisation. The differentiator is correction UX over a normalised schema. (See [research.md § Competitive Landscape](./research.md))
 - **UX/UI patterns:** Side-by-side correction screen (left = original photo with pinch-to-zoom, right = parsed fields with inline editing). Low-confidence tokens highlighted in amber + icon (NFR-004). Bulk-mode queue advances automatically. (See [research.md § UX Patterns](./research.md))
-- **Codebase analysis:** Three new packages: `@kitchensink/digitization-ocr` (Lambda), `@kitchensink/digitization-api` (NestJS), `@kitchensink/circles-api` (NestJS), plus shared `@kitchensink/shared-audience` consumed by 001 / 006 / 007. (See [research.md § Codebase Analysis](./research.md))
+- **Codebase analysis:** Three new packages: `@kitchensink/digitization-workers` (Lambda), `@kitchensink/digitization-service` (NestJS), `@kitchensink/circles-service` (NestJS), plus shared `@kitchensink/audience` consumed by 001 / 006 / 007. (See [research.md § Codebase Analysis](./research.md))
 
 ---
 
@@ -147,13 +147,16 @@ Key need: reliable OCR on printed + handwritten text + side-by-side correction U
 
 ### OCR & Parsing (FR-006 … FR-013) — supports US-001, US-007, US-008
 
-| ID         | Requirement                                                                                             | Priority | Source         |
-| ---------- | ------------------------------------------------------------------------------------------------------- | -------- | -------------- |
-| FR-006     | Invoke OCR provider (Textract default) within 30 s of S3 upload completing.                             | Must     | US-001         |
-| FR-007     | Parse OCR output into `title`, `ingredients[]`, `steps[]`, `yield`, `prep_time`, `cook_time`.           | Must     | US-001         |
-| FR-008–010 | Handwriting recognition path; per-token confidence scores; `language_code` capture.                     | Must     | US-001, US-008 |
-| FR-011–012 | Surface low-confidence tokens; expose confidence in the `parsed_json` payload.                          | Must     | US-008         |
-| FR-013     | Async OCR via SQS — API response is non-blocking; client polls `GET /api/v1/recipes/digitize/jobs/:id`. | Must     | US-007         |
+| ID     | Requirement                                                                                             | Priority | Source         |
+| ------ | ------------------------------------------------------------------------------------------------------- | -------- | -------------- |
+| FR-006 | Invoke OCR provider (Textract default) within 30 s of S3 upload completing.                             | Must     | US-001         |
+| FR-007 | Parse OCR output into `title`, `ingredients[]`, `steps[]`, `yield`, `prep_time`, `cook_time`.           | Must     | US-001         |
+| FR-008 | Recognise handwritten source text via the OCR provider's handwriting path.                              | Must     | US-001, US-008 |
+| FR-009 | Emit a per-token confidence score for every recognised token.                                           | Must     | US-001, US-008 |
+| FR-010 | Capture the detected `language_code` of the source document.                                            | Must     | US-001, US-008 |
+| FR-011 | Surface low-confidence tokens to the corrector in the side-by-side correction UI.                       | Must     | US-008         |
+| FR-012 | Expose per-token confidence in the `parsed_json` payload returned by the digitize job API.              | Must     | US-008         |
+| FR-013 | Async OCR via SQS — API response is non-blocking; client polls `GET /api/v1/recipes/digitize/jobs/:id`. | Must     | US-007         |
 
 ### Review & Correction (FR-014 … FR-018) — supports US-002, US-008, US-009
 
@@ -167,12 +170,40 @@ Key need: reliable OCR on printed + handwritten text + side-by-side correction U
 
 ### Storage & Archive (FR-019 … FR-022) — supports US-001, US-002, US-007
 
-| ID     | Requirement                                                                       | Priority | Source |
-| ------ | --------------------------------------------------------------------------------- | -------- | ------ |
-| FR-019 | S3 photos under per-user prefix; CloudFront serves to UI + recipe detail.         | Must     | US-002 |
-| FR-020 | `DigitizationJob` stores `raw_ocr_json` and `parsed_json` separately (auditable). | Must     | US-002 |
-| FR-021 | `POST /…/save` creates a `Recipe` (owned by 001) and links via `recipe_id`.       | Must     | US-001 |
-| FR-022 | `DELETE /…/jobs/:id` soft-deletes; S3 object retained 30 d default.               | Should   | US-007 |
+| ID      | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Priority | Source |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------ |
+| FR-019  | S3 photos under per-user prefix; CloudFront serves to UI + recipe detail.                                                                                                                                                                                                                                                                                                                                                                                   | Must     | US-002 |
+| FR-020  | `DigitizationJob` stores `raw_ocr_json` and `parsed_json` separately (auditable).                                                                                                                                                                                                                                                                                                                                                                           | Must     | US-002 |
+| FR-021  | `POST /…/save` creates a `Recipe` (owned by 001) and links via `recipe_id`. The created recipe MUST be `{ scope: 'private' }` — see `FR-021a`.                                                                                                                                                                                                                                                                                                              | Must     | US-001 |
+| FR-021a | **A recipe digitized from a photo MUST be created private.** Its source is not publicly and freely available (a cookbook page, recipe card, handwritten note, or screenshot), so it MUST NOT default to public. The owner MAY afterwards share it read-only to a Circle (`{ scope: 'circle', ref_id }`) or, if they hold the rights, publish it. The system MUST NOT auto-publish it under any condition. _(**DRAFT**, added 2026-08-02 per owner ruling.)_ | Must     | US-001 |
+| FR-021b | **Attribution and source linking are required.** A digitized recipe MUST persist and display the provenance it was captured from — at minimum the capture method (photo) and any user-supplied source (book title, author, page, or URL). A recipe MUST NOT be publishable until a source attribution is present. _(**DRAFT**, added 2026-08-02 per owner ruling.)_                                                                                         | Must     | US-001 |
+| FR-022  | `DELETE /…/jobs/:id` soft-deletes; S3 object retained 30 d default.                                                                                                                                                                                                                                                                                                                                                                                         | Should   | US-007 |
+
+> ### Recipe visibility model (owner ruling, 2026-08-02)
+>
+> Canonical rule: [GR-014](../governance-rules.md#gr-014-audience-and-sharing-model). Summarised here
+> because 011 owns the `Circle` primitive and the `circle` audience scope.
+>
+> **A recipe is either private or public. There is no third state** — no premium, paywalled, or
+> purchasable recipe exists anywhere in the portfolio.
+>
+> - **Private** — owner only. MAY be shared with contacts **read-only** via a Circle
+>   (`{ scope: 'circle', ref_id }`, member read-only access per US-006). Sharing is not selling.
+> - **Public** — readable by any authenticated user (`001-FR-004`).
+> - **Ingestion rule** — an ingested recipe is created `public` **only** when its source is publicly and
+>   freely available **and not otherwise marked or licensed** against republication (paywall,
+>   subscription, explicit reservation, or a licence forbidding redistribution or derivatives). Otherwise
+>   it is created **private** (`FR-021a`), and MUST NOT be auto-published.
+> - **Attribution** — source attribution and linking are **required in every case**, and are a
+>   precondition of publishing (`FR-021b`; `004-FR-010` for web/Instagram imports).
+>
+> 001 owns the visibility field; 011 owns the Circle primitive and the `circle` scope.
+>
+> **Where 011 lands**: a photo-digitized recipe is `sourceType: 'imported_physical'`, which the shipped
+> policy makes **private-only**. 011 MUST call `evaluateVisibility`
+> (`packages/services/recipe-service/src/recipes/domain/visibility-policy.ts`) rather than deciding
+> visibility itself — the same constraint `004-FR-011` carries. The "unless otherwise marked" carve-out
+> never applies here: a cookbook page, recipe card, or handwritten note is not a publicly available source.
 
 ### Accessibility (FR-023 … FR-026) — supports US-002, US-004, US-007, US-008
 
@@ -259,12 +290,12 @@ Key need: reliable OCR on printed + handwritten text + side-by-side correction U
 
 ### New Modules Required
 
-| Package                         | Group        | Purpose                                                                                            |
-| ------------------------------- | ------------ | -------------------------------------------------------------------------------------------------- |
-| `@kitchensink/digitization-ocr` | digitization | Lambda — receives S3 key, runs Textract OCR + handwriting, returns structured JSON.                |
-| `@kitchensink/digitization-api` | digitization | NestJS module — `DigitizationJob` CRUD, pre-signed URL minting, correction save.                   |
-| `@kitchensink/circles-api`      | circles      | NestJS module — `Circle` entity, members, invitations, audience resolution.                        |
-| `@kitchensink/shared-audience`  | shared       | Shared lib — exports `AudienceScope` enum + `Audience` shape (S-004). Imported by 001 / 006 / 007. |
+| Package                             | Group        | Purpose                                                                                            |
+| ----------------------------------- | ------------ | -------------------------------------------------------------------------------------------------- |
+| `@kitchensink/digitization-workers` | digitization | Lambda — receives S3 key, runs Textract OCR + handwriting, returns structured JSON.                |
+| `@kitchensink/digitization-service` | digitization | NestJS module — `DigitizationJob` CRUD, pre-signed URL minting, correction save.                   |
+| `@kitchensink/circles-service`      | circles      | NestJS module — `Circle` entity, members, invitations, audience resolution.                        |
+| `@kitchensink/audience`             | shared       | Shared lib — exports `AudienceScope` enum + `Audience` shape (S-004). Imported by 001 / 006 / 007. |
 
 ### Data Model Impact
 
@@ -280,24 +311,24 @@ New tables (PostgreSQL 16, Drizzle): `circles`, `circle_members` (PK = `circle_i
 
 ### Codebase Constraints
 
-| Constraint                                                      | Source         | Impact                                                                               |
-| --------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
-| Pre-signed S3 PUT for binary; API never proxies binary.         | NFR-002, S-002 | API just mints the URL; client uploads direct to S3, then notifies via job ID.       |
-| `/api/v1/*` route prefix enforced.                              | S-001          | All new endpoints scoped under `/api/v1/recipes/digitize/*` and `/api/v1/circles/*`. |
-| `@kitchensink/{group}-{name}` package naming.                   | S-002          | New packages must follow naming.                                                     |
-| Audit logging required for membership changes.                  | NFR-003, S-004 | `circles-api` emits structured events on every membership-state change.              |
-| `audience` field uses `{ scope, ref_id?, price_cents? }` shape. | S-004          | `circle` scope ⇒ `ref_id = Circle.id`; defined in `@kitchensink/shared-audience`.    |
+| Constraint                                                                                                  | Source         | Impact                                                                               |
+| ----------------------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
+| Pre-signed S3 PUT for binary; API never proxies binary.                                                     | NFR-002, S-002 | API just mints the URL; client uploads direct to S3, then notifies via job ID.       |
+| `/api/v1/*` route prefix enforced.                                                                          | S-001          | All new endpoints scoped under `/api/v1/recipes/digitize/*` and `/api/v1/circles/*`. |
+| `@kitchensink/{group}-{name}` package naming.                                                               | S-002          | New packages must follow naming.                                                     |
+| Audit logging required for membership changes.                                                              | NFR-003, S-004 | `circles-api` emits structured events on every membership-state change.              |
+| `audience` field uses `{ scope, ref_id? }` shape (GR-014 v3.0.0; `price_cents` is `published-lesson`-only). | S-004          | `circle` scope ⇒ `ref_id = Circle.id`; defined in `@kitchensink/audience`.           |
 
 ---
 
 ## Consumer Contract
 
-> Included because **FEATURE_TYPE = shared_infrastructure**. 011 owns `Circle`, the `circle` audience scope, and `@kitchensink/shared-audience` — consumed by 001 / 006 / 007.
+> Included because **FEATURE_TYPE = shared_infrastructure**. 011 owns `Circle`, the `circle` audience scope, and `@kitchensink/audience` — consumed by 001 / 006 / 007.
 
 ### Public API
 
 ```typescript
-// @kitchensink/circles-api — public surface for downstream features
+// @kitchensink/circles-service — public surface for downstream features
 export interface CirclesService {
     // Resolve audience for a shareable entity. 001/006/007 use this when listing
     // resources scoped to `circle` audience.
@@ -306,7 +337,7 @@ export interface CirclesService {
     resolveAudience(audience: Audience, viewerUserId: string): Promise<{ allowed: boolean; reason?: string }>;
 }
 
-// @kitchensink/shared-audience — type-only export consumed by 001/006/007
+// @kitchensink/audience — type-only export consumed by 001/006/007
 export enum AudienceScope {
     Private = 'private',
     Circle = 'circle',
@@ -316,7 +347,8 @@ export enum AudienceScope {
 export interface Audience {
     scope: AudienceScope;
     ref_id?: string;
-    price_cents?: number;
+    // `price_cents` REMOVED 2026-08-02 per GR-014 v3.0.0 — recipes are not purchasable.
+    // A price belongs only on a `published-lesson` audience (013 courses).
 }
 ```
 
@@ -355,7 +387,7 @@ return recipe;
 The feature is complete when:
 
 1. All Must Have user stories (US-001, US-002, US-003, US-004, US-005, US-006) are implemented and pass their independent tests.
-2. The four new packages exist, follow `@kitchensink/{group}-{name}` naming, and 001 imports `@kitchensink/shared-audience` + `@kitchensink/circles-api` for `circle` audience resolution.
+2. The four new packages exist, follow `@kitchensink/{group}-{name}` naming, and 001 imports `@kitchensink/audience` + `@kitchensink/circles-service` for `circle` audience resolution.
 3. NFR-001 (OCR p95 ≤ 10 s) and NFR-006 (queue health) verified via CloudWatch dashboards.
 4. NFR-004 (WCAG 2.1 AA) passes axe-core in CI with 0 critical/serious violations + a manual VoiceOver/TalkBack pass on the correction + Circle invite flows (Q-007 protocol deferred to test-plan).
 5. Audit logging on Circle membership changes verified by integration test (NFR-003).
@@ -383,12 +415,12 @@ Primary KPI: **OCR parse quality** — Target: ≥ 70 % of submissions produce t
 
 ### Coverage Targets
 
-| Module / Service                         | Target Coverage            | Test Type               |
-| ---------------------------------------- | -------------------------- | ----------------------- |
-| `@kitchensink/digitization-api`          | ≥ 85 %                     | unit + integration      |
-| `@kitchensink/digitization-ocr` (Lambda) | ≥ 80 %                     | unit (handler + parser) |
-| `@kitchensink/circles-api`               | ≥ 90 % (security-critical) | unit + integration      |
-| `@kitchensink/shared-audience`           | 100 % (type + guard)       | unit                    |
+| Module / Service                             | Target Coverage            | Test Type               |
+| -------------------------------------------- | -------------------------- | ----------------------- |
+| `@kitchensink/digitization-service`          | ≥ 85 %                     | unit + integration      |
+| `@kitchensink/digitization-workers` (Lambda) | ≥ 80 %                     | unit (handler + parser) |
+| `@kitchensink/circles-service`               | ≥ 90 % (security-critical) | unit + integration      |
+| `@kitchensink/audience`                      | 100 % (type + guard)       | unit                    |
 
 ### Critical Test Cases
 
@@ -416,17 +448,17 @@ Primary KPI: **OCR parse quality** — Target: ≥ 70 % of submissions produce t
 
 ## Risks
 
-| Risk                                                                | Impact                                                       | Mitigation                                                                                                                                                          |
-| ------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Handwriting OCR accuracy on aged paper falls below SC-001 threshold | High — kills heritage-archivist value prop                   | Q-003 sets ship threshold at test-plan time; provider trade-off (Q-001) explored before FR-006 implementation; correction UX absorbs marginal cases.                |
-| Textract cost per job exceeds budget at scale                       | Medium — financial                                           | Per-user job cap (Q-002) routed through 010 entitlement once available; cost dashboard + per-user budget alarm.                                                     |
-| `Circle` schema regret blocks 001 / 006 / 007                       | High — cross-feature blast radius                            | `@kitchensink/shared-audience` versioned independently; Consumer Contract above pins the public surface; integration test from 001 in CI.                           |
-| SQS DLQ build-up during incident                                    | Medium — silent failure                                      | NFR-006 alarms at any DLQ message; runbook owned by ops (Q-009 deferred).                                                                                           |
-| Accessibility regressions on the correction screen                  | High — NFR-004 hard requirement                              | axe-core in CI; manual VoiceOver/TalkBack pass before each release (Q-007 protocol).                                                                                |
-| Photo retention policy disputes                                     | Medium — legal/storage cost                                  | FR-022 default 30 d for discarded jobs; Q-005 (saved-job retention) resolved by Operations + Legal at implementation.                                               |
-| Reusable invitation link leaks (C-001 / FR-031)                     | Medium — unauthorised join                                   | Token must be ≥ 128 bits of entropy, opaque, served over HTTPS only; rotation invalidates leaked token; rate-limit `POST /circles/join/:token` per IP and per user. |
-| Unbounded Circle / member growth (C-003 / FR-034)                   | Medium — cost + UX degradation                               | NFR-007 outlier alarm; ops review on alarm; introduce hard caps in a follow-up if abuse signals appear.                                                             |
-| Owner-deletion ownership transfer race (C-004 / FR-035)             | Low — wrong owner promoted under concurrent membership churn | Promotion runs in the same DB transaction as account-deletion finalisation in 002; idempotent on retry.                                                             |
+| Risk                                                                | Impact                                                       | Mitigation                                                                                                                                                                 |
+| ------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Handwriting OCR accuracy on aged paper falls below SC-001 threshold | High — kills heritage-archivist value prop                   | Q-003 sets ship threshold at test-plan time; provider trade-off (Q-001) explored before FR-006 implementation; correction UX absorbs marginal cases.                       |
+| Textract cost per job exceeds budget at scale                       | Medium — financial                                           | Per-user job cap (Q-002) routed through 010 entitlement once available; cost dashboard + per-user budget alarm.                                                            |
+| `Circle` schema regret blocks 001 / 006 / 007                       | High — cross-feature blast radius                            | `@kitchensink/audience` versioned independently; Consumer Contract above pins the public surface; integration test from 001 in CI.                                         |
+| SQS DLQ build-up during incident                                    | Medium — silent failure                                      | NFR-006 alarms at any DLQ message; runbook owned by ops (Q-009 deferred).                                                                                                  |
+| Accessibility regressions on the correction screen                  | High — NFR-004 hard requirement                              | axe-core in CI; manual VoiceOver/TalkBack pass before each release (Q-007 protocol).                                                                                       |
+| Photo retention policy disputes                                     | Medium — legal/storage cost                                  | FR-022 default 30 d for discarded jobs; Q-005 (saved-job retention) resolved by Operations + Legal at implementation.                                                      |
+| Reusable invitation link leaks (C-001 / FR-031)                     | Medium — unauthorised join                                   | Token must be ≥ 128 bits of entropy, opaque, served over HTTPS only; rotation invalidates leaked token; rate-limit `POST /api/v1/circles/join/:token` per IP and per user. |
+| Unbounded Circle / member growth (C-003 / FR-034)                   | Medium — cost + UX degradation                               | NFR-007 outlier alarm; ops review on alarm; introduce hard caps in a follow-up if abuse signals appear.                                                                    |
+| Owner-deletion ownership transfer race (C-004 / FR-035)             | Low — wrong owner promoted under concurrent membership churn | Promotion runs in the same DB transaction as account-deletion finalisation in 002; idempotent on retry.                                                                    |
 
 ---
 

@@ -26,10 +26,10 @@ sequenceDiagram
 
     Note over Alex,API: Free-tier baseline usage [FR-040]
 
-    Alex->>API: GET /recipes (public + own)
+    Alex->>API: GET /api/v1/recipes (public + own)
     API-->>Alex: 200 OK
 
-    Alex->>API: PATCH /recipes/:id/visibility { private: true }
+    Alex->>API: PATCH /api/v1/recipes/:id/visibility { private: true }
     API->>Guard: Evaluate entitlement
     Guard-->>API: deny (plan=free)
     API-->>Alex: 403 { code: PREMIUM_REQUIRED, upgradeUrl }
@@ -53,17 +53,17 @@ sequenceDiagram
     participant Webhook as Stripe Webhook
     participant DB as Account Store
 
-    Jordan->>API: POST /meal-plans/generate (premium feature)
+    Jordan->>API: POST /api/v1/meal-plans/generate (premium feature)
     API-->>Jordan: 403 PREMIUM_REQUIRED [FR-042]
 
-    Jordan->>API: POST /v1/billing/checkout
+    Jordan->>API: POST /api/v1/billing/checkout
     API-->>Jordan: checkoutUrl
     Jordan->>Stripe: Complete payment / trial setup
 
     Stripe->>Webhook: checkout.session.completed
     Webhook->>DB: set plan=premium, status=active|trialing
 
-    Jordan->>API: POST /meal-plans/generate (retry)
+    Jordan->>API: POST /api/v1/meal-plans/generate (retry)
     API-->>Jordan: 200 OK [FR-041]
 ```
 
@@ -93,7 +93,7 @@ sequenceDiagram
     Morgan->>API: Access core features and historical data
     API-->>Morgan: data retained, premium actions gated [FR-043]
 
-    Morgan->>API: POST /v1/billing/checkout (re-upgrade)
+    Morgan->>API: POST /api/v1/billing/checkout (re-upgrade)
     Stripe->>Webhook: checkout.session.completed
     Webhook->>DB: plan=premium
 ```

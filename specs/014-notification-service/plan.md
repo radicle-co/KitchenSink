@@ -30,7 +30,7 @@ Source of truth: [`../v1-launch-plan.md`](../v1-launch-plan.md) (§3.9).
 Source of truth: [`../governance-rules.md`](../governance-rules.md).
 
 - **GR-002 (CRITICAL)**: All APIs constrained to `/api/v1/notifications/*`.
-- **GR-007 (CRITICAL)**: Shared core entities must come from `@kitchensink/shared-recipe-core`; no local duplicate shared domain types.
+- **GR-007 (CRITICAL)**: Shared core entities must come from `@kitchensink/recipe-core`; no local duplicate shared domain types.
 - **GR-011 (WARNING)**: 014 is owner of notification transport/delivery; producer features publish through 014.
 - **GR-008 (WARNING)**: Node runtime remains Node 24.x.
 - **GR-009 (WARNING)**: New package naming follows `@kitchensink/{group}-{name}`.

@@ -1274,7 +1274,7 @@ Frozen design constraints from `system-design.md` are intentionally preserved an
     - **When** responses are compared
     - **Then** schema remains stable across events
 
-### System Component Validation: SYS-021 (`@kitchensink/shared-audience` Library)
+### System Component Validation: SYS-021 (`@kitchensink/audience` Library)
 
 **Parent Requirements**: REQ-053
 
@@ -1301,7 +1301,7 @@ Frozen design constraints from `system-design.md` are intentionally preserved an
     - **Then** type resolves and compile succeeds
 
 - **System Scenario: STS-021-A2**
-    - **Given** downstream service expects optional `price_cents`
+    - **Given** downstream service expects no `price_cents` (GR-014 v3.0.0)
     - **When** `Audience` type is used
     - **Then** field is available and correctly typed as optional number
 
@@ -1772,7 +1772,7 @@ Frozen design constraints from `system-design.md` are intentionally preserved an
   **Trace**: REQ-062, REQ-063
 
 - **System Scenario: STS-029-A1**
-    - **Given** file `recipes-digitize.integration.spec.ts` includes REQ header block
+    - **Given** file `recipes-digitize.integration.test.ts` includes REQ header block
     - **When** governance linter runs
     - **Then** file passes convention checks
 
@@ -1943,7 +1943,7 @@ Frozen design constraints from `system-design.md` are intentionally preserved an
 **Inputs/Preconditions**:
 
 - Frontend tasks mapped to T057–T067.
-- Existing primitives in `packages/ui` catalog.
+- Existing primitives in `packages/apps/commise/ui` catalog.
   **Steps**:
 
 1. Review each frontend task for primitive reuse decision record.

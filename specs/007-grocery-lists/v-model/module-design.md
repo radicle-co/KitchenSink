@@ -29,7 +29,7 @@ The Grocery Lists & Online Ordering module design decomposes fourteen architectu
 #### Algorithmic / Logic View
 
 ```pseudocode
-// POST /grocery-lists/generate
+// POST /api/v1/grocery-lists/generate
 FUNCTION handleGenerate(req: AuthenticatedRequest, body: GenerateGroceryListDTO) -> GroceryList:
     // AuthMiddleware has already validated JWT and attached req.user.id
     userId = req.user.id
@@ -41,7 +41,7 @@ FUNCTION handleGenerate(req: AuthenticatedRequest, body: GenerateGroceryListDTO)
     // Service throws TimeoutError if > 5 seconds (REQ-003)
     RETURN HTTP 201, result
 
-// GET /grocery-lists/:id
+// GET /api/v1/grocery-lists/:id
 FUNCTION handleGet(req: AuthenticatedRequest, params: {id: UUID}) -> GroceryList:
     userId = req.user.id
     VALIDATE params.id IS valid UUID
@@ -51,7 +51,7 @@ FUNCTION handleGet(req: AuthenticatedRequest, params: {id: UUID}) -> GroceryList
     result = AWAIT groceryListService.getList(params.id, userId)
     RETURN HTTP 200, result
 
-// DELETE /grocery-lists/:id
+// DELETE /api/v1/grocery-lists/:id
 FUNCTION handleDelete(req: AuthenticatedRequest, params: {id: UUID}) -> void:
     userId = req.user.id
     VALIDATE params.id IS valid UUID
@@ -244,7 +244,7 @@ N/A — Stateless pure function; no persistent state between calls.
 #### Algorithmic / Logic View
 
 ```pseudocode
-// PATCH /grocery-lists/:id/items/:itemId
+// PATCH /api/v1/grocery-lists/:id/items/:itemId
 FUNCTION handleMarkAlreadyHave(
     req: AuthenticatedRequest,
     params: {id: UUID, itemId: UUID},
@@ -261,7 +261,7 @@ FUNCTION handleMarkAlreadyHave(
     )
     RETURN HTTP 200, result
 
-// GET /grocery-lists/:id/items
+// GET /api/v1/grocery-lists/:id/items
 FUNCTION handleGetItems(
     req: AuthenticatedRequest,
     params: {id: UUID},
@@ -492,7 +492,7 @@ stateDiagram-v2
 #### Algorithmic / Logic View
 
 ```pseudocode
-// POST /grocery-lists/:id/order
+// POST /api/v1/grocery-lists/:id/order
 FUNCTION handleSubmitOrder(
     req: AuthenticatedRequest,
     params: {id: UUID}
@@ -626,7 +626,7 @@ stateDiagram-v2
 #### Algorithmic / Logic View
 
 ```pseudocode
-// GET /store-configs
+// GET /api/v1/store-configs
 FUNCTION handleList(req: AuthenticatedRequest) -> StoreConfig[] | SetupGuidance:
     userId = req.user.id
     result = AWAIT storeConfigService.listConfigs(userId)
@@ -634,7 +634,7 @@ FUNCTION handleList(req: AuthenticatedRequest) -> StoreConfig[] | SetupGuidance:
         RETURN HTTP 200, result.setupGuidance  // REQ-007
     RETURN HTTP 200, result.configs
 
-// POST /store-configs
+// POST /api/v1/store-configs
 FUNCTION handleCreate(req: AuthenticatedRequest, body: CreateStoreConfigDTO) -> StoreConfig:
     userId = req.user.id
     VALIDATE body.provider IS valid enum value
@@ -645,7 +645,7 @@ FUNCTION handleCreate(req: AuthenticatedRequest, body: CreateStoreConfigDTO) -> 
     config = AWAIT storeConfigService.createConfig(userId, body)
     RETURN HTTP 201, config
 
-// DELETE /store-configs/:id
+// DELETE /api/v1/store-configs/:id
 FUNCTION handleDelete(req: AuthenticatedRequest, params: {id: UUID}) -> void:
     userId = req.user.id
     VALIDATE params.id IS valid UUID

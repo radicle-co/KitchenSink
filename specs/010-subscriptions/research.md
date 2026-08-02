@@ -244,19 +244,19 @@ The NestJS `AuthMiddleware` (from `002`) networklessly verifies the Clerk sessio
 
 ### 3.2 NestJS Feature Gating Pattern
 
-The recommended pattern is a **custom `@RequirePlan()` decorator + `PlanGuard`** that reads the authenticated user's `plan` field. This is composable with the existing `JwtAuthGuard` from `002`.
+The recommended pattern is a **custom `@RequirePlan()` decorator + `PlanGuard`** that reads the authenticated user's `plan` field. It runs **after** `AuthMiddleware` (002's Clerk session-token verification, applied as NestJS middleware) has
+populated `req.user`; there is no `JwtAuthGuard` in the shipped codebase.
 
 ```typescript
 // billing/decorators/require-plan.decorator.ts
 import { SetMetadata, applyDecorators, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlanGuard } from '../guards/plan.guard';
 
 export const REQUIRED_PLAN_KEY = 'requiredPlan';
 
 /** Gate a route to premium subscribers only. */
 export function RequirePremium() {
-    return applyDecorators(SetMetadata(REQUIRED_PLAN_KEY, 'premium'), UseGuards(JwtAuthGuard, PlanGuard));
+    return applyDecorators(SetMetadata(REQUIRED_PLAN_KEY, 'premium'), UseGuards(PlanGuard));
 }
 ```
 
@@ -309,24 +309,24 @@ placeGroceryOrder(@Body() dto: PlaceOrderDto) { ... }
 
 ### 3.3 Feature Gating Map (FR-040 / FR-041)
 
-| Feature                      | Spec | FR               | Free | Premium | Guard Location                            |
-| ---------------------------- | ---- | ---------------- | ---- | ------- | ----------------------------------------- |
-| Recipe CRUD (public)         | 001  | FR-001–005       | ✅   | ✅      | None                                      |
-| Private recipe visibility    | 001  | FR-003           | ❌   | ✅      | `PATCH /recipes/:id/visibility`           |
-| Recipe sharing/cloning       | 001  | FR-006           | ✅   | ✅      | None                                      |
-| Basic recipe importing (URL) | 004  | FR-010           | ✅   | ✅      | None                                      |
-| Clone-to-private (imported)  | 004  | FR-011           | ❌   | ✅      | `POST /recipes/import` (visibility param) |
-| AI recipe generation         | 005  | FR-016           | ❌   | ✅      | `POST /ai/generate`                       |
-| AI instruction optimization  | 005  | FR-019           | ❌   | ✅      | `POST /ai/optimize-instructions`          |
-| Manual meal planning         | 006  | FR-020–024       | ✅   | ✅      | None                                      |
-| AI meal suggestions          | 006  | FR-025           | ❌   | ✅      | `POST /meal-plans/suggest`                |
-| Auto-generated meal plans    | 006  | FR-026           | ❌   | ✅      | `POST /meal-plans/generate`               |
-| Food waste optimization      | 006  | FR-027           | ❌   | ✅      | `POST /meal-plans/optimize-waste`         |
-| Grocery list generation      | 007  | FR-028–030       | ✅   | ✅      | None                                      |
-| Online grocery ordering      | 007  | FR-031           | ❌   | ✅      | `POST /grocery-lists/:id/order`           |
-| Cooking mode                 | 008  | FR-032–037       | ✅   | ✅      | None                                      |
-| Basic nutrition tracking     | 009  | FR-038 (partial) | ✅   | ✅      | None                                      |
-| Trainer nutrition planning   | 009  | FR-038           | ❌   | ✅      | `POST /nutrition/client-plans`            |
+| Feature                      | Spec | FR                      | Free | Premium | Guard Location                                   |
+| ---------------------------- | ---- | ----------------------- | ---- | ------- | ------------------------------------------------ |
+| Recipe CRUD (public)         | 001  | 001-FR-001 … 001-FR-005 | ✅   | ✅      | None                                             |
+| Private recipe visibility    | 001  | 001-FR-003              | ❌   | ✅      | `PATCH /api/v1/recipes/:id/visibility`           |
+| Recipe sharing/cloning       | 001  | 001-FR-006              | ✅   | ✅      | None                                             |
+| Basic recipe importing (URL) | 004  | 004-FR-008              | ✅   | ✅      | None                                             |
+| Clone-to-private (imported)  | 004  | 004-FR-011              | ❌   | ✅      | `POST /api/v1/recipes/import` (visibility param) |
+| AI recipe generation         | 005  | 005-FR-016              | ❌   | ✅      | `POST /api/v1/ai/generate`                       |
+| AI instruction optimization  | 005  | 005-FR-019              | ❌   | ✅      | `POST /api/v1/ai/optimize-instructions`          |
+| Manual meal planning         | 006  | 006-FR-022 … 006-FR-024 | ✅   | ✅      | None                                             |
+| AI meal suggestions          | 006  | 006-FR-025              | ❌   | ✅      | `POST /api/v1/meal-plans/suggest`                |
+| Auto-generated meal plans    | 006  | 006-FR-026              | ❌   | ✅      | `POST /api/v1/meal-plans/generate`               |
+| Food waste optimization      | 006  | 006-FR-027              | ❌   | ✅      | `POST /api/v1/meal-plans/optimize-waste`         |
+| Grocery list generation      | 007  | 007-FR-028 … 007-FR-030 | ✅   | ✅      | None                                             |
+| Online grocery ordering      | 007  | 007-FR-031              | ❌   | ✅      | `POST /api/v1/grocery-lists/:id/order`           |
+| Cooking mode                 | 008  | 008-FR-032 … 008-FR-035 | ✅   | ✅      | None                                             |
+| Basic nutrition tracking     | 009  | 009-FR-038 (partial)    | ✅   | ✅      | None                                             |
+| Trainer nutrition planning   | 009  | 009-FR-038              | ❌   | ✅      | `POST /api/v1/nutrition/client-plans`            |
 
 ### 3.4 Grace Period on Subscription Lapse
 
@@ -350,7 +350,7 @@ When a premium user downgrades, per spec acceptance scenario 6:
 - **Previously private recipes remain private** (no forced un-privatization)
 - **No new recipes can be set to private** until renewal
 - **AI-generated recipes already saved** are retained (they are just recipes in the DB)
-- **Exception**: Imported/attributed recipes that were set to private must remain public per source TOS (FR-011)
+- **Exception**: Imported/attributed recipes that were set to private must remain public per source TOS (004-FR-011)
 
 This means the `PlanGuard` only gates **write/action** endpoints, not read access to existing data.
 

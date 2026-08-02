@@ -6,9 +6,11 @@ defines immutable principles; this document translates them into enforceable rul
 
 **Version**: 1.3.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-02
 
-> **1.3.0** — corrected §1a/§1b test-file rows, rewrote §7 Test File Location against the actual
-> repo layout (both regimes, the reserved `.spec` suffix, Maestro/k6 homes, known non-conformance),
-> and corrected §4 Extensions, which prescribed a relative-import extension the compiler rejects.
+> **1.3.0** — corrected §1a/§1b test-file rows and rewrote §7 Test File Location against the actual repo
+> layout (both regimes, the reserved `.spec` suffix, Maestro/k6 homes). 61 test files were migrated to the
+> single vitest `.test.ts` suffix on 2026-08-02, so the suffix rule now holds repo-wide; the integration
+> **directory** stays a SHOULD because two shapes legitimately coexist. Also corrected §4 Extensions,
+> which prescribed a relative-import extension the compiler rejects (`error TS5097`).
 
 ---
 
@@ -463,20 +465,27 @@ and the default `test` include globs MUST exclude the other tiers' patterns. A p
 integration or E2E tier MUST also be added to the corresponding CI job — CI invokes these per-workspace
 by name (`.github/workflows/_ci.yml`), so a new script that no job calls is a test that never runs.
 
-#### Known non-conformance (pending migration)
+#### Suffix is a hard rule; the integration directory is a SHOULD
 
-These predate this section and are **not** a licence to copy the old shape in new work:
+The **suffix** table above is mandatory — it is what keeps vitest and Playwright from colliding, and every
+package now conforms (61 files were migrated to it on 2026-08-02).
 
-| Package                              | Current                                          | Target                           |
-| ------------------------------------ | ------------------------------------------------ | -------------------------------- |
-| `@kitchensink/recipe-service`        | `__tests__/integration/**/*.integration.spec.ts` | `tests/**/*.integration.test.ts` |
-| `@kitchensink/recipe-workers`        | `__tests__/integration/**/*.integration.spec.ts` | `tests/**/*.integration.test.ts` |
-| `@kitchensink/recipe-service-client` | `src/__integration__/**/*.integration.spec.ts`   | `tests/**/*.integration.test.ts` |
-| `@kitchensink/recipe-service`        | `tests/e2e/**/*.e2e.spec.ts`                     | `tests/e2e/**/*.e2e.test.ts`     |
-| `@kitchensink/identity-webhooks`     | `tests/e2e/**/*.spec.ts`                         | `tests/e2e/**/*.e2e.test.ts`     |
+The integration **directory** is deliberately a SHOULD, because the repo genuinely runs two shapes and
+neither is wrong:
 
-Renaming them is a mechanical change to ~45 files plus four config globs, deliberately **not** bundled
-with this documentation fix. New packages follow the tables above.
+| Layout                       | Packages                                     |
+| ---------------------------- | -------------------------------------------- |
+| `tests/` (preferred for new) | `identity`, `food-service`, `@commise/web`\* |
+| `__tests__/integration/`     | `recipe-service`, `recipe-workers`           |
+| `src/__integration__/`       | `recipe-service-client`                      |
+
+\* web uses `tests/__integration__/` per the frontend regime.
+
+New packages SHOULD use `tests/` (it matches the `tests/e2e/` layout that all six service packages already
+share). Relocating the existing suites would rewrite import depths across ~45 files for zero functional
+gain, so it is explicitly **not** required. What IS required, in every layout: the tier has its own
+`vitest.integration.config.ts`, its own script, an exclude that keeps it out of the default `test` glob,
+and a CI job that calls it.
 
 ### Test Structure
 

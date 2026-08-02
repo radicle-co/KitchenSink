@@ -60,13 +60,23 @@ const field =
     'w-full rounded-lg border border-border bg-white px-3 py-2 text-body-md text-charcoal outline-none focus:ring-2 focus:ring-seafoam';
 const rowField = `${field} min-w-0 flex-1`;
 const errorText = 'text-body-sm text-error-dark';
-const difficultyChip =
-    'relative flex cursor-pointer items-center rounded-full border border-border bg-white px-4 py-1.5 text-body-sm text-charcoal transition focus-within:ring-2 focus-within:ring-seafoam';
+// Layout and state-independent chrome ONLY — deliberately carries no `bg-*`, `text-<colour>`, or
+// `border-<colour>` utility. Those live in the two mutually-exclusive state consts below.
+//
+// DO NOT fold the resting colours back in here and override them conditionally. Tailwind orders utilities by
+// its own EMISSION order, NOT by the order they appear in the class attribute, so `base + override` resolves
+// to whichever utility Tailwind happened to emit last. That is not hypothetical: this chip shipped with
+// `bg-white`(base) beating `bg-seafoam`(selected) while `text-white`(selected) beat `text-charcoal`(base),
+// rendering the selected label white-on-white in every browser — and because "Not stated" carries
+// `value: undefined`, `undefined === undefined` made a FRESH form open with a blank pill.
+const difficultyChipBase =
+    'relative flex cursor-pointer items-center rounded-full border px-4 py-1.5 text-body-sm transition focus-within:ring-2 focus-within:ring-seafoam';
 // The radio input is a transparent overlay covering its whole chip (not `sr-only`), so the semantic control
 // is itself the click/tap target — directly actionable for pointer users and E2E (`getByRole('radio')`),
 // while the visible chip text renders beneath. `sr-only` would shrink it to a 1px point the visible label
 // then overlays, which pointer-based drivers (Playwright) cannot reach.
 const difficultyRadioOverlay = 'absolute inset-0 cursor-pointer opacity-0';
+const difficultyChipResting = 'border-border bg-white text-charcoal';
 const difficultyChipSelected = 'border-seafoam bg-seafoam text-white';
 
 /** Step 1 (minus visibility): title, description, cuisine, tags, dietary flags, servings, prep/cook time, the read-only computed total, and difficulty. */
@@ -200,7 +210,7 @@ export const RecipeBasicsFields: FC<RecipeFormSectionProps> = ({ values, errors,
                         return (
                             <label
                                 key={option.label}
-                                className={`${difficultyChip} ${selected ? difficultyChipSelected : ''}`}
+                                className={`${difficultyChipBase} ${selected ? difficultyChipSelected : difficultyChipResting}`}
                             >
                                 <input
                                     type="radio"

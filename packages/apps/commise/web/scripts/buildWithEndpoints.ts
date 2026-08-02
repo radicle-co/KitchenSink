@@ -29,11 +29,18 @@ for (const [key, value] of Object.entries(endpoints)) {
 
     // A DIFFERING inherited value is the failure this wrapper exists for: it means a project-scoped variable
     // is still set and was about to be compiled into a preview built for a different PR. Say so out loud —
-    // the override makes the build correct, but the stale variable should be deleted from the dashboard.
+    // the override makes the build correct, but the stale variable should be deleted from the PREVIEW scope.
+    //
+    // Naming the scope is load-bearing, not pedantry: this wrapper is inert outside a preview, so PRODUCTION
+    // reads this very name directly. An earlier draft of this warning said only "remove it", and a plain
+    // Vercel variable defaults to ALL environments — so following it in the dashboard deletes production's
+    // value too, trading a wrong-preview bug for a hard production build failure.
     if (inherited !== undefined && inherited !== value) {
         console.warn(
             `[build] ${key}: overriding inherited '${inherited}' with '${value}' resolved for this preview. ` +
-                'The inherited value is project-scoped and therefore wrong for every PR but one — remove it.',
+                'The inherited value is project-scoped and therefore wrong for every PR but one — remove it ' +
+                'from the PREVIEW scope ONLY. Production reads this same name directly and has no template, ' +
+                'so deleting it project-wide fails the production build instead.',
         );
     } else {
         console.log(`[build] ${key}=${value} (resolved for this preview)`);

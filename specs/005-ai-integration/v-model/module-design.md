@@ -21,72 +21,75 @@ The AI Integration module design decomposes seventeen architecture modules (`ARC
 
 ---
 
-### Module: MOD-001 (ProviderConfigRepository — CRUD Operations)
+### Module: MOD-001 (ByokKeyRepository — ARN Reference CRUD)
 
 **Parent Architecture Modules**: ARCH-001
-**Target Source File(s)**: `src/ai/provider-config/provider-config.repository.ts`
+**Target Source File(s)**: `packages/services/ai-service/src/byok/byok.dal.ts`
+
+> **Revised 2026-08-02 — design correction, not a rename.** The prior revision of this module
+> hand-rolled AES-256-GCM and stored the resulting ciphertext in Postgres
+> (`provider_configs.encrypted_api_key`), decrypting in-process with an ambient `AES_KEY`. That
+> contradicts `spec.md` FR-015 and `plan.md` §2.2, which require the raw key to be written to **AWS
+> Secrets Manager** with **only the ARN** persisted — the raw key never touches the database. It also
+> violated the library-first gate (hand-rolled crypto) and left the symmetric key's custody and
+> rotation unspecified. This module is now DB-only: it stores, reads and deletes an ARN reference and
+> has no knowledge of key material. Secrets Manager I/O moves to MOD-002.
 
 #### Algorithmic / Logic View
 
 ```pseudocode
-FUNCTION upsertProviderConfig(userId: string, provider: ProviderEnum, apiKey: string) -> ProviderConfigRecord:
+FUNCTION upsertByokKeyRef(userId: string, provider: ProviderEnum, secretArn: string) -> ByokKeyRecord:
     // Step 1: Validate inputs
     IF userId IS NULL OR userId IS EMPTY:
         THROW ValidationError("userId required")
     IF provider NOT IN ['openai', 'gemini', 'anthropic']:
         THROW ValidationError("Invalid provider")
-    IF apiKey IS NULL OR apiKey IS EMPTY:
-        THROW ValidationError("apiKey required")
+    IF secretArn IS NULL OR secretArn IS EMPTY:
+        THROW ValidationError("secretArn required")
 
-    // Step 2: Encrypt apiKey using AES-256-GCM
-    iv = crypto.randomBytes(12)                          // 96-bit IV
-    cipher = createCipheriv('aes-256-gcm', AES_KEY, iv)
-    encryptedKey = cipher.update(apiKey, 'utf8', 'hex') + cipher.final('hex')
-    authTag = cipher.getAuthTag().toString('hex')
-    encryptedPayload = iv.hex + ':' + authTag + ':' + encryptedKey
-
-    // Step 3: Upsert into provider_configs table
+    // Step 2: Upsert the ARN REFERENCE only. No key material is present in this module.
+    // The conflict target is the COMPOSITE (user_id, provider) — one key per provider,
+    // up to all three providers concurrently (decision D-005).
     record = db.query(
-        "INSERT INTO provider_configs (user_id, provider, encrypted_api_key, updated_at)
-         VALUES ($1, $2, $3, NOW())
+        "INSERT INTO user_byok_keys (user_id, provider, secret_arn, key_version, is_active, updated_at)
+         VALUES ($1, $2, $3, 1, true, NOW())
          ON CONFLICT (user_id, provider) DO UPDATE
-         SET encrypted_api_key = EXCLUDED.encrypted_api_key, updated_at = NOW()
+         SET secret_arn   = EXCLUDED.secret_arn,
+             key_version  = user_byok_keys.key_version + 1,
+             is_active    = true,
+             updated_at   = NOW()
          RETURNING *",
-        [userId, provider, encryptedPayload]
+        [userId, provider, secretArn]
     )
     RETURN record
 
-FUNCTION getProviderConfig(userId: string, provider: ProviderEnum) -> ProviderConfigRecord | NULL:
-    // Step 1: Query database
+FUNCTION getByokKeyRef(userId: string, provider: ProviderEnum) -> ByokKeyRecord | NULL:
+    // Returns the ARN reference only. Resolving it to key material is MOD-002's job.
     row = db.query(
-        "SELECT * FROM provider_configs WHERE user_id = $1 AND provider = $2",
+        "SELECT id, user_id, provider, secret_arn, key_version, is_active, created_at, updated_at
+           FROM user_byok_keys
+          WHERE user_id = $1 AND provider = $2 AND is_active = true",
         [userId, provider]
     )
-    IF row IS NULL:
-        RETURN NULL
+    RETURN row      // NULL when absent — not an error
 
-    // Step 2: Decrypt apiKey
-    [ivHex, authTagHex, encryptedKey] = row.encrypted_api_key.split(':')
-    iv = Buffer.from(ivHex, 'hex')
-    authTag = Buffer.from(authTagHex, 'hex')
-    decipher = createDecipheriv('aes-256-gcm', AES_KEY, iv)
-    decipher.setAuthTag(authTag)
-    decryptedKey = decipher.update(encryptedKey, 'hex', 'utf8') + decipher.final('utf8')
-    RETURN { ...row, apiKey: decryptedKey }
-
-FUNCTION deleteProviderConfig(userId: string, provider: ProviderEnum) -> void:
-    db.query(
-        "DELETE FROM provider_configs WHERE user_id = $1 AND provider = $2",
+FUNCTION deleteByokKeyRef(userId: string, provider: ProviderEnum) -> string | NULL:
+    // Returns the deleted ARN so the caller (MOD-002) can delete the secret itself.
+    // Idempotent: absent row returns NULL rather than throwing.
+    row = db.query(
+        "DELETE FROM user_byok_keys WHERE user_id = $1 AND provider = $2 RETURNING secret_arn",
         [userId, provider]
     )
-    // No error if row does not exist (idempotent delete)
+    RETURN row?.secret_arn
 
-FUNCTION listProviderConfigs(userId: string) -> ProviderConfigRecord[]:
+FUNCTION listByokKeyRefs(userId: string) -> ByokKeyMeta[]:
+    // Metadata only. `secret_arn` is deliberately NOT selected — a list response has no
+    // legitimate need for it, and omitting it here makes leakage impossible downstream.
     rows = db.query(
-        "SELECT user_id, provider, updated_at FROM provider_configs WHERE user_id = $1",
+        "SELECT provider, key_version, is_active, created_at, updated_at
+           FROM user_byok_keys WHERE user_id = $1",
         [userId]
     )
-    // NOTE: apiKey is NOT decrypted in list — masked at service layer
     RETURN rows
 ```
 
@@ -96,98 +99,141 @@ N/A — Stateless (each function is a discrete database operation with no retain
 
 #### Internal Data Structures
 
-| Name                 | Type                                                         | Size/Constraints              | Initialization                              | Description                                     |
-| -------------------- | ------------------------------------------------------------ | ----------------------------- | ------------------------------------------- | ----------------------------------------------- |
-| AES_KEY              | `Buffer`                                                     | 32 bytes (256-bit)            | From env `AI_ENCRYPTION_KEY` at module load | AES-256-GCM symmetric key for apiKey encryption |
-| iv                   | `Buffer`                                                     | 12 bytes (96-bit)             | `crypto.randomBytes(12)` per write          | GCM initialization vector; unique per upsert    |
-| encryptedPayload     | `string`                                                     | `ivHex:authTagHex:ciphertext` | Constructed per upsert                      | Stored in `encrypted_api_key` column            |
-| ProviderEnum         | `'openai' \| 'gemini' \| 'anthropic'`                        | 3 values                      | Compile-time constant                       | Valid provider identifiers                      |
-| ProviderConfigRecord | `{ userId, provider, encryptedApiKey?, apiKey?, updatedAt }` | —                             | Returned from DB query                      | Row shape from `provider_configs` table         |
+| Name          | Type                                                                              | Size/Constraints                          | Initialization         | Description                                                   |
+| ------------- | --------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------- | ------------------------------------------------------------- |
+| ProviderEnum  | `'openai' \| 'gemini' \| 'anthropic'`                                             | 3 values                                  | Compile-time constant  | Valid provider identifiers                                    |
+| ByokKeyRecord | `{ id, userId, provider, secretArn, keyVersion, isActive, createdAt, updatedAt }` | —                                         | Returned from DB query | Row shape of `user_byok_keys`. **Contains no key material.**  |
+| ByokKeyMeta   | `{ provider, keyVersion, isActive, createdAt, updatedAt }`                        | —                                         | Returned from list     | Metadata projection; `secretArn` intentionally absent         |
+| secretArn     | `string`                                                                          | `arn:aws:secretsmanager:…` — opaque to us | Supplied by MOD-002    | A **reference**, not a credential; safe at rest in the app DB |
 
 #### Error Handling & Return Codes
 
-| Error Condition                  | Error Code / Exception | Architecture Contract                  | Recovery                                  |
-| -------------------------------- | ---------------------- | -------------------------------------- | ----------------------------------------- |
-| `userId` null or empty           | `ValidationError`      | ARCH-001 Input constraint              | Caller receives 400; no DB operation      |
-| Invalid provider enum value      | `ValidationError`      | ARCH-001 Input constraint              | Caller receives 400; no DB operation      |
-| AES key missing from env         | `ConfigurationError`   | ARCH-001 — module fails to initialize  | Process exits at startup; not recoverable |
-| GCM auth tag mismatch on decrypt | `DecryptionError`      | ARCH-001 — data integrity violation    | Re-throw; caller receives 500             |
-| DB connection failure            | `DatabaseError`        | ARCH-001 — propagated to service layer | Re-throw; caller receives 503             |
+| Error Condition             | Error Code / Exception | Architecture Contract                  | Recovery                             |
+| --------------------------- | ---------------------- | -------------------------------------- | ------------------------------------ |
+| `userId` null or empty      | `ValidationError`      | ARCH-001 Input constraint              | Caller receives 400; no DB operation |
+| Invalid provider enum value | `ValidationError`      | ARCH-001 Input constraint              | Caller receives 400; no DB operation |
+| `secretArn` null or empty   | `ValidationError`      | ARCH-001 Input constraint              | Caller receives 400; no DB operation |
+| Unique violation on upsert  | —                      | Handled by `ON CONFLICT`; not an error | Row is updated, `key_version` bumped |
+| DB connection failure       | `DatabaseError`        | ARCH-001 — propagated to service layer | Re-throw; caller receives 503        |
+
+> **Removed by the 2026-08-02 correction**: `ConfigurationError` (missing AES key) and
+> `DecryptionError` (GCM auth-tag mismatch). Neither can occur — this module no longer performs
+> cryptography. Secrets Manager failure modes are owned by MOD-002.
 
 ---
 
-### Module: MOD-002 (ProviderConfigService — Credential Lifecycle Orchestrator)
+### Module: MOD-002 (ByokService — Credential Lifecycle Orchestrator)
 
 **Parent Architecture Modules**: ARCH-002
-**Target Source File(s)**: `src/ai/provider-config/provider-config.service.ts`
+**Target Source File(s)**: `packages/services/ai-service/src/byok/byok.service.ts`
+
+> **Revised 2026-08-02.** This module now owns **all** AWS Secrets Manager I/O. It is the only place
+> raw key material exists, and only transiently in memory — never persisted, never logged, never
+> cached (`plan.md` §2.2). MOD-001 handles the ARN reference row.
 
 #### Algorithmic / Logic View
 
 ```pseudocode
-FUNCTION saveProviderCredentials(userId: string, provider: ProviderEnum, apiKey: string) -> MaskedProviderConfig:
+FUNCTION saveByokKey(userId: string, provider: ProviderEnum, apiKey: string) -> ByokKeyMeta:
     // Step 1: Validate provider type
     IF provider NOT IN SUPPORTED_PROVIDERS:
         THROW ValidationError("Unsupported provider: " + provider)
 
-    // Step 2: Delegate persistence to repository
-    record = ProviderConfigRepository.upsertProviderConfig(userId, provider, apiKey)
+    // Step 2: Validate + prove the key works BEFORE anything is persisted anywhere.
+    // A key that fails its provider test-call must leave NO trace in Secrets Manager or the DB.
+    ByokValidator.assertFormat(provider, apiKey)          // prefix/shape check
+    AWAIT ByokValidator.assertLiveKey(provider, apiKey)   // minimal provider call
 
-    // Step 3: Return masked response (never expose raw key)
+    // Step 3: Write the RAW key to Secrets Manager under a per-user, per-provider name.
+    // This is the only write of key material in the system.
+    secretArn = AWAIT secretsManager.putSecret(
+        name  = "byok/" + userId + "/" + provider,
+        value = apiKey
+    )
+
+    // Step 4: Persist ONLY the ARN. On DB failure, roll the secret back so we never
+    // orphan key material that nothing references.
+    TRY:
+        record = ByokKeyRepository.upsertByokKeyRef(userId, provider, secretArn)
+    CATCH DatabaseError AS e:
+        AWAIT secretsManager.deleteSecret(secretArn)      // compensating action
+        THROW e
+
+    // Step 5: Return metadata. The raw key and the ARN are both withheld from the caller.
     RETURN {
-        userId: record.userId,
-        provider: record.provider,
-        apiKeyMasked: '****' + apiKey.slice(-4),
-        updatedAt: record.updatedAt
+        provider:   record.provider,
+        keyVersion: record.keyVersion,
+        isActive:   record.isActive,
+        updatedAt:  record.updatedAt
     }
 
-FUNCTION getProviderCredentials(userId: string) -> { provider: ProviderEnum, apiKey: string }:
-    // Step 1: Find first configured provider (priority: openai > gemini > anthropic)
-    FOR provider IN ['openai', 'gemini', 'anthropic']:
-        record = ProviderConfigRepository.getProviderConfig(userId, provider)
-        IF record IS NOT NULL:
-            RETURN { provider: record.provider, apiKey: record.apiKey }
+FUNCTION resolveByokKey(userId: string, provider: ProviderEnum) -> string:
+    // Just-in-time retrieval. The returned key is held only for the duration of the
+    // provider call and is never written to a field, cache, or log.
+    record = ByokKeyRepository.getByokKeyRef(userId, provider)
+    IF record IS NULL:
+        THROW NoProviderConfiguredError("No AI provider configured for user: " + userId)
 
-    // Step 2: No provider found
+    apiKey = AWAIT secretsManager.getSecretValue(record.secretArn)   // behind a circuit breaker
+    IF apiKey IS NULL:
+        // ARN row exists but the secret is gone — a real inconsistency, not a missing config.
+        THROW ByokSecretMissingError(record.secretArn)
+    RETURN apiKey
+
+FUNCTION resolvePreferredProvider(userId: string) -> { provider: ProviderEnum, apiKey: string }:
+    FOR provider IN PROVIDER_PRIORITY:
+        record = ByokKeyRepository.getByokKeyRef(userId, provider)
+        IF record IS NOT NULL:
+            RETURN { provider, apiKey: AWAIT resolveByokKey(userId, provider) }
     THROW NoProviderConfiguredError("No AI provider configured for user: " + userId)
 
-FUNCTION deleteProviderCredentials(userId: string, provider: ProviderEnum) -> void:
-    ProviderConfigRepository.deleteProviderConfig(userId, provider)
+FUNCTION deleteByokKey(userId: string, provider: ProviderEnum) -> void:
+    // DB row first, then the secret: if the secret delete fails, the user is already
+    // disconnected from the key, and the orphan is reclaimable. The reverse order would
+    // leave a row pointing at a deleted secret, which reads as corruption.
+    secretArn = ByokKeyRepository.deleteByokKeyRef(userId, provider)
+    IF secretArn IS NOT NULL:
+        AWAIT secretsManager.deleteSecret(secretArn)
+    // Idempotent: absent key is success, not an error.
 
-FUNCTION listProviderCredentials(userId: string) -> MaskedProviderConfig[]:
-    records = ProviderConfigRepository.listProviderConfigs(userId)
-    RETURN records.map(r => {
-        userId: r.userId,
-        provider: r.provider,
-        apiKeyMasked: '****',
-        updatedAt: r.updatedAt
-    })
+FUNCTION listByokKeys(userId: string) -> ByokKeyMeta[]:
+    RETURN ByokKeyRepository.listByokKeyRefs(userId)   // already metadata-only
 ```
 
 #### State Machine View
 
-N/A — Stateless
+N/A — Stateless. No key material is retained between calls; every read is just-in-time.
 
 #### Internal Data Structures
 
-| Name                 | Type                                            | Size/Constraints | Initialization                      | Description                                 |
-| -------------------- | ----------------------------------------------- | ---------------- | ----------------------------------- | ------------------------------------------- |
-| SUPPORTED_PROVIDERS  | `string[]`                                      | 3 elements       | `['openai', 'gemini', 'anthropic']` | Compile-time constant; valid provider list  |
-| MaskedProviderConfig | `{ userId, provider, apiKeyMasked, updatedAt }` | —                | Constructed per call                | Safe response shape; never includes raw key |
+| Name                | Type                                            | Size/Constraints                | Initialization                      | Description                                                   |
+| ------------------- | ----------------------------------------------- | ------------------------------- | ----------------------------------- | ------------------------------------------------------------- |
+| SUPPORTED_PROVIDERS | `string[]`                                      | 3 elements                      | `['openai', 'gemini', 'anthropic']` | Compile-time constant; valid provider list                    |
+| PROVIDER_PRIORITY   | `ProviderEnum[]`                                | 3 elements                      | `['openai', 'gemini', 'anthropic']` | Order used when the caller does not name a provider           |
+| ByokKeyMeta         | `{ provider, keyVersion, isActive, updatedAt }` | —                               | Constructed per call                | Safe response shape — carries neither the raw key nor the ARN |
+| apiKey              | `string`                                        | Transient, function-scoped      | From Secrets Manager per call       | **Never** assigned to a field, cache, or log sink             |
+| secretsManager      | `SecretsManagerClient`                          | One client per service instance | Injected at module construction     | AWS SDK client; IAM-scoped to the `ai-service` task role only |
 
 #### Error Handling & Return Codes
 
-| Error Condition                 | Error Code / Exception      | Architecture Contract                        | Recovery                                  |
-| ------------------------------- | --------------------------- | -------------------------------------------- | ----------------------------------------- |
-| Unsupported provider value      | `ValidationError`           | ARCH-002 — 400 to caller                     | Caught at controller; 400 response        |
-| No provider configured for user | `NoProviderConfiguredError` | ARCH-002 Interface — triggers ARCH-003 guide | Caught by ARCH-005; routes to setup guide |
-| Repository throws DatabaseError | `DatabaseError`             | ARCH-002 — propagated                        | Re-throw; controller returns 503          |
+| Error Condition                         | Error Code / Exception      | Architecture Contract                        | Recovery                                                      |
+| --------------------------------------- | --------------------------- | -------------------------------------------- | ------------------------------------------------------------- |
+| Unsupported provider value              | `ValidationError`           | ARCH-002 — 400 to caller                     | Caught at controller; 400 response                            |
+| Key fails format or live-call check     | `InvalidApiKeyError`        | ARCH-002 — 400 to caller                     | Nothing written to Secrets Manager or the DB                  |
+| No provider configured for user         | `NoProviderConfiguredError` | ARCH-002 Interface — triggers ARCH-003 guide | Caught by ARCH-005; routes to setup guide (FR-015 scenario 4) |
+| DB write fails after secret write       | `DatabaseError`             | ARCH-002 — compensating delete then re-throw | Secret removed; no orphaned key material; caller gets 503     |
+| ARN row present but secret missing      | `ByokSecretMissingError`    | ARCH-002 — data-integrity violation          | Re-throw; caller receives 500; alert (should be unreachable)  |
+| Secrets Manager unavailable / throttled | `SecretsUnavailableError`   | ARCH-002 — circuit breaker (plan §5.3)       | Open circuit → 503 with `Retry-After`                         |
+
+> Every custom error above extends `Error`, calls `Object.setPrototypeOf`, and ships a matching
+> `is*` type guard (`docs/CODING_STANDARDS.md` §13).
 
 ---
 
 ### Module: MOD-003 (ProviderSetupGuide — Setup Payload Generator)
 
 **Parent Architecture Modules**: ARCH-003
-**Target Source File(s)**: `src/ai/provider-config/provider-setup-guide.service.ts`
+**Target Source File(s)**: `packages/services/ai-service/src/byok/byok-setup-guide.service.ts`
 
 #### Algorithmic / Logic View
 
@@ -349,7 +395,7 @@ N/A — Stateless
 ```pseudocode
 FUNCTION generateRecipe(userId: string, criteria: GenerationRequest) -> RecipeDraft:
     // Step 1: Retrieve provider credentials (throws NoProviderConfiguredError if none)
-    credentials = ProviderConfigService.getProviderCredentials(userId)
+    credentials = ByokService.resolvePreferredProvider(userId)
 
     // Step 2: Dispatch to AI provider adapter
     recipeDraft = AIProviderAdapter.dispatch(
@@ -870,7 +916,7 @@ FUNCTION optimizeInstructions(userId: string, recipeId: string) -> OptimizedInst
     // (PremiumEntitlementGuard is middleware — already enforced before this call)
 
     // Step 3: Retrieve provider credentials
-    credentials = ProviderConfigService.getProviderCredentials(userId)
+    credentials = ByokService.resolvePreferredProvider(userId)
 
     // Step 4: Build optimization request
     optimizationRequest = {
@@ -1187,10 +1233,10 @@ N/A — Stateless
 
 ---
 
-### Module: MOD-019 (ProviderConfigController — HTTP Endpoint Handler)
+### Module: MOD-019 (ByokController — HTTP Endpoint Handler)
 
 **Parent Architecture Modules**: ARCH-002
-**Target Source File(s)**: `src/ai/provider-config/provider-config.controller.ts`
+**Target Source File(s)**: `packages/services/ai-service/src/byok/byok.controller.ts`
 
 > [DERIVED MODULE: ARCH-002 describes the service layer; a controller is required to expose HTTP endpoints for credential CRUD operations]
 
@@ -1200,19 +1246,19 @@ N/A — Stateless
 FUNCTION handleSaveCredentials(userId: string, body: SaveCredentialsBody) -> HTTP 200 | 400 | 401:
     // userId injected by ARCH-015 AuthGuardMiddleware
     TRY:
-        result = ProviderConfigService.saveProviderCredentials(userId, body.provider, body.apiKey)
+        result = ByokService.saveByokKey(userId, body.provider, body.apiKey)
         RETURN HTTP 200 result
     CATCH ValidationError as e:
         RETURN HTTP 400 { error: e.message }
 
 FUNCTION handleListCredentials(userId: string) -> HTTP 200 | 401:
-    configs = ProviderConfigService.listProviderCredentials(userId)
+    configs = ByokService.listByokKeys(userId)
     RETURN HTTP 200 { providers: configs }
 
 FUNCTION handleDeleteCredentials(userId: string, provider: ProviderEnum) -> HTTP 204 | 400 | 401:
     IF provider NOT IN ['openai', 'gemini', 'anthropic']:
         RETURN HTTP 400 { error: 'Invalid provider' }
-    ProviderConfigService.deleteProviderCredentials(userId, provider)
+    ByokService.deleteByokKey(userId, provider)
     RETURN HTTP 204
 ```
 
@@ -1289,8 +1335,8 @@ N/A — Stateless (store operations are discrete; no retained state machine)
 
 | ARCH ID  | Architecture Module Name                  | MOD ID(s)        |
 | -------- | ----------------------------------------- | ---------------- |
-| ARCH-001 | ProviderConfigRepository                  | MOD-001          |
-| ARCH-002 | ProviderConfigService                     | MOD-002, MOD-019 |
+| ARCH-001 | ByokKeyRepository                         | MOD-001          |
+| ARCH-002 | ByokService                               | MOD-002, MOD-019 |
 | ARCH-003 | ProviderSetupGuide                        | MOD-003          |
 | ARCH-004 | AIProviderAdapter                         | MOD-004          |
 | ARCH-005 | RecipeGenerationService                   | MOD-005          |

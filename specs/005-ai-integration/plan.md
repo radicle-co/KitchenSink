@@ -2,8 +2,15 @@
 
 **Feature**: `005-ai-integration`
 **Phase**: 5 — Product Forge Plan
-**Status**: Draft
-**Stack**: TypeScript 5.x, Node.js 24.x, NestJS 11, Drizzle ORM, pg, Vercel AI SDK, AWS Secrets Manager, SQS, Clerk MCP
+**Status**: Draft — rewritten 2026-08-02 against the shipped codebase and ADR-0011
+**Stack**: TypeScript 5.x, Node.js 24.x, NestJS 11, Drizzle ORM, pg, Vercel AI SDK, AWS Secrets Manager, SQS, Clerk
+
+> **Rewrite note (2026-08-02).** The previous revision (2026-05-10) targeted a codebase that no longer
+> exists: it keyed every table off `users(sub)`, a column removed by identity migration `0005`, and
+> declared foreign keys to `recipes` / `meal_plans`, which live in **other services' databases**. Both were
+> unbuildable. This revision replaces the data model, adopts the composition architecture (005 calls the
+> other services rather than writing their tables), adopts `/api/v1/*` per `docs/api-conventions.md`, and
+> adds the pattern register that CLAUDE.md requires and the previous revision omitted entirely.
 
 ---
 
@@ -11,713 +18,436 @@
 
 ### 1.1 Design Principles
 
-- **BYOK-first**: The platform never pays for AI API calls. Users bring their own keys.
-- **Provider-agnostic**: Vercel AI SDK abstracts OpenAI/Anthropic/Gemini behind a single interface.
-- **Privacy-by-default**: PII never leaves the server. Prompts are sanitized before construction.
-- **Async AI**: All generation endpoints are async (jobId + SSE streaming). Results land in standard CRUD tables.
-- **EU AI Act compliance**: Transparency disclosures on all AI-generated content. Live August 2, 2026.
+- **BYOK-first**: the platform never pays for AI API calls. Users bring their own keys.
+- **Composition, not duplication**: 005 owns no recipe, food, or meal-plan data. It **calls** the services
+  that own them. There are no cross-service foreign keys anywhere in this feature.
+- **Provider-agnostic**: the Vercel AI SDK is the provider adapter. We do not build a second one.
+- **Privacy-by-default**: PII never reaches a provider. Prompts are sanitized before construction.
+- **Separation of capability from untrusted input** (§1.2): the component that can act as a user never
+  processes model output.
+- **EU AI Act transparency**: disclosure on every AI-generated surface (FR-022).
 
-### 1.2 System Context
+### 1.2 Two deployables, and why
+
+| Package                   | Responsibility                                                                        | Holds the Clerk mint key? | Processes untrusted model output? |
+| ------------------------- | ------------------------------------------------------------------------------------- | ------------------------- | --------------------------------- |
+| `@kitchensink/ai-service` | MCP/OAuth server, agent grants, BYOK key management, generation job intake            | **Yes**                   | **No**                            |
+| `@kitchensink/ai-workers` | SQS-driven generation: provider calls, streaming, writing results via service clients | **No**                    | **Yes**                           |
+
+This mirrors the existing `recipe-service` / `recipe-workers` split, so it introduces no new deployment
+shape.
+
+**The split is a security boundary, not packaging taste.** ADR-0011 gives `ai-service` the ability to mint
+an actor-token session for any user. If the same process also fed user-supplied prompts to an AI provider
+and parsed the result, a prompt-injection or SSRF chain would land directly on that capability. Keeping
+generation in a worker that has **no** Clerk secret key means the component handling untrusted content
+cannot impersonate anyone. Do not merge these two packages.
+
+### 1.3 System Context
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                       Client Apps                           │
-│  [Web App]  [Mobile]  [External Agents: ChatGPT/Claude]   │
-└───────────────────────┬───────────────────────────────────┘
-                        │
-┌───────────────────────▼───────────────────────────────────┐
-│                  NestJS API (Port 3000)                     │
+┌──────────────────────────────────────────────────────────────┐
+│  Clients                                                     │
+│  [Web] [Mobile]        [External agents: ChatGPT / Claude]   │
+└─────────┬──────────────────────────┬─────────────────────────┘
+          │ Clerk session token      │ Clerk OAuth access token (DCR)
+          ▼                          ▼
+┌──────────────────────────────────────────────────────────────┐
+│  @kitchensink/ai-service            (ALB priority 400)       │
 │                                                              │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │AuthMidwr │  │AiModule  │  │McpModule │  │ByokModule│   │
-│  │(Clerk)   │  │(Vercel)  │  │(OAuth2.1)│  │(Secrets) │   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
-│                                                              │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────────────────┐   │
-│  │Sanitize │  │Piifilter │  │RecipeService             │   │
-│  │Layer    │  │(PII scan)│  │(CRUD via Drizzle)       │   │
-│  └──────────┘  └──────────┘  └──────────────────────────┘   │
-└───────────────────────┬───────────────────────────────────┘
-                        │
-          ┌─────────────┴─────────────┐
-          │                           │
-┌─────────▼─────────┐    ┌────────────▼────────────┐
-│  AWS Secrets Mgr  │    │  OpenAI / Anthropic      │
-│  byok/{userId}/   │    │  (user-provided keys)   │
-│  {provider}       │    │                          │
-└───────────────────┘    └─────────────────────────┘
+│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌──────────────┐  │
+│  │ByokModule │ │McpModule  │ │GrantPolicy│ │ IntakeModule │  │
+│  │(Secrets)  │ │(OAuth2.1) │ │(scopes)   │ │ (enqueue)    │  │
+│  └───────────┘ └───────────┘ └───────────┘ └──────────────┘  │
+│           owns: kitchensink_ai  ·  CAN mint actor sessions   │
+└───────┬──────────────────────────────────────┬───────────────┘
+        │ actor-token session                  │ SQS
+        ▼                                      ▼
+┌────────────────────────┐        ┌──────────────────────────────┐
+│ recipe-service         │        │ @kitchensink/ai-workers      │
+│ food-service           │◄───────┤ Vercel AI SDK · sanitizer    │
+│ (unchanged)            │ clients│ NO Clerk mint key            │
+└────────────────────────┘        └──────────────────────────────┘
 ```
 
-### 1.3 Module Inventory
+### 1.4 What 005 does NOT own
 
-| Module           | File                                 | Responsibility                                               |
-| ---------------- | ------------------------------------ | ------------------------------------------------------------ |
-| `AiModule`       | `src/ai/ai.module.ts`                | Provider resolution, generation orchestration, SSE streaming |
-| `ByokModule`     | `src/ai/byok/byok.module.ts`         | Secrets Manager CRUD, key ARN references in Postgres         |
-| `McpModule`      | `src/ai/mcp/mcp.module.ts`           | MCP server, OAuth 2.1 guard, tool definitions                |
-| `SanitizeModule` | `src/ai/sanitize/sanitize.module.ts` | PII scanning, pseudonymization before prompt construction    |
+`recipes`, `ingredients`, `foods`, `meal_plans`, `shopping_lists`. All reads and writes go through
+`@kitchensink/recipe-service-client` and `@kitchensink/food-service-client`. Where a downstream service
+does not exist yet (006 meal-planning, 007 grocery lists), the call site is **stubbed and registered** in
+[`downstream-gaps.md`](./downstream-gaps.md) so the gap becomes a requirement on that feature rather than
+an invented table here.
 
 ---
 
 ## 2. Data Model
 
-Feature 005 stores authenticated-user ownership with Feature 002's Clerk `sub` key (the Clerk `sub` claim resolved to an app ULID via `UsersService.resolveOrCreateFromClaims`). Technical FKs use `user_sub VARCHAR(255) COLLATE "C" REFERENCES users(sub)`, aligning with `users.sub` as the canonical user primary key.
+005 owns exactly one logical database, `kitchensink_ai`, following the per-service pattern
+(`kitchensink_recipes`, food). **No table in this feature references a table owned by another service.**
 
-### 2.1 Database Tables (Drizzle)
+Ownership is keyed by the **app ULID** (`users.id` in identity), carried in the verified token. It is
+stored as `user_id TEXT` with **no foreign key** — identical to the deliberate choice recipe-service made
+(`recipes.owner_id`, "No FK, no local users table (D2)"). A cross-database FK is not expressible.
 
-#### `ai_generation_records`
+### 2.1 `ai_generation_records`
 
-Tracks every AI generation request for audit, billing, and provenance.
+Audit and provenance for every generation request (FR-022, EU AI Act).
 
 ```sql
 CREATE TABLE ai_generation_records (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_sub VARCHAR(255) COLLATE "C" NOT NULL REFERENCES users(sub) ON DELETE CASCADE,
-  job_id UUID NOT NULL UNIQUE,
-  generation_type TEXT NOT NULL CHECK (generation_type IN ('recipe', 'meal_plan', 'shopping_list', 'nutrition_analysis')),
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'streaming', 'complete', 'failed')),
-  provider TEXT NOT NULL CHECK (provider IN ('openai', 'anthropic', 'gemini', 'byok_openai', 'byok_anthropic')),
-  model_id TEXT,
-  input_token_count INT,
-  output_token_count INT,
-  estimated_cost_usd NUMERIC(8, 6),
-  source_prompt_hash TEXT,          -- SHA-256 of sanitized prompt; no raw prompts stored
-  output_recipe_id UUID REFERENCES recipes(id) ON DELETE SET NULL,
-  output_meal_plan_id UUID REFERENCES meal_plans(id) ON DELETE SET NULL,
-  error_message TEXT,
-  started_at TIMESTAMPTZ DEFAULT NOW(),
-  completed_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id              TEXT NOT NULL,              -- app ULID; no FK (cross-service)
+  job_id               UUID NOT NULL UNIQUE,
+  idempotency_key      TEXT NOT NULL UNIQUE,       -- SQS is at-least-once; see §5.1
+  generation_type      TEXT NOT NULL CHECK (generation_type IN
+                         ('recipe','meal_plan','shopping_list','recipe_optimization')),
+  status               TEXT NOT NULL DEFAULT 'pending' CHECK (status IN
+                         ('pending','streaming','complete','failed')),
+  provider             TEXT NOT NULL CHECK (provider IN ('openai','anthropic','gemini')),
+  model_id             TEXT,
+  input_token_count    INT,
+  output_token_count   INT,
+  estimated_cost_usd   NUMERIC(8,6),
+  source_prompt_hash   TEXT,                       -- SHA-256 of the sanitized prompt; no raw prompts
+  output_entity_id     TEXT,                       -- opaque id returned by the owning service
+  output_entity_kind   TEXT CHECK (output_entity_kind IN ('recipe','meal_plan','shopping_list')),
+  acted_via_agent      TEXT,                       -- MCP client_id when the call came from an agent
+  error_message        TEXT,
+  started_at           TIMESTAMPTZ DEFAULT NOW(),
+  completed_at         TIMESTAMPTZ,
+  created_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_ai_gen_records_user_sub ON ai_generation_records(user_sub);
-CREATE INDEX idx_ai_gen_records_job_id ON ai_generation_records(job_id);
-CREATE INDEX idx_ai_gen_records_status ON ai_generation_records(status);
+CREATE INDEX idx_ai_gen_user   ON ai_generation_records(user_id);
+CREATE INDEX idx_ai_gen_job    ON ai_generation_records(job_id);
+CREATE INDEX idx_ai_gen_status ON ai_generation_records(status);
 ```
 
-#### `prompt_templates`
+`output_entity_id` is `TEXT`, not a typed FK — the entity lives in another service's database.
+`provider` drops the previous revision's `byok_*` variants: BYOK is a property of the key, not the vendor,
+and the old CHECK omitted `byok_gemini` while §7 silently dropped the constraint entirely.
 
-CMS-like management of system prompts with versioning and targeting.
+### 2.2 `user_byok_keys`
 
-```sql
-CREATE TABLE prompt_templates (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  template_key TEXT NOT NULL UNIQUE CHECK (template_key IN ('recipe_generation', 'meal_plan', 'shopping_list', 'nutrition_analysis', 'recipe_variation')),
-  version INT NOT NULL DEFAULT 1,
-  system_prompt TEXT NOT NULL,
-  user_prompt_template TEXT NOT NULL,
-  model_recommendations TEXT[],    -- ['gpt-4o', 'claude-opus-4-6'] per generation type
-  is_active BOOLEAN DEFAULT true,
-  created_by TEXT,                  -- 'admin' or user ID for personal templates
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE UNIQUE INDEX idx_prompt_templates_key_version ON prompt_templates(template_key, version);
-```
-
-#### `user_byok_keys`
-
-Stores only the AWS Secrets Manager ARN. The raw key is never in Postgres.
+Only the Secrets Manager ARN. The raw key is never in Postgres.
 
 ```sql
 CREATE TABLE user_byok_keys (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_sub VARCHAR(255) COLLATE "C" NOT NULL UNIQUE REFERENCES users(sub) ON DELETE CASCADE,
-  provider TEXT NOT NULL CHECK (provider IN ('openai', 'anthropic', 'gemini')),
-  secret_arn TEXT NOT NULL,         -- AWS Secrets Manager ARN: arn:aws:secretsmanager:...
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     TEXT NOT NULL,
+  provider    TEXT NOT NULL CHECK (provider IN ('openai','anthropic','gemini')),
+  secret_arn  TEXT NOT NULL,
   key_version INT NOT NULL DEFAULT 1,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  is_active   BOOLEAN NOT NULL DEFAULT true,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT user_byok_keys_user_provider_unique UNIQUE (user_id, provider)
 );
-
-CREATE UNIQUE INDEX idx_user_byok_keys_user_provider ON user_byok_keys(user_sub, provider);
 ```
 
-#### `mcp_oauth_consents`
+> **Fixes a defect that would have broken approved decision D-005.** The previous revision declared
+> `user_sub ... NOT NULL UNIQUE`, a **column-level** unique — one key per _user_. D-005 approved one key
+> per _provider_, up to three at once, and asserted the schema "already enforces uniqueness on
+> `(user_id, provider)`". It did not. The composite constraint above is the one D-005 describes.
 
-Tracks OAuth grants from external agent platforms.
+### 2.3 `mcp_agent_grants`
+
+Our authorization record for an external agent. **Renamed** from `mcp_oauth_consents` because ADR-0011
+makes this grant _ours_, not Clerk's OAuth consent — the two are now distinct things and must not share a
+name.
 
 ```sql
-CREATE TABLE mcp_oauth_consents (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_sub VARCHAR(255) COLLATE "C" NOT NULL REFERENCES users(sub) ON DELETE CASCADE,
-  client_id TEXT NOT NULL,
-  scope TEXT NOT NULL,              -- space-separated: 'recipes:read recipes:write meal-plans:read'
-  granted_at TIMESTAMPTZ DEFAULT NOW(),
-  expires_at TIMESTAMPTZ,
-  refresh_token_encrypted TEXT,    -- Encrypted; stored in Secrets Manager, ARN here
+CREATE TABLE mcp_agent_grants (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      TEXT NOT NULL,
+  client_id    TEXT NOT NULL,                 -- DCR-issued OAuth client
+  client_label TEXT,                          -- display name for the settings UI
+  scopes       TEXT[] NOT NULL,               -- our scopes: 'recipes:read', 'recipes:create'
+  granted_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at   TIMESTAMPTZ,
   last_used_at TIMESTAMPTZ,
-  is_revoked BOOLEAN DEFAULT false
+  revoked_at   TIMESTAMPTZ,                   -- NULL = active; set = revoked (FR-021)
+  CONSTRAINT mcp_agent_grants_user_client_unique UNIQUE (user_id, client_id)
+);
+
+CREATE INDEX idx_mcp_grants_user   ON mcp_agent_grants(user_id);
+CREATE INDEX idx_mcp_grants_active ON mcp_agent_grants(user_id, client_id) WHERE revoked_at IS NULL;
+```
+
+`revoked_at TIMESTAMPTZ` replaces the previous `is_revoked BOOLEAN`: it records _when_, which the audit
+trail needs, and makes the partial index above expressible. Scope names are **ours** — Clerk does not
+support custom OAuth scopes (ADR-0011).
+
+### 2.4 `prompt_templates`
+
+Versioned system prompts. `created_by` is retained for the V2 user-fork path (OQ-4) but not exercised in
+V1.
+
+```sql
+CREATE TABLE prompt_templates (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_key          TEXT NOT NULL,
+  version               INT  NOT NULL DEFAULT 1,
+  system_prompt         TEXT NOT NULL,
+  user_prompt_template  TEXT NOT NULL,
+  model_recommendations TEXT[],
+  is_active             BOOLEAN NOT NULL DEFAULT true,
+  created_by            TEXT,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT prompt_templates_key_version_unique UNIQUE (template_key, version)
 );
 ```
+
+The previous revision declared `template_key TEXT NOT NULL UNIQUE` **and** a unique `(template_key,
+version)` index — mutually contradictory, since the column-level unique makes versioning impossible. Only
+the composite constraint survives.
 
 ---
 
 ## 3. API Contracts
 
-### 3.1 BYOK Key Management
+All endpoints are served under `/api/v1/*` per [`docs/api-conventions.md`](../../docs/api-conventions.md)
+(GR-002), via `app.setGlobalPrefix('api/v1', { exclude: ['health'] })`. `/health` stays unprefixed — ECS
+and ALB health checks target it.
 
-#### `POST /ai/byok/keys`
+### 3.1 BYOK key management (`ai-service`)
 
-Store or update a user's BYOK API key.
+| Method   | Path                             | Behaviour                                                                                                     |
+| -------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `POST`   | `/api/v1/ai/byok/keys`           | Validate → test-call the provider → write to Secrets Manager → store ARN. `201` with metadata, never the key. |
+| `GET`    | `/api/v1/ai/byok/keys`           | Metadata only.                                                                                                |
+| `DELETE` | `/api/v1/ai/byok/keys/:provider` | Delete from Secrets Manager, then the row. `204`.                                                             |
 
-**Request:**
+### 3.2 Generation (`ai-service` intake → `ai-workers`)
 
-```json
-{
-  "provider": "openai" | "anthropic" | "gemini",
-  "apiKey": "sk-..."
-}
-```
+| Method | Path                                | Behaviour                                                                  |
+| ------ | ----------------------------------- | -------------------------------------------------------------------------- |
+| `POST` | `/api/v1/ai/generate/recipe`        | `202 { jobId, status, estimatedWaitSeconds }`. Requires `Idempotency-Key`. |
+| `GET`  | `/api/v1/ai/generate/recipe/:jobId` | Job status; `404` if not the caller's job.                                 |
+| `POST` | `/api/v1/ai/generate/recipe/stream` | `text/event-stream`; partial objects then `{ done: true }`.                |
+| `POST` | `/api/v1/ai/generate/meal-plan`     | **Stubbed** — `downstream-gaps.md` DG-001 (006).                           |
+| `POST` | `/api/v1/ai/generate/shopping-list` | **Stubbed** — `downstream-gaps.md` DG-002 (007).                           |
+| `POST` | `/api/v1/ai/recipes/:id/optimize`   | Premium-gated (D-002). Returns a preview; never auto-saves.                |
 
-**Response (201):**
+Saving a previewed recipe is **not** a local insert: `ai-service` calls
+`recipeServiceClient.createRecipe()` with `visibility: 'private'` (FR-020 / D-004).
 
-```json
-{
-    "provider": "openai",
-    "secretArn": "arn:aws:secretsmanager:us-east-1:123456789:secret/byok/usr_abc/openai",
-    "keyVersion": 1,
-    "isActive": true
-}
-```
+### 3.3 Prompt templates (admin)
 
-**Behavior:**
+`GET /api/v1/ai/prompts`, `PUT /api/v1/ai/prompts/:templateKey` — admin scope required via the existing
+`ScopesGuard` + `@RequireScopes` pattern.
 
-1. Validate API key format (prefix check: `sk-` for OpenAI, `sk-ant` for Anthropic)
-2. Test key with a minimal API call (e.g., `models.list`)
-3. On success: write raw key to AWS Secrets Manager under `byok/{userId}/{provider}`
-4. Store ARN in `user_byok_keys` via Drizzle
-5. Return ARN reference to client (never the raw key)
+### 3.4 Agent grants (FR-021)
 
----
+| Method   | Path                                | Behaviour                                           |
+| -------- | ----------------------------------- | --------------------------------------------------- |
+| `GET`    | `/api/v1/ai/agents`                 | Active grants for the settings UI.                  |
+| `POST`   | `/api/v1/ai/agents/:clientId/grant` | Writes the two-checkbox consent result (D-001).     |
+| `DELETE` | `/api/v1/ai/agents/:clientId`       | Sets `revoked_at`. Effective on the next tool call. |
 
-#### `DELETE /ai/byok/keys/:provider`
+### 3.5 MCP server — per ADR-0011
 
-Remove a BYOK key.
+**Read [`ADR-0011`](../../docs/architecture/decisions/0011-mcp-agent-credential-bridge.md) before changing
+anything in this section.** What it fixes: Clerk cannot express our scopes (no custom OAuth scopes), so
+Clerk proves _identity_ and we own the _grant_.
 
-**Response (204):** No content.
+**Discovery** — RFC-mandated, served at the domain root, **unprefixed**:
 
-**Behavior:**
+- `GET /.well-known/oauth-protected-resource` — RFC 9728 metadata.
+- `GET /.well-known/oauth-authorization-server` — the Clerk instance's AS metadata.
 
-1. Delete from AWS Secrets Manager
-2. Delete from `user_byok_keys`
+**Protocol**: `POST /api/v1/ai/mcp` — JSON-RPC 2.0, single and batch. Unknown method → `-32601`.
 
----
+**Auth chain** (each step is a test case in `tasks.md`):
 
-#### `GET /ai/byok/keys`
+1. Agent presents a Clerk **OAuth access token**; verified via `@clerk/mcp-tools`, yielding the user id.
+   Dynamic Client Registration **must be enabled** on the instance.
+2. `GrantPolicy` loads `mcp_agent_grants` for `(user_id, client_id)`. Missing, revoked, or expired → deny.
+   It fails **closed**: a database error is a denial, never an allow.
+3. The tool's required scope is checked against the grant. `recipe_save` requires `recipes:create`.
+4. To call downstream, `ai-service` mints a **Clerk actor token** (`actor.sub` = its machine identity) and
+   uses the resulting session token. Downstream services verify it with their existing
+   `@kitchensink/clerk-verify` path — **no change to their trust model**.
 
-List configured BYOK keys (no raw keys returned).
+**Tools**: `recipes_list`, `recipe_get`, `recipe_save`, `ingredient_search` (V1); `meal_plans_list`,
+`meal_plan_get` are **stubbed** pending 006 (DG-001).
 
-**Response (200):**
-
-```json
-{
-    "keys": [
-        { "provider": "openai", "isActive": true, "keyVersion": 1, "configuredAt": "2026-05-01T..." },
-        { "provider": "anthropic", "isActive": false, "keyVersion": 2, "configuredAt": "2026-04-28" }
-    ]
-}
-```
-
----
-
-### 3.2 Recipe Generation
-
-#### `POST /ai/generate/recipe` — Async with Job ID
-
-**Request:**
-
-```json
-{
-  "criteria": {
-    "ingredients": ["chicken", "lemon", "garlic"],
-    "dietaryNeeds": ["low-carb"],
-    "cuisine": "Mediterranean",
-    "servings": 4,
-    "skillLevel": "intermediate"
-  },
-  "provider": "openai" | "anthropic" | "gemini" | "auto"
-}
-```
-
-**Response (202):**
-
-```json
-{
-    "jobId": "550e8400-e29b-41d4-a716-446655440000",
-    "status": "pending",
-    "estimatedWaitSeconds": 10
-}
-```
-
-**Poll:**
-`GET /ai/generate/recipe/:jobId`
-
-```json
-{
-    "jobId": "550e8400-e29b-41d4-a716-446655440000",
-    "status": "complete",
-    "recipe": {
-        /* full GeneratedRecipe object */
-    },
-    "provider": "openai",
-    "model": "gpt-4o",
-    "tokensUsed": { "input": 342, "output": 892 }
-}
-```
+**The `azp` seam.** An actor-token session carries no browser-origin `azp`. Admission reuses the existing
+mechanism — `assertAzpMatchesPattern` admits an `azp`-less token only on a **positive claim signal** — via
+a sibling of `isNativeClientToken` keyed on the `act` claim **and scoped to our actor `sub`**. Keying on
+bare `act` presence would admit any impersonated session, including support-staff impersonation. Do not
+loosen this to "azp absent → allow"; that is the bypass the gate exists to prevent.
 
 ---
 
-#### `POST /ai/generate/recipe/stream` — SSE Streaming
+### 3.6 Endpoints 005 CONSUMES must be migrated to `/api/v1/*` first
 
-**Request:** Same as above.
+005 is a composition layer (§1.4): it calls recipe-service and food-service through their clients. Those
+services currently serve **`v1/*` without the `/api` segment** and are therefore non-conformant with
+GR-002 / `docs/api-conventions.md`. 005 cannot be conformant on its own surface while calling
+non-conformant ones — the ecosystem would serve two URL shapes at once.
 
-**Response:** `text/event-stream` with `Content-Type: text/event-stream`
+**These are in scope for this feature** because 005 is the caller that breaks if they move later:
 
-```
-data: {"partial": {"title": "Lemon Herb Chicken", "ingredients": []}}
+| Service                         | Endpoints 005 consumes                                        | Migration                                                |
+| ------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------- |
+| `@kitchensink/recipe-service`   | `v1/recipes`, `v1/search`, `v1/ingredients`, `v1/collections` | `setGlobalPrefix('api/v1', { exclude: ['health'] })`     |
+| `@kitchensink/food-service`     | `v1/foods`                                                    | same                                                     |
+| `@kitchensink/identity-service` | `v1/account` (subscription tier, DG-004)                      | same — only if 005 reads it over HTTP rather than the DB |
 
-data: {"partial": {"title": "Lemon Herb Chicken", "ingredients": [{"name": "chicken", "amount": 2, "unit": "lbs"}]}}
+**`/health` stays unprefixed.** It is wired into the ECS container health check and the ALB target-group
+health check; moving it without changing infra first fails every task's health check and reads as a
+rolling deploy that never stabilises (`docs/api-conventions.md` §3).
 
-data: {"done": true, "recipe": { /* full object */ }}
-```
+**The highest-risk step is not the services — it is Playwright.** `page.route('**/v1/**')` interception
+globs must become `**/api/v1/**`, or mocked tests silently stop intercepting and start hitting the
+network. That failure is green-looking, which is why it is called out separately in the task list.
 
-**Implementation:** Uses Vercel AI SDK `streamObject` with `ReadableStream` → NestJS SSE.
+Also affected: both service clients, k6 scripts in `packages/tools/loadtest/`, CI smoke checks, and the
+post-deploy food smoke that asserts `/v1/foods/search` answers `401` (ADR-0010) — that assertion's path
+moves with the service.
 
----
+### 3.7 Sanity validation and regenerate (FR-023 / FR-024)
 
-### 3.3 Meal Plan Generation
+Resolves the low-quality Edge Case. Two mechanisms, and deliberately not a third.
 
-#### `POST /ai/generate/meal-plan`
+**`RecipeSanityValidator` — a pure Specification/policy module.** It takes a generated draft and returns a
+list of findings; it has no I/O and makes no decisions. Checks are deterministic and bounded:
 
-**Request:**
+| Check                 | Rule                                                                  |
+| --------------------- | --------------------------------------------------------------------- |
+| Quantity plausibility | Per-ingredient amount within a plausible band for the stated servings |
+| Thermal bounds        | Cooking temperature and time within safe cooking ranges               |
+| Referential integrity | Every ingredient named in a step exists in the ingredient list        |
+| Structural            | All required Recipe fields present (delegated to the 001 contract)    |
 
-```json
-{
-    "dateRange": { "start": "2026-05-11", "end": "2026-05-17" },
-    "servings": 4,
-    "dietaryNeeds": ["vegetarian", "low-sodium"],
-    "excludeIngredients": ["shellfish"],
-    "goals": { "caloriesPerDay": 2000, "proteinGPerDay": 120 },
-    "provider": "auto"
-}
-```
+**It is advisory, and that is enforced structurally.** The validator returns findings; only the preview
+layer decides what to render. It has no path to discard, mutate, or block a save. This is why it is a pure
+function returning data rather than a guard returning a verdict — a heuristic must not be able to delete a
+result the user may want. `SCN-016-A5` asserts a draft failing every check still saves.
 
-**Response (202 or SSE):** Same pattern as recipe generation. Returns a `meal_plan` entity ID on completion.
+**This is also what makes FR-022's confidence indicator honest.** The indicator displays the validation
+result plus the generating provider/model — both things we actually know. It is explicitly **not** a
+model-reported quality score; we have no reliable way to obtain one, and implying otherwise would be
+false precision on a compliance-adjacent surface.
 
----
+**Regenerate** re-runs generation against the stored criteria for a job. It is a new provider call spending
+the user's own BYOK credit, so it carries the same `Idempotency-Key` discipline, the same one-concurrent-
+generation-per-user limit (`429`), and the same monthly quota as an initial request. The superseded draft is
+discarded without persistence — FR-017/REQ-006 semantics are unchanged by a retry.
 
-### 3.4 Prompt Template Management (Admin)
+**Accepted limitation, stated in the spec:** this catches implausible _values_, not bad _cooking_. A
+technically valid but unappetising recipe passes. FR-022's guard message remains the mitigation for that,
+and is not claimed to be more.
 
-#### `GET /ai/prompts`
+## 4. Pattern Register
 
-List all active prompt templates.
+Required by CLAUDE.md's design-pattern-first mandate; absent from the previous revision.
 
-#### `PUT /ai/prompts/:templateKey`
-
-Update a prompt template (creates new version).
-
-**Request:**
-
-```json
-{
-    "systemPrompt": "You are a culinary assistant...",
-    "userPromptTemplate": "Generate a {{servings}}-serving {{cuisine}} recipe...",
-    "modelRecommendations": ["gpt-4o", "claude-opus-4-6"]
-}
-```
-
----
-
-### 3.5 MCP Server Endpoints (OAuth 2.1 Protected)
-
-#### `GET /.well-known/oauth-protected-resource`
-
-Returns [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) Protected Resource Metadata for MCP discovery.
-
-```json
-{
-    "authorization_servers": ["https://clerk.commise.app"],
-    "resource": "https://api.commise.io/mcp"
-}
-```
-
-#### `GET /.well-known/oauth-authorization-server`
-
-Returns the Clerk instance's authorization server metadata (auto-discovered by MCP clients).
-
-#### `POST /mcp` — MCP JSON-RPC 2.0
-
-MCP protocol handler. Standard JSON-RPC 2.0 batch and single requests over HTTP POST with `Bearer` token.
-
-**Authentication:** OAuth 2.1 with PKCE. Token audience must include `https://api.commise.io/mcp`.
-
-**MCP Tools exposed:**
-
-- `recipes_list` — Read user's recipe collection
-- `recipe_get` — Get a specific recipe
-- `recipe_save` — Save a new recipe to the user's account
-- `meal_plans_list` — Read user's meal plans
-- `meal_plan_get` — Get a specific meal plan
-- `ingredient_search` — Search the user's ingredient inventory
+| Pattern                            | Where                            | Note                                                                                                                                          |
+| ---------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Gateway / API composition**      | `ai-service` as a whole          | The feature's defining shape: owns AI concerns, delegates domain data to owning services.                                                     |
+| **Adapter**                        | Provider resolution              | **Intent already satisfied by the Vercel AI SDK.** `ProviderFactory` is a thin resolver, not a second abstraction layer. Do not add one.      |
+| **Registry + discriminated union** | MCP tool dispatch                | Tool name → handler, exhaustive `switch`. This IS the Visitor intent; no visitor machinery.                                                   |
+| **Policy module**                  | `GrantPolicy`                    | One authoritative place for scope checks **and** the D-004 private-visibility invariant.                                                      |
+| **Command**                        | `AiGenerationJob`                | Carries its own idempotency key; the unit of retry.                                                                                           |
+| **Circuit breaker**                | Provider + Secrets Manager calls | From a library (`opossum` / `cockatiel`). The previous revision's `@CircuitBreaker` decorator referenced a NestJS module that does not exist. |
+| **Rate limiting**                  | Per-user / per-grant throttles   | `@nestjs/throttler`, already a repo dependency. Do not hand-roll.                                                                             |
+| **Specification / policy (pure)**  | `RecipeSanityValidator`          | Returns findings, never a verdict — it structurally cannot discard or block a save (FR-023).                                                  |
+| **Repository**                     | Drizzle DALs                     | Matches recipe-service.                                                                                                                       |
 
 ---
 
-## 4. Event Contracts (EDA)
+## 5. Resilience
 
-### 4.1 SQS Queue: `ai-generation-queue`
+### 5.1 Idempotency (missing entirely from the previous revision)
 
-Used for async generation jobs that don't use SSE streaming.
+SQS is **at-least-once**. Without a key, a redelivered job charges the user's provider twice and can create
+a duplicate recipe. `ai_generation_records.idempotency_key` is `UNIQUE`; the worker claims a job by
+inserting it and treats a uniqueness violation as "already handled".
 
-```typescript
-interface AiGenerationJob {
-    jobId: string;
-    userId: string;
-    generationType: 'recipe' | 'meal_plan' | 'shopping_list' | 'nutrition_analysis';
-    provider: string;
-    sanitizedPromptContext: SanitizedPromptContext;
-    outputTable: 'recipes' | 'meal_plans' | 'shopping_lists';
-    correlationId: string; // for distributed tracing
-    createdAt: string; // ISO 8601
-}
-```
+### 5.2 Throttles
 
-**Queue configuration:**
+- One concurrent generation per user → `429`.
+- Per-grant rate limit on MCP tool calls; a sudden bulk read is an alertable anomaly (ADR-0011).
+- Pro tier: 500 generations/month (OQ-2 governs granularity).
 
-- Type: Standard SQS
-- Visibility timeout: 120s (configurable per job complexity)
-- Dead letter queue: `ai-generation-dlq` (max receive count: 3)
-- Max retry attempts: 3
+### 5.3 Circuit breakers
 
-### 4.2 SNS Topic: `ai-events` (Optional — for cross-service notifications)
+Around provider calls and Secrets Manager fetches. Open circuit → `503` with `Retry-After`.
 
-Published on generation complete/failed:
+### 5.4 PII sanitization
 
-```typescript
-interface AiGenerationEvent {
-    eventType: 'ai.generation.complete' | 'ai.generation.failed';
-    jobId: string;
-    userId: string;
-    generationType: string;
-    provider: string;
-    outputEntityId?: string;
-    errorMessage?: string;
-    timestamp: string;
-}
-```
+`SanitizeService` runs in **`ai-workers`**, before prompt construction: pseudonymize identifiers, strip
+email / phone / name / account ids, map health conditions to dietary categories, preserve allergies. Only
+the SHA-256 of the sanitized prompt is stored.
+
+### 5.5 EU AI Act
+
+Disclosure on every AI surface (FR-022), from `@commise/features-ai` so web and mobile share one
+implementation (GR-010 AC-010-c). Strings are localized via `@commise/i18n` — a legally mandated
+disclosure is the worst possible place for a hard-coded literal.
 
 ---
 
-## 5. NestJS Services
+## 6. Infrastructure
 
-### 5.1 `AiService` (`src/ai/ai.service.ts`)
+| Resource     | Name                                                                                            |
+| ------------ | ----------------------------------------------------------------------------------------------- |
+| ALB priority | **400** (identity 100, food 200, recipe 300)                                                    |
+| Per-PR band  | Must be **disjoint** from food (10000) and recipe (30000)                                       |
+| SQS + DLQ    | `ai-generation-queue`, `ai-generation-dlq` (maxReceive 3)                                       |
+| Secrets      | `byok/{userId}/{provider}`; the Clerk mint key is scoped to the `ai-service` task role **only** |
+| Database     | `kitchensink_ai`                                                                                |
 
-Core generation orchestrator.
-
-```typescript
-@Injectable()
-export class AiService {
-    constructor(
-        private readonly byokService: ByokService,
-        private readonly sanitizeService: SanitizeService,
-        private readonly generationQueue: GenerationQueueService,
-    ) {}
-
-    async generateRecipe(userId: string, dto: GenerateRecipeDto): Promise<{ jobId: string }>;
-
-    streamRecipe(userId: string, dto: GenerateRecipeDto): Observable<StreamingChunk>;
-
-    async generateMealPlan(userId: string, dto: GenerateMealPlanDto): Promise<{ jobId: string }>;
-
-    async pollJobStatus(jobId: string): Promise<JobStatus>;
-}
-```
-
-### 5.2 `ByokService` (`src/ai/byok/byok.service.ts`)
-
-AWS Secrets Manager integration. Only handles secret ARN CRUD; does not cache raw keys in application memory.
-
-```typescript
-@Injectable()
-export class ByokService {
-    async storeKey(userId: string, provider: Provider, apiKey: string): Promise<string>;
-    async deleteKey(userId: string, provider: Provider): Promise<void>;
-    async getKey(userId: string, provider: Provider): Promise<string>; // raw key from Secrets Manager
-    async listKeys(userId: string): Promise<ByokKeyMeta[]>;
-    async validateKey(provider: Provider, apiKey: string): Promise<boolean>;
-}
-```
-
-### 5.3 `SanitizeService` (`src/ai/sanitize/sanitize.service.ts`)
-
-PII scrubbing layer. Runs before prompt construction.
-
-```typescript
-@Injectable()
-export class SanitizeService {
-    sanitizeContext(userId: string, context: RecipeContext): SanitizedContext {
-        // Pseudonymize user ID → stable hash token
-        // Replace health conditions with dietary category labels
-        // Strip: email, full name, account numbers, phone numbers
-        // Preserve: allergies (needed for recipe safety), dietary preferences
-    }
-
-    scanForPii(text: string): Piifinding[]; // used in audit/pre-flight
-}
-```
-
-**PII patterns detected:**
-
-- Email addresses (regex + heuristics)
-- Phone numbers
-- Names (via NameRecognizer ML model or dictionary lookup)
-- Account IDs / numeric identifiers in context
-- Health conditions → replaced with category labels ("diabetic" → "medical-diet-low-sugar")
-
-### 5.4 `McpServerService` (`src/ai/mcp/mcp-server.service.ts`)
-
-MCP JSON-RPC 2.0 handler with OAuth 2.1 token validation.
-
-```typescript
-@Injectable()
-export class McpServerService {
-    async handleRpcRequest(payload: JsonRpcRequest, auth: OAuthTokenPayload): Promise<JsonRpcResponse>;
-}
-```
-
-### 5.5 `GenerationQueueService` (`src/ai/generation-queue.service.ts`)
-
-SQS producer/consumer for async generation jobs.
-
-```typescript
-@Injectable()
-export class GenerationQueueService {
-    async enqueue(job: AiGenerationJob): Promise<string>; // returns jobId
-    async processJob(job: AiGenerationJob): Promise<void>; // consumer
-}
-```
+Per-PR previews tag `Environment=pr-{N}` (ADR-0005).
 
 ---
 
-## 6. Resilience & External Services
+## 7. Implementation Order
 
-### 6.1 Rate Limits (Per-User, BYOK Mode)
+Sequenced **after 006 and 007** per the owner's standing decision.
 
-| Tier             | Limit                                               |
-| ---------------- | --------------------------------------------------- |
-| Free (BYOK only) | No platform limit; user's provider limit applies    |
-| Pro              | 500 generation requests/month on platform key quota |
+> **Note for whenever that is revisited:** the _technical_ reason for this ordering is gone. The previous
+> revision had to follow 006/007 because its schema declared foreign keys into their tables. This revision
+> has none — meal-plan and shopping-list generation are stubbed calls (`downstream-gaps.md`). 005 is
+> therefore free to run in GR-006 **Phase 2**, parallel with 004/008/010, whenever the owner chooses. The
+> only remaining dependency is functional: those two generators cannot be demonstrated end-to-end until
+> their services exist.
 
-Rate limit state tracked in `ai_generation_records`; counter per user per month reset on 1st of month.
-
-### 6.2 Token Buckets
-
-- **Per-user generation throttle:** Max 1 concurrent generation job per user
-- **SQS consumer:** Max 5 concurrent Lambda/SQS workers processing the queue
-- **Secrets Manager:** 10 req/s per account (AWS default); keys fetched just-in-time with circuit breaker
-
-### 6.3 Circuit Breaker
-
-For Secrets Manager fetches and AI provider calls:
-
-```typescript
-// Using NestJS CircuitBreaker module
-@CircuitBreaker({ timeout: 3000, threshold: 5, resetTimeout: 30000 })
-async getByokKey(userId: string, provider: Provider): Promise<string>
-```
-
-### 6.4 Privacy / PII Sanitization
-
-**Mandatory before any prompt construction:**
-
-1. `SanitizeService.sanitizeContext()` — pseudonymizes identifiers
-2. `SanitizeService.scanForPii()` — logs any PII hits to audit log (content not stored)
-3. Prompt templates NEVER contain raw user data
-
-**Audit log shape (metadata only, no prompt content):**
-
-```typescript
-await auditLog.record({
-    requestId: uuid(),
-    userId: userId,
-    generationType: 'recipe',
-    provider: 'openai',
-    sourceHash: sha256(sanitizedPrompt), // reproducible for audit, no raw content
-    piiDetected: false,
-    timestamp: new Date().toISOString(),
-});
-```
-
-### 6.5 EU AI Act Compliance
-
-**Effective August 2, 2026.**
-
-- All AI-generated recipe/meal plan outputs display: _"AI-generated content may be inaccurate. Verify before use."_
-- Nutrition advice outputs (if any): _"This is not medical advice. Consult a qualified professional."_
-- Transparent disclosure in app UI when AI is generating content (loading states)
-- `ai_generation_records.source_prompt_hash` provides audit trail for regulatory inquiry
-- Anthropic/Claude and OpenAI are the two providers with best compliance postures (SCCs available, ZDR options)
+1. **5A Foundation** — `kitchensink_ai` migration, Drizzle schemas, BYOK + Secrets Manager.
+2. **5B MCP + grants** — OAuth discovery, DCR enablement, `GrantPolicy`, tool registry, actor-token
+   bridge, the `act` admission gate in `@kitchensink/clerk-verify`.
+3. **5C Generation** — intake, SQS, `ai-workers`, sanitizer, streaming.
+4. **5D Composition** — recipe/food client wiring; stubs registered for 006/007.
+5. **5E Surfaces** — `@commise/features-ai` shared components; web + mobile in lockstep (Principle VIII).
+6. **5F Compliance & hardening** — disclosures, audit, circuit breakers, throttles, k6.
 
 ---
 
-## 7. Migration / Schema Changes
+## 8. Open Questions
 
-### 7.1 Drizzle Migration: `005_ai_integration`
-
-```typescript
-// src/db/migrations/005_ai_integration.ts
-export async function up(db: DB) {
-    // ai_generation_records
-    await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS ai_generation_records (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_sub VARCHAR(255) COLLATE "C" NOT NULL REFERENCES users(sub) ON DELETE CASCADE,
-      job_id UUID NOT NULL UNIQUE,
-      generation_type TEXT NOT NULL CHECK (generation_type IN ('recipe', 'meal_plan', 'shopping_list', 'nutrition_analysis')),
-      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'streaming', 'complete', 'failed')),
-      provider TEXT NOT NULL,
-      model_id TEXT,
-      input_token_count INT,
-      output_token_count INT,
-      estimated_cost_usd NUMERIC(8, 6),
-      source_prompt_hash TEXT,
-      output_recipe_id UUID REFERENCES recipes(id) ON DELETE SET NULL,
-      output_meal_plan_id UUID REFERENCES meal_plans(id) ON DELETE SET NULL,
-      error_message TEXT,
-      started_at TIMESTAMPTZ DEFAULT NOW(),
-      completed_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ai_gen_records_user_sub ON ai_generation_records(user_sub);`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ai_gen_records_job_id ON ai_generation_records(job_id);`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ai_gen_records_status ON ai_generation_records(status);`);
-
-    // prompt_templates
-    await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS prompt_templates (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      template_key TEXT NOT NULL UNIQUE,
-      version INT NOT NULL DEFAULT 1,
-      system_prompt TEXT NOT NULL,
-      user_prompt_template TEXT NOT NULL,
-      model_recommendations TEXT[],
-      is_active BOOLEAN DEFAULT true,
-      created_by TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-
-    // user_byok_keys
-    await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS user_byok_keys (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_sub VARCHAR(255) COLLATE "C" NOT NULL UNIQUE REFERENCES users(sub) ON DELETE CASCADE,
-      provider TEXT NOT NULL,
-      secret_arn TEXT NOT NULL,
-      key_version INT NOT NULL DEFAULT 1,
-      is_active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-
-    // mcp_oauth_consents
-    await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS mcp_oauth_consents (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_sub VARCHAR(255) COLLATE "C" NOT NULL REFERENCES users(sub) ON DELETE CASCADE,
-      client_id TEXT NOT NULL,
-      scope TEXT NOT NULL,
-      granted_at TIMESTAMPTZ DEFAULT NOW(),
-      expires_at TIMESTAMPTZ,
-      refresh_token_encrypted TEXT,
-      last_used_at TIMESTAMPTZ,
-      is_revoked BOOLEAN DEFAULT false
-    );
-  `);
-}
-```
-
-### 7.2 AWS Resources
-
-| Resource                   | Type                       | Name                        |
-| -------------------------- | -------------------------- | --------------------------- |
-| SQS Queue                  | `AWS::SQS::Queue`          | `ai-generation-queue`       |
-| SQS DLQ                    | `AWS::SQS::Queue`          | `ai-generation-dlq`         |
-| SNS Topic                  | `AWS::SNS::Topic`          | `ai-events`                 |
-| IAM Role (queue consumer)  | `AWS::IAM::Role`           | `ai-generation-worker-role` |
-| Secrets Manager (per-user) | Created at runtime via SDK | `byok/{userId}/{provider}`  |
-
-Secrets Manager key deletion policy: key is deleted when user removes BYOK key from settings. Secrets Manager automatic rotation is NOT enabled (user-provided keys cannot be rotated by the platform).
+| #    | Question                                             | Status                                                       |
+| ---- | ---------------------------------------------------- | ------------------------------------------------------------ |
+| OQ-1 | Gemini GCP region                                    | Open — before GA                                             |
+| OQ-2 | Quota granularity: per type or total                 | Open — Product                                               |
+| OQ-3 | MCP client registration UI                           | **Resolved** — DCR is automatic (ADR-0011); no portal needed |
+| OQ-4 | User-forked prompt templates                         | Deferred to V2                                               |
+| OQ-5 | OpenAI / Anthropic DPA + SCCs                        | Open — blocks EU traffic                                     |
+| OQ-6 | Nutrition advice risk classification (EU AI Act)     | Open — Legal                                                 |
+| OQ-7 | Does `verifyClerkToken` introspect over the network? | **New** — a per-tool-call round trip is an SC-003 risk       |
+| OQ-8 | Can a new user sign up mid-OAuth flow from ChatGPT?  | **New** — spike against sandbox before claiming support      |
+| OQ-9 | Clerk custom OAuth scopes                            | **New** — if shipped, consent can move back to Clerk         |
 
 ---
 
-## 8. Open Questions from Research
+## 9. Spec changes this plan forces
 
-| #    | Question                                                                                                                                                                                                | Status | Notes                                                           |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------- |
-| OQ-1 | **Which GCP region for Gemini?** Gemini is GCP-native; us-east1 vs us-central1 has pricing/availability implications. Decision needed before GA.                                                        | Open   | Monitor Gemini regional availability in AWS regions we use.     |
-| OQ-2 | **Platform key quota enforcement granularity?** Do we track by generation _type_ (recipe vs meal plan) or total count?                                                                                  | Open   | Per-type tracking is more complex but fairer. Total is simpler. |
-| OQ-3 | **MCP OAuth client registration UI?** External agents need a `client_id`/`client_secret` per integration. Self-service registration portal or email-request?                                            | Open   | Recommend: self-service portal in app settings.                 |
-| OQ-4 | **Prompt template versioning strategy?** Do we allow users to fork and customize system prompts? If yes, user-specific template overrides need a `created_by = userId` path.                            | Open   | V2 scope. V1: platform-only templates with versioned updates.   |
-| OQ-5 | **Anthropic data processing agreement?** Has the legal team executed OpenAI DPA + SCCs? Is there an Anthropic DPA? Required before EU user prompts can flow.                                            | Open   | Block EU AI features until DPA is executed.                     |
-| OQ-6 | **Nutrition advice AI risk classification?** Under EU AI Act, nutrition advice touching medical conditions may be **high-risk**. Is Commise claiming to give medical advice, or is it general wellness? | Open   | Classification determines mandatory conformity assessment.      |
-
----
-
-## 9. Implementation Order
-
-### Phase 5A: Foundation (Weeks 1–2)
-
-1. **DB migration** — create all 4 new tables
-2. **BYOK module** — `ByokService` + AWS Secrets Manager CRUD
-3. **Sanitize module** — PII detection + pseudonymization (baseline patterns)
-4. **Drizzle schema definitions** — `AiGenerationRecord`, `PromptTemplate`, `UserByokKey`, `McpOAuthConsent`
-
-### Phase 5B: Core Generation (Weeks 3–4)
-
-5. **`AiService` core** — `generateRecipe()` using Vercel AI SDK + Zod schema
-6. **Recipe SSE streaming** — `POST /ai/generate/recipe/stream`
-7. **Async job queue** — SQS enqueue + consumer Lambda/SQS worker
-8. **Poll endpoint** — `GET /ai/generate/recipe/:jobId`
-
-### Phase 5C: Extended Generation (Week 5)
-
-9. **Meal plan generation** — `POST /ai/generate/meal-plan` with SSE
-10. **Shopping list generation** — `POST /ai/generate/shopping-list`
-11. **Prompt template CMS** — `GET/PUT /ai/prompts/:key`
-
-### Phase 5D: External Agent / MCP (Weeks 6–7)
-
-12. **Clerk MCP integration** — OAuth 2.1 + PKCE consent flow
-13. **MCP server** — JSON-RPC 2.0 handler, tool definitions for recipes + meal plans
-14. **OAuth consent management UI** — app settings page for external agent connections
-
-### Phase 5E: Compliance & Polish (Week 8)
-
-15. **EU AI Act disclosures** — AI-generated content watermarks + disclaimer strings
-16. **Audit log integration** — `ai_generation_records` writes for all generations
-17. **Circuit breakers + rate limit middleware**
-18. **E2E tests** — BYOK flow, SSE streaming, MCP OAuth flow
-
----
-
-## 10. Acceptance Criteria
-
-| ID    | Criterion                                                                                  | Verification                  |
-| ----- | ------------------------------------------------------------------------------------------ | ----------------------------- |
-| AC-1  | User can store an OpenAI key and generate a recipe via `/ai/generate/recipe`               | E2E test                      |
-| AC-2  | Raw API key is never stored in Postgres (only Secrets Manager ARN)                         | Code inspection               |
-| AC-3  | SSE streaming returns partial recipe objects in real-time                                  | E2E test with network capture |
-| AC-4  | SQS queue processes async job and stores result in `recipes` table                         | Integration test              |
-| AC-5  | PII scan detects email + name patterns before prompt construction                          | Unit test                     |
-| AC-6  | EU AI Act disclaimer appears on all AI-generated content                                   | Visual E2E test               |
-| AC-7  | MCP OAuth 2.1 PKCE flow completes; agent can call tools with Bearer token                  | E2E test                      |
-| AC-8  | BYOK key deleted from Secrets Manager on `DELETE /ai/byok/keys/:provider`                  | Integration test              |
-| AC-9  | `GET /ai/generate/recipe/:jobId` returns correct status through pending→complete lifecycle | E2E test                      |
-| AC-10 | Clerk MCP guard rejects requests without valid `Authorization: Bearer <token>`             | Security test                 |
+- **FR-018** — consent is presented by **our** UI, not Clerk's; Clerk cannot express custom scopes. The
+  requirement's intent (two distinct checkboxes, read grantable without write) is unchanged.
+- **V-Model artifacts** — `provider_configs` / `agent_consent_records` must be renamed to
+  `user_byok_keys` / `mcp_agent_grants`. Every V-Model test case currently targets tables no migration
+  creates.
+- **Endpoints** — all `/ai/*` references become `/api/v1/ai/*`.
+- **`api.commise.io`** — does not exist; the domain is `commise.app`.

@@ -36,6 +36,8 @@ interface CatalogState {
     readonly inRdsIam?: boolean;
     /** Whether the base database exists. */
     readonly databaseExists?: boolean;
+    /** The role that OWNS the base database. Defaults to the MASTER, i.e. the drifted state. */
+    readonly databaseOwner?: string;
 }
 
 /**
@@ -55,10 +57,9 @@ function fakePool(state: CatalogState): pg.Pool {
         }
 
         if (text.includes('pg_database')) {
-            return Promise.resolve({
-                rowCount: state.databaseExists === true ? 1 : 0,
-                rows: state.databaseExists === true ? [{}] : [],
-            });
+            const rows = state.databaseExists === true ? [{ owner: state.databaseOwner ?? 'identity_app' }] : [];
+
+            return Promise.resolve({ rowCount: rows.length, rows });
         }
 
         if (text.includes('pg_roles')) {
@@ -78,6 +79,7 @@ const HEALTHY: CatalogState = {
     role: { rolcanlogin: true, rolcreatedb: true },
     inRdsIam: true,
     databaseExists: true,
+    databaseOwner: 'food_app',
 };
 
 describe('assertBootstrapPostconditions', () => {
@@ -96,7 +98,12 @@ describe('assertBootstrapPostconditions', () => {
         // unconditionally would fail every prod deploy — the check has to track the same stage rule the DDL does.
         await expect(
             assertBootstrapPostconditions(
-                fakePool({ role: { rolcanlogin: true, rolcreatedb: false }, inRdsIam: true, databaseExists: true }),
+                fakePool({
+                    role: { rolcanlogin: true, rolcreatedb: false },
+                    inRdsIam: true,
+                    databaseExists: true,
+                    databaseOwner: 'food_app',
+                }),
                 { role: 'food_app', databaseName: 'kitchensink_food', requireCreateDb: false },
             ),
         ).resolves.toBeUndefined();
@@ -143,6 +150,25 @@ describe('assertBootstrapPostconditions', () => {
                 requireCreateDb: true,
             }),
         ).rejects.toThrow(/kitchensink_food/);
+    });
+
+    it('throws when the database exists but is owned by another role', async () => {
+        // `CREATE DATABASE … OWNER <role>` runs ONLY when the database is absent, so a database that already
+        // exists — created by hand, or by an older bootstrap — never has its ownership corrected. Checking
+        // only that the NAME exists passes happily in that state.
+        //
+        // Not cosmetic: `GRANT ALL PRIVILEGES ON DATABASE` confers CONNECT/CREATE/TEMP on the DATABASE, not
+        // rights inside the `public` SCHEMA. On PostgreSQL 15+ CREATE on `public` is revoked from PUBLIC and
+        // the schema belongs to the database owner, so a non-owning role cannot create tables at all —
+        // surfacing days later as a migration failure in another component, which is the exact shape of the
+        // outage this module exists to prevent.
+        await expect(
+            assertBootstrapPostconditions(fakePool({ ...HEALTHY, databaseOwner: 'identity_app' }), {
+                role: 'food_app',
+                databaseName: 'kitchensink_food',
+                requireCreateDb: true,
+            }),
+        ).rejects.toThrow(/owned by "identity_app"/);
     });
 
     it('throws when a non-prod role lacks CREATEDB, which per-PR databases need', async () => {

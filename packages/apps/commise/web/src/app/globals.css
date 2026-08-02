@@ -1,5 +1,6 @@
-/* Brand typography. MUST be the FIRST line of this file — above the `@commise/ui/theme.css` import, not
-   merely above the `@source` rules.
+/* Brand typography. MUST be the FIRST RULE in this file — above the `@commise/ui/theme.css` import, not
+   merely above the `@source` rules. (Comments and whitespace may precede it; what may not precede it is any
+   RULE, which is what the guard checks.)
    CSS drops any `@import` that follows another rule, and `theme.css` is INLINED here: it carries its own
    `@import "tailwindcss"` plus a `@theme { … }` block, so anything after it is "after a rule" and gets
    discarded. Sitting below the `@source` rules is how this shipped a production bundle with no webfonts at

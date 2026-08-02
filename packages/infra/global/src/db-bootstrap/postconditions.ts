@@ -29,6 +29,7 @@
  * | role exists, can LOGIN   | `CREATE ROLE <role> LOGIN`                 | 28P01 at the first connection              |
  * | member of `rds_iam`      | `GRANT rds_iam TO <role>`                  | 28P01 — the IAM token is read as a password |
  * | base database exists     | `CREATE DATABASE … OWNER <role>`           | 3D000 `database … does not exist`          |
+ * | …and is OWNED by the role | the `OWNER <role>` clause above            | cannot create in `public` → migrations fail |
  * | CREATEDB (non-prod only) | `ALTER ROLE <role> CREATEDB`               | per-PR database creation denied (ADR-0006) |
  *
  * `rds_iam` membership is read from `pg_auth_members` rather than via `pg_has_role`, because `pg_has_role`
@@ -126,10 +127,29 @@ export async function assertBootstrapPostconditions(pool: pg.Pool, expectation: 
         );
     }
 
-    const database = await pool.query('SELECT 1 FROM pg_database WHERE datname = $1', [expectation.databaseName]);
+    // Ownership, not just existence. `CREATE DATABASE … OWNER <role>` runs ONLY when the database is absent,
+    // so one that already exists — created by hand, or by an older bootstrap — never has its ownership
+    // corrected, and a name-only check passes in exactly that drifted state.
+    //
+    // It matters materially: `GRANT ALL PRIVILEGES ON DATABASE` confers CONNECT/CREATE/TEMP on the DATABASE,
+    // not rights inside the `public` SCHEMA. On PostgreSQL 15+ CREATE on `public` is revoked from PUBLIC and
+    // the schema belongs to the database owner, so a non-owning role cannot create tables at all — surfacing
+    // days later as a migration failure in a different component.
+    const database = await pool.query<{ readonly owner: string }>(
+        'SELECT pg_get_userbyid(datdba) AS owner FROM pg_database WHERE datname = $1',
+        [expectation.databaseName],
+    );
+    const database0 = database.rows[0];
 
-    if ((database.rowCount ?? 0) === 0) {
+    if (database0 === undefined) {
         unmet.push(`database "${expectation.databaseName}" does not exist`);
+    } else if (database0.owner !== expectation.role) {
+        unmet.push(
+            `database "${expectation.databaseName}" is owned by "${database0.owner}", not by ` +
+                `"${expectation.role}" — the role cannot create objects in its public schema (PostgreSQL 15+ ` +
+                'revokes CREATE on public from PUBLIC), so migrations will fail. Fix with ' +
+                `ALTER DATABASE "${expectation.databaseName}" OWNER TO ${expectation.role};`,
+        );
     }
 
     if (unmet.length > 0) {

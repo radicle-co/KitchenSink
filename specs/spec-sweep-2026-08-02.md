@@ -60,39 +60,86 @@ Recorded because the first pass over-reported these, and the record should be ac
 
 ---
 
-## 4. Open items and hand-offs
+## 4. Open items — all closed 2026-08-02
 
-1. ✅ **API prefix — RESOLVED 2026-08-02, no longer open.** `/api/v1/*` is the portfolio-wide target with
-   no standing exceptions. `007`–`014` (this PR) and `005` are conformant; `004` and `006` are correcting
-   their docs in their own branches; shipped `main` is being migrated under separate work. All owner
-   direction, 2026-08-02.
+Every item this sweep originally deferred has been addressed. Two closures surfaced new blockers, recorded
+below rather than absorbed.
 
-    Two corrections to how this sweep originally framed it:
+### 4.1 ✅ API prefix — closed
 
-    - It was recorded as an **open conflict needing a Director-of-Product decision**. It is not open — the
-      direction is settled and every branch converges.
-    - It cited 006's PRF-006-16 as an **owner-of-the-recipe-service** ruling for the plain-segment form.
-      That attribution was wrong: **a feature spec does not own a service.** The recipe service is owned by
-      the repository owner, not by feature 006, so PRF-006-16 was never an ownership-backed exemption from a
-      portfolio rule — it is simply superseded.
+`/api/v1/*` is the portfolio-wide target with **no standing exceptions**. `007`–`014` (this PR) and `005`
+are conformant; `004` and `006` are correcting their docs in their own branches; shipped `main` is being
+migrated under separate work. All owner direction, 2026-08-02.
 
-2. ⚠️ **`cross-feature-FR-index.md` not updated — hand-off.** Both the `005` and `006` worktrees hold
-   uncommitted edits to this file. Editing it here would have caused a three-way conflict. Rows to register
-   once they land:
-    - `007-grocery-lists/product-spec/product-spec.md` and `research/ux-patterns.md` → `001-FR-045`
-    - `010-subscriptions/plan.md` and `research.md` → `001-FR-001…006`, `004-FR-010`, `004-FR-011`,
-      `005-FR-016`, `005-FR-019`, `006-FR-022…027`, `007-FR-028…031`, `008-FR-032…035`, `009-FR-038`
+Two corrections to how this sweep first framed it:
 
-3. ⚠️ **GR-009 is contradicted by all 26 shipped packages** and needs ratification — amend the rule to the
-   two real scopes (`@kitchensink/{name}`, `@commise/{name}`) or schedule a rename. See GR-009 Current State.
+- It was filed as an **open conflict needing a Director-of-Product decision**. It is not open.
+- It cited 006's PRF-006-16 as an **owner-of-the-recipe-service** ruling for the plain-segment form. That
+  attribution was wrong: **a feature spec does not own a service.** The recipe service is owned by the
+  repository owner, not by feature 006 — so PRF-006-16 was never an ownership-backed exemption from a
+  portfolio rule; it is simply superseded.
 
-4. **`012` monetization has no testable requirements.** The tip jar, premium recipes, and paid follows have
-   narrative scope only; FR IDs must be authored and ratified before that work is planned.
+### 4.2 ✅ `cross-feature-FR-index.md` — closed
 
-5. **Not created here: `docs/api-conventions.md`.** Feature 005 already authored it (untracked in its
-   worktree). GR-002 AC-002-d is satisfied by that file, not by this sweep.
+Six rows registered, covering the citations that existed downstream but had never been recorded:
+`007` → `001-FR-045`; `010` → `001-FR-001…006`, `004-FR-008`, `006-FR-022…024`, `007-FR-028…030`,
+`008-FR-032…035`.
 
----
+**Three of those rows also corrected a mis-cited FR** — the citation named a capability whose ID belongs to
+a different requirement, or an abbreviated range spilled past the owner's defined set:
+
+| In `010`'s gating map        | Cited        | Actually         | Why it was wrong                                              |
+| ---------------------------- | ------------ | ---------------- | ------------------------------------------------------------- |
+| Basic recipe importing (URL) | `004-FR-010` | `004-FR-008`     | `004-FR-010` is _source attribution_; URL import is `FR-008`. |
+| Manual meal planning         | `FR-020–024` | `006-FR-022…024` | 006's namespace starts at `FR-022`.                           |
+| Cooking mode                 | `FR-032–037` | `008-FR-032…035` | 008 defines only `032–035`; `036–037` are 009's.              |
+
+A verifier now checks **every** qualified `{feature}-FR-{NNN}` in `specs/` against the target feature's
+actual `spec.md`. Result: **0 references to a non-existent FR.**
+
+> **Merge note.** `006`'s branch also edits this file (rewrites every registry row to widen the `Status`
+> column, flips three rows to `Deferred`, and adds _Status Values_, _Deferral Notes_, and Review Rule 5).
+> A conflict on merge is expected. **Resolution: take both** — keep 006's `Deferred` statuses and its three
+> new sections, and keep the six rows added here. No row contradicts another.
+
+### 4.3 ✅ GR-009 package naming — closed by amendment
+
+Amended through the documented Governance Amendment Process; `governance-rules.md` **1.0.0 → 2.0.0**
+(MAJOR: incompatible redefinition). `@kitchensink/{group}-{name}` was ratified when no packages existed and
+none of the 26 shipped packages ever used it. Restated to the two real scopes — `@kitchensink/{name}` for
+platform, `@commise/{name}` for the Commise product — with role **suffixes** (`-service`, `-workers`,
+`-service-client`) replacing group prefixes, plus a directory mapping. The superseded pattern is preserved
+in-section, per "no rule may be silently removed". `cross-feature-consistency-report.md` S-002 amended to
+match.
+
+⚠️ **One inconsistency the amendment does not paper over**: `@commise/test-utils` lives in
+`packages/tools/test-utils/`, while all seven of its `packages/tools/*` siblings are `@kitchensink/*`.
+Either it is mis-scoped or it is a deliberate exception — unresolved here because renaming a published
+package is a code change, not a spec change.
+
+### 4.4 ✅ `012` monetization — enumerated, and it exposed a blocker
+
+`012-FR-031` … `012-FR-040` authored as **DRAFT**: tip jar (031–033), premium recipes (034–036), paid
+follows (037–039), earnings surface (040).
+
+⚠️ **BLOCKER — the capability they depend on is not specified anywhere.** 012 states that "010 owns the
+paywall and revenue split". **It does not.** Feature 010's entire functional scope is `010-FR-040` …
+`010-FR-043`: a free/premium **subscriber** tier on Stripe Checkout + Customer Portal, upgrade prompts, and
+downgrade retention. There is no one-time payment, per-item purchase, creator-defined tier, revenue split,
+or payout surface — its Out-of-Scope section rules out even multi-seat family plans.
+
+**`013` carries the identical unmet dependency**: `013-FR-010` specifies a 20%/80% platform/educator
+revenue share "via 010", with course revenue "disbursed via 010's payout model".
+
+Per FR-index Review Rule 3, this is recorded as a **capability-level dependency** rather than resolved by
+inventing an FR in 010's namespace. Marketplace payments need their own spec — in 010 or a dedicated
+payments feature — including the money-transmission and tax posture that splitting third-party revenue
+implies (Stripe Connect, 1099 reporting). Recorded in `010/spec.md` Out of Scope, `013/spec.md` FR-010, and
+`v1-launch-plan.md` at both `M6` and `M7`.
+
+### 4.5 ✅ `docs/api-conventions.md` — not needed here
+
+Feature 005 authored it. GR-002 AC-002-d is satisfied by that file.
 
 ## 5. Reproducing the checks
 

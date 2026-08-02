@@ -314,7 +314,7 @@ placeGroceryOrder(@Body() dto: PlaceOrderDto) { ... }
 | Recipe CRUD (public)         | 001  | 001-FR-001 … 001-FR-005 | ✅   | ✅      | None                                             |
 | Private recipe visibility    | 001  | 001-FR-003              | ❌   | ✅      | `PATCH /api/v1/recipes/:id/visibility`           |
 | Recipe sharing/cloning       | 001  | 001-FR-006              | ✅   | ✅      | None                                             |
-| Basic recipe importing (URL) | 004  | 004-FR-010              | ✅   | ✅      | None                                             |
+| Basic recipe importing (URL) | 004  | 004-FR-008              | ✅   | ✅      | None                                             |
 | Clone-to-private (imported)  | 004  | 004-FR-011              | ❌   | ✅      | `POST /api/v1/recipes/import` (visibility param) |
 | AI recipe generation         | 005  | 005-FR-016              | ❌   | ✅      | `POST /api/v1/ai/generate`                       |
 | AI instruction optimization  | 005  | 005-FR-019              | ❌   | ✅      | `POST /api/v1/ai/optimize-instructions`          |

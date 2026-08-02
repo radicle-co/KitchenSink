@@ -1,7 +1,7 @@
 # KitchenSink Cross-Feature Governance Rules
 
-**Version**: 1.0.0
-**Ratified**: 2026-05-10
+**Version**: 2.0.0
+**Ratified**: 2026-05-10 | **Last amended**: 2026-08-02
 **Authority**: Senior Product Owner, cross-feature governance
 **Scope**: All features 001–014 and any future feature in this portfolio
 **Status**: Active — enforced from this date forward
@@ -380,46 +380,78 @@ A feature plan or CDK definition that specifies Node.js 22.x or lower is non-con
 
 ### Rule
 
-All npm packages in this monorepo **MUST** follow the naming pattern:
+**Amended 2026-08-02** — see [Change Log](#change-log) v2.0.0. The original `@kitchensink/{group}-{name}`
+pattern was ratified when no implementation packages existed. Twenty-six now do and **none** follow it, so
+the rule is restated to describe the two scopes actually in use. The superseded pattern is preserved at the
+end of this section.
 
-```
-@kitchensink/{group}-{name}
-```
+Package **scope** is determined by what consumes the package, and **placement** determines the name:
 
-Group examples: `data`, `shared`, `auth`, `ui`, `apps`, `tools`.
+| Scope           | Contains                                                 | Directory                                                     | Name                  |
+| --------------- | -------------------------------------------------------- | ------------------------------------------------------------- | --------------------- |
+| `@kitchensink/` | Platform: services, workers, clients, shared libs, tools | `packages/{services,shared,clients,tools,utils,infra}/{name}` | `@kitchensink/{name}` |
+| `@commise/`     | The Commise product's apps and UI-facing packages        | `packages/apps/commise/{name}`                                | `@commise/{name}`     |
 
-**Canonical examples**:
+Within `@kitchensink/`, the **name carries the role as a suffix**, not a group as a prefix:
 
-- `@kitchensink/shared-recipe-core`
-- `@kitchensink/data-usda`
-- `@kitchensink/auth-client`
-- `@kitchensink/auth-server`
-- `@kitchensink/ui-components`
+| Role                       | Suffix            | Example                              | Directory                           |
+| -------------------------- | ----------------- | ------------------------------------ | ----------------------------------- |
+| Deployable HTTP service    | `-service`        | `@kitchensink/recipe-service`        | `packages/services/recipe-service/` |
+| Lambda / background worker | `-workers`        | `@kitchensink/recipe-workers`        | `packages/services/recipe-workers/` |
+| Typed client for a service | `-service-client` | `@kitchensink/recipe-service-client` | `packages/clients/recipe-service/`  |
+| Shared library             | _(none)_          | `@kitchensink/recipe-core`           | `packages/shared/recipe-core/`      |
+| Tooling config             | _(none)_          | `@kitchensink/eslint`                | `packages/tools/eslint/`            |
+
+Within `@commise/`, a front-end feature package is `@commise/features-{domain}` in
+`packages/apps/commise/features/{domain}/`.
+
+**Canonical examples** (all shipped):
+
+- `@kitchensink/recipe-core`, `@kitchensink/identity-service`, `@kitchensink/recipe-workers`,
+  `@kitchensink/food-service-client`, `@kitchensink/clerk-verify`
+- `@commise/web`, `@commise/mobile`, `@commise/ui`, `@commise/features-recipes`
+
+> **Superseded (v1.0.0, 2026-05-10)**: `@kitchensink/{group}-{name}` with group examples `data`, `shared`,
+> `auth`, `ui`, `apps`, `tools`, and canonical examples `@kitchensink/shared-recipe-core`,
+> `@kitchensink/data-usda`, `@kitchensink/auth-client`, `@kitchensink/auth-server`,
+> `@kitchensink/ui-components`. **No package was ever published under this pattern.** It is recorded here
+> rather than deleted, per the amendment process's "no rule may be silently removed".
 
 ### Acceptance Criteria
 
-- **AC-009-a**: Every `package.json` in `packages/` uses the `@kitchensink/{group}-{name}` naming pattern.
-- **AC-009-b**: Feature plans that reference package names use this convention.
-- **AC-009-c**: No package uses a bare `@kitchensink/{name}` pattern without a group segment.
+- **AC-009-a**: Every `package.json` under `packages/` uses `@kitchensink/{name}` or `@commise/{name}`,
+  with the scope chosen per the table above.
+- **AC-009-b**: Feature plans that reference package names use this convention, and place each package in
+  the directory its scope and role dictate.
+- **AC-009-c**: A deployable HTTP service is named `-service` and a worker bundle `-workers`. A shared
+  library takes no role suffix. No package invents a third scope.
+- **AC-009-d**: A new package's name and directory are checked against this rule at plan time, not after
+  it is published — renaming a published workspace package breaks every importer.
+
+### Violation
+
+A package whose scope, directory, or role suffix disagrees with the table above is non-conformant and must
+be corrected **before it is first published**. Renaming after publication is a breaking change to every
+importer and requires its own migration.
 
 ### Current State (2026-08-02)
 
-Superseded the 2026-05-10 entry, which said "no implementation packages exist yet". Twenty-six now do.
+**Conformant.** The amendment restated the rule to match the 26 shipped packages, so the portfolio is
+conformant by construction rather than by 26 renames.
 
-⚠️ **This rule is contradicted by every shipped package and needs ratification against reality.** It is
-recorded here rather than silently rewritten, because amending a ratified rule is the Director of Product's
-call, not a sweep's.
-
-- **No** shipped package uses `@kitchensink/{group}-{name}`. The actual forms are `@kitchensink/{name}`
-  (`recipe-core`, `identity-service`, `clerk-verify`, `food-service-client`, …) and a second scope the rule
-  does not contemplate at all, `@commise/{name}` (`web`, `mobile`, `ui`, `i18n`, `features-recipes`,
-  `features-account`, `features-core`).
-- Conforming would mean renaming 26 published workspace packages and every import of them.
-- **What the 2026-08-02 sweep did**: corrected features 007–014 to the _shipped_ names, and to the
-  `@kitchensink/{domain}-service` / `@kitchensink/{domain}-workers` / `@commise/features-{domain}` forms
-  that feature 005 uses for new packages. It did **not** rewrite this rule.
-- **Decision needed**: either amend GR-009 to describe the two real scopes, or schedule a rename. Until
-  then, treat shipped package names as authoritative and this rule as unenforced.
+- `@kitchensink/`: `recipe-core`, `identity-core`, `identity-db`, `clerk-verify`, `identity-service`,
+  `identity-webhooks`, `food-service`, `recipe-service`, `recipe-workers`, `food-service-client`,
+  `recipe-service-client`, `usda-client`, `identity-utils`, `infra-global`, `service-test-harness`,
+  `loadtest`, `eslint`, `prettier`, `typescript`, `vitest`, `esbuild`.
+- `@commise/`: `web`, `mobile`, `ui`, `i18n`, `features-recipes`, `features-account`, `features-core`,
+  `test-utils`.
+- Features 007–014 were corrected to these forms in the 2026-08-02 sweep, and to
+  `@kitchensink/{domain}-service` / `-workers` for new packages, matching feature 005's `ai-service`.
+- ⚠️ **One inconsistency the amendment does not paper over**: `@commise/test-utils` sits in
+  `packages/tools/test-utils/`, which is a `@kitchensink/` directory by the table above. Every other
+  tooling package (`eslint`, `prettier`, `typescript`, `vitest`, `esbuild`) is `@kitchensink/`. This is
+  either a mis-scoped package or a deliberate exception; it is **not** resolved here because renaming it
+  is a code change, not a spec change. Tracked in `spec-sweep-2026-08-02.md`.
 
 ---
 
@@ -576,6 +608,7 @@ Downgrading a CRITICAL rule to WARNING requires explicit product owner approval 
 
 ## Change Log
 
-| Version | Date       | Author                                          | Summary                                                                                                                                                                                                                                                                                                        |
-| ------- | ---------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1.0.0   | 2026-05-10 | Senior Product Owner (cross-feature governance) | Initial ratification. Converts all CRITICAL and WARNING findings from `cross-feature-consistency-report.md` into enforceable rules with acceptance criteria. Corrects all release audit reports to BLOCKED status. Establishes release readiness gate (GR-001) as the primary blocker for engineering handoff. |
+| Version | Date       | Author                                          | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------- | ---------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.0.0   | 2026-05-10 | Senior Product Owner (cross-feature governance) | Initial ratification. Converts all CRITICAL and WARNING findings from `cross-feature-consistency-report.md` into enforceable rules with acceptance criteria. Corrects all release audit reports to BLOCKED status. Establishes release readiness gate (GR-001) as the primary blocker for engineering handoff.                                                                                                                                                                                                                                 |
+| 2.0.0   | 2026-08-02 | Repository owner                                | **GR-009 amended** (MAJOR — incompatible redefinition): the `@kitchensink/{group}-{name}` pattern was ratified when no packages existed and none of the 26 shipped packages follow it. Restated to the two scopes actually in use, `@kitchensink/{name}` and `@commise/{name}`, with role suffixes (`-service`, `-workers`, `-service-client`) replacing group prefixes. Superseded pattern preserved in-section. **GR-002/GR-003/GR-007 Current State** refreshed against shipped `main`; GR-002 confirmed portfolio-wide with no exceptions. |

@@ -8,15 +8,15 @@
 
 ## Dependencies
 
-| Spec                                                            | Relationship                                                                                 |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [002-user-auth](../002-user-auth/spec.md)           | **Required** — subscription tier is a property of the authenticated user                     |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Referenced** — gates private recipe visibility (001-FR-003)                                    |
-| [004-recipe-importing](../004-recipe-importing/spec.md)         | **Referenced** — gates clone-to-private for imported recipes (004-FR-011)                        |
-| [005-ai-integration](../005-ai-integration/spec.md)             | **Referenced** — gates AI generation and instruction optimization (005-FR-016, 005-FR-019)           |
-| [006-meal-planning](../006-meal-planning/spec.md)               | **Referenced** — gates AI meal suggestions, auto-generation, waste optimization (006-FR-025, 006-FR-026, 006-FR-027) |
-| [007-grocery-lists](../007-grocery-lists/spec.md)               | **Referenced** — gates online ordering (007-FR-031)                                              |
-| [009-nutrition-planning](../009-nutrition-planning/spec.md)     | **Referenced** — gates trainer nutrition planning (009-FR-038)                                   |
+| Spec                                                        | Relationship                                                                                                         |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — subscription tier is a property of the authenticated user                                             |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Referenced** — gates private recipe visibility (001-FR-003)                                                        |
+| [004-recipe-importing](../004-recipe-importing/spec.md)     | **Referenced** — gates clone-to-private for imported recipes (004-FR-011)                                            |
+| [005-ai-integration](../005-ai-integration/spec.md)         | **Referenced** — gates AI generation and instruction optimization (005-FR-016, 005-FR-019)                           |
+| [006-meal-planning](../006-meal-planning/spec.md)           | **Referenced** — gates AI meal suggestions, auto-generation, waste optimization (006-FR-025, 006-FR-026, 006-FR-027) |
+| [007-grocery-lists](../007-grocery-lists/spec.md)           | **Referenced** — gates online ordering (007-FR-031)                                                                  |
+| [009-nutrition-planning](../009-nutrition-planning/spec.md) | **Referenced** — gates trainer nutrition planning (009-FR-038)                                                       |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -78,3 +78,17 @@ New users start on a free tier that provides core functionality: creating, viewi
 - **Family plan is out of scope for v1.** Family/household multi-seat subscriptions are a future consideration only. No FR, no architecture, and no task covers family plans in this release. A dedicated spec change is required before any family-plan work begins.
 - **Web is the primary billing surface.** Stripe Checkout and the Stripe Customer Portal are web-only. Mobile users see upgrade prompts and are deep-linked to the web checkout URL. Native in-app purchase (App Store / Play Store IAP) is out of scope for v1.
 - Imported, attributed recipes are always public regardless of subscription tier, in compliance with source Terms of Service.
+- **Marketplace payments are out of scope for v1 — and two features already depend on them.** 010 is
+  **subscriber-tier billing only**: a free/premium tier on Stripe Checkout + Customer Portal (`FR-040` …
+  `FR-043`). It has no one-time payments, no per-item purchases, no creator-defined subscription tiers, no
+  revenue splitting, and no payouts.
+  **Unmet downstream assumptions** (surfaced by the 2026-08-02 spec sweep):
+    - `012-creator-profiles` `012-FR-031` … `012-FR-040` (DRAFT) — tip jar, premium recipes, paid follows, all
+      stated as "010 owns the paywall and revenue split".
+    - `013-cooking-school` `013-FR-010` — "Revenue share: platform 20%, educator 80% (pro tier: 15%/85%
+      via 010)", with course purchases "disbursed via 010's payout model".
+
+    Neither is satisfiable today. Marketplace payments need their own spec — in 010 or a dedicated payments
+    feature — including the money-transmission and tax posture that splitting third-party revenue implies
+    (e.g. Stripe Connect, 1099 reporting). **Do not plan 012 monetization or 013 revenue share against 010
+    as it stands.**

@@ -511,16 +511,24 @@ Announced by user during sequential revalidation of feature `002-user-auth`. **T
 | 002     | `/v1/*` (no `/api` segment)   | Add `/api` → `/api/v1/*` across `spec.md`, `plan.md`, contracts  |
 | 003–010 | `/v1/*` (no `/api` segment)   | Same as 002 — to be confirmed during each feature's revalidation |
 
-### S-002: Package Naming (REQUIRED)
+### S-002: Package Naming (REQUIRED) — **AMENDED 2026-08-02**
 
-**Pattern**: `@kitchensink/{group}-{name}`
+**Pattern**: `@kitchensink/{name}` for platform packages, `@commise/{name}` for the Commise product's apps
+and UI-facing packages. Role is a **suffix** on the name (`-service`, `-workers`, `-service-client`), not a
+group prefix. Full table and directory mapping: [GR-009](./governance-rules.md#gr-009-package-naming-convention).
 
-- Examples: `@kitchensink/data-usda`, `@kitchensink/shared-recipe-core`, `@kitchensink/auth-client`, `@kitchensink/auth-server`.
-- Group examples: `data`, `shared`, `auth`, `ui`, `apps`.
+- Examples: `@kitchensink/recipe-core`, `@kitchensink/recipe-service`, `@kitchensink/recipe-workers`,
+  `@kitchensink/food-service-client`; `@commise/web`, `@commise/ui`, `@commise/features-recipes`.
 
-**Resolves**: CR-002 (the missing `shared/recipe-core` library should be `@kitchensink/shared-recipe-core`).
+**Resolves**: CR-002. The shared recipe library ships at `packages/shared/recipe-core/` as
+`@kitchensink/recipe-core` — **not** `@kitchensink/shared-recipe-core` as originally specified here.
 
-**Affected features**: All. To be confirmed during each feature's revalidation.
+> **Superseded (2026-05-10)**: `@kitchensink/{group}-{name}` with groups `data`, `shared`, `auth`, `ui`,
+> `apps`. Ratified before any package existed; none of the 26 shipped packages ever used it. Amended in
+> governance-rules v2.0.0 rather than renaming 26 published packages and every importer.
+
+**Affected features**: All. Features 007–014 were corrected in the 2026-08-02 spec sweep; 001–006 follow
+the shipped names already.
 
 ### S-003: Node Runtime (REQUIRED)
 

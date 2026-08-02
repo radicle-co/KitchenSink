@@ -29,13 +29,13 @@ Both P12 and P13 are co-primary. This feature cannot be designed for one side wi
 
 ## Dependencies
 
-| Spec                                                            | Relationship                                                                                |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| [002-user-auth](../002-user-auth/spec.md)           | **Required** — all learner and educator sessions are authenticated                          |
+| Spec                                                        | Relationship                                                                                |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all learner and educator sessions are authenticated                          |
 | [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Referenced** — recipe entity used as source material for lesson scripts                   |
-| [005-ai-integration](../005-ai-integration/spec.md)             | **Referenced** — AI-assisted lesson script drafting from recipes (P13 Reese "Should" story) |
-| [010-subscriptions](../010-subscriptions/spec.md)               | **Required** — course purchases, educator subscription tiers, revenue share                 |
-| [012-creator-profiles](../012-creator-profiles/spec.md)         | **Required** — `CreatorProfile` provides educator identity and `@handle` pages              |
+| [005-ai-integration](../005-ai-integration/spec.md)         | **Referenced** — AI-assisted lesson script drafting from recipes (P13 Reese "Should" story) |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Required** — course purchases, educator subscription tiers, revenue share                 |
+| [012-creator-profiles](../012-creator-profiles/spec.md)     | **Required** — `CreatorProfile` provides educator identity and `@handle` pages              |
 
 ## Source-of-Truth Note
 
@@ -63,27 +63,27 @@ Canonical enumeration — crosswalked from `product-spec/product-spec.md` §Func
 
 ### Must Have (v1) — FR-001 … FR-010
 
-| ID | Requirement | Persona |
-| ------ | ----------- | --------- |
-| FR-001 | Educators can create a course with title, description, thumbnail, and price | P13 Reese |
-| FR-002 | Educators can upload video lessons; platform transcodes to HLS and delivers via CDN | P13 Reese |
-| FR-003 | Learners can browse and purchase courses; enrollment is immediate post-payment | P12 Jamie |
-| FR-004 | First lesson of every course is free to preview without purchase | P12 Jamie, P1 Casey |
-| FR-005 | Learner progress is tracked per lesson (watch percent, completed_at) | P12 Jamie |
-| FR-006 | Educators can view enrollment count, lesson completion rates, and revenue per course | P13 Reese, P9 Drew |
-| FR-007 | Educators can link a recipe to a lesson and request an AI-drafted script outline | P13 Reese |
-| FR-008 | `published-lesson` audience scope (S-004) gates lesson access to enrolled learners | Platform |
-| FR-009 | Educator identity is the `CreatorProfile` from 012; no separate educator profile | P13 Reese |
-| FR-010 | Revenue share: platform 20%, educator 80% (pro tier: 15%/85% via 010) | P13 Reese, P9 Drew |
+| ID     | Requirement                                                                                                                                                 | Persona             |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| FR-001 | Educators can create a course with title, description, thumbnail, and price                                                                                 | P13 Reese           |
+| FR-002 | Educators can upload video lessons; platform transcodes to HLS and delivers via CDN                                                                         | P13 Reese           |
+| FR-003 | Learners can browse and purchase courses; enrollment is immediate post-payment                                                                              | P12 Jamie           |
+| FR-004 | First lesson of every course is free to preview without purchase                                                                                            | P12 Jamie, P1 Casey |
+| FR-005 | Learner progress is tracked per lesson (watch percent, completed_at)                                                                                        | P12 Jamie           |
+| FR-006 | Educators can view enrollment count, lesson completion rates, and revenue per course                                                                        | P13 Reese, P9 Drew  |
+| FR-007 | Educators can link a recipe to a lesson and request an AI-drafted script outline                                                                            | P13 Reese           |
+| FR-008 | `published-lesson` audience scope (S-004) gates lesson access to enrolled learners                                                                          | Platform            |
+| FR-009 | Educator identity is the `CreatorProfile` from 012; no separate educator profile                                                                            | P13 Reese           |
+| FR-010 | Revenue share: platform 20%, educator 80% (pro tier: 15%/85% via 010). ⚠️ **Blocked** — 010 has no payout or revenue-split surface; see 010's Out of Scope. | P13 Reese, P9 Drew  |
 
 ### Should Have (v1) — FR-011 … FR-014
 
-| ID | Requirement | Persona |
-| ------ | ----------- | --------- |
-| FR-011 | Learners can follow educators and see new courses in their feed (via 012 follow graph) | P2 Taylor |
-| FR-012 | Educators can reorder lessons within a course via drag-and-drop | P13 Reese |
+| ID     | Requirement                                                                                                                                                                                                                                                           | Persona   |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| FR-011 | Learners can follow educators and see new courses in their feed (via 012 follow graph)                                                                                                                                                                                | P2 Taylor |
+| FR-012 | Educators can reorder lessons within a course via drag-and-drop                                                                                                                                                                                                       | P13 Reese |
 | FR-013 | Lesson player shows linked recipe in a side drawer (read-only reference; no timer-synced steps, voice prompts, or ingredient checkoff — hands-free step-by-step execution is owned by 008 Cooking Mode; this feature ends at video playback + lesson-level resources) | P12 Jamie |
-| FR-014 | Educators can publish/unpublish individual lessons without unpublishing the whole course | P13 Reese |
+| FR-014 | Educators can publish/unpublish individual lessons without unpublishing the whole course                                                                                                                                                                              | P13 Reese |
 
 ## Out of Scope (v1)
 
@@ -92,17 +92,16 @@ Canonical enumeration — crosswalked from `product-spec/product-spec.md` §Func
 - Certificates or badges
 - Mobile video playback offline download
 
-
 **Deferred requirement IDs.** These IDs are defined so that citations resolve; they are **explicitly
 out of scope for v1** and MUST NOT be planned or traced as deliverable requirements.
 
-| ID | Requirement | Notes |
-| ------ | ----------- | --------- |
-| FR-015 | Live class scheduling and streaming | Phase 2 |
-| FR-016 | Completion certificates or badges | Future |
-| FR-017 | Offline video download (mobile) | Future |
-| FR-018 | Community Q&A or lesson comments | Future |
-| FR-019 | À la carte individual lesson purchases | Evaluate post-launch |
+| ID     | Requirement                                                                                                    | Notes                     |
+| ------ | -------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| FR-015 | Live class scheduling and streaming                                                                            | Phase 2                   |
+| FR-016 | Completion certificates or badges                                                                              | Future                    |
+| FR-017 | Offline video download (mobile)                                                                                | Future                    |
+| FR-018 | Community Q&A or lesson comments                                                                               | Future                    |
+| FR-019 | À la carte individual lesson purchases                                                                         | Evaluate post-launch      |
 | FR-020 | Hands-free cook-along during video playback (timer-synced steps, voice prompts, in-player ingredient checkoff) | Owned by 008 Cooking Mode |
 
 ## API Surface

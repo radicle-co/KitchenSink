@@ -13,12 +13,12 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 
 ## Dependencies
 
-| Spec                                                            | Relationship                                                                                                          |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| [002-user-auth](../002-user-auth/spec.md)           | **Required** — `@handle` is tied to an authenticated identity; profile creation requires a verified account           |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — recipes are the primary content surface on a creator profile                                           |
-| [010-subscriptions](../010-subscriptions/spec.md)               | **Integration** — tip jars, premium recipe gates, and paid follows extend 010's billing model                         |
-| [011-recipe-digitization](../011-recipe-digitization/spec.md)   | **Peer** — `circle` is owned by 011; `public-profile` is owned here; the two audience scopes are siblings, not nested |
+| Spec                                                          | Relationship                                                                                                          |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| [002-user-auth](../002-user-auth/spec.md)                     | **Required** — `@handle` is tied to an authenticated identity; profile creation requires a verified account           |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)   | **Required** — recipes are the primary content surface on a creator profile                                           |
+| [010-subscriptions](../010-subscriptions/spec.md)             | **Integration** — tip jars, premium recipe gates, and paid follows extend 010's billing model                         |
+| [011-recipe-digitization](../011-recipe-digitization/spec.md) | **Peer** — `circle` is owned by 011; `public-profile` is owned here; the two audience scopes are siblings, not nested |
 
 ## Personas
 
@@ -34,7 +34,8 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 
 This file is the canonical feature boundary, audience-scope document, **and** the authoritative
 functional-requirement enumeration. The crosswalk from `product-spec/product-spec.md` is **complete**
-(2026-08-02): FR-001 … FR-030 below are the single authoritative representation, and `plan.md`,
+(2026-08-02): FR-001 … FR-030 below are the single authoritative representation — joined by
+FR-031 … FR-040 (monetization, **DRAFT**, blocked on an unspecified 010 capability). `plan.md`,
 `tasks.md`, and `v-model/` trace to these IDs.
 
 Previously this section carried six coarse capability groupings that reused `FR-001` … `FR-006` with
@@ -61,12 +62,9 @@ Six capabilities frame the feature. They are narrative groupings, **not** requir
   recipes (010 owns the paywall and revenue split), and paid follows (010 owns billing, 012 owns the
   follow-tier model).
 
-> **Open gap — monetization is not yet enumerated.** The crosswalk found no FR-level requirements for
-> the tip jar, premium recipes, or paid follows in `product-spec/product-spec.md`; FR-001 … FR-030
-> cover profile, discovery, attribution, follow, publishing, moderation, analytics, widget, and API
-> surface only. Monetization therefore has narrative scope but **no testable requirements**, and
-> 012-FR-‹new› IDs must be authored and ratified before the monetization work is planned. Tracked in
-> `review.md`.
+> **Monetization is now enumerated** as `FR-031` … `FR-040` below, **marked DRAFT**. Authoring them surfaced
+> a harder problem than the missing text: the payment capabilities they depend on are not specified in
+> feature 010 or anywhere else. See the blocking-dependency note at the end of the requirements.
 
 ## Functional Requirements
 
@@ -84,7 +82,6 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-005** Handle changes MUST be rate-limited to once per 30 days; the previous handle MUST be reserved for 14 days to prevent squatting.
 
-
 ### Public Profile URL & Discovery (FR-006 … FR-009)
 
 - **FR-006** Every active `CreatorProfile` MUST be accessible at `commise.com/@{handle}` (canonical URL) without authentication.
@@ -95,7 +92,6 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-009** Follower lists MUST NOT be publicly visible; only the aggregate `followerCount` is exposed.
 
-
 ### Recipe Attribution (FR-010 … FR-012)
 
 - **FR-010** Every public recipe owned by a creator MUST display a link back to the creator's `@handle` profile page.
@@ -103,7 +99,6 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 - **FR-011** If a recipe is imported or forked from another creator's recipe, the original creator's `@handle` MUST be shown as the attribution source.
 
 - **FR-012** Attribution links MUST survive recipe edits; the `attributedToCreatorId` field is immutable once set.
-
 
 ### Follow / Subscribe (FR-013 … FR-016)
 
@@ -115,7 +110,6 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-016** A creator MUST be able to view a count of their followers but MUST NOT access the identity of individual followers without their explicit consent.
 
-
 ### Content Publishing (FR-017 … FR-019)
 
 - **FR-017** A creator MUST be able to organise public recipes into named collections (max 20 collections per creator in v1; max 60-char name, max 200-char description).
@@ -123,7 +117,6 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 - **FR-018** Collections MUST support manual ordering of recipes; the order MUST be persisted and returned in API responses.
 
 - **FR-019** Only recipes with `visibility = public` (owned by 001) and authored by the creator MAY be added to a collection.
-
 
 ### Moderation (FR-020 … FR-022)
 
@@ -133,7 +126,6 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-022** DMCA takedown requests targeting a creator's recipe MUST be routable to the Compliance Reviewer role; the affected recipe MUST be unpublished within 24 hours of a valid notice.
 
-
 ### Analytics (FR-023 … FR-025)
 
 - **FR-023** A creator MUST be able to view aggregated analytics for their own profile: daily profile views, follower delta, top-performing recipes by view count, and collection click-through counts.
@@ -142,13 +134,11 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-025** Analytics snapshots MUST be computed by a scheduled Lambda (daily cron) and stored in `creator_analytics_snapshots`.
 
-
 ### Embed Widget (FR-026 … FR-027)
 
 - **FR-026** `GET /api/v1/creators/:handle/widget` MUST return a static HTML fragment (no JavaScript) rendering: avatar, display name, follower count, and the 3 most-recently-published public recipes.
 
 - **FR-027** The widget response MUST carry `Cache-Control: public, max-age=300` for CloudFront CDN caching; p95 latency on a cache hit MUST be < 50 ms.
-
 
 ### API Surface (FR-028 … FR-030)
 
@@ -157,6 +147,46 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 - **FR-029** The profile creation endpoint (`POST /api/v1/creators`) MUST validate handle format, check uniqueness, and return HTTP 409 on conflict.
 
 - **FR-030** All owner-scoped endpoints MUST require a valid Clerk session token; the `sub` claim MUST match the `userId` on the `CreatorProfile`.
+
+### Monetization — Tip Jar (FR-031 … FR-033) — **DRAFT**
+
+> **DRAFT — not ratified.** Authored 2026-08-02 to close the gap where monetization had narrative scope but
+> no testable requirements. **Blocked on a 010 capability that does not exist** — see the dependency note
+> below. Do not plan against these until both are resolved.
+
+- **FR-031** An active `CreatorProfile` MAY enable a tip jar. When enabled, the public profile page MUST render a tip control; when disabled, it MUST NOT render, and the tip endpoint MUST return HTTP 404 for that creator.
+- **FR-032** A tip MUST be a one-time payment in a fixed set of amounts plus a caller-specified custom amount, bounded by a configured minimum and maximum. A tip MUST NOT create a recurring charge.
+- **FR-033** A completed tip MUST be recorded against the recipient creator and MUST NOT expose the tipper's identity to the creator beyond a display name the tipper opted to share. Tip totals surface only in aggregate, consistent with `FR-024`.
+
+### Monetization — Premium Recipes (FR-034 … FR-036) — **DRAFT**
+
+- **FR-034** A creator MAY mark a recipe they authored as premium. A recipe that is imported or attributed to another creator MUST NOT be markable as premium (it must remain public per source TOS — see `004-FR-011`).
+- **FR-035** A viewer without entitlement to a premium recipe MUST see its title, cover image, and description, and MUST NOT receive its ingredients or instructions in any API response. Withholding MUST occur server-side; a client-side blur is not conformant.
+- **FR-036** Purchasing a premium recipe MUST grant the buyer perpetual access to that recipe, surviving the creator later unpublishing it, and MUST be idempotent per (buyer, recipe).
+
+### Monetization — Paid Follows (FR-037 … FR-039) — **DRAFT**
+
+- **FR-037** A creator MAY define at most one paid follow tier with a name, a monthly price, and a description. 012 owns the tier model; it does **not** own billing.
+- **FR-038** A paid follower MUST receive access to the creator's premium feed for as long as their tier subscription is active. On lapse, access MUST revert to the free follow relationship without deleting the follow edge.
+- **FR-039** A creator MUST NOT be able to retroactively paywall content a follower already had entitled access to.
+
+### Monetization — Earnings Surface (FR-040) — **DRAFT**
+
+- **FR-040** 012 MUST present a creator's earnings read-only (tips, premium-recipe sales, paid-follow revenue, aggregated by period). 012 MUST NOT compute revenue splits, hold balances, or initiate disbursement.
+
+> ### ⚠️ Blocking dependency — the 010 capability these assume does not exist
+>
+> FR-031 … FR-040 assume 010 provides one-time payments, per-item purchases, creator-defined subscription
+> tiers, revenue splitting, and payouts. **It provides none of these.** Feature 010's entire functional
+> scope is `010-FR-040` … `010-FR-043`: a free/premium **subscriber** tier on Stripe Checkout and the Stripe
+> Customer Portal, upgrade prompts, and downgrade retention. It has no tip, marketplace, per-item paywall,
+> creator-tier, or payout surface, and its Out-of-Scope section rules out even multi-seat family plans.
+>
+> Per [`cross-feature-FR-index.md`](../cross-feature-FR-index.md) Review Rule 3, this is recorded as a
+> **capability-level dependency** rather than resolved by inventing an FR ID in 010's namespace. Marketplace
+> payments must be specified in 010 (or in a dedicated payments feature) **before** these are ratified or
+> planned. **Feature 013 carries the identical unmet dependency** — `013-FR-010` specifies a 20%/80%
+> platform/educator revenue share "via 010".
 
 ## API Paths
 

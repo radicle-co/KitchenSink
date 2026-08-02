@@ -1,672 +1,471 @@
 # Integration Test Plan: Recipe Importing
 
 **Feature Branch**: `004-recipe-importing`
-**Created**: 2026-05-09
-**Status**: Draft
-**Source**: `specs/004-recipe-importing/v-model/architecture-design.md`
+**Regenerated**: 2026-08-02
+**Status**: Approved
+**Source**: `architecture-design.md` (ARCH-001..ARCH-034)
+**Level**: Integration verification — module-to-module, against **real** dependencies
+**Realisation**: `src/imports/__integration__/*.integration.test.ts`, run by `vitest.integration.config.ts`
+against Docker Postgres + LocalStack.
 
-## Overview
-
-This document defines the Integration Test Plan for Recipe Importing. Every architecture module
-in `architecture-design.md` has one or more Test Cases (ITP), and every Test Case has one or
-more executable Integration Scenarios (ITS) in module-boundary BDD format (Given/When/Then).
-
-Integration tests verify **seams and handshakes between modules**, not internal logic or user
-journeys. Language must be module-boundary-oriented.
+> **Regeneration note.** In the previous document set, Matrix C left **ARCH-005, ARCH-007, ARCH-008, ARCH-009,
+> ARCH-011, ARCH-012, and ARCH-018 with `❌ MISSING` integration coverage** — including the paywall enforcer
+> and the attribution/visibility gate. Every module below now has coverage.
 
 ## ID Schema
 
-- **Integration Test Case**: `ITP-{NNN}-{X}` — where NNN matches the parent ARCH, X is a letter suffix (A, B, C...)
-- **Integration Test Scenario**: `ITS-{NNN}-{X}{#}` — nested under the parent ITP, with numeric suffix (1, 2, 3...)
-- Example: `ITS-001-A1` → Scenario 1 of Test Case A verifying ARCH-001
+`ITP-{ARCH}-{letter}` — a procedure exercising a module against its real collaborators ·
+`ITS-{ARCH}-{letter}{n}` — a scenario within it.
 
-## ISO 29119-4 Integration Test Techniques
+## Principle
 
-Consumer-Driven Contract Testing (CDCT) is included for externally consumed module contracts; provider modules publish contracts and consumer modules validate expectations before integration deployment.
-
-Each test case MUST identify its technique by name and anchor to a specific architecture view:
-
-| Technique                                | Source View                   | What It Tests                                                 |
-| ---------------------------------------- | ----------------------------- | ------------------------------------------------------------- |
-| **Interface Contract Testing**           | Interface View                | Module API contracts, data format compliance, error responses |
-| **Data Flow Testing**                    | Data Flow View                | End-to-end data transformation chain validation               |
-| **Interface Fault Injection**            | Interface View + Process View | Malformed payloads, timeouts, graceful failure                |
-| **Concurrency & Race Condition Testing** | Process View                  | Simultaneous access, lock handling, queue ordering            |
-
-## Integration Tests
+Integration tests exercise the **real** dependency: real Postgres for persistence, LocalStack for S3/SQS, and a
+**local fixture HTTP server** for third-party sources. Only two things are faked, and only because the vendor
+cannot be reached from CI: `OcrProvider` (Textract) and `OEmbedProvider` (Meta). Each of those carries one
+contract test pinning the real response shape, so a vendor change surfaces as a failing contract rather than a
+production incident.
 
 ---
 
-### Module Verification: ARCH-001 (ImportOrchestrator)
+## ITP-001 — ImportsController ↔ ImportsService (ARCH-001, ARCH-002)
 
-**Parent System Components**: SYS-009
+#### Test Case: ITP-001-A (Valid POST /import/url with an idempotency key)
 
-#### Test Case: ITP-001-A (Orchestrator routes web import through the full pipeline and returns RecipeEntity)
+#### Test Case: ITP-001-B (Malformed URL body)
 
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-001 correctly sequences ARCH-009 → ARCH-003 → ARCH-010 → ARCH-011 → ARCH-013 and returns a `RecipeEntity` to ARCH-002 when all downstream modules respond successfully.
+#### Test Case: ITP-001-C (Domain error raised downstream)
 
-- **Integration Scenario: ITS-001-A1**
-    - **Given** ARCH-009 returns OK (URL not blocked), ARCH-003 returns a valid `RecipeImportPayload`, ARCH-010 returns `{ isDuplicate: false }`, ARCH-011 returns an `AttributedPayload`, and ARCH-013 returns a `RecipeEntity`
-    - **When** ARCH-002 sends `orchestrate({ url, userId, importType: 'web' })` to ARCH-001
-    - **Then** ARCH-001 returns a `RecipeEntity` to ARCH-002 with HTTP 201
+| ID         | Scenario                                         | Expected                                                     |
+| ---------- | ------------------------------------------------ | ------------------------------------------------------------ |
+| ITS-001-A1 | Valid `POST /import/url` with an idempotency key | `202`; a job row exists with the key                         |
+| ITS-001-A2 | Same key replayed                                | `202` with the **same** `jobId`; one job row                 |
+| ITS-001-A3 | Missing `Idempotency-Key`                        | `400`                                                        |
+| ITS-001-B1 | Malformed URL body                               | `400` from validation, before any service call               |
+| ITS-001-B2 | Body with unexpected extra keys                  | Stripped by `whitelist`, not persisted                       |
+| ITS-001-C1 | Domain error raised downstream                   | Mapped by the **shipped** filter to `{code,message,details}` |
 
-- **Integration Scenario: ITS-001-A2**
-    - **Given** ARCH-009 returns OK and ARCH-010 returns `{ isDuplicate: true, existing: RecipeEntity }`
-    - **When** ARCH-002 sends `orchestrate({ url, userId, importType: 'web' })` to ARCH-001
-    - **Then** ARCH-001 short-circuits the persistence pipeline and returns `DuplicateFoundResult { existing, cloneAvailable: true }` to ARCH-002 with HTTP 200
+## ITP-002 — ImportsService pipeline ordering (ARCH-002)
 
-#### Test Case: ITP-001-B (Orchestrator propagates domain errors from downstream modules to ARCH-017)
+#### Test Case: ITP-002-A (Full pipeline with instrumented collaborators)
 
-**Technique**: Interface Fault Injection
-**Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-001 catches errors thrown by any downstream module and delegates normalisation to ARCH-017 before returning a structured `ImportErrorResponse` to ARCH-002.
+#### Test Case: ITP-002-B (Blocklist lookup throws [store down])
 
-- **Integration Scenario: ITS-001-B1**
-    - **Given** ARCH-009 throws `PaywallBlockedError` for the given URL
-    - **When** ARCH-002 sends `orchestrate({ url, userId, importType: 'web' })` to ARCH-001
-    - **Then** ARCH-001 sends the `PaywallBlockedError` to ARCH-017 and returns the resulting `ImportErrorResponse { status: 422 }` to ARCH-002 without invoking ARCH-003
+| ID         | Scenario                                      | Expected                                                                                            |
+| ---------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| ITS-002-A1 | Full pipeline with instrumented collaborators | Call order is exactly blocklist → fetch → extract → normalize → classify → dedupe → draft (HAZ-026) |
+| ITS-002-A2 | Blocklist raises                              | Fetch is **never** invoked                                                                          |
+| ITS-002-B1 | Blocklist lookup throws (store down)          | Import aborts — fails closed (HAZ-044)                                                              |
+| ITS-002-B2 | Classification throws                         | No draft persisted; nothing defaults to public (HAZ-043)                                            |
 
-- **Integration Scenario: ITS-001-B2**
-    - **Given** ARCH-003 throws `UrlUnreachableError` after a network timeout
-    - **When** ARCH-002 sends `orchestrate({ url, userId, importType: 'web' })` to ARCH-001
-    - **Then** ARCH-001 sends the `UrlUnreachableError` to ARCH-017 and returns `ImportErrorResponse { status: 422 }` to ARCH-002
+## ITP-003 — SourceFetcher ↔ SsrfGuard ↔ Blocklist (ARCH-005, ARCH-006, ARCH-023) ⚠️
 
-#### Test Case: ITP-001-C (Orchestrator routes Instagram import through ARCH-006 and enforces public visibility)
+#### Test Case: ITP-003-A (Fixture server serves a normal page)
 
-**Technique**: Data Flow Testing
-**Target View**: Data Flow View
-**Description**: Verifies that ARCH-001 routes `importType: 'instagram'` to ARCH-006 (not ARCH-003) and that the resulting `AttributedPayload` carries `visibility: 'public'` and `attribution.platform: 'instagram'` before reaching ARCH-013.
+#### Test Case: ITP-003-B (Fixture host resolves to a private address)
 
-- **Integration Scenario: ITS-001-C1**
-    - **Given** ARCH-006 returns a valid `RecipeImportPayload` with `platform: 'instagram'`
-    - **When** ARCH-002 sends `orchestrate({ postUrl, userId, importType: 'instagram' })` to ARCH-001
-    - **Then** ARCH-001 passes the payload to ARCH-011, which returns `AttributedPayload { visibility: 'public', attribution.platform: 'instagram' }`, and ARCH-001 forwards it to ARCH-013
+#### Test Case: ITP-003-C (Fixture streams 50 MB)
+
+#### Test Case: ITP-003-D (Blocked domain consulted from the real table)
+
+#### Test Case: ITP-003-E (Repeated failures from one domain)
+
+| ID         | Scenario                                                       | Expected                                                     |
+| ---------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
+| ITS-003-A1 | Fixture server serves a normal page                            | Body returned within budget                                  |
+| ITS-003-B1 | Fixture host resolves to a private address                     | Refused; fixture server records no connection                |
+| ITS-003-B2 | Fixture 302s to `http://169.254.169.254/`                      | Refused at the hop (REQ-018)                                 |
+| ITS-003-B3 | DNS returns a public address, then a private one on re-resolve | Pinned connection prevents rebinding                         |
+| ITS-003-C1 | Fixture streams 50 MB                                          | Aborted past 5 MB; process memory does not grow with payload |
+| ITS-003-C2 | Fixture stalls after headers                                   | Aborted at the total deadline                                |
+| ITS-003-D1 | Blocked domain consulted from the real table                   | Refused pre-fetch                                            |
+| ITS-003-D2 | Redirect target added to the blocklist mid-chain               | Refused at that hop                                          |
+| ITS-003-E1 | Repeated failures from one domain                              | Breaker opens; other domains unaffected (bulkhead)           |
+
+## ITP-004 — Extractor chain over the corpus (ARCH-007..ARCH-011)
+
+#### Test Case: ITP-004-A (Each corpus stratum through the real chain)
+
+#### Test Case: ITP-004-B (Adversarial stratum)
+
+#### Test Case: ITP-004-C (Chain with the JSON-LD strategy removed)
+
+| ID         | Scenario                                   | Expected                                                                |
+| ---------- | ------------------------------------------ | ----------------------------------------------------------------------- |
+| ITS-004-A1 | Each corpus stratum through the real chain | Expected strategy hits per stratum                                      |
+| ITS-004-A2 | Whole corpus                               | Field accuracy ≥ 85% (SC-002 gate)                                      |
+| ITS-004-A3 | Well-formed JSON-LD stratum                | ≥ 95% yield a draft missing at most `servings` (SC-003)                 |
+| ITS-004-B1 | Adversarial stratum                        | No throw escapes the chain; each returns null or a valid payload        |
+| ITS-004-C1 | Chain with the JSON-LD strategy removed    | Microdata strategy takes over — proves ordering is data, not hardcoding |
+
+## ITP-005 — Normalizer ↔ parsers ↔ sanitizer (ARCH-018..ARCH-021)
+
+#### Test Case: ITP-005-A (Extracted payload with mixed ingredient lines)
+
+#### Test Case: ITP-005-B (Payload with markup in every text field)
+
+| ID         | Scenario                                      | Expected                                                    |
+| ---------- | --------------------------------------------- | ----------------------------------------------------------- |
+| ITS-005-A1 | Extracted payload with mixed ingredient lines | Structured where possible; `raw` retained on every line     |
+| ITS-005-A2 | Payload missing times and servings            | `missingRequired` lists them; no value fabricated (HAZ-040) |
+| ITS-005-B1 | Payload with markup in every text field       | All fields inert after normalization (HAZ-029)              |
+| ITS-005-B2 | A channel bypassing MOD-018 (simulated)       | Fails a guard test — proves sanitization cannot be skipped  |
+
+## ITP-006 — Provenance ↔ shipped visibility policy (ARCH-022 + 001)
+
+#### Test Case: ITP-006-A (Each channel classified, then a real recipe created)
+
+#### Test Case: ITP-006-B (imported_paid recipe, premium owner attempts public)
+
+#### Test Case: ITP-006-C (Grep/inspection assertion)
+
+| ID         | Scenario                                                          | Expected                                                      |
+| ---------- | ----------------------------------------------------------------- | ------------------------------------------------------------- |
+| ITS-006-A1 | Each channel classified, then a real recipe created               | `source_type` persisted per REQ-014                           |
+| ITS-006-B1 | `imported_paid` recipe, premium owner attempts public             | Refused by the **shipped** `evaluateVisibility`               |
+| ITS-006-B2 | `imported_public` recipe cloned + substantively edited by premium | Private permitted — the shipped C-004 path, unmodified        |
+| ITS-006-C1 | Grep/inspection assertion                                         | 004 contains no second visibility implementation (REQ-CN-007) |
+
+## ITP-007 — CanonicalSourceUrl ↔ dedup ↔ unique index (ARCH-024, SYS-009)
+
+#### Test Case: ITP-007-A (Equivalent URL variants inserted)
+
+#### Test Case: ITP-007-B (Two concurrent inserts of one canonical URL [real Postgres])
+
+#### Test Case: ITP-007-C (Insert with source_url_canonical = NULL [file/OCR])
+
+| ID         | Scenario                                                    | Expected                                                                     |
+| ---------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| ITS-007-A1 | Equivalent URL variants inserted                            | Second resolves to the first                                                 |
+| ITS-007-B1 | Two concurrent inserts of one canonical URL (real Postgres) | Exactly one succeeds; the other catches the violation and resolves (HAZ-018) |
+| ITS-007-B2 | Insert after the first row is soft-deleted                  | Succeeds — partial index excludes tombstones (REQ-CN-002)                    |
+| ITS-007-C1 | Insert with `source_url_canonical = NULL` (file/OCR)        | Many permitted — the index is partial on NOT NULL                            |
+
+## ITP-008 — Draft lifecycle against real Postgres (ARCH-025)
+
+#### Test Case: ITP-008-A (Create → patch → confirm)
+
+#### Test Case: ITP-008-B (Read another owner's draft)
+
+#### Test Case: ITP-008-C (Expiry sweep with an OCR draft)
+
+| ID         | Scenario                       | Expected                                                    |
+| ---------- | ------------------------------ | ----------------------------------------------------------- |
+| ITS-008-A1 | Create → patch → confirm       | Row transitions; `missingRequired` recomputed on patch      |
+| ITS-008-A2 | Two concurrent confirms        | One recipe only (conditional update wins)                   |
+| ITS-008-B1 | Read another owner's draft     | `404` (HAZ-046)                                             |
+| ITS-008-C1 | Expiry sweep with an OCR draft | Row deleted **and** the LocalStack S3 object gone (REQ-026) |
+| ITS-008-C2 | Sweep run twice                | Idempotent                                                  |
+
+## ITP-009 — Jobs, worker, queue (ARCH-003, ARCH-004)
+
+#### Test Case: ITP-009-A (Enqueue → worker consumes → succeeds)
+
+#### Test Case: ITP-009-B (Two workers race for one job)
+
+#### Test Case: ITP-009-C (Handler throws repeatedly)
+
+| ID         | Scenario                             | Expected                                       |
+| ---------- | ------------------------------------ | ---------------------------------------------- |
+| ITS-009-A1 | Enqueue → worker consumes → succeeds | Job terminal with `draftId`                    |
+| ITS-009-A2 | Message redelivered (at-least-once)  | Exactly one draft (idempotent handler)         |
+| ITS-009-B1 | Two workers race for one job         | Only one claims it (conditional status update) |
+| ITS-009-C1 | Handler throws repeatedly            | Retries to the cap, then DLQ                   |
+| ITS-009-C2 | Typed domain failure                 | **Not** retried; recorded with its code        |
+
+## ITP-010 — Confirmation ↔ shipped recipe write path ↔ food client (ARCH-026)
+
+#### Test Case: ITP-010-A (Complete draft confirmed)
+
+#### Test Case: ITP-010-B (Incomplete draft confirmed)
+
+#### Test Case: ITP-010-C (Food service unreachable)
+
+| ID         | Scenario                               | Expected                                                            |
+| ---------- | -------------------------------------- | ------------------------------------------------------------------- |
+| ITS-010-A1 | Complete draft confirmed               | Recipe row created with attribution and `source_type` intact        |
+| ITS-010-A2 | Recipe steps and ingredients persisted | Ordered steps; quantities satisfying `CHECK (quantity > 0)`         |
+| ITS-010-B1 | Incomplete draft confirmed             | `422`; **no** partial recipe row (HAZ-024)                          |
+| ITS-010-C1 | Food service unreachable               | Confirmation succeeds; ingredients `PENDING`/`UNRESOLVED` (HAZ-050) |
+| ITS-010-C2 | Food service returns results later     | Status transitions to `RESOLVED` via the shipped lifecycle          |
+
+## ITP-011 — OCR pipeline against LocalStack (ARCH-014..ARCH-016)
+
+#### Test Case: ITP-011-A (Upload → store → fake provider → draft)
+
+#### Test Case: ITP-011-B (Confirm / discard / expire)
+
+#### Test Case: ITP-011-C (Provider timeout)
+
+#### Test Case: ITP-011-D (Contract test against the pinned Textract shape)
+
+| ID         | Scenario                                        | Expected                                                   |
+| ---------- | ----------------------------------------------- | ---------------------------------------------------------- |
+| ITS-011-A1 | Upload → store → fake provider → draft          | Object exists during the draft's life; draft references it |
+| ITS-011-B1 | Confirm / discard / expire                      | Object deleted on each path (HAZ-035)                      |
+| ITS-011-C1 | Provider timeout                                | `503`; object still cleaned up                             |
+| ITS-011-D1 | Contract test against the pinned Textract shape | Adapter parses it; a shape change fails here               |
+
+## ITP-012 — Instagram adapter (ARCH-012, ARCH-013)
+
+#### Test Case: ITP-012-A (Fake provider returns a recipe caption)
+
+#### Test Case: ITP-012-B (Fake returns 429)
+
+#### Test Case: ITP-012-C (Contract test against the pinned oEmbed shape)
+
+#### Test Case: ITP-012-D (Flag off)
+
+| ID         | Scenario                                      | Expected                                        |
+| ---------- | --------------------------------------------- | ----------------------------------------------- |
+| ITS-012-A1 | Fake provider returns a recipe caption        | Draft produced                                  |
+| ITS-012-A2 | Fake returns no caption                       | `IMPORT_NO_CAPTION`                             |
+| ITS-012-B1 | Fake returns 429                              | Throttled classification (HAZ-010)              |
+| ITS-012-B2 | Fake returns an unexpected shape              | `IMPORT_PROVIDER_UNAVAILABLE`; no partial draft |
+| ITS-012-C1 | Contract test against the pinned oEmbed shape | Adapter parses it                               |
+| ITS-012-D1 | Flag off                                      | Endpoints `404`; channel absent from `/sources` |
+
+## ITP-013 — File parsers (ARCH-017)
+
+#### Test Case: ITP-013-A (Each supported format end-to-end to a draft)
+
+#### Test Case: ITP-013-B (Magic bytes contradict the filename)
+
+| ID         | Scenario                                    | Expected           |
+| ---------- | ------------------------------------------- | ------------------ |
+| ITS-013-A1 | Each supported format end-to-end to a draft | Draft produced     |
+| ITS-013-B1 | Magic bytes contradict the filename         | `415` (HAZ-037)    |
+| ITS-013-B2 | Oversize file                               | `413` before parse |
+
+## ITP-014 — Blocklist admin surface (ARCH-023)
+
+#### Test Case: ITP-014-A (Admin CRUD against real Postgres)
+
+#### Test Case: ITP-014-B (Non-admin principal)
+
+#### Test Case: ITP-014-C (Entry added, then an import attempted)
+
+| ID         | Scenario                              | Expected                                          |
+| ---------- | ------------------------------------- | ------------------------------------------------- |
+| ITS-014-A1 | Admin CRUD against real Postgres      | Rows written with `added_by`, `reason`, timestamp |
+| ITS-014-A2 | Duplicate domain added                | Rejected by the primary key                       |
+| ITS-014-B1 | Non-admin principal                   | `403`                                             |
+| ITS-014-C1 | Entry added, then an import attempted | Blocked within the cache TTL bound                |
+
+## ITP-015 — Error codes ↔ shipped filter (ARCH-033)
+
+#### Test Case: ITP-015-A (Each import code raised)
+
+#### Test Case: ITP-015-B (Typed client receives each code)
+
+| ID         | Scenario                        | Expected                                                  |
+| ---------- | ------------------------------- | --------------------------------------------------------- |
+| ITS-015-A1 | Each import code raised         | Documented HTTP status and `{code,message,details}` shape |
+| ITS-015-A2 | Unmapped code                   | Falls through to `500` without leaking internals          |
+| ITS-015-B1 | Typed client receives each code | Discriminable via its `is*` guard                         |
+
+## ITP-016 — Typed client ↔ service (ARCH-032 + client package)
+
+#### Test Case: ITP-016-A (Client drives a full import via HTTP)
+
+#### Test Case: ITP-016-B (Service returns each error code)
+
+#### Test Case: ITP-016-C (Contract round-trip against the OpenAPI document)
+
+| ID         | Scenario                                         | Expected                                 |
+| ---------- | ------------------------------------------------ | ---------------------------------------- |
+| ITS-016-A1 | Client drives a full import via HTTP             | Job → draft → confirm succeeds           |
+| ITS-016-A2 | Client polls a job                               | Bounded backoff; stops at terminal state |
+| ITS-016-B1 | Service returns each error code                  | Client surfaces the matching typed error |
+| ITS-016-C1 | Contract round-trip against the OpenAPI document | Documented shapes match actual responses |
 
 ---
 
-### Module Verification: ARCH-002 (ImportController)
+## ARCH → ITP Coverage
 
-**Parent System Components**: SYS-009
+| ARCH         | ITP              | ARCH         | ITP                       |
+| ------------ | ---------------- | ------------ | ------------------------- |
+| ARCH-001     | ITP-001          | ARCH-018–021 | ITP-005                   |
+| ARCH-002     | ITP-001, ITP-002 | ARCH-022     | ITP-006                   |
+| ARCH-003–004 | ITP-009          | ARCH-023     | ITP-003, ITP-014          |
+| ARCH-005–006 | ITP-003          | ARCH-024     | ITP-007                   |
+| ARCH-007–011 | ITP-004          | ARCH-025     | ITP-008                   |
+| ARCH-012–013 | ITP-012          | ARCH-026     | ITP-010                   |
+| ARCH-014–016 | ITP-011          | ARCH-027–032 | ITP-016 + component tests |
+| ARCH-017     | ITP-013          | ARCH-033–034 | ITP-015                   |
 
-#### Test Case: ITP-002-A (Controller validates DTO and delegates to ARCH-001; maps domain errors to HTTP codes)
+## Summary
 
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-002 rejects malformed DTOs before reaching ARCH-001, and correctly maps `ImportErrorResponse` objects from ARCH-001 to HTTP status codes.
-
-- **Integration Scenario: ITS-002-A1**
-    - **Given** ARCH-014 has authenticated the request and ARCH-001 is available
-    - **When** ARCH-002 receives `POST /import/url` with a missing `url` field
-    - **Then** ARCH-002 rejects the request with HTTP 400 `ValidationError` without invoking ARCH-001
-
-- **Integration Scenario: ITS-002-A2**
-    - **Given** ARCH-001 returns `ImportErrorResponse { status: 422, message: "Paywall blocked" }`
-    - **When** ARCH-002 receives the response from ARCH-001
-    - **Then** ARCH-002 sends HTTP 422 with the `ImportErrorResponse` body to the client
-
-#### Test Case: ITP-002-B (Controller rejects unauthenticated requests via ARCH-014 before reaching ARCH-001)
-
-**Technique**: Interface Fault Injection
-**Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-014's guard prevents ARCH-002 from invoking ARCH-001 when the JWT is missing or invalid.
-
-- **Integration Scenario: ITS-002-B1**
-    - **Given** the incoming request carries no `Authorization` header
-    - **When** ARCH-014 evaluates the guard for `POST /import/url`
-    - **Then** ARCH-014 returns HTTP 401 to the client and ARCH-002 does not invoke ARCH-001
+| Metric                                 | Count                                                         |
+| -------------------------------------- | ------------------------------------------------------------- |
+| Integration procedures (ITP)           | 16                                                            |
+| Integration scenarios (ITS)            | 75                                                            |
+| ARCH modules with integration coverage | 34 / 34                                                       |
+| Modules with `❌ MISSING` coverage     | 0                                                             |
+| Faked dependencies                     | 2 (Textract, Meta oEmbed) — each with a pinning contract test |
 
 ---
 
-### Module Verification: ARCH-003 (WebUrlExtractorService)
+## Per-module integration procedures (Matrix C completion)
 
-**Parent System Components**: SYS-001
+> One procedure per architecture module that had no individually-addressable entry above. Each exercises the
+> module against its **real** collaborators, per this plan's principle.
 
-#### Test Case: ITP-003-A (WebUrlExtractorService passes HTML to ARCH-004 and falls back to ARCH-005 on null result)
+#### Test Case: ITP-017-A (magic-byte typing then format parse)
 
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies the handshake between ARCH-003 and its two parser dependencies: ARCH-004 is invoked first; when it returns `null`, ARCH-003 invokes ARCH-005 and returns its partial `RecipeImportPayload`.
+**Linked Architecture Module:** ARCH-017 (FileParserService)
 
-- **Integration Scenario: ITS-003-A1**
-    - **Given** ARCH-004 returns a valid `RecipeImportPayload` for the fetched HTML
-    - **When** ARCH-001 sends `extractFromUrl(url)` to ARCH-003
-    - **Then** ARCH-003 returns the `RecipeImportPayload` from ARCH-004 to ARCH-001 without invoking ARCH-005
+| ID         | Scenario                                                   | Expected                                                                |
+| ---------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| ITS-017-A1 | a ZIP renamed .json and a valid YAML file → each is parsed | the ZIP is rejected by content inspection and the YAML yields a payload |
 
-- **Integration Scenario: ITS-003-A2**
-    - **Given** ARCH-004 returns `null` for the fetched HTML
-    - **When** ARCH-001 sends `extractFromUrl(url)` to ARCH-003
-    - **Then** ARCH-003 invokes ARCH-005 and returns the partial `RecipeImportPayload` (with confidence score) from ARCH-005 to ARCH-001
+#### Test Case: ITP-018-A (normalization across every channel)
 
-#### Test Case: ITP-003-B (WebUrlExtractorService throws UrlUnreachableError to ARCH-001 on HTTP failure)
+**Linked Architecture Module:** ARCH-018 (NormalizerService)
 
-**Technique**: Interface Fault Injection
-**Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-003 propagates `UrlUnreachableError` to ARCH-001 when the target URL returns a 4xx/5xx response or times out.
+| ID         | Scenario                                                     | Expected                                                                       |
+| ---------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| ITS-018-A1 | an extracted payload with gaps and markup → it is normalized | fields are sanitized, gaps listed in missingRequired, and nothing is defaulted |
 
-- **Integration Scenario: ITS-003-B1**
-    - **Given** the target URL returns HTTP 404
-    - **When** ARCH-001 sends `extractFromUrl(url)` to ARCH-003
-    - **Then** ARCH-003 throws `UrlUnreachableError` to ARCH-001 without invoking ARCH-004 or ARCH-005
+#### Test Case: ITP-019-A (line parsing against the real parser library)
 
-- **Integration Scenario: ITS-003-B2**
-    - **Given** the target URL connection times out after 10 seconds
-    - **When** ARCH-001 sends `extractFromUrl(url)` to ARCH-003
-    - **Then** ARCH-003 throws `UrlUnreachableError` to ARCH-001
+**Linked Architecture Module:** ARCH-019 (IngredientLineParser)
 
----
+| ID         | Scenario                               | Expected                                                                     |
+| ---------- | -------------------------------------- | ---------------------------------------------------------------------------- |
+| ITS-019-A1 | a mixed ingredient list → it is parsed | structured values are produced where possible and every raw line is retained |
 
-### Module Verification: ARCH-004 (SchemaOrgParser)
+#### Test Case: ITP-020-A (duration and yield conversion)
 
-**Parent System Components**: SYS-001
+**Linked Architecture Module:** ARCH-020 (ValueNormalizers)
 
-#### Test Case: ITP-004-A (SchemaOrgParser returns RecipeImportPayload or null to ARCH-003 based on HTML content)
+| ID         | Scenario                                                 | Expected                                                                         |
+| ---------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| ITS-020-A1 | ISO durations and free-text yields → they are normalized | durations become integer minutes and ambiguous yields are flagged, not defaulted |
 
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies the boundary contract between ARCH-003 and ARCH-004: valid schema.org HTML yields a typed `RecipeImportPayload`; HTML without schema.org markup yields `null`.
+#### Test Case: ITP-021-A (sanitization on the persistence path)
 
-- **Integration Scenario: ITS-004-A1**
-    - **Given** ARCH-003 passes HTML containing a valid `application/ld+json` `Recipe` object
-    - **When** ARCH-003 invokes `parse(html)` on ARCH-004
-    - **Then** ARCH-004 returns a `RecipeImportPayload` with populated `title`, `ingredients[]`, `instructions[]`, and `sourceUrl` to ARCH-003
+**Linked Architecture Module:** ARCH-021 (ContentSanitizer)
 
-- **Integration Scenario: ITS-004-A2**
-    - **Given** ARCH-003 passes HTML with no `application/ld+json` markup
-    - **When** ARCH-003 invokes `parse(html)` on ARCH-004
-    - **Then** ARCH-004 returns `null` to ARCH-003, signalling fallback to ARCH-005
+| ID         | Scenario                                                                        | Expected                               |
+| ---------- | ------------------------------------------------------------------------------- | -------------------------------------- |
+| ITS-021-A1 | fields containing script and handler markup → they are normalized and persisted | the stored values are inert plain text |
 
----
+#### Test Case: ITP-022-A (classification feeding the shipped visibility policy)
 
-### Module Verification: ARCH-005 (HeuristicRecipeParser)
+**Linked Architecture Module:** ARCH-022 (ProvenancePolicy)
 
-**Parent System Components**: SYS-001
+| ID         | Scenario                                                       | Expected                                                                |
+| ---------- | -------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| ITS-022-A1 | each channel and attestation combination → a recipe is created | the persisted source type matches the policy table for that combination |
 
-#### Test Case: ITP-005-A (HeuristicRecipeParser returns partial RecipeImportPayload with confidence score to ARCH-003)
+#### Test Case: ITP-023-A (blocklist against the real table)
 
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies the boundary contract between ARCH-003 and ARCH-005: heuristic parsing of recipe-blog HTML yields a partial `RecipeImportPayload` including a `confidenceScore` field.
+**Linked Architecture Module:** ARCH-023 (PaywalledDomainsService)
 
-- **Integration Scenario: ITS-005-A1**
-    - **Given** ARCH-003 passes HTML from a common recipe blog layout (no schema.org markup)
-    - **When** ARCH-003 invokes ARCH-005 after ARCH-004 returns `null`
-    - **Then** ARCH-005 returns a `RecipeImportPayload` with at minimum `title` and `confidenceScore` populated to ARCH-003
+| ID         | Scenario                                                          | Expected                                                                         |
+| ---------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| ITS-023-A1 | a blocked domain, a look-alike, and a subdomain → each is checked | the blocked domain and its subdomain are refused and the look-alike is permitted |
 
-#### Test Case: ITP-005-B (HeuristicRecipeParser data flows correctly into the attribution pipeline)
+#### Test Case: ITP-024-A (canonicalization feeding the unique index)
 
-**Technique**: Data Flow Testing
-**Target View**: Data Flow View
-**Description**: Verifies that the partial `RecipeImportPayload` produced by ARCH-005 passes through ARCH-011 and ARCH-013 without data loss or type mismatch.
+**Linked Architecture Module:** ARCH-024 (CanonicalSourceUrl)
 
-- **Integration Scenario: ITS-005-B1**
-    - **Given** ARCH-005 returns a partial `RecipeImportPayload { title, ingredients: [], confidenceScore: 0.6 }`
-    - **When** ARCH-001 passes the payload to ARCH-011
-    - **Then** ARCH-011 returns an `AttributedPayload` that preserves all fields from the partial payload and adds `visibility: 'public'` and `attribution` metadata
+| ID         | Scenario                                   | Expected                                    |
+| ---------- | ------------------------------------------ | ------------------------------------------- |
+| ITS-024-A1 | equivalent URL variants → each is imported | all variants resolve to a single recipe row |
 
----
+#### Test Case: ITP-025-A (draft lifecycle against real Postgres)
 
-### Module Verification: ARCH-006 (InstagramOEmbedAdapter)
+**Linked Architecture Module:** ARCH-025 (ImportDraftsService)
 
-**Parent System Components**: SYS-002
+| ID         | Scenario                                                                         | Expected                                                                                |
+| ---------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| ITS-025-A1 | a draft created, patched, confirmed, and one left to expire → the lifecycle runs | transitions persist correctly and the expiry sweep removes the due draft and its object |
 
-#### Test Case: ITP-006-A (InstagramOEmbedAdapter returns RecipeImportPayload to ARCH-001 on valid caption)
+#### Test Case: ITP-026-A (confirmation through the shipped write path)
 
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-006 returns a correctly shaped `RecipeImportPayload` to ARCH-001 when the oEmbed API responds with a caption containing recipe text.
+**Linked Architecture Module:** ARCH-026 (DraftConfirmationService)
 
-- **Integration Scenario: ITS-006-A1**
-    - **Given** the Instagram oEmbed API returns a response with a non-empty caption containing recipe text
-    - **When** ARCH-001 sends `extractFromInstagram(postUrl)` to ARCH-006
-    - **Then** ARCH-006 returns `RecipeImportPayload { sourceUrl: postUrl, platform: 'instagram', title?, ingredients?, instructions? }` to ARCH-001
+| ID         | Scenario                                               | Expected                                                                                                        |
+| ---------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| ITS-026-A1 | a complete and an incomplete draft → each is confirmed | the complete one creates a recipe with attribution intact and the incomplete one is refused with no partial row |
 
-#### Test Case: ITP-006-B (InstagramOEmbedAdapter throws NoCaptionError to ARCH-001 for video-only posts)
+#### Test Case: ITP-027-A (entry surface against the typed client)
 
-**Technique**: Interface Fault Injection
-**Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-006 throws `NoCaptionError` to ARCH-001 when the oEmbed response indicates a video-only or image-only post with no recipe text.
+**Linked Architecture Module:** ARCH-027 (ImportEntry)
 
-- **Integration Scenario: ITS-006-B1**
-    - **Given** the Instagram oEmbed API returns a response with an empty or video-only caption
-    - **When** ARCH-001 sends `extractFromInstagram(postUrl)` to ARCH-006
-    - **Then** ARCH-006 throws `NoCaptionError` to ARCH-001
+| ID         | Scenario                                           | Expected                                                             |
+| ---------- | -------------------------------------------------- | -------------------------------------------------------------------- |
+| ITS-027-A1 | a server-driven channel list → the surface renders | only enabled channels are offered and submission reaches the service |
 
-- **Integration Scenario: ITS-006-B2**
-    - **Given** the Instagram oEmbed API returns HTTP 500
-    - **When** ARCH-001 sends `extractFromInstagram(postUrl)` to ARCH-006
-    - **Then** ARCH-006 throws `OEmbedApiError` to ARCH-001
+#### Test Case: ITP-028-A (progress against real job transitions)
 
----
+**Linked Architecture Module:** ARCH-028 (ImportProgress)
 
-### Module Verification: ARCH-007 (OcrPipelineService)
+| ID         | Scenario                                                | Expected                                                 |
+| ---------- | ------------------------------------------------------- | -------------------------------------------------------- |
+| ITS-028-A1 | a job moving through its states → progress is displayed | each state renders and polling stops at a terminal state |
 
-**Parent System Components**: SYS-003
+#### Test Case: ITP-029-A (review surface against a real draft)
 
-#### Test Case: ITP-007-A (OcrPipelineService returns OcrDraftPayload to ARCH-002 after successful OCR provider polling)
+**Linked Architecture Module:** ARCH-029 (ImportDraftReview)
 
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-007 submits the image buffer to the OCR provider, polls for completion, and returns a typed `OcrDraftPayload` to ARCH-002.
+| ID         | Scenario                                                                              | Expected                                                    |
+| ---------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| ITS-029-A1 | a draft with missing fields and an unparsed ingredient → it is reviewed and corrected | corrections persist and confirmation unblocks once complete |
 
-- **Integration Scenario: ITS-007-A1**
-    - **Given** the OCR provider accepts the image buffer and returns extracted text after one polling cycle
-    - **When** ARCH-002 sends `extractFromPhoto(imageBuffer)` to ARCH-007
-    - **Then** ARCH-007 returns `OcrDraftPayload { rawText, confidence }` to ARCH-002
+#### Test Case: ITP-030-A (attribution against a persisted recipe)
 
-#### Test Case: ITP-007-B (OcrPipelineService throws OcrServiceError to ARCH-002 on provider timeout)
+**Linked Architecture Module:** ARCH-030 (RecipeAttribution)
 
-**Technique**: Interface Fault Injection
-**Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-007 throws `OcrServiceError` to ARCH-002 when the OCR provider exceeds the configurable max-wait timeout.
+| ID         | Scenario                                                         | Expected                                         |
+| ---------- | ---------------------------------------------------------------- | ------------------------------------------------ |
+| ITS-030-A1 | an imported and a user-created recipe → each detail view renders | attribution appears only for the imported recipe |
 
-- **Integration Scenario: ITS-007-B1**
-    - **Given** the OCR provider does not respond within the configured max-wait timeout
-    - **When** ARCH-002 sends `extractFromPhoto(imageBuffer)` to ARCH-007
-    - **Then** ARCH-007 throws `OcrServiceError` to ARCH-002 after exhausting exponential backoff retries
+#### Test Case: ITP-031-A (error rendering against real service codes)
 
----
+**Linked Architecture Module:** ARCH-031 (ImportErrorState)
 
-### Module Verification: ARCH-008 (OcrReviewController)
+| ID         | Scenario                                                        | Expected                                                       |
+| ---------- | --------------------------------------------------------------- | -------------------------------------------------------------- |
+| ITS-031-A1 | each import error code returned by the service → it is surfaced | each code renders its own distinct message and recovery action |
 
-**Parent System Components**: SYS-003
+#### Test Case: ITP-032-A (hooks against the live service)
 
-#### Test Case: ITP-008-A (OcrReviewController validates corrected OcrDraftPayload and delegates to ARCH-001)
+**Linked Architecture Module:** ARCH-032 (Import hooks)
 
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-008 validates the corrected `OcrDraftPayload` from the client and passes it to ARCH-001 with `importType: 'physical'`.
+| ID         | Scenario                                                      | Expected                                                                            |
+| ---------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| ITS-032-A1 | an import driven end to end through the hooks → the flow runs | job polling, draft fetch, and confirmation all succeed and abort cleanly on unmount |
 
-- **Integration Scenario: ITS-008-A1**
-    - **Given** ARCH-014 has authenticated the request and ARCH-001 is available
-    - **When** ARCH-008 receives `POST /import/photo/save` with a valid corrected `OcrDraftPayload`
-    - **Then** ARCH-008 sends `orchestrate(correctedPayload, importType: 'physical')` to ARCH-001 and returns the resulting `RecipeEntity` with HTTP 201
+#### Test Case: ITP-033-A (code to status mapping via the shipped filter)
 
-- **Integration Scenario: ITS-008-A2**
-    - **Given** the corrected `OcrDraftPayload` fails `class-validator` validation (e.g., missing `rawText`)
-    - **When** ARCH-008 receives `POST /import/photo/save`
-    - **Then** ARCH-008 returns HTTP 400 `ValidationError` without invoking ARCH-001
+**Linked Architecture Module:** ARCH-033 (ImportErrorCodes)
 
----
+| ID         | Scenario                              | Expected                                                   |
+| ---------- | ------------------------------------- | ---------------------------------------------------------- |
+| ITS-033-A1 | each import error code → it is raised | the documented HTTP status and error envelope are returned |
 
-### Module Verification: ARCH-009 (PaywallBlocklistService)
+#### Test Case: ITP-034-A (shared types across service and client)
 
-**Parent System Components**: SYS-006
+**Linked Architecture Module:** ARCH-034 (ImportContracts)
 
-#### Test Case: ITP-009-A (PaywallBlocklistService throws PaywallBlockedError to ARCH-001 for blocked domains)
+| ID         | Scenario                                                             | Expected                                              |
+| ---------- | -------------------------------------------------------------------- | ----------------------------------------------------- |
+| ITS-034-A1 | the shared contract types → service and client are compiled together | both consume identical types with no structural drift |
 
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-009 synchronously throws `PaywallBlockedError` to ARCH-001 when the URL's domain matches a blocked entry in the environment-configured blocklist.
+#### Test Case: ITP-035-A (Auth middleware guards every import route)
 
-- **Integration Scenario: ITS-009-A1**
-    - **Given** the blocklist contains the domain `paywalled-site.com`
-    - **When** ARCH-001 sends `checkPaywall('https://paywalled-site.com/recipe')` to ARCH-009
-    - **Then** ARCH-009 throws `PaywallBlockedError` to ARCH-001 synchronously
+**Linked Architecture Module:** ARCH-035
 
-- **Integration Scenario: ITS-009-A2**
-    - **Given** the blocklist does not contain the URL's domain
-    - **When** ARCH-001 sends `checkPaywall('https://open-recipe-site.com/recipe')` to ARCH-009
-    - **Then** ARCH-009 returns without throwing, allowing ARCH-001 to proceed to the extractor
+| ID         | Scenario                                    | Expected                                         |
+| ---------- | ------------------------------------------- | ------------------------------------------------ |
+| ITS-035-A1 | Each import endpoint called without a token | Every call refused with no import work performed |
 
-#### Test Case: ITP-009-B (PaywallBlocklistService blocklist is loaded from environment at startup and not re-read per request)
+#### Test Case: ITP-036-A (Published contract matches live responses)
 
-**Technique**: Concurrency & Race Condition Testing
-**Target View**: Process View
-**Description**: Verifies that ARCH-009 loads the blocklist once at module initialisation and serves concurrent `checkPaywall` calls from the in-memory list without race conditions.
+**Linked Architecture Module:** ARCH-036
 
-- **Integration Scenario: ITS-009-B1**
-    - **Given** ARCH-009 has initialised with a blocklist of 100 domains
-    - **When** ARCH-001 sends 50 concurrent `checkPaywall` calls to ARCH-009
-    - **Then** all 50 calls complete with consistent results (blocked/not-blocked) and no data corruption is observed in the in-memory blocklist
-
----
-
-### Module Verification: ARCH-010 (DeduplicationService)
-
-**Parent System Components**: SYS-005
-
-#### Test Case: ITP-010-A (DeduplicationService queries ARCH-015 and returns DuplicateCheckResult to ARCH-001)
-
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies the handshake between ARCH-010 and ARCH-015: `findBySourceUrl` is delegated to ARCH-015, and the result is wrapped in a `DuplicateCheckResult` returned to ARCH-001.
-
-- **Integration Scenario: ITS-010-A1**
-    - **Given** ARCH-015 returns a `RecipeEntity` for the given `sourceUrl`
-    - **When** ARCH-001 sends `checkDuplicate(sourceUrl)` to ARCH-010
-    - **Then** ARCH-010 returns `DuplicateCheckResult { isDuplicate: true, existing: RecipeEntity }` to ARCH-001
-
-- **Integration Scenario: ITS-010-A2**
-    - **Given** ARCH-015 returns `null` for the given `sourceUrl`
-    - **When** ARCH-001 sends `checkDuplicate(sourceUrl)` to ARCH-010
-    - **Then** ARCH-010 returns `DuplicateCheckResult { isDuplicate: false }` to ARCH-001
-
-#### Test Case: ITP-010-B (DeduplicationService data flows correctly through the short-circuit path)
-
-**Technique**: Data Flow Testing
-**Target View**: Data Flow View
-**Description**: Verifies that when ARCH-010 detects a duplicate, the `DuplicateFoundResult` flows back through ARCH-001 to ARCH-002 without entering the attribution or persistence pipeline.
-
-- **Integration Scenario: ITS-010-B1**
-    - **Given** ARCH-010 returns `{ isDuplicate: true, existing: RecipeEntity }`
-    - **When** ARCH-001 receives the `DuplicateCheckResult`
-    - **Then** ARCH-001 returns `DuplicateFoundResult { existing, cloneAvailable: true }` to ARCH-002 and does not invoke ARCH-011 or ARCH-013
-
----
-
-### Module Verification: ARCH-011 (AttributionVisibilityService)
-
-**Parent System Components**: SYS-004
-
-#### Test Case: ITP-011-A (AttributionVisibilityService returns AttributedPayload with correct visibility to ARCH-001)
-
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-011 applies the correct visibility rule based on `importType` and returns a fully typed `AttributedPayload` to ARCH-001.
-
-- **Integration Scenario: ITS-011-A1**
-    - **Given** ARCH-001 passes a `RecipeImportPayload` with `importType: 'web'`
-    - **When** ARCH-001 sends `applyAttributionVisibility(payload, 'web')` to ARCH-011
-    - **Then** ARCH-011 returns `AttributedPayload { visibility: 'public', attribution: { sourceUrl, originalAuthor, platform: 'web' } }` to ARCH-001
-
-- **Integration Scenario: ITS-011-A2**
-    - **Given** ARCH-001 passes a `RecipeImportPayload` with `importType: 'physical'`
-    - **When** ARCH-001 sends `applyAttributionVisibility(payload, 'physical')` to ARCH-011
-    - **Then** ARCH-011 returns `AttributedPayload { visibility: 'private', attribution: null }` to ARCH-001
-
-#### Test Case: ITP-011-B (AttributionVisibilityService data flows into ARCH-013 with all required fields)
-
-**Technique**: Data Flow Testing
-**Target View**: Data Flow View
-**Description**: Verifies that the `AttributedPayload` produced by ARCH-011 contains all fields required by ARCH-013 for a successful DB write.
-
-- **Integration Scenario: ITS-011-B1**
-    - **Given** ARCH-011 returns `AttributedPayload` for a web import
-    - **When** ARCH-001 passes the `AttributedPayload` to ARCH-013
-    - **Then** ARCH-013 accepts the payload without a schema validation error and returns a `RecipeEntity`
-
----
-
-### Module Verification: ARCH-012 (CloneService)
-
-**Parent System Components**: SYS-004
-
-#### Test Case: ITP-012-A (CloneService delegates clone write to ARCH-015 and returns RecipeEntity to caller)
-
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-012 constructs a clone entity retaining source attribution and delegates the write to ARCH-015, returning the persisted `RecipeEntity`.
-
-- **Integration Scenario: ITS-012-A1**
-    - **Given** ARCH-015 can find the source recipe by `existingId` and accepts the clone write
-    - **When** the client sends a clone request that reaches ARCH-012 with `{ existingId, userId }`
-    - **Then** ARCH-012 sends a `save(clonedEntity)` call to ARCH-015 and returns the resulting `RecipeEntity` (with `sourceUrl` and attribution retained, `visibility: 'public'`) to the caller
-
-#### Test Case: ITP-012-B (CloneService throws NotFoundError when ARCH-015 cannot locate the source recipe)
-
-**Technique**: Interface Fault Injection
-**Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-012 propagates `NotFoundError` when ARCH-015 returns `null` for the requested `existingId`.
-
-- **Integration Scenario: ITS-012-B1**
-    - **Given** ARCH-015 returns `null` for the given `existingId`
-    - **When** ARCH-012 receives a clone request for that `existingId`
-    - **Then** ARCH-012 throws `NotFoundError` to the caller without invoking a write on ARCH-015
-
----
-
-### Module Verification: ARCH-013 (RecipePersistenceAdapter)
-
-**Parent System Components**: SYS-007
-
-#### Test Case: ITP-013-A (RecipePersistenceAdapter maps AttributedPayload to Drizzle insert via ARCH-015 and returns RecipeEntity)
-
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-013 correctly maps an `AttributedPayload` to the Drizzle ORM insert schema and returns a `RecipeEntity` conforming to the 001-commise-recipe-app schema.
-
-- **Integration Scenario: ITS-013-A1**
-    - **Given** ARCH-015 is available and the `recipes` table accepts the insert
-    - **When** ARCH-001 sends `save(attributedPayload)` to ARCH-013
-    - **Then** ARCH-013 returns a `RecipeEntity` with all fields populated (including `id`, `createdAt`, `visibility`, `attribution`) to ARCH-001
-
-#### Test Case: ITP-013-B (RecipePersistenceAdapter throws PersistenceError to ARCH-001 on DB write failure)
-
-**Technique**: Interface Fault Injection
-**Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-013 wraps Drizzle/PostgreSQL errors in `PersistenceError` and propagates them to ARCH-001.
-
-- **Integration Scenario: ITS-013-B1**
-    - **Given** ARCH-015 throws a `DatabaseError` (e.g., unique constraint violation or connection failure)
-    - **When** ARCH-001 sends `save(attributedPayload)` to ARCH-013
-    - **Then** ARCH-013 throws `PersistenceError` to ARCH-001
-
----
-
-### Module Verification: ARCH-014 (AuthMiddleware)
-
-**Parent System Components**: SYS-008
-
-#### Test Case: ITP-014-A (AuthMiddleware allows authenticated requests to reach ARCH-002)
-
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-014 validates a well-formed Clerk session token and allows the request to proceed to ARCH-002.
-
-- **Integration Scenario: ITS-014-A1**
-    - **Given** the request carries a valid `Authorization: Bearer <token>` header with a current Clerk signature
-    - **When** ARCH-014 evaluates `use(req, res, next)` for any import endpoint
-    - **Then** ARCH-014 calls `next()` and the request proceeds to ARCH-002
-
-#### Test Case: ITP-014-B (AuthMiddleware rejects expired or tampered tokens before ARCH-002 is invoked)
-
-**Technique**: Interface Fault Injection
-**Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-014 rejects invalid JWTs with HTTP 401 without invoking ARCH-002 or any downstream module.
-
-- **Integration Scenario: ITS-014-B1**
-    - **Given** the request carries an expired token
-    - **When** ARCH-014 evaluates `use(req, res, next)` for `POST /import/url`
-    - **Then** ARCH-014 throws `UnauthorizedException` (HTTP 401) and ARCH-002 is not invoked
-
-- **Integration Scenario: ITS-014-B2**
-    - **Given** the request carries a token with a tampered signature
-    - **When** ARCH-014 evaluates `use(req, res, next)` for `POST /import/url`
-    - **Then** ARCH-014 throws `UnauthorizedException` (HTTP 401) and ARCH-002 is not invoked
-
----
-
-### Module Verification: ARCH-015 (RecipeRepository)
-
-**Parent System Components**: SYS-005, SYS-007
-
-#### Test Case: ITP-015-A (RecipeRepository serves findBySourceUrl queries from ARCH-010 and ARCH-013)
-
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-015 correctly handles `findBySourceUrl` calls from both ARCH-010 (deduplication reads) and ARCH-013 (persistence writes), returning typed results.
-
-- **Integration Scenario: ITS-015-A1**
-    - **Given** the `recipes` table contains a row with `sourceUrl = 'https://example.com/recipe'`
-    - **When** ARCH-010 sends `findBySourceUrl('https://example.com/recipe')` to ARCH-015
-    - **Then** ARCH-015 returns the matching `RecipeEntity` to ARCH-010
-
-- **Integration Scenario: ITS-015-A2**
-    - **Given** the `recipes` table has no row with the given `sourceUrl`
-    - **When** ARCH-010 sends `findBySourceUrl('https://new-recipe.com/recipe')` to ARCH-015
-    - **Then** ARCH-015 returns `null` to ARCH-010
-
-#### Test Case: ITP-015-B (RecipeRepository handles concurrent reads and writes without data corruption)
-
-**Technique**: Concurrency & Race Condition Testing
-**Target View**: Process View
-**Description**: Verifies that concurrent `findBySourceUrl` reads from ARCH-010 and `save` writes from ARCH-013 do not produce inconsistent results under PostgreSQL row-level isolation.
-
-- **Integration Scenario: ITS-015-B1**
-    - **Given** ARCH-010 and ARCH-013 simultaneously access ARCH-015 for the same `sourceUrl`
-    - **When** ARCH-010 sends `findBySourceUrl(url)` and ARCH-013 sends `save(payload)` concurrently
-    - **Then** both operations complete without deadlock, and the final state of the `recipes` table is consistent (exactly one row for the `sourceUrl`)
-
----
-
-### Module Verification: ARCH-016 (ImportDtoTypes) [CROSS-CUTTING]
-
-**Parent System Components**: [CROSS-CUTTING] — shared type contracts consumed by all import modules
-
-#### Test Case: ITP-016-A (ImportDtoTypes compile-time contracts are honoured at all module boundaries)
-
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that the TypeScript interfaces and DTOs exported by ARCH-016 are correctly consumed at the boundaries between ARCH-002/ARCH-008 (DTO validation) and ARCH-001/ARCH-011/ARCH-013 (payload types), with no `any` escapes.
-
-- **Integration Scenario: ITS-016-A1**
-    - **Given** ARCH-002 receives a request body that satisfies `ImportUrlDto` from ARCH-016
-    - **When** ARCH-002 passes the validated DTO to ARCH-001 as a `RecipeImportPayload`
-    - **Then** ARCH-001 accepts the payload without a TypeScript type error and the `strict: true` compilation succeeds
-
-- **Integration Scenario: ITS-016-A2**
-    - **Given** ARCH-011 receives a `RecipeImportPayload` from ARCH-001
-    - **When** ARCH-011 returns an `AttributedPayload` to ARCH-001
-    - **Then** ARCH-013 accepts the `AttributedPayload` without a type mismatch, confirming the ARCH-016 type chain is unbroken across all three modules
-
----
-
-### Module Verification: ARCH-017 (ImportErrorNormalizer) [CROSS-CUTTING]
-
-**Parent System Components**: [CROSS-CUTTING] — error handling spans all import paths
-
-#### Test Case: ITP-017-A (ImportErrorNormalizer maps all domain errors to ImportErrorResponse and returns to ARCH-001)
-
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-017 correctly maps each domain error type to the expected `ImportErrorResponse { status, message }` and returns it to ARCH-001.
-
-- **Integration Scenario: ITS-017-A1**
-    - **Given** ARCH-001 sends `UrlUnreachableError` to ARCH-017
-    - **When** ARCH-017 processes the error
-    - **Then** ARCH-017 returns `ImportErrorResponse { status: 422, message: "URL could not be reached" }` to ARCH-001
-
-- **Integration Scenario: ITS-017-A2**
-    - **Given** ARCH-001 sends `NoCaptionError` to ARCH-017
-    - **When** ARCH-017 processes the error
-    - **Then** ARCH-017 returns `ImportErrorResponse { status: 422, message: "Instagram post has no recipe text in caption" }` to ARCH-001
-
-- **Integration Scenario: ITS-017-A3**
-    - **Given** ARCH-001 sends `PaywallBlockedError` to ARCH-017
-    - **When** ARCH-017 processes the error
-    - **Then** ARCH-017 returns `ImportErrorResponse { status: 422, message: "This source is behind a paywall and cannot be imported" }` to ARCH-001
-
-#### Test Case: ITP-017-B (ImportErrorNormalizer is invoked by both ARCH-002 and ARCH-008 for consistent error mapping)
-
-**Technique**: Data Flow Testing
-**Target View**: Data Flow View
-**Description**: Verifies that both ARCH-002 and ARCH-008 route errors through ARCH-017 and receive identically structured `ImportErrorResponse` objects.
-
-- **Integration Scenario: ITS-017-B1**
-    - **Given** ARCH-001 returns an `ImportErrorResponse` via ARCH-017 for a web import error
-    - **When** ARCH-002 receives the `ImportErrorResponse`
-    - **Then** ARCH-002 maps it to the correct HTTP status code and the response body matches the `ImportErrorResponse` schema from ARCH-016
-
----
-
-### Module Verification: ARCH-018 (ImportLogger) [CROSS-CUTTING]
-
-**Parent System Components**: [CROSS-CUTTING] — observability spans all import paths
-
-#### Test Case: ITP-018-A (ImportLogger receives lifecycle events from ARCH-001 and emits structured JSON with correlation IDs)
-
-**Technique**: Interface Contract Testing
-**Target View**: Interface View
-**Description**: Verifies that ARCH-001 correctly invokes ARCH-018 at each import lifecycle stage and that ARCH-018 emits structured log entries containing the expected `correlationId` and event name.
-
-- **Integration Scenario: ITS-018-A1**
-    - **Given** ARCH-001 begins processing a web import request with `correlationId: 'abc-123'`
-    - **When** ARCH-001 sends `log('import_started', { correlationId: 'abc-123', importType: 'web' })` to ARCH-018
-    - **Then** ARCH-018 emits a structured JSON log line containing `{ event: 'import_started', correlationId: 'abc-123', importType: 'web' }` to stdout
-
-- **Integration Scenario: ITS-018-A2**
-    - **Given** ARCH-009 throws `PaywallBlockedError` during a web import
-    - **When** ARCH-001 sends `log('paywall_blocked', { correlationId, url })` to ARCH-018
-    - **Then** ARCH-018 emits a structured JSON log line containing `{ event: 'paywall_blocked', correlationId, url }` to stdout
-
-#### Test Case: ITP-018-B (ImportLogger does not block or throw when the underlying logger provider is unavailable)
-
-**Technique**: Interface Fault Injection
-**Target View**: Interface View + Process View
-**Description**: Verifies that ARCH-018 degrades gracefully when the underlying logger provider (CloudWatch / NestJS Logger) is unavailable, ensuring import processing is not interrupted.
-
-- **Integration Scenario: ITS-018-B1**
-    - **Given** the underlying logger provider throws an internal error on write
-    - **When** ARCH-001 sends a log event to ARCH-018
-    - **Then** ARCH-018 swallows the provider error and returns `void` to ARCH-001 without propagating the exception
-
----
-
-## Test Harness & Mocking Strategy
-
-| Test Case | External Dependency                              | Mock/Stub Strategy                                                                       | Rationale                                                     |
-| --------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| ITP-001-A | ARCH-003, ARCH-009, ARCH-010, ARCH-011, ARCH-013 | Stubs returning typed fixtures                                                           | Isolates ARCH-001 orchestration logic from downstream modules |
-| ITP-001-B | ARCH-009, ARCH-003, ARCH-017                     | Stubs throwing domain errors                                                             | Verifies error delegation path without real network calls     |
-| ITP-001-C | ARCH-006, ARCH-011, ARCH-013                     | Stubs returning Instagram-flavoured fixtures                                             | Verifies routing to ARCH-006 vs ARCH-003                      |
-| ITP-002-A | ARCH-001, ARCH-014                               | Stub ARCH-001; real ARCH-014 guard in NestJS test module                                 | Isolates DTO validation and HTTP mapping                      |
-| ITP-002-B | ARCH-014                                         | Real ARCH-014 guard with invalid JWT fixture                                             | Verifies guard short-circuit before ARCH-002 logic            |
-| ITP-003-A | ARCH-004, ARCH-005, HTTP fetch                   | Stub ARCH-004 returning null; stub ARCH-005 returning partial payload; mock `node-fetch` | Verifies fallback routing without real HTTP                   |
-| ITP-003-B | HTTP fetch                                       | Mock `node-fetch` returning 404 / timeout                                                | Verifies error propagation without real network               |
-| ITP-004-A | None (stateless)                                 | Real ARCH-004 with HTML fixture strings                                                  | Stateless parser; no external dependencies                    |
-| ITP-005-A | None (stateless)                                 | Real ARCH-005 with HTML fixture strings                                                  | Stateless parser; no external dependencies                    |
-| ITP-005-B | ARCH-011, ARCH-013                               | Stubs accepting partial payload                                                          | Verifies data flow compatibility                              |
-| ITP-006-A | Instagram oEmbed API                             | HTTP stub returning valid oEmbed JSON fixture                                            | Avoids real API calls in CI                                   |
-| ITP-006-B | Instagram oEmbed API                             | HTTP stub returning video-only / 500 fixture                                             | Verifies error paths without real API                         |
-| ITP-007-A | OCR provider (AWS Textract)                      | Stub returning `OcrDraftPayload` after one poll                                          | Avoids real Textract calls and polling delays                 |
-| ITP-007-B | OCR provider (AWS Textract)                      | Stub that never resolves within timeout                                                  | Verifies timeout/backoff without real provider                |
-| ITP-008-A | ARCH-001, ARCH-014                               | Stub ARCH-001; real ARCH-014 guard                                                       | Isolates OcrReviewController validation                       |
-| ITP-009-A | None (in-memory blocklist)                       | Real ARCH-009 with test blocklist env var                                                | Blocklist is env-configured; no external dependency           |
-| ITP-009-B | None                                             | Real ARCH-009 with concurrent test calls                                                 | Verifies in-memory read safety                                |
-| ITP-010-A | ARCH-015                                         | Stub ARCH-015 returning RecipeEntity / null                                              | Isolates deduplication logic from DB                          |
-| ITP-010-B | ARCH-011, ARCH-013                               | Spy on ARCH-011 and ARCH-013 to assert not called                                        | Verifies short-circuit without side effects                   |
-| ITP-011-A | None (stateless)                                 | Real ARCH-011 with typed payload fixtures                                                | Stateless service; no external dependencies                   |
-| ITP-011-B | ARCH-013                                         | Stub ARCH-013 accepting AttributedPayload                                                | Verifies data flow compatibility                              |
-| ITP-012-A | ARCH-015                                         | Stub ARCH-015 returning source + clone RecipeEntity                                      | Isolates clone logic from DB                                  |
-| ITP-012-B | ARCH-015                                         | Stub ARCH-015 returning null                                                             | Verifies NotFoundError propagation                            |
-| ITP-013-A | ARCH-015 (Drizzle + PostgreSQL)                  | Test database (pg-mem or real Postgres in Docker)                                        | Persistence adapter requires real ORM behaviour               |
-| ITP-013-B | ARCH-015 (Drizzle + PostgreSQL)                  | Test database configured to throw on insert                                              | Verifies PersistenceError wrapping                            |
-| ITP-014-A | `CLERK_JWT_KEY` (public key)                     | Test PEM public key + tokens signed by the matching test private key                     | Verification is networkless; no external call to stub         |
-| ITP-014-B | `CLERK_JWT_KEY` (public key)                     | Test PEM public key; expired/tampered token fixtures                                     | Verifies rejection networklessly (no external call)           |
-| ITP-015-A | PostgreSQL                                       | Test database (Docker Postgres)                                                          | Repository requires real Drizzle ORM + DB                     |
-| ITP-015-B | PostgreSQL                                       | Test database with concurrent connection pool                                            | Verifies row-level isolation                                  |
-| ITP-016-A | TypeScript compiler                              | `tsc --strict` compilation check in CI                                                   | Type contract verification is compile-time                    |
-| ITP-017-A | None (stateless)                                 | Real ARCH-017 with domain error fixtures                                                 | Stateless normalizer; no external dependencies                |
-| ITP-017-B | ARCH-002, ARCH-008                               | Real ARCH-017; stub ARCH-001 returning errors                                            | Verifies consistent mapping across both controllers           |
-| ITP-018-A | Logger provider (stdout)                         | Spy on stdout / NestJS Logger                                                            | Verifies structured output without real CloudWatch            |
-| ITP-018-B | Logger provider                                  | Stub provider that throws on write                                                       | Verifies graceful degradation                                 |
-
----
-
-## Coverage Summary
-
-| Metric                            | Count          |
-| --------------------------------- | -------------- |
-| Total Architecture Modules (ARCH) | 18             |
-| Total Test Cases (ITP)            | 30             |
-| Total Scenarios (ITS)             | 57             |
-| Modules with ≥1 ITP               | 18 / 18 (100%) |
-| Test Cases with ≥1 ITS            | 30 / 30 (100%) |
-| **Overall Coverage (ARCH→ITP)**   | **100%**       |
-
-### Technique Distribution
-
-| Technique                            | Test Cases | Percentage |
-| ------------------------------------ | ---------- | ---------- |
-| Interface Contract Testing           | 18         | 60%        |
-| Data Flow Testing                    | 6          | 20%        |
-| Interface Fault Injection            | 11         | 37%        |
-| Concurrency & Race Condition Testing | 2          | 7%         |
-
-> Note: Some test cases use a single primary technique; percentages reflect primary technique assignment. Total exceeds 30 because ITP-001 has three test cases spanning multiple techniques.
-
-## Uncovered Modules
-
-None — full coverage achieved.
+| ID         | Scenario                                                     | Expected                                             |
+| ---------- | ------------------------------------------------------------ | ---------------------------------------------------- |
+| ITS-036-A1 | Every import endpoint exercised against its published schema | Each response validates against the documented shape |

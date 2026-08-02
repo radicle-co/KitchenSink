@@ -1,5 +1,11 @@
 # Phase 0 Research: Recipe Importing
 
+> **SUPERSEDED IN PART (2026-08-02).** Retained as a historical record. Two conclusions no longer hold:
+> (1) **RQ Instagram** — the public unauthenticated oEmbed endpoint assumed here was withdrawn on 2020-10-24;
+> oEmbed now requires a Meta app credential and App Review (owner decision D-002).
+> (2) **RQ-9 comparator set** — superseded by `research/competitors.md` for import comparison (W-003).
+> Where this document and the regenerated `codebase-analysis.md` / `tech-stack.md` disagree, those win.
+
 **Branch**: `004-recipe-importing` | **Date**: 2026-05-08
 **Spec**: [spec.md](../spec.md) | **Status**: Complete
 

@@ -78,7 +78,7 @@ on a green run is not a guarantee; #124 exists because nobody reads it. That war
   stage's catalog, which looks like it works while testing someone else's data.
 - `classifyDependencyReachability` — that food origin actually answers.
 
-⛔ The trap: `food-pr-{N}.commise.app/v1/foods/search` returns **`401` by design** (it requires a
+⛔ The trap: `food-pr-{N}.commise.app/api/v1/foods/search` returns **`401` by design** (it requires a
 Clerk-verified token). "200 or bust" would fail every correctly-wired preview. So:
 
 | observation        | verdict  | what it proves                                                                                         |

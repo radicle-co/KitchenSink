@@ -27,3 +27,4 @@ Without those two layers the ADR is invisible at the moment it matters.
 - [0008 — Additional cost levers: gp3 storage, Fargate Spot (non-prod), and budget guardrails](0008-additional-cost-levers-gp3-fargate-spot-budget-guardrails.md)
 - [0009 — Sign-out goes through one command that verifies the session actually ended](0009-clerk-signout-load-gate.md)
 - [0010 — Every PR preview is a complete ecosystem: the ensure-exists deploy gate](0010-ensure-exists-per-pr-deploy-gate.md)
+- [0011 — Canonical `/api/{version}/*` endpoints, bare `/{version}/*` kept as a deprecated alias](0011-api-version-prefix.md)

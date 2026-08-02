@@ -108,15 +108,15 @@ The API Lambda handles all user-facing food lookup requests. Its behavior depend
 1. Check the "pending fetch" set in Redis — is this food already queued?
 2. If not pending: add to pending set, publish `FoodRequested` event to EventBridge.
 3. Return `202 Accepted` immediately:
-   ```json
-   {
-     "status": "pending",
-     "fdcId": 12345,
-     "description": "Avocado, raw",
-     "estimatedWaitSeconds": 30,
-     "partialData": { "fdcId": 12345, "description": null }
-   }
-   ```
+    ```json
+    {
+        "status": "pending",
+        "fdcId": 12345,
+        "description": "Avocado, raw",
+        "estimatedWaitSeconds": 30,
+        "partialData": { "fdcId": 12345, "description": null }
+    }
+    ```
 4. If already pending: return same `202` without re-queuing (deduplication via Redis set).
 
 The API Lambda **never calls the USDA API directly.** It only reads local state and emits events. This keeps its execution time under 100ms in all paths.
@@ -184,11 +184,11 @@ Three queues with distinct roles:
 
 ```json
 {
-  "fdcId": 12345,
-  "requestedAt": "2026-04-07T10:00:00Z",
-  "requestSource": "user-lookup",
-  "priority": "high",
-  "batchIds": [12345, 67890, 11111]
+    "fdcId": 12345,
+    "requestedAt": "2026-04-07T10:00:00Z",
+    "requestSource": "user-lookup",
+    "priority": "high",
+    "batchIds": [12345, 67890, 11111]
 }
 ```
 
@@ -224,8 +224,8 @@ for each message in batch:
      - If tokens < 1: extend message visibility timeout, continue to next
      - If tokens >= 1: consume 1 token (or N tokens for batch of N IDs)
   3. Call USDA API:
-     - Single ID: GET /v1/food/{fdcId}
-     - Batch IDs: POST /v1/foods with up to 20 fdcIds
+     - Single ID: GET /api/v1/food/{fdcId}
+     - Batch IDs: POST /api/v1/foods with up to 20 fdcIds
   4. On success:
      - Store each food in PostgreSQL (upsert, set fetch_status = 'fetched')
      - Cache each food in Redis (TTL 24h)
@@ -246,7 +246,7 @@ for each message in batch:
 
 **Batch endpoint optimization:**
 
-The USDA `POST /v1/foods` endpoint accepts up to 20 `fdcIds` per request, returning all results in one response. The consumer batches message fdcIds together (up to 20) into a single API call, consuming just 1 token from the bucket per 20 foods. This multiplies effective throughput:
+The USDA `POST /api/v1/foods` endpoint accepts up to 20 `fdcIds` per request, returning all results in one response. The consumer batches message fdcIds together (up to 20) into a single API call, consuming just 1 token from the bucket per 20 foods. This multiplies effective throughput:
 
 ```
 1,000 API calls/hr × 20 IDs/call = 20,000 foods/hour (theoretical max)
@@ -452,7 +452,7 @@ sequenceDiagram
     CL->>R: token bucket check (Lua script)
     R-->>CL: 1 token consumed (999 remaining)
 
-    CL->>USDA: GET /v1/food/99999
+    CL->>USDA: GET /api/v1/food/99999
     USDA-->>CL: 200 OK {food data}
 
     CL->>PG: UPSERT foods SET fetch_status='fetched'
@@ -524,7 +524,7 @@ sequenceDiagram
     CL->>R: token bucket check — consume 1 token (batch endpoint)
     R-->>CL: 1 token consumed
 
-    CL->>USDA: POST /v1/foods {fdcIds: [7 IDs]}
+    CL->>USDA: POST /api/v1/foods {fdcIds: [7 IDs]}
     Note over USDA: Single API call returns all 7 foods
     USDA-->>CL: 200 OK [{food1}, {food2}, ..., {food7}]
 
@@ -737,17 +737,17 @@ The cost floor is dominated by RDS ($25) + ElastiCache ($22) + NAT Gateway ($32)
 - **Alert:** CloudWatch alarm fires immediately on first DLQ message
 - **Investigation:** Check message body for fdcId, query USDA API manually
 - **Resolution options:**
-  1. Food doesn't exist: tombstone in PostgreSQL, remove from DLQ manually
-  2. Temporary USDA issue: requeue from DLQ after USDA recovers
-  3. Malformed ID: fix API validation to reject this pattern, purge from DLQ
+    1. Food doesn't exist: tombstone in PostgreSQL, remove from DLQ manually
+    2. Temporary USDA issue: requeue from DLQ after USDA recovers
+    3. Malformed ID: fix API validation to reject this pattern, purge from DLQ
 
 ### Poison Message (Invalid fdcId)
 
 - **Path:** Invalid ID → Consumer calls USDA → 404 → Consumer writes `fetch_status = 'not_found'` → Deletes SQS message (no retry for 404)
 - **Not a true "poison" scenario** because the consumer handles 404 explicitly
 - **True poison message:** Malformed JSON, unexpected schema, or Consumer bug causing crash
-  - SQS retries 3 times, then routes to DLQ
-  - DLQ alarm fires, human investigates
+    - SQS retries 3 times, then routes to DLQ
+    - DLQ alarm fires, human investigates
 
 ---
 
@@ -1022,7 +1022,7 @@ This is a 14-16 day implementation assuming one backend engineer familiar with A
 
 - Implement token bucket: Redis Lua script (full architecture) or PostgreSQL `UPDATE ... RETURNING` (lean launch)
 - Implement Consumer Lambda: SQS polling, priority queue logic, token bucket integration
-- Implement USDA API client with batch endpoint support (`POST /v1/foods`)
+- Implement USDA API client with batch endpoint support (`POST /api/v1/foods`)
 - Implement per-message processing: fetch → store PostgreSQL → cache Redis (if present) → delete SQS message
 - Implement failure handling: 429 bucket reset, 5xx retry passthrough, 404 tombstone
 - Unit tests: token bucket behavior, batch processing, failure modes

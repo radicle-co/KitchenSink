@@ -98,11 +98,23 @@ Both the `/api` segment and the `/v{N}` version segment are required. Neither ma
 
 Any spec, plan, or contract that uses `/api/*` without a version segment, or `/v1/*` without the `/api` prefix, is non-conformant and blocks engineering handoff for that feature.
 
-### Current State (2026-05-10)
+### Current State (2026-08-02) — SATISFIED
 
-- Feature 001: `contracts/api.openapi.yaml` uses `/api/*` — **correction required before handoff**.
-- Features 002–014: use `/v1/*` — **correction required before handoff**.
-- `docs/api-conventions.md` does not yet exist — **must be created before any feature enters Phase 2**.
+- **Implemented in code, not just in specs.** All three deployable services (identity, food, recipe) serve
+  every versioned endpoint at the canonical `/api/v1/*`. Route-path contract tests per service pin it.
+- Feature 001: `contracts/api.openapi.yaml` now uses `/api/v1/*` for every path key — ✅.
+- Feature 002: `contracts/identity-api.openapi.json` server base path is `/api/v1` — ✅.
+- Features 011 and 014 were authored against `/api/v1/*` and needed no change — ✅.
+- `docs/api-conventions.md` now exists and references this rule (AC-002-d) — ✅.
+- **One deliberate, documented exception to "no bare `/v1/*`":** every endpoint ALSO answers on its original
+  bare `/v1/*` path as a DEPRECATED ALIAS, because consumers outside this repository hold those URLs — the
+  Clerk dashboard webhook endpoint, plus already-shipped mobile builds and cached web bundles with
+  build-time-inlined endpoints. This is not a violation of GR-002: the canonical path is `/api/v1/*` and all
+  new code targets it. Retiring the alias has an ordered prerequisite list (Clerk dashboard first). See
+  [ADR-0011](../docs/architecture/decisions/0011-api-version-prefix.md).
+- **`/health` and `/health/ready` are exempt by design** — operational probes, not API surface. They stay at
+  the origin root because the shared-ALB target-group health check and the deploy smoke steps dial them
+  there; CDK assertions pin `HealthCheckPath: '/health'` per service.
 
 ---
 
@@ -149,13 +161,13 @@ Database column names that reference another feature's primary key **MUST** use 
 
 **Canonical decisions**:
 
-| Concept              | Canonical column name                  | Owner                    |
-| -------------------- | -------------------------------------- | ------------------------ |
-| USDA food identifier | `fdc_id`                               | 003-usda-food-data       |
-| Meal plan reference  | `meal_plan_id`                         | 006-meal-planning        |
+| Concept              | Canonical column name                  | Owner                  |
+| -------------------- | -------------------------------------- | ---------------------- |
+| USDA food identifier | `fdc_id`                               | 003-usda-food-data     |
+| Meal plan reference  | `meal_plan_id`                         | 006-meal-planning      |
 | Recipe reference     | `recipe_id`                            | 001-commise-recipe-app |
-| User reference       | `user_id`                              | 002-user-auth      |
-| Subscription tier    | `plan` (values: `'free'`, `'premium'`) | 010-subscriptions        |
+| User reference       | `user_id`                              | 002-user-auth          |
+| Subscription tier    | `plan` (values: `'free'`, `'premium'`) | 010-subscriptions      |
 
 **Table naming**:
 

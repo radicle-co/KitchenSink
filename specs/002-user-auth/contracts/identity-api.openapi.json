@@ -7,8 +7,24 @@
     },
     "servers": [
         {
+            "url": "https://identity.{stage}.{domain}/api/v1",
+            "description": "Identity API — canonical versioned base path (ADR-0011)",
+            "variables": {
+                "stage": { "default": "dev", "enum": ["dev", "sandbox", "prod"] },
+                "domain": { "default": "thecommise.app" }
+            }
+        },
+        {
             "url": "https://identity.{stage}.{domain}/v1",
-            "description": "Identity API Gateway",
+            "description": "DEPRECATED alias base path. Retained for consumers configured outside this repository (the Clerk dashboard webhook URL) and for already-shipped mobile builds / cached web bundles whose endpoints were inlined at build time. Do not target this from new code; removing it requires updating the Clerk dashboard first. See ADR-0011.",
+            "variables": {
+                "stage": { "default": "dev", "enum": ["dev", "sandbox", "prod"] },
+                "domain": { "default": "thecommise.app" }
+            }
+        },
+        {
+            "url": "https://identity.{stage}.{domain}",
+            "description": "Origin root — serves the UNVERSIONED operational probes (/health, /health/ready) only. These are deliberately not under the version prefix because the shared-ALB target-group health check and the deploy smoke steps dial them at the root.",
             "variables": {
                 "stage": { "default": "dev", "enum": ["dev", "sandbox", "prod"] },
                 "domain": { "default": "thecommise.app" }
@@ -170,8 +186,18 @@
         "/health": {
             "get": {
                 "summary": "Service health check",
+                "description": "Served at the ORIGIN ROOT, not under the versioned base path — use the origin-root server entry above. The shared-ALB target group, the ECS container health check and the deploy smoke steps all dial this unprefixed.",
                 "operationId": "getHealth",
                 "security": [],
+                "servers": [
+                    {
+                        "url": "https://identity.{stage}.{domain}",
+                        "variables": {
+                            "stage": { "default": "dev", "enum": ["dev", "sandbox", "prod"] },
+                            "domain": { "default": "thecommise.app" }
+                        }
+                    }
+                ],
                 "responses": {
                     "200": { "description": "Healthy" }
                 }

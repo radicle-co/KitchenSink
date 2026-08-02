@@ -23,7 +23,7 @@ tags:
     - name: Search
     - name: Account
 paths:
-    /v1/recipes:
+    /api/v1/recipes:
         post:
             tags: [Recipes]
             summary: Create recipe
@@ -78,7 +78,7 @@ paths:
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
-    /v1/recipes/{id}:
+    /api/v1/recipes/{id}:
         get:
             tags: [Recipes]
             summary: Get recipe by ID
@@ -136,7 +136,7 @@ paths:
                 Marks the recipe as deleted by setting `deletedAt`. The row is retained
                 for audit and version-restore purposes and is excluded from all list,
                 search, and detail responses. Hard purge of recipe rows only happens
-                via the GDPR account erasure flow (`POST /v1/account/erasure`).
+                via the GDPR account erasure flow (`POST /api/v1/account/erasure`).
             operationId: deleteRecipe
             parameters:
                 - $ref: '#/components/parameters/RecipeId'
@@ -152,7 +152,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/recipes/{id}/clone:
+    /api/v1/recipes/{id}/clone:
         post:
             tags: [Recipes]
             summary: Clone a public recipe
@@ -175,7 +175,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/recipes/{id}/visibility:
+    /api/v1/recipes/{id}/visibility:
         patch:
             tags: [Recipes]
             summary: Set recipe visibility
@@ -206,7 +206,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/recipes/{id}/rating:
+    /api/v1/recipes/{id}/rating:
         put:
             tags: [Ratings]
             summary: Set the caller's rating for a recipe (idempotent upsert)
@@ -278,7 +278,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/recipes/{id}/instructions:
+    /api/v1/recipes/{id}/instructions:
         get:
             tags: [Recipes]
             summary: List recipe instruction steps
@@ -308,7 +308,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /v1/ingredients/search:
+    /api/v1/ingredients/search:
         get:
             tags: [Ingredients]
             summary: Search the LOCAL ingredient catalog by name (autocomplete, fuzzy)
@@ -318,7 +318,7 @@ paths:
                 recipe line's `ingredientId` AND as a recipe-search `ingredientIds` filter value — which is
                 why this route stays local-only and is NOT blended.
 
-                For the ingredient PICKER's typeahead use `GET /v1/ingredients/suggest`, which blends this
+                For the ingredient PICKER's typeahead use `GET /api/v1/ingredients/suggest`, which blends this
                 catalog with the food service's golden catalog (search Stage 2).
             operationId: searchIngredients
             parameters:
@@ -349,7 +349,7 @@ paths:
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
-    /v1/ingredients/suggest:
+    /api/v1/ingredients/suggest:
         get:
             tags: [Ingredients]
             summary: Blended ingredient typeahead — local catalog + food catalog (search Stage 2)
@@ -357,7 +357,7 @@ paths:
                 The ingredient PICKER's read. Returns a blended, deduped, provenance-SECTIONED suggestion
                 set: the shared recipe-service `ingredients` catalog (rows already used in a recipe) PLUS
                 the food service's golden catalog (003) — including the lab-analyzed USDA records seeded by
-                the bulk importer, which are invisible to `GET /v1/ingredients/search` until somebody
+                the bulk importer, which are invisible to `GET /api/v1/ingredients/search` until somebody
                 add-by-names them.
 
                 **Shape.** `suggestions` is a DISCRIMINATED UNION on `provenance`, not a widened
@@ -365,7 +365,7 @@ paths:
                   * `local` — a real `ingredients` row (`ingredient`), pickable as-is.
                   * `catalog` — a food-service golden record with **no `ingredients` row yet**: it has NO
                     ingredient id and NO nutrition, and picking it MUST first admit it via
-                    `POST /v1/ingredients/by-food`.
+                    `POST /api/v1/ingredients/by-food`.
 
                 **Ordering.** Every `local` suggestion precedes every `catalog` one, and the sections are
                 never interleaved, so a client can render two stable labeled lists without the fast local
@@ -414,7 +414,7 @@ paths:
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
-    /v1/ingredients:
+    /api/v1/ingredients:
         post:
             tags: [Ingredients]
             summary: Create freeform ingredient
@@ -439,7 +439,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/ingredients/by-name:
+    /api/v1/ingredients/by-name:
         post:
             tags: [Ingredients]
             summary: Add an unknown food by name (async food resolution — the vertical entry point)
@@ -453,9 +453,9 @@ paths:
                 Returns `202 Accepted` — deliberately NOT `201`. The ingredient ROW is created
                 synchronously, but the meaningful work — nutrition resolution of the linked food — is
                 asynchronous and NOT complete when this returns. `202` is the caller's signal to poll
-                `GET /v1/ingredients/{id}/status` (until `RESOLVED`) or to disambiguate an `UNRESOLVED`
-                row via `GET /v1/ingredients/{id}/candidates` + `POST /v1/ingredients/{id}/resolve`; the
-                body's `foodResolutionStatus` is authoritative. This is distinct from `POST /v1/ingredients`,
+                `GET /api/v1/ingredients/{id}/status` (until `RESOLVED`) or to disambiguate an `UNRESOLVED`
+                row via `GET /api/v1/ingredients/{id}/candidates` + `POST /api/v1/ingredients/{id}/resolve`; the
+                body's `foodResolutionStatus` is authoritative. This is distinct from `POST /api/v1/ingredients`,
                 which is the synchronous (`201`) freeform (user-entered) create with no food resolution.
             operationId: addIngredientByName
             requestBody:
@@ -480,17 +480,17 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/ingredients/by-food:
+    /api/v1/ingredients/by-food:
         post:
             tags: [Ingredients]
             summary: Admit a food-catalog suggestion as a food-backed ingredient (search Stage 2 pick)
             description: |
-                The pick path for a `catalog` suggestion from `GET /v1/ingredients/suggest`. The server reads
+                The pick path for a `catalog` suggestion from `GET /api/v1/ingredients/suggest`. The server reads
                 the food's golden record, creates (or dedup-returns, on the opaque `food_id`) the
                 `ingredients` row, and writes its per-100g nutrition + household portions through BEFORE
                 responding — so the returned ingredient already carries nutrition.
 
-                Returns **`200 OK`, not `202`** — the deliberate contrast with `POST /v1/ingredients/by-name`.
+                Returns **`200 OK`, not `202`** — the deliberate contrast with `POST /api/v1/ingredients/by-name`.
                 `by-name` is `202` because resolving an unknown food is genuinely asynchronous. Here the food
                 is an already-`RESOLVED` golden record, so there is nothing to wait for and telling the caller
                 to poll would be a lie. In the anomalous case where the food is unexpectedly still
@@ -529,7 +529,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/ingredients/{id}/status:
+    /api/v1/ingredients/{id}/status:
         get:
             tags: [Ingredients]
             summary: Poll a food-backed ingredient's async resolution status
@@ -555,14 +555,14 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /v1/ingredients/{id}/candidates:
+    /api/v1/ingredients/{id}/candidates:
         get:
             tags: [Ingredients]
             summary: List disambiguation candidates for an UNRESOLVED ingredient
             description: |
                 The cross-source candidate set (via `foodClient.getCandidates`) the caller picks from to
                 resolve an `UNRESOLVED` food-backed ingredient. Empty for a freeform or non-`UNRESOLVED`
-                ingredient. Pick one (or more) and submit them to `POST /v1/ingredients/{id}/resolve`.
+                ingredient. Pick one (or more) and submit them to `POST /api/v1/ingredients/{id}/resolve`.
             operationId: getIngredientCandidates
             parameters:
                 - $ref: '#/components/parameters/IngredientId'
@@ -580,7 +580,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /v1/ingredients/{id}/resolve:
+    /api/v1/ingredients/{id}/resolve:
         post:
             tags: [Ingredients]
             summary: Resolve an UNRESOLVED ingredient from a candidate pick
@@ -614,7 +614,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/recipes/{id}/versions:
+    /api/v1/recipes/{id}/versions:
         get:
             tags: [Versions]
             summary: List recipe versions
@@ -638,7 +638,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /v1/recipes/{id}/versions/{versionNumber}:
+    /api/v1/recipes/{id}/versions/{versionNumber}:
         get:
             tags: [Versions]
             summary: Get specific version snapshot
@@ -660,7 +660,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /v1/recipes/{id}/versions/{versionNumber}/restore:
+    /api/v1/recipes/{id}/versions/{versionNumber}/restore:
         post:
             tags: [Versions]
             summary: Restore recipe to a prior version
@@ -686,7 +686,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/recipes/{id}/photos/upload-url:
+    /api/v1/recipes/{id}/photos/upload-url:
         post:
             tags: [Photos]
             summary: Get presigned S3 upload URL
@@ -716,7 +716,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/recipes/{id}/photos/confirm:
+    /api/v1/recipes/{id}/photos/confirm:
         post:
             tags: [Photos]
             summary: Confirm photo upload completed
@@ -748,7 +748,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/recipes/{id}/photos:
+    /api/v1/recipes/{id}/photos:
         get:
             tags: [Photos]
             summary: List photos for recipe
@@ -769,7 +769,7 @@ paths:
                 '404':
                     $ref: '#/components/responses/NotFound'
 
-    /v1/recipes/{id}/photos/{photoId}:
+    /api/v1/recipes/{id}/photos/{photoId}:
         delete:
             tags: [Photos]
             summary: Delete photo
@@ -789,7 +789,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/recipes/{id}/photos/reorder:
+    /api/v1/recipes/{id}/photos/reorder:
         patch:
             tags: [Photos]
             summary: Reorder photos
@@ -820,7 +820,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/collections:
+    /api/v1/collections:
         post:
             tags: [Collections]
             summary: Create collection
@@ -882,7 +882,7 @@ paths:
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
-    /v1/collections/{id}:
+    /api/v1/collections/{id}:
         get:
             tags: [Collections]
             summary: Get collection with recipes
@@ -949,7 +949,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/collections/{id}/recipes:
+    /api/v1/collections/{id}/recipes:
         post:
             tags: [Collections]
             summary: Add recipe to collection
@@ -980,7 +980,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/collections/{id}/recipes/{recipeId}:
+    /api/v1/collections/{id}/recipes/{recipeId}:
         delete:
             tags: [Collections]
             summary: Remove recipe from collection
@@ -1000,7 +1000,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/collections/{id}/clone:
+    /api/v1/collections/{id}/clone:
         post:
             tags: [Collections]
             summary: Clone a collection
@@ -1009,7 +1009,7 @@ paths:
                 points back to the original. Each membership row in the new collection
                 records `addedVia=clone_seed`. The clone is independent — subsequent
                 additions to the source collection are not propagated automatically;
-                the owner must call `POST /v1/collections/{id}/pull-from-source`.
+                the owner must call `POST /api/v1/collections/{id}/pull-from-source`.
             operationId: cloneCollection
             parameters:
                 - $ref: '#/components/parameters/CollectionId'
@@ -1035,7 +1035,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/collections/{id}/pull-from-source/preview:
+    /api/v1/collections/{id}/pull-from-source/preview:
         post:
             tags: [Collections]
             summary: Preview a pull from source collection
@@ -1045,7 +1045,7 @@ paths:
                 WITHOUT mutating anything — a distinct, read-only endpoint (not a `?dryRun`
                 flag on the commit) so a preview is structurally incapable of writing.
                 Echo the returned diff back as `previewedDiff` on
-                `POST /v1/collections/{id}/pull-from-source` to guard against drift
+                `POST /api/v1/collections/{id}/pull-from-source` to guard against drift
                 between the preview and the commit.
             operationId: previewCollectionPullFromSource
             parameters:
@@ -1075,7 +1075,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/collections/{id}/pull-from-source:
+    /api/v1/collections/{id}/pull-from-source:
         post:
             tags: [Collections]
             summary: Pull new recipes from source collection
@@ -1127,7 +1127,7 @@ paths:
                 '423':
                     $ref: '#/components/responses/ErasureLocked'
 
-    /v1/search/recipes:
+    /api/v1/search/recipes:
         get:
             tags: [Search]
             summary: Full-text recipe search with facets
@@ -1205,7 +1205,7 @@ paths:
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
-    /v1/account/export:
+    /api/v1/account/export:
         get:
             tags: [Account]
             summary: Export my account data (GDPR access + portability)
@@ -1222,7 +1222,7 @@ paths:
                 The owner is taken from the verified session token and can never be
                 redirected by a request parameter — a caller can only export their own data.
                 Scope: recipe-domain only. A full Art. 15 export additionally composes the
-                identity profile (`GET /v1/users/me`) and food-service data.
+                identity profile (`GET /api/v1/users/me`) and food-service data.
             operationId: exportAccountData
             responses:
                 '200':
@@ -1234,7 +1234,7 @@ paths:
                 '401':
                     $ref: '#/components/responses/Unauthorized'
 
-    /v1/account/erasure:
+    /api/v1/account/erasure:
         post:
             tags: [Account]
             summary: Request GDPR account erasure
@@ -1403,7 +1403,7 @@ components:
             description: |
                 Locked (HAZ-052 write-lock). The caller's account has a queued or running GDPR
                 erasure job, so mutating requests are rejected until the erasure completes or
-                fails. Reads are unaffected. `POST /v1/account/erasure` itself is exempt (its own
+                fails. Reads are unaffected. `POST /api/v1/account/erasure` itself is exempt (its own
                 idempotent status machine governs repeat requests while erasure is in flight).
             content:
                 application/json:
@@ -1769,8 +1769,8 @@ components:
         Recipe:
             type: object
             description: |
-                Recipe METADATA — the list/search projection (returned by `GET /v1/recipes`,
-                `GET /v1/search/recipes`, and embedded in `CollectionWithRecipes`). It deliberately does
+                Recipe METADATA — the list/search projection (returned by `GET /api/v1/recipes`,
+                `GET /api/v1/search/recipes`, and embedded in `CollectionWithRecipes`). It deliberately does
                 NOT carry `ingredients`, `steps`, `photos`, or `nutrition` — those hang off
                 `RecipeDetail` (the single-recipe reads) so a list never pays an N+1 to compose them. To
                 still render a card image without that N+1, the list projection carries `coverPhotoUrl`
@@ -1832,7 +1832,7 @@ components:
                     maximum: 5
                     description: |
                         Mean of this recipe's ratings (FR-013a). READ-ONLY — maintained by a database
-                        trigger; never accepted from a client. Rate via `PUT /v1/recipes/{id}/rating`.
+                        trigger; never accepted from a client. Rate via `PUT /api/v1/recipes/{id}/rating`.
 
                         ABSENT exactly when `ratingCount` is 0. An unrated recipe has NO average; it is
                         never reported as 0, which would render as a real zero-star score.
@@ -2111,7 +2111,7 @@ components:
             type: object
             required: [stars]
             description: |
-                Body of `PUT /v1/recipes/{id}/rating` (FR-013). The rater is taken from the bearer
+                Body of `PUT /api/v1/recipes/{id}/rating` (FR-013). The rater is taken from the bearer
                 token — there is deliberately no rater field, since a client-suppliable rater id would
                 let any caller rate as another user.
             properties:
@@ -2142,7 +2142,7 @@ components:
             type: object
             required: [foodId]
             description: |
-                Body of `POST /v1/ingredients/by-food`. Deliberately carries ONLY the opaque food id — there is
+                Body of `POST /api/v1/ingredients/by-food`. Deliberately carries ONLY the opaque food id — there is
                 no `name` field, and one sent anyway is stripped by the validation whitelist (see that route's
                 description for why a client must never label a row in the shared, ownerless catalog).
             properties:
@@ -2180,14 +2180,14 @@ components:
             required: [provenance, foodId, name, score]
             description: |
                 A food-service golden record with NO `ingredients` row yet. It has no ingredient id and no
-                nutrition — admit it with `POST /v1/ingredients/by-food` before putting it on a recipe line.
+                nutrition — admit it with `POST /api/v1/ingredients/by-food` before putting it on a recipe line.
             properties:
                 provenance:
                     type: string
                     enum: [catalog]
                 foodId:
                     type: string
-                    description: The opaque food-service id to pass to `POST /v1/ingredients/by-food`.
+                    description: The opaque food-service id to pass to `POST /api/v1/ingredients/by-food`.
                 name:
                     type: string
                     description: The golden display name (never null/blank — unnameable hits are dropped).
@@ -2207,7 +2207,7 @@ components:
             type: object
             required: [suggestions, catalogAvailability]
             description: |
-                Response envelope of `GET /v1/ingredients/suggest`. `suggestions` is SECTIONED — every `local`
+                Response envelope of `GET /api/v1/ingredients/suggest`. `suggestions` is SECTIONED — every `local`
                 entry precedes every `catalog` one, and the sections are never interleaved.
             properties:
                 suggestions:
@@ -2403,7 +2403,7 @@ components:
                     nullable: true
                     description: |
                         If set, this collection was cloned from the referenced collection.
-                        Used by `POST /v1/collections/{id}/pull-from-source` to add
+                        Used by `POST /api/v1/collections/{id}/pull-from-source` to add
                         recipes that were added to the source after the clone.
                 sourceOwnerHandle:
                     type: string
@@ -2531,7 +2531,7 @@ components:
             required: [added, removed, unchanged]
             description: |
                 The three-way diff of `source ∪ clone`, returned by
-                `POST /v1/collections/{id}/pull-from-source/preview` and echoed back
+                `POST /api/v1/collections/{id}/pull-from-source/preview` and echoed back
                 as `previewedDiff` on the commit as the drift baseline.
             properties:
                 added:
@@ -2558,7 +2558,7 @@ components:
         PullFromSourceRequest:
             type: object
             description: |
-                Optional body for `POST /v1/collections/{id}/pull-from-source`. When
+                Optional body for `POST /api/v1/collections/{id}/pull-from-source`. When
                 `previewedDiff` is provided, it must be the diff most recently returned
                 by `POST .../pull-from-source/preview`; if the live diff no longer
                 matches, the pull is rejected with 409 `PULL_DRIFT` instead of silently

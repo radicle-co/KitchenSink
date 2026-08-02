@@ -23,7 +23,7 @@ Findings are mapped to the canonical milestone ladder in [`v1-launch-plan.md`](.
 
 | ID     | Severity    | Title                                              | Owner Feature(s)         | Milestone        | Blocks                                        |
 | ------ | ----------- | -------------------------------------------------- | ------------------------ | ---------------- | --------------------------------------------- |
-| CR-001 | 🔴 CRITICAL | API prefix collision (`/api/*` vs `/v1/*`)         | `001` (must migrate)     | `M0` Shire       | All API implementation in `M1`+               |
+| CR-001 | ✅ RESOLVED | API prefix collision (`/api/*` vs `/v1/*`)         | `001` (migrated)         | `M0` Shire       | resolved 2026-08-02 — see ADR-0011            |
 | CR-002 | 🔴 CRITICAL | Missing `shared/recipe-core` type library          | `001` (owns extraction)  | `M0` Shire       | `006`, `007`, `009`, `010` entity work        |
 | WA-001 | ⚠️ WARNING  | Node 22.x (002) vs ≥24.x (root)                    | `002`                    | `M0` Shire       | `002` Lambda deploy in `M1`                   |
 | WA-002 | ⚠️ WARNING  | `006 → 007` DB ordering not flagged                | `007` (add note)         | `M3` Rohan       | `007` migration in `M3`                       |
@@ -42,7 +42,7 @@ Findings are mapped to the canonical milestone ladder in [`v1-launch-plan.md`](.
 
 ### Pre-`M1` blockers (resolve in `M0` Shire)
 
-1. **CR-001** — Establish `/v1/*` as canonical. Update `specs/001-commise-recipe-app/contracts/api.openapi.yaml` and create `docs/api-conventions.md`.
+1. ~~**CR-001**~~ — **RESOLVED 2026-08-02.** `/api/v1/*` (not bare `/v1/*`) is canonical, per GR-002. The three services serve it, `specs/001-commise-recipe-app/contracts/api.openapi.yaml` and `specs/002-user-auth/contracts/identity-api.openapi.json` were migrated, and `docs/api-conventions.md` was created. The bare `/v1/*` paths remain as a deprecated alias for out-of-repo consumers — see [ADR-0011](../docs/architecture/decisions/0011-api-version-prefix.md).
 2. **CR-002** — Add `packages/shared/recipe-core` extraction task to `specs/001-commise-recipe-app/tasks.md`. Define `Recipe`, `Ingredient`, `Step`, `Collection`, `User`, `Account`, `Food`, `MealPlan`, `NutritionPlan`, `GroceryList`.
 3. **WA-001** — Align `002` to Node 24.x or document Lambda runtime divergence in `specs/002-user-auth/plan.md`.
 4. **WA-003** — Create `specs/cross-feature-FR-index.md` (one-time scaffold; maintained as features land).
@@ -74,19 +74,19 @@ Findings are mapped to the canonical milestone ladder in [`v1-launch-plan.md`](.
 
 ## Status
 
-| ID     | Status | Notes                                                                        |
-| ------ | ------ | ---------------------------------------------------------------------------- |
-| CR-001 | OPEN   | —                                                                            |
-| CR-002 | OPEN   | —                                                                            |
-| WA-001 | OPEN   | —                                                                            |
-| WA-002 | OPEN   | —                                                                            |
-| WA-003 | OPEN   | —                                                                            |
-| WA-004 | OPEN   | Provisionally addressed by `014-notification-service` scope (verify in `M8`) |
-| WA-005 | OPEN   | —                                                                            |
-| WA-006 | OPEN   | —                                                                            |
-| IN-001 | OPEN   | —                                                                            |
-| IN-002 | OPEN   | —                                                                            |
-| IN-003 | OPEN   | —                                                                            |
-| IN-004 | OPEN   | —                                                                            |
+| ID     | Status | Notes                                                                                                   |
+| ------ | ------ | ------------------------------------------------------------------------------------------------------- |
+| CR-001 | CLOSED | Resolved 2026-08-02: canonical `/api/v1/*` shipped; bare `/v1/*` kept as a deprecated alias (ADR-0011). |
+| CR-002 | OPEN   | —                                                                                                       |
+| WA-001 | OPEN   | —                                                                                                       |
+| WA-002 | OPEN   | —                                                                                                       |
+| WA-003 | OPEN   | —                                                                                                       |
+| WA-004 | OPEN   | Provisionally addressed by `014-notification-service` scope (verify in `M8`)                            |
+| WA-005 | OPEN   | —                                                                                                       |
+| WA-006 | OPEN   | —                                                                                                       |
+| IN-001 | OPEN   | —                                                                                                       |
+| IN-002 | OPEN   | —                                                                                                       |
+| IN-003 | OPEN   | —                                                                                                       |
+| IN-004 | OPEN   | —                                                                                                       |
 
 Update this table as findings resolve. Closing a finding requires a linked PR or spec edit.

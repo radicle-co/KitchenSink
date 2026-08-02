@@ -205,7 +205,7 @@ if (fdcId provided):
 
 - Passes `api_key` from Secrets Manager — never exposed to client
 - Retries on 5xx with exponential backoff (max 3 attempts)
-- Smart batching: when multiple Branded Food IDs are requested simultaneously, groups them into POST `/v1/foods` batch requests (up to 20 IDs per call)
+- Smart batching: when multiple Branded Food IDs are requested simultaneously, groups them into POST `/api/v1/foods` batch requests (up to 20 IDs per call)
 - Logs every USDA API call with token consumption for monitoring
 
 **VPC configuration:** Lambda runs in private subnets, routes outbound to USDA API via NAT Gateway. PostgreSQL and Redis are reachable via VPC-internal endpoints.
@@ -528,7 +528,7 @@ sequenceDiagram
             L->>R: DECR ratelimit:usda:tokens (Lua atomic)
             alt Rate limit OK (tokens > 0)
                 R-->>L: tokens remaining
-                L->>USDA: GET /v1/food/2047492?api_key=***
+                L->>USDA: GET /api/v1/food/2047492?api_key=***
                 USDA-->>L: food JSON
                 L->>R: SET food:branded:2047492 <serialized> EX 604800
                 L->>R: SET food:branded:2047492:hits 1 EX 604800
@@ -582,7 +582,7 @@ sequenceDiagram
         and Branded Food API search
             L->>R: check rate limit tokens
             R-->>L: tokens available
-            L->>USDA: GET /v1/foods/search?query=greek+yogurt&dataType=Branded&pageSize=10
+            L->>USDA: GET /api/v1/foods/search?query=greek+yogurt&dataType=Branded&pageSize=10
             USDA-->>L: up to 10 branded matches
         end
 

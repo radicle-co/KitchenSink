@@ -9,16 +9,16 @@
 
 Creator Profiles gives home cooks, food bloggers, and professional chefs a public identity on KitchenSink. Each creator gets an `@handle` URL, a curated profile page, and tools to grow an audience. Followers can discover recipes through the creator's public collections. Embed widgets let creators share their profile on external sites.
 
-This feature owns the `CreatorProfile` entity and the `public-profile` audience behavior. `public-profile` is a canonical audience scope under the unified audience model defined in `specs/cross-feature-consistency-report.md` §10 and enforced by `specs/governance-rules.md` GR-014. Monetization extensions (tip jars, paid follows, premium recipe gates) are implemented here but delegate billing mechanics to 010-subscriptions.
+This feature owns the `CreatorProfile` entity and the `public-profile` audience behavior. `public-profile` is a canonical audience scope under the unified audience model defined in `specs/cross-feature-consistency-report.md` §10 and enforced by `specs/governance-rules.md` GR-014. Monetization extensions (the tip jar and the creator-earnings surface) are implemented here but delegate billing mechanics to 010-subscriptions. There are **no premium recipes and no paid follows** — recipe visibility is binary private/public and owned by 001.
 
 ## Dependencies
 
-| Spec                                                          | Relationship                                                                                                          |
-| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| [002-user-auth](../002-user-auth/spec.md)                     | **Required** — `@handle` is tied to an authenticated identity; profile creation requires a verified account           |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)   | **Required** — recipes are the primary content surface on a creator profile                                           |
-| [010-subscriptions](../010-subscriptions/spec.md)             | **Integration** — tip jars, premium recipe gates, and paid follows extend 010's billing model                         |
-| [011-recipe-digitization](../011-recipe-digitization/spec.md) | **Peer** — `circle` is owned by 011; `public-profile` is owned here; the two audience scopes are siblings, not nested |
+| Spec                                                          | Relationship                                                                                                                                                                   |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [002-user-auth](../002-user-auth/spec.md)                     | **Required** — `@handle` is tied to an authenticated identity; profile creation requires a verified account                                                                    |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)   | **Required** — recipes are the primary content surface on a creator profile                                                                                                    |
+| [010-subscriptions](../010-subscriptions/spec.md)             | **Integration** — the tip jar and creator-earnings surface extend 010's billing model. No premium recipes, no paid follows: visibility is binary private/public, owned by 001. |
+| [011-recipe-digitization](../011-recipe-digitization/spec.md) | **Peer** — `circle` is owned by 011; `public-profile` is owned here; the two audience scopes are siblings, not nested                                                          |
 
 ## Personas
 
@@ -35,7 +35,7 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 This file is the canonical feature boundary, audience-scope document, **and** the authoritative
 functional-requirement enumeration. The crosswalk from `product-spec/product-spec.md` is **complete**
 (2026-08-02): FR-001 … FR-030 below are the single authoritative representation — joined by
-FR-031 … FR-040 (monetization, **DRAFT**, blocked on an unspecified 010 capability). `plan.md`,
+FR-031 … FR-034 (monetization, **DRAFT**, blocked on marketplace payments). `plan.md`,
 `tasks.md`, and `v-model/` trace to these IDs.
 
 Previously this section carried six coarse capability groupings that reused `FR-001` … `FR-006` with
@@ -58,13 +58,13 @@ Six capabilities frame the feature. They are narrative groupings, **not** requir
   or a specific collection, CDN-served with no auth dependency.
 - **Basic creator analytics** — a private dashboard of profile views, follower growth, top recipes by
   saves, and collection click-through, aggregated with no individual visitor tracking.
-- **Monetization surface (extends 010)** — tip jar (one-time tips via 010's payment flow), premium
-  recipes (010 owns the paywall and revenue split), and paid follows (010 owns billing, 012 owns the
-  follow-tier model).
+- **Monetization surface (extends 010)** — a **tip jar** (one-time tips via 010's payment flow) and a
+  read-only earnings view. There are **no premium recipes and no paid follows**: recipe visibility is
+  binary private/public and owned by 001, so 012 has no gated content to sell. Following is free.
 
-> **Monetization is now enumerated** as `FR-031` … `FR-040` below, **marked DRAFT**. Authoring them surfaced
-> a harder problem than the missing text: the payment capabilities they depend on are not specified in
-> feature 010 or anywhere else. See the blocking-dependency note at the end of the requirements.
+> **Monetization is now enumerated** as `FR-031` … `FR-034` below (tip jar + earnings), **marked DRAFT** and
+> blocked on marketplace payments. An earlier revision of this PR also invented premium recipes and paid
+> follows; those are **withdrawn** — recipe visibility is binary private/public and owned by 001.
 
 ## Functional Requirements
 
@@ -148,62 +148,66 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-030** All owner-scoped endpoints MUST require a valid Clerk session token; the `sub` claim MUST match the `userId` on the `CreatorProfile`.
 
-### Monetization — Entitlement-Gated Content (FR-034, FR-035, FR-039) — **DRAFT, not merchant-blocked**
-
-> **DRAFT — not ratified**, but **not blocked on marketplace payments either.** These three ask only
-> _"is this viewer entitled?"_ — they move no money to a creator, so they need no merchant capability.
-> Their single prerequisite is `010-FR-044` (the subscription tier readable as a signed token claim).
-
-- **FR-034** A creator MAY mark a recipe they authored as premium. A recipe that is imported or attributed to another creator MUST NOT be markable as premium (it must remain public per source TOS — see `004-FR-011`).
-- **FR-035** A viewer without entitlement to a premium recipe MUST see its title, cover image, and description, and MUST NOT receive its ingredients or instructions in any API response. Withholding MUST occur server-side; a client-side blur is not conformant.
-- **FR-039** A creator MUST NOT be able to retroactively paywall content a viewer already had entitled access to.
-
-> **Recorded product decision (2026-08-02) — awaiting ratification.** In the entitlement-gated model,
-> **"premium recipe" means _visible to platform-premium subscribers_, not _purchasable from this creator_.**
-> Entitlement is the viewer's 010 subscription tier. This ships without any merchant capability, and it
-> **pays the creator nothing** — creator compensation is the deferred half below. These are different
-> products; adopting this reading is a deliberate choice, not a technical shortcut.
-
 ### Monetization — Tip Jar (FR-031 … FR-033) — **DRAFT, merchant-blocked**
+
+> **DRAFT — not ratified.** Blocked on marketplace payments; see the dependency note below.
 
 - **FR-031** An active `CreatorProfile` MAY enable a tip jar. When enabled, the public profile page MUST render a tip control; when disabled, it MUST NOT render, and the tip endpoint MUST return HTTP 404 for that creator.
 - **FR-032** A tip MUST be a one-time payment in a fixed set of amounts plus a caller-specified custom amount, bounded by a configured minimum and maximum. A tip MUST NOT create a recurring charge.
 - **FR-033** A completed tip MUST be recorded against the recipient creator and MUST NOT expose the tipper's identity to the creator beyond a display name the tipper opted to share. Tip totals surface only in aggregate, consistent with `FR-024`.
 
-### Monetization — Purchased & Creator-Priced Access (FR-036 … FR-038) — **DRAFT, merchant-blocked**
+### Monetization — Earnings Surface (FR-034) — **DRAFT, merchant-blocked**
 
-- **FR-036** Purchasing a premium recipe MUST grant the buyer perpetual access to that recipe, surviving the creator later unpublishing it, and MUST be idempotent per (buyer, recipe).
-- **FR-037** A creator MAY define at most one paid follow tier with a name, a monthly price, and a description. 012 owns the tier model; it does **not** own billing.
-- **FR-038** A paid follower MUST receive access to the creator's premium feed for as long as their tier subscription is active. On lapse, access MUST revert to the free follow relationship without deleting the follow edge.
+- **FR-034** 012 MUST present a creator's earnings read-only (tip revenue, aggregated by period). 012 MUST NOT compute revenue splits, hold balances, or initiate disbursement.
 
-### Monetization — Earnings Surface (FR-040) — **DRAFT, merchant-blocked**
+> ### ⛔ Withdrawn 2026-08-02 — there is no such thing as a premium recipe
+>
+> An earlier revision of this section (in this same PR, never ratified) invented **premium recipes** and
+> **paid follows**: a creator marking a recipe premium, server-side withholding of its ingredients and
+> instructions from unentitled viewers, per-recipe purchase granting perpetual access, a creator-priced
+> follow tier, and a "premium feed". **All of it is withdrawn.** It contradicted the product's actual
+> content model.
+>
+> **The visibility model is binary, and 001 owns it**: a recipe is **private** or **public**
+> (`001-FR-003`, `001-FR-004`). There is no third, paywalled state, and 012 does not get to introduce one.
+> A **private** recipe may be shared with contacts **read-only** — that is 011's `circle` audience scope
+> (`{ scope: 'circle', ref_id }`) with member read-only access per `011` US-006, **not** a purchase.
+>
+> The tip jar and earnings requirements above were renumbered into `FR-031` … `FR-034`, and the withdrawn
+> IDs are **retired, not reused** — see the register below.
 
-- **FR-040** 012 MUST present a creator's earnings read-only (tips, premium-recipe sales, paid-follow revenue, aggregated by period). 012 MUST NOT compute revenue splits, hold balances, or initiate disbursement.
+### Retired Requirement IDs — do not reuse
 
-> ### Dependency status — gating is available; paying is not
+Withdrawn 2026-08-02 with the premium-recipe model. Listed so the numbers stay burned: reusing one would
+make every historical reference silently resolve to a different requirement.
+
+| ID     | Withdrawn requirement                                               | Why it cannot exist                                           |
+| ------ | ------------------------------------------------------------------- | ------------------------------------------------------------- |
+| FR-035 | Creator marks an authored recipe as premium                         | No paywalled visibility state — a recipe is private or public |
+| FR-036 | Server-side withholding of ingredients/instructions from non-buyers | Nothing to withhold from; public recipes are readable by all  |
+| FR-037 | Per-recipe purchase grants perpetual access                         | Recipes are not purchasable                                   |
+| FR-038 | Creator-priced paid follow tier                                     | Following is free; no gated feed exists to sell               |
+| FR-039 | No retroactive paywalling of already-entitled content               | Moot — there is no paywalled content                          |
+
+Read-only sharing of a **private** recipe with contacts is served by 011's `circle` audience scope, not by
+any of the above.
+
+> What survives is **creator compensation that is not tied to gated content**: the tip jar and the earnings
+> surface. Both remain blocked on marketplace payments.
+
+> ### Dependency status — creator compensation is blocked
 >
-> The dividing line is **not** creator-gating vs platform-gating. It is **whether money reaches a creator.**
+> `FR-031` … `FR-034` assume 010 provides one-time payments and payouts. **It provides neither.** Feature
+> 010's entire functional scope is `010-FR-040` … `010-FR-044`: a free/premium **subscriber** tier on Stripe
+> Checkout + Customer Portal, upgrade prompts, downgrade retention, and the tier as a signed token claim. It
+> has no one-time payment, marketplace, revenue-split, or payout surface, and its Out-of-Scope section rules
+> out even multi-seat family plans.
 >
-> |                          | Requirements                             | Depends on                                  | Status                                |
-> | ------------------------ | ---------------------------------------- | ------------------------------------------- | ------------------------------------- |
-> | **Entitlement gating**   | `FR-034`, `FR-035`, `FR-039`             | `010-FR-044` — tier as a signed token claim | **Available once `010-FR-044` ships** |
-> | **Creator compensation** | `FR-031`–`033`, `FR-036`–`038`, `FR-040` | Marketplace payments (unspecified)          | **Blocked**                           |
->
-> **Why gating works today.** `accounts.subscription_tier` already ships in the identity service
-> (`text`, `notNull`, default `'free'`) with an `updateSubscriptionTier` DAO method. The gap is only that it
-> is **not a token claim**: `@kitchensink/clerk-verify` reads solely `scopes` and `permissions` from signed
-> `public_metadata`, and the one cross-service account endpoint (`/api/v1/internal/account`) is
-> **erasure-only**. So identity can gate on tier today, but a creator-profiles service cannot. `010-FR-044`
-> closes that using the mechanism admin scopes already use — no merchant capability involved.
->
-> **Why compensation is blocked.** 010 provides no one-time payments, per-item purchases, creator-defined
-> tiers, revenue splitting, or payouts; its entire scope is `010-FR-040` … `010-FR-043` (a free/premium
-> subscriber tier on Stripe Checkout + Customer Portal), and its Out-of-Scope section rules out even
-> multi-seat family plans. Per [`cross-feature-FR-index.md`](../cross-feature-FR-index.md) Review Rule 3
-> this stays a **capability-level dependency** rather than an invented FR in 010's namespace. Marketplace
-> payments need their own spec — in 010 or a dedicated payments feature — including the money-transmission
-> and tax posture that splitting third-party revenue implies. **Feature 013 splits the same way**: course
-> access control is entitlement gating; `013-FR-010`'s 20%/80% revenue share is compensation.
+> Per [`cross-feature-FR-index.md`](../cross-feature-FR-index.md) Review Rule 3 this stays a
+> **capability-level dependency** rather than an invented FR in 010's namespace. Marketplace payments need
+> their own spec — in 010 or a dedicated payments feature — including the money-transmission and tax posture
+> that splitting third-party revenue implies. **Feature 013 carries the same dependency** for `013-FR-010`'s
+> 20%/80% revenue share.
 
 ## API Paths
 

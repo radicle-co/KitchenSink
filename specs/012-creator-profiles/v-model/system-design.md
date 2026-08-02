@@ -27,7 +27,7 @@ Feature 012 decomposes into creator lifecycle, public read/discovery, social gra
 | SYS-007 | Embed Widget Delivery                 | Renders static widget fragment responses with CDN cache semantics and latency targets.                            | REQ-012                                     | Service   |
 | SYS-008 | Creator Analytics Pipeline            | Computes daily aggregate snapshots and serves owner-only analytics reads without visitor PII.                     | REQ-013                                     | Subsystem |
 | SYS-009 | Moderation & Compliance Workflow      | Executes profile suspension, creator notification/appeal state, and DMCA takedown SLA handling.                   | REQ-014, REQ-015                            | Subsystem |
-| SYS-010 | Monetization Delegation Gateway       | Exposes thin delegation endpoints for tip/premium/paid follow requests to feature 010 contracts.                  | REQ-016                                     | Adapter   |
+| SYS-010 | Monetization Delegation Gateway       | Exposes thin delegation endpoints for tip/earnings requests to feature 010 contracts.                             | REQ-016                                     | Adapter   |
 | SYS-011 | Security, Abuse, and Privacy Controls | Enforces owner JWT checks, fresh-session protections, blocked-user restrictions, and GDPR erasure propagation.    | REQ-017, REQ-018                            | Subsystem |
 
 ## Dependency View (IEEE 1016 §5.2)

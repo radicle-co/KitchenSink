@@ -117,43 +117,50 @@ match.
 Either it is mis-scoped or it is a deliberate exception — unresolved here because renaming a published
 package is a code change, not a spec change.
 
-### 4.4 ✅ `012` monetization — enumerated and scoped by dependency
+### 4.4 ✅ `012` monetization — enumerated, then corrected against the real content model
 
-`012-FR-031` … `012-FR-040` authored as **DRAFT**, then split by what each actually depends on. The dividing
-line is **not** creator-gating vs platform-gating — it is **whether money reaches a creator.**
+Authored ten monetization requirements as DRAFT, then **withdrew six of them** on the owner ruling
+(2026-08-02) that settled the content model:
 
-|                          | Requirements                                                        | Depends on           | Status                                                         |
-| ------------------------ | ------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------- |
-| **Entitlement gating**   | `012-FR-034`, `012-FR-035`, `012-FR-039`; 013 course access control | `010-FR-044`         | **Available once `010-FR-044` ships** — no merchant capability |
-| **Creator compensation** | `012-FR-031`–`033`, `012-FR-036`–`038`, `012-FR-040`; `013-FR-010`  | Marketplace payments | **Blocked**                                                    |
+> **A recipe is either private or public. There is no third state.** A private recipe may be shared with
+> contacts **read-only**. A recipe ingested from a source that is not publicly and freely available is
+> automatically private. **Attribution and source linking are required.**
 
-**New: `010-FR-044` (DRAFT)** — publish the subscription tier into the Clerk session token as a signed
-`public_metadata` claim, the same mechanism admin `scopes`/`permissions` already use, refreshed on tier
-change, consumers failing closed.
+**Withdrawn** — premium recipes and paid follows (the six IDs originally drafted above `012-FR-033`): marking a recipe
+premium, server-side withholding of ingredients/instructions from unentitled viewers, per-recipe purchase
+granting perpetual access, creator-priced follow tiers, a "premium feed", and no-retroactive-paywalling.
+All of it invented a **paywalled third visibility state that does not exist**. 012 has no gated content to
+sell, so there is nothing for a paid follow to unlock. Withdrawn IDs are retired, not reused.
 
-Why it is needed: `accounts.subscription_tier` already ships (`text`, `notNull`, default `'free'`, with an
-`updateSubscriptionTier` DAO method), but it is **not** a token claim — `@kitchensink/clerk-verify` reads
-only `scopes` and `permissions` from signed `public_metadata`, and the sole cross-service account endpoint
-(`/api/v1/internal/account`) is **erasure-only**. So identity can gate on tier today and **no other service
-can**, which is where most gated features live.
+The concept was **not only mine** — 012's pre-existing v-model carried it too (`REQ-016`, `SYS-010`,
+acceptance plan, traceability, release audit, `.forge-status.yml` all said "premium recipe gating … paid
+follow flows"). Those were corrected as well.
 
-It also **unblocks the three rows feature 006 deferred** (`006-FR-025`–`027`), which were parked citing
-exactly this missing mechanism. Their other blocker (005's AI provider surface) is unaffected, and flipping
-those rows is 006's call, not this sweep's.
+**Surviving**: `012-FR-031`–`033` (tip jar) and `012-FR-034` (read-only creator-earnings surface). Both are
+creator compensation untied to gated content, and both remain **blocked on marketplace payments** — 010 has
+no one-time payment or payout surface. Same block applies to `013-FR-010`'s 20%/80% revenue share.
 
-**Recorded product decision, awaiting ratification**: in the entitlement-gated model, _"premium recipe"
-means visible to platform-premium subscribers, not purchasable from this creator._ That ships with no
-merchant work and **pays the creator nothing**. Different product from the deferred half — a deliberate
-choice, not a technical shortcut.
+**Where the model is now recorded**: `011/spec.md` — 011 owns the Circle primitive and the `circle` audience
+scope that make read-only contact sharing work. Two requirements added there:
 
-**Still blocked**: marketplace payments need their own spec — in 010 or a dedicated payments feature —
-including the money-transmission and tax posture that splitting third-party revenue implies (Stripe Connect,
-1099 reporting). Recorded in `010/spec.md` Out of Scope, `012/spec.md`, `013/spec.md` FR-010, and
-`v1-launch-plan.md` at `M6` and `M7`.
+- **`011-FR-021a`** — a photo-digitized recipe MUST be created **private**. Its source (cookbook page, recipe
+  card, handwritten note) is not publicly and freely available, so it MUST NOT default to public and MUST
+  NOT be auto-published under any condition.
+- **`011-FR-021b`** — attribution and source linking are **required**, and a recipe MUST NOT be publishable
+  until a source attribution is present.
 
-**Open design question on `010-FR-044`**: a signed claim is only as fresh as the token. The maximum tolerated
-lag between a tier change and enforcement — and whether downgrade forces token refresh or revocation — is
-unspecified and must be settled when 010 is planned.
+**`010-FR-044` still stands, on firmer ground.** Private-recipe visibility _is_ the premium gate
+(`001-FR-003`: only premium users may set their own recipes private) and it is enforced in the recipe
+service, not identity — which is exactly what a tier-as-token-claim enables. It still unblocks 006's three
+deferred rows.
+
+⚠️ **Open question for `004` — does the ingestion rule change `004-FR-011`?** The ruling reads "ingested
+from a non-public or free source". Taken as _not publicly **and** freely available_ (paywalled,
+subscription, physical, personal), it is consistent with `004-FR-011`, which marks **public** website and
+Instagram imports as **public** per source TOS, and it newly covers `004-FR-012` (photo import). Read
+literally as _"or free"_, it would invert `004-FR-011` and make public-web imports private too. **The specs
+adopt the first reading**; the second would reverse a TOS-driven requirement on another agent's branch, so
+it is flagged rather than applied. Confirm before `004` or `011` is planned.
 
 ### 4.5 ✅ `docs/api-conventions.md` — not needed here
 

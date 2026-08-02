@@ -609,7 +609,7 @@ User-approved expansion of the portfolio to cover personas P10–P13. Each is a 
 - **Anchored personas**: P11 Robin (primary); P5 Morgan (discovery side), P9 Drew (chef brand).
 - **Scope**: `@handle` profile pages, follow/unfollow, public collections, embed widgets, basic creator analytics.
 - **Cross-feature owners**: `CreatorProfile` entity (referenced by 010 for monetization, 013 for educator profiles).
-- **Touches 010**: tip jars, premium recipes, paid follows — extends 010's billing model.
+- **Touches 010**: tip jar and creator earnings — extends 010's billing model. (**Premium recipes and paid follows withdrawn 2026-08-02** — recipe visibility is binary private/public, owned by 001; 012 has no gated content to sell.)
 
 ### 013 — Cooking School (Video Learning Platform)
 

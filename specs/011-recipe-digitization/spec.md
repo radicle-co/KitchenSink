@@ -170,12 +170,39 @@ Key need: reliable OCR on printed + handwritten text + side-by-side correction U
 
 ### Storage & Archive (FR-019 … FR-022) — supports US-001, US-002, US-007
 
-| ID     | Requirement                                                                       | Priority | Source |
-| ------ | --------------------------------------------------------------------------------- | -------- | ------ |
-| FR-019 | S3 photos under per-user prefix; CloudFront serves to UI + recipe detail.         | Must     | US-002 |
-| FR-020 | `DigitizationJob` stores `raw_ocr_json` and `parsed_json` separately (auditable). | Must     | US-002 |
-| FR-021 | `POST /…/save` creates a `Recipe` (owned by 001) and links via `recipe_id`.       | Must     | US-001 |
-| FR-022 | `DELETE /…/jobs/:id` soft-deletes; S3 object retained 30 d default.               | Should   | US-007 |
+| ID      | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Priority | Source |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------ |
+| FR-019  | S3 photos under per-user prefix; CloudFront serves to UI + recipe detail.                                                                                                                                                                                                                                                                                                                                                                                   | Must     | US-002 |
+| FR-020  | `DigitizationJob` stores `raw_ocr_json` and `parsed_json` separately (auditable).                                                                                                                                                                                                                                                                                                                                                                           | Must     | US-002 |
+| FR-021  | `POST /…/save` creates a `Recipe` (owned by 001) and links via `recipe_id`. The created recipe MUST be `{ scope: 'private' }` — see `FR-021a`.                                                                                                                                                                                                                                                                                                              | Must     | US-001 |
+| FR-021a | **A recipe digitized from a photo MUST be created private.** Its source is not publicly and freely available (a cookbook page, recipe card, handwritten note, or screenshot), so it MUST NOT default to public. The owner MAY afterwards share it read-only to a Circle (`{ scope: 'circle', ref_id }`) or, if they hold the rights, publish it. The system MUST NOT auto-publish it under any condition. _(**DRAFT**, added 2026-08-02 per owner ruling.)_ | Must     | US-001 |
+| FR-021b | **Attribution and source linking are required.** A digitized recipe MUST persist and display the provenance it was captured from — at minimum the capture method (photo) and any user-supplied source (book title, author, page, or URL). A recipe MUST NOT be publishable until a source attribution is present. _(**DRAFT**, added 2026-08-02 per owner ruling.)_                                                                                         | Must     | US-001 |
+| FR-022  | `DELETE /…/jobs/:id` soft-deletes; S3 object retained 30 d default.                                                                                                                                                                                                                                                                                                                                                                                         | Should   | US-007 |
+
+> ### Recipe visibility model (owner ruling, 2026-08-02)
+>
+> **A recipe is either private or public. There is no third state.** No premium, paywalled, or
+> purchasable recipe exists anywhere in the portfolio.
+>
+> - **Private** — visible to the owner. It MAY be shared with contacts **read-only** via a Circle
+>   (`{ scope: 'circle', ref_id }`, member read-only access per US-006). Sharing is not selling.
+> - **Public** — visible to any authenticated user (`001-FR-004`).
+> - **Ingestion rule** — a recipe ingested from a source that is **not publicly and freely available**
+>   is created **private** (`FR-021a`).
+> - **Attribution** — source attribution and linking are **required**, and are a precondition of
+>   publishing (`FR-021b`, and `004-FR-010` for web/Instagram imports).
+>
+> 001 owns the visibility field; 011 owns the Circle primitive and the `circle` audience scope that make
+> read-only contact sharing possible.
+>
+> ⚠️ **Open question for `004` — does the ingestion rule change `004-FR-011`?** The ruling reads
+> "recipes ingested from a non-public or free source are automatically marked as private". Taken as
+> _"not publicly **and** freely available"_ — paywalled, subscription, physical, or personal sources —
+> it is consistent with `004-FR-011`, which marks imports from **public** websites and Instagram as
+> **public** per source TOS, and it newly covers `004-FR-012` (photo import of physical copies).
+> Read literally as _"or free"_, it would invert `004-FR-011` and make public-web imports private too.
+> **This spec adopts the first reading.** The second would reverse a TOS-driven requirement in another
+> feature's branch, so it is flagged rather than applied. Confirm before `004` or `011` is planned.
 
 ### Accessibility (FR-023 … FR-026) — supports US-002, US-004, US-007, US-008
 

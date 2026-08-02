@@ -215,7 +215,7 @@ Acceptance plan maps every requirement (`REQ-001..REQ-018`) to executable ATP/SC
 
 #### Test Case: ATP-016-A (Primary validation for REQ-016)
 
-**Description:** Validates via **Inspection** that tip jar, premium recipe gating, and paid follow flows SHALL be delegated to feature 010 billing surfaces; 012 SHALL not implement payment processing, subscription charging, or revenue settlement logic.
+**Description:** Validates via **Inspection** that tip jar and creator-earnings flows SHALL be delegated to feature 010 billing surfaces; 012 SHALL not implement payment processing, subscription charging, or revenue settlement logic.
 
 - **User Scenario: SCN-016-A1**
     - **Given** preconditions and access context required by the requirement are satisfied

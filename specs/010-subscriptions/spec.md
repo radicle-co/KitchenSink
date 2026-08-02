@@ -64,7 +64,8 @@ New users start on a free tier that provides core functionality: creating, viewi
     features live.
 
     **What it unblocks** — all entitlement gating, none of which needs marketplace payments:
-    `012-FR-034`, `012-FR-035`, `012-FR-039` (premium recipe visibility); `013` course access control; and
+    `001-FR-003` (only premium users may set their own recipes **private** — the gate lives in the recipe
+    service, not identity); `013` course access control; and
     the three rows feature 006 deferred (`006-FR-025`, `006-FR-026`, `006-FR-027`), which were parked
     citing exactly this missing mechanism. **Staleness is the design question to settle**: a signed claim
     is only as fresh as the token, so define the maximum tolerated lag between a tier change and enforcement,
@@ -102,13 +103,15 @@ New users start on a free tier that provides core functionality: creating, viewi
       purchases, creator-defined subscription tiers, revenue splitting, and payouts.
 
     **Downstream requirements that depend on the deferred half**, surfaced by the 2026-08-02 spec sweep:
-    - `012-creator-profiles` `012-FR-031`–`033`, `012-FR-036`–`038`, `012-FR-040` (DRAFT) — tip jar,
-      purchased access, creator-priced follow tiers, earnings surface.
+    - `012-creator-profiles` `012-FR-031`–`034` (DRAFT) — tip jar and creator-earnings surface. (An
+      earlier revision also listed premium recipes and paid follows; both are **withdrawn** — recipe
+      visibility is binary private/public and owned by 001, so 012 has no gated content to sell.)
     - `013-cooking-school` `013-FR-010` — "Revenue share: platform 20%, educator 80% (pro tier: 15%/85%
       via 010)", with course revenue "disbursed via 010's payout model".
 
-    Their **gating-only** siblings (`012-FR-034`, `012-FR-035`, `012-FR-039`, and 013 course access control)
-    are **not** blocked by this — they need only `FR-044`.
+    Entitlement **gating** is not blocked by this. Gating the premium tier's own features — private recipe
+    visibility (`001-FR-003`), AI generation, meal suggestions — needs only `FR-044`, and 013's course
+    access control gates on the learner's entitlement the same way.
 
     Marketplace payments need their own spec — in 010 or a dedicated payments feature — including the
     money-transmission and tax posture that splitting third-party revenue implies (e.g. Stripe Connect, 1099

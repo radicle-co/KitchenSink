@@ -5,9 +5,13 @@
 **Last Updated**: 2026-05-10
 **Status**: Product decisions approved — implementation prerequisites remain; V-Model/test artifacts remain pre-implementation blocked
 **Mode**: Retroactive bootstrap
-**Milestone**: `M3` Rohan
-**Public Launch**: Beta (end of `M4`)
-**Launch Plan**: [`v1-launch-plan.md`](../v1-launch-plan.md)
+
+## Milestone Assignment
+
+- **Milestone**: `M3` Rohan
+- **Public launch**: Beta
+- **Source of truth**: ../v1-launch-plan.md
+- **Last updated**: 2026-08-02
 
 ---
 
@@ -77,15 +81,15 @@ This feature was **retroactively bootstrapped** — the SpecKit + V-Model artifa
 
 ## Resolved Questions
 
-| #   | Question                                                  | Decision                                                                                                                                                        |
-| --- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Store integration sequencing: Walmart first or Instacart? | **Walmart first.** Walmart API is publicly documented and key-based. Instacart requires a partner agreement not yet in place. Both behind feature flag.         |
-| 2   | Order status mechanism: webhook or polling?               | **Polling.** Client polls `GET /v1/grocery-lists/:id/order-status` every 30s. Server caches 30s. Webhooks deferred until a partner agreement confirms delivery. |
-| 3   | Store API outage behavior                                 | **List preserved; user shown clear error; no broken state.** 502 returned with human-readable message. Circuit breaker prevents cascading calls.                |
-| 4   | Dedicated Shopping Lists page                             | **Yes, required.** FR-032 added. `/shopping-lists` route on web; Shopping Lists tab on mobile. Reachable from main nav without visiting a meal plan.            |
-| 5   | Meal plan / shopping list cross-linking                   | **Yes, required.** FR-033 added. Grocery list shows back-link to meal plan. Meal plan shows associated lists. Deleted meal plan handled gracefully.             |
-| 6   | Pantry TTL: 7 days or "always exclude"?                   | **7 days for MVP.** "Always exclude" deferred to post-MVP.                                                                                                      |
-| 7   | Recipe scaling                                            | **Respect serving multiplier from 006 if available.** Default to base serving count if 006 does not yet expose a multiplier. Confirm during integration.        |
+| #   | Question                                                  | Decision                                                                                                                                                            |
+| --- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Store integration sequencing: Walmart first or Instacart? | **Walmart first.** Walmart API is publicly documented and key-based. Instacart requires a partner agreement not yet in place. Both behind feature flag.             |
+| 2   | Order status mechanism: webhook or polling?               | **Polling.** Client polls `GET /api/v1/grocery-lists/:id/order-status` every 30s. Server caches 30s. Webhooks deferred until a partner agreement confirms delivery. |
+| 3   | Store API outage behavior                                 | **List preserved; user shown clear error; no broken state.** 502 returned with human-readable message. Circuit breaker prevents cascading calls.                    |
+| 4   | Dedicated Shopping Lists page                             | **Yes, required.** FR-032 added. `/shopping-lists` route on web; Shopping Lists tab on mobile. Reachable from main nav without visiting a meal plan.                |
+| 5   | Meal plan / shopping list cross-linking                   | **Yes, required.** FR-033 added. Grocery list shows back-link to meal plan. Meal plan shows associated lists. Deleted meal plan handled gracefully.                 |
+| 6   | Pantry TTL: 7 days or "always exclude"?                   | **7 days for MVP.** "Always exclude" deferred to post-MVP.                                                                                                          |
+| 7   | Recipe scaling                                            | **Respect serving multiplier from 006 if available.** Default to base serving count if 006 does not yet expose a multiplier. Confirm during integration.            |
 
 ---
 

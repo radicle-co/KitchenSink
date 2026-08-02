@@ -60,7 +60,7 @@ Feature 010 uses a Stripe-centered billing architecture integrated into the exis
 ### Rationale
 
 - Keeps premium checks explicit at endpoint level.
-- Composes with existing `JwtAuthGuard`.
+- Runs after `AuthMiddleware` (Clerk session-token verification); fails closed when `req.user` is absent.
 - Produces consistent `403 PREMIUM_REQUIRED` envelope for frontend UX handling (`FR-042`).
 
 ### Coverage target

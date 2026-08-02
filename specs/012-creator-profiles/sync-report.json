@@ -141,7 +141,7 @@
           "id": "L6-F01",
           "severity": "INFO",
           "message": "No implementation files found for planned creator-profiles modules.",
-          "evidence": "glob('**/*creator*') returned zero implementation matches. No packages/api/creator-profiles-api exists."
+          "evidence": "glob('**/*creator*') returned zero implementation matches. No packages/services/creator-profiles-service exists."
         },
         {
           "id": "L6-F02",
@@ -183,7 +183,7 @@
       {
         "rule": "GR-007",
         "status": "PASS",
-        "evidence": "tasks.md T004 requires imports from @kitchensink/shared-recipe-core and forbids local duplicate core entities."
+        "evidence": "tasks.md T004 requires imports from @kitchensink/recipe-core and forbids local duplicate core entities."
       },
       {
         "rule": "GR-014",
@@ -194,7 +194,7 @@
     "monorepoPaths": {
       "flags": [],
       "notes": [
-        "tasks.md references packages/api/creator-profiles-api/* as a new planned package. This is not yet present in the workspace; T001 covers registration. No stale app/X references found."
+        "tasks.md references packages/services/creator-profiles-service/* as a new planned package. This is not yet present in the workspace; T001 covers registration. No stale app/X references found."
       ]
     }
   },

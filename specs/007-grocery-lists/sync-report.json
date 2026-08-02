@@ -4,8 +4,17 @@
     "scanDate": "2026-06-02",
     "basePath": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/007-grocery-lists/",
     "mode": "READ-ONLY",
-    "layersScanned": ["L1", "L2", "L3", "L4", "L6", "L7"],
-    "layersSkipped": ["L5"]
+    "layersScanned": [
+      "L1",
+      "L2",
+      "L3",
+      "L4",
+      "L6",
+      "L7"
+    ],
+    "layersSkipped": [
+      "L5"
+    ]
   },
   "summary": {
     "criticalCount": 0,
@@ -92,7 +101,7 @@
       "status": "INFO",
       "evidence": [
         "Zero .ts/.tsx/.sql files found matching grocery|pantry|culinary|aggregator",
-        "packages/api/ is empty (.gitkeep only)",
+        "packages/api/ is an empty leftover directory and is NOT a workspace root; backend services live under packages/services/*",
         "No Drizzle schema, migrations, or NestJS modules found for this feature"
       ],
       "implementationState": "not-started",
@@ -154,11 +163,11 @@
     },
     {
       "id": "I-002",
-      "severity": "INFO",
+      "severity": "RESOLVED",
       "layer": "L7",
-      "title": "Monorepo path drift: assumed API path does not exist",
-      "evidence": "research/codebase-analysis.md references packages/apps/commise/api/src/grocery-lists/, but packages/api/ is empty and no api/ subdir exists under packages/apps/commise/.",
-      "recommendation": "Clarify canonical API location (likely packages/services/ or a new package) before module scaffolding."
+      "title": "Monorepo path drift: assumed API path does not exist — RESOLVED 2026-08-02",
+      "evidence": "Originally: research/codebase-analysis.md referenced packages/apps/commise/api/src/grocery-lists/, which does not exist. Resolved: canonical backend location is packages/services/grocery-service/, matching shipped packages/services/<domain>-service (food-service, recipe-service) and 005's ai-service. packages/api/ is an empty leftover, not a workspace root.",
+      "recommendation": "Closed. All paths updated in plan.md, tasks.md, and research/."
     }
   ],
   "idConsistencyMatrix": [
@@ -271,6 +280,6 @@
     "Before implementation: Ensure 006-meal-planning grocery-list generation hook exists (T-006 depends on meal plan APIs).",
     "Post-implementation re-scan: Re-run L5 and L6 after T-001..T-012 complete to validate code-to-tasks traceability.",
     "Store adapter caution: Walmart API key and Instacart partner agreement are still external blockers. Keep store tasks mock-only until credentials available.",
-    "Monorepo path drift: Clarify whether packages/api/ or a new package is the canonical API location before module scaffolding."
+    "CLOSED 2026-08-02 — canonical API location is packages/services/grocery-service/."
   ]
 }

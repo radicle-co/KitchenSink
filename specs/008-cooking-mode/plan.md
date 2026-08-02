@@ -27,7 +27,7 @@ Session state: resume after interruption (24h window)
 
 - **Web**: React (desktop + tablet)
 - **Mobile**: React Native + Expo (iOS + Android)
-- Shared core logic in `packages/shared/src/cooking/`
+- Shared core logic in `packages/shared/cooking/src/`
 
 ---
 
@@ -72,9 +72,9 @@ interface RecipeInstruction {
 
 ### Endpoints (from 001)
 
-| Method | Path                            | Auth     | Description                              |
-| ------ | ------------------------------- | -------- | ---------------------------------------- |
-| GET    | `/v1/recipes/{id}/instructions` | Required | Get recipe instructions for cooking mode |
+| Method | Path                                | Auth     | Description                              |
+| ------ | ----------------------------------- | -------- | ---------------------------------------- |
+| GET    | `/api/v1/recipes/{id}/instructions` | Required | Get recipe instructions for cooking mode |
 
 ### WebSocket (optional, real-time)
 
@@ -156,7 +156,7 @@ interface TimerAlert {
 ### Screen Wake Lock (Web)
 
 ```typescript
-// packages/shared/src/cooking/wake-lock.ts
+// packages/shared/cooking/src/wake-lock.ts
 let wakeLock: WakeLockSentinel | null = null;
 
 export async function requestWakeLock(): Promise<void> {
@@ -183,7 +183,7 @@ document.addEventListener('visibilitychange', async () => {
 ### Screen Wake Lock (React Native / Expo)
 
 ```typescript
-// packages/shared/src/cooking/wake-lock-rn.ts
+// packages/shared/cooking/src/wake-lock-rn.ts
 import * as KeepAwake from 'expo-keep-awake';
 
 export function activateWakeLock(): void {

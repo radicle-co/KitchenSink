@@ -45,7 +45,7 @@ Each test case identifies its technique by name and anchors to a specific archit
 **ITS-001-A1** — Valid JWT propagates userId to service layer
 
 ```gherkin
-Given ARCH-001 GroceryListController receives POST /grocery-lists/generate with a valid Bearer JWT and body {mealPlanId: "<uuid>"}
+Given ARCH-001 GroceryListController receives POST /api/v1/grocery-lists/generate with a valid Bearer JWT and body {mealPlanId: "<uuid>"}
 When ARCH-001 delegates token validation to ARCH-012 AuthMiddleware
 Then ARCH-012 returns userId attached to request context
 And ARCH-001 passes {mealPlanId, userId} to ARCH-002 GroceryListService
@@ -55,7 +55,7 @@ And the downstream call carries the correct userId extracted from the JWT sub cl
 **ITS-001-A2** — Missing Authorization header produces 401 at controller boundary
 
 ```gherkin
-Given ARCH-001 GroceryListController receives POST /grocery-lists/generate with no Authorization header
+Given ARCH-001 GroceryListController receives POST /api/v1/grocery-lists/generate with no Authorization header
 When ARCH-001 invokes ARCH-012 AuthMiddleware
 Then ARCH-012 returns UnauthorizedError {statusCode: 401, message: "Unauthorized"}
 And ARCH-001 serialises the error as HTTP 401 without calling ARCH-002
@@ -94,7 +94,7 @@ And no partial GroceryList data is included in the response
 **ITS-001-C1** — Malformed mealPlanId (non-UUID) rejected before service call
 
 ```gherkin
-Given ARCH-001 GroceryListController receives POST /grocery-lists/generate with body {mealPlanId: "not-a-uuid"}
+Given ARCH-001 GroceryListController receives POST /api/v1/grocery-lists/generate with body {mealPlanId: "not-a-uuid"}
 When ARCH-001 applies DTO validation
 Then ARCH-001 returns HTTP 400 ValidationError {statusCode: 400, message, errors[]}
 And ARCH-002 GroceryListService is never invoked
@@ -229,7 +229,7 @@ Then ARCH-003 returns GroceryListItem[] with exactly one entry for "CX" with qua
 **ITS-004-A1** — PATCH request with valid JWT routes userId and payload to ListStateService
 
 ```gherkin
-Given ARCH-004 ListStateController receives PATCH /grocery-lists/:id/items/:itemId with valid JWT and body {alreadyHave: true}
+Given ARCH-004 ListStateController receives PATCH /api/v1/grocery-lists/:id/items/:itemId with valid JWT and body {alreadyHave: true}
 When ARCH-004 invokes ARCH-012 AuthMiddleware and receives userId
 Then ARCH-004 calls ARCH-005 ListStateService.markAlreadyHave(listId, itemId, userId, true)
 And ARCH-005 returns updated GroceryListItem
@@ -261,7 +261,7 @@ Then ARCH-004 serialises it as HTTP 409 ConflictError {statusCode: 409, message}
 **ITS-004-B1** — PATCH body missing alreadyHave field rejected before service call
 
 ```gherkin
-Given ARCH-004 ListStateController receives PATCH /grocery-lists/:id/items/:itemId with body {}
+Given ARCH-004 ListStateController receives PATCH /api/v1/grocery-lists/:id/items/:itemId with body {}
 When ARCH-004 applies DTO validation
 Then ARCH-004 returns HTTP 400 ValidationError
 And ARCH-005 ListStateService is never invoked
@@ -390,7 +390,7 @@ And item "B" is excluded from the result set
 **ITS-007-A1** — Premium user JWT passes both guards and reaches OnlineOrderingService
 
 ```gherkin
-Given ARCH-007 OnlineOrderingController receives POST /grocery-lists/:id/order with a valid premium-user JWT
+Given ARCH-007 OnlineOrderingController receives POST /api/v1/grocery-lists/:id/order with a valid premium-user JWT
 When ARCH-007 invokes ARCH-012 AuthMiddleware then ARCH-013 SubscriptionGuard in sequence
 Then ARCH-012 returns userId and ARCH-013 confirms premium tier
 And ARCH-007 calls ARCH-008 OnlineOrderingService.submitOrder(listId, userId)
@@ -489,10 +489,10 @@ And ARCH-006 GroceryListRepository state is unchanged (no order record written)
 **Architecture View**: Interface View (ARCH-009 ↔ ARCH-010)
 **Requirement Refs**: REQ-007
 
-**ITS-009-A1** — POST /store-configs delegates validated credentials to StoreConfigService
+**ITS-009-A1** — POST /api/v1/store-configs delegates validated credentials to StoreConfigService
 
 ```gherkin
-Given ARCH-009 StoreConfigController receives POST /store-configs with valid JWT and body {provider: "KROGER", credentials: {...}}
+Given ARCH-009 StoreConfigController receives POST /api/v1/store-configs with valid JWT and body {provider: "KROGER", credentials: {...}}
 When ARCH-009 delegates to ARCH-010 StoreConfigService.createConfig(userId, provider, credentials)
 Then ARCH-010 returns StoreConfig {id, provider, active: true}
 And ARCH-009 serialises it as HTTP 201 {id, provider, active}
@@ -515,7 +515,7 @@ Then ARCH-009 serialises it as HTTP 200 {id: null, provider: null, setupGuide: {
 **ITS-009-B1** — Unsupported provider value rejected before service call
 
 ```gherkin
-Given ARCH-009 StoreConfigController receives POST /store-configs with body {provider: "UNSUPPORTED_STORE", credentials: {}}
+Given ARCH-009 StoreConfigController receives POST /api/v1/store-configs with body {provider: "UNSUPPORTED_STORE", credentials: {}}
 When ARCH-009 applies DTO validation
 Then ARCH-009 returns HTTP 400 ValidationError {statusCode: 400, message}
 And ARCH-010 StoreConfigService is never invoked

@@ -11,10 +11,17 @@ KitchenSink is a Turborepo + npm workspaces monorepo. Root workspaces from `pack
 
 ```json
 "workspaces": [
-  "packages/tools/*",
-  "packages/apps/commise/web",
-  "packages/apps/commise/mobile",
-  "packages/ui"
+    "packages/tools/*",
+    "packages/services/*",
+    "packages/shared/*",
+    "packages/utils/*",
+    "packages/infra/*",
+    "packages/apps/commise/web",
+    "packages/apps/commise/mobile",
+    "packages/apps/commise/ui",
+    "packages/apps/commise/i18n",
+    "packages/apps/commise/features/*",
+    "packages/clients/*"
 ]
 ```
 

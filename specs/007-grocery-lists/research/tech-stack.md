@@ -80,7 +80,7 @@ Why:
 Why:
 
 - Existing workspace structure already supports web and mobile apps
-- Grocery interactions (swipe/check, grouped sections, add flow, review/handoff) are UI-heavy and benefit from shared design patterns in `packages/ui`
+- Grocery interactions (swipe/check, grouped sections, add flow, review/handoff) are UI-heavy and benefit from shared design patterns in `packages/apps/commise/ui`
 
 Accessibility implications:
 

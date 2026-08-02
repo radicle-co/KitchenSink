@@ -212,7 +212,7 @@ This document presents the Failure Mode and Effects Analysis (FMEA) for the **Re
 | HAZ-042 | SYS-020   | Stack trace leaked into `detail` field in production.             | NORMAL            | Information disclosure.                | Serious  | Occasional | Undesirable | REQ-030 (sanitized envelope); SYS-026 redaction filter. | Tolerable     |
 | HAZ-043 | SYS-020   | Inconsistent `error_code` across services breaks client error UX. | NORMAL            | Client retry / messaging logic broken. | Minor    | Probable   | Tolerable   | REQ-030 stable taxonomy; SYS-029 governance enforces.   | Acceptable    |
 
-### SYS-021 — `@kitchensink/shared-audience` Library
+### SYS-021 — `@kitchensink/audience` Library
 
 | HAZ ID  | Component | Failure Mode                                                                 | Operational State | Effect                                         | Severity | Likelihood | Risk Level  | Mitigation                                                                           | Residual Risk |
 | ------- | --------- | ---------------------------------------------------------------------------- | ----------------- | ---------------------------------------------- | -------- | ---------- | ----------- | ------------------------------------------------------------------------------------ | ------------- |

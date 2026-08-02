@@ -36,7 +36,7 @@ The table below decomposes all 47 ARCH modules into 91 MOD specifications. Per-M
 | MOD-006 | `withRetryEnvelope(fn, policy)`                               | ARCH-003           | Function      | Bounded retry with exponential backoff + jitter for transient PUT failures.               |
 | MOD-007 | `OfflineQueueStore` (web SQLite/IDB / mobile SQLite)          | ARCH-004           | Class         | Persistent FIFO of unsent uploads keyed by `batch_id`.                                    |
 | MOD-008 | `OfflineQueueDrainer`                                         | ARCH-004           | Worker        | Background flusher that resumes pending PUTs on connectivity restore.                     |
-| MOD-009 | `POST /jobs` handler                                          | ARCH-005           | Handler       | Validates payload, mints `job_id`s, returns pre-signed PUT URLs.                          |
+| MOD-009 | `POST /api/v1/recipes/digitize/jobs` handler                  | ARCH-005           | Handler       | Validates payload, mints `job_id`s, returns pre-signed PUT URLs.                          |
 | MOD-010 | `mintPresignedPutUrl(jobId, key)`                             | ARCH-005, ARCH-007 | Function      | Calls `@aws-sdk/s3-request-presigner`; binds `Idempotency-Key` header.                    |
 | MOD-011 | `validateJobIntakeDto`                                        | ARCH-005           | Validator     | `class-validator` DTO check (batch size, MIME hint, count).                               |
 | MOD-012 | `validateImagePreflight(meta)`                                | ARCH-006           | Validator     | Enforces 300×300 px min, 20 MB max, MIME ∈ {jpeg,png,heic}.                               |
@@ -49,7 +49,7 @@ The table below decomposes all 47 ARCH modules into 91 MOD specifications. Per-M
 | MOD-019 | `ocrWorker.handler(event)` Lambda entry                       | ARCH-009           | Handler       | SQS event source; orchestrates fetch → invoke → parse → persist.                          |
 | MOD-020 | `ocrWorker.dispatchToProvider(payload)`                       | ARCH-009           | Function      | Calls `OcrProvider` with timeout + structured logging.                                    |
 | MOD-021 | `ocrWorker.handleFailure(err)`                                | ARCH-009           | Function      | Classifies retriable vs terminal; routes terminal to DLQ.                                 |
-| MOD-022 | `OcrProvider` interface (`@kitchensink/digitization-ocr`)     | ARCH-010           | Public API    | TS interface: input shape, confidences, language, error taxonomy, timeout.                |
+| MOD-022 | `OcrProvider` interface (`@kitchensink/digitization-workers`) | ARCH-010           | Public API    | TS interface: input shape, confidences, language, error taxonomy, timeout.                |
 | MOD-023 | `OcrRawResult` + `OcrError` types                             | ARCH-010           | Public API    | Shared DTOs for raw payload and error envelope.                                           |
 | MOD-024 | `DefaultOcrProviderAdapter.recognize(input)`                  | ARCH-011           | Adapter Op    | Vendor SDK call mapped to `OcrProvider.recognize`.                                        |
 | MOD-025 | `DefaultOcrProviderAdapter.mapVendorError(err)`               | ARCH-011           | Function      | Translates vendor SDK errors to `OcrError` taxonomy.                                      |
@@ -57,23 +57,23 @@ The table below decomposes all 47 ARCH modules into 91 MOD specifications. Per-M
 | MOD-027 | `attachConfidences(parsed, raw)`                              | ARCH-012           | Function      | Decorates parsed fields with per-token confidences + language code.                       |
 | MOD-028 | `persistOcrPayload(jobId, raw, parsed)`                       | ARCH-013           | Function      | Writes `raw_ocr_json` and `parsed_json` columns within ARCH-039 transaction.              |
 | MOD-029 | `enforceRawRetention(jobId)`                                  | ARCH-013, ARCH-033 | Function      | Lifetime contract guard: raw purged at 90d, parsed retained for row lifetime.             |
-| MOD-030 | `GET /jobs/:id/correction` handler                            | ARCH-014           | Handler       | Projects `parsed_json` to `CorrectionView`.                                               |
-| MOD-031 | `PATCH /jobs/:id/correction` handler                          | ARCH-014           | Handler       | Validates patch paths; merges into `parsed_json`.                                         |
+| MOD-030 | `GET /api/v1/recipes/digitize/jobs/:id/correction` handler    | ARCH-014           | Handler       | Projects `parsed_json` to `CorrectionView`.                                               |
+| MOD-031 | `PATCH /api/v1/recipes/digitize/jobs/:id/correction` handler  | ARCH-014           | Handler       | Validates patch paths; merges into `parsed_json`.                                         |
 | MOD-032 | `mergeCorrectionPatch(parsed, patch)`                         | ARCH-014           | Function      | Pure merge function with per-field `accepted_at` capture.                                 |
 | MOD-033 | `evaluateAcceptAllEligibility(parsed, accepted)`              | ARCH-015           | Function      | Returns `{eligible:boolean, missing:string[]}`.                                           |
 | MOD-034 | `CorrectionScreen` web component                              | ARCH-016           | UI Component  | Side-by-side photo + parsed-fields editor.                                                |
 | MOD-035 | `useCorrectionForm` web hook                                  | ARCH-016           | Function      | Form state + dirty-field tracking; emits PATCH deltas.                                    |
 | MOD-036 | `CorrectionScreen` mobile component                           | ARCH-017           | UI Component  | Native side-by-side editor with keyboard-avoiding layout.                                 |
 | MOD-037 | `useCorrectionFormNative` hook                                | ARCH-017           | Function      | Mobile form state mirror of MOD-035.                                                      |
-| MOD-038 | `POST /jobs/:id/save` handler                                 | ARCH-018           | Handler       | Save bridge: creates `recipes` row + outbox event in one TX.                              |
+| MOD-038 | `POST /api/v1/recipes/digitize/jobs/:id/save` handler         | ARCH-018           | Handler       | Save bridge: creates `recipes` row + outbox event in one TX.                              |
 | MOD-039 | `buildRecipeFromParsed(parsed, ownerId)`                      | ARCH-018           | Function      | Deterministic projection from `parsed_json` to `recipes` insert payload.                  |
-| MOD-040 | `GET /jobs/:id` handler                                       | ARCH-019           | Handler       | Returns job lifecycle state + last-event timestamp.                                       |
-| MOD-041 | `DELETE /jobs/:id` handler                                    | ARCH-019           | Handler       | Cancels job; transitions to `cancelled`; preserves audit.                                 |
-| MOD-042 | `GET /jobs` handler                                           | ARCH-020           | Handler       | Paginated list filtered by `state` and `batch_id`.                                        |
+| MOD-040 | `GET /api/v1/recipes/digitize/jobs/:id` handler               | ARCH-019           | Handler       | Returns job lifecycle state + last-event timestamp.                                       |
+| MOD-041 | `DELETE /api/v1/recipes/digitize/jobs/:id` handler            | ARCH-019           | Handler       | Cancels job; transitions to `cancelled`; preserves audit.                                 |
+| MOD-042 | `GET /api/v1/recipes/digitize/jobs` handler                   | ARCH-020           | Handler       | Paginated list filtered by `state` and `batch_id`.                                        |
 | MOD-043 | `JobListProjection.toView(rows)`                              | ARCH-020           | Function      | Projects DB rows to `JobListItemView`.                                                    |
-| MOD-044 | `POST /circles` handler                                       | ARCH-021           | Handler       | Creates circle; assigns owner; emits `circle.created`.                                    |
-| MOD-045 | `POST /circles/:id/members` handler                           | ARCH-021           | Handler       | Adds member; idempotent on `(circle_id,user_id)`.                                         |
-| MOD-046 | `DELETE /circles/:id/members/:userId` handler                 | ARCH-021           | Handler       | Removes member; emits `circle.member.removed`.                                            |
+| MOD-044 | `POST /api/v1/circles` handler                                | ARCH-021           | Handler       | Creates circle; assigns owner; emits `circle.created`.                                    |
+| MOD-045 | `POST /api/v1/circles/:id/members` handler                    | ARCH-021           | Handler       | Adds member; idempotent on `(circle_id,user_id)`.                                         |
+| MOD-046 | `DELETE /api/v1/circles/:id/members/:userId` handler          | ARCH-021           | Handler       | Removes member; emits `circle.member.removed`.                                            |
 | MOD-047 | `circleAccessGuard(viewerId, circleId)`                       | ARCH-021           | Function      | Membership/ownership check used by other handlers.                                        |
 | MOD-048 | `rewriteAudiencesOnMembershipChange(circleId, removedUserId)` | ARCH-022           | Function      | Compacts audience grants when a member is removed.                                        |
 | MOD-049 | `softDeleteRecipe(recipeId, actorId)`                         | ARCH-023           | Function      | Sets `deleted_at`; enqueues archive request via outbox.                                   |
@@ -81,13 +81,13 @@ The table below decomposes all 47 ARCH modules into 91 MOD specifications. Per-M
 | MOD-051 | `archiveRecipeVersion(message)` worker handler                | ARCH-023           | Worker        | SQS consumer that PUTs JSON snapshot to `s3://recipes/.../archive/...`.                   |
 | MOD-052 | `appendCircleAuditEntry(entry)`                               | ARCH-024           | Function      | Append-only insert into `audit_log`; rejects updates.                                     |
 | MOD-053 | `circleOutlierMonitor.run()`                                  | ARCH-025           | Job           | Scheduled aggregator emitting `circle.size.outlier` events.                               |
-| MOD-054 | `POST /circles/:id/invitation/rotate` handler                 | ARCH-026           | Handler       | Owner-only; rotates active invite token.                                                  |
-| MOD-055 | `POST /circles/join/:token` handler                           | ARCH-026           | Handler       | Redeems invite token; idempotent membership add.                                          |
+| MOD-054 | `POST /api/v1/circles/:id/invitation/rotate` handler          | ARCH-026           | Handler       | Owner-only; rotates active invite token.                                                  |
+| MOD-055 | `POST /api/v1/circles/join/:token` handler                    | ARCH-026           | Handler       | Redeems invite token; idempotent membership add.                                          |
 | MOD-056 | `AuthMiddleware.use(req, res, next)`                          | ARCH-027           | Class         | NestJS middleware verifying the Clerk session token networklessly via `ClerkAuthService`. |
 | MOD-057 | `ClerkAuthService`                                            | ARCH-027           | Class         | Wraps `@clerk/backend` `verifyToken` against `CLERK_JWT_KEY`; enforces `azp`.             |
 | MOD-058 | `Rfc7807ExceptionFilter.catch(err, host)`                     | ARCH-028           | Class         | Global NestJS exception filter; emits `application/problem+json`.                         |
 | MOD-059 | `mapErrorToProblem(err)`                                      | ARCH-028           | Function      | Pure mapping from typed errors to RFC 7807 envelopes with stable `error_code`.            |
-| MOD-060 | `Audience` types + `AudienceScope` union                      | ARCH-029           | Public API    | Pure TS types exported from `@kitchensink/shared-audience`.                               |
+| MOD-060 | `Audience` types + `AudienceScope` union                      | ARCH-029           | Public API    | Pure TS types exported from `@kitchensink/audience`.                                      |
 | MOD-061 | `assertCircleRefIdPresent(audience)`                          | ARCH-029           | Function      | Consumer-side guard enforcing `ref_id` when `scope='circle'`.                             |
 | MOD-062 | `applyApiV1Prefix(app)` bootstrap step                        | ARCH-030           | Configuration | Sets global prefix `api/v1` on the Nest application.                                      |
 | MOD-063 | `routePrefixLintRule`                                         | ARCH-030           | Configuration | ESLint rule enforcing `/api/v1/*` route prefix in CI.                                     |
@@ -96,7 +96,7 @@ The table below decomposes all 47 ARCH modules into 91 MOD specifications. Per-M
 | MOD-066 | `rawOcrPurgeJob.run()`                                        | ARCH-033           | Job           | Daily scheduled purge of `raw_ocr_json` older than 90 days.                               |
 | MOD-067 | `metrics.emit(name, value, dims)`                             | ARCH-034           | Function      | Async fire-and-forget metric publisher.                                                   |
 | MOD-068 | `cdkAlarmDefinitions`                                         | ARCH-034           | Configuration | CDK alarm specs for queue depth, DLQ, OCR p95 latency.                                    |
-| MOD-069 | `POST /internal/canary/promote` handler                       | ARCH-035           | Handler       | Evaluates gate signals; returns promotion verdict.                                        |
+| MOD-069 | `POST /api/v1/internal/canary/promote` handler                | ARCH-035           | Handler       | Evaluates gate signals; returns promotion verdict.                                        |
 | MOD-070 | `evaluateCanaryGates(window)`                                 | ARCH-035           | Function      | Pure evaluator over telemetry window; default-deny on insufficient signal.                |
 | MOD-071 | `flags.isEnabled(name, ctx)`                                  | ARCH-036           | Function      | Cached feature-flag lookup with last-known-good fallback.                                 |
 | MOD-072 | `FlagWebhookHandler`                                          | ARCH-036           | Handler       | Invalidates cache on provider webhook.                                                    |
@@ -104,7 +104,7 @@ The table below decomposes all 47 ARCH modules into 91 MOD specifications. Per-M
 | MOD-074 | `workspaceGuardrailsCi`                                       | ARCH-038           | Configuration | CI job config: project references, schema isolation, generated types ordering.            |
 | MOD-075 | `withSerializable(fn)` wrapper                                | ARCH-039           | Function      | Wraps callbacks in `BEGIN ISOLATION LEVEL SERIALIZABLE`; retries on `40001`.              |
 | MOD-076 | `txWrapperLintRule`                                           | ARCH-039           | Configuration | AST rule ensuring critical-path mutations use `withSerializable`.                         |
-| MOD-077 | `uiPrimitiveReuseLintRule`                                    | ARCH-040           | Configuration | Custom ESLint rule flagging duplicated primitives outside `packages/ui`.                  |
+| MOD-077 | `uiPrimitiveReuseLintRule`                                    | ARCH-040           | Configuration | Custom ESLint rule flagging duplicated primitives outside `packages/apps/commise/ui`.     |
 | MOD-078 | `primitivesRationaleDoc` enforcer                             | ARCH-040           | Configuration | Verifies `packages/ui/PRIMITIVES.md` row exists for each new primitive.                   |
 | MOD-079 | `logger.info/warn/error(msg, ctx)` [CROSS-CUTTING]            | ARCH-041           | Function      | Request-scoped structured logger bound to OTel trace context.                             |
 | MOD-080 | `logger.bind(scope)` [CROSS-CUTTING]                          | ARCH-041           | Function      | Attaches `{user_id, job_id, circle_id}` to subsequent log lines.                          |
@@ -621,7 +621,7 @@ DrainerEvent =
 
 ---
 
-### MOD-009 — `POST /jobs` handler
+### MOD-009 — `POST /api/v1/recipes/digitize/jobs` handler
 
 - **Parent ARCH**: ARCH-005
 - **Type**: Handler (NestJS controller method)
@@ -1264,7 +1264,7 @@ FailureClassification = { retriable: boolean, code: string }
 
 ---
 
-### MOD-022 — `OcrProvider` interface (`@kitchensink/digitization-ocr`)
+### MOD-022 — `OcrProvider` interface (`@kitchensink/digitization-workers`)
 
 - **Parent ARCH**: ARCH-010
 - **Type**: Public API (TypeScript interface in shared package)
@@ -1660,7 +1660,7 @@ Scheduled invocation context: `{ jobId?: string }`. Returns `{ purged_count }`.
 
 ---
 
-### MOD-030 — `GET /jobs/:id/correction` handler
+### MOD-030 — `GET /api/v1/recipes/digitize/jobs/:id/correction` handler
 
 - **Parent ARCH**: ARCH-014
 - **Type**: HTTP Handler
@@ -1699,7 +1699,7 @@ async function getCorrection(req, res):
 
 ---
 
-### MOD-031 — `PATCH /jobs/:id/correction` handler
+### MOD-031 — `PATCH /api/v1/recipes/digitize/jobs/:id/correction` handler
 
 - **Parent ARCH**: ARCH-014
 - **Type**: HTTP Handler
@@ -2055,7 +2055,7 @@ Inherits `useCorrectionForm` states + `restoring` substate during offline boot.
 
 ---
 
-### MOD-038 — `POST /jobs/:id/save` handler
+### MOD-038 — `POST /api/v1/recipes/digitize/jobs/:id/save` handler
 
 - **Parent ARCH**: ARCH-018
 - **Type**: HTTP Handler
@@ -2163,7 +2163,7 @@ function buildRecipeFromParsed(parsed, ownerId):
 
 ---
 
-### MOD-040 — `GET /jobs/:id` handler
+### MOD-040 — `GET /api/v1/recipes/digitize/jobs/:id` handler
 
 - **Parent ARCH**: ARCH-019
 - **Type**: HTTP Handler
@@ -2212,7 +2212,7 @@ async function getJob(req, res):
 
 ---
 
-### MOD-041 — `DELETE /jobs/:id` handler
+### MOD-041 — `DELETE /api/v1/recipes/digitize/jobs/:id` handler
 
 - **Parent ARCH**: ARCH-019
 - **Type**: HTTP Handler
@@ -2265,7 +2265,7 @@ async function cancelJob(req, res):
 
 ---
 
-### MOD-042 — `GET /jobs` handler
+### MOD-042 — `GET /api/v1/recipes/digitize/jobs` handler
 
 - **Parent ARCH**: ARCH-020
 - **Type**: HTTP Handler
@@ -2360,7 +2360,7 @@ function summarizeConfidence(parsed):
 
 ---
 
-### MOD-044 — `POST /circles` handler
+### MOD-044 — `POST /api/v1/circles` handler
 
 - **Parent ARCH**: ARCH-021
 - **Type**: HTTP Handler
@@ -2422,7 +2422,7 @@ Creates aggregate in `active` state; no transitions in this handler.
 
 ---
 
-### MOD-045 — `POST /circles/:id/members` handler
+### MOD-045 — `POST /api/v1/circles/:id/members` handler
 
 - **Parent ARCH**: ARCH-021
 - **Type**: HTTP Handler
@@ -2480,7 +2480,7 @@ async function addMember(req, res):
 
 ---
 
-### MOD-046 — `DELETE /circles/:id/members/:userId` handler
+### MOD-046 — `DELETE /api/v1/circles/:id/members/:userId` handler
 
 - **Parent ARCH**: ARCH-021
 - **Type**: HTTP Handler
@@ -2922,7 +2922,7 @@ Inline named constants (`SIZE_THRESHOLD`, `GROWTH_THRESHOLD_PCT`) so MD-4 accept
 
 ---
 
-### MOD-054 — `POST /circles/:id/invitation/rotate` handler
+### MOD-054 — `POST /api/v1/circles/:id/invitation/rotate` handler
 
 - **Parent ARCH**: ARCH-026
 - **Type**: HTTP Handler
@@ -2983,7 +2983,7 @@ async function rotateInvitation(req, res):
 
 ---
 
-### MOD-055 — `POST /circles/join/:token` handler
+### MOD-055 — `POST /api/v1/circles/join/:token` handler
 
 - **Parent ARCH**: ARCH-026
 - **Type**: HTTP Handler
@@ -3273,7 +3273,7 @@ function mapErrorToProblem(err) -> Problem:
 **Algorithmic / Logic**
 
 ```ts
-// @kitchensink/shared-audience
+// @kitchensink/audience
 export type AudienceScope = 'private' | 'circle' | 'public';
 
 export type PrivateAudience = { scope: 'private' };
@@ -3680,7 +3680,7 @@ export function attachAlarms(scope: Construct, snsTopic: ITopic): void {
 
 ---
 
-### MOD-069 — `POST /internal/canary/promote` handler
+### MOD-069 — `POST /api/v1/internal/canary/promote` handler
 
 - **Parent ARCH**: ARCH-035
 - **Type**: HTTP Handler (internal-only, mTLS or VPC-restricted)
@@ -3874,7 +3874,7 @@ async function handleFlagWebhook(req, res):
 rule "kitchensink/test-file-naming":
   on file with path matching tests/** OR **/*.test.ts:
     if filename does NOT match /^(.+)\.(test|spec)\.ts$/:
-      report("Test files MUST end in .test.ts or .spec.ts")
+      report("Vitest files MUST end in .test.ts; .spec.ts is reserved for Playwright under tests/e2e/")
 
 rule "kitchensink/test-colocation":
   on file with path matching src/**/*.test.ts:
@@ -4062,7 +4062,7 @@ rule "kitchensink/serializable-required":
 rule "kitchensink/ui-primitive-reuse":
   config: {
     primitives:    ["Button", "Input", "Card", "Spinner", "Heading", "Text", "Modal", "Sheet"],
-    primitivePkg:  "@kitchensink/ui",
+    primitivePkg:  "@commise/ui",
     exemptPaths:   ["packages/ui/**", "packages/**/__stories__/**"]
   }
 
@@ -4073,7 +4073,7 @@ rule "kitchensink/ui-primitive-reuse":
       report(
         `<${elementName}> must be imported from ${primitivePkg}; ` +
         `found local definition in ${importedFrom}. ` +
-        `If this is intentional, add a row to packages/ui/PRIMITIVES.md and re-export from @kitchensink/ui.`
+        `If this is intentional, add a row to packages/ui/PRIMITIVES.md and re-export from @commise/ui.`
       )
 ```
 
@@ -4088,7 +4088,7 @@ rule "kitchensink/ui-primitive-reuse":
 **Error Handling**
 
 - Lint failure blocks CI.
-- Exemptions narrow: only the `@kitchensink/ui` package itself and Storybook story files.
+- Exemptions narrow: only the `@commise/ui` package itself and Storybook story files.
 - No autofix — silent rewriting of imports could break local component variants that legitimately differ; human review required.
 
 ---
@@ -4102,7 +4102,7 @@ rule "kitchensink/ui-primitive-reuse":
 
 ```text
 script verify-primitives-rationale.mjs:
-  exports = parseExports("packages/ui/src/index.ts")
+  exports = parseExports("packages/apps/commise/ui/src/index.ts")
   doc     = parseMarkdownTable("packages/ui/PRIMITIVES.md")
   docRows = new Set(doc.rows.map(r => r.name))
 

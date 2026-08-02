@@ -85,12 +85,12 @@ Drew's tolerance for setup friction is low. If the embed widget requires more th
 **Relevant existing packages** (from 001 and 002):
 
 - `@kitchensink/recipe-core`: `Recipe` entity, `RecipeVisibility` enum — profile pages will query public recipes by `userId`.
-- `@kitchensink/auth-authorizer`: JWT verification Lambda — profile creation endpoint requires `Authorization` header.
-- `@kitchensink/user-core` (to be created or extended): `User` entity currently lives in 002's auth flow. `CreatorProfile` will be a separate table with a `userId` FK, not a column on `User`.
+- `@kitchensink/clerk-verify`: networkless Clerk session-token verification (public `CLERK_JWT_KEY`, anchored `azp` check). Applied **in-service** by `AuthMiddleware`; there is deliberately **no** API-Gateway authorizer Lambda and no trusted `x-authorizer-context` header (removed in PR #39 — the ALB is public, so such a header would be forgeable).
+- `@kitchensink/identity-core` (shipped): `User` / `Account` entities from 002's auth flow. `CreatorProfile` will be a separate table with a `userId` FK, not a column on `User`.
 
 **New packages needed**:
 
-- `@kitchensink/creator-profiles-api` — NestJS module, owns `CreatorProfile` entity, follow/unfollow logic, analytics aggregation.
+- `@kitchensink/creator-profiles-service` — NestJS module, owns `CreatorProfile` entity, follow/unfollow logic, analytics aggregation.
 - `@kitchensink/creator-profiles-widget` — lightweight Next.js route (`/[handle]/widget`) rendered as static HTML for embed use.
 
 **Database**: new tables on the existing RDS PostgreSQL 16 instance.

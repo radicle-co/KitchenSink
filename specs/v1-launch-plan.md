@@ -118,7 +118,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 **Artifact Remediation**:
 
-- Generate `011/verify-report.md` (currently absent — only `sync-verify-report.md` exists).
+- ~~Generate `011/verify-report.md`~~ — **it exists** (verified 2026-08-02), alongside `sync-verify-report.md`, `analyze-report.md`, and `pre-impl-review.md`; the 2026-05-12 claim that it was absent is stale.
 - Burn down findings to `0 CRITICAL, 0 WARNING`.
 - Close 128 untested + 117 missing trace refs in `011/v-model/traceability-matrix.md`.
 - V-Model regen + test execution.
@@ -252,12 +252,13 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Artifact Remediation**:
 
 - **`012`**:
-    - Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md` from the existing `spec.md` + `product-spec/` (none of these artifacts exist today).
+    - ~~Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md`~~ — **all four now exist** (verified 2026-08-02); the 2026-05-12 claim that none existed is stale.
     - Burn down findings to `0 CRITICAL, 0 WARNING`.
     - Close 102 untested + 32 missing trace refs.
     - Integrate creator monetization tier with `010` subscription gating.
+    - **Author FRs for the monetization surface.** The 2026-08-02 sweep crosswalked `product-spec/` FR-001…FR-030 into `spec.md`, but found the tip jar, premium recipes, and paid follows have narrative scope and **no testable requirements**. They must be enumerated and ratified before monetization is planned.
 - **`013`**:
-    - Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md` from the existing `spec.md` + `product-spec/` (none of these artifacts exist today).
+    - ~~Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md`~~ — **all four now exist** (verified 2026-08-02); the 2026-05-12 claim that none existed is stale.
     - Burn down findings to `0 CRITICAL, 0 WARNING`.
     - Close 204 untested + 34 missing trace refs.
 - V-Model regen + test execution for both.
@@ -283,7 +284,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 **Artifact Remediation**:
 
-- Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md` from existing `spec.md` + `product-spec/` + `research/` (none of these four artifacts exist today).
+- ~~Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md`~~ — **all four now exist** (verified 2026-08-02); the 2026-05-12 claim that none existed is stale.
 - Burn down findings to `0 CRITICAL, 0 WARNING`.
 - Close 620 untested + 31 missing trace refs (largest gap in the portfolio).
 - Confirm notification system ownership per [GR-011](./governance-rules.md#gr-011-notification-system-ownership).
@@ -324,15 +325,17 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 ## 6. Decision Log
 
-| Date       | Decision                                                                                     | Decided by          |
-| ---------- | -------------------------------------------------------------------------------------------- | ------------------- |
-| 2026-05-12 | Full `001`–`014` package stays in v1 scope (no deferral to v2).                              | Director of Product |
-| 2026-05-12 | Auth (`002`) ships first; recipes/ingredients (`001`, `003`, `004`) ship next.               | Director of Product |
-| 2026-05-12 | `005` AI work is concentrated in `M5`, after Beta — no AI carve-out into earlier milestones. | Director of Product |
-| 2026-05-12 | `011` Recipe Digitization assigned to `M2`, runs in parallel with `M3`.                      | Director of Product |
-| 2026-05-12 | Commise Beta is the public-launch event at end of `M4`; `006` is in Beta.                    | Director of Product |
-| 2026-05-12 | Commise 1.0 is the public-launch event at end of `M6`; gated by Beta exit criteria.          | Director of Product |
-| 2026-05-12 | Internal milestone naming convention adopted: `Milestone <Cool Name>` (Tolkien locations).   | Director of Product |
+| Date       | Decision                                                                                                                                                                                 | Decided by          |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| 2026-05-12 | Full `001`–`014` package stays in v1 scope (no deferral to v2).                                                                                                                          | Director of Product |
+| 2026-05-12 | Auth (`002`) ships first; recipes/ingredients (`001`, `003`, `004`) ship next.                                                                                                           | Director of Product |
+| 2026-05-12 | `005` AI work is concentrated in `M5`, after Beta — no AI carve-out into earlier milestones.                                                                                             | Director of Product |
+| 2026-05-12 | `011` Recipe Digitization assigned to `M2`, runs in parallel with `M3`.                                                                                                                  | Director of Product |
+| 2026-05-12 | Commise Beta is the public-launch event at end of `M4`; `006` is in Beta.                                                                                                                | Director of Product |
+| 2026-05-12 | Commise 1.0 is the public-launch event at end of `M6`; gated by Beta exit criteria.                                                                                                      | Director of Product |
+| 2026-05-12 | Internal milestone naming convention adopted: `Milestone <Cool Name>` (Tolkien locations).                                                                                               | Director of Product |
+| 2026-08-02 | GR-002 upheld: features `007`–`014` normalized to `/api/v1/*`. Divergence of `004`, `006`, and all four shipped services recorded as an **open conflict**, not resolved.                 | Owner               |
+| 2026-08-02 | GR-003 upheld as _locality + qualified cross-refs_; FR IDs **not** renumbered to 1-based, matching `004`/`005`/`006` precedent. `007`↔`008` FR-032/033 collision fixed by qualification. | Owner               |
 
 ---
 

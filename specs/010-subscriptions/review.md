@@ -5,9 +5,13 @@
 **Last updated**: 2026-05-10
 **Status**: Product decisions revalidated — implementation/test gate blocked pending V-Model regeneration and test execution
 **Mode**: Retroactive bootstrap
-**Milestone**: `M6` Gondor
-**Public Launch**: 1.0 (end of `M6`)
-**Launch Plan**: [`v1-launch-plan.md`](../v1-launch-plan.md)
+
+## Milestone Assignment
+
+- **Milestone**: `M6` Gondor
+- **Public launch**: 1.0
+- **Source of truth**: ../v1-launch-plan.md
+- **Last updated**: 2026-08-02
 
 ---
 
@@ -48,17 +52,17 @@ This feature was **retroactively bootstrapped** — SpecKit, plan, tasks, and V-
 
 **Synthesis sources**:
 
-| Bootstrapped File    | Primary Source(s)                                                                                               |
-| -------------------- | --------------------------------------------------------------------------------------------------------------- |
-| competitors.md       | `research.md` section 1 + domain additions requested by user (Paprika/Mealime/PlateJoy/SideChef Pro)            |
-| ux-patterns.md       | `research.md` sections 1.2, 3.x + `plan.md` sections 3–4                                                        |
-| codebase-analysis.md | root `package.json`, `AGENTS.md`, `plan.md`, `tasks.md`                                                         |
-| tech-stack.md        | `research.md` sections 2–5, `plan.md` sections 1–5                                                              |
-| metrics-roi.md       | `spec.md` SC/NFR sections, `tasks.md` traceability map, `v-model/requirements.md`                               |
-| product-spec.md      | `spec.md` stories/FRs/NFRs, `plan.md` architecture, `v-model/requirements.md`                                   |
-| user-journey.md      | `spec.md` user scenarios/edge cases, `plan.md` webhook + gating flows                                           |
-| wireframes/          | `spec.md` FR-040..043, feature dependencies FR-003/011/016/019/025/026/027/031/038, user-provided wireframe set |
-| metrics.md           | `spec.md` success criteria + story-level derivation from FR-040..043                                            |
+| Bootstrapped File    | Primary Source(s)                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| competitors.md       | `research.md` section 1 + domain additions requested by user (Paprika/Mealime/PlateJoy/SideChef Pro)                |
+| ux-patterns.md       | `research.md` sections 1.2, 3.x + `plan.md` sections 3–4                                                            |
+| codebase-analysis.md | root `package.json`, `AGENTS.md`, `plan.md`, `tasks.md`                                                             |
+| tech-stack.md        | `research.md` sections 2–5, `plan.md` sections 1–5                                                                  |
+| metrics-roi.md       | `spec.md` SC/NFR sections, `tasks.md` traceability map, `v-model/requirements.md`                                   |
+| product-spec.md      | `spec.md` stories/FRs/NFRs, `plan.md` architecture, `v-model/requirements.md`                                       |
+| user-journey.md      | `spec.md` user scenarios/edge cases, `plan.md` webhook + gating flows                                               |
+| wireframes/          | `spec.md` FR-040..043, feature dependencies 001-FR-003/011/016/019/025/026/027/031/038, user-provided wireframe set |
+| metrics.md           | `spec.md` success criteria + story-level derivation from FR-040..043                                                |
 
 **Initial findings surfaced during bootstrap**:
 

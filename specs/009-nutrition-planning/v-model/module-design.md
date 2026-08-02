@@ -29,7 +29,7 @@ The Nutrition Planning module design decomposes all 20 architecture modules (ARC
 #### Algorithmic / Logic View
 
 ```pseudocode
-// POST /nutrition-plans
+// POST /api/v1/nutrition-plans
 FUNCTION createPlan(req: Request, body: CreateNutritionPlanDto) -> NutritionPlanResponseDto:
     user = ClerkAuthService.verifyToken(req.headers.authorization)  // throws 401 if invalid
     IF user IS NULL:
@@ -37,7 +37,7 @@ FUNCTION createPlan(req: Request, body: CreateNutritionPlanDto) -> NutritionPlan
     plan = NutritionPlanService.createPlan(user.userId, body)
     RETURN HTTP 201 { plan: toResponseDto(plan) }
 
-// GET /nutrition-plans/:id
+// GET /api/v1/nutrition-plans/:id
 FUNCTION getPlan(req: Request, id: string) -> NutritionPlanResponseDto:
     user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(id):
@@ -47,7 +47,7 @@ FUNCTION getPlan(req: Request, id: string) -> NutritionPlanResponseDto:
         THROW NotFoundException("Nutrition plan not found")
     RETURN HTTP 200 { plan: toResponseDto(plan) }
 
-// PATCH /nutrition-plans/:id
+// PATCH /api/v1/nutrition-plans/:id
 FUNCTION updatePlan(req: Request, id: string, body: UpdateNutritionPlanDto) -> NutritionPlanResponseDto:
     user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(id):
@@ -57,7 +57,7 @@ FUNCTION updatePlan(req: Request, id: string, body: UpdateNutritionPlanDto) -> N
         THROW NotFoundException("Nutrition plan not found or not owned by user")
     RETURN HTTP 200 { plan: toResponseDto(plan) }
 
-// DELETE /nutrition-plans/:id
+// DELETE /api/v1/nutrition-plans/:id
 FUNCTION deletePlan(req: Request, id: string) -> void:
     user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(id):
@@ -244,7 +244,7 @@ N/A — Stateless (each method is an independent DB transaction; no repository-l
 #### Algorithmic / Logic View
 
 ```pseudocode
-// GET /nutrition-plans (user dashboard listing)
+// GET /api/v1/nutrition-plans (user dashboard listing)
 FUNCTION listPlans(req: Request) -> NutritionPlanListResponseDto:
     user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF user IS NULL:
@@ -292,7 +292,7 @@ N/A — Stateless
 #### Algorithmic / Logic View
 
 ```pseudocode
-// POST /nutrition-plans/:id/meal-plans/:mealPlanId
+// POST /api/v1/nutrition-plans/:id/meal-plans/:mealPlanId
 FUNCTION linkMealPlan(req: Request, planId: string, mealPlanId: string) -> LinkResponseDto:
     user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(planId) OR NOT isValidUUID(mealPlanId):
@@ -306,7 +306,7 @@ FUNCTION linkMealPlan(req: Request, planId: string, mealPlanId: string) -> LinkR
         THROW ConflictException("Meal plan already linked to this nutrition plan")
     RETURN HTTP 201 { link: toLinkDto(result.link) }
 
-// DELETE /nutrition-plans/:id/meal-plans/:mealPlanId
+// DELETE /api/v1/nutrition-plans/:id/meal-plans/:mealPlanId
 FUNCTION unlinkMealPlan(req: Request, planId: string, mealPlanId: string) -> void:
     user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(planId) OR NOT isValidUUID(mealPlanId):
@@ -550,7 +550,7 @@ N/A — Stateless (pure computation per request; no persistent service state)
 #### Algorithmic / Logic View
 
 ```pseudocode
-// GET /nutrition-plans/:id/compliance
+// GET /api/v1/nutrition-plans/:id/compliance
 FUNCTION getCompliance(req: Request, planId: string) -> ComplianceResponseDto:
     user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(planId):
@@ -597,7 +597,7 @@ N/A — Stateless
 #### Algorithmic / Logic View
 
 ```pseudocode
-// POST /trainer/nutrition-plans (trainer creates plan for client)
+// POST /api/v1/trainer/nutrition-plans (trainer creates plan for client)
 FUNCTION createClientPlan(req: Request, body: CreateClientPlanDto) -> NutritionPlanResponseDto:
     user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT user.roles.includes("trainer"):
@@ -611,7 +611,7 @@ FUNCTION createClientPlan(req: Request, body: CreateClientPlanDto) -> NutritionP
         THROW PaymentRequiredException("Premium subscription required")
     RETURN HTTP 201 { plan: toResponseDto(plan.plan) }
 
-// GET /trainer/clients/:clientId/nutrition-plans (trainer views client plans)
+// GET /api/v1/trainer/clients/:clientId/nutrition-plans (trainer views client plans)
 FUNCTION getClientPlans(req: Request, clientId: string) -> NutritionPlanListResponseDto:
     user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT user.roles.includes("trainer"):
@@ -782,7 +782,7 @@ stateDiagram-v2
 #### Algorithmic / Logic View
 
 ```pseudocode
-// POST /nutrition-plans/:id/recipe-swap
+// POST /api/v1/nutrition-plans/:id/recipe-swap
 FUNCTION suggestSwap(req: Request, planId: string, body: RecipeSwapRequestDto) -> RecipeSwapResponseDto:
     user = ClerkAuthService.verifyToken(req.headers.authorization)
     IF NOT isValidUUID(planId):

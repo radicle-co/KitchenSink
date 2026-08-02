@@ -98,11 +98,25 @@ Both the `/api` segment and the `/v{N}` version segment are required. Neither ma
 
 Any spec, plan, or contract that uses `/api/*` without a version segment, or `/v1/*` without the `/api` prefix, is non-conformant and blocks engineering handoff for that feature.
 
-### Current State (2026-05-10)
+### Current State (2026-08-02)
 
-- Feature 001: `contracts/api.openapi.yaml` uses `/api/*` — **correction required before handoff**.
-- Features 002–014: use `/v1/*` — **correction required before handoff**.
-- `docs/api-conventions.md` does not yet exist — **must be created before any feature enters Phase 2**.
+Superseded the 2026-05-10 entry.
+
+- **Features 007–014: conformant.** Normalized to `/api/v1/*` in the 2026-08-02 spec sweep — 82 bare
+  `/v1/*` references plus every unprefixed shorthand endpoint. The only paths deliberately left
+  unprefixed are third-party URLs the platform does not own (Instacart's `/idp/api/v1/products/*`).
+- **`docs/api-conventions.md` now exists**, authored under feature 005. AC-002-d is satisfied.
+- **Feature 005: conformant** — adopts `app.setGlobalPrefix('api/v1', { exclude: ['health'] })`.
+- ⚠️ **Open conflict — features 004 and 006 diverge, and so does every shipped service.** Both 004 and
+  006 were reconciled against shipped `main` and use bare `/v1/*`; 006's `review.md` records an explicit
+  ruling (PRF-006-16) settling on "the platform's plain-segment convention, `POST /v1/recipes/nutrition-batch`",
+  taken as owner of the recipe service. The four shipped services (`identity-service`, `food-service`,
+  `recipe-service`, `identity-webhooks`) all serve `v1/*` today. This rule is therefore **aspirational for
+  shipped code** and requires either a migration or an amendment.
+  **Owner ruling (2026-08-02): GR-002 stands; 007–014 were normalized to it.** The 004/006 divergence is
+  recorded here as an open portfolio conflict for Director-of-Product resolution — it is **not** resolved by
+  this sweep. Migration surface is enumerated in `docs/api-conventions.md` §6 (that file lands with feature 005);
+  its highest-risk step is Playwright's `page.route('**/v1/**')` globs, which fail silently rather than loudly.
 
 ---
 
@@ -131,9 +145,38 @@ No cross-feature FR reference may use an unqualified `FR-NNN` ID.
 
 An unqualified `FR-NNN` reference in a feature's artifact that refers to a requirement in a different feature is a documentation defect. It does not block handoff but must be corrected before the referencing feature enters implementation.
 
-### Current State (2026-05-10)
+### Current State (2026-08-02)
 
-The [`cross-feature-FR-index.md`](./cross-feature-FR-index.md) artifact exists and records active cross-feature FR citations. Existing legacy prose may still show spaced forms such as `001 FR-045`; the normalized registry value is `{feature}-FR-{NNN}` and must be used for new references.
+The [`cross-feature-FR-index.md`](./cross-feature-FR-index.md) registry exists and records active
+cross-feature citations. The normalized value is `{feature}-FR-{NNN}`; legacy prose may still show spaced
+forms such as `001 FR-045`.
+
+**Features 007–014 are conformant as of the 2026-08-02 sweep** — 62 unqualified cross-feature references
+were qualified (61 in 010's gating tables and v-model, 2 in 007). Verified mechanically: for every feature,
+zero bare `FR-NNN` references remain that fall outside that feature's own defined set.
+
+**Numbering is deliberately NOT 1-based per feature.** This rule requires *locality* and *qualified
+cross-references*; it does not mandate a starting number. Features carry overlapping ranges by design —
+001 owns FR-001…046, 004 FR-008…028, 005 FR-015…022, 006 FR-022…041, 007 FR-028…033, 008 FR-032…035,
+009 FR-036…039, 010 FR-040…043, while 003, 011, 012, 013, and 014 number from 001. Numeric collision across
+features is therefore expected and accepted (004's `verify-report.md` records it as INFO I-002, "mitigated
+by the mandatory `004-` prefix"); the qualifier, not the number, carries the meaning.
+
+Two genuine defects of this class were fixed in the sweep, both of which the collision-tolerant model relies
+on qualifiers to prevent:
+
+- **007 ↔ 008 both defined FR-032 and FR-033 with different meanings** (007: Shopping Lists page and
+  meal-plan back-link; 008: Cooking Mode step display and step navigation), in the same milestone `M3`.
+- **Two abbreviated ranges in 010 cited FRs their named owner does not define** — `008 | FR-032–037`
+  (008 defines only FR-032…035; 036–037 belong to 009) and `006 | FR-020–024` (006 starts at FR-022).
+  Both were narrowed to the owner's real set and enumerated rather than abbreviated, per the precedent
+  006 set in PRF-006-14.
+
+⚠️ **Registry not updated by this sweep — deliberate hand-off.** `cross-feature-FR-index.md` has
+**uncommitted in-flight edits in both the 005 and 006 worktrees**. Editing it here would have produced a
+three-way conflict and risked clobbering that work. The rows the sweep newly qualified (007's `001-FR-045`,
+and 010's `plan.md` / `research.md` citations of 001, 004, 005, 006, 007, 008, 009) must be registered once
+005's and 006's changes land. Tracked in `spec-sweep-2026-08-02.md`.
 
 ---
 
@@ -281,11 +324,16 @@ The package lives at `packages/shared/recipe-core/` and is published as `@kitche
 
 Any feature that defines its own local copy of a shared entity type is in violation. The local type must be removed and replaced with the import from `@kitchensink/shared-recipe-core`.
 
-### Current State (2026-05-10)
+### Current State (2026-08-02)
 
-- `@kitchensink/shared-recipe-core` does not exist. No feature has a task to create it.
-- Feature 001's `tasks.md` must be updated to add this task before handoff is approved.
-- This is a **blocking** constraint for engineering handoff of Feature 001.
+Superseded the 2026-05-10 entry. **The blocking constraint is cleared.**
+
+- The package **exists and ships** at `packages/shared/recipe-core/`, as required.
+- ⚠️ **It is published as `@kitchensink/recipe-core`, not `@kitchensink/shared-recipe-core`.** The shipped
+  name is authoritative; the eight downstream features were corrected to it in the 2026-08-02 sweep.
+  The `shared-` prefix in this rule's body is a GR-009 artifact — see the GR-009 note below, which records
+  that no shipped package follows the `{group}-{name}` pattern.
+- `packages/shared/*` also ships `clerk-verify`, `identity-core`, and `identity-db`.
 
 ---
 
@@ -348,9 +396,24 @@ Group examples: `data`, `shared`, `auth`, `ui`, `apps`, `tools`.
 - **AC-009-b**: Feature plans that reference package names use this convention.
 - **AC-009-c**: No package uses a bare `@kitchensink/{name}` pattern without a group segment.
 
-### Current State (2026-05-10)
+### Current State (2026-08-02)
 
-No implementation packages exist yet. This rule applies when packages are created during implementation.
+Superseded the 2026-05-10 entry, which said "no implementation packages exist yet". Twenty-six now do.
+
+⚠️ **This rule is contradicted by every shipped package and needs ratification against reality.** It is
+recorded here rather than silently rewritten, because amending a ratified rule is the Director of Product's
+call, not a sweep's.
+
+- **No** shipped package uses `@kitchensink/{group}-{name}`. The actual forms are `@kitchensink/{name}`
+  (`recipe-core`, `identity-service`, `clerk-verify`, `food-service-client`, …) and a second scope the rule
+  does not contemplate at all, `@commise/{name}` (`web`, `mobile`, `ui`, `i18n`, `features-recipes`,
+  `features-account`, `features-core`).
+- Conforming would mean renaming 26 published workspace packages and every import of them.
+- **What the 2026-08-02 sweep did**: corrected features 007–014 to the *shipped* names, and to the
+  `@kitchensink/{domain}-service` / `@kitchensink/{domain}-workers` / `@commise/features-{domain}` forms
+  that feature 005 uses for new packages. It did **not** rewrite this rule.
+- **Decision needed**: either amend GR-009 to describe the two real scopes, or schedule a rename. Until
+  then, treat shipped package names as authoritative and this rule as unenforced.
 
 ---
 

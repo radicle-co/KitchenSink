@@ -837,7 +837,7 @@ more executable User Scenarios (SCN) in BDD format (Given/When/Then).
 
 #### Test Case: ATP-038-A (CI passes with complete workspace registration)
 
-**Description:** Validates via **Test** CI checks for `packages/api/*` and `packages/shared/*` workspace + TS reference completeness.
+**Description:** Validates via **Test** CI checks for `packages/services/*` and `packages/shared/*` workspace + TS reference completeness.
 
 - **User Scenario: SCN-038-A1**
     - **Given** all package directories are registered at root workspace config and included in TS project references
@@ -903,7 +903,7 @@ more executable User Scenarios (SCN) in BDD format (Given/When/Then).
 
 #### Test Case: ATP-041-A (Task artifacts show packages/ui primitive evaluation)
 
-**Description:** Validates via **Inspection** that implementation tasks T057–T067 evaluate `packages/ui` primitives first.
+**Description:** Validates via **Inspection** that implementation tasks T057–T067 evaluate `packages/apps/commise/ui` primitives first.
 
 - **User Scenario: SCN-041-A1**
     - **Given** implementation notes and task artifacts for T057–T067
@@ -915,7 +915,7 @@ more executable User Scenarios (SCN) in BDD format (Given/When/Then).
 **Description:** Validates via **Inspection** that undocumented primitive additions are blocked.
 
 - **User Scenario: SCN-041-B1**
-    - **Given** a PR adds a new `packages/ui` primitive component
+    - **Given** a PR adds a new `packages/apps/commise/ui` primitive component
     - **When** acceptance inspection checks designated index/process artifacts
     - **Then** PR is flagged until rationale documentation is added
 
@@ -1167,10 +1167,10 @@ more executable User Scenarios (SCN) in BDD format (Given/When/Then).
 
 #### Test Case: ATP-053-A (AudienceScope exports all required literal values)
 
-**Description:** Validates via **Test** that `@kitchensink/shared-audience` publishes required `AudienceScope` members.
+**Description:** Validates via **Test** that `@kitchensink/audience` publishes required `AudienceScope` members.
 
 - **User Scenario: SCN-053-A1**
-    - **Given** consumer package imports `AudienceScope` from `@kitchensink/shared-audience`
+    - **Given** consumer package imports `AudienceScope` from `@kitchensink/audience`
     - **When** compile-time and runtime contract tests evaluate enum/object values
     - **Then** values include `private`, `circle`, `public-profile`, and `published-lesson`
 
@@ -1189,10 +1189,10 @@ more executable User Scenarios (SCN) in BDD format (Given/When/Then).
 
 #### Test Case: ATP-054-A (Public API exposes listCirclesForUser/isMember/resolveAudience)
 
-**Description:** Validates via **Test** that `@kitchensink/circles-api` exports required service contracts.
+**Description:** Validates via **Test** that `@kitchensink/circles-service` exports required service contracts.
 
 - **User Scenario: SCN-054-A1**
-    - **Given** downstream consumer imports from `@kitchensink/circles-api`
+    - **Given** downstream consumer imports from `@kitchensink/circles-service`
     - **When** integration contract tests execute
     - **Then** `listCirclesForUser`, `isMember`, and `resolveAudience` are present and callable
 

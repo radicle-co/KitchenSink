@@ -119,29 +119,29 @@ interface MacroCalculator {
 
 ### Endpoints
 
-| Method | Path                                  | Auth     | Description                      |
-| ------ | ------------------------------------- | -------- | -------------------------------- |
-| GET    | `/v1/nutrition-plans`                 | Required | List user's plans (own + shared) |
-| POST   | `/v1/nutrition-plans`                 | Required | Create nutrition plan            |
-| GET    | `/v1/nutrition-plans/{id}`            | Required | Get plan with targets            |
-| PUT    | `/v1/nutrition-plans/{id}`            | Required | Update plan                      |
-| DELETE | `/v1/nutrition-plans/{id}`            | Required | Delete plan                      |
-| POST   | `/v1/nutrition-plans/{id}/link`       | Required | Link to meal plan                |
-| GET    | `/v1/nutrition-plans/{id}/compliance` | Required | Get compliance report            |
-| POST   | `/v1/nutrition-plans/{id}/share`      | Required | Share with client (premium)      |
+| Method | Path                                      | Auth     | Description                      |
+| ------ | ----------------------------------------- | -------- | -------------------------------- |
+| GET    | `/api/v1/nutrition-plans`                 | Required | List user's plans (own + shared) |
+| POST   | `/api/v1/nutrition-plans`                 | Required | Create nutrition plan            |
+| GET    | `/api/v1/nutrition-plans/{id}`            | Required | Get plan with targets            |
+| PUT    | `/api/v1/nutrition-plans/{id}`            | Required | Update plan                      |
+| DELETE | `/api/v1/nutrition-plans/{id}`            | Required | Delete plan                      |
+| POST   | `/api/v1/nutrition-plans/{id}/link`       | Required | Link to meal plan                |
+| GET    | `/api/v1/nutrition-plans/{id}/compliance` | Required | Get compliance report            |
+| POST   | `/api/v1/nutrition-plans/{id}/share`      | Required | Share with client (premium)      |
 
 ### Trainer-Client Endpoints
 
-| Method | Path                                            | Auth     | Description                    |
-| ------ | ----------------------------------------------- | -------- | ------------------------------ |
-| POST   | `/v1/trainer/clients/{clientId}/nutrition-plan` | Required | Create plan for client         |
-| GET    | `/v1/trainer/clients/{clientId}/compliance`     | Required | View client's compliance       |
-| POST   | `/v1/trainer/invite`                            | Required | Invite client to link accounts |
+| Method | Path                                                | Auth     | Description                    |
+| ------ | --------------------------------------------------- | -------- | ------------------------------ |
+| POST   | `/api/v1/trainer/clients/{clientId}/nutrition-plan` | Required | Create plan for client         |
+| GET    | `/api/v1/trainer/clients/{clientId}/compliance`     | Required | View client's compliance       |
+| POST   | `/api/v1/trainer/invite`                            | Required | Invite client to link accounts |
 
 ### Request/Response Shapes
 
 ```typescript
-// POST /v1/nutrition-plans
+// POST /api/v1/nutrition-plans
 Request:
 {
   "name": "June Cut Plan",
@@ -161,7 +161,7 @@ Response:
   "linkedMealPlans": []
 }
 
-// GET /v1/nutrition-plans/{id}/compliance
+// GET /api/v1/nutrition-plans/{id}/compliance
 Response:
 {
   "planId": "np_abc",
@@ -225,17 +225,17 @@ enum ComplianceStatus {
 
 ```typescript
 // Trainer creates plan for client
-POST /v1/trainer/clients/{clientId}/nutrition-plan
+POST /api/v1/trainer/clients/{clientId}/nutrition-plan
   → Creates plan with trainer_id set
   → Sets is_public = false (client must accept)
   → Sends notification to client
 
 // Client accepts
-POST /v1/nutrition-plans/{id}/accept
+POST /api/v1/nutrition-plans/{id}/accept
   → Links to client's account
 
 // Client views shared plan
-GET /v1/nutrition-plans?include=shared
+GET /api/v1/nutrition-plans?include=shared
   → Returns trainer-created plans visible to client
 ```
 

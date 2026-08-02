@@ -90,8 +90,8 @@ Reference: [`governance-rules.md`](../governance-rules.md)
 
 ### Proposed Workspaces
 
-- `packages/api/cooking-school-api` (NestJS 11): authoritative API for educator + learner operations
-- `packages/api/cooking-school-video-worker` (Node 24 worker): async transcode callback/status projection
+- `packages/services/cooking-school-service` (NestJS 11): authoritative API for educator + learner operations
+- `packages/services/cooking-school-workers` (Node 24 worker): async transcode callback/status projection
 - `packages/shared/cooking-school-contracts`: DTOs/events/typed contracts for API and clients
 
 ### Core Runtime Components

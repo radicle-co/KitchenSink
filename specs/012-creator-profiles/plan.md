@@ -21,7 +21,7 @@ Feature 012 is assigned to M7 per the canonical launch ladder in [`v1-launch-pla
 
 Feature 012 introduces public creator identity and discovery surfaces: canonical `@handle` profiles, follow/unfollow social graph, public collections, static embed widget, and creator analytics snapshots. The plan keeps monetization mechanics delegated to feature 010 while implementing thin 012 delegation boundaries.
 
-Planned implementation adds one API package (`@kitchensink/creator-profiles-api`) plus web routes/components for profile pages and widget rendering, with PostgreSQL schema additions (`creator_profiles`, `creator_follows`, `creator_collections`, `creator_collection_recipes`, `creator_analytics_snapshots`) and scheduled aggregation jobs.
+Planned implementation adds one API package (`@kitchensink/creator-profiles-service`) plus web routes/components for profile pages and widget rendering, with PostgreSQL schema additions (`creator_profiles`, `creator_follows`, `creator_collections`, `creator_collection_recipes`, `creator_analytics_snapshots`) and scheduled aggregation jobs.
 
 **Must Have stories addressed**: US-001, US-002, US-003, US-004, US-005, US-006 (from [`product-spec/product-spec.md`](./product-spec/product-spec.md)).
 
@@ -66,13 +66,13 @@ Implementation follows the V-Model decomposition in [`v-model/system-design.md`]
 
 Rule reference: [`governance-rules.md#gr-002-api-url-prefix-standard`](../governance-rules.md#gr-002-api-url-prefix-standard)
 
-All 012 contracts remain under `/api/v1/*` (no bare `/api/*` and no bare `/v1/*`), including profile, collections, follow, analytics, and widget endpoints.
+All 012 contracts remain under `/api/v1/*` (no bare `/api/*` and no bare `/api/v1/*`), including profile, collections, follow, analytics, and widget endpoints.
 
 ### GR-007 — Shared Type Library Ownership
 
 Rule reference: [`governance-rules.md#gr-007-shared-type-library-ownership`](../governance-rules.md#gr-007-shared-type-library-ownership)
 
-012 will import shared canonical entities from `@kitchensink/shared-recipe-core` and avoid local type forks for recipe/user/shared domain entities.
+012 will import shared canonical entities from `@kitchensink/recipe-core` and avoid local type forks for recipe/user/shared domain entities.
 
 ### Additional cross-feature guardrails applied
 
@@ -85,7 +85,7 @@ Rule reference: [`governance-rules.md#gr-007-shared-type-library-ownership`](../
 
 ### Phase 1 — Workspace + package scaffold
 
-- Create `@kitchensink/creator-profiles-api` package and register workspace wiring.
+- Create `@kitchensink/creator-profiles-service` package and register workspace wiring.
 - Add env schema and config surfaces (DB/S3/cache headers/scheduler cadence).
 
 ### Phase 2 — Schema + migrations
@@ -131,7 +131,7 @@ Rule reference: [`governance-rules.md#gr-007-shared-type-library-ownership`](../
 5. Widget endpoint returns static HTML fragment with `Cache-Control: public, max-age=300`.
 6. Analytics endpoint is owner-only and aggregate-only (no visitor identity leakage).
 7. Moderation suspension state hides public surfaces and blocks new follows.
-8. All 012 APIs use `/api/v1/*` (GR-002), and shared domain types import from `@kitchensink/shared-recipe-core` (GR-007).
+8. All 012 APIs use `/api/v1/*` (GR-002), and shared domain types import from `@kitchensink/recipe-core` (GR-007).
 9. Traceability from spec/product-spec to tests is present and ready for downstream sync-verify.
 
 ---

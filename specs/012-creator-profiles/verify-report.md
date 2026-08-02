@@ -57,7 +57,7 @@
 
 - **Where**:
     - `specs/012-creator-profiles/tasks.md`
-    - repository implementation paths referenced by tasks (for example `packages/api/creator-profiles-api/*`)
+    - repository implementation paths referenced by tasks (for example `packages/services/creator-profiles-service/*`)
 - **Evidence**:
     - Task list is fully unchecked (`58/58` still `[ ]`).
     - Planned creator-profiles implementation paths are not present yet.

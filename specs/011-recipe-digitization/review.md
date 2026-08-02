@@ -4,9 +4,12 @@
 > Started: 2026-05-10
 > Approved: 2026-05-10
 
-**Milestone**: `M2` Moria
-**Public Launch**: Beta (end of `M4`)
-**Launch Plan**: [`v1-launch-plan.md`](../v1-launch-plan.md)
+## Milestone Assignment
+
+- **Milestone**: `M2` Moria
+- **Public launch**: Beta
+- **Source of truth**: ../v1-launch-plan.md
+- **Last updated**: 2026-08-02
 
 ## Current Status: APPROVED
 

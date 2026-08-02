@@ -95,7 +95,7 @@ The cooking-mode stack is primarily an interaction/runtime feature over existing
 
 ## Data/API Integration
 
-**Choice**: Reuse existing recipe instructions endpoint (`GET /v1/recipes/{id}/instructions`) from feature 001.
+**Choice**: Reuse existing recipe instructions endpoint (`GET /api/v1/recipes/{id}/instructions`) from feature 001.
 
 **Rationale**:
 

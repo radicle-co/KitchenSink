@@ -347,44 +347,44 @@ This plan defines unit-level white-box validation for all modules (`MOD-001..MOD
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-009 — `POST /jobs` handler`
+### Module Validation: MOD-009 — `POST /api/v1/recipes/digitize/jobs` handler`
 
 - **Parent ARCH**: ARCH-005
 - **Type**: Handler
-- **Signature Trace**: `POST /jobs` handler`
+- **Signature Trace**: `POST /api/v1/recipes/digitize/jobs` handler`
 
 #### Test Case: UTP-009-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `POST /jobs` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000009`, userId `00000000-0000-4000-8000-000000001009`, circleId `circle-009`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `POST /api/v1/recipes/digitize/jobs` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000009`, userId `00000000-0000-4000-8000-000000001009`, circleId `circle-009`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-009-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /jobs` handler` using the same identifiers (`00000000-0000-4000-8000-000000000009`, `00000000-0000-4000-8000-000000001009`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /api/v1/recipes/digitize/jobs` handler` using the same identifiers (`00000000-0000-4000-8000-000000000009`, `00000000-0000-4000-8000-000000001009`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-009-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `POST /jobs` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `POST /api/v1/recipes/digitize/jobs` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-009-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `POST /jobs` handler` with requested file count [0, 1, 20, 21].
+- **Function inputs**: `POST /api/v1/recipes/digitize/jobs` handler` with requested file count [0, 1, 20, 21].
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-009-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `POST /jobs` handler` with representative partitions: job state partitions: created, uploaded, queued.
+- **Function inputs**: `POST /api/v1/recipes/digitize/jobs` handler` with representative partitions: job state partitions: created, uploaded, queued.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
@@ -880,16 +880,16 @@ This plan defines unit-level white-box validation for all modules (`MOD-001..MOD
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-022 — `OcrProvider` interface (`@kitchensink/digitization-ocr`)`
+### Module Validation: MOD-022 — `OcrProvider` interface (`@kitchensink/digitization-workers`)`
 
 - **Parent ARCH**: ARCH-010
 - **Type**: Public API
-- **Signature Trace**: `OcrProvider` interface (`@kitchensink/digitization-ocr`)`
+- **Signature Trace**: `OcrProvider` interface (`@kitchensink/digitization-workers`)`
 
 #### Test Case: UTP-022-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `OcrProvider` interface (`@kitchensink/digitization-ocr`)`with concrete IDs (jobId`00000000-0000-4000-8000-000000000022`, userId `00000000-0000-4000-8000-000000001022`, circleId `circle-022`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `OcrProvider` interface (`@kitchensink/digitization-workers`)`with concrete IDs (jobId`00000000-0000-4000-8000-000000000022`, userId `00000000-0000-4000-8000-000000001022`, circleId `circle-022`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
@@ -908,7 +908,7 @@ This plan defines unit-level white-box validation for all modules (`MOD-001..MOD
 #### Test Case: UTP-022-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `OcrProvider` interface (`@kitchensink/digitization-ocr`)` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
+- **Function inputs**: `OcrProvider` interface (`@kitchensink/digitization-workers`)` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
@@ -1190,85 +1190,85 @@ This plan defines unit-level white-box validation for all modules (`MOD-001..MOD
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-030 — `GET /jobs/:id/correction` handler`
+### Module Validation: MOD-030 — `GET /api/v1/recipes/digitize/jobs/:id/correction` handler`
 
 - **Parent ARCH**: ARCH-014
 - **Type**: Handler
-- **Signature Trace**: `GET /jobs/:id/correction` handler`
+- **Signature Trace**: `GET /api/v1/recipes/digitize/jobs/:id/correction` handler`
 
 #### Test Case: UTP-030-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `GET /jobs/:id/correction` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000030`, userId `00000000-0000-4000-8000-000000001030`, circleId `circle-030`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `GET /api/v1/recipes/digitize/jobs/:id/correction` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000030`, userId `00000000-0000-4000-8000-000000001030`, circleId `circle-030`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-030-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `GET /jobs/:id/correction` handler` using the same identifiers (`00000000-0000-4000-8000-000000000030`, `00000000-0000-4000-8000-000000001030`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `GET /api/v1/recipes/digitize/jobs/:id/correction` handler` using the same identifiers (`00000000-0000-4000-8000-000000000030`, `00000000-0000-4000-8000-000000001030`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-030-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `GET /jobs/:id/correction` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `GET /api/v1/recipes/digitize/jobs/:id/correction` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-030-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `GET /jobs/:id/correction` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
+- **Function inputs**: `GET /api/v1/recipes/digitize/jobs/:id/correction` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-030-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `GET /jobs/:id/correction` handler` with representative partitions: access partitions: owner, non-owner, missing job.
+- **Function inputs**: `GET /api/v1/recipes/digitize/jobs/:id/correction` handler` with representative partitions: access partitions: owner, non-owner, missing job.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-031 — `PATCH /jobs/:id/correction` handler`
+### Module Validation: MOD-031 — `PATCH /api/v1/recipes/digitize/jobs/:id/correction` handler`
 
 - **Parent ARCH**: ARCH-014
 - **Type**: Handler
-- **Signature Trace**: `PATCH /jobs/:id/correction` handler`
+- **Signature Trace**: `PATCH /api/v1/recipes/digitize/jobs/:id/correction` handler`
 
 #### Test Case: UTP-031-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `PATCH /jobs/:id/correction` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000031`, userId `00000000-0000-4000-8000-000000001031`, circleId `circle-031`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `PATCH /api/v1/recipes/digitize/jobs/:id/correction` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000031`, userId `00000000-0000-4000-8000-000000001031`, circleId `circle-031`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-031-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `PATCH /jobs/:id/correction` handler` using the same identifiers (`00000000-0000-4000-8000-000000000031`, `00000000-0000-4000-8000-000000001031`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `PATCH /api/v1/recipes/digitize/jobs/:id/correction` handler` using the same identifiers (`00000000-0000-4000-8000-000000000031`, `00000000-0000-4000-8000-000000001031`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-031-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `PATCH /jobs/:id/correction` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `PATCH /api/v1/recipes/digitize/jobs/:id/correction` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-031-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `PATCH /jobs/:id/correction` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
+- **Function inputs**: `PATCH /api/v1/recipes/digitize/jobs/:id/correction` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-031-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `PATCH /jobs/:id/correction` handler` with representative partitions: patch partitions: valid path, forbidden path, type mismatch.
+- **Function inputs**: `PATCH /api/v1/recipes/digitize/jobs/:id/correction` handler` with representative partitions: patch partitions: valid path, forbidden path, type mismatch.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
@@ -1518,44 +1518,44 @@ This plan defines unit-level white-box validation for all modules (`MOD-001..MOD
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-038 — `POST /jobs/:id/save` handler`
+### Module Validation: MOD-038 — `POST /api/v1/recipes/digitize/jobs/:id/save` handler`
 
 - **Parent ARCH**: ARCH-018
 - **Type**: Handler
-- **Signature Trace**: `POST /jobs/:id/save` handler`
+- **Signature Trace**: `POST /api/v1/recipes/digitize/jobs/:id/save` handler`
 
 #### Test Case: UTP-038-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `POST /jobs/:id/save` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000038`, userId `00000000-0000-4000-8000-000000001038`, circleId `circle-038`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `POST /api/v1/recipes/digitize/jobs/:id/save` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000038`, userId `00000000-0000-4000-8000-000000001038`, circleId `circle-038`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-038-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /jobs/:id/save` handler` using the same identifiers (`00000000-0000-4000-8000-000000000038`, `00000000-0000-4000-8000-000000001038`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /api/v1/recipes/digitize/jobs/:id/save` handler` using the same identifiers (`00000000-0000-4000-8000-000000000038`, `00000000-0000-4000-8000-000000001038`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-038-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `POST /jobs/:id/save` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `POST /api/v1/recipes/digitize/jobs/:id/save` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-038-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `POST /jobs/:id/save` handler` with state transitions for savable set parsed/corrected vs queued.
+- **Function inputs**: `POST /api/v1/recipes/digitize/jobs/:id/save` handler` with state transitions for savable set parsed/corrected vs queued.
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-038-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `POST /jobs/:id/save` handler` with representative partitions: job state partitions: parsed, corrected, queued, saved.
+- **Function inputs**: `POST /api/v1/recipes/digitize/jobs/:id/save` handler` with representative partitions: job state partitions: parsed, corrected, queued, saved.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
@@ -1600,126 +1600,126 @@ This plan defines unit-level white-box validation for all modules (`MOD-001..MOD
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-040 — `GET /jobs/:id` handler`
+### Module Validation: MOD-040 — `GET /api/v1/recipes/digitize/jobs/:id` handler`
 
 - **Parent ARCH**: ARCH-019
 - **Type**: Handler
-- **Signature Trace**: `GET /jobs/:id` handler`
+- **Signature Trace**: `GET /api/v1/recipes/digitize/jobs/:id` handler`
 
 #### Test Case: UTP-040-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `GET /jobs/:id` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000040`, userId `00000000-0000-4000-8000-000000001040`, circleId `circle-040`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `GET /api/v1/recipes/digitize/jobs/:id` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000040`, userId `00000000-0000-4000-8000-000000001040`, circleId `circle-040`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-040-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `GET /jobs/:id` handler` using the same identifiers (`00000000-0000-4000-8000-000000000040`, `00000000-0000-4000-8000-000000001040`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `GET /api/v1/recipes/digitize/jobs/:id` handler` using the same identifiers (`00000000-0000-4000-8000-000000000040`, `00000000-0000-4000-8000-000000001040`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-040-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `GET /jobs/:id` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `GET /api/v1/recipes/digitize/jobs/:id` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-040-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `GET /jobs/:id` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
+- **Function inputs**: `GET /api/v1/recipes/digitize/jobs/:id` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-040-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `GET /jobs/:id` handler` with representative partitions: job partitions: found-owned, found-not-owned, not-found.
+- **Function inputs**: `GET /api/v1/recipes/digitize/jobs/:id` handler` with representative partitions: job partitions: found-owned, found-not-owned, not-found.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-041 — `DELETE /jobs/:id` handler`
+### Module Validation: MOD-041 — `DELETE /api/v1/recipes/digitize/jobs/:id` handler`
 
 - **Parent ARCH**: ARCH-019
 - **Type**: Handler
-- **Signature Trace**: `DELETE /jobs/:id` handler`
+- **Signature Trace**: `DELETE /api/v1/recipes/digitize/jobs/:id` handler`
 
 #### Test Case: UTP-041-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `DELETE /jobs/:id` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000041`, userId `00000000-0000-4000-8000-000000001041`, circleId `circle-041`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `DELETE /api/v1/recipes/digitize/jobs/:id` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000041`, userId `00000000-0000-4000-8000-000000001041`, circleId `circle-041`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-041-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `DELETE /jobs/:id` handler` using the same identifiers (`00000000-0000-4000-8000-000000000041`, `00000000-0000-4000-8000-000000001041`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `DELETE /api/v1/recipes/digitize/jobs/:id` handler` using the same identifiers (`00000000-0000-4000-8000-000000000041`, `00000000-0000-4000-8000-000000001041`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-041-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `DELETE /jobs/:id` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `DELETE /api/v1/recipes/digitize/jobs/:id` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-041-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `DELETE /jobs/:id` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
+- **Function inputs**: `DELETE /api/v1/recipes/digitize/jobs/:id` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-041-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `DELETE /jobs/:id` handler` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
+- **Function inputs**: `DELETE /api/v1/recipes/digitize/jobs/:id` handler` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-042 — `GET /jobs` handler`
+### Module Validation: MOD-042 — `GET /api/v1/recipes/digitize/jobs` handler`
 
 - **Parent ARCH**: ARCH-020
 - **Type**: Handler
-- **Signature Trace**: `GET /jobs` handler`
+- **Signature Trace**: `GET /api/v1/recipes/digitize/jobs` handler`
 
 #### Test Case: UTP-042-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `GET /jobs` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000042`, userId `00000000-0000-4000-8000-000000001042`, circleId `circle-042`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `GET /api/v1/recipes/digitize/jobs` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000042`, userId `00000000-0000-4000-8000-000000001042`, circleId `circle-042`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-042-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `GET /jobs` handler` using the same identifiers (`00000000-0000-4000-8000-000000000042`, `00000000-0000-4000-8000-000000001042`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `GET /api/v1/recipes/digitize/jobs` handler` using the same identifiers (`00000000-0000-4000-8000-000000000042`, `00000000-0000-4000-8000-000000001042`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-042-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `GET /jobs` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `GET /api/v1/recipes/digitize/jobs` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-042-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `GET /jobs` handler` with query.limit [0, 1, 50, 51].
+- **Function inputs**: `GET /api/v1/recipes/digitize/jobs` handler` with query.limit [0, 1, 50, 51].
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-042-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `GET /jobs` handler` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
+- **Function inputs**: `GET /api/v1/recipes/digitize/jobs` handler` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
@@ -1764,126 +1764,126 @@ This plan defines unit-level white-box validation for all modules (`MOD-001..MOD
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-044 — `POST /circles` handler`
+### Module Validation: MOD-044 — `POST /api/v1/circles` handler`
 
 - **Parent ARCH**: ARCH-021
 - **Type**: Handler
-- **Signature Trace**: `POST /circles` handler`
+- **Signature Trace**: `POST /api/v1/circles` handler`
 
 #### Test Case: UTP-044-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `POST /circles` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000044`, userId `00000000-0000-4000-8000-000000001044`, circleId `circle-044`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `POST /api/v1/circles` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000044`, userId `00000000-0000-4000-8000-000000001044`, circleId `circle-044`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-044-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /circles` handler` using the same identifiers (`00000000-0000-4000-8000-000000000044`, `00000000-0000-4000-8000-000000001044`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /api/v1/circles` handler` using the same identifiers (`00000000-0000-4000-8000-000000000044`, `00000000-0000-4000-8000-000000001044`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-044-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `POST /circles` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `POST /api/v1/circles` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-044-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `POST /circles` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
+- **Function inputs**: `POST /api/v1/circles` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-044-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `POST /circles` handler` with representative partitions: circle creation partitions: valid name, duplicate name, invalid name.
+- **Function inputs**: `POST /api/v1/circles` handler` with representative partitions: circle creation partitions: valid name, duplicate name, invalid name.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-045 — `POST /circles/:id/members` handler`
+### Module Validation: MOD-045 — `POST /api/v1/circles/:id/members` handler`
 
 - **Parent ARCH**: ARCH-021
 - **Type**: Handler
-- **Signature Trace**: `POST /circles/:id/members` handler`
+- **Signature Trace**: `POST /api/v1/circles/:id/members` handler`
 
 #### Test Case: UTP-045-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `POST /circles/:id/members` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000045`, userId `00000000-0000-4000-8000-000000001045`, circleId `circle-045`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `POST /api/v1/circles/:id/members` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000045`, userId `00000000-0000-4000-8000-000000001045`, circleId `circle-045`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-045-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /circles/:id/members` handler` using the same identifiers (`00000000-0000-4000-8000-000000000045`, `00000000-0000-4000-8000-000000001045`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /api/v1/circles/:id/members` handler` using the same identifiers (`00000000-0000-4000-8000-000000000045`, `00000000-0000-4000-8000-000000001045`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-045-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `POST /circles/:id/members` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `POST /api/v1/circles/:id/members` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-045-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `POST /circles/:id/members` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
+- **Function inputs**: `POST /api/v1/circles/:id/members` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-045-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `POST /circles/:id/members` handler` with representative partitions: membership partitions: new member, existing member(idempotent), unauthorized actor.
+- **Function inputs**: `POST /api/v1/circles/:id/members` handler` with representative partitions: membership partitions: new member, existing member(idempotent), unauthorized actor.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-046 — `DELETE /circles/:id/members/:userId` handler`
+### Module Validation: MOD-046 — `DELETE /api/v1/circles/:id/members/:userId` handler`
 
 - **Parent ARCH**: ARCH-021
 - **Type**: Handler
-- **Signature Trace**: `DELETE /circles/:id/members/:userId` handler`
+- **Signature Trace**: `DELETE /api/v1/circles/:id/members/:userId` handler`
 
 #### Test Case: UTP-046-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `DELETE /circles/:id/members/:userId` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000046`, userId `00000000-0000-4000-8000-000000001046`, circleId `circle-046`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `DELETE /api/v1/circles/:id/members/:userId` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000046`, userId `00000000-0000-4000-8000-000000001046`, circleId `circle-046`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-046-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `DELETE /circles/:id/members/:userId` handler` using the same identifiers (`00000000-0000-4000-8000-000000000046`, `00000000-0000-4000-8000-000000001046`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `DELETE /api/v1/circles/:id/members/:userId` handler` using the same identifiers (`00000000-0000-4000-8000-000000000046`, `00000000-0000-4000-8000-000000001046`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-046-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `DELETE /circles/:id/members/:userId` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `DELETE /api/v1/circles/:id/members/:userId` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-046-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `DELETE /circles/:id/members/:userId` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
+- **Function inputs**: `DELETE /api/v1/circles/:id/members/:userId` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-046-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `DELETE /circles/:id/members/:userId` handler` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
+- **Function inputs**: `DELETE /api/v1/circles/:id/members/:userId` handler` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
@@ -2174,85 +2174,85 @@ This plan defines unit-level white-box validation for all modules (`MOD-001..MOD
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-054 — `POST /circles/:id/invitation/rotate` handler`
+### Module Validation: MOD-054 — `POST /api/v1/circles/:id/invitation/rotate` handler`
 
 - **Parent ARCH**: ARCH-026
 - **Type**: Handler
-- **Signature Trace**: `POST /circles/:id/invitation/rotate` handler`
+- **Signature Trace**: `POST /api/v1/circles/:id/invitation/rotate` handler`
 
 #### Test Case: UTP-054-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `POST /circles/:id/invitation/rotate` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000054`, userId `00000000-0000-4000-8000-000000001054`, circleId `circle-054`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `POST /api/v1/circles/:id/invitation/rotate` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000054`, userId `00000000-0000-4000-8000-000000001054`, circleId `circle-054`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-054-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /circles/:id/invitation/rotate` handler` using the same identifiers (`00000000-0000-4000-8000-000000000054`, `00000000-0000-4000-8000-000000001054`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /api/v1/circles/:id/invitation/rotate` handler` using the same identifiers (`00000000-0000-4000-8000-000000000054`, `00000000-0000-4000-8000-000000001054`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-054-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `POST /circles/:id/invitation/rotate` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `POST /api/v1/circles/:id/invitation/rotate` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-054-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `POST /circles/:id/invitation/rotate` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
+- **Function inputs**: `POST /api/v1/circles/:id/invitation/rotate` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-054-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `POST /circles/:id/invitation/rotate` handler` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
+- **Function inputs**: `POST /api/v1/circles/:id/invitation/rotate` handler` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-055 — `POST /circles/join/:token` handler`
+### Module Validation: MOD-055 — `POST /api/v1/circles/join/:token` handler`
 
 - **Parent ARCH**: ARCH-026
 - **Type**: Handler
-- **Signature Trace**: `POST /circles/join/:token` handler`
+- **Signature Trace**: `POST /api/v1/circles/join/:token` handler`
 
 #### Test Case: UTP-055-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `POST /circles/join/:token` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000055`, userId `00000000-0000-4000-8000-000000001055`, circleId `circle-055`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `POST /api/v1/circles/join/:token` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000055`, userId `00000000-0000-4000-8000-000000001055`, circleId `circle-055`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-055-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /circles/join/:token` handler` using the same identifiers (`00000000-0000-4000-8000-000000000055`, `00000000-0000-4000-8000-000000001055`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /api/v1/circles/join/:token` handler` using the same identifiers (`00000000-0000-4000-8000-000000000055`, `00000000-0000-4000-8000-000000001055`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-055-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `POST /circles/join/:token` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `POST /api/v1/circles/join/:token` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-055-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `POST /circles/join/:token` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
+- **Function inputs**: `POST /api/v1/circles/join/:token` handler` with numeric boundary set [0, 1, 2, 3] applied to module-local limit/count/threshold input.
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-055-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `POST /circles/join/:token` handler` with representative partitions: token partitions: valid, expired, revoked, malformed.
+- **Function inputs**: `POST /api/v1/circles/join/:token` handler` with representative partitions: token partitions: valid, expired, revoked, malformed.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
@@ -2781,44 +2781,44 @@ This plan defines unit-level white-box validation for all modules (`MOD-001..MOD
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 
-### Module Validation: MOD-069 — `POST /internal/canary/promote` handler`
+### Module Validation: MOD-069 — `POST /api/v1/internal/canary/promote` handler`
 
 - **Parent ARCH**: ARCH-035
 - **Type**: Handler
-- **Signature Trace**: `POST /internal/canary/promote` handler`
+- **Signature Trace**: `POST /api/v1/internal/canary/promote` handler`
 
 #### Test Case: UTP-069-A
 
 - **Technique**: Statement Coverage
-- **Function inputs**: Invoke `POST /internal/canary/promote` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000069`, userId `00000000-0000-4000-8000-000000001069`, circleId `circle-069`) and a valid payload matching module contract.
+- **Function inputs**: Invoke `POST /api/v1/internal/canary/promote` handler`with concrete IDs (jobId`00000000-0000-4000-8000-000000000069`, userId `00000000-0000-4000-8000-000000001069`, circleId `circle-069`) and a valid payload matching module contract.
 - **Branch under test**: Linear success path from entry through all non-error statements.
 - **Assertion**: Returned value and side effects match module-design success contract exactly.
 
 #### Test Case: UTP-069-B
 
 - **Technique**: Branch/Decision Coverage
-- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /internal/canary/promote` handler` using the same identifiers (`00000000-0000-4000-8000-000000000069`, `00000000-0000-4000-8000-000000001069`).
+- **Function inputs**: Run one valid invocation and one invalid/conflict invocation for `POST /api/v1/internal/canary/promote` handler` using the same identifiers (`00000000-0000-4000-8000-000000000069`, `00000000-0000-4000-8000-000000001069`).
 - **Branch under test**: Primary decision gate evaluated as both true and false outcomes.
 - **Assertion**: True path yields success behavior; false path yields documented error/deny behavior.
 
 #### Test Case: UTP-069-C
 
 - **Technique**: Condition Coverage
-- **Function inputs**: For `POST /internal/canary/promote` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
+- **Function inputs**: For `POST /api/v1/internal/canary/promote` handler`, hold all predicates constant except one atom at a time (three executions: atom1 false, atom2 false, all true).
 - **Branch under test**: Each atomic condition independently influences the enclosing decision.
 - **Assertion**: Decision output flips only when the targeted predicate atom changes.
 
 #### Test Case: UTP-069-D
 
 - **Technique**: Boundary Value Analysis
-- **Function inputs**: `POST /internal/canary/promote` handler` with window_minutes [0, 5, 60, 61].
+- **Function inputs**: `POST /api/v1/internal/canary/promote` handler` with window_minutes [0, 5, 60, 61].
 - **Branch under test**: Threshold comparisons at just-below, exact, and just-above boundary points.
 - **Assertion**: Boundary-legal values are accepted; boundary-violating values follow documented rejection/alternate path.
 
 #### Test Case: UTP-069-E
 
 - **Technique**: Equivalence Partitioning
-- **Function inputs**: `POST /internal/canary/promote` handler` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
+- **Function inputs**: `POST /api/v1/internal/canary/promote` handler` with representative partitions: partition set: valid category, alternate valid category, invalid category for module discriminants.
 - **Branch under test**: One representative value from each discrete partition path.
 - **Assertion**: Each partition maps to the intended normalized outcome/error bucket with no overlap.
 

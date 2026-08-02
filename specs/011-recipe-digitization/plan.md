@@ -9,7 +9,7 @@
 
 Feature 011 delivers a photo-to-recipe digitization pipeline and a private Circle sharing primitive, with OCR async processing, side-by-side correction UX, and reusable audience contracts for features 001/006/007.
 
-Planned implementation introduces four new packages (`@kitchensink/digitization-ocr`, `@kitchensink/digitization-api`, `@kitchensink/circles-api`, `@kitchensink/shared-audience`), adds Drizzle schema for circles and digitization jobs, extends recipe audience/versioning persistence, and deploys AWS infrastructure (Lambda + SQS/DLQ + S3 + CloudFront + RDS-backed APIs) aligned to 001/002 patterns.
+Planned implementation introduces four new packages (`@kitchensink/digitization-workers`, `@kitchensink/digitization-service`, `@kitchensink/circles-service`, `@kitchensink/audience`), adds Drizzle schema for circles and digitization jobs, extends recipe audience/versioning persistence, and deploys AWS infrastructure (Lambda + SQS/DLQ + S3 + CloudFront + RDS-backed APIs) aligned to 001/002 patterns.
 
 **Must Have stories addressed**: US-001, US-002, US-003, US-004, US-005, US-006.
 
@@ -19,11 +19,11 @@ Planned implementation introduces four new packages (`@kitchensink/digitization-
 
 - Competitive/UX research confirms correction UX quality is the differentiator vs OCR-only competitors.
 - Codebase research identifies these required packages and contracts:
-    - `@kitchensink/digitization-ocr` (Lambda worker)
-    - `@kitchensink/digitization-api` (NestJS)
-    - `@kitchensink/circles-api` (NestJS)
-    - `@kitchensink/shared-audience` (shared types/guards for 001/006/007)
-- Existing repo workspace layout currently includes `packages/tools/*`, `packages/apps/commise/*`, `packages/ui`; `packages/api` and `packages/shared` exist as directories but are not yet workspace-registered packages.
+    - `@kitchensink/digitization-workers` (Lambda worker)
+    - `@kitchensink/digitization-service` (NestJS)
+    - `@kitchensink/circles-service` (NestJS)
+    - `@kitchensink/audience` (shared types/guards for 001/006/007)
+- Existing repo workspace layout registers `packages/tools/*`, `packages/services/*`, `packages/shared/*`, `packages/utils/*`, `packages/infra/*`, `packages/clients/*`, `packages/apps/commise/{web,mobile,ui,i18n}`, and `packages/apps/commise/features/*`. `packages/shared/*` **is** workspace-registered and already ships `clerk-verify`, `identity-core`, `identity-db`, and `recipe-core`. The empty leftover directory is `packages/api/`, which is **not** a workspace root — new backend services belong under `packages/services/<domain>-service`.
 
 ---
 
@@ -37,7 +37,7 @@ Planned implementation introduces four new packages (`@kitchensink/digitization-
 
 ### `OcrProvider` Interface Contract (added 2026-05-10 per pre-impl C-A-001)
 
-The OCR pipeline is provider-pluggable. T093 defines the canonical interface in `packages/api/digitization-ocr/src/providers/ocr-provider.interface.ts`; T050 (Textract adapter) and any future provider (Q-001 deferred) MUST implement it.
+The OCR pipeline is provider-pluggable. T093 defines the canonical interface in `packages/services/digitization-workers/src/providers/ocr-provider.interface.ts`; T050 (Textract adapter) and any future provider (Q-001 deferred) MUST implement it.
 
 ```ts
 export interface OcrInput {
@@ -103,37 +103,44 @@ Two paths require strict isolation:
 
 ## Constitution Check
 
-| #   | Principle                       | Status       | Notes                                                                                                                       |
-| --- | ------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| I   | Correctness & Type Safety       | ✅ Pass      | Strict TS required in all new packages; no `any`; typed RFC7807 DTOs and event payloads.                                    |
-| II  | Readability & JSDoc             | ✅ Pass      | Plan requires module-level and export-level JSDoc in all new TS modules.                                                    |
-| III | Code Organization & Imports     | ⚠️ Attention | New packages require workspace + alias registration (`packages/api/*`, `packages/shared/*`) to preserve import conventions. |
-| IV  | Testing Discipline              | ✅ Pass      | Pyramid + explicit integration/contract/a11y critical-path tests included.                                                  |
-| V   | Monorepo & Workspace Governance | ⚠️ Attention | Root `workspaces` update required before implementation to avoid orphan packages.                                           |
-| VI  | Formatting & Tooling            | ✅ Pass      | Turbo/ESLint/Prettier/typecheck gates inherited; generate/types ordering enforced by workspace scripts.                     |
-| VII | Accessibility & UX Consistency  | ✅ Pass      | NFR-004 encoded with role/label requirements and assistive tech acceptance paths.                                           |
+| #   | Principle                       | Status  | Notes                                                                                                                                                                                              |
+| --- | ------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I   | Correctness & Type Safety       | ✅ Pass | Strict TS required in all new packages; no `any`; typed RFC7807 DTOs and event payloads.                                                                                                           |
+| II  | Readability & JSDoc             | ✅ Pass | Plan requires module-level and export-level JSDoc in all new TS modules.                                                                                                                           |
+| III | Code Organization & Imports     | ✅ Pass | `packages/services/*` and `packages/shared/*` are already registered workspace globs; new directories under them are picked up automatically. Alias/TS project references still added per package. |
+| IV  | Testing Discipline              | ✅ Pass | Pyramid + explicit integration/contract/a11y critical-path tests included.                                                                                                                         |
+| V   | Monorepo & Workspace Governance | ✅ Pass | No root `workspaces` change required — the globs already cover both new package roots.                                                                                                             |
+| VI  | Formatting & Tooling            | ✅ Pass | Turbo/ESLint/Prettier/typecheck gates inherited; generate/types ordering enforced by workspace scripts.                                                                                            |
+| VII | Accessibility & UX Consistency  | ✅ Pass | NFR-004 encoded with role/label requirements and assistive tech acceptance paths.                                                                                                                  |
 
 ---
 
 ## Project Structure
 
-Proposed structure (aligned with existing `packages/api` and `packages/shared` directories):
+Proposed structure, placed under the workspace roots the repo already registers:
 
 ```text
 packages/
-  api/
-    digitization-api/           # package: @kitchensink/digitization-api
-    circles-api/                # package: @kitchensink/circles-api
-    digitization-ocr/           # package: @kitchensink/digitization-ocr
+  services/
+    digitization-service/       # package: @kitchensink/digitization-service
+    circles-service/            # package: @kitchensink/circles-service
+    digitization-workers/       # package: @kitchensink/digitization-workers  (Lambda OCR worker)
   shared/
-    audience/                   # package: @kitchensink/shared-audience
+    audience/                   # package: @kitchensink/audience
 ```
 
 **Naming validation**:
 
-- Package names from research/spec are preserved exactly.
-- **Conflict flagged**: root `package.json` workspace globs currently exclude `packages/api/*` and `packages/shared/*`.
-- **Plan action**: add workspace globs for API/shared packages during implementation bootstrap.
+- Placement follows the shipped convention: deployable HTTP services live in `packages/services/<domain>-service`
+  (cf. `food-service`, `recipe-service`) and Lambda/worker bundles in `packages/services/<domain>-workers`
+  (cf. `recipe-workers`), with shared libraries in `packages/shared/<name>` (cf. `recipe-core`).
+- Package names follow the shipped `@kitchensink/<name>` form. Note this does **not** match GR-009's
+  `@kitchensink/{group}-{name}` pattern — no shipped package does. See the GR-009 note in
+  [`../governance-rules.md`](../governance-rules.md#gr-009-package-naming-convention); that rule needs
+  ratification against reality and is tracked as an open governance item, not silently satisfied here.
+- **No workspace-glob change is required.** `packages/services/*` and `packages/shared/*` are both already
+  registered in the root `package.json` (an earlier revision of this plan claimed they were excluded — that
+  was incorrect and is corrected here). New directories under those roots are picked up automatically.
 
 ---
 
@@ -185,7 +192,7 @@ packages/
 
 Auth model for all endpoints: **Clerk session token required** (feature 002), verified networklessly by `AuthMiddleware`/`ClerkAuthService` (`@clerk/backend` `verifyToken` against `CLERK_JWT_KEY`, with `azp` enforced via `CLERK_AUTHORIZED_PARTIES`), except the invitation token itself is path data and still requires an authenticated user to redeem.
 
-### `@kitchensink/digitization-api` (NestJS)
+### `@kitchensink/digitization-service` (NestJS)
 
 | Method | Path                                           | Auth           | Purpose                                     | FR             |
 | ------ | ---------------------------------------------- | -------------- | ------------------------------------------- | -------------- |
@@ -196,7 +203,7 @@ Auth model for all endpoints: **Clerk session token required** (feature 002), ve
 | POST   | `/api/v1/recipes/digitize/jobs/:id/save`       | Bearer         | Persist recipe + link `recipe_id`           | FR-021         |
 | DELETE | `/api/v1/recipes/digitize/jobs/:id`            | Bearer         | Soft-delete/discard job                     | FR-022         |
 
-### `@kitchensink/circles-api` (NestJS)
+### `@kitchensink/circles-service` (NestJS)
 
 | Method | Path                                    | Auth         | Purpose                            | FR                                |
 | ------ | --------------------------------------- | ------------ | ---------------------------------- | --------------------------------- |
@@ -236,26 +243,26 @@ Auth model for all endpoints: **Clerk session token required** (feature 002), ve
 
 ## Backend Services
 
-### `@kitchensink/digitization-ocr` Lambda
+### `@kitchensink/digitization-workers` Lambda
 
 - SQS-triggered worker, batched receive with partial failure reporting.
 - Calls Textract adapter with timeout budget and fallback states (`awaiting-correction + low_quality`).
 - Writes parsed artifacts and confidence map to DB via internal API/DB client.
 - Emits metrics and structured logs per job.
 
-### `@kitchensink/digitization-api`
+### `@kitchensink/digitization-service`
 
 - Job orchestration, pre-signed URL minting, correction persistence, save/discard.
 - Enforces file constraints before issuing upload URLs.
 - Owns pagination/status/rfc7807 contracts.
 
-### `@kitchensink/circles-api`
+### `@kitchensink/circles-service`
 
 - Circle CRUD, invitation token rotation/redeem, member management.
-- Audience resolution service consumed by 001/006/007 through `@kitchensink/shared-audience` contracts.
+- Audience resolution service consumed by 001/006/007 through `@kitchensink/audience` contracts.
 - Handles owner deletion promotion semantics and deletion cascade behavior.
 
-### `@kitchensink/shared-audience`
+### `@kitchensink/audience`
 
 - Exports `AudienceScope`, `Audience`, validators/guards, and helper resolvers.
 - Shared contract test matrix with 001/006/007 to prevent drift.
@@ -281,7 +288,7 @@ Auth model for all endpoints: **Clerk session token required** (feature 002), ve
 - **OCR timeouts/retries**: worker timeout budget + exponential backoff via SQS redrive policy; poison messages to DLQ with alarm (NFR-006).
 - **Circuit breaker (OCR provider)**: open on repeated provider faults; jobs transitioned to retry/degraded queue state; no silent drop.
 - **Idempotency**:
-    - Invite redemption (`POST /circles/join/:token`) idempotent for existing members (FR-032).
+    - Invite redemption (`POST /api/v1/circles/join/:token`) idempotent for existing members (FR-032).
     - Save/correction operations use optimistic version checks on job state.
 - **Public endpoint protections**: request throttling/rate limits on job creation and invitation redeem routes.
 - **Transactional safety**: FR-033/FR-035 operations execute as atomic DB transactions with audit logging.
@@ -322,7 +329,7 @@ Auth model for all endpoints: **Clerk session token required** (feature 002), ve
     - lifecycle policy hooks for retention defaults
 2. **DigitizationProcessingStack**
     - SQS queue + DLQ
-    - OCR Lambda (`@kitchensink/digitization-ocr`)
+    - OCR Lambda (`@kitchensink/digitization-workers`)
     - IAM least-privilege policies for S3 read, Textract, SQS consume, metrics/logs
 3. **DigitizationApiStack**
     - NestJS service deployment (aligned with existing app infra pattern)
@@ -343,7 +350,7 @@ Auth model for all endpoints: **Clerk session token required** (feature 002), ve
 
 - **Unit**: parsers, DTO validation, audience guards, token rotation logic.
 - **Integration**: OCR pipeline (S3 upload event → SQS → Lambda → DB state), circle lifecycle transactions, owner-deletion promotion.
-- **Contract**: `@kitchensink/shared-audience` consumer contract tests for 001/006/007 compatibility.
+- **Contract**: `@kitchensink/audience` consumer contract tests for 001/006/007 compatibility.
 - **E2E/UX**: correction flow + invite acceptance (web/mobile), including accessibility assertions.
 
 ### Critical Path Test Mapping
@@ -422,7 +429,7 @@ Implementation-time decisions explicitly deferred/approved in `review.md` (provi
 | Data model / schema aligned with product-spec requirements? | ✅     | Includes circles, members, invites, digitization jobs, audience JSONB, recipe_versions, and raw OCR retention handling.                                                                                          |
 | Non-functional requirements (perf, security) addressed?     | ✅     | NFR-001..NFR-008 each mapped to concrete implementation and observability strategy.                                                                                                                              |
 | API contracts consistent with product-spec user journeys?   | ⚠️     | Product-spec API table uses `/api/v1/digitization/jobs`; canonical `spec.md` uses `/api/v1/recipes/digitize/jobs`. Plan follows authoritative `spec.md`; aliasing can be added if backward compatibility needed. |
-| Workspace/package naming and registration consistency       | ⚠️     | Package names are compliant, but root workspace globs must be extended for `packages/api/*` and `packages/shared/*`.                                                                                             |
+| Workspace/package naming and registration consistency       | ⚠️     | Package names are compliant, but root workspace globs must be extended for `packages/services/*` and `packages/shared/*`.                                                                                        |
 
 ---
 

@@ -11,12 +11,12 @@
 | Spec                                                            | Relationship                                                                                 |
 | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | [002-user-auth](../002-user-auth/spec.md)           | **Required** — subscription tier is a property of the authenticated user                     |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Referenced** — gates private recipe visibility (FR-003)                                    |
-| [004-recipe-importing](../004-recipe-importing/spec.md)         | **Referenced** — gates clone-to-private for imported recipes (FR-011)                        |
-| [005-ai-integration](../005-ai-integration/spec.md)             | **Referenced** — gates AI generation and instruction optimization (FR-016, FR-019)           |
-| [006-meal-planning](../006-meal-planning/spec.md)               | **Referenced** — gates AI meal suggestions, auto-generation, waste optimization (FR-025–027) |
-| [007-grocery-lists](../007-grocery-lists/spec.md)               | **Referenced** — gates online ordering (FR-031)                                              |
-| [009-nutrition-planning](../009-nutrition-planning/spec.md)     | **Referenced** — gates trainer nutrition planning (FR-038)                                   |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Referenced** — gates private recipe visibility (001-FR-003)                                    |
+| [004-recipe-importing](../004-recipe-importing/spec.md)         | **Referenced** — gates clone-to-private for imported recipes (004-FR-011)                        |
+| [005-ai-integration](../005-ai-integration/spec.md)             | **Referenced** — gates AI generation and instruction optimization (005-FR-016, 005-FR-019)           |
+| [006-meal-planning](../006-meal-planning/spec.md)               | **Referenced** — gates AI meal suggestions, auto-generation, waste optimization (006-FR-025, 006-FR-026, 006-FR-027) |
+| [007-grocery-lists](../007-grocery-lists/spec.md)               | **Referenced** — gates online ordering (007-FR-031)                                              |
+| [009-nutrition-planning](../009-nutrition-planning/spec.md)     | **Referenced** — gates trainer nutrition planning (009-FR-038)                                   |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -35,7 +35,7 @@ New users start on a free tier that provides core functionality: creating, viewi
 3. **Given** a free-tier user, **When** they attempt to use AI recipe generation, **Then** they see a preview or teaser of the feature with a prompt to upgrade.
 4. **Given** a free-tier user, **When** they attempt to use food waste optimization in meal planning, **Then** they are prompted to upgrade.
 5. **Given** a user upgrades to premium, **When** they access premium features, **Then** all premium functionality is immediately available, including the ability to set recipes to private.
-6. **Given** a premium user, **When** their subscription lapses, **Then** they retain access to all their data but premium features are locked until renewal. Previously private recipes remain private (except imported/attributed recipes, which MUST remain public per source TOS and FR-011), but no new recipes can be set to private until renewal.
+6. **Given** a premium user, **When** their subscription lapses, **Then** they retain access to all their data but premium features are locked until renewal. Previously private recipes remain private (except imported/attributed recipes, which MUST remain public per source TOS and 004-FR-011), but no new recipes can be set to private until renewal.
 
 ---
 

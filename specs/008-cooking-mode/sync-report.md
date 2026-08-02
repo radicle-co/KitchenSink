@@ -121,7 +121,7 @@
 
 - `packages/apps/commise/web/src/` — **No `features/cooking-mode/` directory.** Existing code: auth-only middleware, pages, components, hooks, lib, types (all Clerk-related).
 - `packages/apps/commise/mobile/src/` — **No `features/cooking-mode/` directory.** Existing code: auth-only screens, components, hooks, services, storage.
-- `packages/shared/src/` — **Does not exist.** No shared cooking types, session store, timer service, or wake lock utilities found.
+- `packages/shared/` — **Does not exist.** No shared cooking types, session store, timer service, or wake lock utilities found.
 - `packages/apps/commise/web/package.json` — `expo-keep-awake` **not present**; no cooking-mode deps.
 - `packages/apps/commise/mobile/package.json` — `expo-keep-awake` **not present**.
 
@@ -129,13 +129,13 @@
 
 | Task  | Target file (from tasks.md)                                                | Exists?                  |
 | ----- | -------------------------------------------------------------------------- | ------------------------ |
-| T-001 | `packages/shared/src/cooking/types.ts`                                     | No (shared/src/ missing) |
-| T-002 | `packages/shared/src/cooking/session-store.ts`                             | No                       |
-| T-003 | `packages/shared/src/cooking/timer-service.ts`                             | No                       |
-| T-004 | `packages/shared/src/cooking/wake-lock.ts`                                 | No                       |
-| T-005 | `packages/shared/src/cooking/wake-lock-rn.ts`                              | No                       |
-| T-006 | `packages/shared/src/cooking/recipe-api.ts`                                | No                       |
-| T-007 | `packages/shared/src/cooking/offline-cache.ts`                             | No                       |
+| T-001 | `packages/shared/cooking/src/types.ts`                                     | No (shared/src/ missing) |
+| T-002 | `packages/shared/cooking/src/session-store.ts`                             | No                       |
+| T-003 | `packages/shared/cooking/src/timer-service.ts`                             | No                       |
+| T-004 | `packages/shared/cooking/src/wake-lock.ts`                                 | No                       |
+| T-005 | `packages/shared/cooking/src/wake-lock-rn.ts`                              | No                       |
+| T-006 | `packages/shared/cooking/src/recipe-api.ts`                                | No                       |
+| T-007 | `packages/shared/cooking/src/offline-cache.ts`                             | No                       |
 | T-008 | `apps/web/src/features/cooking-mode/CookingModeScreen.tsx`                 | No                       |
 | T-009 | `apps/mobile/src/features/cooking-mode/CookingModeScreen.tsx`              | No                       |
 | T-010 | `apps/web/src/features/cooking-mode/StepDisplay.tsx`                       | No                       |

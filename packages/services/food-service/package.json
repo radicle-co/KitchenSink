@@ -64,7 +64,7 @@
         "prettier": "^3.0.0",
         "tsx": "*",
         "typescript": "^5.9.3",
-        "undici": "^6.27.0",
+        "undici": "^8.9.0",
         "vitest": "^4.0.0"
     },
     "engines": {

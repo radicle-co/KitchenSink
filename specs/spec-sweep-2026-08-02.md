@@ -206,7 +206,10 @@ Feature 005 authored it. GR-002 AC-002-d is satisfied by that file.
 node scripts/classify-fr-refs.mjs      # see PR description for the inline script
 
 # no bare /v1/, no unprefixed endpoints except third-party
-grep -rIlE '(?<!api)/v1/' specs/00[7-9]-* specs/01[0-4]-*
+grep -rIlP '(?<!api)/v1/' specs/00[7-9]-* specs/01[0-4]-*
+# ^ NOTE: -P, not -E — the lookbehind is PCRE-only and -E fails on it.
+#   Two hits are EXPECTED and must not be "fixed": 012's plan.md and review.md
+#   describe the prohibited form ("no bare `/v1/*`"), so the literal is correct there.
 grep -rhoP '\b(GET|POST|PUT|PATCH|DELETE)\s+`?/(?!api/)[a-z]' specs/00[7-9]-* specs/01[0-4]-*
 
 # no stale package roots

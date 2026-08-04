@@ -2,7 +2,7 @@
   "meta": {
     "feature": "007-grocery-lists",
     "scanDate": "2026-06-02",
-    "basePath": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/007-grocery-lists/",
+    "basePath": "specs/007-grocery-lists/",
     "mode": "READ-ONLY",
     "layersScanned": [
       "L1",

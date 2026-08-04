@@ -4,7 +4,7 @@
 |---|---|
 | **Feature Slug** | `009-nutrition-planning` |
 | **Scan Date** | 2026-06-02 |
-| **Worktree** | `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth` |
+| **Worktree** | `<repo root>` |
 | **Mode** | Pre-implement (skip L5; L6 missing-impl = INFO) |
 | **Overall Result** | **PASS** |
 | **Critical** | 0 |

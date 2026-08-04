@@ -1,7 +1,7 @@
 {
   "report_meta": {
     "feature": "014-notification-service",
-    "worktree": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth",
+    "worktree": "<repo root>",
     "scan_date": "2026-06-02T00:00:00Z",
     "mode": "pre-implement",
     "layers_run": ["L1","L2","L3","L4","L7"],
@@ -26,8 +26,8 @@
         "Q-008 (per-recipient FIFO) correctly attributed to industry practice and matched in product-spec."
       ],
       "evidence": [
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/research/codebase-analysis.md §33",
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/product-spec/user-journey.md §32"
+        "specs/014-notification-service/research/codebase-analysis.md §33",
+        "specs/014-notification-service/product-spec/user-journey.md §32"
       ]
     },
     {
@@ -41,9 +41,9 @@
         "US-008..US-011 coverage via FR-010/FR-020/FR-021 (US-008), FR-017/FR-018 (US-011) and inline references to US-009/US-010 in risk/test sections."
       ],
       "evidence": [
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/spec.md §47 (Scope / Exclusions)",
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/spec.md §46 (API Surface)",
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/plan.md §14 (Must Have stories addressed)"
+        "specs/014-notification-service/spec.md §47 (Scope / Exclusions)",
+        "specs/014-notification-service/spec.md §46 (API Surface)",
+        "specs/014-notification-service/plan.md §14 (Must Have stories addressed)"
       ]
     },
     {
@@ -57,9 +57,9 @@
         "Architecture choice (hybrid push+replay) is a legitimate implementation specialization of spec.md Q-001 transport-open."
       ],
       "evidence": [
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/plan.md §40-55 (Transport and Queue Architecture)",
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/plan.md §74-93 (API routes table)",
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/plan.md §28-36 (Governance Alignment)"
+        "specs/014-notification-service/plan.md §40-55 (Transport and Queue Architecture)",
+        "specs/014-notification-service/plan.md §74-93 (API routes table)",
+        "specs/014-notification-service/plan.md §28-36 (Governance Alignment)"
       ]
     },
     {
@@ -73,9 +73,9 @@
         "Dependency graph DAG is acyclic and matches declared task order."
       ],
       "evidence": [
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/tasks.md §10-18 (Dependency Graph)",
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/tasks.md §25-83 (Phase 1-2 tasks)",
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/plan.md §14 (Must Have stories addressed)"
+        "specs/014-notification-service/tasks.md §10-18 (Dependency Graph)",
+        "specs/014-notification-service/tasks.md §25-83 (Phase 1-2 tasks)",
+        "specs/014-notification-service/plan.md §14 (Must Have stories addressed)"
       ]
     },
     {
@@ -96,9 +96,9 @@
         "Expected given pre-implement phase. No action required."
       ],
       "evidence": [
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/tasks.md (unchecked checkboxes throughout)",
-        "ls /home/brandon/Development/KitchenSink/.worktrees/002-user-auth/packages/services/notification-service = NOT_FOUND",
-        "ls /home/brandon/Development/KitchenSink/.worktrees/002-user-auth/packages/shared/notifications = NOT_FOUND"
+        "specs/014-notification-service/tasks.md (unchecked checkboxes throughout)",
+        "ls packages/services/notification-service = NOT_FOUND",
+        "ls packages/shared/notifications = NOT_FOUND"
       ]
     },
     {
@@ -112,9 +112,9 @@
         "verify-report.md and review.md link targets are valid internal paths."
       ],
       "evidence": [
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/review.md §100-106",
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/plan.md §3-4",
-        "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/014-notification-service/spec.md §12-17"
+        "specs/014-notification-service/review.md §100-106",
+        "specs/014-notification-service/plan.md §3-4",
+        "specs/014-notification-service/spec.md §12-17"
       ]
     }
   ],

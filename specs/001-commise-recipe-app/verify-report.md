@@ -1,7 +1,7 @@
 # Verify Report — Feature 001 (Commise Recipe Management Core)
 
 **Phase**: 7 — Full Verification (Product Forge `verify-full`, adapted)
-**Worktree**: `/home/brandon/Development/KitchenSink/.worktrees/001-commise-recipe-app`
+**Worktree**: `.worktrees/001-commise-recipe-app`
 **Branch / HEAD**: `001-commise-recipe-app` @ `d1d1b43` (Phase 6B code-review — 0 CRITICAL/HIGH)
 **Date**: 2026-07-16
 **Method**: No live `traceability.yml`/`journeys.yml`/`component-map.yml`. Traced from `spec.md` → `tasks.md` → source → tests, plus `contracts/api.openapi.yaml` and `.specify/memory/constitution.md`. Read-only on all source; only this report was written.

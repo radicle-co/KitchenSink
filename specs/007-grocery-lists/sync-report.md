@@ -1,7 +1,7 @@
 # Sync-Verify Report: 007-grocery-lists
 
 **Scan Date**: 2026-06-02
-**Base Path**: `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/007-grocery-lists/`
+**Base Path**: `specs/007-grocery-lists/`
 **Mode**: READ-ONLY (pre-implementation)
 **Layers**: L1, L2 (CRITICAL), L3, L4, L7; L5 SKIPPED; L6 INFO
 
@@ -158,8 +158,8 @@
 
 ### Evidence
 - `packages/apps/commise/` exists with `web/` and `mobile/` (React / React Native)
-- `packages/services/` is workspace-registered and ships five services (`identity`, `identity-webhooks`, `food-service`, `recipe-service`, `recipe-workers`); 007 adds `grocery-service`. The empty leftover is `packages/api/`, which is **not** a workspace root.
-- Searched entire `/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/packages/` for `grocery`, `pantry`, `culinary`, `aggregator` — **0 matches**
+- `packages/services/` is workspace-registered and ships five services (`identity`, `identity-webhooks`, `food-service`, `recipe-service`, `recipe-workers`); 007 **plans to add** `grocery-service`, which does not exist yet. The empty leftover is `packages/api/`, which is **not** a workspace root.
+- Searched entire `packages/` for `grocery`, `pantry`, `culinary`, `aggregator` — **0 matches**
 - No Drizzle schema files, no migration files, no NestJS controllers/services/modules
 
 ### Task → Code Mapping

@@ -1,8 +1,8 @@
 {
   "scan": {
     "feature_slug": "013-cooking-school",
-    "worktree": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth",
-    "feature_absolute": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/013-cooking-school",
+    "worktree": "<repo root>",
+    "feature_absolute": "specs/013-cooking-school",
     "scan_date": "2026-06-02",
     "layers": [
       "L1",
@@ -20,23 +20,23 @@
   "artifacts": {
     "L1_research": {
       "present": true,
-      "file": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/013-cooking-school/research.md"
+      "file": "specs/013-cooking-school/research.md"
     },
     "L2_product_spec": {
       "present": true,
-      "file": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/013-cooking-school/product-spec/product-spec.md"
+      "file": "specs/013-cooking-school/product-spec/product-spec.md"
     },
     "L3_spec": {
       "present": true,
-      "file": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/013-cooking-school/spec.md"
+      "file": "specs/013-cooking-school/spec.md"
     },
     "L4_plan": {
       "present": true,
-      "file": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/013-cooking-school/plan.md"
+      "file": "specs/013-cooking-school/plan.md"
     },
     "L4_tasks": {
       "present": true,
-      "file": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/013-cooking-school/tasks.md",
+      "file": "specs/013-cooking-school/tasks.md",
       "task_count": 85,
       "checked": 0,
       "unchecked": 85
@@ -47,7 +47,7 @@
     },
     "L7_verify": {
       "present": true,
-      "file": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/013-cooking-school/verify-report.md"
+      "file": "specs/013-cooking-school/verify-report.md"
     }
   },
   "results": {

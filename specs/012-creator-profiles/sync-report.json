@@ -2,7 +2,7 @@
   "reportType": "sync-verify",
   "featureSlug": "012-creator-profiles",
   "generatedAt": "2026-06-02",
-  "worktreePath": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth",
+  "worktreePath": "<repo root>",
   "scope": "Pre-implementation 7-layer scan (L1–L4, L6, L7; L5 skipped)",
   "mode": "READ-ONLY",
   "overallGate": "BLOCKED",
@@ -213,13 +213,13 @@
     }
   ],
   "artifactInventory": [
-    { "artifact": "spec.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/spec.md", "read": true },
-    { "artifact": "product-spec/product-spec.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/product-spec/product-spec.md", "read": true },
-    { "artifact": "plan.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/plan.md", "read": true },
-    { "artifact": "tasks.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/tasks.md", "read": true },
-    { "artifact": "research.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/research.md", "read": true },
-    { "artifact": "v-model/requirements.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/v-model/requirements.md", "read": true },
-    { "artifact": "v-model/release-audit-report.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/v-model/release-audit-report.md", "read": true },
-    { "artifact": "verify-report.md", "path": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth/specs/012-creator-profiles/verify-report.md", "read": true }
+    { "artifact": "spec.md", "path": "specs/012-creator-profiles/spec.md", "read": true },
+    { "artifact": "product-spec/product-spec.md", "path": "specs/012-creator-profiles/product-spec/product-spec.md", "read": true },
+    { "artifact": "plan.md", "path": "specs/012-creator-profiles/plan.md", "read": true },
+    { "artifact": "tasks.md", "path": "specs/012-creator-profiles/tasks.md", "read": true },
+    { "artifact": "research.md", "path": "specs/012-creator-profiles/research.md", "read": true },
+    { "artifact": "v-model/requirements.md", "path": "specs/012-creator-profiles/v-model/requirements.md", "read": true },
+    { "artifact": "v-model/release-audit-report.md", "path": "specs/012-creator-profiles/v-model/release-audit-report.md", "read": true },
+    { "artifact": "verify-report.md", "path": "specs/012-creator-profiles/verify-report.md", "read": true }
   ]
 }

@@ -47,7 +47,7 @@ Planning baseline used:
 **Rule reference**: [`governance-rules.md#gr-002-api-url-prefix-standard`](../governance-rules.md#gr-002-api-url-prefix-standard)
 
 - Plan/tasks constrain all 012 routes to `/api/v1/*`.
-- No bare `/api/*` or bare `/api/v1/*` routes are introduced in 012 planning artifacts.
+- No bare `/api/*` (unversioned) or bare `/v1/*` (missing the `/api` segment) routes are introduced in 012 planning artifacts.
 
 **Status**: **Planned compliant** (implementation validation pending).
 

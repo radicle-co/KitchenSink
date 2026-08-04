@@ -189,7 +189,7 @@ export const homeWidgetDescriptorSchema = z.union([
  * Per-viewer curation context for {@link CurateHomeWidgets}: which capabilities
  * (backing services) are live, the viewer's subscription tier, and their
  * persisted personalization layout. The layout (`order` + `hidden`) is loaded
- * from and saved via `PATCH /api/v1/profiles/me`, which is **owned by the
+ * from and saved via `PATCH /api/v1/users/me`, which is **owned by the
  * identity service (002)** and merely **consumed** here — 001 does not own that
  * endpoint or a `home_layouts` store — the layout lives in the identity profile preferences (`profiles.preferences.homeLayout`).
  */

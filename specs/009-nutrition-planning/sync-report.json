@@ -1,7 +1,7 @@
 {
   "feature_slug": "009-nutrition-planning",
   "scan_date": "2026-06-02",
-  "worktree": "/home/brandon/Development/KitchenSink/.worktrees/002-user-auth",
+  "worktree": "<repo root>",
   "mode": "pre-implement",
   "instructions": { "l5_skip": true, "l6_missing_impl": "INFO" },
   "overall_result": "PASS",

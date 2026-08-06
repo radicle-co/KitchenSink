@@ -1,6 +1,7 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import checkFile from 'eslint-plugin-check-file';
+import importX from 'eslint-plugin-import-x';
 
 import { nativeA11yPlugin } from './nativeA11y.js';
 
@@ -106,6 +107,52 @@ function filenameConventionConfig(regime) {
 }
 
 /**
+ * §14.2: an APP may import only *types* from a deployable service package. A value import drags the
+ * service's runtime — NestJS, Drizzle, `pg` — into a browser or React Native bundle, and worse, couples
+ * a client to server internals that are free to change without a wire-contract change.
+ *
+ * Uses the `@typescript-eslint` variant rather than the base rule because only it understands
+ * `allowTypeImports`; the base rule cannot tell `import type` from `import`, so it could only ban the
+ * specifier outright and there are six legitimate type imports today.
+ *
+ * Applied only to app packages, detected from the package root the caller passes — the services
+ * themselves and the shared libraries import each other's runtimes legitimately. Measured at ZERO
+ * violations before enabling (all six existing app→service imports are `import type` or `export type`),
+ * so it lands as a pure ratchet with no baseline.
+ *
+ * @param {string} rootDir - Absolute package root (the caller's `import.meta.dirname`).
+ * @returns {import('eslint').Linter.Config[]}
+ */
+function appServiceTypeOnlyConfig(rootDir) {
+    if (!String(rootDir).replaceAll('\\', '/').includes('/packages/apps/')) {
+        return [];
+    }
+
+    return [
+        {
+            files: ['**/*.{ts,tsx}'],
+            rules: {
+                '@typescript-eslint/no-restricted-imports': [
+                    'error',
+                    {
+                        patterns: [
+                            {
+                                group: ['@kitchensink/*-service', '@kitchensink/*-service/**'],
+                                allowTypeImports: true,
+                                message:
+                                    'An app may import only TYPES from a deployable service (§14.2). A value ' +
+                                    'import pulls the service runtime (NestJS/Drizzle/pg) into the client ' +
+                                    'bundle. Use `import type`, or go through the service CLIENT package.',
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+    ];
+}
+
+/**
  * Creates the base ESLint configuration for KitchenSink packages.
  *
  * Returns an array of ESLint flat config objects that:
@@ -174,6 +221,39 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                 'native-a11y/accessibility-state-needs-aria-sibling': 'error',
             },
         },
+        {
+            // §4: a relative path may never leave its own workspace. `eslint-plugin-import-x` was already
+            // installed and a declared peer dependency here, but was never REGISTERED — so the rule that
+            // encodes the convention has been shipping as prose only.
+            //
+            // This is the AST-level half of a pair: `turbo boundaries` (see scripts/boundariesRatchet.mjs)
+            // catches a bare specifier that the manifest does not declare, and this catches the other
+            // evasion — reaching into a sibling package by relative path, which needs no declaration at
+            // all and therefore slips past the manifest check entirely. Neither rule sees what the other
+            // sees.
+            //
+            // Measured at ZERO violations across the tree before being enabled, so it lands as a pure
+            // ratchet with no baseline. (A grep for `../../../` is NOT how you measure this: 215 such
+            // imports exist and every one is intra-package, which the rule correctly permits — it flags
+            // only relative paths that resolve into a DIFFERENT package.)
+            plugins: { 'import-x': importX },
+            settings: {
+                // WITHOUT a resolver the rule is a NO-OP: import-x cannot map the specifier to a target
+                // package.json, so it bails silently and every violation passes. Verified by mutation —
+                // a genuine cross-package relative import produced zero output until this was added.
+                // `createNodeResolver` ships inside import-x v4, so this needs no extra dependency.
+                'import-x/resolver-next': [
+                    importX.createNodeResolver({
+                        extensionAlias: { '.js': ['.ts', '.tsx', '.js'], '.jsx': ['.tsx', '.jsx'] },
+                        extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+                    }),
+                ],
+            },
+            rules: {
+                'import-x/no-relative-packages': 'error',
+            },
+        },
+        ...appServiceTypeOnlyConfig(tsconfigRootDir),
         {
             files: ['**/__tests__/**/*.ts', '**/*.test.ts'],
             rules: {

@@ -448,7 +448,7 @@ T-030 → T-089[P]
   - Execute end-to-end tests against LocalStack API Gateway/authorizer path and local identity service.
   - **Acceptance**: Auth-protected route tests pass against local emulated infrastructure.
 
-- [x] **T-075** [QUALITY] E2E: local deletion-worker + reconciliation scheduled flows — `tests/e2e/auth/deletion.spec.ts`
+- [x] **T-075** [QUALITY] E2E: local deletion-worker + reconciliation scheduled flows — `tests/e2e/auth/deletion.e2e.test.ts`
   - **Depends on**: T-073, T-022, T-023
   - **Implements**: REQ-017, REQ-025, REQ-026, FR-017, FR-025, FR-026, ARCH-012, ARCH-017, MOD-012, MOD-017
   - Verify local queue-driven deletion retries and scheduled reconciliation behavior.

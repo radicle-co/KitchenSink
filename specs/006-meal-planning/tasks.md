@@ -101,7 +101,7 @@ Implements **FR-024**.
     - **Implements**: FR-024 (API contract)
     - **Acceptance**: Response matches plan.md §3 shape: `dailyNutrition[]` with per-meal breakdowns + `weekTotals`; recalculates on-demand within 500ms for 7-day plans.
 
-- [ ] **T-009** [P2] [US-006-003] Unit tests for nutrition calculator with mocked USDA and recipe data — `packages/services/nutrition/tests/calculator.spec.ts`
+- [ ] **T-009** [P2] [US-006-003] Unit tests for nutrition calculator with mocked USDA and recipe data — `packages/services/nutrition/src/__tests__/calculator.test.ts`
     - **Depends on**: T-007
     - **Implements**: FR-024 (test coverage)
     - **Acceptance**: ≥90% branch coverage; tests multi-day plans, serving scaling, orphaned entry exclusion, cache hit/miss paths.

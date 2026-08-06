@@ -209,7 +209,7 @@ flowchart TD
 **Dependencies:** none (independent of U1–U3; can land in parallel).
 **Files:**
 - `packages/services/identity-webhooks/src/handlers/identityWebhook.ts` — add idempotent `account` upsert in `handleUserCreated`.
-- `packages/services/identity-webhooks/tests/e2e/auth/api.spec.ts` — extend the `user.created` e2e to assert account creation.
+- `packages/services/identity-webhooks/tests/e2e/auth/api.e2e.test.ts` — extend the `user.created` e2e to assert account creation.
 
 **Approach:** After the `upsertByIdentityId` + profile upsert, insert an `accounts` row `onConflictDoNothing` keyed on `userId` (mirroring `UsersService.upsertUser`). Preserves existing `recordOnce` svix dedup. No change to `user.updated` / `user.deleted` (those remain the webhook's irreducible jobs — deletion has no read-through equivalent; updates keep RDS fresh).
 

@@ -245,8 +245,8 @@ packages/services/recipe-service/src/database/
 └── migrations/     0019_import_drafts.sql · 0020_import_jobs.sql
                     0021_paywalled_domains.sql · 0022_recipes_import_columns.sql
 
-packages/services/recipe-service/tests/e2e/     import-url.e2e.spec.ts · import-draft-confirm.e2e.spec.ts
-                                                import-blocklist.e2e.spec.ts · import-ocr.e2e.spec.ts
+packages/services/recipe-service/tests/e2e/     import-url.e2e.test.ts · import-draft-confirm.e2e.test.ts
+                                                import-blocklist.e2e.test.ts · import-ocr.e2e.test.ts
 packages/services/recipe-workers/src/           import-job.worker.ts
 
 specs/001-commise-recipe-app/contracts/api.openapi.yaml   ← the service's ONE OpenAPI document; 004 EXTENDS it

@@ -281,7 +281,7 @@ flowchart TD
 - **Files:**
     - `packages/services/recipe-service/src/account/__tests__/erasure.service.test.ts` and/or the controller
       test (assert a body-supplied `ownerId` is ignored; owner comes only from the principal)
-    - `packages/services/recipe-service/__tests__/integration/account/erasure.integration.spec.ts` (extend:
+    - `packages/services/recipe-service/__tests__/integration/account/erasure.integration.test.ts` (extend:
       seed other users' ratings on the erased owner's recipes; assert survivor aggregates re-derive correctly
       through the cascade, no survivor corruption)
 - **Approach:** Controller test sends a request whose body carries a _different_ `ownerId` and asserts the

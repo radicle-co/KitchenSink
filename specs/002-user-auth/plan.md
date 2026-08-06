@@ -311,8 +311,8 @@ The two stub e2e tests that previously held Auth0-shaped fixtures
 (`deletion-worker-e2e.test.ts`, `local-api-e2e.test.ts` under
 `packages/services/identity/tests/e2e/`) were removed during the Clerk
 migration. Proper e2e coverage now lives in
-`packages/services/identity-webhooks/tests/e2e/auth/` (16 tests across
-`api.spec.ts` and `deletion.spec.ts`) and runs via `npm run test:e2e`.
+`packages/services/identity-webhooks/tests/e2e/auth/` (12 tests across
+`api.e2e.test.ts` and `deletion.e2e.test.ts`) and runs via `npm run test:e2e`.
 
 ### Naming history
 - Branch `002-auth0-user-auth` was renamed to `002-user-auth` during this migration.

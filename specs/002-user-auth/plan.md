@@ -120,18 +120,18 @@ Requirements impacted: REQ-001, REQ-004, REQ-005, REQ-013..REQ-017, REQ-027..REQ
 
 ## Architectural Decisions (locked)
 
-| Decision                     | Choice                                                                                       | Rationale                                                                                                | Traceability                              |
-| ---------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| Identity API compute         | NestJS 11 on ECS/Fargate (Node 24)                                                           | Keeps REST business logic in a long-lived service with clear module boundaries and predictable DB access | REQ-018..REQ-026, REQ-032..REQ-038        |
-| IdP control-plane handlers   | Raw Lambda (Node 24), no NestJS                                                              | Small, isolated handlers for auth edge-cases and scheduled/async tasks                                   | REQ-013..REQ-017, REQ-039..REQ-044        |
-| Authorizer model             | API Gateway REST + Lambda REQUEST authorizer                                                 | Needed for custom JWT claim validation, context injection, and suspension enforcement                    | REQ-039, REQ-040, REQ-042, FR-038..FR-043 |
-| ECS trust boundary           | ECS service trusts `AuthorizerContext` headers only; never decodes client JWT                | Prevents client-supplied claim spoofing; authorizer is the sole JWT verification point                   | REQ-039, REQ-040, decisions.md T9/T11     |
-| Data store                   | RDS PostgreSQL 16 (`db.t4g.micro`) with Drizzle + `pg`                                      | Explicit replacement of obsolete Aurora DSQL assumption; aligns with broader repo standards              | REQ-013..REQ-026                          |
-| Shared schema contract       | Drizzle schemas owned by `packages/services/identity/src/database/schema/`; webhook Lambdas import schemas and types from `@kitchensink/identity-service` (or subpaths). Per refactor commits `2064357` / `6a9570c` / `ee1d4d1` (2026-06). | Single source-of-truth schema in the identity service; no separate shared types package exists | REQ-013..REQ-026, T8 evidence             |
-| Deletion resiliency          | SQS + exponential backoff + DLQ after 5 attempts                                             | Guarantees eventual IdP delete and failure visibility under rate limits/transients                       | REQ-025, REQ-026                          |
-| Reconciliation               | EventBridge Scheduler nightly Lambda diff                                                    | Safety net when signup action path partially fails                                                       | REQ-017                                   |
-| Infrastructure ownership     | 100% self-contained in this repo, CDK v2 only                                                | Eliminates cross-repo ambiguity and external dependency drift                                            | REQ-050                                   |
-| Local integration runtime    | LocalStack Community + sibling Postgres container                                            | Enables queue/event/storage testing without paid emulators                                               | REQ-049                                   |
+| Decision                   | Choice                                                                                                                                                                                                                                     | Rationale                                                                                                | Traceability                              |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Identity API compute       | NestJS 11 on ECS/Fargate (Node 24)                                                                                                                                                                                                         | Keeps REST business logic in a long-lived service with clear module boundaries and predictable DB access | REQ-018..REQ-026, REQ-032..REQ-038        |
+| IdP control-plane handlers | Raw Lambda (Node 24), no NestJS                                                                                                                                                                                                            | Small, isolated handlers for auth edge-cases and scheduled/async tasks                                   | REQ-013..REQ-017, REQ-039..REQ-044        |
+| Authorizer model           | API Gateway REST + Lambda REQUEST authorizer                                                                                                                                                                                               | Needed for custom JWT claim validation, context injection, and suspension enforcement                    | REQ-039, REQ-040, REQ-042, FR-038..FR-043 |
+| ECS trust boundary         | ECS service trusts `AuthorizerContext` headers only; never decodes client JWT                                                                                                                                                              | Prevents client-supplied claim spoofing; authorizer is the sole JWT verification point                   | REQ-039, REQ-040, decisions.md T9/T11     |
+| Data store                 | RDS PostgreSQL 16 (`db.t4g.micro`) with Drizzle + `pg`                                                                                                                                                                                     | Explicit replacement of obsolete Aurora DSQL assumption; aligns with broader repo standards              | REQ-013..REQ-026                          |
+| Shared schema contract     | Drizzle schemas owned by `packages/services/identity/src/database/schema/`; webhook Lambdas import schemas and types from `@kitchensink/identity-service` (or subpaths). Per refactor commits `2064357` / `6a9570c` / `ee1d4d1` (2026-06). | Single source-of-truth schema in the identity service; no separate shared types package exists           | REQ-013..REQ-026, T8 evidence             |
+| Deletion resiliency        | SQS + exponential backoff + DLQ after 5 attempts                                                                                                                                                                                           | Guarantees eventual IdP delete and failure visibility under rate limits/transients                       | REQ-025, REQ-026                          |
+| Reconciliation             | EventBridge Scheduler nightly Lambda diff                                                                                                                                                                                                  | Safety net when signup action path partially fails                                                       | REQ-017                                   |
+| Infrastructure ownership   | 100% self-contained in this repo, CDK v2 only                                                                                                                                                                                              | Eliminates cross-repo ambiguity and external dependency drift                                            | REQ-050                                   |
+| Local integration runtime  | LocalStack Community + sibling Postgres container                                                                                                                                                                                          | Enables queue/event/storage testing without paid emulators                                               | REQ-049                                   |
 
 ---
 
@@ -218,6 +218,7 @@ All webhook handlers MUST validate incoming payloads against a Zod schema at the
 ### Performance Targets (NFR-011a)
 
 Commise-controlled auth operations MUST meet:
+
 - Silent token refresh endpoint ≤ 500ms P99
 - Profile data endpoint ≤ 1s P99
 - Webhook processing (API Gateway receipt → DB write) ≤ 2s P99
@@ -229,6 +230,7 @@ These targets apply only to Commise-controlled operations; IdP-hosted login page
 ### Capacity and Autoscaling Guidelines
 
 **Day-one** (100 DAU, peak 10 req/s, 1 webhook/s):
+
 - Single `db.t4g.micro` RDS
 - 256MB Lambda
 - 1 ECS task (`t4g.micro`)
@@ -237,6 +239,7 @@ These targets apply only to Commise-controlled operations; IdP-hosted login page
 **Day-30** (500 DAU, peak 50 req/s, 5 webhooks/s): Trigger autoscaling at avg CPU > 70% for 10 min.
 
 **Day-90** (1,500 DAU, peak 200 req/s, 20 webhooks/s):
+
 - ECS → `t4g.medium`
 - RDS → `db.t4g.small`
 - Lambda → 512MB
@@ -257,6 +260,7 @@ All changes applied via CDK diff, never manual Console changes. Database migrati
 ### Session Expiry UX
 
 When session approaches expiry (5 minutes remaining):
+
 1. Show warning banner with countdown
 2. Save active form drafts to `localStorage`
 3. On re-login after expiry, auto-restore drafts from `localStorage`
@@ -293,10 +297,12 @@ When session approaches expiry (5 minutes remaining):
 The feature was originally specified against Auth0 and migrated to Clerk mid-implementation. This section records the migration state as of branch rename to `002-user-auth`.
 
 ### Doc layer — fully migrated
+
 - All 11 substantive docs under `specs/002-user-auth/` (`spec.md`, `plan.md`, `data-model.md`, `quickstart.md`, `tasks.md`, full `v-model/`, `checklists/`, `product-spec/`, `contracts/`) reference Clerk only.
 - `research.md` and `findings.md` retain a single Auth0 mention each as explicit migration history — preserved intentionally.
 
 ### Production code — fully migrated
+
 - Zero `@auth0/*` or `react-native-auth0` npm dependencies remain.
 - Installed Clerk SDKs: `@clerk/nextjs ^6.39` (web), `@clerk/expo ^2.4` (mobile), `@clerk/backend ^1.27` (webhooks).
 - Web app routes/middleware/components use Clerk (`ClerkProvider`, `clerkMiddleware`, `auth()`, `currentUser()`, `<SignIn>`, `<SignUp>`, `<UserButton>`).
@@ -307,6 +313,7 @@ The feature was originally specified against Auth0 and migrated to Clerk mid-imp
 - Infra stack tests assert absence of any `auth0` string in synthesized templates (anti-drift sentinels).
 
 ### Remaining drift (none)
+
 The two stub e2e tests that previously held Auth0-shaped fixtures
 (`deletion-worker-e2e.test.ts`, `local-api-e2e.test.ts` under
 `packages/services/identity/tests/e2e/`) were removed during the Clerk
@@ -315,6 +322,7 @@ migration. Proper e2e coverage now lives in
 `api.e2e.test.ts` and `deletion.e2e.test.ts`) and runs via `npm run test:e2e`.
 
 ### Naming history
+
 - Branch `002-auth0-user-auth` was renamed to `002-user-auth` during this migration.
 - Worktree directory moved from `.worktrees/002-auth0-user-auth/` to `.worktrees/002-user-auth/`.
 - Spec directory `specs/002-auth0-user-auth/` was renamed to `specs/002-user-auth/` on the feature branch (commit `dba0863`); the old path may still exist on `main` until merge.
@@ -325,24 +333,23 @@ migration. Proper e2e coverage now lives in
 
 Added in response to sync-verify Run #1 Layer-3 findings (DRIFT-002..DRIFT-024). Maps each Functional Requirement in `spec.md` to its primary plan-level home. Where an FR is satisfied by an existing decision row, package responsibility, or specification addition above, the row identifies it. FRs whose implementation work is fully described in `tasks.md` (and not separately discussed in plan.md) cite the relevant task IDs as their plan-level locus.
 
-| FR | One-line scope | Primary plan locus |
-|---|---|---|
-| FR-001 | PKCE auth (Authorization Code Flow) on web + mobile | `Architectural Decisions` → `IdP control-plane handlers`, `Authorizer model`; tasks T-050/T-060 |
-| FR-002 | Mobile auto-display of auth screen when unauthenticated | Package `packages/apps/commise/mobile/`; tasks T-060 |
-| FR-003 | Web redirect of unauthenticated users to IdP login | Package `packages/apps/commise/web/` middleware; tasks T-050 |
-| FR-004 | Social IdP providers (Google at minimum) | `IdP tenant strategy`; configuration owned by Clerk dashboard, tasks T-080 |
-| FR-005 | OAuth callback handling on both platforms | Decision `Authorizer model`; tasks T-050/T-060 |
-| FR-006 | Secure token storage: Keychain/Keystore (mobile) + httpOnly cookies (web) | Section `Security and reliability notes`; tasks T-051/T-061 |
-| FR-007 | Silent token refresh on 401, auto-retry of failed request | Tasks T-051/T-061; tested in `v-model/integration-test.md` |
-| FR-008 | Session-expiry warning banner + draft preservation | Tasks T-051 (web); MFA UI considerations out of scope per OOS |
-| FR-009 | Attach Bearer token on all API requests | Decision `Authorizer model`; tasks T-051/T-061 |
-| FR-010..FR-012 | Logout: clear local tokens, sign out IdP, return to auth screen | Tasks T-052/T-062 |
-| FR-013..FR-017 | `user.created` webhook → User/Account/Profile (atomic) + ULID + reconciliation | Decision `Shared schema contract`; package `packages/services/identity-webhooks/`; tasks T-021/T-023 |
-| FR-016a | Zod schema validation at webhook entry (sanitized logging + CloudWatch metric) | Section `Specification Additions and Clarifications (post-creation)`; tasks T-072 |
-| FR-017a | Nightly reconciliation diffing IdP users vs DB users | Decision `Reconciliation`; tasks T-023 |
-| FR-018..FR-021 | Profile visibility + account-edit flow | Package `packages/apps/commise/web/` + `/mobile/`; tasks T-053/T-084 |
+| FR             | One-line scope                                                                  | Primary plan locus                                                                                            |
+| -------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| FR-001         | PKCE auth (Authorization Code Flow) on web + mobile                             | `Architectural Decisions` → `IdP control-plane handlers`, `Authorizer model`; tasks T-050/T-060               |
+| FR-002         | Mobile auto-display of auth screen when unauthenticated                         | Package `packages/apps/commise/mobile/`; tasks T-060                                                          |
+| FR-003         | Web redirect of unauthenticated users to IdP login                              | Package `packages/apps/commise/web/` middleware; tasks T-050                                                  |
+| FR-004         | Social IdP providers (Google at minimum)                                        | `IdP tenant strategy`; configuration owned by Clerk dashboard, tasks T-080                                    |
+| FR-005         | OAuth callback handling on both platforms                                       | Decision `Authorizer model`; tasks T-050/T-060                                                                |
+| FR-006         | Secure token storage: Keychain/Keystore (mobile) + httpOnly cookies (web)       | Section `Security and reliability notes`; tasks T-051/T-061                                                   |
+| FR-007         | Silent token refresh on 401, auto-retry of failed request                       | Tasks T-051/T-061; tested in `v-model/integration-test.md`                                                    |
+| FR-008         | Session-expiry warning banner + draft preservation                              | Tasks T-051 (web); MFA UI considerations out of scope per OOS                                                 |
+| FR-009         | Attach Bearer token on all API requests                                         | Decision `Authorizer model`; tasks T-051/T-061                                                                |
+| FR-010..FR-012 | Logout: clear local tokens, sign out IdP, return to auth screen                 | Tasks T-052/T-062                                                                                             |
+| FR-013..FR-017 | `user.created` webhook → User/Account/Profile (atomic) + ULID + reconciliation  | Decision `Shared schema contract`; package `packages/services/identity-webhooks/`; tasks T-021/T-023          |
+| FR-016a        | Zod schema validation at webhook entry (sanitized logging + CloudWatch metric)  | Section `Specification Additions and Clarifications (post-creation)`; tasks T-072                             |
+| FR-017a        | Nightly reconciliation diffing IdP users vs DB users                            | Decision `Reconciliation`; tasks T-023                                                                        |
+| FR-018..FR-021 | Profile visibility + account-edit flow                                          | Package `packages/apps/commise/web/` + `/mobile/`; tasks T-053/T-084                                          |
 | FR-022..FR-026 | Account deletion: confirmation, DB+IdP delete, anonymization, post-delete state | Decision `Deletion resiliency`; package `packages/services/identity-webhooks/` (deletion worker); tasks T-022 |
-| FR-027..FR-028 | Password reset via IdP-hosted flow (no app-side password handling) | Decision `Authorizer model` (IdP-managed); no app task — provided by Clerk hosted UI |
+| FR-027..FR-028 | Password reset via IdP-hosted flow (no app-side password handling)              | Decision `Authorizer model` (IdP-managed); no app task — provided by Clerk hosted UI                          |
 
 **Out-of-scope FRs**: FR-029..FR-031 (MFA enrollment — see spec.md §Out of Scope). FR-032..FR-037 (social linking, operator impersonation) deferred to P2 — tracked in tasks.md US-009, US-012 but not exercised in v1 plan.
-

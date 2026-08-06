@@ -1,5 +1,5 @@
 ---
-title: "feat: Reliable create-user flow (service-side Clerk auth + read-through creation)"
+title: 'feat: Reliable create-user flow (service-side Clerk auth + read-through creation)'
 type: feat
 date: 2026-06-14
 status: ready
@@ -25,7 +25,7 @@ This approach is Clerk's own documented path to "strong consistency" for just-si
 
 Two verified gaps make the current create-user flow non-functional (it is pre-production; `/v1/users/me` 401s today, so this completes the flow rather than patching a live regression):
 
-1. **Auth gap.** `AuthMiddleware` (`packages/services/identity/src/auth/middleware/auth.middleware.ts`) resolves the user *only* from a base64 `x-authorizer-context` header produced by the API Gateway authorizer that was removed in the identity prod-hardening PR (#37). With no producer, every protected route throws `Missing authorizer context` (401), independent of webhook timing.
+1. **Auth gap.** `AuthMiddleware` (`packages/services/identity/src/auth/middleware/auth.middleware.ts`) resolves the user _only_ from a base64 `x-authorizer-context` header produced by the API Gateway authorizer that was removed in the identity prod-hardening PR (#37). With no producer, every protected route throws `Missing authorizer context` (401), independent of webhook timing.
 2. **Race + missing-record gap.** Even with auth, `getUserMe` → `resolveUser` (`packages/services/identity/src/users/resolveUser.ts`) reads the user by **app ULID** and requires an `account` row. The `user.created` webhook is what writes those rows today — asynchronously — and, critically, the webhook's `handleUserCreated` (`packages/services/identity-webhooks/src/handlers/identityWebhook.ts`) creates `user` + `profile` but **not** `account`. So a webhook-first user currently 404s on `/me` ("Account not found").
 
 A blocking app-wide loading state — the original question — fixes neither gap and contradicts Clerk's guidance, so it is rejected (see origin Scope boundaries).
@@ -110,10 +110,10 @@ flowchart TD
 
 ## Key Technical Decisions
 
-- **KTD1 — Use `@clerk/backend` `verifyToken` with `jwtKey` (networkless, public-key only).** Clerk's canonical backend verification. `verifyToken(token, { jwtKey, authorizedParties, clockSkewInMs? })` runs with **no network call and no secret key** — `jwtKey` is the instance's JWT *public* key (Dashboard → API Keys → "Show JWT public key"), safe as a Fargate env var. It validates signature, expiry (5s default skew), issuer (inferred from the key), and `azp`. This satisfies the "no Clerk secret key in the service" decision and avoids hand-rolling claim checks.
-  - **Rejected: raw `jose` + `createRemoteJWKSet`.** Viable and auto-handles key rotation, but reimplements azp/issuer/skew validation that `@clerk/backend` gives for free, and adds a JWKS network dependency. Kept only as the fallback if manual key rotation becomes a burden (see Risks).
-  - **Rejected: `verifyToken` with `secretKey`.** Would pull a Clerk secret into the service — explicitly out of scope per the email/name decision.
-- **KTD2 — Email/name ride in the customized *default* session token (no Backend API call).** Per the brainstorm decision: Dashboard → Sessions → "Customize session token" adds `email` / `first_name` / `last_name` via shortcodes (`{{user.primary_email_address}}` etc.). These appear on the bare `getToken()` token the clients already send — **so no client change and no Backend API dependency**. Constraint: keep total custom claims under the **1.2 KB** soft limit (email + name is well within it). This is an **operational dependency** (configure in both Clerk instances — see Dependencies).
+- **KTD1 — Use `@clerk/backend` `verifyToken` with `jwtKey` (networkless, public-key only).** Clerk's canonical backend verification. `verifyToken(token, { jwtKey, authorizedParties, clockSkewInMs? })` runs with **no network call and no secret key** — `jwtKey` is the instance's JWT _public_ key (Dashboard → API Keys → "Show JWT public key"), safe as a Fargate env var. It validates signature, expiry (5s default skew), issuer (inferred from the key), and `azp`. This satisfies the "no Clerk secret key in the service" decision and avoids hand-rolling claim checks.
+    - **Rejected: raw `jose` + `createRemoteJWKSet`.** Viable and auto-handles key rotation, but reimplements azp/issuer/skew validation that `@clerk/backend` gives for free, and adds a JWKS network dependency. Kept only as the fallback if manual key rotation becomes a burden (see Risks).
+    - **Rejected: `verifyToken` with `secretKey`.** Would pull a Clerk secret into the service — explicitly out of scope per the email/name decision.
+- **KTD2 — Email/name ride in the customized _default_ session token (no Backend API call).** Per the brainstorm decision: Dashboard → Sessions → "Customize session token" adds `email` / `first_name` / `last_name` via shortcodes (`{{user.primary_email_address}}` etc.). These appear on the bare `getToken()` token the clients already send — **so no client change and no Backend API dependency**. Constraint: keep total custom claims under the **1.2 KB** soft limit (email + name is well within it). This is an **operational dependency** (configure in both Clerk instances — see Dependencies).
 - **KTD3 — Read-through owns `account` (and `profile`) creation; webhook gets a backstop.** `resolveUser` requires an `account`; the webhook omits it today. Read-through creates all three idempotently. `handleUserCreated` additionally gains an idempotent `account` upsert so a webhook-first user (one who never makes a read-through request) is also complete. Reuse the existing idempotent shape from `UsersService.upsertUser` (`onConflictDoUpdate` on `users.identityId`, `onConflictDoNothing` on account/profile).
 - **KTD4 — Resolve-or-create on every protected request; `findByIdentityId` is the steady-state cost.** Each request does one indexed lookup by `users.identityId`; creation runs only on the miss. Acceptable (sub-ms indexed unique lookup). A future optimization — surfacing the app ULID as an `app_user_id` session claim once `setExternalId` propagates it to Clerk metadata, to skip the lookup — is **deferred** (see Follow-Up).
 - **KTD5 — Keep `x-authorizer-context` decode as a documented fallback behind the Bearer-JWT primary path.** Near-zero cost, preserves a future edge-gateway option, and leaves the `AuthorizerContext` type + `@CurrentAuthorizerContext` decorator unchanged. Bearer JWT is the only production path today; the header branch is dead until/unless an edge authorizer is reintroduced.
@@ -129,6 +129,7 @@ flowchart TD
 **Requirements:** R1, R6.
 **Dependencies:** none.
 **Files:**
+
 - `packages/services/identity/package.json` — add `@clerk/backend` dependency.
 - `packages/services/identity/src/auth/clerk-auth.service.ts` — new `ClerkAuthService`.
 - `packages/services/identity/src/auth/auth.module.ts` (or wherever middleware deps are provided) — provide `ClerkAuthService`.
@@ -139,6 +140,7 @@ flowchart TD
 **Patterns to follow:** Existing injectable service style in `src/users/*.service.ts`; NestJS exceptions as used in `resolveUser.ts`.
 
 **Test scenarios:**
+
 - Valid token with `email`/name claims → returns claims with `sub`, `email`, names populated. `Covers AE: newly-signed-up user authenticates.`
 - Expired token (exp in past beyond skew) → throws `UnauthorizedException`.
 - Token signed by a different key / tampered signature → throws.
@@ -154,6 +156,7 @@ flowchart TD
 **Requirements:** R1, R6.
 **Dependencies:** none (consumed by U1).
 **Files:**
+
 - `packages/services/identity/src/config/env.schema.ts` — add `CLERK_JWT_KEY` (PEM string) and `CLERK_AUTHORIZED_PARTIES` (comma-separated origins → `string[]`).
 - `packages/services/identity/tests/env.schema.test.ts` — extend.
 
@@ -162,6 +165,7 @@ flowchart TD
 **Patterns to follow:** The existing `DATABASE_URL`-vs-`DB_*` conditional in `env.schema.ts`.
 
 **Test scenarios:**
+
 - Valid PEM + parties → parses; `CLERK_AUTHORIZED_PARTIES` becomes a `string[]`.
 - Missing `CLERK_JWT_KEY` in production stage → schema fails with a clear message.
 - Missing in dev/test → allowed (verification mocked).
@@ -175,6 +179,7 @@ flowchart TD
 **Requirements:** R1, R2, R5, R6 (uses U1/U2); advances R3 (idempotent creation).
 **Dependencies:** U1, U2.
 **Files:**
+
 - `packages/services/identity/src/auth/middleware/auth.middleware.ts` — dual-source resolution.
 - `packages/services/identity/src/users/resolve-or-create.service.ts` (new) **or** a new method on `UsersService` — `resolveOrCreate(claims): Promise<AuthorizerContext>`.
 - `packages/services/identity/src/users/users.service.ts` — extract/reuse the idempotent user+account+profile upsert from `upsertUser` so read-through and the `/v1/users/upsert` endpoint share one creation routine.
@@ -182,6 +187,7 @@ flowchart TD
 - `packages/services/identity/tests/auth.middleware.test.ts` (new) and `tests/resolve-or-create.service.test.ts` (new).
 
 **Approach:**
+
 1. In `AuthMiddleware.use`: if `Authorization: Bearer <t>` present → `ClerkAuthService.verify(t)` → `resolveOrCreate(claims)` → set `req.user`. Else if `x-authorizer-context` present → existing base64 decode + `isAuthorizerContext` (unchanged fallback). Else → throw `UnauthorizedException`. Keep `/health` public set as-is.
 2. `resolveOrCreate(claims)`: `UserDAO.findByIdentityId(claims.sub)`; if found, build context from it. If missing, run the idempotent create (user via `onConflictDoUpdate` on `identityId`; account via `onConflictDoNothing`; profile via `onConflictDoNothing` with `displayName` from `firstName + lastName`), then re-read. Build `AuthorizerContext { userId: <ULID>, clerkUserId: claims.sub, email: claims.email ?? <user.email>, scopes: [], permissions: [], tokenType: 'user' }`.
 3. Email/name absence: if claims lack email (custom token not yet configured / edge), and the user is new, fall back to an empty `displayName` and the email claim if present; the webhook/PATCH backfills. Do not block creation on missing name.
@@ -191,6 +197,7 @@ flowchart TD
 **Patterns to follow:** `UsersService.upsertUser` (`users.service.ts:23`) idempotent insert shape; `isAuthorizerContext` in `src/types/jwt.ts`; existing middleware structure in `auth.middleware.ts`.
 
 **Test scenarios:**
+
 - **Happy path (new user):** valid Bearer JWT, user not in DB → middleware creates user+account+profile and sets `req.user.userId` to the ULID; `getUserMe` returns the user with `displayName` from claims. `Covers AE: first-attempt /profile with webhook suppressed.`
 - **Existing user:** second request → `findByIdentityId` hit, no duplicate rows created.
 - **Webhook-first user missing account** (legacy state): user+profile exist (from webhook) but no account → read-through creates the account and `/me` succeeds (no 404). `Covers R3 + Success criterion.`
@@ -208,6 +215,7 @@ flowchart TD
 **Requirements:** R3.
 **Dependencies:** none (independent of U1–U3; can land in parallel).
 **Files:**
+
 - `packages/services/identity-webhooks/src/handlers/identityWebhook.ts` — add idempotent `account` upsert in `handleUserCreated`.
 - `packages/services/identity-webhooks/tests/e2e/auth/api.e2e.test.ts` — extend the `user.created` e2e to assert account creation.
 
@@ -216,6 +224,7 @@ flowchart TD
 **Patterns to follow:** The account/profile inserts in `UsersService.upsertUser`; existing `handleUserCreated` structure.
 
 **Test scenarios:**
+
 - `user.created` → upserts user, **account**, and profile (extend existing assertion).
 - Duplicate `svix-id` → still deduped (no re-processing), unchanged.
 - `user.created` for a user that already exists (read-through already created) → no duplicate account/profile (idempotent).
@@ -229,6 +238,7 @@ flowchart TD
 **Requirements:** R3.
 **Dependencies:** U3, U4.
 **Files:**
+
 - `packages/services/identity/tests/create-user-flow.integration.test.ts` (new; `*.integration.test.ts` convention) — runs against a test Postgres (the repo's integration DB harness).
 
 **Approach:** With a single Clerk identity id, fire the read-through creation path and the webhook creation path concurrently (Promise.all), then assert exactly one `user`, one `account`, one `profile`. Repeat with reversed start order. This validates the `users.identityId` unique-constraint anchor (KTD6) rather than asserting it by inspection.
@@ -236,6 +246,7 @@ flowchart TD
 **Execution note:** Integration test against a real Postgres — unique-constraint behavior is the thing under test, so mocks would not prove it.
 
 **Test scenarios:**
+
 - Concurrent read-through + webhook (both orders) → exactly one user/account/profile. `Covers Success criterion: idempotency.`
 - Read-through then webhook (sequential) → webhook is a no-op upsert; counts unchanged.
 - Webhook then read-through (sequential, account-less legacy) → read-through adds only the missing account.
@@ -248,6 +259,7 @@ flowchart TD
 **Requirements:** R1, R6.
 **Dependencies:** U2 (consumes the env names).
 **Files:**
+
 - `packages/services/identity/infra/lib/identity-service-stack.ts` — add the two env vars to the task definition (around the existing env block, lines ~157–184).
 - SSM params per stage: `/kitchensink/{stage}/clerk/jwt-public-key` (String — the PEM is public) and `/kitchensink/{stage}/clerk/authorized-parties`. Wire the stack to read them (mirroring the existing `/kitchensink/{stage}/sentry/...` SSM read).
 - `packages/services/identity-webhooks/infra/__tests__/stacks.test.ts` or the identity infra test — assert the env vars are present on the task def.
@@ -257,6 +269,7 @@ flowchart TD
 **Patterns to follow:** The `SENTRY_DSN` SSM read + container env injection already in `identity-service-stack.ts`.
 
 **Test scenarios:**
+
 - CDK template assertion: task definition env contains `CLERK_JWT_KEY` and `CLERK_AUTHORIZED_PARTIES`.
 - `Test expectation: none` for the SSM param provisioning itself beyond the template assertion — it's declarative infra.
 
@@ -268,6 +281,7 @@ flowchart TD
 **Requirements:** R4, R5.
 **Dependencies:** U3 (so `/me` actually succeeds end-to-end).
 **Files:**
+
 - `packages/apps/commise/web/src/app/profile/page.tsx` — verify it renders session-derived fields immediately and degrades gracefully if `/me` is momentarily unavailable (no whole-app spinner). Likely no functional change.
 - `packages/apps/commise/mobile/src/services/api.ts` or `src/hooks/useUserProfile.ts` — use `getToken({ skipCache: true })` when fetching after app-resume, to avoid a stale (≤60 s) token. Small change.
 
@@ -276,6 +290,7 @@ flowchart TD
 **Patterns to follow:** Existing `buildApiClient` (web `lib/api-client.ts`) and `apiRequest`/`useUserProfile` (mobile).
 
 **Test scenarios:**
+
 - Web: profile page renders `displayName`/email from the `/me` response on first load (no app-wide spinner gating render). `Covers R4.`
 - Mobile: `getUserMe` after resume requests a fresh token (`skipCache: true`) — assert the token-fetch option.
 - Web + mobile both target `/v1/users/me` with the Bearer header (regression guard for R5).
@@ -285,21 +300,25 @@ flowchart TD
 ## Scope Boundaries
 
 **In scope**
+
 - Service-side Clerk session-token verification + read-through creation of user + account + profile on first request.
 - Demoting the webhook to idempotent background sync, with an account-creation backstop.
 - `authorizedParties` enforcement (R6).
 - Client verification + mobile token-freshness guard.
 
 **Deferred for later** _(origin)_
+
 - Broader API-gateway / edge-auth architecture (an edge authorizer was explicitly not chosen).
 - Enriching profile data beyond what `/profile` needs on first load.
 
 ### Deferred to Follow-Up Work
+
 - **`app_user_id` session claim fast-path** (KTD4): surface the app ULID as a custom claim once `setExternalId` propagates it to Clerk metadata, to skip the per-request `findByIdentityId` lookup.
 - **Per-widget "finishing setup" affordance** (R4 polish): not needed given read-through reliability.
 - **Capture institutional learnings** via `/ce-compound` after merge (no `docs/solutions/` corpus exists yet for Clerk JWKS/JIT/idempotency patterns).
 
 **Outside this change** _(origin)_
+
 - Adding an app-wide blocking loading state (rejected: Clerk anti-pattern; doesn't address the auth gap; fragile under webhook delay/failure).
 - Re-adding the gateway authorizer Lambda removed in PR #37.
 
@@ -308,16 +327,19 @@ flowchart TD
 ## Risks & Dependencies
 
 ### Operational dependencies (must exist before prod works)
+
 - **Clerk "Customize session token" configured in BOTH instances** (prod `clerk.commise.app` + sandbox dev) to emit `email` / `first_name` / `last_name`. Without it, read-through creates users with empty `displayName` until the webhook backfills (degraded, not broken). Keep claims under the 1.2 KB soft limit.
 - **JWT public key + authorized origins provisioned to SSM** per stage (U6). Prod and sandbox have different keys and origins.
 
 ### Risks
+
 - **Mobile `azp` value is undocumented (R6).** Clerk has no doc on what `azp` an `@clerk/expo` token carries. **Mitigation:** decode a real Expo token in sandbox during U6/U7 and add its origin to `CLERK_AUTHORIZED_PARTIES`; until confirmed, mobile requests could 401. This is the single most likely execution-time surprise — validate early. _(open question Q3)_
 - **JWT signing-key rotation.** `jwtKey` is pinned per stage; if Clerk rotates the instance signing key, verification breaks until the SSM param is updated. **Mitigation:** document the rotation runbook; fall back to JWKS-fetch verification (KTD1 alternative) if rotation proves frequent.
 - **Sign-up flows that don't immediately establish a session** (email-link / email-code / MFA / waitlist) leave the session `pending` (`sts` claim) — but in those cases the client has no token to send, so there is no race, only a delayed first authenticated request. **Assumption:** Commise's sign-up yields an active session on `<SignUp>` completion; confirm the instance's verification settings.
 - **Token size.** Adding claims risks the 1.2 KB cookie budget; email + name is safe, but avoid piling on further custom claims here.
 
 ### Assumptions
+
 - The create-user flow is pre-production (the auth gap means `/v1/users/me` 401s today), so this completes the flow rather than patching a live regression. _Confirm no live path exists._
 - `UserDAO.upsertByIdentityId` (keyed on Clerk identity id) is safe to call concurrently from webhook and read-through — validated by U5.
 
@@ -335,6 +357,7 @@ flowchart TD
 ## Sources & Research
 
 Codebase findings (verified by reading):
+
 - `packages/services/identity/src/auth/middleware/auth.middleware.ts`, `src/types/jwt.ts` (`AuthorizerContext`, `isAuthorizerContext`), `src/auth/decorators/current-user.decorator.ts`.
 - `src/users/resolveUser.ts`, `src/users/users.service.ts` (`upsertUser` idempotent shape; `getUserMe` requires user+account+profile).
 - `src/database/dao/{user,account}.dao.ts` (`upsertByIdentityId`, `findByIdentityId`, `AccountDAO.upsert/createForUser`); schema `users`(unique `identityId`)/`accounts`(unique `userId`)/`profiles`(unique `userId`, `displayName` NOT NULL).
@@ -343,6 +366,7 @@ Codebase findings (verified by reading):
 - No `jose`/`@clerk/backend` in identity-service deps today; no Clerk JWKS/issuer config wired in schema or infra.
 
 External (Clerk official docs — load-bearing for KTD1/KTD2/R6):
+
 - [Session tokens](https://clerk.com/docs/guides/sessions/session-tokens) — default claims (sub/azp/iss/sid…; **no** email/name); `iss` = Frontend API URL.
 - [Customize your session token](https://clerk.com/docs/guides/sessions/customize-session-tokens) — adds claims to the **default** token; 1.2 KB soft / 4 KB hard limit; reserved claims.
 - [verifyToken()](https://clerk.com/docs/reference/backend/verify-token) — networkless via `jwtKey`; `authorizedParties` highly recommended; `clockSkewInMs` default 5000; no `issuer` option (inferred).

@@ -394,7 +394,7 @@ T-030 → T-089[P]
     - Structured logs, metrics, tracing, and Sentry in NestJS service. Ensure request correlation from API Gateway through ECS handlers.
     - **Acceptance**: Dashboards/alerts can correlate API traffic, auth failures, and downstream errors.
 
-- [x] **T-040** [P] [QUALITY] Integration tests for service modules — `packages/services/identity/src/**/*.spec.ts`
+- [x] **T-040** [P] [QUALITY] Integration tests for service modules — `packages/services/identity/tests/**/*.integration.test.ts`
     - **Depends on**: T-031..T-039
     - **Implements**: REQ-018..REQ-044, FR-018..FR-044, ARCH-013..ARCH-030, MOD-013..MOD-030
     - Add module integration tests for users/accounts/profile/admin/impersonation flows. Include suspension and deletion edge cases.

@@ -5,7 +5,7 @@
 **Status**: Approved
 **Source**: `system-design.md` (SYS-001..SYS-013)
 **Level**: System verification — "did we build it right, end to end?"
-**Realisation**: service e2e (`tests/e2e/*.e2e.spec.ts`, real Postgres + LocalStack + a local fixture server),
+**Realisation**: service e2e (`tests/e2e/*.e2e.test.ts`, real Postgres + LocalStack + a local fixture server),
 Playwright (web), Maestro (mobile).
 
 ## ID Schema

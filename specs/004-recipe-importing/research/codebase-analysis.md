@@ -71,7 +71,7 @@ mobile builds with baked-in endpoints, cross-service erasure calls). `/health` s
 - **File naming** (CI-enforced by `eslint-plugin-check-file`): backend kebab `name.type.ts`; `packages/shared`,
   `packages/clients`, `packages/apps` use camelCase modules / PascalCase components.
 - **Tests**: unit in co-located `__tests__/*.test.ts`; integration via `vitest.integration.config.ts`; e2e in
-  `tests/e2e/*.e2e.spec.ts`. Mutation testing via the configured `stryker`.
+  `tests/e2e/*.e2e.test.ts`. Mutation testing via the configured `stryker`.
 - **Cross-platform**: `.native.tsx` siblings with identical public APIs; never `.mobile.*`.
 - **Localization**: `messages.ts` per feature package, consumed through `useMessages` on both platforms.
 - **Env vars**: bracket notation only.

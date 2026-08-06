@@ -44,7 +44,7 @@ Every Must-Have FR resolves to a task, implementing code, and the tests its tier
 ### FR-001c — Cover image (derived, no N+1, no placeholder URL)
 
 - `recipes/dal/recipes.dal.ts:282-285` resolves cover for a whole page in ONE cover LATERAL (lowest `sort_order`, tiebreak `created_at`→`id`); field omitted for photoless recipe. `idx_recipe_photos_recipe_cover` migration (T162).
-- **UI** `RecipeCard.tsx:125-149` renders `coverPhotoUrl` when present, else the client no-image treatment (`role="img"` placeholder, never a stock URL). Tests `RecipeCard.test.tsx:40-47` + `.native`; integration `cover-photo.integration.spec.ts`. **PASS.**
+- **UI** `RecipeCard.tsx:125-149` renders `coverPhotoUrl` when present, else the client no-image treatment (`role="img"` placeholder, never a stock URL). Tests `RecipeCard.test.tsx:40-47` + `.native`; integration `cover-photo.integration.test.ts`. **PASS.**
 
 ### FR-013 / 013a / 013b — Ratings (write control + aggregate + GDPR erasure)
 
@@ -62,23 +62,23 @@ Every Must-Have FR resolves to a task, implementing code, and the tests its tier
 
 ### FR-007c — Conflict merge (all 3 paths)
 
-- `recipes/__tests__/conflict.service.test.ts` + optimistic-concurrency 409 in `recipes.service.ts`; integration `conflict.integration.spec.ts`; UI (present-both / choose / merge) T070 + component T108b. **PASS.**
+- `recipes/__tests__/conflict.service.test.ts` + optimistic-concurrency 409 in `recipes.service.ts`; integration `conflict.integration.test.ts`; UI (present-both / choose / merge) T070 + component T108b. **PASS.**
 
 ### FR-006 — Search + filter
 
-- `search/{search.service.ts,search.controller.ts}` (`GET /v1/search/recipes`), FTS + facets DAL; integration `search/search.integration.spec.ts`; Playwright `search.spec.ts` + Maestro `search-nav.yaml`. **PASS.**
+- `search/{search.service.ts,search.controller.ts}` (`GET /v1/search/recipes`), FTS + facets DAL; integration `search/search.integration.test.ts`; Playwright `search.spec.ts` + Maestro `search-nav.yaml`. **PASS.**
 
 ### FR-009 — Add/remove collection membership
 
-- `collections/collections.service.ts` + controller (`/v1/collections/{id}/recipes` add, `/{recipeId}` remove); client `addRecipeToCollection`/`removeRecipeFromCollection` (`client.ts:759,777`); integration `collections/crud.integration.spec.ts`; UI T072 + flows. **PASS.**
+- `collections/collections.service.ts` + controller (`/v1/collections/{id}/recipes` add, `/{recipeId}` remove); client `addRecipeToCollection`/`removeRecipeFromCollection` (`client.ts:759,777`); integration `collections/crud.integration.test.ts`; UI T072 + flows. **PASS.**
 
 ### C-007 — Soft-delete + GDPR erasure
 
-- Soft-delete `recipes/dal/recipes.dal.ts` (`deleted_at`, `WHERE deleted_at IS NULL`), search/collections tombstone exclusion (T124/T125), integration `soft-delete.integration.spec.ts`. Erasure worker sweeps three owner-scoped roots (recipes incl. tombstones, collections, ratings) + media **and** archive S3 prefixes (`account-erasure-worker.ts:30,299`); idempotent job semantics (202/410/202) T134-test; integration `account/erasure.integration.spec.ts`. **PASS.**
+- Soft-delete `recipes/dal/recipes.dal.ts` (`deleted_at`, `WHERE deleted_at IS NULL`), search/collections tombstone exclusion (T124/T125), integration `soft-delete.integration.test.ts`. Erasure worker sweeps three owner-scoped roots (recipes incl. tombstones, collections, ratings) + media **and** archive S3 prefixes (`account-erasure-worker.ts:30,299`); idempotent job semantics (202/410/202) T134-test; integration `account/erasure.integration.test.ts`. **PASS.**
 
 ### FR-007b / 007b-i — Async version archive + alarms
 
-- Outbox `versions/dal/pending-archives.dal.ts` + `recipe_version_pending_archives` table; save-path records over-retention, no inline S3 (T130). Worker `recipe-workers/src/handlers/version-archive-worker.ts` (drain→S3→delete) + `archive-sweeper.ts`; integration `archive.integration.spec.ts`.
+- Outbox `versions/dal/pending-archives.dal.ts` + `recipe_version_pending_archives` table; save-path records over-retention, no inline S3 (T130). Worker `recipe-workers/src/handlers/version-archive-worker.ts` (drain→S3→delete) + `archive-sweeper.ts`; integration `archive.integration.test.ts`.
 - **Both** FR-007b-i alarms present: `recipe-workers-stack.ts:471` `PendingArchiveBacklogAlarm` (>100) and `OldestPendingArchiveAgeAlarm` (>1h), each with `addAlarmAction` → SNS topic (`:454`). **PASS.**
 
 **Layer 1–3 result: PASS.** No Must-Have FR without code; no Must-Have without a test.

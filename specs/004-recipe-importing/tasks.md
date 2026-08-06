@@ -23,7 +23,7 @@
     - The service as a deployable API: additionally **e2e AND k6**.
     - UI: **a vitest component test for EVERY state/branch**, **Playwright** (web) **AND** **Maestro** (mobile).
 - **Naming (§1a/§1b, CI-enforced by `eslint-plugin-check-file`).** Backend kebab `name.type.ts`, unit tests
-  `__tests__/*.test.ts`; e2e `tests/e2e/*.e2e.spec.ts`. Frontend camelCase modules, PascalCase components,
+  `__tests__/*.test.ts`; e2e `tests/e2e/*.e2e.test.ts`. Frontend camelCase modules, PascalCase components,
   mobile leaves `*.native.tsx`.
 - **Lockstep parity (§14.1).** Every user-facing task ships web **and** mobile in the same task. No waiver is
   claimed by this feature.
@@ -362,9 +362,9 @@ The previous task list specified **none** of this. Security tests are written fi
 - [ ] Duplicate canonical URL resolves to the existing recipe with `cloneAvailable: true` — **200, not an error**
 - [ ] Constraint violation on insert is caught and resolved to the winning recipe (HAZ-018)
 - [ ] **Integration test** for the concurrent-duplicate race: two simultaneous imports ⇒ exactly one recipe
-- [ ] **e2e** `import-url.e2e.spec.ts` against real Postgres + LocalStack + a local fixture server
+- [ ] **e2e** `import-url.e2e.test.ts` against real Postgres + LocalStack + a local fixture server
 
-**Files** `src/imports/imports.controller.ts`, `src/imports/dedup/deduplication.service.ts`, `tests/e2e/import-url.e2e.spec.ts`
+**Files** `src/imports/imports.controller.ts`, `src/imports/dedup/deduplication.service.ts`, `tests/e2e/import-url.e2e.test.ts`
 
 ---
 
@@ -382,7 +382,7 @@ The previous task list specified **none** of this. Security tests are written fi
 - [ ] **Unit tests**: each format valid/invalid; a `.json`-named file whose bytes are a ZIP is rejected
 - [ ] **Integration + e2e** coverage of the upload path
 
-**Files** `src/imports/files/*.ts`, tests alongside, `tests/e2e/import-file.e2e.spec.ts`
+**Files** `src/imports/files/*.ts`, tests alongside, `tests/e2e/import-file.e2e.test.ts`
 
 ---
 
@@ -424,9 +424,9 @@ Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` beha
 - [ ] One recipe's failure does not discard the others (HAZ-058)
 - [ ] **Integration test**: a fixture export where some recipes are complete, some incomplete, and some already
       exist — assert the split and that no successful recipe is lost when one row fails
-- [ ] **e2e** `import-bulk-file.e2e.spec.ts`
+- [ ] **e2e** `import-bulk-file.e2e.test.ts`
 
-**Files** `src/imports/files/*`, `src/imports/confirm/draft-confirmation.service.ts`, `tests/e2e/import-bulk-file.e2e.spec.ts`
+**Files** `src/imports/files/*`, `src/imports/confirm/draft-confirmation.service.ts`, `tests/e2e/import-bulk-file.e2e.test.ts`
 
 ---
 
@@ -443,9 +443,9 @@ Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` beha
 - [ ] **Unit tests**: complete, incomplete, expired, wrong owner
 - [ ] **Integration tests**: created recipe carries the correct `sourceType`/attribution; food resolution
       degrades gracefully when the food service is down (`ENGINEERING_EXCELLENCE §4`)
-- [ ] **e2e** `import-draft-confirm.e2e.spec.ts`
+- [ ] **e2e** `import-draft-confirm.e2e.test.ts`
 
-**Files** `src/imports/confirm/draft-confirmation.service.ts`, tests alongside, `tests/e2e/import-draft-confirm.e2e.spec.ts`
+**Files** `src/imports/confirm/draft-confirmation.service.ts`, tests alongside, `tests/e2e/import-draft-confirm.e2e.test.ts`
 
 ---
 
@@ -458,7 +458,7 @@ Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` beha
 - [ ] `GET/POST/DELETE /api/v1/admin/import/paywalled-domains`, guarded by the admin scope from the signed token
 - [ ] `403` without the scope; audit trail records the acting admin ULID
 - [ ] **Unit + integration tests** incl. a non-admin principal being refused
-- [ ] **e2e** `import-blocklist.e2e.spec.ts` proves a blocked domain is refused **without any outbound request**
+- [ ] **e2e** `import-blocklist.e2e.test.ts` proves a blocked domain is refused **without any outbound request**
 
 **Files** `src/imports/blocklist/paywalled-domains.controller.ts`, tests alongside
 
@@ -497,9 +497,9 @@ Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` beha
 - [ ] OCR text is **never logged** (REQ-NF-012)
 - [ ] **Unit tests** with a faked provider: clear print, handwriting, low confidence, empty result, timeout
 - [ ] **Integration tests** against LocalStack S3 asserting the object is deleted on every terminal path
-- [ ] **e2e** `import-ocr.e2e.spec.ts`
+- [ ] **e2e** `import-ocr.e2e.test.ts`
 
-**Files** `src/imports/ocr/*.ts`, tests alongside, `tests/e2e/import-ocr.e2e.spec.ts`
+**Files** `src/imports/ocr/*.ts`, tests alongside, `tests/e2e/import-ocr.e2e.test.ts`
 
 ---
 

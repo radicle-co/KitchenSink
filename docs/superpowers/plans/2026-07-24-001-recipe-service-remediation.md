@@ -32,7 +32,7 @@ _Every task's requirements implicitly include this section._
 - **S-R6:** `RecipesService.resolveIngredientLines` (`recipes/recipes.service.ts:567-594`) serial `ingredientsDal.findById` per line. Batch method exists + used: `IngredientsDal.findByIds` (`ingredients/dal/ingredients.dal.ts:195`), used by `assembleNutritionLines` (`recipes.service.ts:413-419`).
 - **S-R7:** `collections/collections.controller.ts` `parseOrThrow(zod, body)` (`:48-56`) in handlers (`:67,79,104,128,149,183`). Siblings use `@UsePipes(new ValidationPipe({transform,whitelist}))` (`recipes.controller.ts:39`, +6). No existing `ZodValidationPipe`. Schemas: `collections/collections.schemas.ts` (Zod).
 - **S-R8:** envelope sites — `recipes.service.ts:642` (`hasMore: page*pageSize < total`), `search.service.ts:55` (same), `collections.service.ts:155` (`hasMore: offset + rows.length < total` — the CORRECT-on-short-page one). Clamps only in `search.dal.ts` (`clampPageSize`/`clampPage`, `:235-250`; `DEFAULT=20`/`MAX=50`).
-- **Harness:** integration `__tests__/integration/**/*.integration.spec.ts` (`vitest.integration.config.ts`, `fileParallelism:false`); `describe.skipIf(!hasDatabaseUrl)`. Atomicity-test precedents: `__tests__/integration/photos/reorder.integration.spec.ts:79`, `account/erasure.integration.spec.ts:304`.
+- **Harness:** integration `__tests__/integration/**/*.integration.test.ts` (`vitest.integration.config.ts`, `fileParallelism:false`); `describe.skipIf(!hasDatabaseUrl)`. Atomicity-test precedents: `__tests__/integration/photos/reorder.integration.test.ts:79`, `account/erasure.integration.test.ts:304`.
 
 ---
 
@@ -44,9 +44,9 @@ _Every task's requirements implicitly include this section._
 - Modify: `collections/dal/collections.dal.ts` — `create`, `addRecipe`, `touchLastPulled` accept an OPTIONAL tx (default `this.db`) so they can enlist in a UoW; add a **bulk** membership insert `addRecipes(collectionId, recipeIds, addedVia, tx?)` (ONE insert of N rows) to replace the per-recipe loop (kills the N+1 too).
 - Modify: `collections/collections.service.ts` — `cloneCollection` = `withTransaction(db, tx => { create(…, tx); addRecipes(clone.id, seedRecipeIds, CLONE_SEED, tx); })` (one tx). `pullFromSource` = the `diff.added` bulk-insert + `touchLastPulled` in one tx. Preserve the read-only `previewMembershipIds`/preview outside the write tx.
 - Modify (unify Writer): `recipes/dal/recipes.dal.ts`, `photos/dal/photos.dal.ts`, `recipes/dal/recipe-ingredients.dal.ts` — converge on the shared UoW/Writer type (include `execute`; recipe-ingredients regains `update` if the shared type has it — confirm it doesn't break its narrower use).
-- Test: `collections/dal/__tests__/collections.dal.test.ts` (unit — bulk insert), `__tests__/integration/collections/clone-collection.integration.spec.ts` + `pull-from-source.integration.spec.ts` (atomicity).
+- Test: `collections/dal/__tests__/collections.dal.test.ts` (unit — bulk insert), `__tests__/integration/collections/clone-collection.integration.test.ts` + `pull-from-source.integration.test.ts` (atomicity).
 
-- [ ] **Step 1: Write the failing integration test (atomicity) — mirror `photos/reorder.integration.spec.ts`:** clone a source with N members but INJECT a mid-seed failure (e.g. one recipe id that violates a constraint, or a spy that throws on the 2nd insert) → assert NO orphan collection row AND no partial memberships survive (the whole clone rolled back). Same for `pullFromSource` (a mid-pull failure leaves lastPulledAt + memberships unchanged). (These FAIL today — the current code half-commits.)
+- [ ] **Step 1: Write the failing integration test (atomicity) — mirror `photos/reorder.integration.test.ts`:** clone a source with N members but INJECT a mid-seed failure (e.g. one recipe id that violates a constraint, or a spy that throws on the 2nd insert) → assert NO orphan collection row AND no partial memberships survive (the whole clone rolled back). Same for `pullFromSource` (a mid-pull failure leaves lastPulledAt + memberships unchanged). (These FAIL today — the current code half-commits.)
 - [ ] **Step 2: Run — expect FAIL** (partial rows survive).
 - [ ] **Step 3: Implement** the UoW type/helper + the DAL tx-accepting methods + bulk insert + the service refactor to one tx each. Unify the Writer copies.
 - [ ] **Step 4: Run integration — expect PASS**; add/keep a unit test for the bulk `addRecipes` (N rows in one statement).
@@ -60,11 +60,11 @@ _Every task's requirements implicitly include this section._
 **Files:**
 
 - Modify: `versions/versions.service.ts` `restore` — wrap the post-update `createSnapshot(…)` (`:238-246`) so a snapshot-write failure is SWALLOWED + logged (matching `RecipesService.recordSnapshot`'s convention), so `restore` still returns success (the recipe update already committed). Extract/reuse the swallowing pattern (a shared best-effort helper if clean, or an inline try/catch-and-log identical to `recordSnapshot`).
-- Test: `versions/__tests__/versions.service.test.ts` (unit) + `__tests__/integration/versions/*.integration.spec.ts` if the harness supports it.
+- Test: `versions/__tests__/versions.service.test.ts` (unit) + `__tests__/integration/versions/*.integration.test.ts` if the harness supports it.
 
 - [ ] **Step 1: Failing unit test:** `restore` where `createSnapshot` throws → `restore` STILL RESOLVES success (returns the restore result, the recipe update took effect) and the error is logged, NOT rethrown (no 500). (Fails today — the throw escapes.) Also: the happy path still records the snapshot (a snapshot IS written when createSnapshot succeeds).
 - [ ] **Step 2: FAIL → Step 3: Implement** the best-effort swallow around restore's snapshot.
-- [ ] **Step 4: PASS**; run the versions suite + the restore e2e (`tests/e2e/version-*.e2e.spec.ts`) to confirm the happy restore still records history.
+- [ ] **Step 4: PASS**; run the versions suite + the restore e2e (`tests/e2e/version-*.e2e.test.ts`) to confirm the happy restore still records history.
 - [ ] **Step 5: Commit** — `fix(recipe-service): route restore snapshot through the best-effort convention so a snapshot failure does not 500`.
 
 ---

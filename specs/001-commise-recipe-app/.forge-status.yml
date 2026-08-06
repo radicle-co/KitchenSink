@@ -364,7 +364,7 @@ phases:
           commits: da29f7d, c6cafb5
           paths:
               - packages/services/recipe-service/src/recipes/dal/__tests__/recipes.dal.soft-delete.test.ts
-              - packages/services/recipe-service/__tests__/integration/recipes/soft-delete.integration.spec.ts
+              - packages/services/recipe-service/__tests__/integration/recipes/soft-delete.integration.test.ts
         - id: 'static-analysis gap — unit tests had none'
           part: >
               tsconfig.json excluded src/**/__tests__ and lint ran --ignore-pattern '**/*.test.ts', and

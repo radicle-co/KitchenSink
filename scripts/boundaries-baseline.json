@@ -1,0 +1,134 @@
+{
+    "pairs": [
+        {
+            "package": "@commise/features-account",
+            "dependency": "@testing-library/dom",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/features-account",
+            "dependency": "@testing-library/user-event",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/features-recipes",
+            "dependency": "@testing-library/dom",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/features-recipes",
+            "dependency": "@testing-library/user-event",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/mobile",
+            "dependency": "@clerk/backend",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/mobile",
+            "dependency": "pg",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/mobile",
+            "dependency": "typescript-eslint",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/ui",
+            "dependency": "@commise/test-utils",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/ui",
+            "dependency": "@testing-library/dom",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/ui",
+            "dependency": "@testing-library/user-event",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "@clerk/backend",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "@next/env",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "cloudfront",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "postcss",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "typescript-eslint",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/eslint",
+            "dependency": "vitest",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/food-service",
+            "dependency": "k6",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/identity-service",
+            "dependency": "postgres",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/identity-webhooks",
+            "dependency": "zod",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/infra-global",
+            "dependency": "yaml",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/loadtest",
+            "dependency": "k6",
+            "rule": "type-only-import"
+        },
+        {
+            "package": "@kitchensink/recipe-service",
+            "dependency": "dotenv",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/recipe-service",
+            "dependency": "esbuild",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/recipe-service",
+            "dependency": "k6",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/recipe-workers",
+            "dependency": "dotenv",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/service-test-harness",
+            "dependency": "reflect-metadata",
+            "rule": "undeclared-dependency"
+        }
+    ]
+}

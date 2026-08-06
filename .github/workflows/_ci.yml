@@ -131,6 +131,21 @@ jobs:
                   # neither tool, which would otherwise be reported as errors on every embedded script.
                   /tmp/actionlint -shellcheck= -pyflakes= .github/workflows/*.yml
 
+            # `turbo run lint` reads the AST but never the MANIFEST, so a package importing something it
+            # does not declare passes every local gate and resolves only through npm workspace hoisting.
+            # That is how `@commise/i18n` (36 files) and `@commise/features-core` (24 web + 15 mobile,
+            # including value imports) sat undeclared in production source — the same class as the
+            # prod.package.json/clean-state-build failure, invisible until an isolated install.
+            #
+            # This is a RATCHET, not a plain gate: 135 findings remain (mostly @testing-library
+            # devDependency gaps, 8 k6 runtime imports, one real package cycle, one false positive), so
+            # failing on any finding would block every PR. The 26 distinct (package, dependency, rule)
+            # triples are recorded in scripts/boundaries-baseline.json and a NEW one fails the build.
+            # Deliberately NOT `continue-on-error` — see scripts/boundariesRatchet.mjs for why a
+            # green-because-ignored step is the defect class this repo is trying to eliminate.
+            - name: Workspace boundaries (undeclared-dependency ratchet)
+              run: npm run boundaries
+
     format:
         name: Format check
         runs-on: ubuntu-latest

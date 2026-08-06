@@ -17,6 +17,7 @@
     "dependencies": {
         "@clerk/expo": "^4.0.4",
         "@commise/features-account": "*",
+        "@commise/features-core": "*",
         "@commise/features-recipes": "*",
         "@commise/i18n": "*",
         "@commise/ui": "^0.0.0",

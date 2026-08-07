@@ -1,6 +1,5 @@
-import { withBasePath } from '@/lib/basePath';
 import { IDENTITY_SERVICE_BASE_URL } from '@/lib/identityServiceClient';
-import { navigateTo } from '@/lib/navigation';
+import { redirectToSignInOnce } from '@/lib/unauthorizedRedirect';
 
 interface RequestOptions extends RequestInit {
     accessToken?: string;
@@ -37,10 +36,12 @@ export async function apiClient<T>(endpoint: string, options: RequestOptions = {
     });
 
     if (!response.ok) {
-        if (response.status === 401 && typeof window !== 'undefined') {
-            // Prefix the sign-in target with the base path; `window.location.pathname` already carries
-            // the prefix (the browser is at /pr-{N}/…), so do NOT prefix the redirect_url value.
-            navigateTo(`${withBasePath('/sign-in')}?redirect_url=${encodeURIComponent(window.location.pathname)}`);
+        if (response.status === 401) {
+            // ONE authoritative recovery policy, shared with `identityServiceClient`'s `onUnauthorized`, and
+            // CIRCUIT-BROKEN: a 401 that survives the sign-in round trip (wrong Clerk instance, rotated
+            // verification key, `azp` mismatch) is not fixable by bouncing, so the second attempt is
+            // suppressed and the `ApiError` below surfaces instead. See lib/unauthorizedRedirect.ts.
+            redirectToSignInOnce();
         }
 
         const payload = (await response.json().catch(() => ({}))) as { message?: string; code?: string };

@@ -21,8 +21,7 @@
 import { ProfileServiceClient, type TokenSource } from '@commise/features-account';
 
 import { env } from '@/config/env';
-import { withBasePath } from '@/lib/basePath';
-import { navigateTo } from '@/lib/navigation';
+import { redirectToSignInOnce } from '@/lib/unauthorizedRedirect';
 
 /** The identity API base origin, from the validated environment. */
 export const IDENTITY_SERVICE_BASE_URL = env.NEXT_PUBLIC_IDENTITY_API_URL;
@@ -38,12 +37,10 @@ export function createProfileServiceClient(token: TokenSource): ProfileServiceCl
         baseUrl: IDENTITY_SERVICE_BASE_URL,
         token,
         credentials: 'include',
-        onUnauthorized: () => {
-            if (typeof window !== 'undefined') {
-                // Prefix the sign-in target with the base path; `window.location.pathname` already carries
-                // the prefix (the browser is at /pr-{N}/…), so do NOT prefix the redirect_url value.
-                navigateTo(`${withBasePath('/sign-in')}?redirect_url=${encodeURIComponent(window.location.pathname)}`);
-            }
-        },
+        // ONE authoritative recovery policy, shared with `apiClient`, and CIRCUIT-BROKEN: a 401 that
+        // survives the sign-in round trip (wrong Clerk instance, rotated verification key, `azp` mismatch)
+        // is not fixable by bouncing, so the second attempt is suppressed and the error surfaces to the
+        // consumer's boundary rather than looping the browser. See lib/unauthorizedRedirect.ts.
+        onUnauthorized: redirectToSignInOnce,
     });
 }

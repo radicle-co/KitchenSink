@@ -1,0 +1,140 @@
+/**
+ * Guard: the 401 → sign-in recovery must be a CIRCUIT BREAKER, not an unconditional bounce.
+ *
+ * ## The failure this pins (live production incident, 2026-08-07)
+ *
+ * Production's web bundle was built with the SANDBOX Clerk dev instance
+ * (`pk_test_…nice-fowl-6.clerk.accounts.dev`) while `NEXT_PUBLIC_IDENTITY_API_URL` pointed at the
+ * PRODUCTION identity service (`https://identity.commise.app`). Prod identity verifies networklessly against
+ * `/kitchensink/prod/clerk/jwt-public-key`, which is the `clerk.commise.app` key — a different RSA modulus
+ * from the sandbox instance's. So every token the browser minted failed signature verification and
+ * `GET /api/v1/users/me` answered `401`, permanently.
+ *
+ * The 401 handler then did this, unconditionally:
+ *
+ *     navigateTo(`${withBasePath('/sign-in')}?redirect_url=${encodeURIComponent(location.pathname)}`)
+ *
+ * which produced `/sign-in?redirect_url=%2Fen` → middleware locale-redirect → `/en/sign-in?redirect_url=%2Fen`.
+ * The visitor's Clerk session was perfectly VALID client-side, so `<SignIn forceRedirectUrl={`/${locale}`}>`
+ * immediately sent them back to `/en`, which re-mounted Home, re-fetched the profile, got `401` again, and
+ * bounced again. An infinite loop between `/en` and `/en/sign-in?redirect_url=%2Fen`.
+ *
+ * ## The invariant
+ *
+ * Bouncing to sign-in is a valid recovery for exactly ONE class of 401: "this browser has no usable
+ * session". It cannot fix a 401 that persists ACROSS a sign-in round trip — a wrong-instance token, a
+ * rotated verification key, an `azp` mismatch, a clock skew, a service misconfiguration. For those the
+ * bounce is not a recovery, it is a loop. So: at most one bounce per originating path per browsing session;
+ * after that the `ApiError` must surface to the caller's error boundary instead.
+ *
+ * The marker lives in `sessionStorage` because the bounce is a FULL-DOCUMENT navigation
+ * (`window.location.assign`) — module state does not survive it, which is precisely why the original code
+ * could not tell hop 1 from hop 100.
+ *
+ * ## Mutation check
+ *
+ * Deleting the `hasAttempted` short-circuit in `redirectToSignInOnce` makes "does not bounce a second
+ * time…" and "…even after a round trip through the sign-in page" fail. Widening the marker to a
+ * path-independent flag makes "still bounces for a DIFFERENT path" fail.
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { buildSignInRedirectUrl, redirectToSignInOnce, resetUnauthorizedRecovery } from '@/lib/unauthorizedRedirect';
+
+const mockNavigateTo = vi.fn();
+
+vi.mock('@/lib/navigation', () => ({
+    navigateTo: (url: string) => mockNavigateTo(url),
+}));
+
+describe('buildSignInRedirectUrl (pure)', () => {
+    it('locates the sign-in page and carries the originating path as redirect_url', () => {
+        expect(buildSignInRedirectUrl('/en')).toBe('/sign-in?redirect_url=%2Fen');
+    });
+
+    it('percent-encodes the originating path so a nested path cannot inject query structure', () => {
+        expect(buildSignInRedirectUrl('/en/recipes/abc?x=1&y=2')).toBe(
+            '/sign-in?redirect_url=%2Fen%2Frecipes%2Fabc%3Fx%3D1%26y%3D2',
+        );
+    });
+});
+
+describe('redirectToSignInOnce (circuit breaker)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        window.sessionStorage.clear();
+        window.history.replaceState(null, '', '/en');
+    });
+
+    it('bounces to sign-in on the FIRST 401 from a path', () => {
+        expect(redirectToSignInOnce()).toBe(true);
+
+        expect(mockNavigateTo).toHaveBeenCalledExactlyOnceWith('/sign-in?redirect_url=%2Fen');
+    });
+
+    it('does not bounce a second time for the same path — the loop breaker', () => {
+        redirectToSignInOnce();
+        mockNavigateTo.mockClear();
+
+        expect(redirectToSignInOnce()).toBe(false);
+
+        expect(mockNavigateTo).not.toHaveBeenCalled();
+    });
+
+    it('does not bounce again after a round trip THROUGH the sign-in page (the observed prod loop)', () => {
+        // Hop 1: Home 401s and bounces.
+        redirectToSignInOnce();
+
+        // The browser really goes to sign-in; <SignIn> sees a valid client session and forces the visitor
+        // back to Home. `sessionStorage` survives both full-document navigations — that is the point.
+        window.history.replaceState(null, '', '/en/sign-in?redirect_url=%2Fen');
+        window.history.replaceState(null, '', '/en');
+        mockNavigateTo.mockClear();
+
+        // Hop 2: Home 401s again. Under the old unconditional bounce this navigated and looped forever.
+        expect(redirectToSignInOnce()).toBe(false);
+
+        expect(mockNavigateTo).not.toHaveBeenCalled();
+    });
+
+    it('still bounces for a DIFFERENT path — one stuck surface must not disable recovery everywhere', () => {
+        redirectToSignInOnce();
+        mockNavigateTo.mockClear();
+
+        window.history.replaceState(null, '', '/en/profile');
+
+        expect(redirectToSignInOnce()).toBe(true);
+        expect(mockNavigateTo).toHaveBeenCalledExactlyOnceWith('/sign-in?redirect_url=%2Fen%2Fprofile');
+    });
+
+    it('bounces again once the recovery is reset (a genuine sign-in clears the breaker)', () => {
+        redirectToSignInOnce();
+        resetUnauthorizedRecovery();
+        mockNavigateTo.mockClear();
+
+        expect(redirectToSignInOnce()).toBe(true);
+        expect(mockNavigateTo).toHaveBeenCalledExactlyOnceWith('/sign-in?redirect_url=%2Fen');
+    });
+
+    it('degrades to a single bounce — never a loop — when sessionStorage is unavailable', () => {
+        // Safari private mode / storage-partitioned contexts throw on access. Losing the marker must not
+        // resurrect the loop, so the fail-safe is to bounce at most once per DOCUMENT via module state.
+        const throwing = {
+            getItem: () => {
+                throw new Error('SecurityError');
+            },
+            setItem: () => {
+                throw new Error('SecurityError');
+            },
+            removeItem: () => {
+                throw new Error('SecurityError');
+            },
+        };
+
+        vi.spyOn(window, 'sessionStorage', 'get').mockReturnValue(throwing as unknown as Storage);
+
+        expect(redirectToSignInOnce()).toBe(true);
+        expect(redirectToSignInOnce()).toBe(false);
+        expect(mockNavigateTo).toHaveBeenCalledExactlyOnceWith('/sign-in?redirect_url=%2Fen');
+    });
+});

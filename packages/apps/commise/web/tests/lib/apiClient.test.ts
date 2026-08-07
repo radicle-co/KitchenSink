@@ -10,6 +10,7 @@ vi.mock('@/lib/navigation', () => ({
 describe('api-client', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        window.sessionStorage.clear();
         window.history.replaceState(null, '', '/profile');
     });
 
@@ -23,6 +24,27 @@ describe('api-client', () => {
         await expect(buildApiClient('expired-token').get('/api/v1/users/me')).rejects.toThrow('Unauthorized');
 
         expect(mockNavigateTo).toHaveBeenCalledWith('/sign-in?redirect_url=%2Fprofile');
+    });
+
+    it('does NOT bounce again on a 401 that survived the sign-in round trip (loop breaker, 2026-08-07)', async () => {
+        // Production served a bundle whose Clerk instance (sandbox `pk_test`) did not match the identity
+        // service its tokens were sent to (prod), so this 401 was PERMANENT. The unconditional bounce turned
+        // that into an infinite `/en` ⇄ `/en/sign-in?redirect_url=%2Fen` loop, because the visitor's client
+        // session was valid and `<SignIn forceRedirectUrl>` sent them straight back. The second attempt must
+        // be suppressed so the ApiError reaches an error boundary instead.
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 401,
+            json: () => Promise.resolve({ message: 'Unauthorized' }),
+        } as Response);
+
+        await expect(buildApiClient('wrong-instance-token').get('/api/v1/users/me')).rejects.toThrow('Unauthorized');
+        mockNavigateTo.mockClear();
+
+        // The browser round-tripped through sign-in and came back to the same path.
+        await expect(buildApiClient('wrong-instance-token').get('/api/v1/users/me')).rejects.toThrow('Unauthorized');
+
+        expect(mockNavigateTo).not.toHaveBeenCalled();
     });
 
     it('resolves (does not reject) on a 202 with an empty body — DELETE /api/v1/users/me success (B26)', async () => {

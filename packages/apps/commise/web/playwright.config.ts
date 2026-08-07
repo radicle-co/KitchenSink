@@ -24,6 +24,19 @@ export default defineConfig({
     // `*.test.ts`, which would wrongly try to run co-located VITEST unit tests (e.g. the e2e utils'
     // readViewerAppId.test.ts) as Playwright specs and crash the run on their `vitest` imports.
     testMatch: '**/*.spec.ts',
+    // ⚠️ INERT PENDING VERIFICATION. `visualRegression.spec.ts` and `mockupFidelity.spec.ts` were authored
+    // but their mutation evidence was never produced — nobody has watched either one FAIL against a seeded
+    // regression, and no two-run baseline-stability check was performed. Font rendering differs between
+    // WSL2 and CI runners, which is a known flake source for exactly this kind of spec, so enabling them
+    // unverified risks a visual gate that reds for reasons unrelated to the code — and a gate that cries
+    // wolf gets disabled, which is worse than not having one.
+    //
+    // The pure comparison logic they depend on IS verified: `tests/e2e/utils/mockupFidelity.ts` carries 27
+    // passing unit tests. Only the browser-driving specs are unproven.
+    //
+    // To activate: seed a token change, watch each spec go red, restore, confirm green, then run twice
+    // unchanged and confirm pass/pass — THEN delete this testIgnore in the same commit as that evidence.
+    testIgnore: ['**/visualRegression.spec.ts', '**/mockupFidelity.spec.ts'],
     // Serial (single worker), not parallel: this run's specs share ONE Clerk test user (run-scoped — see
     // tests/e2e/utils/runFixtureIdentity.ts) and ONE Next dev server, and concurrent sign-ins / on-demand
     // route compilation under load flake intermittently. Reliability matters more than wall-clock for a

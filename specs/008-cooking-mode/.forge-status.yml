@@ -1,9 +1,17 @@
 # Product Forge Lifecycle Status
 # Feature: 008-cooking-mode
-# Last updated: 2026-05-10
+# Last updated: 2026-08-05
 
 feature: 008-cooking-mode
-mode: retroactive-bootstrap
+
+# Resolved at the 2026-08-05 gate. The prior value `mode: retroactive-bootstrap`
+# is not a valid feature_mode (express | lite | standard | v-model) and was
+# blocking mode resolution. v-model is confirmed by the evidence: the complete
+# 13-artifact v-model set with peer reviews and a release-audit-report already
+# exists, and .product-forge/config.yml sets default_speckit_mode: v-model.
+# `origin_mode` preserves how the artifacts were first produced.
+feature_mode: v-model
+origin_mode: retroactive-bootstrap
 pilot: true
 
 phases:
@@ -41,10 +49,18 @@ phases:
             - product-spec/metrics.md
             - product-spec/README.md
         completed_at: 2026-05-09
+        revised_at: 2026-08-05
+        revision_note: US-008 / US-009 promoted from Could Have into v1 scope.
 
     revalidation:
-        state: pending
-        note: Awaiting human review via /speckit.product-forge.revalidate.
+        state: approved
+        approved_at: 2026-08-07
+        approved_by: Brandon (repository owner)
+        note: >-
+            Revision 1 recorded in review.md (2026-08-05): three pending reviewer questions answered, and
+            eight architecture-layer defects found against shipped main and corrected across spec/plan/tasks/
+            product-spec/v-model. Approved 2026-08-07, conditional on the v-model V3/V5/V7/V9 regeneration
+            for REQ-012..REQ-015 completing before implementation starts.
         artifact: review.md
 
     bridge:
@@ -55,10 +71,20 @@ phases:
     plan:
         state: complete
         artifact: plan.md
+        revised_at: 2026-08-05
+        revision_note: >-
+            Sections 1-5 reconciled against shipped main — feature-package placement, GR-007 type reuse,
+            JSON-serializable session shape, phantom endpoint removed, wake-lock SSR + Expo API corrected,
+            out-of-scope WebSocket removed.
 
     tasks:
         state: complete
         artifact: tasks.md
+        revised_at: 2026-08-05
+        revision_note: >-
+            T-000 scaffold added; 7 component tasks retargeted out of @commise/ui; T-004/T-005/T-011/T-015/
+            T-016 corrected; T-018..T-021 added to satisfy the mandatory component / Playwright / Maestro /
+            integration test tiers.
 
     pre-impl-review:
         state: skipped
@@ -66,16 +92,24 @@ phases:
         artifact: null
 
     implement:
-        state: not-started
-        note: tasks.md present but no T-IDs marked complete.
+        state: blocked
+        note: >-
+            Blocked on two prerequisites, both recorded 2026-08-05: (1) the revalidation approval marker in
+            review.md is unchecked; (2) REQ-012..REQ-015 have no acceptance coverage — v-model V3/V5/V7/V9
+            artifacts must be regenerated before code starts.
+        red_gate:
+            status: not_run
+            tests: []
 
     code-review:
         state: not-applicable
         reason: No code changes exist yet for this feature.
 
     verify:
-        state: complete
-        note: Retroactive bootstrap verification passed with warning-only traceability gaps.
+        state: stale
+        note: >-
+            Previously marked complete, but it verified a retroactive bootstrap with zero implementation, so
+            it certifies nothing about the code. Must be re-run after implementation.
         artifact: verify-report.md
 
     test-plan:
@@ -91,7 +125,11 @@ phases:
         state: not-applicable
 
 v-model:
-    state: complete
+    state: needs-update
+    note: >-
+        The V1 requirements artifact now carries REQ-012..REQ-015 (FR-032a / FR-034a) and the traceability
+        matrix carries their rows as MISSING coverage. V3 acceptance-plan, V5 system-test, V7 integration-test
+        and V9 unit-test must be regenerated to cover them; V10 trace and V13 audit-report re-run afterwards.
     artifacts:
         - v-model/requirements.md
         - v-model/system-design.md
@@ -107,9 +145,40 @@ v-model:
         - v-model/release-audit-report.md
         - v-model/peer-review-hazard-analysis.md
     peer_reviews: complete
+    stale_since: 2026-08-05
 
 contracts:
     state: not-applicable
+    note: Cooking Mode adds no endpoint; it reads the existing GET /api/v1/recipes/{id} detail payload.
 
-next_action: revalidation
-next_command: /speckit.product-forge.revalidate
+gates:
+    - phase: mode-resolution
+      decision: approved
+      date: 2026-08-05
+      risk: high
+      note: feature_mode resolved to v-model; invalid `retroactive-bootstrap` retained as origin_mode.
+    - phase: revalidation-scope
+      decision: approved
+      date: 2026-08-05
+      risk: high
+      note: >-
+          US-008 + US-009 promoted into v1 (FR-032a / FR-034a). Voice control stays Should Have.
+          Cross-device sync stays out of scope.
+    - phase: plan-tasks-rollback
+      decision: rolled_back
+      rolled_back_to: plan
+      date: 2026-08-05
+      risk: high
+      note: >-
+          Rolled back to Phase 5/5B to correct eight architecture-layer defects found against shipped main
+          before any code is written. See review.md Revision 1.
+    - phase: revalidation
+      decision: approved
+      date: 2026-08-07
+      risk: high
+      note: >-
+          Revision 1 approved in full, conditional on the v-model V3/V5/V7/V9 regeneration for
+          REQ-012..REQ-015 landing before implementation.
+
+next_action: v-model-coverage-regeneration
+next_command: /speckit.v-model.acceptance

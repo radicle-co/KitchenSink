@@ -53,6 +53,7 @@
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
+        "@kitchensink/infra-security": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/recipe-service-client": "*",
         "@kitchensink/recipe-workers": "*",

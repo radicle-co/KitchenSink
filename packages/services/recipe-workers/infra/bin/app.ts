@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { App, Tags } from 'aws-cdk-lib';
 
+import { attachSecurityChecks } from '@kitchensink/infra-security';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: join(__dirname, '../../.env') });
 
@@ -21,6 +23,10 @@ const baseStage = stage === 'prod' ? 'prod' : 'sandbox';
 // pr-{N} name prefix with NO denylist, so the safety of every persistent resource depends on this line
 // never tagging a global resource `pr-{N}` (and vice versa). A persistent deploy tags 'global'.
 Tags.of(app).add('Environment', stage.startsWith('pr-') ? stage : 'global');
+
+// U9: cdk-nag AwsSolutions review, ADVISORY — reported as warnings, never fails the build, and
+// annotation-only so the synthesized template is unchanged. See @kitchensink/infra-security.
+attachSecurityChecks(app);
 
 const region = process.env['CDK_DEFAULT_REGION'] ?? process.env['DEFAULT_AWS_REGION'] ?? 'us-east-1';
 const account = process.env['CDK_DEFAULT_ACCOUNT'] ?? process.env['AWS_ACCOUNT_ID'];

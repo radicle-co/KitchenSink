@@ -19,6 +19,7 @@
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
+        "@kitchensink/infra-security": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",

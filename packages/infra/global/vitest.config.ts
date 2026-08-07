@@ -1,6 +1,20 @@
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+    resolve: {
+        alias: {
+            // `@kitchensink/infra-security` exports BUILT js (`dist/`), because prod-deploy runs the CDK
+            // entrypoints as compiled JS under plain `node` — see ADR-0013. Resolving the bare specifier to
+            // `dist/` in tests too would mean the suites assert against whatever was last built, so an edit
+            // to the Aspect could pass a stale-dist run: exactly the false green a template-parity guard
+            // must not have. Tests therefore run the SOURCE, and the compiled artifact gets its own,
+            // explicit coverage in `cdk-nag-synth.integration.test.ts`, which shells out to
+            // `cdk synth --app "node dist/bin/app.js"`.
+            '@kitchensink/infra-security': fileURLToPath(new URL('../security/src/index.ts', import.meta.url)),
+        },
+    },
     test: {
         include: ['__tests__/**/*.test.ts'],
         exclude: ['node_modules', 'dist', 'cdk.out'],

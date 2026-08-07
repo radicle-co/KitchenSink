@@ -55,6 +55,7 @@
     "devDependencies": {
         "@commise/test-utils": "*",
         "@kitchensink/eslint": "*",
+        "@kitchensink/infra-security": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/recipe-core": "*",
         "@kitchensink/typescript": "*",

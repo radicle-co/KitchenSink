@@ -1,8 +1,14 @@
 import { App } from 'aws-cdk-lib';
 
+import { attachSecurityChecks } from '@kitchensink/infra-security';
+
 import { SandboxRouterStack } from '../lib/SandboxRouterStack.js';
 
 const app = new App();
+
+// U9: cdk-nag AwsSolutions review, ADVISORY — reported as warnings, never fails the build, and
+// annotation-only so the synthesized template is unchanged. See @kitchensink/infra-security.
+attachSecurityChecks(app);
 
 const stage = (app.node.tryGetContext('stage') as string | undefined) ?? process.env['STAGE'] ?? 'sandbox';
 const domainName = process.env['DOMAIN_NAME'];

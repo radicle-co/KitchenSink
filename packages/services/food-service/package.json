@@ -48,6 +48,7 @@
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
+        "@kitchensink/infra-security": "*",
         "@kitchensink/food-service-client": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",

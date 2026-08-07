@@ -115,11 +115,16 @@ jobs:
 
             - name: Build webhooks package
               if: steps.flags.outputs.deploy_webhooks == 'true'
-              run: npm run build --workspace=packages/services/identity-webhooks
+              # turbo (not plain npm) so the workspace DEPENDENCY graph is built too: the CDK
+              # entrypoint imports @kitchensink/infra-security, whose built dist must exist before
+              # `node .../infra/dist/bin/app.js` can load it (ADR-0013).
+              run: npx turbo run build --filter=@kitchensink/identity-webhooks
 
             - name: Build global infra
               if: steps.flags.outputs.deploy_global == 'true'
-              run: npm run build --workspace=packages/infra/global
+              # turbo (not plain npm) so the workspace DEPENDENCY graph is built too — see the
+              # webhooks build step above and ADR-0013.
+              run: npx turbo run build --filter=@kitchensink/infra-global
 
             # `build` is tsc only — it does NOT bundle the DataStack's custom-resource handlers. Without this
             # step `dist-lambda/` is absent at synth and the DataStack ships an inline placeholder instead of

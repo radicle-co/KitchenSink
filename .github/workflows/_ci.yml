@@ -809,6 +809,14 @@ jobs:
         name: E2E (web — Playwright)
         runs-on: ubuntu-latest
         needs: build
+        # `id-token: write` is what makes the Argos upload SECRETLESS (U10a): the CLI exchanges a short-lived
+        # GitHub OIDC token for a build-scoped Argos credential, so no `ARGOS_TOKEN` secret exists to leak — and
+        # a FORK pull request, which cannot read repository secrets at all, still uploads (Argos falls back to
+        # its tokenless GitHub-Actions path when OIDC is unavailable). `contents: read` must be restated because
+        # a job-level `permissions:` REPLACES the workflow default rather than adding to it.
+        permissions:
+            contents: read
+            id-token: write
         # Base tier. Gating this is what stops a labelled PR from running TWO concurrent Playwright suites
         # on the same commit (ci-pr.yml + heavy-e2e.yml) against the shared sandbox Clerk instance.
         # Pin BOTH API origins the web app resolves from env. `src/config/env.ts` declares them with NO
@@ -891,6 +899,31 @@ jobs:
             - name: Run web e2e tests
               if: steps.secrets.outcome == 'success'
               run: npm run test:e2e --workspace=@commise/web
+            # U10a half 1 — hand the visual-regression PNGs to Argos for comparison. `npx --yes` rather than a
+            # devDependency ON PURPOSE: adding one without regenerating package-lock.json would break every
+            # `npm ci` in the pipeline, and this is the only place the CLI is ever invoked.
+            #
+            # Gated on the `ARGOS_ENABLED` repository VARIABLE (not a secret) so the step is inert until the
+            # Argos project exists and is linked to this repository. Without that one-time setup the upload
+            # cannot succeed, and a step that always fails is worse than one that is explicitly switched off.
+            # Flip the variable to `true` once the project is linked; no code change needed.
+            #
+            # Not `continue-on-error`: once enabled, a failed upload means the visual gate did not run, and that
+            # must be visible rather than green.
+            - name: Upload visual-regression screenshots to Argos
+              if: ${{ !cancelled() && steps.secrets.outcome == 'success' && vars.ARGOS_ENABLED == 'true' }}
+              run: npx --yes @argos-ci/cli@6 upload packages/apps/commise/web/screenshots --build-name web
+            # U10a half 2 — the mockup-fidelity artifact (wireframe/implementation image pairs, report.json and
+            # a side-by-side index.html). Uploaded on PASS as well as failure: it is a REVIEW artifact, not a
+            # failure diagnostic, and its whole purpose is to be read on a green run.
+            - name: Upload mockup-fidelity report
+              if: ${{ !cancelled() && steps.secrets.outcome == 'success' }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: mockup-fidelity-${{ inputs.stage }}
+                  path: packages/apps/commise/web/mockup-fidelity
+                  retention-days: 14
+                  if-no-files-found: warn
             # Failure-only: upload the Playwright HTML report + traces so a red run is debuggable.
             - name: Upload Playwright report + traces
               if: failure() && steps.secrets.outcome == 'success'

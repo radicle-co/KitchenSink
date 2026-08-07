@@ -459,24 +459,43 @@ test.describe('mockup fidelity — wireframe vs implementation (U10a)', () => {
             expect(pair.anchors.length, `pair ${pair.slug} compared too few anchors`).toBeGreaterThan(1);
         }
 
-        // The ONE substantive fidelity assertion this pass makes: every compared surface PAINTS an on-token
-        // colour. Not "matches the wireframe" — the wireframe's own drifts are reported, not asserted — but
-        // "the colour a real engine resolved is a value @commise/ui ships". That is the check only a browser can
-        // make: the component tier sees class strings, `tests/mockupContrast.test.ts` sees the token file, and
-        // neither can tell you what the compositor actually painted. Retheme a token without rebuilding
-        // `@commise/ui`'s generated `theme.css` and this goes red, which is exactly the drift worth catching.
-        const onTokenColors = tokenRgbStrings(TOKEN_SCALE);
+        // The ONE substantive fidelity assertion this pass makes: every compared surface's page background is
+        // still DRIVEN BY the `semantic.background` token, not by a hardcoded colour. Not "matches the
+        // wireframe" — the wireframe's own drifts are reported, not asserted — but "what the compositor
+        // actually painted is what the token says". Only a browser can check that: the component tier sees
+        // class strings and `tests/mockupContrast.test.ts` sees the token file, and neither can say what was
+        // painted. The regression it catches is a real and easy one — someone writes `bg-[#FFFFFF]` on the page
+        // shell and every token-level guard in the repo stays green.
+        //
+        // Two failure modes were established by seeding them, and the distinction matters:
+        //
+        //  - A COHERENT retheme does NOT fail, and must not. Seeding `semantic.background = '#F7F1E8'`
+        //    re-rendered the running app in `rgb(247, 241, 232)`: the dev CSS pipeline regenerates the theme
+        //    from the same token source this spec imports, so both sides move together. That is a legitimate
+        //    design-system change, not a defect, and a guard that reddened on it would just be noise.
+        //  - A DIVERGENCE does fail, in both directions. Hardcoding the surface (`background-color: #ffffff` in
+        //    `globals.css`, in place of `var(--color-background)`) reddens it — that is the regression this
+        //    exists to prevent, since every class-string and token-file guard in the repo stays green through
+        //    it. So does a STALE build: restoring the seeded token while a `.next` cache still held CSS
+        //    generated from the old value reddened it too, naming both numbers. That was not a planned case —
+        //    it happened — which is the most convincing evidence the assertion has teeth.
+        //
+        // Asserted against the SPECIFIC `semantic.background` token, not against "any colour in the palette".
+        // The looser version was written first and the hardcoding regression walked straight through it: white
+        // is `palette.white`, so a surface painted `#FFFFFF` is still "on palette" while the ROLE it is meant to
+        // express has been abandoned. Set membership over a 20-colour palette is nearly always satisfiable by
+        // accident; the role-specific check is not.
+        const expectedSurface = tokenRgbStrings({ background: semantic.background });
 
         for (const pair of report.pairs) {
             const surface = pair.anchors.find((anchor) => anchor.anchor === 'documentSurface');
-
             const painted = surface?.implementation.style?.backgroundColor ?? '<no surface probed>';
 
             expect(
-                [...onTokenColors].includes(painted),
-                `${pair.route} paints its page surface ${painted}, which is not any @commise/ui colour token. ` +
-                    'Either the surface drifted off the palette, or the palette moved without regenerating ' +
-                    'theme.css.',
+                expectedSurface.has(painted),
+                `${pair.route} paints its page surface ${painted}, but @commise/ui's semantic.background token ` +
+                    `is ${semantic.background} (${[...expectedSurface].join('')}). Either the surface drifted ` +
+                    "off the token, or the token moved without regenerating @commise/ui's theme.css.",
             ).toBe(true);
         }
 

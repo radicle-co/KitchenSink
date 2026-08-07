@@ -629,6 +629,63 @@ And the build pipeline does NOT produce a successful artifact
 
 ---
 
+### ARCH-015 — SessionExtras
+
+#### ITP-015-A: SessionExtras ↔ CookingModeScreen state contract (Interface Contract Testing)
+
+- **Technique**: Interface Contract Testing
+- **Architecture View**: Interface View (Internal Module Interfaces)
+- **Modules Under Test**: ARCH-001 ↔ ARCH-015
+- **Preconditions**: ARCH-001 hosts ARCH-015's reducers within the live cooking session.
+
+##### ITS-015-A1 — Checkoff toggles without disturbing step index
+
+```
+Given ARCH-001 CookingModeScreen is on step 3 with an empty checkoff state
+When ARCH-015 SessionExtras handles toggleIngredient(i1)
+Then ARCH-015 returns checkedIngredientIds = [i1]
+And ARCH-001's currentStepIndex is still 3
+And ARCH-004 StepNavigationController receives no navigation call
+```
+
+##### ITS-015-A2 — Scale change propagates to display but not to timers
+
+```
+Given ARCH-001 hosts ARCH-015 and ARCH-006 TimerEngine holds a step with timerSeconds = 1500
+When ARCH-015 SessionExtras handles setScaleFactor(2)
+Then ARCH-002 StepDisplayPanel receives scaled ingredient quantities
+And ARCH-006 TimerEngine receives NO call and still reports 1500 (REQ-015, D-002)
+And the not-scaled advisory is passed to the render layer
+```
+
+#### ITP-015-B: SessionExtras ↔ OfflineRecipeCache round-trip (Data Flow Testing)
+
+- **Technique**: Data Flow Testing
+- **Architecture View**: Information View
+- **Modules Under Test**: ARCH-015 ↔ ARCH-010
+- **Preconditions**: A live session carries checked ingredients and a non-default scale factor.
+
+##### ITS-015-B1 — Session extras survive persist/restore
+
+```
+Given ARCH-015 holds checkedIngredientIds = [i1, i2] and scaleFactor = 2
+When ARCH-010 OfflineRecipeCache serializes the session and restores it
+Then the restored ARCH-015 state deep-equals the original
+And no field collapses to {} (the Set-serialization defect is regression-guarded)
+```
+
+##### ITS-015-B2 — Ghost ingredient ids are reconciled away on restore
+
+```
+Given a persisted session has checkedIngredientIds = [i1, i2]
+And the recipe fetched on resume no longer contains i2
+When ARCH-011 RecipeDataAdapter supplies the current ingredient set to ARCH-015
+Then ARCH-015 reconcile() returns [i1]
+And no error is surfaced to the user
+```
+
+---
+
 ## Coverage Summary
 
 | ARCH ID   | Module Name                  | ITP Count | ITS Count | Techniques Applied                               |
@@ -647,9 +704,10 @@ And the build pipeline does NOT produce a successful artifact
 | ARCH-012  | AuthGuard                    | 2         | 3         | Interface Contract, Interface Fault Injection    |
 | ARCH-013  | ErrorBoundaryAndLogger       | 2         | 2         | Interface Contract, Data Flow                    |
 | ARCH-014  | AccessibilityAndQualityGuard | 2         | 2         | Interface Contract                               |
-| **TOTAL** |                              | **27**    | **38**    |                                                  |
+| ARCH-015  | SessionExtras                | 2         | 4         | Interface Contract, Data Flow                    |
+| **TOTAL** |                              | **29**    | **42**    |                                                  |
 
-**Coverage**: All 14 ARCH modules covered (12 functional + 2 cross-cutting). All 4 ISO 29119-4 mandatory techniques applied.
+**Coverage**: All 15 ARCH modules covered (13 functional + 2 cross-cutting). All 4 ISO 29119-4 mandatory techniques applied.
 
 ## Traceability to Architecture Design
 

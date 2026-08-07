@@ -1,6 +1,6 @@
 # Product Forge Lifecycle Status
 # Feature: 008-cooking-mode
-# Last updated: 2026-08-05
+# Last updated: 2026-08-07
 
 feature: 008-cooking-mode
 
@@ -92,11 +92,12 @@ phases:
         artifact: null
 
     implement:
-        state: blocked
+        state: ready
         note: >-
-            Blocked on two prerequisites, both recorded 2026-08-05: (1) the revalidation approval marker in
-            review.md is unchecked; (2) REQ-012..REQ-015 have no acceptance coverage — v-model V3/V5/V7/V9
-            artifacts must be regenerated before code starts.
+            Both prerequisites are cleared: revalidation approved 2026-08-07, and the v-model regeneration
+            for REQ-012..REQ-015 completed the same day. Next step is the Phase 6 test-first Red gate —
+            the Test-first tasks (T-017..T-021) must be written and confirmed FAILING before any
+            implementation task starts.
         red_gate:
             status: not_run
             tests: []
@@ -125,11 +126,18 @@ phases:
         state: not-applicable
 
 v-model:
-    state: needs-update
+    state: complete
+    regenerated_at: 2026-08-07
     note: >-
-        The V1 requirements artifact now carries REQ-012..REQ-015 (FR-032a / FR-034a) and the traceability
-        matrix carries their rows as MISSING coverage. V3 acceptance-plan, V5 system-test, V7 integration-test
-        and V9 unit-test must be regenerated to cover them; V10 trace and V13 audit-report re-run afterwards.
+        REQ-012..REQ-015 (FR-032a / FR-034a) are now covered end to end: V1 requirements, V3 acceptance
+        (AT-008-I / AT-008-J, 11 scenarios), V4 system-design (SYS-009), V5 system-test (STP-009-A..E),
+        V6 architecture-design (ARCH-015), V7 integration-test (ITP-015-A/B), V8 module-design
+        (MOD-019 IngredientCheckoffState, MOD-020 YieldScalingState, four mandatory views each),
+        V9 unit-test (UTP-019-*, UTP-020-*), and V10 trace. The V10 regeneration also repaired a
+        pre-existing defect: matrices C and D were entirely MISSING despite the integration and unit
+        artifacts defining full coverage, so the audit report had been reading a false zero. Module target
+        paths across V8/V9 were retargeted off the non-existent `src/features/cooking-mode/` convention.
+        V13 release-audit-report must be re-run before release (it predates this regeneration).
     artifacts:
         - v-model/requirements.md
         - v-model/system-design.md
@@ -144,8 +152,10 @@ v-model:
         - v-model/traceability-matrix.md
         - v-model/release-audit-report.md
         - v-model/peer-review-hazard-analysis.md
-    peer_reviews: complete
-    stale_since: 2026-08-05
+    peer_reviews: stale
+    peer_reviews_note: >-
+        The existing peer reviews predate the 2026-08-07 regeneration and do not cover SYS-009 / ARCH-015 /
+        MOD-019 / MOD-020. Re-run /speckit.v-model.peer-review on the changed artifacts before release.
 
 contracts:
     state: not-applicable
@@ -180,5 +190,5 @@ gates:
           Revision 1 approved in full, conditional on the v-model V3/V5/V7/V9 regeneration for
           REQ-012..REQ-015 landing before implementation.
 
-next_action: v-model-coverage-regeneration
-next_command: /speckit.v-model.acceptance
+next_action: implement-red-gate
+next_command: /speckit.product-forge.implement

@@ -35,6 +35,7 @@ Cooking Mode is decomposed into 14 architecture modules organized across four Kr
 | ARCH-012 | AuthGuard                    | Checks for a valid Clerk session before allowing Cooking Mode entry. Reads the Clerk session via `@clerk/nextjs` (web) or `@clerk/expo` (mobile). Redirects unauthenticated users to the Clerk hosted UI.                                                                                                          | SYS-007                                                                                                                            | Service   |
 | ARCH-013 | ErrorBoundaryAndLogger       | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — React error boundary wrapping `CookingModeScreen`. Catches render errors, logs structured events via `@aws-lambda-powertools/logger` pattern, and displays a user-friendly fallback UI. Covers all components.                | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — infrastructure error handling for all SYS     | Utility   |
 | ARCH-014 | AccessibilityAndQualityGuard | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — Compile-time and lint-time enforcement layer: TypeScript `strict: true` config, ESLint rules prohibiting `any`, JSDoc enforcement, and accessibility lint rules (`eslint-plugin-jsx-a11y`). Applies to all Cooking Mode code. | [CROSS-CUTTING; rationale: shared infrastructure supports multiple SYS components] — quality/accessibility enforcement for all SYS | Utility   |
+| ARCH-015 | SessionExtras                | Session-scoped, display-only augmentations: per-ingredient checkoff state (MOD-019) and yield scale factor with quantity recalculation and the not-scaled advisory (MOD-020). Read-only w.r.t. the Recipe entity; holds NO reference to timer state (REQ-015 safety invariant, spec.md D-002).                     | SYS-009                                                                                                                            | Module    |
 
 ## Process View — Dynamic Behavior (Kruchten 4+1)
 
@@ -184,6 +185,7 @@ sequenceDiagram
 | ARCH-010 | `OfflineRecipeCache`           | ARCH-001, ARCH-011 | AsyncStorage               | `cacheRecipe(steps: CookingStep[])`, `getCachedRecipe(recipeId: string)` | `void` / `CookingStep[]`                                       | Logs error on write failure; throws `CacheMissError` on miss |
 | ARCH-013 | `ErrorBoundaryAndLogger`       | All components     | React error boundary       | Render errors from child components                                      | Fallback UI + structured log event                             | Always renders fallback; never re-throws to root             |
 | ARCH-014 | `AccessibilityAndQualityGuard` | Build pipeline     | TypeScript / ESLint config | Source files                                                             | Compile errors / lint warnings                                 | CI fails on any `strict` violation or `any` usage            |
+| ARCH-015 | `SessionExtras`                | ARCH-001 (screen)  | Reducer functions          | toggleIngredient(id), setScaleFactor(f)                                  | checkedIngredientIds[], scaleFactor, showAdvisory              | Throws on unknown ingredient / unsupported factor            |
 
 ## Data Flow View (Kruchten 4+1)
 
@@ -230,6 +232,7 @@ sequenceDiagram
 | SYS-006 | Recipe Data Adapter     | ARCH-011 (adapter), ARCH-001 (consumer)                         |
 | SYS-007 | Auth Guard              | ARCH-012 (auth guard), ARCH-001 (consumer)                      |
 | SYS-008 | Quality & Accessibility | ARCH-013 (error boundary/logger), ARCH-014 (quality/a11y guard) |
+| SYS-009 | Session Extras          | ARCH-015 (session extras), ARCH-001 (consumer)                  |
 
 **Coverage**: All 8 SYS components are covered. No SYS is orphaned.
 

@@ -7,7 +7,7 @@
 
 ## Overview
 
-Cooking Mode's 14 architecture modules (ARCH-001 through ARCH-014) are decomposed into 18 low-level module designs (MOD-001 through MOD-018). Complex architecture modules with distinct stateful and presentational concerns are split into separate MODs to keep each unit independently testable. Every MOD is specified with four mandatory views — Algorithmic/Logic, State Machine, Internal Data Structures, and Error Handling — at a level of detail where writing the actual TypeScript/React Native source code is a direct translation exercise requiring no further design decisions.
+Cooking Mode's 15 architecture modules (ARCH-001 through ARCH-015) are decomposed into 20 low-level module designs (MOD-001 through MOD-020). Complex architecture modules with distinct stateful and presentational concerns are split into separate MODs to keep each unit independently testable. Every MOD is specified with four mandatory views — Algorithmic/Logic, State Machine, Internal Data Structures, and Error Handling — at a level of detail where writing the actual TypeScript/React Native source code is a direct translation exercise requiring no further design decisions.
 
 ## ID Schema
 
@@ -35,6 +35,7 @@ Cooking Mode's 14 architecture modules (ARCH-001 through ARCH-014) are decompose
 | ARCH-012 | AuthGuard                    | MOD-012                            |
 | ARCH-013 | ErrorBoundaryAndLogger       | MOD-013, MOD-014                   |
 | ARCH-014 | AccessibilityAndQualityGuard | MOD-015, MOD-016, MOD-017, MOD-018 |
+| ARCH-015 | SessionExtras                | MOD-019, MOD-020                   |
 
 ## Module Designs
 
@@ -43,7 +44,7 @@ Cooking Mode's 14 architecture modules (ARCH-001 through ARCH-014) are decompose
 ### Module: MOD-001 (CookingModeScreen)
 
 **Parent Architecture Modules**: ARCH-001
-**Target Source File(s)**: `src/features/cooking-mode/screens/CookingModeScreen.tsx`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/src/screens/CookingModeScreen.tsx`
 
 #### Algorithmic / Logic View
 
@@ -148,7 +149,7 @@ stateDiagram-v2
 ### Module: MOD-002 (StepDisplayPanel)
 
 **Parent Architecture Modules**: ARCH-002
-**Target Source File(s)**: `src/features/cooking-mode/components/StepDisplayPanel.tsx`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/src/components/StepDisplayPanel.tsx`
 
 #### Algorithmic / Logic View
 
@@ -201,7 +202,7 @@ N/A — Stateless pure presentational component; all state is owned by ARCH-004.
 ### Module: MOD-003 (StepTransitionAnimator)
 
 **Parent Architecture Modules**: ARCH-003
-**Target Source File(s)**: `src/features/cooking-mode/components/StepTransitionAnimator.tsx`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/src/components/StepTransitionAnimator.tsx`
 
 #### Algorithmic / Logic View
 
@@ -263,7 +264,7 @@ stateDiagram-v2
 ### Module: MOD-004 (StepNavigationController)
 
 **Parent Architecture Modules**: ARCH-004
-**Target Source File(s)**: `src/features/cooking-mode/controllers/StepNavigationController.ts`
+**Target Source File(s)**: `packages/shared/cooking/src/controllers/StepNavigationController.ts`
 
 #### Algorithmic / Logic View
 
@@ -343,7 +344,7 @@ stateDiagram-v2
 ### Module: MOD-005 (GestureInputAdapter)
 
 **Parent Architecture Modules**: ARCH-005
-**Target Source File(s)**: `src/features/cooking-mode/adapters/GestureInputAdapter.tsx`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/src/adapters/GestureInputAdapter.tsx`
 
 #### Algorithmic / Logic View
 
@@ -400,7 +401,7 @@ N/A — Stateless gesture adapter; delegates all state to StepNavigationControll
 ### Module: MOD-006 (TimerEngine)
 
 **Parent Architecture Modules**: ARCH-006
-**Target Source File(s)**: `src/features/cooking-mode/services/TimerEngine.ts`
+**Target Source File(s)**: `packages/shared/cooking/src/services/TimerEngine.ts`
 
 #### Algorithmic / Logic View
 
@@ -503,7 +504,7 @@ stateDiagram-v2
 ### Module: MOD-007 (TimerDisplayWidget)
 
 **Parent Architecture Modules**: ARCH-007
-**Target Source File(s)**: `src/features/cooking-mode/components/TimerDisplayWidget.tsx`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/src/components/TimerDisplayWidget.tsx`
 
 #### Algorithmic / Logic View
 
@@ -586,7 +587,7 @@ N/A — Stateless presentational component; all timer state is owned by ARCH-006
 ### Module: MOD-008 (AudioAlertService)
 
 **Parent Architecture Modules**: ARCH-008
-**Target Source File(s)**: `src/features/cooking-mode/services/AudioAlertService.ts`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/src/services/AudioAlertService.ts`
 
 #### Algorithmic / Logic View
 
@@ -654,7 +655,7 @@ stateDiagram-v2
 ### Module: MOD-009 (ScreenWakeLockManager)
 
 **Parent Architecture Modules**: ARCH-009
-**Target Source File(s)**: `src/features/cooking-mode/services/ScreenWakeLockManager.ts`
+**Target Source File(s)**: `packages/shared/cooking/src/services/ScreenWakeLockManager.ts`
 
 #### Algorithmic / Logic View
 
@@ -727,7 +728,7 @@ stateDiagram-v2
 ### Module: MOD-010 (OfflineRecipeCache)
 
 **Parent Architecture Modules**: ARCH-010
-**Target Source File(s)**: `src/features/cooking-mode/services/OfflineRecipeCache.ts`
+**Target Source File(s)**: `packages/shared/cooking/src/services/OfflineRecipeCache.ts`
 
 #### Algorithmic / Logic View
 
@@ -789,7 +790,7 @@ N/A — Stateless service; all persistence is delegated to AsyncStorage.
 ### Module: MOD-011 (RecipeDataAdapter)
 
 **Parent Architecture Modules**: ARCH-011
-**Target Source File(s)**: `src/features/cooking-mode/adapters/RecipeDataAdapter.ts`
+**Target Source File(s)**: `packages/shared/cooking/src/adapters/RecipeDataAdapter.ts`
 
 #### Algorithmic / Logic View
 
@@ -865,7 +866,7 @@ N/A — Stateless adapter; pure function with no retained state.
 ### Module: MOD-012 (AuthGuard)
 
 **Parent Architecture Modules**: ARCH-012
-**Target Source File(s)**: `src/features/cooking-mode/guards/AuthGuard.ts`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/src/guards/AuthGuard.ts`
 
 #### Algorithmic / Logic View
 
@@ -912,7 +913,7 @@ N/A — Stateless guard; reads session on each call with no retained state.
 ### Module: MOD-013 (ErrorBoundary) [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-013
-**Target Source File(s)**: `src/features/cooking-mode/components/ErrorBoundary.tsx`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/src/components/ErrorBoundary.tsx`
 
 #### Algorithmic / Logic View
 
@@ -974,7 +975,7 @@ stateDiagram-v2
 ### Module: MOD-014 (StructuredLogger) [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-013
-**Target Source File(s)**: `src/features/cooking-mode/utils/Logger.ts`
+**Target Source File(s)**: `packages/shared/cooking/src/utils/Logger.ts`
 
 #### Algorithmic / Logic View
 
@@ -1026,7 +1027,7 @@ N/A — Stateless utility; no retained state between calls.
 ### Module: MOD-015 (TypeScriptStrictConfig) [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File(s)**: `src/features/cooking-mode/tsconfig.json`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/tsconfig.json`
 
 #### Algorithmic / Logic View
 
@@ -1045,7 +1046,7 @@ CONFIGURATION tsconfig.json:
     module: "ESNext"
     moduleResolution: "bundler"
     jsx: "react-native"
-  include: ["src/features/cooking-mode/**/*"]
+  include: ["packages/apps/commise/features/cooking/src/**/*"]
   exclude: ["node_modules", "**/*.test.ts", "**/*.spec.ts"]
 ```
 
@@ -1072,7 +1073,7 @@ N/A — Stateless compile-time configuration artifact.
 ### Module: MOD-016 (ESLintNoAnyRule) [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File(s)**: `src/features/cooking-mode/.eslintrc.json`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/.eslintrc.json`
 
 #### Algorithmic / Logic View
 
@@ -1117,7 +1118,7 @@ N/A — Stateless lint-time configuration artifact.
 ### Module: MOD-017 (AccessibilityLintRules) [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File(s)**: `src/features/cooking-mode/.eslintrc.json`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/.eslintrc.json`
 
 #### Algorithmic / Logic View
 
@@ -1160,7 +1161,7 @@ N/A — Stateless lint-time configuration artifact.
 ### Module: MOD-018 (AccessibilityRuntimeChecks) [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File(s)**: `src/features/cooking-mode/utils/a11yChecks.ts`
+**Target Source File(s)**: `packages/shared/cooking/src/utils/a11yChecks.ts`
 
 #### Algorithmic / Logic View
 
@@ -1201,6 +1202,116 @@ N/A — Stateless utility functions; no retained state.
 
 ---
 
+### Module: MOD-019 (IngredientCheckoffState)
+
+**Parent Architecture Modules**: ARCH-015
+**Target Source File(s)**: `packages/shared/cooking/src/controllers/IngredientCheckoffState.ts`
+
+#### Algorithmic / Logic View
+
+```pseudocode
+// Pure reducer over session-scoped checkoff state (FR-032a / REQ-012, REQ-013).
+// Holds ids only — never ingredient objects — so the recipe cannot be mutated through it.
+
+FUNCTION toggleIngredient(state: string[], ingredientId: string) -> string[]:
+    IF ingredientId IS empty OR NOT in recipe.ingredients:
+        THROW UnknownIngredientError(ingredientId)      // fail loud, do not silently no-op
+    IF state CONTAINS ingredientId:
+        RETURN state WITHOUT ingredientId               // new array; no in-place splice
+    ELSE:
+        RETURN state WITH ingredientId APPENDED
+
+FUNCTION isChecked(state: string[], ingredientId: string) -> boolean:
+    RETURN state CONTAINS ingredientId
+
+FUNCTION reconcile(state: string[], recipeIngredientIds: string[]) -> string[]:
+    // Called on restore: an ingredient removed from the recipe since the session
+    // started must not linger as a checked ghost id.
+    RETURN state FILTERED TO ids present in recipeIngredientIds
+```
+
+#### State Machine View
+
+| State          | Trigger                                | Next State     | Guard                         |
+| -------------- | -------------------------------------- | -------------- | ----------------------------- |
+| `none-checked` | `toggleIngredient(i)`                  | `some-checked` | `i` exists in recipe          |
+| `some-checked` | `toggleIngredient(i)` (last remaining) | `none-checked` | `i` is the only checked id    |
+| `some-checked` | `toggleIngredient(i)`                  | `all-checked`  | `i` is the final unchecked id |
+| `all-checked`  | `toggleIngredient(i)`                  | `some-checked` | any `i` currently checked     |
+| any            | `reconcile(recipeIds)`                 | same or lower  | run on restore only           |
+
+#### Internal Data Structures
+
+| Name                   | Type          | Size/Constraints          | Initialization  | Description                                                          |
+| ---------------------- | ------------- | ------------------------- | --------------- | -------------------------------------------------------------------- |
+| `checkedIngredientIds` | `string[]`    | ≤ recipe ingredient count | `[]`            | Ordered id list. **Array, not `Set`** — must survive JSON round-trip |
+| `ingredientIdIndex`    | `Set<string>` | derived, non-persisted    | rebuilt on load | In-memory membership index for O(1) lookup; never serialized         |
+
+#### Error Handling & Return Codes
+
+| Error Condition                              | Error Code / Exception   | Architecture Contract | Recovery                                              |
+| -------------------------------------------- | ------------------------ | --------------------- | ----------------------------------------------------- |
+| Toggle of an id absent from the recipe       | `UnknownIngredientError` | ARCH-015 Interface    | Caller surfaces a non-blocking error; state unchanged |
+| Restored state references removed ingredient | none (silent filter)     | ARCH-015 `reconcile`  | `reconcile()` drops ghost ids on restore              |
+
+---
+
+### Module: MOD-020 (YieldScalingState)
+
+**Parent Architecture Modules**: ARCH-015
+**Target Source File(s)**: `packages/shared/cooking/src/controllers/YieldScalingState.ts`
+
+#### Algorithmic / Logic View
+
+```pseudocode
+// Display-only yield scaling (FR-034a / REQ-014, REQ-015).
+// SAFETY INVARIANT (spec.md D-002): this module has NO reference to timer state.
+// Cook time does not scale linearly with yield, so scaling MUST NOT touch durations.
+
+CONSTANT ALLOWED_FACTORS = [0.5, 1, 2, 3]        // bounded set; no free-form input
+
+FUNCTION setScaleFactor(factor: number) -> number:
+    IF factor NOT IN ALLOWED_FACTORS:
+        THROW UnsupportedScaleFactorError(factor)
+    RETURN factor
+
+FUNCTION scaleQuantity(quantity: number, factor: number) -> number:
+    IF quantity < 0 OR NOT finite:
+        THROW InvalidQuantityError(quantity)
+    RETURN roundToDisplayPrecision(quantity * factor)   // presentation rounding only
+
+FUNCTION shouldShowNotScaledAdvisory(factor: number) -> boolean:
+    RETURN factor != 1                                   // REQ-015 second clause
+```
+
+#### State Machine View
+
+| State      | Trigger                   | Next State | Guard                              |
+| ---------- | ------------------------- | ---------- | ---------------------------------- |
+| `unscaled` | `setScaleFactor(f)`       | `scaled`   | `f` ∈ ALLOWED_FACTORS ∧ `f != 1`   |
+| `scaled`   | `setScaleFactor(1)`       | `unscaled` | advisory is withdrawn on entry     |
+| `scaled`   | `setScaleFactor(f')`      | `scaled`   | `f'` ∈ ALLOWED_FACTORS ∧ `f' != 1` |
+| any        | `setScaleFactor(invalid)` | unchanged  | throws; state does not transition  |
+
+`unscaled` ⇒ no advisory rendered. `scaled` ⇒ advisory rendered. **No transition in this
+machine reaches timer state** — that is the REQ-015 invariant, asserted by STS-009-D1.
+
+#### Internal Data Structures
+
+| Name              | Type                | Size/Constraints    | Initialization | Description                                              |
+| ----------------- | ------------------- | ------------------- | -------------- | -------------------------------------------------------- |
+| `scaleFactor`     | `number`            | ∈ `ALLOWED_FACTORS` | `1`            | Persisted with the session; display-only                 |
+| `ALLOWED_FACTORS` | `readonly number[]` | constant, length 4  | static         | Bounded input set; makes illegal factors unrepresentable |
+
+#### Error Handling & Return Codes
+
+| Error Condition                | Error Code / Exception        | Architecture Contract | Recovery                                          |
+| ------------------------------ | ----------------------------- | --------------------- | ------------------------------------------------- |
+| Factor outside the allowed set | `UnsupportedScaleFactorError` | ARCH-015 Interface    | Selector rejects; previous factor retained        |
+| Non-finite / negative quantity | `InvalidQuantityError`        | ARCH-015 Interface    | Row renders the unscaled quantity + a warning cue |
+
+---
+
 ## ARCH → MOD Traceability Matrix
 
 | ARCH ID  | ARCH Name                    | MOD ID(s)                          | Coverage |
@@ -1219,7 +1330,13 @@ N/A — Stateless utility functions; no retained state.
 | ARCH-012 | AuthGuard                    | MOD-012                            | ✅       |
 | ARCH-013 | ErrorBoundaryAndLogger       | MOD-013, MOD-014                   | ✅       |
 | ARCH-014 | AccessibilityAndQualityGuard | MOD-015, MOD-016, MOD-017, MOD-018 | ✅       |
+| ARCH-015 | SessionExtras                | MOD-019, MOD-020                   | ✅       |
 
-**Total ARCH modules**: 14
-**Total MOD modules**: 18
-**Coverage**: 14/14 ARCH modules covered (100%)
+**Total ARCH modules**: 15
+**Total MOD modules**: 20
+**Coverage**: 15/15 ARCH modules covered (100%)
+
+> **Added 2026-08-07.** ARCH-015 / MOD-019 / MOD-020 realize SYS-009 (Session Extras) for `REQ-012`…`REQ-015`.
+> All module target paths in this document were also retargeted from the pre-reconciliation `src/features/cooking-mode/…`
+> convention — which matched no package in the monorepo — to the real layout: pure logic under `packages/shared/cooking/src/`
+> (`@kitchensink/cooking-core`) and UI under `packages/apps/commise/features/cooking/src/` (`@commise/features-cooking`).

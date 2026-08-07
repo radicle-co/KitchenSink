@@ -47,7 +47,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-001 — CookingModeScreen
 
 **Parent Architecture Modules**: ARCH-001
-**Target Source File**: `src/features/cooking-mode/screens/CookingModeScreen.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/screens/CookingModeScreen.tsx`
 
 ---
 
@@ -155,7 +155,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-002 — StepDisplayPanel
 
 **Parent Architecture Modules**: ARCH-002
-**Target Source File**: `src/features/cooking-mode/components/StepDisplayPanel.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/components/StepDisplayPanel.tsx`
 
 ---
 
@@ -205,7 +205,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-003 — StepTransitionAnimator
 
 **Parent Architecture Modules**: ARCH-003
-**Target Source File**: `src/features/cooking-mode/components/StepTransitionAnimator.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/components/StepTransitionAnimator.tsx`
 
 ---
 
@@ -266,7 +266,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-004 — StepNavigationController
 
 **Parent Architecture Modules**: ARCH-004
-**Target Source File**: `src/features/cooking-mode/controllers/StepNavigationController.ts`
+**Target Source File**: `packages/shared/cooking/src/controllers/StepNavigationController.ts`
 
 ---
 
@@ -360,7 +360,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-005 — GestureInputAdapter
 
 **Parent Architecture Modules**: ARCH-005
-**Target Source File**: `src/features/cooking-mode/adapters/GestureInputAdapter.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/adapters/GestureInputAdapter.tsx`
 
 ---
 
@@ -425,7 +425,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-006 — TimerEngine
 
 **Parent Architecture Modules**: ARCH-006
-**Target Source File**: `src/features/cooking-mode/services/TimerEngine.ts`
+**Target Source File**: `packages/shared/cooking/src/services/TimerEngine.ts`
 
 ---
 
@@ -533,7 +533,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-007 — TimerDisplayWidget
 
 **Parent Architecture Modules**: ARCH-007
-**Target Source File**: `src/features/cooking-mode/components/TimerDisplayWidget.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/components/TimerDisplayWidget.tsx`
 
 ---
 
@@ -597,7 +597,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-008 — AudioAlertService
 
 **Parent Architecture Modules**: ARCH-008
-**Target Source File**: `src/features/cooking-mode/services/AudioAlertService.ts`
+**Target Source File**: `packages/apps/commise/features/cooking/src/services/AudioAlertService.ts`
 
 ---
 
@@ -681,7 +681,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-009 — ScreenWakeLockManager
 
 **Parent Architecture Modules**: ARCH-009
-**Target Source File**: `src/features/cooking-mode/services/ScreenWakeLockManager.ts`
+**Target Source File**: `packages/shared/cooking/src/services/ScreenWakeLockManager.ts`
 
 ---
 
@@ -767,7 +767,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-010 — OfflineRecipeCache
 
 **Parent Architecture Modules**: ARCH-010
-**Target Source File**: `src/features/cooking-mode/services/OfflineRecipeCache.ts`
+**Target Source File**: `packages/shared/cooking/src/services/OfflineRecipeCache.ts`
 
 ---
 
@@ -852,7 +852,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-011 — RecipeDataAdapter
 
 **Parent Architecture Modules**: ARCH-011
-**Target Source File**: `src/features/cooking-mode/adapters/RecipeDataAdapter.ts`
+**Target Source File**: `packages/shared/cooking/src/adapters/RecipeDataAdapter.ts`
 
 ---
 
@@ -941,7 +941,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-012 — AuthGuard
 
 **Parent Architecture Modules**: ARCH-012
-**Target Source File**: `src/features/cooking-mode/guards/AuthGuard.ts`
+**Target Source File**: `packages/apps/commise/features/cooking/src/guards/AuthGuard.ts`
 
 ---
 
@@ -1016,7 +1016,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-013 — ErrorBoundary
 
 **Parent Architecture Modules**: ARCH-013
-**Target Source File**: `src/features/cooking-mode/components/ErrorBoundary.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/components/ErrorBoundary.tsx`
 
 ---
 
@@ -1087,7 +1087,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-014 — StructuredLogger
 
 **Parent Architecture Modules**: ARCH-013
-**Target Source File**: `src/features/cooking-mode/utils/Logger.ts`
+**Target Source File**: `packages/shared/cooking/src/utils/Logger.ts`
 
 ---
 
@@ -1163,7 +1163,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-015 — TypeScriptStrictConfig [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File**: `src/features/cooking-mode/tsconfig.json`
+**Target Source File**: `packages/apps/commise/features/cooking/src/tsconfig.json`
 **Note**: Compile-time configuration artifact. Verified by `tsc --noEmit` in CI. No executable unit test cases.
 
 ---
@@ -1171,7 +1171,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-016 — ESLintNoAnyRule [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File**: `src/features/cooking-mode/.eslintrc.json`
+**Target Source File**: `packages/apps/commise/features/cooking/src/.eslintrc.json`
 **Note**: Lint-time configuration artifact. Verified by `eslint` in CI. No executable unit test cases.
 
 ---
@@ -1179,7 +1179,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-017 — AccessibilityLintRules [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File**: `src/features/cooking-mode/.eslintrc.json`
+**Target Source File**: `packages/apps/commise/features/cooking/src/.eslintrc.json`
 **Note**: Lint-time configuration artifact. Verified by `eslint` with `jsx-a11y` and `react-native-a11y` plugins in CI. No executable unit test cases.
 
 ---
@@ -1187,7 +1187,7 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-018 — AccessibilityRuntimeChecks [CROSS-CUTTING]
 
 **Parent Architecture Modules**: ARCH-014
-**Target Source File**: `src/features/cooking-mode/utils/a11yChecks.ts`
+**Target Source File**: `packages/shared/cooking/src/utils/a11yChecks.ts`
 
 ---
 
@@ -1243,6 +1243,113 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ---
 
+### MOD-019 — IngredientCheckoffState
+
+**Parent Architecture Modules**: ARCH-015
+**Target Source File**: `packages/shared/cooking/src/controllers/IngredientCheckoffState.ts`
+
+---
+
+#### UTP-019-A — toggleIngredient: adds, removes, and isolates
+
+**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `state CONTAINS id` branch)
+**Mocks**: none (pure function)
+
+| Scenario   | Arrange                             | Act                        | Assert                                                          |
+| ---------- | ----------------------------------- | -------------------------- | --------------------------------------------------------------- |
+| UTS-019-A1 | `state = []`, recipe has `i1,i2,i3` | `toggleIngredient([], i1)` | Returns `[i1]`                                                  |
+| UTS-019-A2 | `state = [i1]`                      | `toggleIngredient(_, i1)`  | Returns `[]` (removal branch)                                   |
+| UTS-019-A3 | `state = [i1, i2]`                  | `toggleIngredient(_, i3)`  | Returns `[i1, i2, i3]`; `i1`/`i2` positions unchanged           |
+| UTS-019-A4 | `state = [i1]`                      | `toggleIngredient(_, i2)`  | Input array is **not** mutated — original still `[i1]` (purity) |
+
+#### UTP-019-B — toggleIngredient: rejects unknown ingredient
+
+**Technique**: Equivalence Partitioning (invalid partition)
+**Mocks**: none
+
+| Scenario   | Arrange                     | Act                             | Assert                                           |
+| ---------- | --------------------------- | ------------------------------- | ------------------------------------------------ |
+| UTS-019-B1 | recipe has `i1`; state `[]` | `toggleIngredient([], "ghost")` | Throws `UnknownIngredientError`; state unchanged |
+| UTS-019-B2 | recipe has `i1`; state `[]` | `toggleIngredient([], "")`      | Throws `UnknownIngredientError`                  |
+
+#### UTP-019-C — reconcile: drops ghost ids on restore
+
+**Technique**: Boundary Value Analysis
+**Mocks**: none
+
+| Scenario   | Arrange                                    | Act                      | Assert                        |
+| ---------- | ------------------------------------------ | ------------------------ | ----------------------------- |
+| UTS-019-C1 | state `[i1, i2]`; recipe now only has `i1` | `reconcile(state, [i1])` | Returns `[i1]` — `i2` dropped |
+| UTS-019-C2 | state `[]`; recipe has `i1`                | `reconcile([], [i1])`    | Returns `[]`                  |
+| UTS-019-C3 | state `[i1]`; recipe unchanged             | `reconcile(state, [i1])` | Returns `[i1]` unchanged      |
+
+#### UTP-019-D — state is JSON-round-trippable (REQ-013 / plan.md §2)
+
+**Technique**: Statement Coverage (serialization invariant)
+**Mocks**: none
+
+| Scenario   | Arrange          | Act                                 | Assert                                                          |
+| ---------- | ---------------- | ----------------------------------- | --------------------------------------------------------------- |
+| UTS-019-D1 | state `[i1, i2]` | `JSON.parse(JSON.stringify(state))` | Deep-equals `[i1, i2]` — **fails if the field is ever a `Set`** |
+
+---
+
+### MOD-020 — YieldScalingState
+
+**Parent Architecture Modules**: ARCH-015
+**Target Source File**: `packages/shared/cooking/src/controllers/YieldScalingState.ts`
+
+---
+
+#### UTP-020-A — setScaleFactor: accepts allowed, rejects everything else
+
+**Technique**: Equivalence Partitioning + BVA
+**Mocks**: none
+
+| Scenario   | Arrange | Act                   | Assert                               |
+| ---------- | ------- | --------------------- | ------------------------------------ |
+| UTS-020-A1 | —       | `setScaleFactor(0.5)` | Returns `0.5`                        |
+| UTS-020-A2 | —       | `setScaleFactor(2)`   | Returns `2`                          |
+| UTS-020-A3 | —       | `setScaleFactor(1.5)` | Throws `UnsupportedScaleFactorError` |
+| UTS-020-A4 | —       | `setScaleFactor(0)`   | Throws `UnsupportedScaleFactorError` |
+| UTS-020-A5 | —       | `setScaleFactor(-1)`  | Throws `UnsupportedScaleFactorError` |
+
+#### UTP-020-B — scaleQuantity: multiplies correctly
+
+**Technique**: Equivalence Partitioning
+**Mocks**: none
+
+| Scenario   | Arrange | Act                       | Assert                        |
+| ---------- | ------- | ------------------------- | ----------------------------- |
+| UTS-020-B1 | —       | `scaleQuantity(200, 2)`   | Returns `400`                 |
+| UTS-020-B2 | —       | `scaleQuantity(200, 0.5)` | Returns `100`                 |
+| UTS-020-B3 | —       | `scaleQuantity(200, 1)`   | Returns `200`                 |
+| UTS-020-B4 | —       | `scaleQuantity(0, 2)`     | Returns `0`                   |
+| UTS-020-B5 | —       | `scaleQuantity(NaN, 2)`   | Throws `InvalidQuantityError` |
+
+#### UTP-020-C — advisory tracks the factor (REQ-015)
+
+**Technique**: Statement & Branch Coverage
+**Mocks**: none
+
+| Scenario   | Arrange | Act                                | Assert          |
+| ---------- | ------- | ---------------------------------- | --------------- |
+| UTS-020-C1 | —       | `shouldShowNotScaledAdvisory(1)`   | Returns `false` |
+| UTS-020-C2 | —       | `shouldShowNotScaledAdvisory(2)`   | Returns `true`  |
+| UTS-020-C3 | —       | `shouldShowNotScaledAdvisory(0.5)` | Returns `true`  |
+
+#### UTP-020-D — SAFETY: scaling never reaches timer state (REQ-015 / D-002)
+
+**Technique**: Invariant Assertion / Strict Isolation
+**Mocks**: `TimerEngine` spy
+
+| Scenario   | Arrange                                                        | Act                                       | Assert                                                                                       |
+| ---------- | -------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- |
+| UTS-020-D1 | `TimerEngine` holding a step with `timerSeconds = 1500`, spied | `setScaleFactor(2)`, then `0.5`, then `1` | `timerSeconds` reads `1500` after every call; **zero** calls recorded on the TimerEngine spy |
+| UTS-020-D2 | Module under test                                              | Static inspection of MOD-020's imports    | MOD-020 imports no timer module — the invariant is structural, not merely behavioural        |
+
+---
+
 ## Coverage Summary
 
 | MOD       | Module Name                | Test Cases | Scenarios | Techniques Applied                                   |
@@ -1265,7 +1372,9 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 | MOD-016   | ESLintNoAnyRule            | — (CI)     | —         | Lint-time enforcement                                |
 | MOD-017   | AccessibilityLintRules     | — (CI)     | —         | Lint-time enforcement                                |
 | MOD-018   | AccessibilityRuntimeChecks | 4 (A–D)    | 13        | S&B, Equivalence Partitioning                        |
-| **Total** |                            | **100**    | **167**   |                                                      |
+| MOD-019   | IngredientCheckoffState    | 4 (A–D)    | 10        | S&B, Equivalence Partitioning, BVA                   |
+| MOD-020   | YieldScalingState          | 4 (A–D)    | 15        | Equivalence Partitioning, BVA, Invariant Assertion   |
+| **Total** |                            | **108**    | **192**   |                                                      |
 
 ## Traceability
 
@@ -1286,6 +1395,8 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 | UTP-013-\* | MOD-013 | ARCH-013    |
 | UTP-014-\* | MOD-014 | ARCH-013    |
 | UTP-018-\* | MOD-018 | ARCH-014    |
+| UTP-019-\* | MOD-019 | ARCH-015    |
+| UTP-020-\* | MOD-020 | ARCH-015    |
 
 ## Mock Registry
 

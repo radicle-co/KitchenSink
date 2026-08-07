@@ -1,0 +1,83 @@
+# VISUAL REGRESSION — the signed-out auth surfaces (U10b). Maestro's OWN `assertScreenshot`; no paid vendor.
+#
+# ⚠️ INERT UNTIL BASELINES EXIST. This flow is deliberately NOT discovered and NOT run:
+#   - `.maestro/config.yaml` lists `'*'` (root only), `auth/login-flow.yaml` and `recipes/*` — `visual/` matches
+#     none of them, so `maestro test .maestro` skips it;
+#   - `tests/e2e/run-maestro-flows.sh` runs an EXPLICIT `FLOWS` list, and this flow is not in it.
+# That is on purpose. `assertScreenshot` has no record mode: a missing reference is the hard error
+# "Screenshot file not found: …", so an assertion committed before its baseline PNG turns the heavy-e2e job
+# red. Record the baselines first (`visual/record-baselines.yaml`), commit the PNGs, THEN add
+# `visual/auth-surfaces` to `FLOWS` in run-maestro-flows.sh. Activation is one line, and it belongs to
+# whoever owns that script.
+#
+# WHAT THIS ASSERTS (spec IDs, so a red pixel maps to a requirement):
+#   - FR-045a / FR-045 — the signed-out front door IS the sign-in surface. There is NO welcome/landing
+#     interstitial (owner decision 2026-07-28). `auth/login-flow.yaml` already asserts that by ROLE/TEXT;
+#     this adds the pixels, which is the only tier that catches a purely visual regression (a token colour, a
+#     spacing change, a dropped webfont) that leaves every text assertion green.
+#   - FR-045a — sign-UP is reachable ONLY from the sign-in surface, so that affordance is load-bearing. The
+#     second shot is the sign-up screen it leads to.
+#
+# WHY FULL-SCREEN (no `cropOn`) HERE: both surfaces are static chrome — no seeded data, no photos, no
+# counts, no timestamps, no clock-derived copy. They are the two most deterministic screens in the app,
+# which is exactly what a pixel baseline wants.
+#
+# ⚠️ THRESHOLD IS 98, NOT 100, AND THAT IS DELIBERATE. A Maestro Android screenshot is the whole device
+# frame, INCLUDING the system status bar — whose CLOCK changes every minute. On the pinned pixel_6 profile
+# (1080x2400 = 2,592,000 px) the clock glyphs are ~0.05% of the frame, so 98 absorbs it along with text
+# antialiasing, while still failing on any real element-level change. Do NOT raise this to 100 (the clock
+# alone would make it fail every run). The cleaner fix is to freeze the status bar via SystemUI demo mode in
+# run-maestro-flows.sh (`adb shell am broadcast -a com.android.systemui.demo -e command clock -e hhmm 1200`),
+# which would let the threshold go to ~99.5 — that lives in the runner script, not here.
+#
+# ⚠️ EMULATOR PROFILE IS PART OF THE BASELINE. A screenshot's dimensions must match the reference exactly or
+# Maestro fails with "Screenshots must have the same dimensions to compare" — it does not rescale. Baselines
+# in `visual/baselines/` are valid ONLY for the profile pinned in `.github/workflows/_ci-heavy.yml`:
+#   api-level 34 · arch x86_64 · profile pixel_6 · -gpu swiftshader_indirect
+# Change any of those and every baseline must be re-recorded. (Frosted-glass surfaces are safe here: on
+# Android `supportsNativeBlur` is false — expo-blur degrades to a flat translucent fill — so there is no
+# GPU-dependent blur to vary under swiftshader.)
+#
+# Run (after baselines exist):
+#   maestro test packages/apps/commise/mobile/.maestro/visual/auth-surfaces.yaml
+
+appId: io.commise.mobile
+---
+# A signed-OUT launch is the whole point of this flow, so it clears state rather than reusing a session.
+- launchApp:
+      clearState: true
+
+# `AuthGate` paints "Checking your session…" first; wait for the form itself before any pixel is captured.
+# The email placeholder is the landmark unique to the sign-in form (its 'Sign in' submit alone would also
+# match the sign-up screen's return control) — same anchor `auth/login-flow.yaml` uses.
+- extendedWaitUntil:
+      visible: 'you@example.com'
+      timeout: 30000
+
+# Settle the U8 entrance transitions/gradients before capturing, or the shot races the animation and the
+# comparison is nondeterministic for reasons that have nothing to do with a regression.
+- waitForAnimationToEnd
+
+# FR-045a / FR-045 — the signed-out front door, in pixels.
+- assertScreenshot:
+      path: baselines/auth-signin.png
+      thresholdPercentage: 98
+      label: 'FR-045a — signed-out front door is the sign-in surface (no welcome interstitial)'
+
+# FR-045a — the sign-up affordance on the sign-in surface is the ONLY route to registration, so the screen it
+# opens is worth a baseline of its own. Copy comes from mobile i18n `auth.signUpLink` / `createHeading`.
+- tapOn: 'Sign up'
+- extendedWaitUntil:
+      visible: 'Create your account'
+      timeout: 30000
+- waitForAnimationToEnd
+
+- assertScreenshot:
+      path: baselines/auth-signup.png
+      thresholdPercentage: 98
+      label: 'FR-045a — sign-up surface, reachable only from sign-in'
+
+# Leave the app back on the sign-in form rather than stranded on sign-up, so this flow's exit state matches
+# its entry state and it stays order-independent.
+- tapOn: 'Sign in'
+- assertVisible: 'you@example.com'

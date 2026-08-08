@@ -243,7 +243,7 @@ jobs:
             - name: Resolve Identity VPC ID
               id: identity-vpc
               run: |
-                  echo "vpc_id=$(aws cloudformation list-exports --query "Exports[?Name=='kitchensink-network-prod:VpcId'].Value" --output text)" >> "$GITHUB_OUTPUT"
+                  echo "vpc_id=$(bash .github/scripts/cfn-export.sh 'kitchensink-network-prod:VpcId')" >> "$GITHUB_OUTPUT"
 
             - name: CDK Deploy (identity service)
               if: steps.flags.outputs.deploy_service == 'true'
@@ -262,9 +262,7 @@ jobs:
               if: steps.flags.outputs.run_migrations == 'true'
               run: |
                   set -euo pipefail
-                  FN=$(aws cloudformation list-exports \
-                    --query "Exports[?Name=='kitchensink-identity-webhooks-${STAGE}:MigrationFunctionName'].Value" \
-                    --output text)
+                  FN=$(bash .github/scripts/cfn-export.sh "kitchensink-identity-webhooks-${STAGE}:MigrationFunctionName")
                   echo "Invoking migration runner: $FN"
                   ERR=$(aws lambda invoke --function-name "$FN" --query 'FunctionError' --output text /tmp/migrate-out.json)
                   echo "Result: $(cat /tmp/migrate-out.json)"
@@ -326,7 +324,7 @@ jobs:
                   # The `exit 1` ends the SUBSHELL, and `set -e` then fails the step on the assignment.
                   lookup() {
                     local name="$1" value
-                    value=$(aws cloudformation list-exports --query "Exports[?Name=='${name}'].Value" --output text)
+                    value=$(bash .github/scripts/cfn-export.sh --optional "${name}")
                     if [ -z "$value" ] || [ "$value" = "None" ]; then
                       echo "::error::CloudFormation export '${name}' not found — is kitchensink-identity-service-${STAGE} deployed?" >&2
                       exit 1
@@ -406,7 +404,7 @@ jobs:
                   set -euo pipefail
                   lookup() {
                     local name="$1" value
-                    value=$(aws cloudformation list-exports --query "Exports[?Name=='${name}'].Value" --output text)
+                    value=$(bash .github/scripts/cfn-export.sh --optional "${name}")
                     if [ -z "$value" ] || [ "$value" = "None" ]; then
                       echo "::error::CloudFormation export '${name}' not found — is the prod platform tier deployed?"
                       exit 1

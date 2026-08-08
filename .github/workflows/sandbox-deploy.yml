@@ -74,8 +74,10 @@ jobs:
               id: zone
               run: |
                   set -euo pipefail
-                  ZONE=$(aws cloudformation list-exports --region "$REGION" \
-                    --query "Exports[?Name=='kitchensink-domain-sandbox:HostedZoneId'].Value | [0]" --output text)
+                  # Resolved through the shared helper: ListExports PAGES, and `--query` is applied per page,
+                  # so the inline form returns "VALUE\nNone" or "None\nVALUE" depending on which page holds
+                  # the export. See .github/scripts/cfn-export.sh.
+                  ZONE=$(bash .github/scripts/cfn-export.sh 'kitchensink-domain-sandbox:HostedZoneId' "$REGION")
                   if [ -z "$ZONE" ] || [ "$ZONE" = "None" ]; then
                     echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — the preview DNS record cannot be removed"
                     exit 1
@@ -150,8 +152,10 @@ jobs:
               id: zone
               run: |
                   set -euo pipefail
-                  ZONE=$(aws cloudformation list-exports --region "$REGION" \
-                    --query "Exports[?Name=='kitchensink-domain-sandbox:HostedZoneId'].Value | [0]" --output text)
+                  # Resolved through the shared helper: ListExports PAGES, and `--query` is applied per page,
+                  # so the inline form returns "VALUE\nNone" or "None\nVALUE" depending on which page holds
+                  # the export. See .github/scripts/cfn-export.sh.
+                  ZONE=$(bash .github/scripts/cfn-export.sh 'kitchensink-domain-sandbox:HostedZoneId' "$REGION")
                   if [ -z "$ZONE" ] || [ "$ZONE" = "None" ]; then
                     echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — the preview DNS record cannot be created"
                     exit 1
@@ -213,8 +217,10 @@ jobs:
               id: zone
               run: |
                   set -euo pipefail
-                  ZONE=$(aws cloudformation list-exports --region "$REGION" \
-                    --query "Exports[?Name=='kitchensink-domain-sandbox:HostedZoneId'].Value | [0]" --output text)
+                  # Resolved through the shared helper: ListExports PAGES, and `--query` is applied per page,
+                  # so the inline form returns "VALUE\nNone" or "None\nVALUE" depending on which page holds
+                  # the export. See .github/scripts/cfn-export.sh.
+                  ZONE=$(bash .github/scripts/cfn-export.sh 'kitchensink-domain-sandbox:HostedZoneId' "$REGION")
                   if [ -z "$ZONE" ] || [ "$ZONE" = "None" ]; then
                     echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — dangling preview DNS records cannot be reaped"
                     exit 1
@@ -645,8 +651,7 @@ jobs:
                   lookup() {
                     local name="$1"
                     local value
-                    value=$(aws cloudformation list-exports \
-                      --query "Exports[?Name=='${name}'].Value" --output text)
+                    value=$(bash .github/scripts/cfn-export.sh --optional "${name}")
                     if [ -z "$value" ] || [ "$value" = "None" ]; then
                       echo "::error::CloudFormation export '${name}' not found — is the ${BASE_STAGE} platform tier deployed?"
                       exit 1

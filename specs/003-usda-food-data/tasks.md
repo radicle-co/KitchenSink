@@ -42,8 +42,13 @@
 ## Legend
 
 ```
-- [ ] T-NNN [size S/M/L] [Test-first: true|false] description (FR-refs)
+    - [ ] T-NNN [size S/M/L] [Test-first: true|false] description (FR-refs)
 ```
+
+<!-- The example above is INDENTED on purpose. It is the format illustration, not a task, but at column 0 it
+     matched every "count the open checkboxes" sweep and made feature 003 read as having one more open task
+     than it has — a phantom that cost real time to chase. Indenting keeps the example faithful while taking
+     it out of the anchored `^[-*] \[ \]` count. Do not un-indent it, and do not "complete" it. -->
 
 - `[x]` = already built + merged (Phase 0–2 of the old design) and reusable as-is or with the noted change.
 - `[size]` — S ≤ ~½ day, M ≈ 1–2 days, L ≈ 3+ days.
@@ -599,9 +604,19 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 - [ ] **T-195** [M] [Test-first: false] Performance / load tests for SC-001/003/004/005/007 — local-store read (`RESOLVED`) p95 ≤ 50ms (SC-001), backfill `202`→`RESOLVED` p95 ≤ 60s at queue depth < 100 (SC-003), local-store serve rate ≥ 80% after 5,000 foods (SC-004), local-store serve/read throughput (SC-005), search p95 ≤ 200ms at 50,000 foods (SC-007) — `—` (SC-001, SC-003, SC-004, SC-005, SC-007)
       **Acceptance**: each SC threshold measured/reported under representative load (local-store reads, no source call); regressions fail CI; a drain/demotion query perf test at the FR-046 10,000-row ceiling shows the per-`sub` correlated `COUNT(*)` demotion in the drain `ORDER BY` stays within the SC-003 backfill budget (else it is flagged for the materialized per-`sub` pending count, DSN-11).
 
-- [ ] **T-196** [S] [Test-first: false] [P3 — Deferred] Multi-AZ upgrade of the shared `kitchensink-data-{stage}` instance (SC-009) — `packages/infra/global/lib/platform/data-stack.ts` (SC-009, A-013)
-      **Deferred to GA/scale** — lean launch accepts the single-AZ risk; platform-wide change (identity + food).
-      **Acceptance**: `cdk diff` flips `multiAz` to true with a failover test plan; no data loss.
+- [x] **T-196** [S] [Test-first: false] **[CLOSED — WON'T DO, owner ruling 2026-08-08]** Multi-AZ upgrade of the shared `kitchensink-data-{stage}` instance (SC-009) — `packages/infra/global/lib/platform/data-stack.ts` (SC-009, A-013)
+      **Owner ruling (2026-08-08), recorded as the standing architecture, not a deferral:** _"one cluster, one
+      AZ, one region for now. Sandbox and prod are all contained inside the one cluster. We will break that
+      out and scale when we start making money."_ So this is not "deferred pending revisit" — single-AZ is the
+      intended topology until revenue, and SC-009's Multi-AZ clause is **dispositioned-to-spec** rather than
+      implemented. Cost was the deciding factor: +$35.6/mo measured (RDS rate ×2 plus mirrored gp2 storage) is
+      ~12% of the $300 monthly budget guardrail for an availability property a pre-revenue product does not
+      need.
+      **Accepted risk, stated plainly:** an AZ failure takes down sandbox AND prod together, because they share
+      the one instance. Recovery is restore-from-snapshot, so the exposure is bounded by the backup window, not
+      by a failover. Nothing in the codebase pretends otherwise.
+      **What re-opens it:** paying customers, or an availability commitment to anyone. At that point the change
+      is `multiAz: true` in `data-stack.ts` plus a failover test plan, and it is platform-wide (identity + food + recipe), not a per-feature change.
 
 ---
 

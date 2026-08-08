@@ -310,7 +310,11 @@ T-030 → T-089[P]
 
 > Covers FR-029..FR-031 — explicitly excluded per spec.md §Out of Scope. Task retained for dependency chain numbering only.
 
-- [ ] ~~**T-035**~~ [US-011] ~~MFA enrollment/management support endpoints~~ **[DEPRECATED — OUT OF SCOPE]** — `packages/services/identity/src/`
+- [x] ~~**T-035**~~ [US-011] ~~MFA enrollment/management support endpoints~~ **[CLOSED — OUT OF SCOPE, no work owed]** — `packages/services/identity/src/`
+    - **Closed 2026-08-08.** Ticked to mean _resolved_, not _implemented_: MFA is excluded by `spec.md`
+      §Out of Scope, and this entry exists only to keep the dependency-chain numbering contiguous. It was left
+      unchecked, which made feature 002 read as 56/57 complete and invited someone to "finish" a task that has
+      no deliverable.
     - **Depends on**: T-030
     - **Implements**: _(None — MFA is out of scope per spec.md §Out of Scope)_
     - > Do not implement. Retained for dependency chain numbering only.

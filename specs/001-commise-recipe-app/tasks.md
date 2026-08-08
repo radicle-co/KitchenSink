@@ -399,7 +399,15 @@ tracked by **T060**, not by this rubric.
 
 ### Deferred / Cross-Feature Decisions
 
-- [ ] T150 [DECISION — deferred; cross-feature 001 ↔ 003] **Recipe → food-DB write-back ("resulting food").** Decide whether a _finished_ recipe should be registered as a food entity in the source-agnostic food service (`kitchensink_food`, 003), so the composed dish can itself be referenced as an ingredient in another recipe and/or logged as a food. **Current design reads only**: ingredients reference the food service by opaque `food_id` via `@kitchensink/food-service-client`, and 001 computes a recipe-side nutrition summary — the finished dish is **never** written back to the food DB. Enabling this needs a new recipe → food-service **write** path plus (almost certainly) a **003 change** to accept a recipe-derived / composed food. Raise as a formal change-request spanning 001 + 003; **out of scope for 001 v1** unless approved. (Placed last intentionally — do not start before the v1 build lands.)
+- [x] T150 **[DECIDED — NO, owner ruling 2026-08-08; cross-feature 001 ↔ 003]** **Recipe → food-DB write-back ("resulting food") — WILL NOT BE BUILT.** The question was whether a _finished_ recipe should be registered as a food entity in the food service (`kitchensink_food`, 003) so a composed dish could be referenced as an ingredient in another recipe, or logged as a food.
+
+          **Ruling, in the owner's words:** _"no a finished recipe is not a food because there is more than one way to make something like a pizza."_ A recipe is a **method**, not a substance. Two cooks' pizzas share a name and nothing else — different doughs, different quantities, different yields — so registering "pizza" as a food entity would assert a nutritional identity that does not exist. Any downstream consumer resolving that entity would get one arbitrary cook's numbers presented as the dish's numbers.
+
+          **Naming context that makes this clearer (owner, same ruling):** the "food" service is _poorly named_ — it is really an **ingredient** service, and its data comes from the USDA. _"I'd preferred to have named it the ingredient service, but it's not worth the change right now."_ Read every `food_*` identifier as `ingredient_*`. Once you do, the answer stops looking like a trade-off: a finished recipe is not an ingredient, so it has no place in an ingredient catalogue sourced from the USDA. **Do not rename the service** — the cost is not worth paying today; this note exists so the name does not mislead the next reader into re-proposing this.
+
+          **Standing design, unchanged:** the relationship is one-directional and stays that way. Ingredients reference the ingredient/food service by opaque `food_id` via `@kitchensink/food-service-client`; 001 computes a recipe-side nutrition summary from those ingredients; the finished dish is **never** written back. The food DB keeps a single writer — the USDA/source pipeline.
+
+          **Consequences accepted:** a recipe cannot be used as an ingredient in another recipe (no "add my marinara to my lasagna"), and a cooked dish cannot be logged as a food for nutrition tracking. If either is ever wanted, it is a NEW feature with its own spec — modelling a user-authored composite distinct from a USDA ingredient — not a write-back into this catalogue.
 
 ---
 

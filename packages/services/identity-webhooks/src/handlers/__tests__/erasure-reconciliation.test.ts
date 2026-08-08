@@ -104,11 +104,11 @@ beforeEach(() => {
     vi.clearAllMocks();
     resetConfigCacheForTests();
     mockRunErasureFanout.mockResolvedValue(complete);
-    process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
-    process.env.AUTH_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
-    process.env.SERVICE_ERASURE_SIGNING_KEY = 'k';
-    process.env.RECIPE_SERVICE_BASE_URL = 'https://recipe.example.test';
-    process.env.FOOD_SERVICE_BASE_URL = 'https://food.example.test';
+    process.env['DB_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
+    process.env['AUTH_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
+    process.env['SERVICE_ERASURE_SIGNING_KEY'] = 'k';
+    process.env['RECIPE_SERVICE_BASE_URL'] = 'https://recipe.example.test';
+    process.env['FOOD_SERVICE_BASE_URL'] = 'https://food.example.test';
 });
 
 describe('erasure-reconciliation handler', () => {

@@ -309,6 +309,55 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                         message:
                             'Do not use .ts or .tsx extensions in import paths. Use .js or .jsx extensions instead.',
                     },
+                    {
+                        // CODING_STANDARDS: environment variables are read with BRACKET notation. The rule was
+                        // prose only, so it drifted — 47 dot-access sites had accumulated across tests, CDK
+                        // entry points and config modules with nothing to catch them.
+                        //
+                        // Worth enforcing rather than relaxing: under TypeScript's
+                        // `noPropertyAccessFromIndexSignature`, `process.env.FOO` is a type error while
+                        // `process.env['FOO']` is not, so bracket access is what keeps the index-signature
+                        // discipline honest — and it makes every environment read greppable as ONE shape,
+                        // which matters for a repo whose worst outages have all been misconfiguration.
+                        //
+                        // The one real exception (bundler inlining in a frontend `runtimeEnv` map) is granted
+                        // by PATH in the final config object below, not by an inline disable.
+                        selector:
+                            "MemberExpression[computed=false][object.type='MemberExpression'][object.object.name='process'][object.property.name='env']",
+                        message:
+                            "Read environment variables with bracket notation: process.env['KEY'], not process.env.KEY (CODING_STANDARDS). The sole exception is a bundler-inlined `runtimeEnv` map in a frontend src/config/env.ts, allowed by path in the shared ESLint config.",
+                    },
+                ],
+            },
+        },
+        {
+            /**
+             * The ONE exception to bracket-notation environment reads, granted by path so it stays visible and
+             * bounded instead of being disabled inline at each site.
+             *
+             * Next and Metro inline `NEXT_PUBLIC_*` / `EXPO_PUBLIC_*` at BUILD time by substituting a literal
+             * `process.env.X` member expression. A computed lookup (`process.env['X']`) is NOT substituted, so
+             * bracket notation in these `runtimeEnv` maps compiles to `undefined` in the browser — the variable
+             * silently vanishes from the shipped bundle. That is the very silent-misconfiguration class these
+             * modules exist to prevent, so here the convention yields to the bundler.
+             *
+             * Scoped to the config modules themselves. Everywhere else in the frontend packages — components,
+             * hooks, tests, scripts — the rule still applies, because nothing else is read through inlining.
+             *
+             * ⚠️ MUST remain the LAST object in this array. Flat config resolves later matching objects over
+             * earlier ones, so an exception placed above the object that defines the rule is silently
+             * overridden. That happened on the first attempt here, and an automated fix then rewrote these
+             * exact files and broke inlining — caught only by reading the diff.
+             */
+            files: ['**/src/config/env.ts'],
+            rules: {
+                'no-restricted-syntax': [
+                    'error',
+                    {
+                        selector: 'ImportDeclaration[source.value=/\\.tsx?$/]',
+                        message:
+                            'Do not use .ts or .tsx extensions in import paths. Use .js or .jsx extensions instead.',
+                    },
                 ],
             },
         },

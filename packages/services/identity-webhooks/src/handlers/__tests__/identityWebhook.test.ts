@@ -215,12 +215,12 @@ beforeEach(() => {
     mockRecordOnce.mockResolvedValue(undefined);
     mockSetExternalId.mockResolvedValue(undefined as never);
     mockProvisionCompleteUser.mockResolvedValue({ kind: 'complete', user: { id: 'usr_ulid' } } as never);
-    process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
-    process.env.DELETION_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue';
-    process.env.IDP_WEBHOOK_SECRET = 'whsec_test';
+    process.env['DB_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
+    process.env['DELETION_QUEUE_URL'] = 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue';
+    process.env['IDP_WEBHOOK_SECRET'] = 'whsec_test';
     // The real webhook Lambda's env always carries at least one Clerk backend secret (IDP_SECRET_KEY
     // via clerkBackendEnv, AUTH_SECRET_ARN via commonEnv) — the schema's either-or refine reflects that.
-    process.env.AUTH_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
+    process.env['AUTH_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
 });
 
 describe('identity-webhook handler', () => {
@@ -521,7 +521,7 @@ describe('identity-webhook handler', () => {
         // not `userId`, or every webhook-driven deletion silently no-ops once the worker consumes
         // the queue (U1 / A1 deletion-payload alignment).
         expect(SendMessageCommand).toHaveBeenCalledWith({
-            QueueUrl: process.env.DELETION_QUEUE_URL,
+            QueueUrl: process.env['DELETION_QUEUE_URL'],
             MessageBody: JSON.stringify({ identityId: 'user_abc123' }),
         });
     });
@@ -604,21 +604,21 @@ describe('identity-webhook handler', () => {
     it('missing IDP_WEBHOOK_SECRET -> fails fast on the typed config, not a 401', async () => {
         // S-I5: an env misconfig is a cold-start failure now, distinct from a genuine bad-signature
         // 401 — it must propagate (reject), not be swallowed into the signature-verification branch.
-        delete process.env.IDP_WEBHOOK_SECRET;
+        delete process.env['IDP_WEBHOOK_SECRET'];
 
         await expect(handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext())).rejects.toThrow();
         expect(mockVerifyWebhook).not.toHaveBeenCalled();
     });
 
     it('missing DELETION_QUEUE_URL -> fails fast on the typed config before verifying the signature', async () => {
-        delete process.env.DELETION_QUEUE_URL;
+        delete process.env['DELETION_QUEUE_URL'];
 
         await expect(handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext())).rejects.toThrow();
         expect(mockVerifyWebhook).not.toHaveBeenCalled();
     });
 
     it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN -> fails fast on the typed config', async () => {
-        delete process.env.AUTH_SECRET_ARN;
+        delete process.env['AUTH_SECRET_ARN'];
 
         await expect(handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext())).rejects.toThrow();
         expect(mockVerifyWebhook).not.toHaveBeenCalled();

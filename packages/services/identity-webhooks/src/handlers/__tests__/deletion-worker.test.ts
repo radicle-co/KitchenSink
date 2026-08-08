@@ -86,12 +86,12 @@ beforeEach(() => {
     mockGetDb.mockResolvedValue({} as never);
     mockEraseIdentityRow.mockResolvedValue(undefined);
     mockRunErasureFanout.mockResolvedValue(bothLegsOk);
-    process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
-    process.env.AUTH_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
+    process.env['DB_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
+    process.env['AUTH_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
     // Fan-out config (the fan-out itself is mocked, but getErasureFanoutConfig must resolve).
-    process.env.SERVICE_ERASURE_SIGNING_KEY = '-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----';
-    process.env.RECIPE_SERVICE_BASE_URL = 'https://recipe.example.test';
-    process.env.FOOD_SERVICE_BASE_URL = 'https://food.example.test';
+    process.env['SERVICE_ERASURE_SIGNING_KEY'] = '-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----';
+    process.env['RECIPE_SERVICE_BASE_URL'] = 'https://recipe.example.test';
+    process.env['FOOD_SERVICE_BASE_URL'] = 'https://food.example.test';
 });
 
 describe('deletion-worker handler', () => {
@@ -159,7 +159,7 @@ describe('deletion-worker handler', () => {
         });
 
         it('a missing fan-out env var fails LOUD (getErasureFanoutConfig throws → SQS retry)', async () => {
-            delete process.env.SERVICE_ERASURE_SIGNING_KEY;
+            delete process.env['SERVICE_ERASURE_SIGNING_KEY'];
             resetConfigCacheForTests();
 
             await expect(
@@ -207,14 +207,14 @@ describe('deletion-worker handler', () => {
 
     describe('config guards', () => {
         it('missing DB_SECRET_ARN → fails fast before touching the DB', async () => {
-            delete process.env.DB_SECRET_ARN;
+            delete process.env['DB_SECRET_ARN'];
 
             await expect(handler(makeSqsEvent({ identityId: 'user_abc' }), makeContext())).rejects.toThrow();
             expect(mockGetDb).not.toHaveBeenCalled();
         });
 
         it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN → fails fast on the typed config', async () => {
-            delete process.env.AUTH_SECRET_ARN;
+            delete process.env['AUTH_SECRET_ARN'];
 
             await expect(handler(makeSqsEvent({ identityId: 'user_abc' }), makeContext())).rejects.toThrow();
             expect(mockGetDb).not.toHaveBeenCalled();

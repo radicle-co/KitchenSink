@@ -39,10 +39,10 @@ const makeApiEvent = (body: string, headers: Record<string, string> = {}): APIGa
 beforeEach(() => {
     vi.clearAllMocks();
     resetConfigCacheForTests();
-    process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
-    process.env.AUTH_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
-    process.env.DELETION_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue';
-    process.env.IDP_WEBHOOK_SECRET = 'whsec_test';
+    process.env['DB_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
+    process.env['AUTH_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
+    process.env['DELETION_QUEUE_URL'] = 'https://sqs.us-east-1.amazonaws.com/123/deletion-queue';
+    process.env['IDP_WEBHOOK_SECRET'] = 'whsec_test';
 });
 
 describe('withDb', () => {
@@ -71,7 +71,7 @@ describe('withDb', () => {
     });
 
     it('propagates a config error coherently and never calls getDb or the inner handler', async () => {
-        delete process.env.DB_SECRET_ARN;
+        delete process.env['DB_SECRET_ARN'];
 
         const core = vi.fn();
         const wrapped = withDb(core);
@@ -130,7 +130,7 @@ describe('withVerifiedWebhook', () => {
     });
 
     it('fails fast on a webhook config error, before verifying the signature', async () => {
-        delete process.env.IDP_WEBHOOK_SECRET;
+        delete process.env['IDP_WEBHOOK_SECRET'];
 
         const core = vi.fn();
         const wrapped = withVerifiedWebhook(core);

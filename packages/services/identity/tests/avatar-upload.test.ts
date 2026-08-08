@@ -16,7 +16,7 @@ describe('AvatarUploadController', () => {
 
     beforeEach(() => {
         controller = new AvatarUploadController();
-        process.env.MEDIA_BUCKET_NAME = 'test-bucket';
+        process.env['MEDIA_BUCKET_NAME'] = 'test-bucket';
     });
 
     it('rejects unsupported MIME types', async () => {

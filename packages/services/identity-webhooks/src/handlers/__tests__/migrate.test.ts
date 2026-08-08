@@ -26,20 +26,20 @@ const mockGetJsonSecret = vi.mocked(getJsonSecret);
 beforeEach(() => {
     vi.clearAllMocks();
     resetConfigCacheForTests();
-    process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
-    process.env.AUTH_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
+    process.env['DB_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
+    process.env['AUTH_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
 });
 
 describe('migrate handler', () => {
     it('missing DB_SECRET_ARN -> fails fast on the typed config before reading any secret', async () => {
-        delete process.env.DB_SECRET_ARN;
+        delete process.env['DB_SECRET_ARN'];
 
         await expect(handler()).rejects.toThrow();
         expect(mockGetJsonSecret).not.toHaveBeenCalled();
     });
 
     it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN -> fails fast on the typed config', async () => {
-        delete process.env.AUTH_SECRET_ARN;
+        delete process.env['AUTH_SECRET_ARN'];
 
         await expect(handler()).rejects.toThrow();
         expect(mockGetJsonSecret).not.toHaveBeenCalled();

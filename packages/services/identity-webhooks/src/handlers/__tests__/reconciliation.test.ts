@@ -82,9 +82,9 @@ describe('reconciliation handler', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         resetConfigCacheForTests();
-        process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
-        process.env.IDP_SECRET_KEY = 'sk_test_abc';
-        process.env.STAGE = 'test';
+        process.env['DB_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
+        process.env['IDP_SECRET_KEY'] = 'sk_test_abc';
+        process.env['STAGE'] = 'test';
 
         mockGetDb.mockResolvedValue({} as never);
         mockProvisionCompleteUser.mockResolvedValue({ kind: 'complete', user: { id: 'ulid_x' } } as never);
@@ -153,14 +153,14 @@ describe('reconciliation handler', () => {
     });
 
     it('missing DB_SECRET_ARN → fails fast on the typed config before listing IdP users', async () => {
-        delete process.env.DB_SECRET_ARN;
+        delete process.env['DB_SECRET_ARN'];
 
         await expect(handler(makeEvent(), makeContext())).rejects.toThrow();
         expect(mockListIdpUsers).not.toHaveBeenCalled();
     });
 
     it('missing both IDP_SECRET_KEY and AUTH_SECRET_ARN → fails fast on the typed config', async () => {
-        delete process.env.IDP_SECRET_KEY;
+        delete process.env['IDP_SECRET_KEY'];
 
         await expect(handler(makeEvent(), makeContext())).rejects.toThrow();
         expect(mockListIdpUsers).not.toHaveBeenCalled();

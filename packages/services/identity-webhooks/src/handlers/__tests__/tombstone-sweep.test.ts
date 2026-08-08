@@ -81,10 +81,10 @@ function buildMockDb(expired: Array<{ id: string; identityId: string }>) {
 beforeEach(() => {
     vi.clearAllMocks();
     resetConfigCacheForTests();
-    process.env.DB_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
-    process.env.AUTH_SECRET_ARN = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
-    process.env.IDP_SECRET_KEY = 'sk_test_abc';
-    process.env.DELETION_QUEUE_URL = 'https://sqs.local/queue/deletion';
+    process.env['DB_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:db';
+    process.env['AUTH_SECRET_ARN'] = 'arn:aws:secretsmanager:us-east-1:123:secret:auth';
+    process.env['IDP_SECRET_KEY'] = 'sk_test_abc';
+    process.env['DELETION_QUEUE_URL'] = 'https://sqs.local/queue/deletion';
     mockDeleteUser.mockResolvedValue(undefined);
 });
 

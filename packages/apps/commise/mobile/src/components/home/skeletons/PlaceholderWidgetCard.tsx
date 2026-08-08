@@ -10,6 +10,21 @@
  * (`importantForAccessibility="no-hide-descendants"` on Android, `accessibilityElementsHidden` on iOS). The
  * badge is deliberately visible, not screen-reader-only: a sighted viewer staring at grey rectangles has no
  * other way to tell "coming soon" from "stuck loading". There is no pulse animation — nothing is in progress.
+ *
+ * ## The widget is announced as a UNIT (#140)
+ *
+ * The two exposed strings are ONE piece of information ("this named widget is coming"), so they are ONE
+ * accessibility element. Left ungrouped, a screen-reader user could land on a bare "Coming soon" with no way to
+ * tell which widget it belonged to. The web leaf gets this from a `<section aria-labelledby>` region; React
+ * Native has no region landmark, so the equivalent is `accessible` on the header row — RN merges its children's
+ * labels into one announcement ("Today's Nutrition, Coming soon"). The `header` role moves up to that same
+ * element rather than being dropped, because an `accessible` container's children stop being accessibility
+ * elements on iOS and heading navigation would otherwise be lost for every roadmap card.
+ *
+ * The label is deliberately NOT built here (no `` `${title}, ${comingSoonLabel}` ``): the platform composes it
+ * from the children, which keeps word order and punctuation with the localization layer instead of hard-coding
+ * an English-shaped sentence. An explicit `accessibilityLabel` would also SUPPRESS the badge, dropping half the
+ * information this module exists to expose.
  */
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
@@ -41,10 +56,8 @@ export function PlaceholderWidgetCard({ title, comingSoonLabel, children }: Plac
     // the rounded corners); the surface fill comes from the primitive, so it no longer sets its own colour.
     return (
         <GlassCard tier="card" style={styles.card}>
-            <View style={styles.header}>
-                <Text accessibilityRole="header" style={styles.title}>
-                    {title}
-                </Text>
+            <View accessible accessibilityRole="header" style={styles.header}>
+                <Text style={styles.title}>{title}</Text>
                 <Text style={styles.badge}>{comingSoonLabel}</Text>
             </View>
 

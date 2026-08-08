@@ -81,9 +81,18 @@ const CardCover: FC = () => {
     return (
         <View style={styles.cover}>
             {recipe.coverPhotoUrl !== undefined ? (
-                // `accessibilityLabel` only — RNW copies it to the underlying <img alt>, giving ONE named node.
+                // #140 — the cover is DECORATION and is hidden from assistive tech. It used to carry
+                // `accessibilityLabel={recipe.title}`, which is the same accessible name the containing
+                // `PressScale` pressable carries, so one card exposed two nodes answering to the recipe's name
+                // and a screen reader announced it twice. The model has no alternative text for the photo, and
+                // the title is already read from `CardTitle`, so there is nothing here for a reader to gain.
+                //
+                // The two PLATFORM props (not RN's `aria-hidden` alias) are deliberate: `aria-hidden` is
+                // translated by RN's own `View`, but `expo-image` spreads its rest props straight onto the
+                // native view, so only the props the native view understands actually take effect on device.
                 <Image
-                    accessibilityLabel={recipe.title}
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
                     source={{ uri: recipe.coverPhotoUrl }}
                     cachePolicy="memory-disk"
                     style={styles.coverImage}

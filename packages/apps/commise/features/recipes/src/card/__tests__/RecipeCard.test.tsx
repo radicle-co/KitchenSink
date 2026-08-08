@@ -39,16 +39,30 @@ describe('RecipeCard (web)', () => {
         expect(screen.getByLabelText('Serves 4')).toBeTruthy();
     });
 
-    it('renders the cover photo with the title as its alt text', () => {
-        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg' })} />);
+    // #140 — the cover carried `alt={recipe.title}`, the same accessible name as the `<article>`/`<button>`
+    // shell wrapping it, so one card offered two nodes with an identical name. The model has no alternative
+    // text for the photo, so the photo is decoration: `alt=""` (role `presentation`) is the HTML statement of
+    // that, and it takes the image out of the accessibility tree without hiding it visually.
+    it('renders the cover photo as DECORATIVE (empty alt), not as a second copy of the card’s name', () => {
+        const { container } = renderCard(
+            <RecipeCard
+                recipe={model({ title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg', ratingCount: 0 })}
+            />,
+        );
 
-        const img = screen.getByRole('img', { name: 'Herb Risotto' });
-        expect(img.getAttribute('src')).toBe('https://cdn/x.jpg');
+        const cover = container.querySelector('img[src="https://cdn/x.jpg"]');
+        expect(cover, 'the cover photo is still painted').not.toBeNull();
+        expect(cover?.getAttribute('alt')).toBe('');
+        // Not merely un-named: absent from the accessibility tree, so it is never announced or navigated to.
+        expect(screen.queryAllByRole('img')).toHaveLength(0);
+        expect(screen.queryByAltText('Herb Risotto')).toBeNull();
     });
 
     it('shows a labelled placeholder (no img) when the recipe has no photo', () => {
         renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto', coverPhotoUrl: undefined })} />);
 
+        // The ABSENCE of a photo is information a sighted viewer reads off the empty tile, so unlike the cover
+        // this placeholder keeps a name — its own copy, never the recipe's.
         expect(screen.queryByRole('img', { name: 'Herb Risotto' })).toBeNull();
         expect(screen.getByLabelText('No photo yet')).toBeTruthy();
     });

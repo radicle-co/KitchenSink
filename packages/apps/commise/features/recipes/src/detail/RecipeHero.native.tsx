@@ -80,7 +80,13 @@ export const RecipeHero: FC<RecipeHeroProps> = ({ title, coverPhotoUrl }) => {
         <View style={styles.coverFrame}>
             {/* FOLLOW-UP-CR-001-A applies here too: this is the full-size original, painted at hero size.
                 `accessibilityLabel` only (no `accessible`) — RNW copies it to the underlying <img alt>, giving
-                ONE named node, matching how the card's cover is labelled. */}
+                ONE named node.
+
+                This NO LONGER matches the card's cover, which #140 made decorative (it duplicated the name of
+                the pressable containing it). The hero is the same duplication class — the detail screen's <h1>
+                already carries the title — and is deliberately left as-is here because `recipeDetailHero.spec.ts`
+                identifies the hero BY this name to prove the image decoded (`naturalWidth > 0`). Making it
+                decorative is a follow-up that has to move that spec in the same change. */}
             <Image
                 accessibilityLabel={title}
                 source={{ uri: coverPhotoUrl }}

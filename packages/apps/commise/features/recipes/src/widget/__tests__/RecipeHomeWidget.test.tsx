@@ -33,13 +33,19 @@ describe('RecipeHomeWidget (web)', () => {
         ];
 
         // act flushes the promise resolution + Suspense retry so the content replaces the fallback.
+        let container: HTMLElement | undefined;
         await act(async () => {
-            render(<RecipeHomeWidget recipesPromise={Promise.resolve(recipes)} />);
+            container = render(<RecipeHomeWidget recipesPromise={Promise.resolve(recipes)} />).container;
         });
 
         expect(screen.getByText('Weeknight Pasta')).toBeTruthy();
         expect(screen.getByText('Chana Masala')).toBeTruthy();
-        expect(screen.queryByRole('presentation')).toBeNull(); // skeleton gone
+        // "Skeleton gone", asserted the same way the pending case asserts "skeleton present" (line above): by
+        // the skeleton's own EXPLICIT `role="presentation"` node. The previous `screen.queryByRole(
+        // 'presentation')` could not fail — the skeleton is `aria-hidden`, so a role query never saw it either
+        // way — and it did not distinguish the skeleton from any decorative element. It broke the moment the
+        // recipe cover became a decorative `alt=""` image (#140), which is an implicit presentation role.
+        expect(container?.querySelector('[role="presentation"]')).toBeNull();
     });
 
     it('caps the list at MAX_RECENT_RECIPES', async () => {

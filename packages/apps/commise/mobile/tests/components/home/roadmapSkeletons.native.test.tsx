@@ -6,9 +6,17 @@
  * NEVER fabricated data — so they assert the absence of every number/label the mockup renders from real data
  * (a hard-coded "1,240 of 2,000 cal" reads as real). They also pin platform parity: a native skeleton exists
  * for every shared roadmap id.
+ *
+ * ## One thing this harness CANNOT observe
+ *
+ * react-native-web drops RN's `accessible` prop entirely (as it drops `accessibilityElementsHidden` and
+ * `importantForAccessibility`), so the "these are ONE accessibility element" half of the grouping fix (#140) is
+ * not assertable here — what IS assertable, and is asserted, is that the `header` role sits on the element that
+ * contains BOTH strings rather than on the title alone. The merge itself is a device behaviour; it belongs to
+ * the Maestro/on-device tier.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, screen } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import type { FC } from 'react';
 
 import { ROADMAP_WIDGET_IDS, type RoadmapWidgetId } from '@commise/features-core';
@@ -53,6 +61,30 @@ describe.each(Object.entries(SKELETONS))('%s skeleton (mobile)', (_id, { Compone
         renderIn(<Component />);
 
         expect(screen.queryAllByRole('button')).toHaveLength(0);
+    });
+
+    // #140 — the card was two unrelated accessibility nodes: the heading, and a bare "Coming soon" that a
+    // screen-reader user could land on with nothing to attribute it to. Web already groups the pair inside a
+    // `<section aria-labelledby>` region; native has no region landmark, so the RN equivalent is to make the
+    // header row ONE accessibility element (`accessible`) that still carries the header role — so the widget is
+    // announced as a unit, in one swipe, and stays reachable through the heading rotor.
+    it('announces the title and "Coming soon" as ONE unit, so neither is stranded out of context', () => {
+        renderIn(<Component />);
+
+        const heading = screen.getByRole('heading');
+
+        expect(within(heading).getByText(title)).toBeTruthy();
+        expect(within(heading).getByText('Coming soon')).toBeTruthy();
+    });
+
+    it('leaves the heading unit out of the grey shapes (the shapes carry no information)', () => {
+        const { container } = renderWithProviders(<Component />);
+
+        // The shapes live in their own hidden subtree; the announced unit must not have swallowed them, or the
+        // one swipe would read a wall of empty placeholders.
+        const heading = screen.getByRole('heading');
+        expect(container.contains(heading)).toBe(true);
+        expect(heading.querySelector('[aria-hidden="true"]')).toBeNull();
     });
 
     it('presents the placeholder on a frosted-glass card (U8 shared GlassCard surface)', () => {

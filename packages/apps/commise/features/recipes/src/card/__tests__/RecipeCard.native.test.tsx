@@ -31,15 +31,45 @@ describe('RecipeCard (native)', () => {
         expect(screen.getByLabelText('Serves 4')).toBeTruthy();
     });
 
-    it('renders the cover image named by the title', () => {
-        renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg' })} />);
+    // #140 — the cover photo used to carry `accessibilityLabel={recipe.title}`, the SAME accessible name as the
+    // pressable that contains it. A screen reader then announced the recipe twice for one card: once for the
+    // control the viewer can activate, once for its own decorative photo. A cover with no alternative text of
+    // its own (the model carries none) is decoration, so it belongs OUT of the accessibility tree entirely.
+    it('keeps the cover photo out of the accessibility tree — it is decoration, not a second name', () => {
+        const { container } = renderCard(
+            <RecipeCard
+                recipe={model({ title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg', ratingCount: 0 })}
+            />,
+        );
 
-        expect(screen.getByRole('img', { name: 'Herb Risotto' })).toBeTruthy();
+        // No image node at all: the cover is the only image this card draws once the rating row is unrated.
+        expect(screen.queryAllByRole('img')).toHaveLength(0);
+        expect(screen.queryByRole('img', { name: 'Herb Risotto' })).toBeNull();
+        // Still PAINTED — hidden from assistive tech, not removed from the card.
+        const cover = container.querySelector('img[src="https://cdn/x.jpg"]');
+        expect(cover).not.toBeNull();
+        expect(cover?.closest('[aria-hidden="true"]'), 'cover is not inside a hidden subtree').not.toBeNull();
+    });
+
+    it('names the actionable card exactly ONCE (the pressable), never twice', () => {
+        renderCard(
+            <RecipeCard
+                recipe={model({ title: 'Herb Risotto', coverPhotoUrl: 'https://cdn/x.jpg', ratingCount: 0 })}
+                onSelect={() => undefined}
+            />,
+        );
+
+        // Every node in the tree answering to the recipe's name, by any naming mechanism.
+        expect(screen.getAllByRole('button', { name: 'Herb Risotto' })).toHaveLength(1);
+        expect(screen.queryAllByLabelText('Herb Risotto')).toHaveLength(1);
+        expect(screen.queryByAltText('Herb Risotto')).toBeNull();
     });
 
     it('shows a labelled placeholder (no cover image) when the recipe has no photo', () => {
         renderCard(<RecipeCard recipe={model({ title: 'Herb Risotto', coverPhotoUrl: undefined })} />);
 
+        // The ABSENCE of a photo is information a sighted viewer gets from the empty tile, so unlike the cover
+        // this placeholder stays named — with its own copy, never the recipe's name.
         expect(screen.queryByRole('img', { name: 'Herb Risotto' })).toBeNull();
         expect(screen.getByRole('img', { name: 'No photo yet' })).toBeTruthy();
     });

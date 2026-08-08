@@ -127,7 +127,13 @@ const CardCover: FC = () => {
         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-2xl bg-pearl">
             {recipe.coverPhotoUrl !== undefined ? (
                 // FOLLOW-UP-CR-001-A: full-size original into a thumbnail-sized tile (no derived variants).
-                <img src={recipe.coverPhotoUrl} alt={recipe.title} className="h-full w-full object-cover" />
+                //
+                // #140 — `alt=""` marks the cover DECORATIVE, removing it from the accessibility tree. It used
+                // to be `alt={recipe.title}`: the same accessible name as the `<article>` (and, on the
+                // actionable card, the `<button>`) wrapping it, so one card exposed the recipe's name on two
+                // nodes and a screen reader announced it twice. The model carries no alternative text for the
+                // photo and `CardTitle` already renders the title, so an empty alt loses nothing.
+                <img src={recipe.coverPhotoUrl} alt="" className="h-full w-full object-cover" />
             ) : (
                 <div
                     role="img"

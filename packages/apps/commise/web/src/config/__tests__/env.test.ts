@@ -57,6 +57,9 @@ describe('web endpoint configuration', () => {
         const { env } = await loadEnv({
             [RECIPE]: 'https://recipe-pr-73.commise.app',
             [IDENTITY]: 'https://identity.sandbox.commise.app',
+            // Required since the 2026-08-07 outage, and must be stage-COHERENT with the endpoints above:
+            // these are sandbox/per-PR hosts, so a development instance is the correct pairing.
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: 'pk_test_bmljZS1mb3dsLTYuY2xlcmsuYWNjb3VudHMuZGV2JA',
         });
 
         expect(env[RECIPE]).toBe('https://recipe-pr-73.commise.app');
@@ -89,9 +92,15 @@ describe('web endpoint configuration', () => {
     it('never yields a localhost endpoint unless the environment explicitly asked for one', async () => {
         // Guards the specific failure mode: the value must be traceable to the environment, so a reader
         // can always answer "where did this URL come from?" with "whoever built it set it".
+        // Hosts are sandbox ones rather than example.com because `env.ts` now also asserts stage
+        // COHERENCE between the Clerk instance and the endpoints, and an unclassifiable host is a
+        // deliberate hard failure there — an unrecognised host is exactly where the next variant of the
+        // 2026-08-07 mismatch would hide. The point of THIS test is unchanged: the value must be
+        // traceable to the environment, never defaulted to localhost.
         const { env } = await loadEnv({
-            [RECIPE]: 'https://recipe.example.com',
-            [IDENTITY]: 'https://identity.example.com',
+            [RECIPE]: 'https://recipe-pr-99.commise.app',
+            [IDENTITY]: 'https://identity.sandbox.commise.app',
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: 'pk_test_bmljZS1mb3dsLTYuY2xlcmsuYWNjb3VudHMuZGV2JA',
         });
 
         expect(env[RECIPE]).not.toMatch(/localhost/);

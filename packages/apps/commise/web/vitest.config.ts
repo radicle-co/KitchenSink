@@ -40,6 +40,10 @@ export default defineConfig({
         env: {
             NEXT_PUBLIC_RECIPE_API_URL: 'http://localhost:3000',
             NEXT_PUBLIC_IDENTITY_API_URL: 'http://localhost:4000',
+            // A Clerk DEVELOPMENT key, coherent with the localhost endpoints above: src/config/env.ts asserts
+            // the instance and endpoints belong to the same stage, so a pk_live here would (correctly) fail.
+            // Decodes to `localhost$`.
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: 'pk_test_bG9jYWxob3N0JA',
         },
     },
     resolve: {

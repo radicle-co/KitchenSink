@@ -767,6 +767,13 @@ jobs:
               env:
                   NEXT_PUBLIC_RECIPE_API_URL: http://localhost:3000
                   NEXT_PUBLIC_IDENTITY_API_URL: http://localhost:4000
+                  # `src/config/env.ts` now REQUIRES the Clerk publishable key and asserts it belongs to the
+                  # same stage as the endpoints above (the 2026-08-07 outage: a sandbox key against production
+                  # endpoints). These endpoints are localhost placeholders and this build is never deployed, so
+                  # a development-instance placeholder is the coherent value. Deliberately NOT the real key via
+                  # load-secrets: that would make this job depend on secrets, and GitHub withholds them from
+                  # Dependabot-triggered runs, which would red every dependency PR. Decodes to `localhost$`.
+                  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_bG9jYWxob3N0JA
 
     e2e-backend:
         # Static name (not a matrix) so a skipped run still shows a clean title instead of a raw

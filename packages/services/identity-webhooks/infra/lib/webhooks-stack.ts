@@ -534,7 +534,29 @@ export class WebhooksStack extends Stack {
             deployOptions: {
                 stageName: 'v1',
                 accessLogDestination: new apigw.LogGroupLogDestination(apiLogGroup),
-                accessLogFormat: apigw.AccessLogFormat.jsonWithStandardFields(),
+                // `jsonWithStandardFields()` emits `$context.resourcePath`, which is `/webhooks/users` for
+                // BOTH base-path mappings — so a real delivery cannot be attributed to the canonical
+                // `api/v1` path or the deprecated `v1` alias. Three genuine Clerk deliveries were observed
+                // in production and were indistinguishable on exactly this point, which is what blocks
+                // retiring the alias (ADR-0011): you cannot prove Clerk has stopped using it. `$context.path`
+                // is the full incoming path and resolves that; `$context.domainName` additionally separates
+                // the custom domain from the raw execute-api host. Asserted by webhooks-stack.test.ts.
+                accessLogFormat: apigw.AccessLogFormat.custom(
+                    JSON.stringify({
+                        requestId: '$context.requestId',
+                        ip: '$context.identity.sourceIp',
+                        user: '$context.identity.user',
+                        caller: '$context.identity.caller',
+                        requestTime: '$context.requestTime',
+                        httpMethod: '$context.httpMethod',
+                        domainName: '$context.domainName',
+                        path: '$context.path',
+                        resourcePath: '$context.resourcePath',
+                        status: '$context.status',
+                        protocol: '$context.protocol',
+                        responseLength: '$context.responseLength',
+                    }),
+                ),
                 loggingLevel: apigw.MethodLoggingLevel.ERROR,
                 throttlingBurstLimit: 100,
                 throttlingRateLimit: 50,

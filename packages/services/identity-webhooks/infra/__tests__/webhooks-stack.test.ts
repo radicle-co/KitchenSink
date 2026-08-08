@@ -8,15 +8,33 @@ import { describe, it, expect, beforeAll } from 'vitest';
 
 import { WebhooksStack } from '../lib/webhooks-stack.js';
 
-// The Lambda code is bundled to dist/ by `npm run build`. Skip cleanly (don't fail) when it hasn't
-// been built — `lambda.Code.fromAsset` would otherwise throw on a missing asset dir. In CI the build
-// runs before tests, so this suite executes there.
+// The Lambda code is bundled to dist/ by `npm run build`, which `lambda.Code.fromAsset` needs.
+//
+// This used to be `describe.skipIf(!distBuilt)` with a comment claiming "in CI the build runs before
+// tests, so this suite executes there". That was FALSE, and it meant all 14 assertions below silently
+// skipped on every CI run: the `test` job is checkout → setup-node → restore-cache → `turbo run test`,
+// with no build step, and turbo's repo-level `test.dependsOn: ["^build"]` builds DEPENDENCIES, not the
+// package itself. A green tick therefore proved nothing about this stack. Worse, the guard was
+// satisfied by ANY file under dist/ — a stray `.tsbuildinfo` was enough to flip it true.
+//
+// Fixed at the dependency graph instead of here: this package now carries its own `turbo.json` with
+// `test.dependsOn: ["build"]`, so dist is guaranteed present and cache-tracked. A missing dist is now
+// a LOUD failure (fromAsset throws) rather than a silent skip — which is the correct direction for a
+// suite whose whole job is to assert what production synthesizes.
 const here = path.dirname(fileURLToPath(import.meta.url));
-const distBuilt = existsSync(path.join(here, '../../dist'));
+const distPath = path.join(here, '../../dist');
 
 const env = { account: '123456789012', region: 'us-east-1' };
 
-describe.skipIf(!distBuilt)('WebhooksStack (authoritative, consumes the consolidated global exports)', () => {
+describe('WebhooksStack (authoritative, consumes the consolidated global exports)', () => {
+    it('has its Lambda bundle built — the precondition this suite used to skip on', () => {
+        expect(
+            existsSync(distPath),
+            `dist/ is missing at ${distPath}. Run \`npm run build --workspace=@kitchensink/identity-webhooks\`. ` +
+                'This assertion replaces a describe.skipIf that hid all 14 tests below on every CI run.',
+        ).toBe(true);
+    });
+
     let template: Template;
 
     beforeAll(() => {
@@ -68,6 +86,26 @@ describe.skipIf(!distBuilt)('WebhooksStack (authoritative, consumes the consolid
         });
 
         template = Template.fromStack(stack);
+    });
+
+    // ADR-0011 cannot be discharged without this. The webhook is reachable on TWO base-path mappings —
+    // canonical `api/v1` and the deprecated `v1` alias — and the alias may only be deleted once we can
+    // prove Clerk is no longer using it. The access log recorded `$context.resourcePath`, which is
+    // `/webhooks/users` for BOTH mappings, so three real deliveries observed in production were
+    // indistinguishable as to which path they arrived on. `$context.path` is the full incoming path and
+    // is what makes them distinguishable; `$context.domainName` also separates the prod custom domain
+    // from the raw execute-api host.
+    it('access log records the FULL request path, not just the shared resource path (ADR-0011)', () => {
+        const stages = template.findResources('AWS::ApiGateway::Stage');
+        const formats = Object.values(stages).map(
+            (s) => (s.Properties as { AccessLogSetting?: { Format?: string } }).AccessLogSetting?.Format ?? '',
+        );
+
+        expect(formats.length).toBeGreaterThan(0);
+        for (const format of formats) {
+            expect(format, 'access log format must include $context.path').toContain('$context.path');
+            expect(format, 'access log format must include $context.domainName').toContain('$context.domainName');
+        }
     });
 
     it('wires the Clerk webhook Lambda (POST handler) and an API Gateway in front of it', () => {

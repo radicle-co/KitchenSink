@@ -726,6 +726,7 @@ export class FoodServiceStack extends Stack {
         // IAM — CloudWatch auto-extracts from the worker log group). The API 5xx alarm uses the
         // TARGET-group 5xx (per ADR-0003 §Decision-5; the shared ALB's own 5xx is now multi-tenant).
         const alarmTopic = new sns.Topic(this, 'FoodAlarmTopic', {
+            enforceSSL: true,
             displayName: `Food service alarms (${stage})`,
         });
         const alarmAction = new cloudwatch_actions.SnsAction(alarmTopic);

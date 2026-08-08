@@ -204,6 +204,7 @@ export class RecipeWorkersStack extends Stack {
         // visibilityTimeout must exceed the worker's timeout, or SQS redelivers a message the worker is
         // still processing and two invocations race the same archive.
         this.archiveDlq = new sqs.Queue(this, 'VersionArchiveDlq', {
+            enforceSSL: true,
             queueName: `kitchensink-recipe-archive-dlq-${props.stage}`,
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(14),
@@ -211,6 +212,7 @@ export class RecipeWorkersStack extends Stack {
         });
 
         this.archiveQueue = new sqs.Queue(this, 'VersionArchiveQueue', {
+            enforceSSL: true,
             queueName: `kitchensink-recipe-archive-${props.stage}`,
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(4),
@@ -224,6 +226,7 @@ export class RecipeWorkersStack extends Stack {
         // would find no job row for that owner and — because the worker erases unconditionally — delete
         // that owner's rows out of the WRONG database while the real sandbox job stayed queued.
         this.erasureDlq = new sqs.Queue(this, 'AccountErasureDlq', {
+            enforceSSL: true,
             queueName: `kitchensink-recipe-account-erasure-dlq-${props.stage}`,
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             // 14 days, as with the archive DLQ: a message here is a right-to-erasure request that failed
@@ -233,6 +236,7 @@ export class RecipeWorkersStack extends Stack {
         });
 
         this.erasureQueue = new sqs.Queue(this, 'AccountErasureQueue', {
+            enforceSSL: true,
             queueName: `kitchensink-recipe-account-erasure-${props.stage}`,
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(4),
@@ -466,12 +470,14 @@ export class RecipeWorkersStack extends Stack {
         // prod/sandbox-baseline are global). Subscription is NOT raw-delivery — the worker unwraps the SNS
         // envelope. SQS-managed SSE bounds the display-name PII at rest (the topic is a transient pass-through).
         this.handleSyncDlq = new sqs.Queue(this, 'HandleSyncDlq', {
+            enforceSSL: true,
             queueName: `kitchensink-recipe-handle-sync-dlq-${props.stage}`,
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(14),
             visibilityTimeout: Duration.seconds(60),
         });
         this.handleSyncQueue = new sqs.Queue(this, 'HandleSyncQueue', {
+            enforceSSL: true,
             queueName: `kitchensink-recipe-handle-sync-${props.stage}`,
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(4),
@@ -590,6 +596,7 @@ export class RecipeWorkersStack extends Stack {
         // name from the `kitchensink-recipe-workers-{stage}` stack, so a pr-{N} deploy's topic still
         // carries the pr-{N} stack name and is caught by the ADR-0005 tag/name cleanup.
         const alarmTopic = new sns.Topic(this, 'RecipeWorkersAlarmTopic', {
+            enforceSSL: true,
             displayName: `Recipe workers alarms (${props.stage})`,
         });
         const alarmAction = new cloudwatch_actions.SnsAction(alarmTopic);

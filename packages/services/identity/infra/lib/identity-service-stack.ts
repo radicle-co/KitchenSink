@@ -371,6 +371,7 @@ export class IdentityServiceStack extends Stack {
         // A4: alarms previously had no action wired, so they fired silently. Route all of them to an
         // SNS topic so they actually notify (subscriptions managed out-of-band per stage).
         const alarmTopic = new sns.Topic(this, 'IdentityAlarmTopic', {
+            enforceSSL: true,
             displayName: `Identity service alarms (${stage})`,
         });
         const alarmAction = new cloudwatch_actions.SnsAction(alarmTopic);

@@ -274,12 +274,14 @@ export class DataStack extends Stack {
         recipeBootstrap.node.addDependency(this.database);
 
         this.deletionDlq = new sqs.Queue(this, 'DeletionDlq', {
+            enforceSSL: true,
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(14),
             visibilityTimeout: Duration.minutes(2),
         });
 
         this.deletionQueue = new sqs.Queue(this, 'DeletionQueue', {
+            enforceSSL: true,
             encryption: sqs.QueueEncryption.SQS_MANAGED,
             retentionPeriod: Duration.days(4),
             visibilityTimeout: Duration.minutes(2),
@@ -293,6 +295,7 @@ export class DataStack extends Stack {
         // topic; the PII (a display name) is bounded by each subscriber SQS queue's retention + SSE. Named
         // per-stage but tagged Environment=global (prod/sandbox baseline only, never pr-{N}).
         this.handleSyncTopic = new sns.Topic(this, 'HandleSyncTopic', {
+            enforceSSL: true,
             topicName: `kitchensink-handle-sync-${stageTag}`,
             displayName: 'Recipe author/editor handle sync',
         });

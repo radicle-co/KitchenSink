@@ -102,6 +102,25 @@ export class CostGuardrailsStack extends Stack {
                 // Same confused-deputy guard for the cost-anomaly-detection service principal.
                 conditions: { StringEquals: { 'aws:SourceAccount': this.account } },
             }),
+            // AwsSolutions-SNS3: deny non-TLS publishing.
+            //
+            // ⛔ It goes in THIS document rather than via `new sns.Topic({ enforceSSL: true })`, and that is
+            // load-bearing. `enforceSSL` makes CDK lazily create its own `Topic/Policy` construct; CDK knows
+            // nothing about the hand-built `CostAlertTopicPolicy` above, so setting it would emit a SECOND
+            // `AWS::SNS::TopicPolicy` for the same topic. That resource maps onto
+            // `SetTopicAttributes(Policy=...)`, which REPLACES the whole document — so two of them is
+            // last-writer-wins, and a deploy could silently drop the two grants above. The only symptom
+            // would be cost alerts that never arrive, i.e. the alerting this stack exists to provide
+            // (ADR-0008) failing silently. `transport-security.test.ts` pins both halves: exactly one
+            // TopicPolicy here, and the grants still present.
+            new iam.PolicyStatement({
+                sid: 'DenyInsecureTransport',
+                effect: iam.Effect.DENY,
+                principals: [new iam.AnyPrincipal()],
+                actions: ['sns:Publish'],
+                resources: [this.alertTopic.topicArn],
+                conditions: { Bool: { 'aws:SecureTransport': 'false' } },
+            }),
         );
 
         // ── Monthly cost budget ($300) ───────────────────────────────────────────────────────────

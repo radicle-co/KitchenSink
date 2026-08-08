@@ -410,6 +410,15 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            # `print-food-host.ts` imports the food stack module, which imports `@kitchensink/infra-security`
+            # (the cdk-nag suppression register). That package exports `./dist` — deliberately, because the
+            # COMPILED CDK apps are run by plain `node`, and Node's type-stripping resolves a `.js` specifier
+            # inside a `.ts` file literally rather than through `extensionAlias`, so a `./src` export breaks
+            # them. Exporting dist means it must be BUILT before anything imports it, and the food build below
+            # is both later than this step and gated on the deploy decision. Same class as the
+            # build-the-dependency-graph-before-the-compiled-CDK fix; this is the step that was missed.
+            - name: Build the infra-security package this resolver imports
+              run: npx turbo run build --filter=@kitchensink/infra-security
             - name: Resolve this stage's food origin
               id: host
               run: |
@@ -671,6 +680,15 @@ jobs:
             # re-typing `food-pr-{N}.${DOMAIN_NAME}` here: the dash form is a TLS constraint (a 3-label
             # `food.pr-7...` matches no wildcard on the shared ALB cert — ADR-0003/0006), and a second copy of
             # that rule in YAML is exactly the kind of thing that drifts silently. One definition, imported.
+            # `print-food-host.ts` imports the food stack module, which imports `@kitchensink/infra-security`
+            # (the cdk-nag suppression register). That package exports `./dist` — deliberately, because the
+            # COMPILED CDK apps are run by plain `node`, and Node's type-stripping resolves a `.js` specifier
+            # inside a `.ts` file literally rather than through `extensionAlias`, so a `./src` export breaks
+            # them. Exporting dist means it must be BUILT before anything imports it, and the food build below
+            # is both later than this step and gated on the deploy decision. Same class as the
+            # build-the-dependency-graph-before-the-compiled-CDK fix; this is the step that was missed.
+            - name: Build the infra-security package this resolver imports
+              run: npx turbo run build --filter=@kitchensink/infra-security
             - name: Resolve the food service origin for this stage
               id: food
               run: |

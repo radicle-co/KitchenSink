@@ -87,6 +87,11 @@
         },
         {
             "package": "@kitchensink/identity-service",
+            "dependency": "k6",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/identity-service",
             "dependency": "postgres",
             "rule": "undeclared-dependency"
         },

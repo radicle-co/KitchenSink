@@ -95,6 +95,92 @@ jobs:
                   chmod +x .github/scripts/teardown-sandbox-pr.sh
                   .github/scripts/teardown-sandbox-pr.sh "$PR" "$REGION"
 
+    # ── Preview address: give this PR's web preview its public hostname (ADR-0001, issue #94) ──
+    #
+    # ⚠️  DELIBERATE — the exact MIRROR of the `cleanup` job above, and it must stay that way.
+    #
+    # A preview is reachable only when THREE records outside CloudFormation agree: a Vercel
+    # project-domain binding claiming `pr-{N}.sandbox.<domain>`, a Route 53 `CNAME → cname.vercel-dns.com`,
+    # and a per-deployment ALIAS. Teardown has reclaimed all of that since 2026-07-28 while creation stayed
+    # HAND-MADE, so teardown was ahead of setup: it would correctly reclaim an address a human had to
+    # remember to create. ADR-0001 records the cost — PR #73's alias stayed pinned to one deployment, so
+    # every later push to that branch kept serving a stale build. This job re-runs on every PR event, which
+    # is what keeps the alias on the CURRENT deployment.
+    #
+    # Three things are load-bearing and must not be "simplified" (all three are in
+    # `packages/apps/commise/web/scripts/createPreviewDomain.ts`, with the reasoning and the tests):
+    #   • the Vercel claim happens BEFORE the Route 53 write — DNS resolving to Vercel for a name nobody
+    #     claims is a subdomain-takeover window, so an interrupted run may only leave the safe half-state;
+    #   • the ALIAS happens LAST and is retried — Vercel refuses it with `400 cert_missing` until a cert
+    #     exists, and refuses the cert until the name already resolves to Vercel (`449`), both measured;
+    #   • the DNS scope is exact first-label equality, so the apex, the `*.sandbox` wildcard and the shared
+    #     `identity.sandbox.<domain>` host can never be written.
+    # Do NOT swap it for a Vercel *branch domain* (`gitBranch`): ADR-0001 measured that this re-enables
+    # deployment protection (302 → vercel.com/sso-api), and clearing it falls back to PRODUCTION.
+    #
+    # It deliberately has NO `needs:` and nothing depends on it: a skipped job skips its dependents
+    # (ADR-0010), and the web preview's address must not be able to gate — or be gated by — the food and
+    # recipe deploys. Same-repo PRs only; a fork PR has no secrets and must never run with these creds.
+    preview-domain:
+        name: Publish sandbox preview address
+        runs-on: ubuntu-latest
+        if: |
+            github.event_name == 'pull_request' && github.event.action != 'closed' &&
+            github.event.pull_request.head.repo.full_name == github.repository
+        env:
+            PR: pr-${{ github.event.pull_request.number }}
+            REGION: ${{ vars.DEFAULT_AWS_REGION }}
+        steps:
+            - uses: actions/checkout@v6
+            # The creation step runs `npx tsx …/createPreviewDomain.ts`.
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - run: npm ci
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            # Resolved from the CloudFormation export rather than a repo variable, exactly as `cleanup`
+            # does — one source of truth for the zone both halves of the lifecycle write to.
+            - name: Resolve the sandbox hosted zone
+              id: zone
+              run: |
+                  set -euo pipefail
+                  ZONE=$(aws cloudformation list-exports --region "$REGION" \
+                    --query "Exports[?Name=='kitchensink-domain-sandbox:HostedZoneId'].Value | [0]" --output text)
+                  if [ -z "$ZONE" ] || [ "$ZONE" = "None" ]; then
+                    echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — the preview DNS record cannot be created"
+                    exit 1
+                  fi
+                  echo "hosted_zone_id=$ZONE" >> "$GITHUB_OUTPUT"
+            # The deployment the hostname must serve. Same action + inputs as `sandbox-web-preview.yml`
+            # uses for the KVS route, so there is one way to resolve "this PR's preview deployment".
+            - name: Wait for this PR's Vercel preview deployment
+              id: preview
+              uses: zentered/vercel-preview-url@v1.4.0
+              env:
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+              with:
+                  vercel_team_id: ${{ vars.VERCEL_TEAM_ID }}
+                  vercel_project_id: ${{ vars.VERCEL_PROJECT_ID }}
+            # Same env contract as the teardown step above, plus the deployment to alias. Every value is
+            # passed through `env:` (never interpolated into the shell) so an untrusted output cannot be
+            # injected into the command line, and the script prints only the host and the outcomes.
+            - name: Create ${{ env.PR }}'s preview address and alias it to that deployment
+              env:
+                  PR_TOKEN: ${{ env.PR }}
+                  PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
+                  PREVIEW_HOSTED_ZONE_ID: ${{ steps.zone.outputs.hosted_zone_id }}
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+                  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+                  VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+                  VERCEL_DEPLOYMENT: ${{ steps.preview.outputs.preview_url }}
+              run: npx tsx packages/apps/commise/web/scripts/createPreviewDomain.ts
+
     # ── Reaper: daily sweep of pr-{N} previews the on-close cleanup missed (ADR-0005) ──
     # Reaps resources whose PR is CLOSED (a close-cleanup that failed/hung) or long-abandoned (OPEN but
     # no activity in STALE_DAYS). Uses the SAME teardown script → scoped to pr-{N}; the shared

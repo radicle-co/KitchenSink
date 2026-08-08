@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RecipeSourceTab } from '@commise/features-recipes/source-tabs/mobile';
 import { useMessages } from '@commise/i18n/react';
-import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
 
 import { mobileMessages } from '../i18n/messages.js';
@@ -265,7 +264,9 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    container: { flex: 1, backgroundColor: 'transparent' },
     tabBar: {
         flexDirection: 'row',
         gap: nativeTokens.spacing[2],

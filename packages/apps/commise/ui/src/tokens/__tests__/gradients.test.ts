@@ -280,3 +280,39 @@ describe('toWebGlass (CSS surface projection)', () => {
         expect(JSON.stringify(spec)).toBe(before);
     });
 });
+
+/**
+ * The page-canvas ramp (`gradient.hero`) must stay a real, correctly-oriented gradient.
+ *
+ * `hero` IS the wireframes' own `--gradient-beach-glow` — the wash all nine screens paint on their page — and
+ * both platforms derive their canvas from it (web's `body` rule via `--background-image-hero`, native's
+ * `AppCanvas` via `toNativeGradient`). These are the invariants that keep it from silently degenerating back
+ * into the flat fill the apps used to paint (issue #145).
+ *
+ * VALUE parity against the archive is asserted where the repo already owns mockup parity and has Node's
+ * filesystem available: `@commise/web`'s `tests/mockupContrast.test.ts` compares this token to the
+ * `--gradient-beach-glow` declaration in every one of the nine screens. It cannot live here — this package
+ * deliberately ships no `@types/node`, so a token module's tests cannot read files.
+ */
+describe('gradient specs — the canvas ramp cannot collapse to a flat fill', () => {
+    it('is a real multi-stop ramp, not a flat fill dressed up as a gradient', () => {
+        const distinct = new Set(gradient.hero.stops.map((stop) => stop.color.toLowerCase()));
+
+        expect(gradient.hero.stops.length).toBeGreaterThanOrEqual(3);
+        // A "gradient" whose stops are all one colour renders identically to `background-color` — the exact
+        // regression this whole surface exists to prevent.
+        expect(distinct.size).toBe(gradient.hero.stops.length);
+        expect(gradient.hero.stops[0].position).toBe(0);
+        expect(gradient.hero.stops[gradient.hero.stops.length - 1]?.position).toBe(100);
+    });
+
+    it('runs top-left → bottom-right on BOTH platforms (the wireframes’ 135° diagonal)', () => {
+        const native = toNativeGradient(gradient.hero);
+
+        expect(gradient.hero.angle).toBe(135);
+        // The native projection must agree with the CSS angle, or the two platforms' washes mirror each other.
+        expect(native.start.x).toBeLessThan(native.end.x);
+        expect(native.start.y).toBeLessThan(native.end.y);
+        expect(native.colors).toEqual(gradient.hero.stops.map((stop) => stop.color));
+    });
+});

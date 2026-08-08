@@ -34,7 +34,7 @@
  * family must be checked against Tailwind's namespace list first, and covered by the compiled-output test.
  */
 import { palette, semantic } from './colors.js';
-import { glass } from './gradients.js';
+import { glass, gradient, gradientCss } from './gradients.js';
 import { radius } from './radius.js';
 import { shadows } from './shadows.js';
 import { fonts, fontSizes, fontWeights, lineHeights } from './typography.js';
@@ -69,6 +69,30 @@ function glassEdgeDeclarations(): readonly string[] {
 }
 
 /**
+ * The app-wide CANVAS gradient, as `--background-image-hero`.
+ *
+ * `gradient.hero` is the wireframes' own `--gradient-beach-glow` — the wash all nine screens paint on `body`.
+ * It is emitted here for the same reason as the glass edge, and no other: the web canvas can only be painted
+ * from STYLESHEET position. `<body>`'s background is not a React element's inline style, so `globals.css`
+ * needs a custom property to reference; native takes the identical spec through `GradientSurface` /
+ * `toNativeGradient`, so neither platform re-spells the ramp.
+ *
+ * **`--background-image-*` is Tailwind v4's namespace for `bg-*` image utilities — verified by compiling it,
+ * not inferred from the variable's name.** That distinction is the whole lesson of this module's header: a
+ * prefix that merely reads well (`--gradient-*`) is not a namespace, so it emits a `:root` property that
+ * generates NO utility — the `--font-size-*` failure that left 324 type-ramp call sites with no CSS. Adding a
+ * NAMED key to a live namespace is also categorically different from the `--spacing-*` hijack: it introduces
+ * `bg-hero` and redefines nothing Tailwind ships.
+ *
+ * Only the canvas ramp is emitted. `brand` already reaches the web as the Button's `from-seafoam
+ * to-ocean-dark` utilities and `scrim` as the recipe-detail cover's own, so emitting those would create a
+ * second web representation of one piece of knowledge.
+ */
+function canvasGradientDeclarations(): readonly string[] {
+    return [`    --background-image-hero: ${gradientCss(gradient.hero)};`];
+}
+
+/**
  * Compose the full Tailwind v4 `theme.css` contents. Pure — the same tokens always yield the same string.
  *
  * @returns The stylesheet text, newline-terminated, ready to write to `dist/theme.css`.
@@ -94,6 +118,7 @@ export function themeCss(): string {
         ...declarations('shadow', shadows, false),
         // Appended LAST so every pre-existing declaration keeps its exact position in the artifact.
         ...glassEdgeDeclarations(),
+        ...canvasGradientDeclarations(),
         '}',
     ];
 

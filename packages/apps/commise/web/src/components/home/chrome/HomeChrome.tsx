@@ -60,7 +60,15 @@ export function HomeChrome({
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
     return (
-        <div className="flex min-h-screen bg-gradient-to-br from-sand via-[#F5F8FA] to-[#EDF5F8]">
+        // The shell is TRANSPARENT so the `body` beach-glow canvas shows through (issue #145). It used to
+        // hand-spell its own three-stop `bg-gradient-to-br` ramp — a second definition of the canvas that had
+        // already drifted from `@commise/ui`'s `gradient.hero` (mid/end tints #F5F8FA and #EDF5F8 against the
+        // wireframes' own #F0F7F4 and #E8F4F8) and covered only shell-hosted routes, leaving auth flat. Do not
+        // reintroduce a background here: one canvas, one definition, in the token layer.
+        //
+        // Tailwind v4 scans this file as TEXT, comments included, so the replaced classes are DESCRIBED rather
+        // than written out — spelling one verbatim regenerates the utility it warns about.
+        <div className="flex min-h-screen">
             <HomeSidebar
                 chrome={chrome}
                 locale={locale}

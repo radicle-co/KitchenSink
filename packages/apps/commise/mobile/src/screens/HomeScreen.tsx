@@ -9,8 +9,6 @@ import type { JSX } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { palette } from '@commise/ui';
-
 import { HomeWidgetSurface } from '../components/home/index.js';
 
 /** Props for {@link HomeScreen}. */
@@ -47,5 +45,7 @@ export function HomeScreen({ onOpenRecipes, onOpenRecipe, onOpenProfile }: HomeS
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    container: { flex: 1, backgroundColor: 'transparent' },
 });

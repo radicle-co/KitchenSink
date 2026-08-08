@@ -4,6 +4,7 @@ import { setupClerkTestingToken } from '@clerk/testing/playwright';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { palette, semantic } from '@commise/ui/colors';
+import { gradient } from '@commise/ui/tokens/gradients';
 import { elevation, fontFamily, fontSize, fontWeight, lineHeightRatio, radius, spacing } from '@commise/ui/scale';
 
 import { route } from './utils/basePath';
@@ -497,6 +498,46 @@ test.describe('mockup fidelity — wireframe vs implementation (U10a)', () => {
                     `is ${semantic.background} (${[...expectedSurface].join('')}). Either the surface drifted ` +
                     "off the token, or the token moved without regenerating @commise/ui's theme.css.",
             ).toBe(true);
+        }
+
+        // ---------------------------------------------------------------------------------------------------
+        // Issue #145 — the page surface must paint the beach-glow GRADIENT, not only a flat colour.
+        //
+        // Every one of the nine wireframes paints its page with `--gradient-beach-glow`; the app painted a flat
+        // fill, and the check above could not see the difference because it only ever read `backgroundColor` —
+        // which is still (correctly) the on-token fallback UNDERNEATH the ramp. So the flat app satisfied it.
+        //
+        // This is the only tier that proves the gradient RENDERS. A token can exist and compile to nothing (the
+        // `--font-size-*` namespace miss silently killed 324 type-ramp call sites), and a jsdom test that stubs
+        // its own stylesheet proves nothing about what ships. Here a real engine has resolved the real
+        // production CSS, so `backgroundImage` is what a viewer actually sees.
+        //
+        // The expected stops are derived from the TOKEN and converted to the `rgb()` form browsers report —
+        // never a pasted literal — so re-toning the ramp in `@commise/ui` updates this automatically.
+        //
+        // Mutation lens: drop the `background-image` from `globals.css` and `backgroundImage` reports `none`;
+        // flatten the ramp to one colour and the distinct-stop check fails; mirror the angle and the `135deg`
+        // check fails. None of those can pass.
+        const heroStops = gradient.hero.stops.map((stop) => [...tokenRgbStrings({ stop: stop.color })][0]);
+
+        for (const pair of report.pairs) {
+            const surface = pair.anchors.find((anchor) => anchor.anchor === 'documentSurface');
+            const image = surface?.implementation.style?.backgroundImage ?? '<no surface probed>';
+            const context =
+                `${pair.route} paints backgroundImage=${image}. The wireframe ${pair.mockupFile} paints the ` +
+                'beach-glow ramp on its page, so the implementation must too (issue #145).';
+
+            expect(image, context).toContain('linear-gradient(');
+            expect(image, context).toContain('135deg');
+
+            for (const stop of heroStops) {
+                expect(image, `${context} Missing token stop ${stop}.`).toContain(stop);
+            }
+
+            // A ramp whose stops are all one colour is a flat fill wearing a gradient's syntax.
+            expect(new Set(heroStops).size, 'the hero token itself has collapsed to a single colour').toBe(
+                heroStops.length,
+            );
         }
 
         // The artifact IS the deliverable, so it is read back from disk: a run that captured everything and then

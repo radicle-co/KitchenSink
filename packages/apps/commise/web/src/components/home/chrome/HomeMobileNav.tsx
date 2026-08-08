@@ -102,7 +102,14 @@ export function HomeMobileNav({
                         event.preventDefault();
                         triggerRef.current?.focus();
                     }}
-                    className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-white/20 bg-gradient-to-b from-[#F5F8FA] to-[#EDF5F8] shadow-[var(--shadow-xl)] md:hidden"
+                    /*
+                     * `bg-hero` is the token-derived beach-glow ramp (`@commise/ui` `gradient.hero`, emitted as
+                     * `--background-image-hero`). This drawer previously hand-spelled a two-stop ramp from the
+                     * SAME pair of drifted tints the app shell used (#F5F8FA → #EDF5F8) — a third spelling of
+                     * one gradient, and the reason the drift outlived the shell fix. It stays fully OPAQUE
+                     * (every stop is a solid colour), which an overlay panel above page content requires.
+                     */
+                    className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-white/20 bg-hero shadow-[var(--shadow-xl)] md:hidden"
                 >
                     <div className="flex items-center justify-between p-6">
                         <span className="font-display text-xl font-bold text-charcoal">{chrome.wordmark}</span>

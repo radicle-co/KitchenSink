@@ -56,6 +56,27 @@ appId: io.commise.mobile
 - tapOn: 'Sign in'
 - assertVisible: 'you@example.com'
 
+# ── Mirrors visual/canvas-gradient.yaml (issue #145) ─────────────────────────────────────────────────────
+# The same two signed-out surfaces, captured again under the canvas flow's own baseline names. They are
+# SEPARATE files rather than reused shots on purpose: `auth-surfaces` owns the FR-045a front-door assertion and
+# `canvas-gradient` owns the #145 background assertion, so either can be re-baselined (for a copy change, or
+# for a ramp re-tone) without silently re-approving the other's subject.
+- takeScreenshot:
+      path: baselines/canvas-signin.png
+      label: 'baseline: #145 beach-glow canvas on the signed-out sign-in surface'
+
+- tapOn: 'Sign up'
+- extendedWaitUntil:
+      visible: 'Create your account'
+      timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot:
+      path: baselines/canvas-signup.png
+      label: 'baseline: #145 root canvas persists across a screen change'
+
+- tapOn: 'Sign in'
+- assertVisible: 'you@example.com'
+
 # ── Mirrors visual/home-create-surfaces.yaml ─────────────────────────────────────────────────────────────
 # The sign-in sub-flow is idempotent, and the cleared state above guarantees its credential block runs.
 - runFlow: ../auth/signin-home.yaml

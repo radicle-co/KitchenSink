@@ -55,6 +55,7 @@ const PROBES = [
     'text-caption',
     'leading-body',
     'text-sm',
+    'bg-hero',
 ] as const;
 
 /**
@@ -162,5 +163,79 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
         // rather than by a flat `.class { … }` body — but they must be PRESENT, which is the regression risk.
         expect(css, 'the hover fill').toContain('hover\\:bg-mist\\/40');
         expect(css, 'the focus ring').toContain('focus-visible\\:ring-ocean-dark');
+    });
+});
+
+/**
+ * The page-canvas gradient must be REAL, EMITTED CSS on the `body` — the app's flat-vs-gradient defect.
+ *
+ * All nine wireframes paint `body { background: var(--gradient-beach-glow) }`; the app painted a flat
+ * `background-color`. Two earlier failures on this exact surface dictate the shape of these assertions:
+ *
+ *  - A token can exist and still compile to nothing (`--font-size-*` was not a namespace, so 324 type-ramp
+ *    call sites emitted zero CSS). So this reads the COMPILED declaration, never `themeCss()`'s string.
+ *  - A jsdom component test once stubbed its own stylesheet and passed at 32px while the app shipped 64px. So
+ *    this compiles the app's real `globals.css` with the app's real compiler — the whole chain, token →
+ *    `themeCss()` → `dist/theme.css` → `@import` → Tailwind — rather than simulating any part of it.
+ *
+ * Mutation lens: revert `body` to `background-color` alone and the first assertion fails; re-tone a stop and
+ * the second fails; move the ramp back into a hand-written class and the fourth fails.
+ */
+describe('the beach-glow page canvas (compiled)', () => {
+    const cssPromise = compileAppCss();
+
+    /** The declaration body of the compiled `@layer base` rule for a bare element selector. */
+    function baseRuleFor(css: string, element: string): string | undefined {
+        const match = new RegExp(`(?:^|[{}\\s,])${element}\\s*\\{([^}]*)\\}`).exec(css);
+
+        return match?.[1].replace(/\s+/g, '').replace(/;$/, '');
+    }
+
+    it('paints the gradient on body, from the token — not a flat background-color', async () => {
+        const body = baseRuleFor(await cssPromise, 'body');
+
+        expect(body).toBeDefined();
+        expect(body).toContain('background-image:var(--background-image-hero)');
+        // The solid colour stays as the pre-paint/unsupported fallback, so a canvas is never transparent.
+        expect(body).toContain('background-color:var(--color-background)');
+    });
+
+    it('resolves --background-image-hero to the wireframes’ three-stop 135° ramp', async () => {
+        const css = await cssPromise;
+
+        expect(css).toContain(
+            '--background-image-hero: linear-gradient(135deg, #FAF6F0 0%, #F0F7F4 50%, #E8F4F8 100%)',
+        );
+    });
+
+    it('generates a usable bg-hero utility (the namespace is live, not merely plausible)', async () => {
+        expect(ruleFor(await cssPromise, 'bg-hero')).toBe('background-image:var(--background-image-hero)');
+    });
+
+    /**
+     * The drifted canvas tints must not be spelled ANYWHERE the compiler can see.
+     *
+     * The app shell and the mobile nav drawer each hand-rolled a ramp through two arbitrary-value stops
+     * (mid `#F5F8FA`, end `#EDF5F8`) — a second and third representation of the canvas, already drifted from
+     * the wireframes' own `#F0F7F4` / `#E8F4F8`. Both now consume the token, so those utilities should no
+     * longer be generated at all; if one reappears, a duplicate definition is back.
+     *
+     * The hex codes are assembled below rather than written as class literals ON PURPOSE. Tailwind v4's
+     * automatic source detection scans the whole non-ignored tree as TEXT — this test file included, comments
+     * included — so naming the class verbatim anywhere, even in prose explaining why it is banned, REGENERATES
+     * it and makes the assertion fail against itself. (Both the fix and this test tripped over exactly that.)
+     */
+    it('no longer compiles a SECOND, hand-spelled canvas gradient', async () => {
+        const css = await cssPromise;
+        const driftedMid = '#F5F8'.concat('FA');
+        const driftedEnd = '#EDF5'.concat('F8');
+
+        for (const [prefix, hex] of [
+            ['via', driftedMid],
+            ['to', driftedEnd],
+        ] as const) {
+            // Tailwind escapes `[`, `]` and `#` in the generated selector.
+            expect(css).not.toContain(`.${prefix}-\\[\\${hex}\\]`);
+        }
     });
 });

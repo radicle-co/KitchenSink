@@ -295,7 +295,9 @@ export function RecipeDetailScreen({
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    container: { flex: 1, backgroundColor: 'transparent' },
     // Generous bottom padding so the foot-of-screen controls — including the inline delete dialog's confirm
     // button when it opens — clear the device's navigation bar and can be fully scrolled into view.
     content: { paddingBottom: 120 },

@@ -75,7 +75,9 @@ export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps = {
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: palette.sand },
+    // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque
+    // fill here occludes the whole canvas and restores the flat page the wireframes never had.
+    safe: { flex: 1, backgroundColor: 'transparent' },
     container: {
         flexGrow: 1,
         gap: nativeTokens.spacing[3],

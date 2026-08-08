@@ -1,0 +1,92 @@
+# VISUAL REGRESSION — the app-wide beach-glow CANVAS gradient (issue #145). Maestro's OWN `assertScreenshot`.
+#
+# ⚠️ INERT UNTIL BASELINES EXIST — same posture as the sibling flows, for the same reason. This flow is NOT
+# discovered and NOT run:
+#   - `.maestro/config.yaml` lists `'*'` (root only), `auth/login-flow.yaml` and `recipes/*`; `visual/` matches
+#     none of them, so `maestro test .maestro` skips it;
+#   - `tests/e2e/run-maestro-flows.sh` runs an EXPLICIT `FLOWS` list, and this flow is not in it.
+# `assertScreenshot` has no record mode — a missing reference is the hard error "Screenshot file not found: …"
+# — so committing an assertion before its baseline PNG would turn the heavy-e2e job red. Record first
+# (`visual/record-baselines.yaml`, which already mirrors the two shots below), commit the PNGs, THEN add
+# `visual/canvas-gradient` to `FLOWS`. Activation is one line and belongs to whoever owns that script.
+#
+# WHY THIS FLOW EXISTS, given the unit tier already asserts the gradient
+#
+# It does not assert the same thing. Under jsdom, `expo-linear-gradient` is replaced by
+# `tests/stubs/expoLinearGradient`, so `tests/components/AppCanvas.native.test.tsx` can only prove that the
+# right COLOURS, LOCATIONS and VECTOR reach the library — never that the native view rasterizes a ramp. This is
+# the ONLY mobile tier that can see a real gradient, which makes it the only place a native regression (the
+# library failing to mount, the canvas being occluded by an opaque screen container, a device-tier fallback to
+# a flat fill) is visible at all.
+#
+# WHAT THIS ASSERTS (spec/issue IDs, so a red pixel maps to a requirement):
+#   - #145 — every surface paints the wireframes' `--gradient-beach-glow`, not a flat `palette.sand`. All nine
+#     archived screens paint that ramp on their page; mobile painted a flat fill on each screen's own
+#     container, and `AppCanvas` now paints it ONCE at the root for the whole app.
+#   - FR-045a — the signed-out front door is the sign-in surface, which is also the surface where the canvas is
+#     most exposed (no full-bleed cards over it), so it is the most sensitive place to photograph the ramp.
+#
+# WHY THE SIGNED-OUT SURFACES: the canvas is a full-screen BACKGROUND, so the useful shot is the one with the
+# least content on top of it. Sign-in and sign-up are also the two most deterministic screens in the app — no
+# seeded data, no photos, no counts, no timestamps, no clock-derived copy — which is what a pixel baseline
+# wants. Full-screen (no `cropOn`) for the same reason: a crop around a text landmark would exclude most of the
+# gradient, which is the entire subject.
+#
+# ⚠️ THRESHOLD IS 98, NOT 100, AND THAT IS DELIBERATE — identical reasoning to `auth-surfaces.yaml`: a Maestro
+# Android screenshot is the whole device frame INCLUDING the system status bar, whose CLOCK changes every
+# minute. Do NOT raise it to 100. Note the trade-off this flow inherits: the canvas ramp is very low-contrast
+# (its three stops span #FAF6F0 → #E8F4F8), so a REVERSION TO FLAT `palette.sand` moves far fewer pixels than a
+# layout change would. 98 still catches it — the flat fill differs from the ramp across the whole frame rather
+# than in one region — but do not loosen the threshold further, or the exact defect this flow exists to catch
+# becomes invisible.
+#
+# ⚠️ EMULATOR PROFILE IS PART OF THE BASELINE. Dimensions must match the reference exactly (Maestro does not
+# rescale). Baselines in `visual/baselines/` are valid ONLY for the profile pinned in
+# `.github/workflows/_ci-heavy.yml`:
+#   api-level 34 · arch x86_64 · profile pixel_6 · -gpu swiftshader_indirect
+# A linear gradient is plain fragment shading, so it is safe under swiftshader (unlike a blur, which Android
+# degrades anyway — `supportsNativeBlur` is false there).
+#
+# Run (after baselines exist):
+#   maestro test packages/apps/commise/mobile/.maestro/visual/canvas-gradient.yaml
+
+appId: io.commise.mobile
+---
+# A signed-OUT launch: the canvas must be painted before authentication, because `AppCanvas` wraps `AuthGate`
+# rather than sitting inside it. A regression that only paints the gradient for signed-in screens shows here.
+- launchApp:
+      clearState: true
+
+# `AuthGate` paints "Checking your session…" first; wait for the form before any pixel is captured.
+- extendedWaitUntil:
+      visible: 'you@example.com'
+      timeout: 30000
+
+# Settle the U8 entrance transitions before capturing, or the shot races the animation and the comparison is
+# nondeterministic for reasons unrelated to the gradient. (The canvas itself is static — a background wash
+# carries no motion — so there is nothing here to gate on reduced motion.)
+- waitForAnimationToEnd
+
+# #145 — the canvas ramp on the most-exposed surface in the app.
+- assertScreenshot:
+      path: baselines/canvas-signin.png
+      thresholdPercentage: 98
+      label: '#145 — beach-glow canvas gradient on the signed-out sign-in surface'
+
+# A SECOND surface, reached by navigation, proves the canvas is painted once at the ROOT and survives a screen
+# change — not re-applied per screen (the flat-fill-per-screen shape this fix replaced).
+- tapOn: 'Sign up'
+- extendedWaitUntil:
+      visible: 'Create your account'
+      timeout: 30000
+- waitForAnimationToEnd
+
+- assertScreenshot:
+      path: baselines/canvas-signup.png
+      thresholdPercentage: 98
+      label: '#145 — the same root canvas persists across a screen change'
+
+# Leave the app back on the sign-in form so this flow's exit state matches its entry state and it stays
+# order-independent.
+- tapOn: 'Sign in'
+- assertVisible: 'you@example.com'

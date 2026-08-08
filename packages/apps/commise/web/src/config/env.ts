@@ -108,12 +108,31 @@ export const env = createEnv({
  *
  * @sideEffect Throws at module evaluation (i.e. fails the build) when the configuration is incoherent.
  */
+/**
+ * Every endpoint the coherence rule covers, DERIVED from what this module declares rather than hand-listed.
+ *
+ * A hand-written list is a second place to remember: add an endpoint to the schema above, forget to add it
+ * here, and the variable is shape-validated but stage-UNCHECKED — quietly outside the guard. That is the
+ * same shape as the gap that let the outage through (the Clerk key was in no schema at all), so the set is
+ * derived and a new endpoint is covered by existing.
+ *
+ * Concretely pending: feature 005 adds `NEXT_PUBLIC_AI_API_URL`, and its Vercel records are currently scoped
+ * to preview AND production simultaneously — one value serving two stages, the misconfiguration shape this
+ * guard exists for. It will be checked the moment it is declared, with no edit here.
+ *
+ * The `_API_URL` suffix is the convention every endpoint in this app follows; a differently-named endpoint
+ * would escape the pattern, which is why `__tests__/env.test.ts` asserts this derived set EQUALS the set of
+ * declared endpoint keys rather than trusting the regex.
+ */
+export const STAGE_CHECKED_ENDPOINT_KEYS: readonly string[] = Object.keys(env).filter((key) =>
+    /^NEXT_PUBLIC_[A-Z0-9_]+_API_URL$/.test(key),
+);
+
 const stageProblems = findStageIncoherence({
     clerkPublishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
-    endpoints: {
-        NEXT_PUBLIC_IDENTITY_API_URL: env.NEXT_PUBLIC_IDENTITY_API_URL,
-        NEXT_PUBLIC_RECIPE_API_URL: env.NEXT_PUBLIC_RECIPE_API_URL,
-    },
+    endpoints: Object.fromEntries(
+        STAGE_CHECKED_ENDPOINT_KEYS.map((key) => [key, (env as Record<string, string | undefined>)[key]]),
+    ),
 });
 
 if (stageProblems.length > 0) {

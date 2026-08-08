@@ -13,6 +13,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
+import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
+
 /** Props for {@link SandboxSchedulerStack}. */
 export interface SandboxSchedulerStackProps extends StackProps {
     /** The stage this scheduler controls — only ever `sandbox` (guarded by {@link GlobalStack}). */
@@ -71,7 +73,7 @@ export class SandboxSchedulerStack extends Stack {
         const schedulerHandler = hasLambdaAsset ? 'sandbox-scheduler/handler.handler' : 'index.handler';
 
         const schedulerFn = new lambda.Function(this, 'SandboxSchedulerFunction', {
-            runtime: lambda.Runtime.NODEJS_22_X,
+            runtime: NODE_LAMBDA_RUNTIME,
             architecture: lambda.Architecture.ARM_64,
             handler: schedulerHandler,
             code: schedulerCode,

@@ -29,6 +29,8 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
+import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
+
 import { erasureSsmPath, getAuthSecretName, getErasureSigningSecretName, ssmParamPath } from './config.js';
 
 export interface WebhooksStackProps extends StackProps {
@@ -112,7 +114,7 @@ export class WebhooksStack extends Stack {
             path.resolve(infraDir, '../../../dist'),
         ];
         const distPath = possiblePaths.find((p) => existsSync(p)) ?? possiblePaths[0];
-        const runtime = lambda.Runtime.NODEJS_22_X;
+        const runtime = NODE_LAMBDA_RUNTIME;
         const architecture = lambda.Architecture.X86_64;
         const identityStage = deployStage === 'prod' ? 'prod' : 'sandbox';
 

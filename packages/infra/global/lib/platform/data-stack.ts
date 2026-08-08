@@ -21,6 +21,8 @@ import {
 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
+import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
+
 import type { NetworkStack } from './network-stack.js';
 
 export interface DataStackProps extends StackProps {
@@ -182,7 +184,7 @@ export class DataStack extends Stack {
             ) ?? resolve(here, '../../dist-lambda');
         const hasLambdaAsset = existsSync(lambdaAssetDir);
         const foodBootstrapFn = new lambda.Function(this, 'FoodDbBootstrapFunction', {
-            runtime: lambda.Runtime.NODEJS_22_X,
+            runtime: NODE_LAMBDA_RUNTIME,
             architecture: lambda.Architecture.ARM_64,
             handler: hasLambdaAsset ? 'food-db-bootstrap/handler.handler' : 'index.handler',
             code: hasLambdaAsset
@@ -232,7 +234,7 @@ export class DataStack extends Stack {
         // can make per-PR databases. Reuses the same bundled `dist-lambda/` asset dir (the esbuild build
         // emits `recipe-db-bootstrap/handler`); a bare `cdk synth` (no bundle) falls back to an inline no-op.
         const recipeBootstrapFn = new lambda.Function(this, 'RecipeDbBootstrapFunction', {
-            runtime: lambda.Runtime.NODEJS_22_X,
+            runtime: NODE_LAMBDA_RUNTIME,
             architecture: lambda.Architecture.ARM_64,
             handler: hasLambdaAsset ? 'recipe-db-bootstrap/handler.handler' : 'index.handler',
             code: hasLambdaAsset

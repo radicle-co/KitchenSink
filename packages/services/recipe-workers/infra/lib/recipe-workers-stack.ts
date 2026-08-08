@@ -24,6 +24,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
+import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -363,7 +364,7 @@ export class RecipeWorkersStack extends Stack {
         mediaBucket.grantDelete(orphanSweeperRole);
 
         // ── functions ──────────────────────────────────────────────────────────────────────────────
-        const runtime = lambda.Runtime.NODEJS_22_X;
+        const runtime = NODE_LAMBDA_RUNTIME;
         const architecture = lambda.Architecture.ARM_64;
         const vpcSubnets: ec2.SubnetSelection = { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS };
 

@@ -22,6 +22,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
+import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
 /**
@@ -430,7 +431,7 @@ export class RecipeServiceStack extends Stack {
             ) ?? resolve(here, '../../dist-lambda');
         const hasLambdaAsset = existsSync(lambdaAssetDir);
         const migrationFn = new lambda.Function(this, 'RecipeMigrationFunction', {
-            runtime: lambda.Runtime.NODEJS_22_X,
+            runtime: NODE_LAMBDA_RUNTIME,
             architecture: lambda.Architecture.ARM_64,
             handler: hasLambdaAsset ? 'lambdas/migrate/handler.handler' : 'index.handler',
             code: hasLambdaAsset

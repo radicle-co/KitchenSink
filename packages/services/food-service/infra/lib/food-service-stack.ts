@@ -27,6 +27,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
+import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
+
 /**
  * Canonical food worker metric names — MUST stay byte-identical to `src/observability/emf-metrics.ts`
  * `FOOD_METRIC` (the worker emits these EMF metric names; the dashboard charts and the alarms alarm on
@@ -629,7 +631,7 @@ export class FoodServiceStack extends Stack {
             : lambda.Code.fromInline('export const handler = async () => ({ ok: false, reason: "asset-not-built" });');
 
         const migrationFn = new lambda.Function(this, 'FoodMigrationFunction', {
-            runtime: lambda.Runtime.NODEJS_22_X,
+            runtime: NODE_LAMBDA_RUNTIME,
             architecture: lambda.Architecture.ARM_64,
             handler: 'lambdas/migrate/handler.handler',
             code: migrationCode,

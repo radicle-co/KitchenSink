@@ -98,17 +98,6 @@ export const env = createEnv({
 });
 
 /**
- * The cross-field rule: the Clerk instance and the API endpoints must belong to the SAME stage.
- *
- * Shape validation above cannot catch this — a sandbox key and a production URL are each individually
- * valid. Only their COMBINATION is wrong, and that combination is what took production down on
- * 2026-08-07. Asserted at module load, which means `next build` fails rather than shipping a bundle
- * whose auth can never succeed. See `./clerkStageCoherence.ts` for why the rule is coherence rather
- * than "production must use pk_live".
- *
- * @sideEffect Throws at module evaluation (i.e. fails the build) when the configuration is incoherent.
- */
-/**
  * Every endpoint the coherence rule covers, DERIVED from what this module declares rather than hand-listed.
  *
  * A hand-written list is a second place to remember: add an endpoint to the schema above, forget to add it
@@ -128,6 +117,17 @@ export const STAGE_CHECKED_ENDPOINT_KEYS: readonly string[] = Object.keys(env).f
     /^NEXT_PUBLIC_[A-Z0-9_]+_API_URL$/.test(key),
 );
 
+/**
+ * The cross-field rule: the Clerk instance and the API endpoints must belong to the SAME stage.
+ *
+ * Shape validation above cannot catch this — a sandbox key and a production URL are each individually
+ * valid. Only their COMBINATION is wrong, and that combination is what took production down on
+ * 2026-08-07. Asserted at module load, which means `next build` fails rather than shipping a bundle
+ * whose auth can never succeed. See `./clerkStageCoherence.ts` for why the rule is coherence rather
+ * than "production must use pk_live".
+ *
+ * @sideEffect Throws at module evaluation (i.e. fails the build) when the configuration is incoherent.
+ */
 const stageProblems = findStageIncoherence({
     clerkPublishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     endpoints: Object.fromEntries(

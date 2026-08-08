@@ -14,3 +14,6 @@ cdk.context.json
 # the build on it is worse — the run that mints the pool would red every unrelated check in the package.
 tests/load/clerk-tokens.json
 tests/load/clerk-public-key.pem
+
+# k6 run summaries (see the root .gitignore for why these are not source).
+k6-*-summary.json

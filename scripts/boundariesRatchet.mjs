@@ -18,6 +18,21 @@
  * suite drive it with fixtures, including the malformed-input cases a real run would never produce.
  * The npm script supplies the real thing: `turbo boundaries 2>&1 | node scripts/boundariesRatchet.mjs`.
  *
+ * ⚠️ IF THIS REPORTS FINDINGS YOU DID NOT CAUSE, RUN `git clean -Xdf` FIRST — do not declare them and do
+ * not baseline them. `turbo boundaries` walks the package directory including GITIGNORED BUILD OUTPUT, and
+ * a `cdk synth` leaves `packages/infra/global/cdk.out/asset.<hash>/` full of CDK's OWN bundled provider
+ * functions, which import `@aws-sdk/client-lambda`, `client-s3` and `client-sfn`. Those then surface as
+ * three "NEW undeclared dependencies" of `@kitchensink/infra-global`, whose committed source imports none
+ * of them. Measured 2026-08-07: deleting `cdk.out` alone takes the run from 3 findings back to OK.
+ *
+ * CI never sees this — no `cdk.out` exists on a clean checkout — which is precisely what makes it a trap:
+ * it appears only to whoever just ran a synth, it names real npm packages, and it tells them to declare
+ * them. Both plausible reactions are wrong. Adding the dependency ships three unused packages; adding a
+ * baseline entry silences that (package, dependency) pair PERMANENTLY, including for a real violation
+ * later. An automated attribution filter was tried and removed: deciding "is this a real import?" by
+ * textual search counts mentions in comments and test strings, so it was unreliable in both directions —
+ * worse than the documented workaround it replaced.
+ *
  * @sideEffect Reads stdin, reads/writes the baseline file, reads the workspace manifests, exits the
  *             process with 0 (no new violations) or 1 (new violations, or an unusable report).
  */

@@ -11,3 +11,6 @@ dist-lambda
 cdk.out
 cdk.context.json
 *.tsbuildinfo
+
+# k6 run summaries (see the root .gitignore for why these are not source).
+k6-*-summary.json

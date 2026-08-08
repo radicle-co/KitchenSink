@@ -100,3 +100,9 @@ packages/apps/commise/mobile/ios/
 # same reason it is fetched rather than vendored: it is per-instance and rotates.
 packages/services/identity/tests/load/clerk-tokens.json
 packages/services/identity/tests/load/clerk-public-key.pem
+
+# k6 run summaries — `--summary-export` writes these into whichever package the run was launched from
+# (`k6-{scenario}-summary.json`). They are per-run measurements, not source: CI uploads them as build
+# artifacts with a 7-day retention, and committing them would put one machine's timings in the tree where
+# the next reader mistakes them for the agreed budgets. The budgets live in the scripts.
+packages/services/*/k6-*-summary.json

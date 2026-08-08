@@ -1,6 +1,8 @@
 import { CfnOutput, Stack, type StackProps, Tags, aws_ec2 as ec2 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
+import { AcceptedNagFindings, acceptNagFindings } from '@kitchensink/infra-security';
+
 export interface NetworkStackProps extends StackProps {
     readonly stage: string;
 }
@@ -114,6 +116,10 @@ export class NetworkStack extends Stack {
 
         this.albSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'Public HTTP ingress');
         this.albSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'Public HTTPS ingress');
+
+        // AwsSolutions-EC23 accepted: this SG fronts the shared INTERNET-FACING ALB (ADR-0003), so public
+        // ingress here is the resource doing its job. Justification in @kitchensink/infra-security.
+        acceptNagFindings(this.albSecurityGroup, AcceptedNagFindings.PUBLIC_ALB_INGRESS_IS_THE_INGRESS_BOUNDARY);
 
         this.serviceSecurityGroup.addIngressRule(
             this.albSecurityGroup,

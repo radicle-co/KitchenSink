@@ -7,7 +7,7 @@
  * | The CLI actually surfaces the findings                                  | 'reports AwsSolutions findings as CLI warnings'           |
  * | No finding reaches the CLI as an error (that is what exits 1)           | 'never reports an AwsSolutions finding as a CLI error'    |
  * | A non-prod stage synthesizes too                                        | 'synthesizes the sandbox platform app successfully'       |
- * | No emitted template carries suppression metadata                        | 'emits no template containing cdk_nag metadata'           |
+ * | The CLI emits only the reviewed suppressions, in READABLE form           | 'emits only the reviewed suppressions, with readable …'    |
  * | The COMPILED entrypoint can load the security package under plain node  | 'synthesizes from the compiled entrypoint …'              |
  *
  * ## Why this tier exists on top of the unit suites
@@ -172,11 +172,51 @@ describe('cdk synth with cdk-nag attached (advisory mode)', () => {
         expect(sandbox.output).not.toMatch(/^ERROR AwsSolutions-/m);
     });
 
-    it('emits no template containing cdk_nag metadata', () => {
-        // A suppression writes `Metadata.cdk_nag.rules_to_suppress` into the resource, i.e. it is a real
-        // template change. Advisory mode ships with zero suppressions.
-        for (const [name, template] of Object.entries({ ...prod.templates, ...sandbox.templates })) {
-            expect(template, `${name} carries cdk-nag suppression metadata`).not.toContain('cdk_nag');
+    it('emits only the reviewed suppressions, with readable justifications', () => {
+        // Changed by issue #143: this asserted that NO emitted template contained `cdk_nag`. That contract
+        // could only survive the burn-down by being deleted, so it became an allowlist instead — see
+        // `cdk-nag-template-parity.test.ts` for the full rationale and the authoritative inventory.
+        //
+        // This tier adds what in-process synthesis cannot see: that the CDK **CLI** writes the suppression
+        // into the template it would actually deploy, and writes it in READABLE form. cdk-nag base64-encodes
+        // any reason containing a codepoint above 255, which would make the justification opaque in exactly
+        // the artifact a human reviews before a prod deploy.
+        const emitted = Object.entries({ ...prod.templates, ...sandbox.templates }).flatMap(([name, json]) => {
+            const template = JSON.parse(json) as {
+                Resources?: Record<
+                    string,
+                    {
+                        Metadata?: {
+                            cdk_nag?: {
+                                rules_to_suppress?: Array<{ id: string; reason: string; is_reason_encoded?: boolean }>;
+                            };
+                        };
+                    }
+                >;
+            };
+
+            return Object.entries(template.Resources ?? {}).flatMap(([logicalId, resource]) =>
+                (resource.Metadata?.cdk_nag?.rules_to_suppress ?? []).map((rule) => ({
+                    where: `${name}/${logicalId}`,
+                    ...rule,
+                })),
+            );
+        });
+
+        // The platform app suppresses exactly two findings, in both stages: EC23 on the shared ALB's SG
+        // (ADR-0003) and SMG4 on the non-credential MigrationPlanSecret.
+        expect(emitted.map((entry) => entry.id).sort()).toEqual([
+            'AwsSolutions-EC23',
+            'AwsSolutions-EC23',
+            'AwsSolutions-SMG4',
+            'AwsSolutions-SMG4',
+        ]);
+
+        for (const entry of emitted) {
+            expect(entry.is_reason_encoded, `${entry.where} ${entry.id}: reason is base64, not readable`).not.toBe(
+                true,
+            );
+            expect(entry.reason.length, `${entry.where} ${entry.id}: reason too short`).toBeGreaterThan(80);
         }
     });
 

@@ -27,7 +27,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
+import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@kitchensink/infra-security';
 
 /**
  * Canonical food worker metric names — MUST stay byte-identical to `src/observability/emf-metrics.ts`
@@ -442,6 +442,12 @@ export class FoodServiceStack extends Stack {
             taskRole: apiTaskRole,
         });
 
+        // AwsSolutions-ECS2 accepted: every plaintext container Environment entry here is non-secret, and
+        // every real secret is injected via ecs.Secret.fromSecretsManager (i.e. under Secrets, not
+        // Environment). Justification -- including the invariant it depends on -- in
+        // @kitchensink/infra-security.
+        acceptNagFindings(apiTaskDefinition, AcceptedNagFindings.TASK_ENVIRONMENT_HOLDS_NO_SECRET);
+
         const apiLogGroup = new logs.LogGroup(this, 'FoodApiLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
         });
@@ -501,6 +507,12 @@ export class FoodServiceStack extends Stack {
             taskRole: workerTaskRole,
         });
 
+        // AwsSolutions-ECS2 accepted: every plaintext container Environment entry here is non-secret, and
+        // every real secret is injected via ecs.Secret.fromSecretsManager (i.e. under Secrets, not
+        // Environment). Justification -- including the invariant it depends on -- in
+        // @kitchensink/infra-security.
+        acceptNagFindings(workerTaskDefinition, AcceptedNagFindings.TASK_ENVIRONMENT_HOLDS_NO_SECRET);
+
         const workerLogGroup = new logs.LogGroup(this, 'FoodWorkerLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,
         });
@@ -555,6 +567,12 @@ export class FoodServiceStack extends Stack {
             executionRole: taskExecutionRole,
             taskRole: changeRefreshTaskRole,
         });
+
+        // AwsSolutions-ECS2 accepted: every plaintext container Environment entry here is non-secret, and
+        // every real secret is injected via ecs.Secret.fromSecretsManager (i.e. under Secrets, not
+        // Environment). Justification -- including the invariant it depends on -- in
+        // @kitchensink/infra-security.
+        acceptNagFindings(changeRefreshTaskDefinition, AcceptedNagFindings.TASK_ENVIRONMENT_HOLDS_NO_SECRET);
 
         const changeRefreshLogGroup = new logs.LogGroup(this, 'FoodChangeRefreshLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,

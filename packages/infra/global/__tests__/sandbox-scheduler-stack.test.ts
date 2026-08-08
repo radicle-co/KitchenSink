@@ -5,6 +5,7 @@
  */
 import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
+import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
 import { describe, it, expect } from 'vitest';
 
 import { GlobalStack } from '../lib/platform/global-stack.js';
@@ -16,7 +17,7 @@ const schedulerTemplate = (): Template =>
     Template.fromStack(new SandboxSchedulerStack(new App(), 'SandboxScheduler-sandbox', { env, stage: 'sandbox' }));
 
 describe('SandboxSchedulerStack (ADR-0007)', () => {
-    it('provisions the scheduler Lambda (Node 22, arm64)', () => {
+    it('provisions the scheduler Lambda on the repo-wide runtime pin, arm64', () => {
         // The handler depends on whether the esbuild bundle is present at synth: a bare synth uses the
         // self-consistent inline placeholder (`index.handler`), a bundled deploy swaps in the asset and
         // the `sandbox-scheduler/handler.handler` path. Both are valid — assert the invariant properties
@@ -24,7 +25,11 @@ describe('SandboxSchedulerStack (ADR-0007)', () => {
         // let the no-op placeholder ship unnoticed).
         schedulerTemplate().hasResourceProperties('AWS::Lambda::Function', {
             Handler: Match.stringLikeRegexp('(index|sandbox-scheduler/handler)\\.handler'),
-            Runtime: 'nodejs22.x',
+            // Asserted against the shared pin, not a literal: the runtime is ONE decision
+            // (@kitchensink/infra-security NODE_LAMBDA_RUNTIME, issue #143) and a literal here would have
+            // to be edited in lockstep with every other site, which is what let Lambdas run nodejs22.x
+            // while the repo pinned engines.node 24.x. That pin has its own drift guard.
+            Runtime: NODE_LAMBDA_RUNTIME.name,
             Architectures: ['arm64'],
         });
     });

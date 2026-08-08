@@ -21,7 +21,7 @@ import {
 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
-import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
+import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@kitchensink/infra-security';
 
 import type { NetworkStack } from './network-stack.js';
 
@@ -105,6 +105,13 @@ export class DataStack extends Stack {
                 migrationOwner: SecretValue.unsafePlainText('@kitchensink/identity-service'),
             },
         });
+
+        // AwsSolutions-SMG4 accepted: this secret is not a credential — it carries two static, non-sensitive
+        // values set from source above, so there is nothing rotation could mean. Justification in
+        // @kitchensink/infra-security. (SMG4 on `DatabaseCredentialsSecret` is NOT accepted and NOT
+        // suppressed: it is a real gap, ESCALATED in ADR-0013, because single-user rotation there would take
+        // the identity service down — see that ADR for the evidence.)
+        acceptNagFindings(this.migrationPlanSecret, AcceptedNagFindings.MIGRATION_PLAN_SECRET_HOLDS_NO_CREDENTIAL);
 
         this.databaseName = 'kitchensink_identity';
 

@@ -22,7 +22,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
+import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@kitchensink/infra-security';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
 /**
@@ -384,6 +384,12 @@ export class RecipeServiceStack extends Stack {
             executionRole: taskExecutionRole,
             taskRole: apiTaskRole,
         });
+
+        // AwsSolutions-ECS2 accepted: every plaintext container Environment entry here is non-secret, and
+        // every real secret is injected via ecs.Secret.fromSecretsManager (i.e. under Secrets, not
+        // Environment). Justification -- including the invariant it depends on -- in
+        // @kitchensink/infra-security.
+        acceptNagFindings(apiTaskDefinition, AcceptedNagFindings.TASK_ENVIRONMENT_HOLDS_NO_SECRET);
 
         const apiLogGroup = new logs.LogGroup(this, 'RecipeApiLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,

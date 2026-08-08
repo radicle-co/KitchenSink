@@ -23,6 +23,8 @@ import {
 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
+import { AcceptedNagFindings, acceptNagFindings } from '@kitchensink/infra-security';
+
 export interface IdentityServiceStackProps extends StackProps {
     readonly stage: string;
     readonly domainName: string;
@@ -171,6 +173,12 @@ export class IdentityServiceStack extends Stack {
             executionRole: taskExecutionRole,
             taskRole,
         });
+
+        // AwsSolutions-ECS2 accepted: every plaintext container Environment entry here is non-secret, and
+        // every real secret is injected via ecs.Secret.fromSecretsManager (i.e. under Secrets, not
+        // Environment). Justification -- including the invariant it depends on -- in
+        // @kitchensink/infra-security.
+        acceptNagFindings(taskDefinition, AcceptedNagFindings.TASK_ENVIRONMENT_HOLDS_NO_SECRET);
 
         const logGroup = new logs.LogGroup(this, 'IdentityServiceLogGroup', {
             retention: logs.RetentionDays.ONE_MONTH,

@@ -29,7 +29,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
+import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@kitchensink/infra-security';
 
 import { erasureSsmPath, getAuthSecretName, getErasureSigningSecretName, ssmParamPath } from './config.js';
 
@@ -605,9 +605,18 @@ export class WebhooksStack extends Stack {
         // on the event `type`. Subscribe a Dashboard endpoint's user.* events here.
         const webhooksResource = api.root.addResource('webhooks');
         const usersWebhookResource = webhooksResource.addResource('users');
-        usersWebhookResource.addMethod('POST', webhookIntegration, {
+        const usersWebhookMethod = usersWebhookResource.addMethod('POST', webhookIntegration, {
             authorizationType: apigw.AuthorizationType.NONE,
         });
+
+        // AwsSolutions-APIG4 + -COG4 accepted on THIS method only (never the whole API): the route is
+        // authenticated by the svix HMAC signature the Lambda verifies before doing any work, and a gateway
+        // authorizer would make Clerk unable to call it at all. Justification in @kitchensink/infra-security.
+        acceptNagFindings(usersWebhookMethod, AcceptedNagFindings.CLERK_WEBHOOK_VERIFIES_ITS_OWN_SIGNATURE);
+
+        // AwsSolutions-APIG3 accepted: a WAFv2 web ACL is not proportionate to one signature-verified route
+        // against a $300/month account budget (ADR-0008). Deferred, not dismissed.
+        acceptNagFindings(api.deploymentStage, AcceptedNagFindings.REST_API_EDGE_CONTROLS_NOT_PROPORTIONATE);
 
         api.addGatewayResponse('Default4xx', {
             type: apigw.ResponseType.DEFAULT_4XX,

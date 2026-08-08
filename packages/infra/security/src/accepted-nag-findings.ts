@@ -42,10 +42,15 @@ export interface AcceptedNagFinding {
      */
     readonly reason: string;
     /**
-     * cdk-nag's fine-grained filter (`Resource::…`, `Action::…`) for rules that report per finding-detail —
-     * IAM4/IAM5. Omit to accept every occurrence of the rule on the construct.
+     * cdk-nag's fine-grained filter for rules that report per finding-detail (IAM4/IAM5): an exact detail
+     * string such as `'Resource::*'`, or `{ regex: '/…/g' }` when the detail embeds a per-stage value.
+     *
+     * ⚠️ SET THIS whenever the rule is granular. Omitting it accepts EVERY occurrence of the rule on the
+     * construct forever — so a role with a scoped, reviewed wildcard today would silently keep passing if
+     * someone later added `resources: ['*']` to it. A narrow `appliesTo` keeps the accepted finding accepted
+     * and leaves anything new reporting.
      */
-    readonly appliesTo?: readonly string[];
+    readonly appliesTo?: readonly (string | { readonly regex: string })[];
 }
 
 /**
@@ -190,6 +195,16 @@ export const AcceptedNagFindings = {
     ERASURE_WORKER_OBJECT_PREFIX_WILDCARD: [
         {
             id: 'AwsSolutions-IAM5',
+            // Scoped, NOT role-wide. Only an object-level wildcard under the `recipes/` key root is
+            // accepted; the bucket name varies per stage, hence a regex rather than a literal detail. Any
+            // OTHER wildcard on these roles -- `Resource::*`, an `Action::s3:*`, a wildcard outside
+            // `recipes/` -- keeps reporting, which is the point: these are the roles that delete user data.
+            // ⚠️ The partition segment must be matched with `.*`, NOT `[^:]+`. CDK renders it as the
+            // `<AWS::Partition>` pseudo-parameter for `arnForObjects()`, and that string CONTAINS COLONS —
+            // so a colon-excluding class matches a hardcoded `arn:aws:...` (and passes a naive unit test)
+            // while silently failing against every real stack. Measured. The security-relevant anchors are
+            // `:s3:::` (S3 only) and the exact `/recipes/*` ending; the test below pins the real shape.
+            appliesTo: [{ regex: String.raw`/^Resource::arn:.*:s3:::.*\/recipes\/\*$/g` }],
             reason:
                 'Irreducible resource wildcard, with the actions narrowed to the exact API calls the handlers ' +
                 "make. These roles operate over EVERY owner's objects (GDPR erasure sweeps each removed " +
@@ -202,25 +217,6 @@ export const AcceptedNagFindings = {
                 'plus s3:DeleteObject (DeleteObjects) for the erasure paths, s3:PutObject for the archive ' +
                 'writer -- with no s3:GetObject*, no s3:*Version, and no s3:Abort*, replacing CDK grantRead/' +
                 'grantDelete/grantPut, whose wildcards granted far more than the handlers use.',
-        },
-    ],
-
-    /**
-     * `AwsSolutions-S1` on the access-log bucket itself. A log target cannot log to itself: S3 rejects a
-     * server-access-logging configuration whose target is the source bucket, and were it allowed each
-     * delivered log object would generate a further log record.
-     */
-    ALB_ACCESS_LOG_BUCKET_IS_THE_LOG_TARGET: [
-        {
-            id: 'AwsSolutions-S1',
-            reason:
-                'Structurally impossible to satisfy: this bucket IS the server-access-log destination for the ' +
-                'media and archive buckets (and the sink for ALB access logs and VPC flow logs). Pointing its ' +
-                'own server access logging at itself is the classic recursive-logging configuration -- every ' +
-                'delivered log object would itself generate a log record, growing without bound -- and S3 rejects ' +
-                'a logging target equal to the source. A second log bucket to log the first only moves the ' +
-                'recursion one hop and doubles storage for no forensic gain. Access to this bucket is instead ' +
-                'auditable through CloudTrail management events.',
         },
     ],
 } as const satisfies Readonly<Record<string, readonly AcceptedNagFinding[]>>;

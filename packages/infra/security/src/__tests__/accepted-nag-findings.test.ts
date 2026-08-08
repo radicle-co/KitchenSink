@@ -29,6 +29,7 @@
 import { App, Aspects, Stack } from 'aws-cdk-lib';
 import { SecurityGroup, Peer, Port, Vpc } from 'aws-cdk-lib/aws-ec2';
 import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { describe, expect, it } from 'vitest';
 
 import { AcceptedNagFindings, acceptNagFindings, type AcceptedNagFinding } from '../accepted-nag-findings.js';
@@ -72,7 +73,6 @@ describe('the AcceptedNagFindings register is closed and justified', () => {
         // Deliberate friction. Every suppression writes template metadata onto live infrastructure, so
         // adding one must not be possible without a reviewer seeing this list move.
         expect(Object.keys(AcceptedNagFindings).sort()).toEqual([
-            'ALB_ACCESS_LOG_BUCKET_IS_THE_LOG_TARGET',
             'CLERK_WEBHOOK_VERIFIES_ITS_OWN_SIGNATURE',
             'CLOUDFRONT_EDGE_CONTROLS_NOT_PROPORTIONATE',
             'ERASURE_WORKER_OBJECT_PREFIX_WILDCARD',
@@ -205,7 +205,7 @@ describe('acceptNagFindings', () => {
             new PolicyStatement({
                 effect: Effect.ALLOW,
                 actions: ['s3:DeleteObject'],
-                resources: ['arn:aws:s3:::b/*'],
+                resources: ['arn:aws:s3:::b/recipes/*'],
             }),
         );
         acceptNagFindings(role, AcceptedNagFindings.ERASURE_WORKER_OBJECT_PREFIX_WILDCARD, {
@@ -214,6 +214,63 @@ describe('acceptNagFindings', () => {
         app.synth();
 
         expect(ruleIdsIn(collectNagAnnotations(app).warnings)).not.toContain('AwsSolutions-IAM5');
+    });
+
+    it('matches the finding detail a REAL bucket grant produces', () => {
+        // Regression guard for a bug this suite originally missed. The first `appliesTo` regex used
+        // `arn:[^:]+:s3:::`, which matches a hardcoded `arn:aws:s3:::b/recipes/*` — so a probe built from a
+        // literal ARN passed — but CDK renders the partition as the `<AWS::Partition>` pseudo-parameter,
+        // which CONTAINS COLONS, so it matched nothing in any real stack and all five findings kept
+        // reporting. Only a probe built the way production builds it (`bucket.arnForObjects`) can see that.
+        const app = new App();
+
+        Aspects.of(app).add(new AdvisoryAwsSolutionsChecks());
+
+        const stack = new Stack(app, 'Probe', { env });
+        const bucket = Bucket.fromBucketName(stack, 'ImportedBucket', 'kitchensink-archive-prod');
+        const role = new Role(stack, 'WorkerRole', { assumedBy: new ServicePrincipal('lambda.amazonaws.com') });
+
+        role.addToPolicy(
+            new PolicyStatement({
+                effect: Effect.ALLOW,
+                actions: ['s3:DeleteObject'],
+                resources: [bucket.arnForObjects('recipes/*')],
+            }),
+        );
+        acceptNagFindings(role, AcceptedNagFindings.ERASURE_WORKER_OBJECT_PREFIX_WILDCARD, {
+            applyToChildren: true,
+        });
+        app.synth();
+
+        expect(ruleIdsIn(collectNagAnnotations(app).warnings)).not.toContain('AwsSolutions-IAM5');
+    });
+
+    it('accepts ONLY the wildcard shape its appliesTo names', () => {
+        // The most important property of the IAM5 entry. `ERASURE_WORKER_OBJECT_PREFIX_WILDCARD` accepts an
+        // object wildcard under the `recipes/` key root and nothing else, so the roles that delete user data
+        // cannot later acquire a BROADER wildcard behind an already-approved suppression. Without an
+        // `appliesTo`, a suppression is a permanent role-wide mute for the rule.
+        const app = new App();
+
+        Aspects.of(app).add(new AdvisoryAwsSolutionsChecks());
+
+        const stack = new Stack(app, 'Probe', { env });
+        const role = new Role(stack, 'WildcardRole', { assumedBy: new ServicePrincipal('lambda.amazonaws.com') });
+
+        role.addToPolicy(
+            new PolicyStatement({
+                effect: Effect.ALLOW,
+                actions: ['s3:DeleteObject'],
+                // NOT under `recipes/` — i.e. the whole bucket. This is the over-grant that must still report.
+                resources: ['arn:aws:s3:::b/*'],
+            }),
+        );
+        acceptNagFindings(role, AcceptedNagFindings.ERASURE_WORKER_OBJECT_PREFIX_WILDCARD, {
+            applyToChildren: true,
+        });
+        app.synth();
+
+        expect(ruleIdsIn(collectNagAnnotations(app).warnings)).toContain('AwsSolutions-IAM5');
     });
 
     it('does NOT reach a child CfnResource by default', () => {
@@ -229,7 +286,7 @@ describe('acceptNagFindings', () => {
             new PolicyStatement({
                 effect: Effect.ALLOW,
                 actions: ['s3:DeleteObject'],
-                resources: ['arn:aws:s3:::b/*'],
+                resources: ['arn:aws:s3:::b/recipes/*'],
             }),
         );
         acceptNagFindings(role, AcceptedNagFindings.ERASURE_WORKER_OBJECT_PREFIX_WILDCARD);

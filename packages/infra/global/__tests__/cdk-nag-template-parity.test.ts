@@ -9,7 +9,10 @@
  * | A non-prod stage is likewise untouched                                          | 'leaves every sandbox platform template byte-identical'        |
  * | The comparison is not vacuous — the Aspect really ran on these stacks           | 'reports findings against the prod platform stacks'            |
  * | The comparison can detect a mutating Aspect                                     | 'detects an Aspect that DOES mutate a prod template'           |
- * | No suppression is in force — a suppression IS a template change                 | 'no prod template carries cdk_nag suppression metadata'        |
+ * | ONLY the reviewed suppressions are in force, per resource, per rule             | 'carries the expected suppressions and no others'              |
+ * | …and they come from the STACK, not the Aspect                                   | 'records the same set with the Aspect detached'                |
+ * | …each with a readable (non-base64) justification                                | 'states a readable justification for every one of them'        |
+ * | …and prod and sandbox do not diverge on a security decision                     | 'keeps sandbox in step with prod'                              |
  *
  * WHY this is the highest-value test in the change. ADR-0002 keeps prod on `10.0.0.0/16` precisely so the
  * explicit value produces NO diff, because replacing the prod VPC replaces the prod RDS — `removalPolicy:
@@ -19,10 +22,18 @@
  * impossible to land silently: it compares the FULL template JSON, per stack, and the negative control
  * proves the comparison would fail if output moved.
  *
- * WHY suppression metadata is asserted absent: `NagSuppressions` writes
- * `Metadata.cdk_nag.rules_to_suppress` into the CloudFormation resource — verified by synthesizing with
- * and without one. A suppression is therefore a real template diff, which is why advisory mode ships with
- * ZERO of them; each future suppression must be landed as its own reviewed, justified template change.
+ * WHY suppressions are ALLOWLISTED rather than forbidden (changed by issue #143). `NagSuppressions` writes
+ * `Metadata.cdk_nag.rules_to_suppress` into the CloudFormation resource — verified by synthesizing with and
+ * without one — so a suppression IS a real template diff. Advisory mode shipped with zero of them and this
+ * suite asserted that no prod template contained `cdk_nag` at all. The burn-down needed suppressions, and a
+ * blanket prohibition can only be satisfied by DELETING the assertion, which would drop the control at the
+ * exact moment it starts mattering. So the prohibition became an exact, closed inventory
+ * (`EXPECTED_PLATFORM_SUPPRESSIONS`): same guarantee — no unreviewed suppression reaches a prod template —
+ * but it fails loudly and names the resource instead of quietly permitting everything.
+ *
+ * Note the two properties are INDEPENDENT and both still hold: cdk-nag itself changes no output (a
+ * suppression is written by the stack constructor, not by the Aspect — 'records the same set with the Aspect
+ * detached' proves it), and the set of suppressions is fixed.
  */
 import { App, Aspects, CfnResource, type IAspect } from 'aws-cdk-lib';
 import { ArtifactMetadataEntryType } from 'aws-cdk-lib/cloud-assembly-schema';
@@ -163,11 +174,123 @@ describe('the parity proof is not vacuous', () => {
     });
 });
 
-describe('no cdk-nag suppression is in force', () => {
-    it.each(Object.entries(prodNagged))('no cdk_nag suppression metadata in %s', (_stackName, template) => {
-        // A suppression writes Metadata.cdk_nag.rules_to_suppress into the resource — i.e. it IS a
-        // template diff. Advisory mode carries none; adding one must be a deliberate, reviewed change.
-        expect(template).not.toContain('cdk_nag');
-        expect(template).not.toContain('rules_to_suppress');
+/**
+ * Every cdk-nag suppression written into a synthesized template, as `stackName/logicalId → ruleId`, sorted.
+ *
+ * A suppression lands in `Resources.<logicalId>.Metadata.cdk_nag.rules_to_suppress`.
+ */
+function suppressionsIn(templates: Templates): string[] {
+    const found: string[] = [];
+
+    for (const [stackName, json] of Object.entries(templates)) {
+        const template = JSON.parse(json) as {
+            Resources?: Record<string, { Metadata?: { cdk_nag?: { rules_to_suppress?: Array<{ id: string }> } } }>;
+        };
+
+        for (const [logicalId, resource] of Object.entries(template.Resources ?? {})) {
+            for (const rule of resource.Metadata?.cdk_nag?.rules_to_suppress ?? []) {
+                found.push(`${stackName}/${logicalId} ${rule.id}`);
+            }
+        }
+    }
+
+    return found.sort();
+}
+
+/** Every suppression entry written into a synthesized template, with its full recorded shape. */
+function suppressionEntriesIn(
+    templates: Templates,
+): Array<{ where: string; id: string; reason: string; encoded: boolean }> {
+    const found: Array<{ where: string; id: string; reason: string; encoded: boolean }> = [];
+
+    for (const [stackName, json] of Object.entries(templates)) {
+        const template = JSON.parse(json) as {
+            Resources?: Record<
+                string,
+                {
+                    Metadata?: {
+                        cdk_nag?: {
+                            rules_to_suppress?: Array<{ id: string; reason: string; is_reason_encoded?: boolean }>;
+                        };
+                    };
+                }
+            >;
+        };
+
+        for (const [logicalId, resource] of Object.entries(template.Resources ?? {})) {
+            for (const rule of resource.Metadata?.cdk_nag?.rules_to_suppress ?? []) {
+                found.push({
+                    where: `${stackName}/${logicalId}`,
+                    id: rule.id,
+                    reason: rule.reason,
+                    encoded: rule.is_reason_encoded === true,
+                });
+            }
+        }
+    }
+
+    return found;
+}
+
+/**
+ * ⛔ THE SUPPRESSION ALLOWLIST for the platform app (issue #143).
+ *
+ * This block REPLACED an assertion that no prod template contained `cdk_nag` at all. That was the right
+ * contract while the burn-down carried zero suppressions (ADR-0013), and it is the wrong one now: a blanket
+ * prohibition can only be satisfied by deleting it, which would have removed the control precisely when
+ * suppressions started existing. So the prohibition became an ALLOWLIST — the same guarantee (no
+ * unreviewed suppression reaches a prod template) expressed as an exact, closed inventory.
+ *
+ * Two independent properties are asserted, and it matters that they are separate:
+ *
+ * 1. **Attaching cdk-nag still changes nothing.** The suite above still proves prod templates are
+ *    byte-identical with and without the Aspect. That property SURVIVED the burn-down because a suppression
+ *    is written by the STACK (`acceptNagFindings(...)` in the constructor), not by the Aspect — so the
+ *    ADR-0002/ADR-0008 no-prod-diff guarantee for the *Aspect* is intact and still guarded.
+ * 2. **The suppressions themselves are a reviewed, fixed set.** Which resource, which rule, nothing else.
+ *
+ * Anything added, removed or moved fails here and names the resource, so a new suppression cannot ride along
+ * in an unrelated change.
+ */
+const EXPECTED_PLATFORM_SUPPRESSIONS = [
+    // The internet-facing shared ALB's ingress boundary doing its job (ADR-0003).
+    'kitchensink-network-prod/AlbSecurityGroup86A59E99 AwsSolutions-EC23',
+    // Not a credential: a static SQL bootstrap string + an owner label, so rotation is meaningless.
+    // NOTE what is deliberately ABSENT: `DatabaseCredentialsSecret`. Its SMG4 finding is a REAL gap and is
+    // escalated in ADR-0013, not suppressed — single-user rotation would take the identity service down,
+    // because ECS injects the password at task start and the pool re-dials with the stale value.
+    'kitchensink-data-prod/MigrationPlanSecretA0DF90AF AwsSolutions-SMG4',
+];
+
+describe('exactly the reviewed cdk-nag suppressions are in force', () => {
+    it('carries the expected suppressions and no others', () => {
+        expect(suppressionsIn(prodNagged)).toEqual([...EXPECTED_PLATFORM_SUPPRESSIONS].sort());
+    });
+
+    it('records the same set with the Aspect detached', () => {
+        // Proves the suppressions come from the STACK, not from cdk-nag — which is why the byte-identical
+        // suite above still passes. If a suppression ever appeared only under the Aspect, that would mean
+        // the Aspect had started mutating output, i.e. the ADR-0002 line breached.
+        expect(suppressionsIn(prodPlain)).toEqual(suppressionsIn(prodNagged));
+    });
+
+    it('states a readable justification for every one of them', () => {
+        // cdk-nag base64-encodes a reason containing any codepoint above 255 (`is_reason_encoded`), which
+        // would leave the template — and the prod `cdk diff` a human approves — carrying an opaque blob
+        // instead of the argument. See @kitchensink/infra-security's own suite for the mechanism.
+        for (const entry of suppressionEntriesIn(prodNagged)) {
+            expect(entry.encoded, `${entry.where} ${entry.id}: reason is base64-encoded, not readable`).toBe(false);
+            expect(
+                entry.reason.length,
+                `${entry.where} ${entry.id}: reason is too short to be a reason`,
+            ).toBeGreaterThan(80);
+        }
+    });
+
+    it('keeps sandbox in step with prod', () => {
+        // A suppression applied only to one stage would mean the two stages diverge on a security decision.
+        expect(suppressionsIn(sandboxNagged).map((entry) => entry.replace('-sandbox/', '-prod/'))).toEqual(
+            suppressionsIn(prodNagged),
+        );
     });
 });

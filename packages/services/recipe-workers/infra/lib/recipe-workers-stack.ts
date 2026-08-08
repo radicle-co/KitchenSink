@@ -24,13 +24,65 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
-import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
+import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@kitchensink/infra-security';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** Where `npm run build` (esbuild) emits the bundled handlers CDK ships via `Code.fromAsset`. */
 const DIST_PATH = path.join(__dirname, '../../dist');
+
+/**
+ * The single key root under which ALL recipe media lives, mirroring `ownerMediaPrefix` in
+ * `@kitchensink/recipe-core` (`recipes/{ownerId}/...`). Every object-level IAM statement below is scoped to
+ * it, so no worker role can reach objects outside the recipe media subtree of the SHARED media bucket.
+ *
+ * It is the first segment only, not the whole prefix: `ownerId` is per-request and cannot be enumerated at
+ * synth time, which is why an object-level wildcard is irreducible here (accepted, with evidence, via
+ * `AcceptedNagFindings.ERASURE_WORKER_OBJECT_PREFIX_WILDCARD`).
+ */
+const RECIPE_OBJECT_ROOT = 'recipes';
+
+/**
+ * Grant a role EXACTLY the S3 authority `eraseRecipeObjects` uses, and nothing more.
+ *
+ * The account-erasure worker and the erasure-orphan sweeper both call that one function
+ * (`account-erasure-worker.ts`), so "what S3 authority does an erasure path need" is ONE piece of knowledge
+ * and lives here rather than being spelled out per role. Its whole API surface is `ListObjectsV2`
+ * (`s3:ListBucket`, bucket-level) and `DeleteObjects` (`s3:DeleteObject`, object-level).
+ *
+ * Replaces `bucket.grantRead()` + `bucket.grantDelete()`, which expanded to `s3:GetObject*`,
+ * `s3:GetBucket*`, `s3:List*` and `s3:DeleteObject*` — five `AwsSolutions-IAM5` wildcards, and a
+ * read-everything grant on buckets holding every owner's photos and version archives, handed to the most
+ * destructive path in the system. It lists and deletes; it never reads an object body.
+ *
+ * ⚠️ `s3:DeleteObjectVersion` is deliberately NOT granted: the handler never passes a `VersionId`, so it has
+ * no use for it today. Both buckets are versioned, so a plain delete leaves a delete marker rather than
+ * erasing prior versions — a pre-existing erasure-completeness gap recorded in ADR-0013, which this
+ * narrowing neither creates nor hides. Whoever closes that gap adds the action here deliberately, and until
+ * then gets an explicit `AccessDenied` rather than a silently-incomplete erasure.
+ *
+ * @param role - The worker role to grant.
+ * @param buckets - The buckets it sweeps.
+ * @sideEffect Adds IAM policy statements to `role`, and records the accepted IAM5 finding on it.
+ */
+function grantRecipeObjectErasure(role: iam.Role, buckets: readonly s3.IBucket[]): void {
+    role.addToPolicy(
+        new iam.PolicyStatement({
+            actions: ['s3:ListBucket'],
+            resources: buckets.map((bucket) => bucket.bucketArn),
+        }),
+    );
+    role.addToPolicy(
+        new iam.PolicyStatement({
+            actions: ['s3:DeleteObject'],
+            resources: buckets.map((bucket) => bucket.arnForObjects(`${RECIPE_OBJECT_ROOT}/*`)),
+        }),
+    );
+    // The object-key wildcard that remains is irreducible (ownerId is per-request). Accepted WITH the
+    // evidence above; `applyToChildren` is required because IAM5 lands on `<Role>/DefaultPolicy/Resource`.
+    acceptNagFindings(role, AcceptedNagFindings.ERASURE_WORKER_OBJECT_PREFIX_WILDCARD, { applyToChildren: true });
+}
 
 /** FR-007b-i: the backlog must stay under 100 rows under normal operation. */
 const BACKLOG_ALARM_THRESHOLD = 100;
@@ -308,17 +360,46 @@ export class RecipeWorkersStack extends Stack {
         const workerRole = makeRole('VersionArchiveWorkerRole', 'Least-privilege role for the version-archive Lambda');
         grantRdsIam(workerRole);
         this.archiveQueue.grantConsumeMessages(workerRole);
-        archiveBucket.grantPut(workerRole);
+        // `grantPut` expands to s3:PutObject + PutObjectLegalHold/Retention/Tagging/VersionTagging AND
+        // s3:Abort* (AwsSolutions-IAM5). The handler issues exactly one S3 call, `PutObjectCommand` (see
+        // version-archive-worker.ts), with no tagging, no object lock and no multipart upload -- so every one
+        // of those extra actions is unused authority on the bucket that holds version snapshots.
+        workerRole.addToPolicy(
+            new iam.PolicyStatement({
+                actions: ['s3:PutObject'],
+                resources: [archiveBucket.arnForObjects(`${RECIPE_OBJECT_ROOT}/*`)],
+            }),
+        );
+        // The `recipes/*` object wildcard that remains is irreducible for the same reason as the erasure
+        // roles: the snapshot key embeds a per-request ownerId. Accepted narrowly (regex-scoped to
+        // `.../recipes/*`), so a future unscoped grant on this role would still report.
+        acceptNagFindings(workerRole, AcceptedNagFindings.ERASURE_WORKER_OBJECT_PREFIX_WILDCARD, {
+            applyToChildren: true,
+        });
 
         // erasure worker: hard-deletes an owner's rows + media. Needs delete on both buckets, and consume
         // (never send) on the erasure queue — ARCH-IT-7, so a bug in the most destructive path in the
         // system cannot fan out erasure work; the sweeper and the recipe API are the only producers.
         const erasureRole = makeRole('AccountErasureWorkerRole', 'Least-privilege role for the account-erasure Lambda');
         grantRdsIam(erasureRole);
-        archiveBucket.grantRead(erasureRole);
-        archiveBucket.grantDelete(erasureRole);
-        mediaBucket.grantRead(erasureRole);
-        mediaBucket.grantDelete(erasureRole);
+        // The exact S3 API surface of `eraseRecipeObjects` (account-erasure-worker.ts, also reused by the
+        // orphan sweeper) is TWO calls: `ListObjectsV2` (IAM `s3:ListBucket`, a bucket-level action) and
+        // `DeleteObjects` (IAM `s3:DeleteObject`). Nothing else.
+        //
+        // `grantRead` + `grantDelete` handed over far more (AwsSolutions-IAM5 flagged five wildcards on this
+        // one role): s3:GetObject*, s3:GetBucket*, s3:List* and s3:DeleteObject*. GetObject is authority the
+        // most destructive path in the system has no use for -- it lists and deletes, it never reads a body --
+        // and on buckets holding every owner's photos and version archives that is a real read-everything
+        // grant. So the actions are spelled out, and the object-level resource is scoped to the authoritative
+        // `recipes/` key root (@kitchensink/recipe-core recipeObjectKeys), which also means these roles cannot
+        // reach objects OUTSIDE the recipe media subtree in the shared media bucket.
+        //
+        // ⚠️ Deliberately NOT granted: s3:DeleteObjectVersion. The handler never passes a VersionId, so it
+        // does not have it today. Both buckets are versioned, so a delete leaves a delete marker rather than
+        // erasing prior versions -- a pre-existing erasure-completeness gap recorded in ADR-0013, NOT
+        // something this narrowing introduces. Whoever closes that gap must add the action here deliberately,
+        // and will get an explicit AccessDenied rather than a silently-incomplete erasure.
+        grantRecipeObjectErasure(erasureRole, [archiveBucket, mediaBucket]);
         this.erasureQueue.grantConsumeMessages(erasureRole);
 
         // HAZ-051/067/039: least-privilege grant for the CDN-invalidation call, scoped to the ONE
@@ -356,16 +437,11 @@ export class RecipeWorkersStack extends Stack {
             'Least-privilege role for the erasure-orphan (resurrection backstop) sweeper Lambda',
         );
         grantRdsIam(orphanSweeperRole);
-        // `s3:ListBucket` is a BUCKET-level action (ListObjectsV2), so it is granted on the bucket ARN
-        // directly rather than via grantRead (which would also hand over GetObject the sweeper never uses).
-        orphanSweeperRole.addToPolicy(
-            new iam.PolicyStatement({
-                actions: ['s3:ListBucket'],
-                resources: [archiveBucket.bucketArn, mediaBucket.bucketArn],
-            }),
-        );
-        archiveBucket.grantDelete(orphanSweeperRole);
-        mediaBucket.grantDelete(orphanSweeperRole);
+        // Same S3 surface as the erasure worker, because it literally runs the same `eraseRecipeObjects`
+        // function -- so it gets the same grant from the same place rather than a second, drifting spelling.
+        // (This role already granted `s3:ListBucket` explicitly for the right reason; what it still had was
+        // `grantDelete`, whose `s3:DeleteObject*` wildcard and bucket-wide object ARN it does not need.)
+        grantRecipeObjectErasure(orphanSweeperRole, [archiveBucket, mediaBucket]);
 
         // ── functions ──────────────────────────────────────────────────────────────────────────────
         const runtime = NODE_LAMBDA_RUNTIME;

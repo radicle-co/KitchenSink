@@ -669,10 +669,19 @@ jobs:
             # half. Same ordering constraint (and same 120s contract-max TTL) as the recipe job.
             - name: Mint the food service-erasure token pool
               run: npx tsx packages/services/food-service/tests/load/prepare-erasure-tokens.ts
+            # Mint the Clerk RS256 pool the T-195 SC scripts present. Also BEFORE the boot: the container is
+            # given the public half as CLERK_JWT_KEY, so a pool minted afterwards would verify against a key
+            # the service does not hold and every read would be a 401. Neither pool is in the repo (both are
+            # gitignored live credentials), so this job MUST mint them and can never assume they exist.
+            - name: Mint the food Clerk session-token pool (T-195)
+              run: npx tsx packages/services/food-service/tests/load/prepare-clerk-tokens.ts
             # PORT=3000 (not food's 3002 default) so the script's FOOD_API_BASE_URL default host:port applies.
-            # USDA_API_KEY is schema-required but never called on the erasure path, so a dummy satisfies boot.
-            # No CLERK_JWT_KEY: the internal erasure route is guarded by FoodServiceErasureGuard (EdDSA), not
-            # Clerk, and leaving the Clerk key unset keeps every *user* route failing closed at 401.
+            # USDA_API_KEY is schema-required but never called on any measured path (search is local-only by
+            # FR-009, reads never reach an adapter), so a dummy satisfies boot without any source traffic.
+            # BOTH auth keys are supplied: the internal erasure route is guarded by FoodServiceErasureGuard
+            # (EdDSA) while every /api/v1/foods/* route is guarded by FoodAuthGuard (Clerk RS256), and the
+            # T-195 scripts measure the latter. CLERK_AUTHORIZED_PARTIES is the exact-match list mode the
+            # minted `azp` claims — the production posture (ADR-0001), not the preview pattern.
             - name: Boot food-service (Docker)
               run: |
                   docker run -d --name food-load --network host \
@@ -682,6 +691,8 @@ jobs:
                       -e STAGE=load \
                       -e USDA_API_KEY=load-test-dummy-key \
                       -e FOOD_SERVICE_PRINCIPAL_JWT_KEY="$(cat packages/services/food-service/tests/load/erasure-public-key.pem)" \
+                      -e CLERK_JWT_KEY="$(cat packages/services/food-service/tests/load/clerk-public-key.pem)" \
+                      -e CLERK_AUTHORIZED_PARTIES=https://food-load.test \
                       food-load:ci
                   for i in $(seq 1 40); do
                       if curl -sf http://localhost:3000/health > /dev/null; then echo "service up"; break; fi
@@ -691,6 +702,10 @@ jobs:
             # Shortened shape for the same reason as the recipe erasure run: the minted tokens live 120s (the
             # verifier's contract max), so a 50s run started right after boot never races the TTL. Thresholds
             # are shape-independent (see tests/load/README.md), so strictness is unchanged.
+            #
+            # ⚠️ THIS RUNS FIRST, and the ordering is load-bearing. The T-195 fixture seed below writes ~180,000
+            # rows and takes ~15s+, which on a slower runner is enough to eat into the erasure pool's 120s TTL.
+            # Erasure first means the short-TTL run happens while the pool is freshest.
             - name: Run k6 food service-erasure load script (CR-002 / U4b)
               working-directory: packages/services/food-service
               env:
@@ -699,6 +714,60 @@ jobs:
                   FOOD_LOAD_HOLD: 25s
                   FOOD_LOAD_RAMP_DOWN: 10s
               run: k6 run --summary-export=k6-erasure-summary.json tests/load/service-erasure.load.js
+            # ── T-195: SC-001 / SC-004 / SC-005 / SC-007 ────────────────────────────────────────────────
+            # Seed the local store the SC scripts read. Deliberately AFTER the boot: the seeder is additive
+            # and never drops the schema, precisely so the already-running container's pool is not left
+            # holding sessions against dropped tables (see the script's docblock).
+            - name: Seed the food performance fixture (50,000 RESOLVED foods)
+              working-directory: packages/services/food-service
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_load
+              run: npx tsx tests/load/prepare-perf-fixture.ts
+            - name: Run k6 local-store read load script (SC-001 read p95, SC-004 serve rate)
+              working-directory: packages/services/food-service
+              env:
+                  FOOD_API_BASE_URL: http://localhost:3000
+              run: k6 run --summary-export=k6-local-store-read-summary.json tests/load/local-store-read.load.js
+            - name: Run k6 local-store throughput load script (SC-005 served reads/sec)
+              working-directory: packages/services/food-service
+              env:
+                  FOOD_API_BASE_URL: http://localhost:3000
+              run: |
+                  k6 run --summary-export=k6-local-store-throughput-summary.json \
+                      tests/load/local-store-throughput.load.js
+            - name: Run k6 search load script (SC-007 search p95 at 50,000 foods)
+              working-directory: packages/services/food-service
+              env:
+                  FOOD_API_BASE_URL: http://localhost:3000
+              run: k6 run --summary-export=k6-search-summary.json tests/load/search.load.js
+            # The drain claim needs no HTTP service — it calls FetchQueueDao.leaseNext() against Postgres
+            # directly (k6 cannot speak SQL). Split into TWO steps because they answer two different questions
+            # and must be attributable separately in the run log.
+            #
+            # (1) The CONTRACT gate. SC-003 promises 202 -> RESOLVED within 60s p95 "when the fetch_queue
+            #     pending-row depth is under 100 rows", so depth 100 is where the promise actually binds. This
+            #     step is the regression bar for SC-003 and passes today (measured ~7ms p95 vs a 60ms budget).
+            - name: Drain-claim SC-003 contract gate (depth 100, DSN-11)
+              working-directory: packages/services/food-service
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_load
+                  FOOD_DRAIN_DEPTHS: '100'
+              run: npx tsx tests/load/drain-demotion.perf.ts
+            # (2) The FR-046 CEILING probe — the measurement T-195's acceptance explicitly requires ("at the
+            #     FR-046 10,000-row ceiling"). ⚠️ THIS STEP IS EXPECTED TO FAIL as it lands, and that failure IS
+            #     the DSN-11 flag T-195 asks for: measured locally, the per-`sub` correlated COUNT(*) in
+            #     leaseNext()'s ORDER BY costs ~0.5s per claim at depth 1,000 and ~7.5-11s per claim at the
+            #     10,000-row ceiling, against a 60ms budget. There is deliberately NO `continue-on-error` and
+            #     no `|| true`: a step that reported success for a 12-second drain claim is exactly the class of
+            #     silent-green failure this repo has already paid for.
+            #     Resolving it means implementing DSN-11 (materialize the per-`sub` pending count) — NOT raising
+            #     FOOD_DRAIN_CLAIM_P95_MS, and NOT deleting this step.
+            - name: Drain-claim FR-046 ceiling probe (depths 1000+10000, DSN-11 — RED until DSN-11 lands)
+              working-directory: packages/services/food-service
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_load
+                  FOOD_DRAIN_DEPTHS: '1000,10000'
+              run: npx tsx tests/load/drain-demotion.perf.ts
             - name: Upload k6 summaries
               if: always()
               uses: actions/upload-artifact@v4

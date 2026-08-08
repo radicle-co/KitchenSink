@@ -24,12 +24,10 @@ import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';
 import { SharedArray } from 'k6/data';
 
-import { BASE_URL, rampStages, PEAK_VUS } from './lib/common.js';
+import { BASE_URL, ERASURE_P95_MS, rampStages, PEAK_VUS, SUMMARY_TREND_STATS } from './lib/common.js';
 
-// p95 budget (ms) for the food erasure path — a single indexed DELETE-by-requester (no async hand-off).
-// Env-tunable; tighter than recipe's since there is no SQS enqueue.
-const ERASURE_P95_MS = Number(__ENV['FOOD_ERASURE_P95_MS'] || 500);
-// Where prepare-erasure-tokens.ts wrote the pool (relative to the run cwd = the package dir).
+// Where prepare-erasure-tokens.ts wrote the pool. NOTE: k6's `open()` resolves relative to the SCRIPT, not
+// the process cwd, so this reaches `tests/load/erasure-tokens.json` from either invocation directory.
 const TOKENS_FILE = __ENV['FOOD_ERASURE_TOKENS_FILE'] || './erasure-tokens.json';
 
 // Parse the pre-minted pool ONCE in the init context; SharedArray keeps a single copy across all VUs.
@@ -43,6 +41,7 @@ const eraseTrend = new Trend('food_erasure_duration', true);
 const rejectPeak = Math.max(1, Math.ceil(PEAK_VUS / 2));
 
 export const options = {
+    summaryTrendStats: SUMMARY_TREND_STATS,
     scenarios: {
         erase: {
             executor: 'ramping-vus',

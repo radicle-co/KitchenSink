@@ -135,11 +135,19 @@ export function totalRampDuration() {
 // --- Token pool ---------------------------------------------------------------------------------
 // Where `prepare-clerk-tokens.ts` wrote the pools.
 //
-// ⚠️ k6's `open()` resolves RELATIVE TO THE SCRIPT, not the process cwd. This module lives in
-// `tests/load/lib/`, so the pool one directory up is `'../clerk-tokens.json'` — and that is correct
-// whether k6 was invoked from the package directory or from the repo root. Do not "fix" it to a
-// cwd-relative path.
-const TOKENS_FILE = __ENV['IDENTITY_TOKENS_FILE'] || '../clerk-tokens.json';
+// ⚠️ k6's `open()` resolves relative to the ENTRY SCRIPT, not to this module and not to the process cwd.
+// That distinction is the whole trap, and this comment previously reasoned its way to the wrong answer:
+// it argued that because the helper sits in `tests/load/lib/`, the pool "one directory up" is
+// `'../clerk-tokens.json'`. It is not. The entry scripts (`session-hot-path.load.js` and friends) live in
+// `tests/load/`, so resolution is relative to THERE — `'../…'` escapes to `tests/clerk-tokens.json`, one
+// level too high, and `open()` fails on a path nothing writes.
+//
+// Measured on k6 v0.54.0 while building the food-service tier, whose `lib/common.js` hit the same thing and
+// documents it. The correct default is entry-relative: `'./clerk-tokens.json'`.
+//
+// This was latent rather than observed: no CI job runs the identity tier yet, so nothing had executed the
+// default path. Do not "restore" the `../` form by reasoning from where THIS file lives.
+const TOKENS_FILE = __ENV['IDENTITY_TOKENS_FILE'] || './clerk-tokens.json';
 
 // Parsed ONCE in the init context. Every scenario imports from here, so the file is opened exactly once
 // per run regardless of how many scripts share it.

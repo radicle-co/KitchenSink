@@ -25,6 +25,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
+import { RecipeAuthNotReadyError } from '@/lib/recipeAuthNotReady';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
 /**
@@ -42,14 +43,28 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
             new RecipeServiceClient({
                 baseUrl: RECIPE_SERVICE_BASE_URL,
                 token: async ({ forceRefresh } = {}) => {
-                    // `getToken` comes from Clerk's client `useAuth`, so it is only defined in the browser;
-                    // during SSR / pre-hydration it can be undefined. Any request issued before it is ready
-                    // is sent unauthenticated rather than throwing inside the request pipeline.
+                    // ⚠️ DO NOT restore an empty-string fallback here. This used to `return ''` when
+                    // `getToken` was undefined (SSR/pre-hydration) or resolved `null`, on the reasoning
+                    // that an unauthenticated request beats throwing inside the request pipeline. It does
+                    // not: an empty bearer makes every protected recipe endpoint answer
+                    // `401 {"message":"Missing bearer token"}`, so the request cannot succeed. Measured in
+                    // production 2026-08-07 — `/api/v1/recipes?pageSize=4` 401'd on a signed-in Home load
+                    // while the same call with a real token returned 200 — and that 401 then met the
+                    // redirect-to-sign-in handler, turning a transient state into an auth failure.
+                    //
+                    // Throwing the typed error keeps "not ready" distinguishable from "rejected", and
+                    // TanStack Query's default retry recovers it a moment later once Clerk has hydrated.
                     if (typeof getToken !== 'function') {
-                        return '';
+                        throw new RecipeAuthNotReadyError('getToken is unavailable (SSR / pre-hydration)');
                     }
 
-                    return (await getToken({ skipCache: forceRefresh === true })) ?? '';
+                    const token = await getToken({ skipCache: forceRefresh === true });
+
+                    if (token === null || token === '') {
+                        throw new RecipeAuthNotReadyError('Clerk returned no session token');
+                    }
+
+                    return token;
                 },
             }),
         [getToken],

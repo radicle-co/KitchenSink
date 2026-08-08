@@ -147,18 +147,31 @@ describe('RecipeProviders (web) — token resolution', () => {
         expect(getToken).toHaveBeenNthCalledWith(2, { skipCache: true });
     });
 
-    it('sends an unauthenticated request (never throws) before getToken is defined — SSR/pre-hydration', async () => {
+    // ⚠️ REVERSES a decision this suite previously asserted as correct. The old test was
+    // "sends an unauthenticated request (never throws) before getToken is defined — SSR/pre-hydration",
+    // and it pinned `authorizationAt(fetchMock)` to `'Bearer'` — an EMPTY bearer.
+    //
+    // That is a fabricated credential, and it cannot succeed: every protected recipe endpoint answers
+    // `401 {"message":"Missing bearer token"}`. Observed in production on 2026-08-07 —
+    // `GET recipe.commise.app/api/v1/recipes?pageSize=4` returned 401 on a signed-in Home load, while the
+    // identical call with a real token returned 200. The 401 then met the app's redirect-to-sign-in
+    // handler. "Never throws" bought nothing: issuing a request that CANNOT succeed is not more graceful
+    // than declining to issue it, and it converts a transient not-ready state into a server-side auth
+    // failure indistinguishable from a genuine one.
+    //
+    // Now the supplier throws a typed `RecipeAuthNotReadyError`. TanStack Query's default retry recovers
+    // it once hydration completes, so the transient case self-heals WITHOUT a doomed round trip — and no
+    // 401 is ever produced, so nothing can trigger the sign-in bounce.
+    it('does NOT issue an unauthenticated request before getToken is defined — SSR/pre-hydration', async () => {
         const user = userEvent.setup();
         useAuthMock.mockReturnValue({ getToken: undefined });
 
         const { fetchButton } = renderProbe();
         await user.click(fetchButton());
 
-        await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-        // Pre-existing (unchanged) behavior: an undefined `getToken` resolves to `''`, so the header is sent
-        // as `Bearer ` (empty token, trimmed to `Bearer` by the Fetch `Headers` spec) rather than omitted —
-        // B14 only removes the ref, it does not change this.
-        expect(authorizationAt(fetchMock)).toBe('Bearer');
+        // The request is never sent: no empty `Bearer`, no 401, nothing for the redirect handler to see.
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });
 

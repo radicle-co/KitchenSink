@@ -601,8 +601,12 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 
 ## Phase 11 — Performance & Availability
 
-- [ ] **T-195** [M] [Test-first: false] Performance / load tests for SC-001/003/004/005/007 — local-store read (`RESOLVED`) p95 ≤ 50ms (SC-001), backfill `202`→`RESOLVED` p95 ≤ 60s at queue depth < 100 (SC-003), local-store serve rate ≥ 80% after 5,000 foods (SC-004), local-store serve/read throughput (SC-005), search p95 ≤ 200ms at 50,000 foods (SC-007) — `—` (SC-001, SC-003, SC-004, SC-005, SC-007)
-      **Acceptance**: each SC threshold measured/reported under representative load (local-store reads, no source call); regressions fail CI; a drain/demotion query perf test at the FR-046 10,000-row ceiling shows the per-`sub` correlated `COUNT(*)` demotion in the drain `ORDER BY` stays within the SC-003 backfill budget (else it is flagged for the materialized per-`sub` pending count, DSN-11).
+- [x] **T-195** [M] [Test-first: false] Performance / load tests for SC-001/003/004/005/007 — **MEASURED 2026-08-08.** Local-workstation numbers (production Docker image, local Postgres, 51,000 foods, 50 peak VUs) — NOT deployed guarantees:
+      SC-001 read p95 **4.00ms** (budget 50ms) · SC-004 serve rate **90.49%** (>80%) · SC-005 throughput **94.30/s** (>1.39/s) · SC-007 search p95 **160ms** (200ms; one shape breached once at 205.56ms) · SC-003 drain claim @ depth 100 **7.00ms** (60ms). All PASS.
+      **DSN-11 CONFIRMED and ESCALATED — see the new task below.** `FetchQueueDao.leaseNext`'s FR-043 demotion clause is a per-`sub` correlated `COUNT(*)` inside the `ORDER BY` of a `LIMIT 1 FOR UPDATE SKIP LOCKED`, so `LIMIT 1` cannot avoid evaluating it per candidate row: **541ms/claim at depth 1,000** (46–54s of SC-003's 60s budget in claim overhead alone) and **7.6–11s/claim at 10,000** (13–20 minutes to drain 100 items). Cause proven, not inferred: the `mixed` profile (nothing demoted) is as slow or slower than `adversarial` (all demoted), so the cost is the aggregate running AT ALL.
+      **SC-003 as written is not breached** (conditioned on depth < 100). The finding is that **FR-046 permits a depth at which SC-003 is unachievable, and the boundary is between 100 and 1,000 rows** — far below DSN-11's assumed "acceptable below 10,000". The budget was NOT widened; the CI probe is red and that red is the flag.
+      Also found: **SC-007 is at risk for 2-character queries** — `EXPLAIN` shows a Seq Scan on `food` (51,000 rows, 157.99ms, no index) because a 2-char pattern yields no complete trigram, so `ILIKE '%ch%'` cannot use `food_name_trgm_idx`. `query=chicken` is a BitmapOr over three GIN indexes at 19.8ms.
+      **Acceptance**: MET — each SC threshold measured/reported under representative load with no source call; regressions fail CI (`_ci-heavy.yml`, opt-in tier, no `continue-on-error`); the drain/demotion perf test at the FR-046 10,000-row ceiling ran and **flagged DSN-11 rather than absorbing it**.
 
 - [x] **T-196** [S] [Test-first: false] **[CLOSED — WON'T DO, owner ruling 2026-08-08]** Multi-AZ upgrade of the shared `kitchensink-data-{stage}` instance (SC-009) — `packages/infra/global/lib/platform/data-stack.ts` (SC-009, A-013)
       **Owner ruling (2026-08-08), recorded as the standing architecture, not a deferral:** _"one cluster, one
@@ -720,6 +724,20 @@ T-172, T-185.
 - **FU-EVENTNAME** — **CLOSED (stabilization 2026-06-28):** the completion event is canonically **`FoodFetchCompleted`** (published via `publishFoodFetchCompleted`), matching plan §4 and the deployed CDK `FoodFetchCompletedRule` (`detailType: ['FoodFetchCompleted']`); all spec/plan/v-model/task references now use it (T-154/T-165). `FoodDataReceived`/`publishFoodDataReceived` are retired.
 - **FU-ESBUILD** — esbuild bundling for the food Lambdas → ✅ done for the migrate Lambda (`esbuild.mjs` → `dist-lambda/`, `npm run bundle:lambda`, run by `infra:synth`/`infra:deploy`). Search-indexer T-180 shipped as a STORED generated column (no Lambda), so only the migrate handler is bundled. (Change-refresh moved to a Fargate scheduled task T-170 — D-REFRESH — so it no longer needs Lambda bundling.)
 - **FU-LOCALSTACK-E2E** — E2E foundation in place (LocalStack Community + Docker Postgres); the re-baselined id-keyed AWS-service flows land with T-190 as Phases 3–6 complete.
+
+### Escalated by T-195's measurements (2026-08-08)
+
+- [ ] **T-197** [M] [Test-first: true] **DSN-11 — materialize the per-`sub` pending count** so `FetchQueueDao.leaseNext`'s `ORDER BY` reads a scalar instead of a correlated `COUNT(*)` — `packages/services/food-service/src/foods/dao/fetch-queue.dao.ts:121` (FR-043, FR-046, SC-003)
+      Measured cost of NOT doing it: 541ms/claim at depth 1,000, 7.6–11s at 10,000. Keep T-151's fairness integration tests green — the demotion SEMANTICS must not change, only how the ranking value is obtained. The `Drain-claim FR-046 ceiling probe` in `_ci-heavy.yml` is the acceptance test and is RED until this lands.
+      **Latent, not live:** the queue only reaches these depths under real user volume, so this is a scaling defect rather than a current outage. Prioritise against launch traffic, not today's.
+
+- [ ] **T-198** [S] [Test-first: true] **SC-007 short-query index bypass** — a 2-char query yields no complete trigram, so the `ILIKE` branches Seq Scan 51,000 rows at ~158ms. Gate them behind `length(query) >= 3` (or enforce a minimum at the boundary) — `packages/services/food-service/src/foods/dao/food-search.dao.ts:48` (SC-007, FR-008, FR-010)
+      This CHANGES SEARCH SEMANTICS (a 2-char query stops matching mid-word), so it needs a product call, not just a DAO edit.
+
+- [ ] **T-199** [S] [Test-first: true] **Two defects T-195 found in shipped code, unrelated to perf:**
+      (a) `FOOD_DEMOTE_THRESHOLD` is validated in `env.schema.ts` (default 50) and covered by tests, but `fetch-queue.dao.ts:21` hardcodes `DEMOTION_PENDING_THRESHOLD = 50` and never reads it — an operator tuning that variable gets NO effect, silently.
+      (b) `FOOD_METRIC.localStoreServeRate` (`src/observability/emf-metrics.ts:33`) is declared and asserted in a test but **emitted nowhere**, so SC-004 and SC-005 have no runtime metric in production — they are provable only under load test, never observable in service.
+      Also: `npm run lint` globs `src/**/*.ts`, so the whole `tests/` tree is unlinted (two pre-existing `padding-line-between-statements` errors in `tests/load/prepare-erasure-tokens.ts` confirm it).
 
 ---
 

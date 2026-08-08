@@ -370,18 +370,37 @@ describe('aliasPreviewDeployment — the step ADR-0001 says is load-bearing', ()
         expect(http).not.toHaveBeenCalled();
     });
 
-    // The reference lands in the URL path, so anything that could escape it is refused before the call.
-    it.each(['', '   ', '../projects/prj_abc', 'dpl_a/aliases', 'dpl a', 'dpl_a?teamId=other'])(
-        'refuses the deployment reference %j without calling Vercel',
+    // CI reads this from a third-party action's output. A false refusal would leave the preview with no
+    // address at all, so a scheme prefix and a trailing slash are tolerated — and nothing else is.
+    it.each(['https://commise-abc123-radicle-co.vercel.app', 'https://commise-abc123-radicle-co.vercel.app/'])(
+        'tolerates the scheme-prefixed deployment host %j',
         async (deployment) => {
-            const http = vi.fn();
+            const http = vi.fn().mockResolvedValueOnce(okResponse());
 
-            await expect(aliasPreviewDeployment(http, VERCEL, deployment, HOST)).rejects.toThrow(
-                /deployment reference/u,
+            await aliasPreviewDeployment(http, VERCEL, deployment, HOST);
+
+            expect(http.mock.calls[0]![0]).toBe(
+                'https://api.vercel.com/v2/deployments/commise-abc123-radicle-co.vercel.app/aliases?teamId=team_xyz',
             );
-            expect(http).not.toHaveBeenCalled();
         },
     );
+
+    // The reference lands in the URL path, so anything that could escape it is refused before the call.
+    it.each([
+        '',
+        '   ',
+        '../projects/prj_abc',
+        'dpl_a/aliases',
+        'dpl a',
+        'dpl_a?teamId=other',
+        'https://evil.com/path',
+        'https://',
+    ])('refuses the deployment reference %j without calling Vercel', async (deployment) => {
+        const http = vi.fn();
+
+        await expect(aliasPreviewDeployment(http, VERCEL, deployment, HOST)).rejects.toThrow(/deployment reference/u);
+        expect(http).not.toHaveBeenCalled();
+    });
 });
 
 describe('createPreviewDomain — the order is the safety property', () => {

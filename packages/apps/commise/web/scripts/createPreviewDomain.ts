@@ -120,12 +120,20 @@ export function isPreviewAliasPendingError(error: unknown): error is PreviewAlia
 /**
  * Validate a Vercel deployment reference before it is interpolated into an API path.
  *
- * @param deployment - A `dpl_…` id or a bare deployment hostname.
- * @returns The trimmed reference.
+ * A leading scheme and trailing slashes are tolerated because CI reads this from a third-party action's
+ * output (`zentered/vercel-preview-url`), which is documented as a bare host but is not ours to guarantee
+ * — and a false refusal here leaves the preview with no address at all. Nothing else is tolerated: the
+ * value lands in an API URL path, so anything that could escape that segment is refused.
+ *
+ * @param deployment - A `dpl_…` id or a deployment hostname, optionally scheme-prefixed.
+ * @returns The bare reference.
  * @throws Error When it is empty or contains anything that could escape the URL path segment.
  */
 const requireDeploymentRef = (deployment: string): string => {
-    const ref = deployment.trim();
+    const ref = deployment
+        .trim()
+        .replace(/^https?:\/\//iu, '')
+        .replace(/\/+$/u, '');
 
     if (!DEPLOYMENT_REF.test(ref)) {
         throw new Error(`create-preview-domain: invalid deployment reference '${deployment}'`);

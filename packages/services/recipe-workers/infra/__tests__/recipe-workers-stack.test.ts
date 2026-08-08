@@ -604,34 +604,45 @@ describe('RecipeWorkersStack — archive-orphan sweep', () => {
         // left in EITHER bucket (archive: version-archive PUT; media: presigned photo PUT), but has no reason
         // to read object bodies, write, or produce/consume any queue. A wider grant would let a bug in this
         // path delete beyond its remit.
-        const policies = Object.values(template.findResources('AWS::IAM::Policy'));
-        const sweeperPolicy = policies.find((policy) => {
-            const serialized = JSON.stringify(policy);
+        // Located by POLICY NAME, not by a conjunction of substrings. The previous version filtered on
+        // "contains ListBucket AND DeleteObject AND both bucket names AND no PutObject", then asserted the
+        // survivor happened to be the sweeper's policy. That is identity-by-coincidence: when the grants were
+        // narrowed from `grantRead`+`grantDelete` to explicit `s3:ListBucket`/`s3:DeleteObject`, the filter
+        // stopped matching and the failure said "expected undefined" — naming neither the policy it wanted nor
+        // what had actually changed. Finding the role's own policy first, then asserting its contents, means a
+        // future grant change reports WHICH action moved.
+        const sweeperPolicy = Object.values(template.findResources('AWS::IAM::Policy')).find((policy) =>
+            /^ErasureOrphanSweeperRoleDefaultPolicy/.test(String(policy.Properties?.PolicyName ?? '')),
+        );
 
-            return (
-                serialized.includes('s3:ListBucket') &&
-                serialized.includes('s3:DeleteObject') &&
-                serialized.includes('commise-versions-sandbox') &&
-                serialized.includes('commise-photos-sandbox') &&
-                // neither the archive nor media worker's PutObject belongs to the orphan sweeper.
-                !serialized.includes('s3:PutObject')
-            );
-        });
-        const serialized = JSON.stringify(sweeperPolicy);
+        expect(sweeperPolicy, "the orphan sweeper's role must carry an inline policy").toBeDefined();
 
-        // Confirms the matched policy is actually the orphan sweeper's own role policy, not merely some
-        // policy that happens to satisfy the substring filters above.
-        expect(
-            sweeperPolicy?.Properties?.PolicyName,
-            'a List+Delete-on-both-buckets, no-Put policy must exist',
-        ).toEqual(expect.stringMatching(/^ErasureOrphanSweeperRoleDefaultPolicy/));
-        // Both buckets are covered (media is the presigned-PUT resurrection fix).
-        expect(serialized).toContain('commise-versions-sandbox');
-        expect(serialized).toContain('commise-photos-sandbox');
-        // Never GetObject (it lists and deletes, it does not read bodies).
-        expect(serialized).not.toContain('s3:GetObject');
-        // Never any SQS — it is neither a producer nor a consumer.
-        expect(serialized).not.toContain('sqs:');
+        // Assert over the POLICY DOCUMENT, never the whole resource. `JSON.stringify(policy)` also swallows
+        // `Metadata.cdk_nag`, whose suppression justification legitimately NAMES the actions it is explaining
+        // it does not grant ("no s3:GetObject*, no s3:Abort*, replacing grantRead/grantDelete/grantPut"). A
+        // `not.toContain('s3:GetObject')` over the resource therefore fails on the PROSE while the grants are
+        // correct — which is exactly what happened, and it read as a permission regression that did not exist.
+        // Reading the granted actions makes the assertion about authority instead of about text.
+        const statements = (sweeperPolicy?.Properties?.PolicyDocument?.Statement ?? []) as readonly {
+            Action?: string | string[];
+        }[];
+        const grantedActions = statements.flatMap((statement) =>
+            typeof statement.Action === 'string' ? [statement.Action] : (statement.Action ?? []),
+        );
+        const resources = JSON.stringify(statements);
+
+        // It lists and it deletes — the two calls `erasure-orphan-sweeper` actually issues, and no more.
+        expect(grantedActions).toContain('s3:ListBucket');
+        expect(grantedActions).toContain('s3:DeleteObject');
+        // Never reads bodies, never writes, never touches a queue, and never reaches object VERSIONS.
+        expect(grantedActions.filter((action) => /^s3:(GetObject|PutObject|Abort|.*Version)/.test(action))).toEqual([]);
+        expect(grantedActions.filter((action) => action.startsWith('sqs:'))).toEqual([]);
+        // Both buckets are covered (media is the presigned-PUT resurrection fix), and the destructive action is
+        // confined to the authoritative `recipes/` prefix rather than the whole bucket.
+        expect(resources).toContain('commise-versions-sandbox');
+        expect(resources).toContain('commise-photos-sandbox');
+        expect(resources).toContain('commise-versions-sandbox/recipes/*');
+        expect(resources).toContain('commise-photos-sandbox/recipes/*');
     });
 
     it('is VPC-attached like every other DB-bound worker (ADR-0004)', () => {

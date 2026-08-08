@@ -2,6 +2,8 @@ import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect, beforeAll } from 'vitest';
 
+import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
+
 import {
     FoodServiceStack,
     foodDatabaseNameForStage,
@@ -394,7 +396,12 @@ describe('In-VPC migration-runner Lambda (T-191)', () => {
     it('creates the migration function in a PRIVATE subnet with the food DB env contract', () => {
         serviceTemplate.hasResourceProperties('AWS::Lambda::Function', {
             Handler: 'lambdas/migrate/handler.handler',
-            Runtime: 'nodejs22.x',
+            // Read from the shared pin, not re-hardcoded. The literal here was `nodejs22.x` and this test
+            // was the only thing in the repo that broke when the runtime moved to `nodejs24.x` — a second
+            // authoritative copy of a version that is supposed to live in exactly one place
+            // (`NODE_LAMBDA_RUNTIME`, which the stack itself uses). Asserting the constant keeps the
+            // contract ("this Lambda runs the pinned runtime") while making the next bump a one-line change.
+            Runtime: NODE_LAMBDA_RUNTIME.name,
             Timeout: 300,
             MemorySize: 512,
             Architectures: ['arm64'],

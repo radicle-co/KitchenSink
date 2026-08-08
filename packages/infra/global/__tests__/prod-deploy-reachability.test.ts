@@ -23,9 +23,21 @@
  * re-implemented in TypeScript — a second copy of the rules could drift from the one the workflow runs,
  * which is the same reasoning `pr-scope.test.ts` uses for the teardown predicates.
  *
- * `${{ ... }}` expressions are substituted the way Actions substitutes them: textually, BEFORE the shell
- * sees the script. Any expression this test does not know about is a hard error rather than an empty string,
- * because "expression silently interpolated to nothing" is itself a defect class this file has already hit.
+ * The step's inputs reach it through its `env:` block, NOT as `${{ … }}` interpolated into the script body
+ * (zizmor `template-injection`: Actions substitutes an expression textually before bash parses the body, so
+ * an interpolated value is executable source, whereas an env var is only ever data). This harness therefore
+ * mirrors the real execution model: it resolves each `env:` VALUE's expressions from the scenario and hands
+ * the results to bash as real environment variables.
+ *
+ * Three properties keep that from degrading into a test that passes on nothing:
+ *
+ *   1. An expression the scenario does not supply is a hard error, never an empty string — "expression
+ *      silently interpolated to nothing" is a defect class this file has already hit.
+ *   2. A `${{ … }}` found in the script BODY fails outright, which is what stops the template-injection fix
+ *      from being quietly reverted.
+ *   3. The script runs under `bash -eu`, so a variable it reads that the step's `env:` block does not
+ *      declare aborts with a non-zero status instead of defaulting to empty. Deleting the `env:` block
+ *      reds this file rather than turning every flag silently `false`.
  *
  * The trigger check derives its expectation from the paths-filter groups, so adding a new watched path to
  * the `food`/`recipe` filters without also adding it to the push trigger fails here.
@@ -45,8 +57,12 @@ interface WorkflowStep {
     readonly name?: string;
     readonly run?: string;
     readonly id?: string;
+    readonly env?: Readonly<Record<string, unknown>>;
     readonly with?: { readonly filters?: string };
 }
+
+/** An Actions expression, as it appears in an `env:` value. */
+const EXPRESSION = /\$\{\{\s*([^}]+?)\s*\}\}/g;
 
 interface Workflow {
     readonly on: { readonly push: { readonly paths: readonly string[] } };
@@ -69,40 +85,68 @@ function filterGroups(): Record<string, readonly string[]> {
     return parse(filters) as Record<string, readonly string[]>;
 }
 
-/**
- * Run the `Compute deploy flags` step as real bash and return its `$GITHUB_OUTPUT` as a map.
- *
- * `expressions` supplies every `${{ … }}` the script contains; an unlisted one throws rather than becoming
- * an empty string, which is how an interpolation bug would otherwise hide.
- */
-function computeFlags(expressions: Readonly<Record<string, string>>): Record<string, string> {
+/** The `Compute deploy flags` step. This guard is anchored on its name. */
+function flagsStep(): WorkflowStep & { readonly run: string } {
     const steps = Object.values(workflow().jobs)[0]?.steps ?? [];
-    const script = steps.find((step) => step.name === 'Compute deploy flags')?.run;
+    const step = steps.find((candidate) => candidate.name === 'Compute deploy flags');
 
-    if (script === undefined) {
+    if (step?.run === undefined) {
         throw new Error('prod-deploy.yml has no `Compute deploy flags` step — this guard is anchored on its name.');
     }
 
-    const substituted = script.replace(/\$\{\{\s*([^}]+?)\s*\}\}/g, (_match, expression: string) => {
-        if (!(expression in expressions)) {
-            throw new Error(
-                `The flags script reads \${{ ${expression} }}, which this test does not supply. Add it to the ` +
-                    'scenario rather than letting it interpolate to an empty string.',
-            );
-        }
+    return { ...step, run: step.run };
+}
 
-        return expressions[expression] as string;
-    });
+/**
+ * Run the `Compute deploy flags` step as real bash and return its `$GITHUB_OUTPUT` as a map.
+ *
+ * `expressions` supplies every `${{ … }}` the step's `env:` block references; an unlisted one throws rather
+ * than becoming an empty string, which is how an interpolation bug would otherwise hide.
+ *
+ * @sideEffect Spawns bash and writes to a temp directory.
+ */
+function computeFlags(expressions: Readonly<Record<string, string>>): Record<string, string> {
+    const step = flagsStep();
+
+    // The inputs must arrive as environment DATA. An expression left in the body would be substituted into
+    // the script text by Actions, which is exactly the template-injection shape this step was fixed to avoid.
+    const inlined = [...step.run.matchAll(EXPRESSION)].map(([, expression]) => expression);
+
+    expect(
+        inlined,
+        'the flags script interpolates these expressions directly into its body — route them through the ' +
+            "step's `env:` block and read them as quoted shell variables instead",
+    ).toEqual([]);
+
+    // Resolve the step's declared env: the same values Actions would compute, keyed by the real variable
+    // names the script reads.
+    const environment = Object.fromEntries(
+        Object.entries(step.env ?? {}).map(([name, value]) => [
+            name,
+            String(value).replace(EXPRESSION, (_match, expression: string) => {
+                if (!(expression in expressions)) {
+                    throw new Error(
+                        `The flags step declares ${name}: \${{ ${expression} }}, which this test does not ` +
+                            'supply. Add it to the scenario rather than letting it resolve to an empty string.',
+                    );
+                }
+
+                return expressions[expression] as string;
+            }),
+        ]),
+    );
 
     const directory = mkdtempSync(join(tmpdir(), 'prod-deploy-flags-'));
     const scriptPath = join(directory, 'flags.sh');
     const outputPath = join(directory, 'github_output');
 
-    writeFileSync(scriptPath, substituted);
+    writeFileSync(scriptPath, step.run);
     writeFileSync(outputPath, '');
 
-    const result = spawnSync('bash', ['-e', scriptPath], {
-        env: { ...process.env, GITHUB_OUTPUT: outputPath },
+    // `-u` as well as `-e`: a variable the script reads but the step's `env:` block never declared must abort
+    // loudly, not default to empty and quietly turn every flag `false`.
+    const result = spawnSync('bash', ['-eu', scriptPath], {
+        env: { ...process.env, ...environment, GITHUB_OUTPUT: outputPath },
         encoding: 'utf8',
     });
 

@@ -28,6 +28,23 @@ on:
                 description: Deployment stage — 'sandbox' (PRs) or 'prod' (main)
                 required: true
                 type: string
+        # Declared EXPLICITLY so callers can drop `secrets: inherit` (zizmor `secrets-inherit`), which
+        # hands a called workflow every secret in the repository rather than the two it uses. These two are
+        # the complete set this file consumes — they are the only `secrets.*` references in it, and they go
+        # nowhere except the `load-secrets` composite action's inputs.
+        #
+        # `required: false` is deliberate, not laziness: GitHub WITHHOLDS secrets from fork PRs and
+        # Dependabot runs, and this pipeline is built to degrade gracefully there — `load-secrets` carries
+        # `continue-on-error` and the dependent steps gate on `steps.secrets.outcome` (see the inventory in
+        # `workflow-invariants.test.ts`). Marking them required would turn that designed skip into an
+        # unfixable red check on exactly the PRs that cannot supply them.
+        secrets:
+            AWS_ACCESS_KEY_ID:
+                description: AWS access key id, used only to read stage-scoped secrets from Secrets Manager
+                required: false
+            AWS_SECRET_ACCESS_KEY:
+                description: AWS secret access key paired with AWS_ACCESS_KEY_ID
+                required: false
 
 permissions:
     contents: read
@@ -42,14 +59,16 @@ jobs:
         # Seeds the `actions/cache` entry every job below restores. `_ci-heavy.yml` keeps its own copy of
         # this job: a reusable workflow cannot `needs:` a job in another workflow.
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - run: npm ci
             - name: Cache dependencies
-              uses: actions/cache/save@v5
+              uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -64,13 +83,15 @@ jobs:
         runs-on: ubuntu-latest
         needs: [install]
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -81,7 +102,7 @@ jobs:
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npm run build --workspace=@commise/ui
             - name: Cache UI build artifacts
-              uses: actions/cache/save@v5
+              uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: packages/apps/commise/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
@@ -91,13 +112,15 @@ jobs:
         runs-on: ubuntu-latest
         needs: [install]
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -158,13 +181,15 @@ jobs:
         runs-on: ubuntu-latest
         needs: [install]
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -180,13 +205,15 @@ jobs:
         runs-on: ubuntu-latest
         needs: [install]
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -202,13 +229,15 @@ jobs:
         runs-on: ubuntu-latest
         needs: [install]
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -238,13 +267,15 @@ jobs:
                     --health-timeout 5s
                     --health-retries 5
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -291,13 +322,15 @@ jobs:
                     --health-timeout 5s
                     --health-retries 5
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -334,13 +367,15 @@ jobs:
                     --health-timeout 5s
                     --health-retries 5
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -397,13 +432,15 @@ jobs:
                     --health-timeout 5s
                     --health-retries 20
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -479,13 +516,15 @@ jobs:
                     --health-timeout 5s
                     --health-retries 20
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -551,13 +590,15 @@ jobs:
         # — and that export resolves to `dist/theme.css`. Without the built UI the compile step fails.
         needs: [install, build-ui]
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -567,7 +608,7 @@ jobs:
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - name: Restore UI build artifacts
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: packages/apps/commise/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
@@ -618,13 +659,15 @@ jobs:
                     --health-timeout 5s
                     --health-retries 20
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -677,13 +720,15 @@ jobs:
                     --health-timeout 5s
                     --health-retries 20
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -722,13 +767,15 @@ jobs:
                     - '@kitchensink/identity-webhooks'
                     - '@commise/web'
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -738,7 +785,7 @@ jobs:
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - name: Restore UI build artifacts
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: packages/apps/commise/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
@@ -762,7 +809,7 @@ jobs:
 
             - name: Build
               if: matrix.workspace != '@commise/web' || steps.secrets.outcome == 'success'
-              run: npm run build --workspace=${{ matrix.workspace }}
+              run: npm run build --workspace="$WORKSPACE"
               # The web app's endpoints are declared with NO default and validated at build time
               # (src/config/env.ts), so `next build` FAILS unless they are supplied — by design: that is
               # what stops an unconfigured build from inlining `http://localhost:3000` into a bundle it
@@ -772,6 +819,10 @@ jobs:
               # preview, the prod pipeline builds prod). So localhost is the honest value here — it makes
               # the build hermetic and needs no cloud endpoint. Harmless for the other workspaces.
               env:
+                  # Via `env:` rather than interpolated into the command, so no `${{ … }}` reaches a shell
+                  # anywhere in this file. The matrix values are static literals, so this is uniformity and
+                  # defence-in-depth rather than a live injection fix.
+                  WORKSPACE: ${{ matrix.workspace }}
                   NEXT_PUBLIC_RECIPE_API_URL: http://localhost:3000
                   NEXT_PUBLIC_IDENTITY_API_URL: http://localhost:4000
                   # `src/config/env.ts` now REQUIRES the Clerk publishable key and asserts it belongs to the
@@ -789,13 +840,15 @@ jobs:
         runs-on: ubuntu-latest
         needs: build
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -852,13 +905,15 @@ jobs:
             NEXT_PUBLIC_RECIPE_API_URL: http://localhost:3000
             NEXT_PUBLIC_IDENTITY_API_URL: http://localhost:4000
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -870,7 +925,7 @@ jobs:
             # The Playwright dev server imports @commise/ui/theme.css, so the built UI dist must
             # be present (mirrors the build job).
             - name: Restore UI build artifacts
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: packages/apps/commise/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
@@ -898,7 +953,7 @@ jobs:
             - name: Cache Playwright browsers
               id: playwright-cache
               if: steps.secrets.outcome == 'success'
-              uses: actions/cache@v5
+              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: ~/.cache/ms-playwright
                   key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
@@ -932,7 +987,7 @@ jobs:
             # failure diagnostic, and its whole purpose is to be read on a green run.
             - name: Upload mockup-fidelity report
               if: ${{ !cancelled() && steps.secrets.outcome == 'success' }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                   name: mockup-fidelity-${{ inputs.stage }}
                   path: packages/apps/commise/web/mockup-fidelity
@@ -941,7 +996,7 @@ jobs:
             # Failure-only: upload the Playwright HTML report + traces so a red run is debuggable.
             - name: Upload Playwright report + traces
               if: failure() && steps.secrets.outcome == 'success'
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                   name: playwright-report-${{ inputs.stage }}
                   path: |
@@ -955,13 +1010,15 @@ jobs:
         runs-on: ubuntu-latest
         needs: build
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules

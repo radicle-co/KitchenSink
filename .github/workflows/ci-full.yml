@@ -32,6 +32,11 @@ on:
                 type: boolean
                 default: true
 
+# Declared rather than inherited — see ci-pr.yml: an absent block takes the repository default token scope,
+# which is configured outside this file and can change without a diff here.
+permissions:
+    contents: read
+
 # One full run at a time per ref.
 concurrency:
     group: ci-full-${{ github.ref }}
@@ -40,15 +45,28 @@ concurrency:
 jobs:
     base:
         uses: ./.github/workflows/_ci.yml
+        # `id-token: write` must be granted by the CALLER for `_ci.yml`'s `e2e-web` job to reach it (a called
+        # workflow can only downgrade). Job-scoped, and `contents: read` restated because a job-level block
+        # replaces the workflow default.
+        permissions:
+            contents: read
+            id-token: write
         with:
             stage: ${{ inputs.stage }}
-        secrets: inherit
+        # Explicit, not `inherit` — see ci-pr.yml. Only the two secrets `_ci.yml` declares are passed.
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     heavy:
         # Skipped entirely when the dispatcher turns both tiers off, rather than starting a job whose
         # only work would be to skip its own two children.
         if: ${{ inputs.run_load_test || inputs.run_mobile_maestro }}
         uses: ./.github/workflows/_ci-heavy.yml
+        # No job in `_ci-heavy.yml` needs more than read access (it declares `contents: read` itself and
+        # authenticates to AWS with static keys, not OIDC), so the heavy tier gets no token write scope.
+        permissions:
+            contents: read
         with:
             stage: ${{ inputs.stage }}
             run_load_test: ${{ inputs.run_load_test }}

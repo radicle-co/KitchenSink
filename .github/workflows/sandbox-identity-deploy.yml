@@ -18,8 +18,10 @@ on:
             - '.github/workflows/sandbox-identity-deploy.yml'
     workflow_dispatch:
 
+# NO `id-token: write` — the single `deploy` job authenticates to AWS with STATIC access keys, never OIDC,
+# so the grant was dead privilege (same removal as prod-deploy.yml / sandbox-deploy.yml). Re-add it on the
+# job that assumes a role if this is ever migrated to OIDC.
 permissions:
-    id-token: write
     contents: read
 
 concurrency:
@@ -42,11 +44,16 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
+            # ⚠️ DELIBERATE: this checkout KEEPS its git credential (`persist-credentials` left at its `true`
+            # default), unlike the rest of the repo. `dorny/paths-filter` below is NOT gated on the event, and
+            # its GitHub-API code path applies only to `pull_request`; on the `workflow_dispatch` trigger it
+            # falls through to `getChangedFilesFromGit`, which fetches the base ref from `origin`. Same
+            # reasoning as prod-deploy.yml's `deploy` job — see the note there.
             - name: Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
             - name: Detect changes
-              uses: dorny/paths-filter@v3
+              uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
               id: changes
               with:
                   filters: |
@@ -59,7 +66,7 @@ jobs:
                         - 'packages/services/identity-webhooks/**'
 
             - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -70,6 +77,14 @@ jobs:
             # network stack) forces both consumers to redeploy.
             - name: Compute deploy flags
               id: flags
+              # Every `${{ … }}` arrives through `env:` and is read as a quoted shell variable, never
+              # interpolated into the script text: GitHub substitutes expressions BEFORE bash parses the
+              # body, so an interpolated value is source code, whereas an env var is only ever data.
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+                  CHANGED_GLOBAL: ${{ steps.changes.outputs.global }}
+                  CHANGED_SERVICE: ${{ steps.changes.outputs.service }}
+                  CHANGED_WEBHOOKS: ${{ steps.changes.outputs.webhooks }}
               run: |
                   stack_exists() { aws cloudformation describe-stacks --stack-name "$1" >/dev/null 2>&1; }
                   global_missing=false; service_missing=false; webhooks_missing=false
@@ -78,11 +93,11 @@ jobs:
                   stack_exists "kitchensink-identity-webhooks-sandbox" || webhooks_missing=true
 
                   deploy_global=false; deploy_service=false; deploy_webhooks=false
-                  if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.changes.outputs.global }}" = "true" ] || [ "$global_missing" = "true" ]; then
+                  if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ "$CHANGED_GLOBAL" = "true" ] || [ "$global_missing" = "true" ]; then
                     deploy_global=true; deploy_service=true; deploy_webhooks=true
                   fi
-                  if [ "${{ steps.changes.outputs.service }}" = "true" ] || [ "$service_missing" = "true" ]; then deploy_service=true; fi
-                  if [ "${{ steps.changes.outputs.webhooks }}" = "true" ] || [ "$webhooks_missing" = "true" ]; then deploy_webhooks=true; fi
+                  if [ "$CHANGED_SERVICE" = "true" ] || [ "$service_missing" = "true" ]; then deploy_service=true; fi
+                  if [ "$CHANGED_WEBHOOKS" = "true" ] || [ "$webhooks_missing" = "true" ]; then deploy_webhooks=true; fi
                   run_migrations=false
                   if [ "$deploy_service" = "true" ] || [ "$deploy_webhooks" = "true" ]; then run_migrations=true; fi
                   {
@@ -94,7 +109,7 @@ jobs:
                   echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks migrations=$run_migrations (missing: g=$global_missing s=$service_missing w=$webhooks_missing)"
 
             - name: Setup Node.js
-              uses: actions/setup-node@v6
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
@@ -158,7 +173,7 @@ jobs:
             - name: Login to Amazon ECR
               id: login-ecr
               if: steps.flags.outputs.deploy_service == 'true'
-              uses: aws-actions/amazon-ecr-login@v2
+              uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
 
             - name: Ensure ECR repository exists
               if: steps.flags.outputs.deploy_service == 'true'
@@ -173,23 +188,38 @@ jobs:
                   docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG} --push .
 
             - name: CDK Bootstrap
-              run: npx cdk bootstrap aws://${{ steps.account.outputs.id }}/${DEFAULT_AWS_REGION}
+              env:
+                  ACCOUNT_ID: ${{ steps.account.outputs.id }}
+              run: npx cdk bootstrap "aws://${ACCOUNT_ID}/${DEFAULT_AWS_REGION}"
 
+            # `STAGE` is already exported to every step by the workflow-level `env:` block, so the old
+            # `STAGE=${{ env.STAGE }}` command prefix was re-deriving a variable that was in scope — and
+            # doing it by text substitution. Dropped rather than rewritten; the value reaching `cdk` is
+            # identical.
             - name: CDK Deploy (global infra)
               if: steps.flags.outputs.deploy_global == 'true'
-              run: STAGE=${{ env.STAGE }} npx cdk deploy --app "node packages/infra/global/dist/bin/app.js" --all --require-approval never
+              run: npx cdk deploy --app "node packages/infra/global/dist/bin/app.js" --all --require-approval never
 
             - name: Resolve Identity VPC ID
               id: identity-vpc
               run: echo "vpc_id=$(bash .github/scripts/cfn-export.sh 'kitchensink-network-sandbox:VpcId')" >> "$GITHUB_OUTPUT"
 
+            # The CDK app reads these from `process.env`, so declaring them in `env:` delivers them exactly
+            # as the old command-prefix assignments did — without building the command line out of
+            # expression text. `STAGE` comes from the workflow-level `env:` (see above).
             - name: CDK Deploy (identity service)
               if: steps.flags.outputs.deploy_service == 'true'
-              run: STAGE=${{ env.STAGE }} IDENTITY_IMAGE_TAG=sandbox-${{ github.sha }} IDENTITY_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
+              env:
+                  IDENTITY_IMAGE_TAG: sandbox-${{ github.sha }}
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+              run: npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
 
             - name: CDK Deploy (identity-webhooks)
               if: steps.flags.outputs.deploy_webhooks == 'true'
-              run: STAGE=${{ env.STAGE }} IDENTITY_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} SENTRY_RELEASE=${{ github.sha }} npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
+              env:
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+                  SENTRY_RELEASE: ${{ github.sha }}
+              run: npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
 
             - name: Run identity DB migrations
               if: steps.flags.outputs.run_migrations == 'true'

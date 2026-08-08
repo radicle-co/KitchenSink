@@ -22,8 +22,13 @@ on:
             - '.github/workflows/prod-deploy.yml'
     workflow_dispatch:
 
+# NO `id-token: write` — this workflow authenticates to AWS with STATIC access keys
+# (`aws-actions/configure-aws-credentials` + `secrets.AWS_ACCESS_KEY_ID`), never with OIDC, so an OIDC
+# token grant here bought nothing and handed every job in the workflow the ability to mint an AWS-federation
+# assertion. Verified before removal: no `role-to-assume` / `web-identity` / `ACTIONS_ID_TOKEN` reference
+# exists anywhere under `.github/`. If this workflow is ever migrated to OIDC role assumption (which it
+# should be), re-add `id-token: write` on the SINGLE job that assumes the role — not here.
 permissions:
-    id-token: write
     contents: read
 
 concurrency:
@@ -46,15 +51,23 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
+            # ⚠️ DELIBERATE: this is the ONE checkout in this file that KEEPS its git credential
+            # (`persist-credentials` is left at its `true` default), unlike every other checkout in the repo.
+            # `dorny/paths-filter` below only reaches its GitHub-API code path on `pull_request` events; on a
+            # `push` — the trigger that actually runs this workflow — it falls through to
+            # `getChangedFilesFromGit`, which fetches from `origin` to obtain the base commit. Removing the
+            # credential would make that fetch anonymous, and this is the change-detection step the whole
+            # deploy gate is built on. `web-surface` below computes nothing from git, so it DOES drop the
+            # credential. Revisit if paths-filter is ever replaced or the trigger stops including `push`.
             - name: Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
             # Per-service change detection so identity-service and identity-webhooks deploy
             # independently — a webhooks-only change must not rebuild the Docker image or redeploy the
             # ECS service, and vice versa. A change under packages/infra/global/** (shared VPC/RDS/SGs)
             # redeploys both consumers; a workflow_dispatch deploys everything.
             - name: Detect changes
-              uses: dorny/paths-filter@v3
+              uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
               id: changes
               with:
                   filters: |
@@ -74,6 +87,16 @@ jobs:
 
             - name: Compute deploy flags
               id: flags
+              # Every `${{ … }}` arrives through `env:` and is read as a quoted shell variable, never
+              # interpolated into the script text: GitHub substitutes expressions BEFORE bash parses the
+              # body, so an interpolated value is source code, whereas an env var is only ever data.
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+                  CHANGED_GLOBAL: ${{ steps.changes.outputs.global }}
+                  CHANGED_SERVICE: ${{ steps.changes.outputs.service }}
+                  CHANGED_WEBHOOKS: ${{ steps.changes.outputs.webhooks }}
+                  CHANGED_FOOD: ${{ steps.changes.outputs.food }}
+                  CHANGED_RECIPE: ${{ steps.changes.outputs.recipe }}
               run: |
                   deploy_global=false
                   deploy_service=false
@@ -87,17 +110,17 @@ jobs:
                   # EVERYTHING — feature services included. Excluding them left no way to bring a feature
                   # service up for the first time (or roll one back) short of touching its sources, which is
                   # how the food and recipe legs came to exist for months without ever running once.
-                  if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                  if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
                     deploy_global=true; deploy_service=true; deploy_webhooks=true
                     deploy_food=true; deploy_recipe=true
                   fi
-                  if [ "${{ steps.changes.outputs.global }}" = "true" ]; then
+                  if [ "$CHANGED_GLOBAL" = "true" ]; then
                     deploy_global=true; deploy_service=true; deploy_webhooks=true
                   fi
-                  if [ "${{ steps.changes.outputs.service }}" = "true" ]; then deploy_service=true; fi
-                  if [ "${{ steps.changes.outputs.webhooks }}" = "true" ]; then deploy_webhooks=true; fi
-                  if [ "${{ steps.changes.outputs.food }}" = "true" ]; then deploy_food=true; fi
-                  if [ "${{ steps.changes.outputs.recipe }}" = "true" ]; then deploy_recipe=true; fi
+                  if [ "$CHANGED_SERVICE" = "true" ]; then deploy_service=true; fi
+                  if [ "$CHANGED_WEBHOOKS" = "true" ]; then deploy_webhooks=true; fi
+                  if [ "$CHANGED_FOOD" = "true" ]; then deploy_food=true; fi
+                  if [ "$CHANGED_RECIPE" = "true" ]; then deploy_recipe=true; fi
                   run_migrations=false
                   if [ "$deploy_service" = "true" ] || [ "$deploy_webhooks" = "true" ]; then run_migrations=true; fi
                   {
@@ -111,7 +134,7 @@ jobs:
                   echo "global=$deploy_global service=$deploy_service webhooks=$deploy_webhooks migrations=$run_migrations food=$deploy_food recipe=$deploy_recipe"
 
             - name: Setup Node.js
-              uses: actions/setup-node@v6
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
@@ -145,9 +168,10 @@ jobs:
               env:
                   SENTRY_ORG: radicle-co
                   SENTRY_PROJECT: ${{ vars.SENTRY_WEBHOOKS_PROJECT }}
+                  SENTRY_RELEASE_SHA: ${{ github.sha }}
               run: |
                   npx @sentry/cli@latest sourcemaps inject packages/services/identity-webhooks/dist
-                  npx @sentry/cli@latest sourcemaps upload --release "${{ github.sha }}" packages/services/identity-webhooks/dist
+                  npx @sentry/cli@latest sourcemaps upload --release "${SENTRY_RELEASE_SHA}" packages/services/identity-webhooks/dist
 
             - name: Build global infra
               if: steps.flags.outputs.deploy_global == 'true'
@@ -198,7 +222,7 @@ jobs:
                   node -e "require('aws-cdk-lib')" || (echo 'FATAL: aws-cdk-lib missing after prune' && exit 1)
 
             - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -218,7 +242,7 @@ jobs:
                   steps.flags.outputs.deploy_service == 'true' ||
                   steps.flags.outputs.deploy_food == 'true' ||
                   steps.flags.outputs.deploy_recipe == 'true'
-              uses: aws-actions/amazon-ecr-login@v2
+              uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
 
             - name: Ensure ECR repository exists
               if: steps.flags.outputs.deploy_service == 'true'
@@ -233,26 +257,41 @@ jobs:
                   docker buildx build --platform linux/amd64 -f packages/services/identity/Dockerfile -t ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG} --push .
 
             - name: CDK Bootstrap
-              run: npx cdk bootstrap aws://${{ steps.account.outputs.id }}/${DEFAULT_AWS_REGION}
+              env:
+                  ACCOUNT_ID: ${{ steps.account.outputs.id }}
+              run: npx cdk bootstrap "aws://${ACCOUNT_ID}/${DEFAULT_AWS_REGION}"
 
+            # `STAGE` is already exported to every step by the workflow-level `env:` block, so the old
+            # `STAGE=${{ env.STAGE }}` command prefix was re-deriving a variable that was in scope — and
+            # doing it by text substitution. Dropped rather than rewritten; the value reaching `cdk` is
+            # identical.
             - name: CDK Deploy (global infra)
               if: steps.flags.outputs.deploy_global == 'true'
               run: |
-                  STAGE=${{ env.STAGE }} npx cdk deploy --app "node packages/infra/global/dist/bin/app.js" --all --require-approval never
+                  npx cdk deploy --app "node packages/infra/global/dist/bin/app.js" --all --require-approval never
 
             - name: Resolve Identity VPC ID
               id: identity-vpc
               run: |
                   echo "vpc_id=$(bash .github/scripts/cfn-export.sh 'kitchensink-network-prod:VpcId')" >> "$GITHUB_OUTPUT"
 
+            # The CDK app reads these from `process.env`, so declaring them in `env:` delivers them exactly
+            # as the old command-prefix assignments did — without building the command line out of
+            # expression text. `STAGE` comes from the workflow-level `env:` (see above).
             - name: CDK Deploy (identity service)
               if: steps.flags.outputs.deploy_service == 'true'
+              env:
+                  IDENTITY_IMAGE_TAG: ${{ github.sha }}
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
               run: |
-                  STAGE=${{ env.STAGE }} IDENTITY_IMAGE_TAG=${{ github.sha }} IDENTITY_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
+                  npx cdk deploy --app "node packages/services/identity/infra/dist/bin/app.js" --all --require-approval never
 
             - name: CDK Deploy (identity-webhooks)
               if: steps.flags.outputs.deploy_webhooks == 'true'
-              run: STAGE=${{ env.STAGE }} IDENTITY_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} SENTRY_RELEASE=${{ github.sha }} npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
+              env:
+                  IDENTITY_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+                  SENTRY_RELEASE: ${{ github.sha }}
+              run: npx cdk deploy --app "node packages/services/identity-webhooks/infra/dist/bin/app.js" --all --require-approval never
 
             # The RDS instance is in private-isolated subnets, unreachable from the runner — so apply
             # schema migrations by invoking the in-VPC MigrationFunction Lambda (idempotent; tracked in
@@ -317,6 +356,11 @@ jobs:
             # loudly instead of matching nothing.
             - name: Smoke test — identity service CURRENT and browser-reachable (prod)
               if: steps.flags.outputs.deploy_service == 'true'
+              # `DOMAIN_NAME` is already exported by the workflow-level `env:`; `EXPECTED_IMAGE_TAG` is
+              # declared here so the commit sha reaches the script as data rather than as text spliced into
+              # the command line.
+              env:
+                  EXPECTED_IMAGE_TAG: ${{ github.sha }}
               run: |
                   set -euo pipefail
                   # `>&2` on the diagnostic, NOT stdout: this function is called inside `$( … )`, so an
@@ -342,11 +386,11 @@ jobs:
                   # misleading in an identity failure at 3am. Deriving that string from `--base-url` inside
                   # deployedSmoke.ts is the proper fix and belongs with the `--preflight-path` follow-up.
                   npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
-                    --base-url "https://identity.${{ vars.DOMAIN_NAME }}" \
-                    --web-origin "https://${{ vars.DOMAIN_NAME }}" \
-                    --expected-image-tag "${{ github.sha }}" \
+                    --base-url "https://identity.${DOMAIN_NAME}" \
+                    --web-origin "https://${DOMAIN_NAME}" \
+                    --expected-image-tag "${EXPECTED_IMAGE_TAG}" \
                     --running-image-tag "${image##*:}" \
-                    || { echo "::error::the DEPLOYED IDENTITY service failed post-deploy verification (running image ${image##*:}, expected ${{ github.sha }})" >&2; exit 1; }
+                    || { echo "::error::the DEPLOYED IDENTITY service failed post-deploy verification (running image ${image##*:}, expected ${EXPECTED_IMAGE_TAG})" >&2; exit 1; }
 
             # ────────────────────────────────────────────────────────────────────────────────────────
             # Feature services (food, recipe). Until now prod-deploy handled only global infra +
@@ -376,10 +420,12 @@ jobs:
 
             - name: CDK Deploy (food service)
               if: steps.flags.outputs.deploy_food == 'true'
+              # Same values as the old command-prefix assignments, delivered through `env:` (the CDK app
+              # reads them from `process.env`). `STAGE` comes from the workflow-level `env:`.
+              env:
+                  FOOD_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+                  FOOD_IMAGE_TAG: ${{ github.sha }}
               run: |
-                  STAGE=${{ env.STAGE }} \
-                  FOOD_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} \
-                  FOOD_IMAGE_TAG=${{ github.sha }} \
                   npx cdk deploy --app "node packages/services/food-service/infra/dist/bin/app.js" \
                     --all --require-approval never
 
@@ -443,7 +489,7 @@ jobs:
               run: |
                   set -euo pipefail
                   food_url=$(npx tsx packages/services/food-service/infra/bin/print-food-host.ts \
-                    "${STAGE}" "${{ vars.DOMAIN_NAME }}")
+                    "${STAGE}" "${DOMAIN_NAME}")
                   echo "url=${food_url}" >> "$GITHUB_OUTPUT"
                   echo "recipe will call food at ${food_url}"
 
@@ -462,31 +508,32 @@ jobs:
                   docker buildx build --platform linux/amd64 -f packages/services/recipe-service/Dockerfile \
                     -t ${ECR_REGISTRY}/kitchensink-recipes:${IMAGE_TAG} --push .
 
+            # `STAGE` and `DOMAIN_NAME` already come from the workflow-level `env:`, so only the step
+            # outputs need declaring. Same values as the old command-prefix assignments — the CDK app reads
+            # them from `process.env` either way.
             - name: CDK Deploy (recipe workers — publishes the erasure-queue SSM params)
               if: steps.flags.outputs.deploy_recipe == 'true'
+              env:
+                  RECIPE_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+                  RECIPE_LAMBDA_SG_ID: ${{ steps.recipe-infra.outputs.lambda_sg_id }}
+                  RECIPE_DB_ENDPOINT: ${{ steps.recipe-infra.outputs.db_endpoint }}
+                  RECIPE_DB_PORT: ${{ steps.recipe-infra.outputs.db_port }}
+                  RECIPE_DB_INSTANCE_ID: ${{ steps.recipe-infra.outputs.db_resource_id }}
+                  RECIPE_DB_BASE_NAME: ${{ steps.recipe-infra.outputs.db_base_name }}
+                  RECIPE_ARCHIVE_BUCKET: ${{ steps.recipe-infra.outputs.archive_bucket }}
+                  RECIPE_MEDIA_BUCKET: ${{ steps.recipe-infra.outputs.media_bucket }}
+                  HANDLE_SYNC_TOPIC_ARN: ${{ steps.recipe-infra.outputs.handle_sync_topic_arn }}
               run: |
-                  STAGE=${{ env.STAGE }} \
-                  DOMAIN_NAME=${{ vars.DOMAIN_NAME }} \
-                  RECIPE_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} \
-                  RECIPE_LAMBDA_SG_ID=${{ steps.recipe-infra.outputs.lambda_sg_id }} \
-                  RECIPE_DB_ENDPOINT=${{ steps.recipe-infra.outputs.db_endpoint }} \
-                  RECIPE_DB_PORT=${{ steps.recipe-infra.outputs.db_port }} \
-                  RECIPE_DB_INSTANCE_ID=${{ steps.recipe-infra.outputs.db_resource_id }} \
-                  RECIPE_DB_BASE_NAME=${{ steps.recipe-infra.outputs.db_base_name }} \
-                  RECIPE_ARCHIVE_BUCKET=${{ steps.recipe-infra.outputs.archive_bucket }} \
-                  RECIPE_MEDIA_BUCKET=${{ steps.recipe-infra.outputs.media_bucket }} \
-                  HANDLE_SYNC_TOPIC_ARN=${{ steps.recipe-infra.outputs.handle_sync_topic_arn }} \
                   npx cdk deploy --app "npx tsx packages/services/recipe-workers/infra/bin/app.ts" \
                     --all --require-approval never
 
             - name: CDK Deploy (recipe service)
               if: steps.flags.outputs.deploy_recipe == 'true'
+              env:
+                  RECIPE_VPC_ID: ${{ steps.identity-vpc.outputs.vpc_id }}
+                  RECIPE_IMAGE_TAG: ${{ github.sha }}
+                  RECIPE_FOOD_SERVICE_URL: ${{ steps.food.outputs.url }}
               run: |
-                  STAGE=${{ env.STAGE }} \
-                  DOMAIN_NAME=${{ vars.DOMAIN_NAME }} \
-                  RECIPE_VPC_ID=${{ steps.identity-vpc.outputs.vpc_id }} \
-                  RECIPE_IMAGE_TAG=${{ github.sha }} \
-                  RECIPE_FOOD_SERVICE_URL=${{ steps.food.outputs.url }} \
                   npx cdk deploy --app "node packages/services/recipe-service/infra/dist/bin/app.js" \
                     --all --require-approval never
 
@@ -513,6 +560,11 @@ jobs:
             # ALB's default 404 is a failure.
             - name: Smoke test — recipe service live, browser-reachable, CURRENT and WIRED to food (prod)
               if: steps.flags.outputs.deploy_recipe == 'true'
+              # `DOMAIN_NAME` is already exported by the workflow-level `env:`; the other two are declared
+              # here so they reach the smoke script as data rather than as text spliced into its argv.
+              env:
+                  EXPECTED_IMAGE_TAG: ${{ github.sha }}
+                  FOOD_ORIGIN: ${{ steps.food.outputs.url }}
               run: |
                   set -euo pipefail
                   cluster=$(aws ecs list-clusters --query 'clusterArns[]' --output text \
@@ -533,11 +585,11 @@ jobs:
                     --output text)
                   [ "$food_url" = 'None' ] && food_url=''
                   npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
-                    --base-url "https://recipe.${{ vars.DOMAIN_NAME }}" \
-                    --web-origin "https://${{ vars.DOMAIN_NAME }}" \
-                    --expected-image-tag "${{ github.sha }}" \
+                    --base-url "https://recipe.${DOMAIN_NAME}" \
+                    --web-origin "https://${DOMAIN_NAME}" \
+                    --expected-image-tag "${EXPECTED_IMAGE_TAG}" \
                     --running-image-tag "${image##*:}" \
-                    --food-origin "${{ steps.food.outputs.url }}" \
+                    --food-origin "${FOOD_ORIGIN}" \
                     --configured-food-origin "${food_url}"
 
             - name: Smoke test — food service live & reachable (prod)
@@ -587,10 +639,12 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
 
             - name: Setup Node.js
-              uses: actions/setup-node@v6
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm

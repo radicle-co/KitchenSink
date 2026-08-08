@@ -22,8 +22,14 @@ on:
         # This workflow is for ephemeral pr-{N} sandboxes of other services. The identity service +
         # webhooks have their own *persistent* shared sandbox env — see sandbox-identity-deploy.yml.
 
+# NO `id-token: write` — every AWS auth in this workflow uses STATIC access keys
+# (`aws-actions/configure-aws-credentials` + `secrets.AWS_ACCESS_KEY_ID`), never OIDC, so the grant was dead
+# privilege. It mattered more here than in the other deploy workflows: this one triggers on `pull_request`,
+# so a workflow-level OIDC-token grant was reachable from every job on a run whose ref is PR-authored code.
+# Verified before removal: no `role-to-assume` / `web-identity` / `ACTIONS_ID_TOKEN` reference exists
+# anywhere under `.github/`. If a job is ever migrated to OIDC role assumption, add `id-token: write` to
+# THAT job's own `permissions:` block — never back at the workflow level.
 permissions:
-    id-token: write
     contents: read
 
 concurrency:
@@ -56,16 +62,18 @@ jobs:
             PR: pr-${{ github.event.pull_request.number }}
             REGION: ${{ vars.DEFAULT_AWS_REGION }}
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
             # The preview-domain step runs `npx tsx …/teardownPreviewDomain.ts`; the rest of the script
             # is aws-cli only.
-            - uses: actions/setup-node@v6
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
             - run: npm ci
             - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -133,15 +141,17 @@ jobs:
             PR: pr-${{ github.event.pull_request.number }}
             REGION: ${{ vars.DEFAULT_AWS_REGION }}
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
             # The creation step runs `npx tsx …/createPreviewDomain.ts`.
-            - uses: actions/setup-node@v6
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
             - run: npm ci
             - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -165,7 +175,7 @@ jobs:
             # uses for the KVS route, so there is one way to resolve "this PR's preview deployment".
             - name: Wait for this PR's Vercel preview deployment
               id: preview
-              uses: zentered/vercel-preview-url@v1.4.0
+              uses: zentered/vercel-preview-url@fba568fc6d882ae788a9724d7e28dee618728771 # v1.4.0
               env:
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
               with:
@@ -201,14 +211,16 @@ jobs:
             GH_TOKEN: ${{ github.token }}
             STALE_DAYS: '30'
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
             - run: npm ci
             - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -228,6 +240,7 @@ jobs:
                   echo "hosted_zone_id=$ZONE" >> "$GITHUB_OUTPUT"
             - name: Reap pr-{N} resources whose PR is closed or long-stale
               env:
+                  REPOSITORY: ${{ github.repository }}
                   PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
                   PREVIEW_HOSTED_ZONE_ID: ${{ steps.zone.outputs.hosted_zone_id }}
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -264,7 +277,7 @@ jobs:
                   reaper_failed=0
                   for pr in $tokens; do
                       n="${pr#pr-}"
-                      pr_json=$(gh api "repos/${{ github.repository }}/pulls/$n" 2>/dev/null) || pr_json=""
+                      pr_json=$(gh api "repos/${REPOSITORY}/pulls/$n" 2>/dev/null) || pr_json=""
                       if [ -z "$pr_json" ]; then
                           echo "::warning::could not resolve PR #$n for $pr — skipping (verify manually)"
                           continue
@@ -387,13 +400,15 @@ jobs:
             FOOD_VPC_ID: ${{ vars.SANDBOX_VPC_ID }} # the SHARED sandbox VPC (baseStage), not per-PR
         steps:
             - name: Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
             # One HALF of the gate: did this PR touch the food service? (No PR diff exists on a manual
             # dispatch, which is why the step is skipped there and the gate is `forced` instead.)
             - name: Detect food changes
               id: changes
               if: github.event_name == 'pull_request'
-              uses: dorny/paths-filter@v3
+              uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
               with:
                   filters: |
                       food:
@@ -404,14 +419,14 @@ jobs:
             # drifts). Cheap next to what the gate can now skip: a turbo build, a Docker build+push, and two
             # `cdk deploy` passes.
             - name: Setup Node.js
-              uses: actions/setup-node@v6
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
             - name: Install dependencies
               run: npm ci
             - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -430,7 +445,7 @@ jobs:
               run: |
                   set -euo pipefail
                   url=$(npx tsx packages/services/food-service/infra/bin/print-food-host.ts \
-                    "${STAGE}" "${{ vars.DOMAIN_NAME }}")
+                    "${STAGE}" "${DOMAIN_NAME}")
                   echo "url=${url}" >>"$GITHUB_OUTPUT"
                   echo "food preview origin: ${url}"
             # THE gate (ADR-0010). Deploy when changed, dispatched, absent/wedged, or not serving; skip only
@@ -441,12 +456,15 @@ jobs:
               env:
                   CHANGED: ${{ steps.changes.outputs.food || 'false' }}
                   FORCED: ${{ github.event_name == 'workflow_dispatch' }}
+                  # The probe URL comes from a previous step's OUTPUT, so it reaches the gate as an
+                  # environment value rather than as text spliced into the command line.
+                  HEALTH_URL: ${{ steps.host.outputs.url }}/health
               run: |
                   set -euo pipefail
                   chmod +x .github/scripts/deploy-gate.sh
                   .github/scripts/deploy-gate.sh evaluate food "$CHANGED" "$FORCED" \
-                    "${{ steps.host.outputs.url }}/health" \
-                    "${{ vars.DEFAULT_AWS_REGION }}" \
+                    "$HEALTH_URL" \
+                    "${DEFAULT_AWS_REGION}" \
                     "kitchensink-food-service-${STAGE}"
             # turbo (not a bare workspace build) so `^build` compiles the shared @kitchensink/clerk-verify
             # and @kitchensink/usda-client dist first — the image copies those dists and crash-loops on
@@ -467,7 +485,7 @@ jobs:
             - name: Login to Amazon ECR
               id: login-ecr
               if: steps.gate.outputs.deploy == 'true'
-              uses: aws-actions/amazon-ecr-login@v2
+              uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
             # The food stack imports the repo by name (ecr.Repository.fromRepositoryName); create it on
             # first deploy so the image push + ECS pull have somewhere to go.
             - name: Ensure ECR repository exists
@@ -486,14 +504,17 @@ jobs:
             # deployment circuit breaker. Zero desired tasks also means CloudFormation never has to roll
             # back a failed service — which is what previously wedged the Fargate-Spot capacity-provider
             # association in ROLLBACK_FAILED.
+            # `STAGE` and `FOOD_VPC_ID` are already exported by the job-level `env:` block, so the old
+            # command-prefix assignments were re-deriving in-scope variables by text substitution. The two
+            # scale counts are literals and the image tag is declared here; the values reaching `cdk` are
+            # unchanged.
             - name: CDK Deploy — pass 1 (scale 0, provision infra + migration Lambda)
               if: steps.gate.outputs.deploy == 'true'
+              env:
+                  FOOD_IMAGE_TAG: sandbox-${{ github.sha }}
+                  FOOD_DESIRED_COUNT: '0'
+                  FOOD_WORKER_DESIRED_COUNT: '0'
               run: |
-                  STAGE=${{ env.STAGE }} \
-                  FOOD_VPC_ID=${{ env.FOOD_VPC_ID }} \
-                  FOOD_IMAGE_TAG=sandbox-${{ github.sha }} \
-                  FOOD_DESIRED_COUNT=0 \
-                  FOOD_WORKER_DESIRED_COUNT=0 \
                   npx cdk deploy \
                     --app "node packages/services/food-service/infra/dist/bin/app.js" \
                     --all --require-approval never
@@ -502,11 +523,11 @@ jobs:
             - name: Run food migrations (creates the per-PR DB if absent)
               if: steps.gate.outputs.deploy == 'true'
               run: |
-                  FN=$(aws cloudformation describe-stacks --region "${{ vars.DEFAULT_AWS_REGION }}" \
-                      --stack-name "kitchensink-food-service-${{ env.STAGE }}" \
+                  FN=$(aws cloudformation describe-stacks --region "${DEFAULT_AWS_REGION}" \
+                      --stack-name "kitchensink-food-service-${STAGE}" \
                       --query "Stacks[0].Outputs[?OutputKey=='FoodMigrationFunctionName'].OutputValue | [0]" \
                       --output text)
-                  aws lambda invoke --region "${{ vars.DEFAULT_AWS_REGION }}" --function-name "$FN" \
+                  aws lambda invoke --region "${DEFAULT_AWS_REGION}" --function-name "$FN" \
                       --payload '{"action":"migrate"}' --cli-binary-format raw-in-base64-out /tmp/migrate.json
                   cat /tmp/migrate.json
             # Pass 2 — scale the API + worker up now that the image is in ECR and the per-PR DB exists, so
@@ -519,12 +540,11 @@ jobs:
             # from prod-deploy.yml and keeps the two-task default.
             - name: CDK Deploy — pass 2 (scale services up)
               if: steps.gate.outputs.deploy == 'true'
+              env:
+                  FOOD_IMAGE_TAG: sandbox-${{ github.sha }}
+                  FOOD_DESIRED_COUNT: '1'
+                  FOOD_WORKER_DESIRED_COUNT: '1'
               run: |
-                  STAGE=${{ env.STAGE }} \
-                  FOOD_VPC_ID=${{ env.FOOD_VPC_ID }} \
-                  FOOD_IMAGE_TAG=sandbox-${{ github.sha }} \
-                  FOOD_DESIRED_COUNT=1 \
-                  FOOD_WORKER_DESIRED_COUNT=1 \
                   npx cdk deploy \
                     --app "node packages/services/food-service/infra/dist/bin/app.js" \
                     --all --require-approval never
@@ -581,14 +601,16 @@ jobs:
             RECIPE_ORIGIN: https://recipe-${{ github.event.inputs.stage || format('pr-{0}', github.event.pull_request.number) }}.${{ vars.DOMAIN_NAME }}
         steps:
             - name: Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
             # One HALF of the gate: did this PR touch the recipe tier? `recipe-core` is in the image, so a
             # change there ships too. Skipped on a manual dispatch, which has no PR diff (the gate is
             # `forced` there instead).
             - name: Detect recipe changes
               id: changes
               if: github.event_name == 'pull_request'
-              uses: dorny/paths-filter@v3
+              uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
               with:
                   filters: |
                       recipe:
@@ -599,14 +621,14 @@ jobs:
             # CLI and `npx tsx`, and the post-deploy smoke below now runs on EVERY event so a preview that
             # was left half-wired is reported even on a push that deploys nothing.
             - name: Setup Node.js
-              uses: actions/setup-node@v6
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: npm
             - name: Install dependencies
               run: npm ci
             - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
+              uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
               with:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -625,7 +647,7 @@ jobs:
                   chmod +x .github/scripts/deploy-gate.sh
                   .github/scripts/deploy-gate.sh evaluate recipe "$CHANGED" "$FORCED" \
                     "${RECIPE_ORIGIN}/health" \
-                    "${{ vars.DEFAULT_AWS_REGION }}" \
+                    "${DEFAULT_AWS_REGION}" \
                     "kitchensink-recipe-workers-${STAGE}" \
                     "kitchensink-recipe-service-${STAGE}"
             # turbo (not a bare workspace build) so `^build` compiles the shared dists the image COPYs
@@ -699,7 +721,7 @@ jobs:
               run: |
                   set -euo pipefail
                   food_url=$(npx tsx packages/services/food-service/infra/bin/print-food-host.ts \
-                    "${STAGE}" "${{ vars.DOMAIN_NAME }}")
+                    "${STAGE}" "${DOMAIN_NAME}")
                   echo "url=${food_url}" >> "$GITHUB_OUTPUT"
                   echo "recipe will call food at ${food_url}"
                   # This used to be a ::warning:: describing an accepted degradation. It is now an ERROR,
@@ -708,7 +730,7 @@ jobs:
                   # genuinely incomplete, and baking an unresolvable host into RECIPE_FOOD_SERVICE_URL would
                   # ship a preview whose ingredient typeahead can only ever report
                   # `catalogAvailability: 'unavailable'`. Fail loudly instead of degrading quietly (#124).
-                  if ! aws cloudformation describe-stacks --region "${{ vars.DEFAULT_AWS_REGION }}" \
+                  if ! aws cloudformation describe-stacks --region "${DEFAULT_AWS_REGION}" \
                       --stack-name "kitchensink-food-service-${STAGE}" >/dev/null 2>&1; then
                     echo "::error::No food service is deployed at stage ${STAGE}, so ${food_url} cannot resolve and this preview's ingredient catalog would be dead. On a pull_request the deploy-food job should have created kitchensink-food-service-${STAGE} — check that job. On a workflow_dispatch, dispatch service=food at this stage first."
                     exit 1
@@ -716,7 +738,7 @@ jobs:
             - name: Login to Amazon ECR
               id: login-ecr
               if: steps.gate.outputs.deploy == 'true'
-              uses: aws-actions/amazon-ecr-login@v2
+              uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
             # The recipe stack imports the repo by name (ecr.Repository.fromRepositoryName), so create it
             # on first deploy — the image push and the ECS pull both need it to exist.
             - name: Ensure ECR repository exists
@@ -735,32 +757,34 @@ jobs:
                     -t ${ECR_REGISTRY}/kitchensink-recipes:${IMAGE_TAG} --push .
             # Pass 1 — WORKERS first: this creates the account-erasure queue and writes the two SSM
             # parameters the service reads. Skipping it is what makes the service undeployable.
+            # `STAGE` and `DOMAIN_NAME` are already exported (job- and workflow-level `env:`), so only the
+            # step outputs need declaring. Same values as the old command-prefix assignments — the CDK app
+            # reads them from `process.env` either way.
             - name: CDK Deploy — recipe workers (publishes the erasure-queue SSM params)
               if: steps.gate.outputs.deploy == 'true'
+              env:
+                  RECIPE_VPC_ID: ${{ steps.infra.outputs.vpc_id }}
+                  RECIPE_LAMBDA_SG_ID: ${{ steps.infra.outputs.lambda_sg_id }}
+                  RECIPE_DB_ENDPOINT: ${{ steps.infra.outputs.db_endpoint }}
+                  RECIPE_DB_PORT: ${{ steps.infra.outputs.db_port }}
+                  RECIPE_DB_INSTANCE_ID: ${{ steps.infra.outputs.db_resource_id }}
+                  RECIPE_DB_BASE_NAME: ${{ steps.infra.outputs.db_base_name }}
+                  RECIPE_ARCHIVE_BUCKET: ${{ steps.infra.outputs.archive_bucket }}
+                  RECIPE_MEDIA_BUCKET: ${{ steps.infra.outputs.media_bucket }}
+                  HANDLE_SYNC_TOPIC_ARN: ${{ steps.infra.outputs.handle_sync_topic_arn }}
               run: |
-                  STAGE=${{ env.STAGE }} \
-                  DOMAIN_NAME=${{ vars.DOMAIN_NAME }} \
-                  RECIPE_VPC_ID=${{ steps.infra.outputs.vpc_id }} \
-                  RECIPE_LAMBDA_SG_ID=${{ steps.infra.outputs.lambda_sg_id }} \
-                  RECIPE_DB_ENDPOINT=${{ steps.infra.outputs.db_endpoint }} \
-                  RECIPE_DB_PORT=${{ steps.infra.outputs.db_port }} \
-                  RECIPE_DB_INSTANCE_ID=${{ steps.infra.outputs.db_resource_id }} \
-                  RECIPE_DB_BASE_NAME=${{ steps.infra.outputs.db_base_name }} \
-                  RECIPE_ARCHIVE_BUCKET=${{ steps.infra.outputs.archive_bucket }} \
-                  RECIPE_MEDIA_BUCKET=${{ steps.infra.outputs.media_bucket }} \
-                  HANDLE_SYNC_TOPIC_ARN=${{ steps.infra.outputs.handle_sync_topic_arn }} \
                   npx cdk deploy \
                     --app "npx tsx packages/services/recipe-workers/infra/bin/app.ts" \
                     --all --require-approval never
             # Pass 2 — the service, which can only synth once the SSM parameters above exist.
             - name: CDK Deploy — recipe service
               if: steps.gate.outputs.deploy == 'true'
+              env:
+                  RECIPE_VPC_ID: ${{ steps.infra.outputs.vpc_id }}
+                  # `IMAGE_TAG` is the job-level env var; restated under the name the CDK app reads.
+                  RECIPE_IMAGE_TAG: ${{ env.IMAGE_TAG }}
+                  RECIPE_FOOD_SERVICE_URL: ${{ steps.food.outputs.url }}
               run: |
-                  STAGE=${{ env.STAGE }} \
-                  DOMAIN_NAME=${{ vars.DOMAIN_NAME }} \
-                  RECIPE_VPC_ID=${{ steps.infra.outputs.vpc_id }} \
-                  RECIPE_IMAGE_TAG=${{ env.IMAGE_TAG }} \
-                  RECIPE_FOOD_SERVICE_URL=${{ steps.food.outputs.url }} \
                   npx cdk deploy \
                     --app "node packages/services/recipe-service/infra/dist/bin/app.js" \
                     --all --require-approval never
@@ -773,11 +797,11 @@ jobs:
               if: steps.gate.outputs.deploy == 'true'
               run: |
                   set -euo pipefail
-                  FN=$(aws cloudformation describe-stacks --region "${{ vars.DEFAULT_AWS_REGION }}" \
-                      --stack-name "kitchensink-recipe-service-${{ env.STAGE }}" \
+                  FN=$(aws cloudformation describe-stacks --region "${DEFAULT_AWS_REGION}" \
+                      --stack-name "kitchensink-recipe-service-${STAGE}" \
                       --query "Stacks[0].Outputs[?OutputKey=='RecipeMigrationFunctionName'].OutputValue | [0]" \
                       --output text)
-                  aws lambda invoke --region "${{ vars.DEFAULT_AWS_REGION }}" --function-name "$FN" \
+                  aws lambda invoke --region "${DEFAULT_AWS_REGION}" --function-name "$FN" \
                       --payload '{"action":"migrate"}' --cli-binary-format raw-in-base64-out /tmp/recipe-migrate.json
                   cat /tmp/recipe-migrate.json
                   # `aws lambda invoke` exits 0 even when the FUNCTION threw, so inspect the payload.
@@ -845,7 +869,7 @@ jobs:
                   [ "$DEPLOYED" = 'true' ] && expected_image_tag="${IMAGE_TAG}"
                   npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
                     --base-url "${RECIPE_ORIGIN}" \
-                    --web-origin "https://${STAGE}.sandbox.${{ vars.DOMAIN_NAME }}" \
+                    --web-origin "https://${STAGE}.sandbox.${DOMAIN_NAME}" \
                     --expected-image-tag "${expected_image_tag}" \
                     --running-image-tag "${RUNNING_IMAGE_TAG}" \
                     --food-origin "${FOOD_ORIGIN}" \

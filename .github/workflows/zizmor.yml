@@ -5,25 +5,66 @@
 # artipacked/credential persistence, unpinned and impostor actions, self-hosted-runner exposure).
 # Findings land in the Security tab as SARIF alongside CodeQL's.
 #
-# Measured baseline on the tree that introduced this file (zizmor 1.29.0, run locally against
-# `.github/`): 231 findings — 120x unpinned-uses (error), 65x template-injection (note), 33x
-# artipacked, 6x secrets-inherit, 6x excessive-permissions (1 error: workflow-level `id-token: write`
-# in sandbox-deploy.yml), 1x dependabot-cooldown. That backlog is why this lands ADVISORY: gating on
-# it today would block every PR. Gating comes after the burn-down, per the plan's advisory-first
-# ratchet.
+# ── FINDINGS LEDGER (keep this current — a stale baseline is worse than none) ───────────────────────
+#
+# Original baseline on the tree that introduced this file (zizmor 1.29.0, `zizmor .github/`): 231
+# findings — 120x unpinned-uses (error), 65x template-injection (note), 33x artipacked, 6x
+# secrets-inherit, 6x excessive-permissions (1 error: workflow-level `id-token: write` in
+# sandbox-deploy.yml), 1x dependabot-cooldown. That backlog is why this landed ADVISORY: gating on it
+# then would have blocked every PR.
+#
+# BURN-DOWN (2026-08-08). Re-measured 251 on the then-current tree (the drift from 231 is workflow
+# growth, not a zizmor change), now **26**. Closed COMPLETELY:
+#   • excessive-permissions 7 → 0, both High included. The workflow-level `id-token: write` in
+#     prod-deploy / sandbox-deploy / sandbox-identity-deploy was DEAD privilege: all 12
+#     `configure-aws-credentials` call sites use static access keys and nothing under `.github/` names
+#     `role-to-assume`/`web-identity`, so it was removed rather than merely narrowed. ci-pr / ci-main /
+#     ci-full gained explicit blocks, with `id-token: write` job-scoped on the `_ci.yml` call (a called
+#     workflow can only DOWNGRADE what its caller grants, and `e2e-web` needs it for Argos).
+#   • template-injection 67 → 0. Every interpolation moved out of `run:` bodies into `env:`. The
+#     invariant is now uniform outside `_ci-heavy.yml`: NO `${{ … }}` appears in any `run:` body.
+#   • dependabot-cooldown 1 → 0, via `cooldown.default-days: 7` — plus a `github-actions` ecosystem
+#     entry, because SHA-pinning without Dependabot owning the pins just rots them (see dependabot.yml).
+#   • unpinned-uses 133 → 17 and artipacked 37 → 6 (details below).
+#
+# THE REMAINING 26, and why each is still here:
+#   • 21 in `_ci-heavy.yml` (17 unpinned-uses + 4 artipacked) — NOT touched, deliberately: it was being
+#     edited concurrently. Purely mechanical; the resolved SHAs it needs are `actions/setup-java@v4` →
+#     cf277c60eb25467037889841efdb72551f06f6c3 (v4.9.1) and
+#     `reactivecircus/android-emulator-runner@v2` → a421e43855164a8197daf9d8d40fe71c6996bb0d (v2.38.0),
+#     alongside the same checkout/setup-node/cache/upload-artifact pins used everywhere else.
+#   • 3 secrets-inherit — `ci-full.yml` (heavy), `heavy-e2e.yml`, `recipe-loadtest.yml`. BLOCKED, not
+#     declined: a caller can only stop inheriting once the CALLEE declares `on.workflow_call.secrets`,
+#     and the callee is `_ci-heavy.yml`. It consumes exactly `AWS_ACCESS_KEY_ID` +
+#     `AWS_SECRET_ACCESS_KEY`, so it needs the same optional-secrets block `_ci.yml` now carries. The
+#     three `_ci.yml` callers were converted and are clean.
+#   • 2 artipacked — prod-deploy `deploy` and sandbox-identity-deploy `deploy` keep their git credential
+#     ON PURPOSE. `dorny/paths-filter` only uses the GitHub API on `pull_request`; on `push` /
+#     `workflow_dispatch` it falls through to `getChangedFilesFromGit`, which fetches from `origin`.
+#     Each site carries a `⚠️ DELIBERATE` note. Every other checkout in the repo now sets
+#     `persist-credentials: false`.
+#
+# Gating is the owner's call, not this file's. What it would take: land the `_ci-heavy.yml` pins +
+# secrets block (closes 24 of the 26), then decide whether the 2 deliberate artipacked sites get
+# `# zizmor: ignore[artipacked]` comments or whether the gate runs at a severity floor above `low`.
 #
 # SCOPED TO `.github/` DELIBERATELY, not the repo root. A root-scoped run also audits the vendored
 # third-party workflows under `.specify/extensions/**` (36 extra findings in code we do not own and
 # cannot fix), which is noise that would bury our own findings.
 #
-# ⚠️ WHAT PROVES THIS STEP DID ITS JOB — read before changing the run block. zizmor exits **0** even
-# when it finds problems (verified locally: exit 0 with 231 findings), so the exit code is NOT a
-# signal about findings and must not be treated as one in either direction. Consequently the only
-# thing separating "audited, here are the results" from "never actually ran" is the presence of
-# non-empty SARIF, which is exactly what the step asserts. Do NOT add `continue-on-error` and do NOT
-# add `|| true`: this repo has already lost four weeks of production to a step that reported success
-# for work it did not do, and a swallowed failure here would reproduce that defect class in the very
-# tool meant to detect it.
+# ⚠️ WHAT PROVES THIS STEP DID ITS JOB — read before changing the run block. In `--format sarif` zizmor
+# exits **0** even when it finds problems, so the exit code is NOT a signal about findings here and must
+# not be treated as one in either direction. Consequently the only thing separating "audited, here are
+# the results" from "never actually ran" is the presence of non-empty SARIF, which is exactly what the
+# step asserts.
+#
+# ⚠️ That exit code is FORMAT-DEPENDENT — measured on 1.29.0, same tree, same invocation otherwise:
+# `--format sarif` → exit 0, while the default human format → **exit 14** with findings present. So
+# changing the `--format` flag silently converts this step from advisory to gating. If that is ever
+# wanted, make it a deliberate decision and keep the non-empty-SARIF assertion; do NOT reach for
+# `continue-on-error` or `|| true` to quieten the resulting red. This repo has already lost four weeks
+# of production to a step that reported success for work it did not do, and a swallowed failure here
+# would reproduce that defect class in the very tool meant to detect it.
 name: zizmor
 
 on:
@@ -50,7 +91,9 @@ jobs:
             actions: read
         steps:
             - name: Checkout repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+              with:
+                  persist-credentials: false
 
             - name: Install zizmor
               # EXACTLY pinned. This started as `>=1,<2` to avoid pinning a version I had not confirmed
@@ -76,7 +119,7 @@ jobs:
                   echo "zizmor exited ${rc}; wrote $(wc -c < zizmor.sarif) bytes of SARIF."
 
             - name: Upload SARIF to code scanning
-              uses: github/codeql-action/upload-sarif@v3
+              uses: github/codeql-action/upload-sarif@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3.37.6
               with:
                   sarif_file: zizmor.sarif
                   category: zizmor

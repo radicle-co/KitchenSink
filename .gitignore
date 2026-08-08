@@ -98,8 +98,23 @@ packages/apps/commise/mobile/ios/
 # pool is regenerated per run and must never reach a commit — a leaked pool is 6,000 valid
 # sessions handed to whoever reads the repo. The public verification PEM is excluded for the
 # same reason it is fetched rather than vendored: it is per-instance and rotates.
-packages/services/identity/tests/load/clerk-tokens.json
-packages/services/identity/tests/load/clerk-public-key.pem
+#
+# ⚠️ GLOB, not two literal paths. This first shipped scoped to `packages/services/identity/...` and was
+# WRONG THE SAME DAY: the food-service load tier grew its own `prepare-clerk-tokens.ts` within hours and
+# put 50 live JWTs at `packages/services/food-service/tests/load/clerk-tokens.json`, outside the rule.
+# Any service can grow a k6 auth tier, so the rule matches the SHAPE rather than enumerating today's
+# services. Do not narrow it back to explicit paths.
+packages/services/*/tests/load/clerk-tokens.json
+packages/services/*/tests/load/clerk-public-key.pem
+packages/services/*/tests/load/erasure-tokens.json
+packages/services/*/tests/load/erasure-public-key.pem
+
+# k6 store fixtures — `tests/load/prepare-perf-fixture.ts` emits the food id + search-probe lists its k6
+# scripts `open()`. Not credential material, but not source: a ~180 KB machine-written blob whose contents
+# are a function of the seeded row counts and which regenerates in ~15s from the prepare step. Committing
+# one would put one run's row counts in the tree where the next reader mistakes them for the agreed fixture;
+# the RULES that generate it are the committed artifact (`tests/load/perf-fixture.ts`).
+packages/services/*/tests/load/perf-fixture.json
 
 # k6 run summaries — `--summary-export` writes these into whichever package the run was launched from
 # (`k6-{scenario}-summary.json`). They are per-run measurements, not source: CI uploads them as build

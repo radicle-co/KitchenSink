@@ -103,8 +103,19 @@ export function parseReport(report, dirs) {
             unrecognized.push(block.split('\n')[0]?.trim() ?? '(empty)');
             continue;
         }
-        const relative = location[1].replace(/^.*?KitchenSink\//, '');
-        const owner = dirs.find((candidate) => relative.startsWith(`${candidate.dir}/`));
+        // Match the workspace by looking for `<dir>/` ANYWHERE in the absolute path, rather than first
+        // stripping a checkout root. The previous version stripped `/^.*?KitchenSink\//`, which is
+        // non-greedy and therefore cut at the FIRST occurrence of the repo name — fine locally
+        // (`/home/me/Development/KitchenSink/packages/…`) and broken on GitHub, whose checkout path repeats
+        // it (`/home/runner/work/KitchenSink/KitchenSink/packages/…`). That left `KitchenSink/packages/…`,
+        // which matches no workspace dir, so all 153 findings became unattributable and the run refused to
+        // report a partial result. Not knowing the checkout root is the point: nothing here should depend on
+        // where the repo happens to live, or on it being named KitchenSink at all.
+        //
+        // `dirs` is sorted longest-first, so a nested workspace wins over its parent.
+        const absolute = location[1];
+        const owner = dirs.find((candidate) => absolute.includes(`/${candidate.dir}/`));
+        const relative = owner === undefined ? absolute : absolute.slice(absolute.indexOf(`/${owner.dir}/`) + 1);
         if (owner === undefined) {
             unmapped.push(relative);
             continue;

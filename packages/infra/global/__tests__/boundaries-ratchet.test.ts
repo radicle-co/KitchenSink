@@ -39,12 +39,19 @@ import { describe, it, expect } from 'vitest';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const script = path.join(repoRoot, 'scripts/boundariesRatchet.mjs');
 
-/** One `turbo boundaries` diagnostic block, in the real output shape. */
-function block(pkg: string, file: string): string {
+/**
+ * One `turbo boundaries` diagnostic block, in the real output shape.
+ *
+ * `root` defaults to this checkout, but is overridable so a test can drive the CI path shape. That matters:
+ * GitHub checks out to `/home/runner/work/<repo>/<repo>/…`, repeating the repo name, and the parser's
+ * original `/^.*?<repo>\//` strip was non-greedy — it cut at the FIRST occurrence and left a path that
+ * matched no workspace. Every finding became unattributable and `Lint` failed in CI while passing locally.
+ */
+function block(pkg: string, file: string, root: string = repoRoot): string {
     return [
         `  x cannot import package \`${pkg}\` because it is not`,
         '  | a dependency',
-        `    ,-[${repoRoot}/${file}:11:27]`,
+        `    ,-[${root}/${file}:11:27]`,
         " 10 | import { cleanup } from '@testing-library/react';",
         ` 11 | import x from '${pkg}';`,
         '    `----',
@@ -171,5 +178,47 @@ describe('boundaries ratchet', () => {
         expect(written.pairs).toEqual([
             { package: '@commise/web', dependency: 'left-pad', rule: 'undeclared-dependency' },
         ]);
+    });
+});
+
+describe('checkout-root independence', () => {
+    /**
+     * GitHub checks out to `/home/runner/work/<repo>/<repo>/…` — the repo name appears TWICE. The parser
+     * used to strip `/^.*?KitchenSink\//`, which is non-greedy, so it cut at the first occurrence and left
+     * `KitchenSink/packages/…`: a path matching no workspace directory. All 153 findings became
+     * unattributable, the ratchet refused to report a partial result (correctly), and `ci / Lint` failed on
+     * a run that was green locally, where the path contains the name once.
+     *
+     * Pinned with the real runner shape rather than a generic double segment, and paired with an
+     * unrelated-root case so the parser cannot go back to depending on what the repo is called.
+     */
+    it("attributes findings under GitHub's doubled checkout path", () => {
+        const ci = '/home/runner/work/KitchenSink/KitchenSink';
+        const result = run(
+            block('@testing-library/react', 'packages/apps/commise/web/src/x.test.tsx', ci) + summary(1),
+            {
+                pairs: [
+                    { package: '@commise/web', dependency: '@testing-library/react', rule: 'undeclared-dependency' },
+                ],
+            },
+        );
+
+        expect(result.out).not.toContain('could not be attributed');
+        expect(result.code).toBe(0);
+    });
+
+    it('does not depend on the repository being named KitchenSink', () => {
+        const renamed = '/srv/ci/some-other-name';
+        const result = run(
+            block('@testing-library/react', 'packages/apps/commise/web/src/x.test.tsx', renamed) + summary(1),
+            {
+                pairs: [
+                    { package: '@commise/web', dependency: '@testing-library/react', rule: 'undeclared-dependency' },
+                ],
+            },
+        );
+
+        expect(result.out).not.toContain('could not be attributed');
+        expect(result.code).toBe(0);
     });
 });

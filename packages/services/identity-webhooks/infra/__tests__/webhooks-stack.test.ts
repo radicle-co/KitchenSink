@@ -144,18 +144,32 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
             expect(multiLevelBasePaths()).toContain('api/v1');
         });
 
-        it('KEEPS the deprecated `v1` base path — the Clerk dashboard is configured to POST there', () => {
-            // This alias is NOT dead code and NOT tidy-uppable. The webhook endpoint URL lives in the Clerk
-            // DASHBOARD, outside this repository. Dropping `v1` would 404 every user.created/updated/deleted
-            // callback and silently stop syncing users into RDS, with no failing deploy and no alarm — the
-            // failure would only surface later as missing users. Removal REQUIRES updating the Clerk
-            // dashboard endpoint to the `api/v1` URL FIRST, then draining. See ADR-0011.
-            expect(singleLevelBasePaths()).toContain('v1');
+        it('no longer maps the RETIRED `v1` alias — both Clerk instances POST to `api/v1` (measured)', () => {
+            // RETIRED 2026-08-07, after the evidence its own precondition demanded. The alias existed because
+            // the endpoint URL lives in the Clerk DASHBOARD, outside this repository, so nobody could prove
+            // Clerk had stopped using it — and the access log could not tell the two apart, since
+            // `$context.resourcePath` is `/webhooks/users` for BOTH mappings.
+            //
+            // What changed: the log now emits `$context.path` (the full incoming path). With prod AND sandbox
+            // both instrumented, a driven `user.created`/`user.deleted` pair on EACH instance was observed
+            // arriving at:
+            //     prod    → 3/3  registration.identity.commise.app/api/v1/webhooks/users          [200]
+            //     sandbox → 3/3  registration.identity.sandbox.commise.app/api/v1/webhooks/users  [200]
+            // with ZERO deliveries on `/v1/...` in either instrumented window. Svix (Clerk's sender) posts to
+            // ONE configured URL per endpoint — it does not spread across paths — so 3/3 identifies the
+            // configured URL rather than merely sampling it.
+            //
+            // Residual risk, stated rather than hidden: a SECOND, currently-idle Svix endpoint configured at
+            // `/v1` would be invisible to this method. If user sync ever stops after this change, check the
+            // Clerk dashboard's endpoint list FIRST — a 404 on `/v1/webhooks/users` is the signature.
+            expect(singleLevelBasePaths()).not.toContain('v1');
         });
 
-        it('maps exactly those two base paths onto the one REST API', () => {
-            expect([...multiLevelBasePaths(), ...singleLevelBasePaths()]).toHaveLength(2);
+        it('maps exactly ONE base path onto the one REST API', () => {
+            expect([...multiLevelBasePaths(), ...singleLevelBasePaths()]).toEqual(['api/v1']);
             template.resourceCountIs('AWS::ApiGateway::RestApi', 1);
+            // The alias is gone as a RESOURCE, not merely absent from the list above.
+            template.resourceCountIs('AWS::ApiGateway::BasePathMapping', 0);
         });
 
         it('keeps the domain REGIONAL on TLS 1.2 — AWS requires both for a multi-level base path', () => {

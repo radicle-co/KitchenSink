@@ -569,22 +569,24 @@ export class WebhooksStack extends Stack {
         });
 
         // The webhook's public path is (custom-domain base path) + (resource path `webhooks/users`), so the
-        // version prefix is owned HERE, not by the Lambda. Two mappings point at the same stage:
+        // version prefix is owned HERE, not by the Lambda. ONE mapping, `api/v1` — every HTTP endpoint in the
+        // platform is served under `/api/{version}/`, making the webhook `POST /api/v1/webhooks/users`.
         //
-        //  - `api/v1` is CANONICAL — every HTTP endpoint in the platform is served under `/api/{version}/`,
-        //    making the webhook `POST /api/v1/webhooks/users`. A multi-level base path cannot use
-        //    `addBasePathMapping` (`AWS::ApiGateway::BasePathMapping` rejects multi-level and CDK throws);
-        //    it must go through `addApiMapping` → `AWS::ApiGatewayV2::ApiMapping`. AWS allows that only on a
-        //    REGIONAL domain with a TLS 1.2+ security policy — both set on `customDomain` above; do not
-        //    downgrade either or synth will fail.
-        //  - `v1` is a DEPRECATED ALIAS and MUST NOT be removed yet. The Clerk DASHBOARD holds the webhook
-        //    endpoint URL (`.../v1/webhooks/users`), i.e. configuration that lives OUTSIDE this repository.
-        //    Deleting this mapping would 404 every `user.created`/`user.updated`/`user.deleted` callback and
-        //    silently stop syncing users into RDS — no failed deploy, no alarm, just users going missing.
-        //    Removal REQUIRES repointing the Clerk dashboard endpoint at the `api/v1` URL FIRST and letting
-        //    in-flight retries drain. See ADR-0011.
+        // A multi-level base path cannot use `addBasePathMapping` (`AWS::ApiGateway::BasePathMapping` rejects
+        // multi-level and CDK throws); it must go through `addApiMapping` → `AWS::ApiGatewayV2::ApiMapping`.
+        // AWS allows that only on a REGIONAL domain with a TLS 1.2+ security policy — both set on
+        // `customDomain` above; do not downgrade either or synth will fail.
+        //
+        // A second, single-level `v1` alias used to sit beside this one and was marked un-removable, because
+        // the endpoint URL lives in the Clerk DASHBOARD (outside this repo) and nothing could prove Clerk had
+        // stopped using it: the access log emitted only `$context.resourcePath`, which is `/webhooks/users`
+        // for BOTH mappings. Adding `$context.path` above resolved that. Retired 2026-08-07 on measured
+        // evidence — a driven user.created/user.deleted pair on EACH Clerk instance arrived 3/3 on
+        // `/api/v1/webhooks/users` (prod and sandbox), with zero `/v1/...` deliveries; Svix posts to ONE
+        // configured URL per endpoint, so that identifies the URL rather than sampling it. If user sync ever
+        // stops, a `404` on `/v1/webhooks/users` is the signature — check the dashboard's endpoint list
+        // first. See ADR-0011 and `webhooks-stack.test.ts`.
         customDomain.addApiMapping(api.deploymentStage, { basePath: 'api/v1' });
-        customDomain.addBasePathMapping(api, { basePath: 'v1', stage: api.deploymentStage });
 
         new route53.ARecord(this, 'IdentityApiAliasRecord', {
             zone: hostedZone,
@@ -594,10 +596,11 @@ export class WebhooksStack extends Stack {
 
         const webhookIntegration = new apigw.LambdaIntegration(webhookFn);
 
-        // The Clerk user-event webhook is the only route on this API: POST /v1/webhooks/users
-        // (registration.identity[.sandbox].commise.app/v1/webhooks/users). Per Clerk's model it is
-        // public (no API GW authorizer) and authenticated by its svix signature inside the Lambda,
-        // which dispatches on the event `type`. Subscribe a Dashboard endpoint's user.* events here.
+        // The Clerk user-event webhook is the only route on this API: POST /api/v1/webhooks/users
+        // (registration.identity[.sandbox].commise.app/api/v1/webhooks/users — the `api/v1` base path
+        // mapped above; the old `/v1` alias was retired 2026-08-07). Per Clerk's model it is public (no
+        // API GW authorizer) and authenticated by its svix signature inside the Lambda, which dispatches
+        // on the event `type`. Subscribe a Dashboard endpoint's user.* events here.
         const webhooksResource = api.root.addResource('webhooks');
         const usersWebhookResource = webhooksResource.addResource('users');
         usersWebhookResource.addMethod('POST', webhookIntegration, {

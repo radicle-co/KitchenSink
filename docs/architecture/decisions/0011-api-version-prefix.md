@@ -56,8 +56,9 @@ lives in this repository**:
   erasure on whichever path the caller happened to use.
 
 - **The Clerk webhook's prefix lives in API Gateway, not the Lambda.** The public path is
-  (custom-domain base path) + (resource path `webhooks/users`). Two mappings now point at the same stage:
-  `api/v1` (canonical) and `v1` (alias). The canonical one is multi-level, which
+  (custom-domain base path) + (resource path `webhooks/users`). As originally shipped, two mappings pointed at
+  the same stage: `api/v1` (canonical) and `v1` (alias). **The `v1` alias was retired on 2026-08-07 — see the
+  Update below; only `api/v1` remains.** The canonical one is multi-level, which
   `AWS::ApiGateway::BasePathMapping` rejects, so it goes through `DomainName.addApiMapping` →
   `AWS::ApiGatewayV2::ApiMapping`. AWS permits that only on a **REGIONAL** domain with a **TLS 1.2+**
   security policy; both already hold and are asserted in the stack's tests.
@@ -78,6 +79,46 @@ lives in this repository**:
 - Route-path contract tests per service pin canonical-first ordering, alias retention, and `/health`
   remaining unprefixed. An HTTP-level suite additionally proves the alias round-trips with the same status
   and validation behaviour as canonical, and that `/api/health` does **not** exist.
+
+## Update (2026-08-07) — the WEBHOOK alias is retired; the SERVICE aliases still stand
+
+The four deletions in step 4 below were written as one batch. They are **not** one batch, because they do not
+share a consumer, and the webhook half has now shipped on its own.
+
+**Retired: the `v1` base-path mapping on the webhook API** (`customDomain.addBasePathMapping(api, { basePath: 'v1' })`
+in `packages/services/identity-webhooks/infra/lib/webhooks-stack.ts`). Step 1's precondition is **satisfied and
+measured**, and steps 2 and 3 do not apply to it: the webhook path's only caller is Clerk's svix sender. No shipped
+mobile build and no cached web bundle has ever posted a Clerk webhook, so "clients with inlined endpoints" — the
+reason steps 2–3 exist — cannot keep this particular path alive.
+
+How it was proven, since the original blocker was precisely that it _could not_ be:
+
+- The access log emitted only `$context.resourcePath`, which is `/webhooks/users` for **both** mappings, so a real
+  delivery was unattributable. `$context.path` (full incoming path) and `$context.domainName` were added to the
+  stage's access-log format. Prod already carried them; **sandbox did not**, and was deployed to match.
+- A `user.created`/`user.deleted` pair was then driven against **each** Clerk instance and the gateway log read:
+
+    | instance | observed                                                                      | on `/v1/...` |
+    | -------- | ----------------------------------------------------------------------------- | ------------ |
+    | prod     | 3/3 `registration.identity.commise.app/api/v1/webhooks/users` `[200]`         | 0            |
+    | sandbox  | 3/3 `registration.identity.sandbox.commise.app/api/v1/webhooks/users` `[200]` | 0            |
+
+- Svix posts to **one configured URL per endpoint** — it does not distribute across paths — so 3/3 identifies the
+  configured URL rather than sampling it.
+
+**Residual risk, recorded rather than hidden:** a second, currently-idle svix endpoint configured at `/v1` would be
+invisible to this method. If user sync stops, a `404` on `/v1/webhooks/users` is the signature — check the Clerk
+dashboard's endpoint list first. Asserted by `webhooks-stack.test.ts` ("maps exactly ONE base path").
+
+**Also worth knowing: `cdk diff` did not report the access-log change.** Against the un-instrumented sandbox stack it
+listed only Lambda code/`SENTRY_RELEASE` deltas and no `AWS::ApiGateway::Stage` change, while the synthesized template
+and the deployed template demonstrably differed on `AccessLogSetting.Format` — and the deploy then applied it. Do not
+treat a clean `cdk diff` as proof that a stage's access-log format matches; read it from
+`aws apigateway get-stage`, which is ground truth.
+
+**Still standing (unchanged by this update):** the bare `/{version}/*` aliases on the identity, food, and recipe
+**services**, the middleware exclusion's legacy entry, and the smoke's `LEGACY_FOOD_SEARCH_PATH` fallback. Those have
+in-the-wild clients with build-time-inlined endpoints, so steps 2 and 3 remain unsatisfied for them.
 
 ## Retiring the alias — the order is not optional
 

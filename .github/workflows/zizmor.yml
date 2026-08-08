@@ -53,11 +53,14 @@ jobs:
               uses: actions/checkout@v4
 
             - name: Install zizmor
-              # Bounded to the v1 line rather than an exact pin: an exact version that turned out not
-              # to exist would break CI on the first run for no security benefit. The resolved version
-              # at authoring time was 1.29.0 — tighten this to `==1.29.0` once a green run confirms it
-              # on the CI runner too.
-              run: python3 -m pip install --disable-pip-version-check 'zizmor>=1,<2'
+              # EXACTLY pinned. This started as `>=1,<2` to avoid pinning a version I had not confirmed
+              # existed; 1.29.0 was then installed and exercised locally (`--format sarif` verified, 231
+              # findings, exit 0), so the reason for the range is gone. A floating range on a SECURITY
+              # scanner is the wrong default in both directions: an upstream change can add findings that
+              # red an unrelated PR, or remove ones we were relying on, with no repo change to point at.
+              # pip has no built-in digest check here; `--require-hashes` with a hash-pinned requirements
+              # file is the next step up if this is ever considered supply-chain critical.
+              run: python3 -m pip install --disable-pip-version-check 'zizmor==1.29.0'
 
             - name: Run zizmor
               # `rc` rather than `status`: harmless in bash, but `status` is a read-only special in some

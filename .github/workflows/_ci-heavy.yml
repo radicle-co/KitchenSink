@@ -141,10 +141,68 @@ jobs:
             - name: Provision Clerk sign-in test user
               if: steps.secrets.outcome == 'success'
               run: node packages/apps/commise/mobile/tests/e2e/ensure-signin-user.mjs
-            - name: Install Maestro CLI
+            # ── Maestro CLI: VERSION-PINNED and CHECKSUM-VERIFIED ──────────────────────────────────────
+            # This step used to be `curl -Ls https://get.maestro.mobile.dev | bash`, which is wrong twice
+            # over (code-quality backlog #139 — NOT a github.com issue number in this repo):
+            #
+            #   1. CORRECTNESS. It installs whatever is LATEST. The committed pixel baselines under
+            #      `packages/apps/commise/mobile/.maestro/visual/baselines` are coupled to the screenshot
+            #      pipeline and image-comparison engine of the CLI that recorded them, so an upstream
+            #      release reds the visual tier with no change on our side — a red nobody can attribute to
+            #      a diff, on the tier least able to explain itself. Pinning is the documented PREREQUISITE
+            #      for activating those (currently inert) `.maestro/visual/` flows.
+            #   2. SUPPLY CHAIN. This is a PUBLIC repo. Piping a mutable script from a third-party host
+            #      into `bash` runs whatever that host serves at the moment CI runs — unreviewed,
+            #      unrecorded, and with this job's environment (Clerk dev keys, AWS credentials) in reach.
+            #
+            # The upstream installer DOES honour `MAESTRO_VERSION` — verified by reading it: with the var
+            # set it fetches `releases/download/cli-$MAESTRO_VERSION/maestro.zip`. But honouring it still
+            # means executing the unpinned script, so problem 2 would stand. We therefore fetch the tagged
+            # release asset directly; that also drops the installer's `java`/profile-editing prerequisites,
+            # which this job does not need (JDK 17 is set up in the next step, after this one).
+            #
+            # INTEGRITY, stated precisely so nobody reads more into it than is there. Upstream publishes
+            # `checksums_sha256.txt` beside `maestro.zip` in each release, and GitHub's own independently
+            # computed asset digest for `cli-2.6.1` agrees with it (both
+            # sha256:3440825f514f537c6a96bcf5de995780c2a4a7f83a43208fdc95d4f1fecfad3b, cross-checked
+            # 2026-08-07). `MAESTRO_SHA256` below is that value. Upstream publishes NO signature and no
+            # provenance attestation for this asset, so this is not authenticity: it proves the bytes are
+            # the ones we pinned and reviewed, not that upstream was never compromised. A re-uploaded or
+            # substituted asset fails the build instead of running — which is the guarantee that matters
+            # here. (The installer's own "archive integrity" check is `unzip -t`: corruption, not identity.)
+            #
+            # 2.6.1 is the version this repo develops against locally, i.e. the one the baselines will be
+            # recorded with. BUMPING IT IS A DELIBERATE ACT: change both values together (the new digest
+            # comes from that release's `checksums_sha256.txt`) and re-record the baselines in the SAME PR.
+            # `packages/infra/global/__tests__/workflow-provenance.test.ts` fails if the version stops being
+            # a literal, if the URL stops using the pinned tag, or if the digest check disappears.
+            #
+            # The install LAYOUT deliberately matches the official installer's ($HOME/.maestro/{bin,lib}):
+            # the report artifact below reads `~/.maestro/tests`, and `bin/maestro` is a Gradle start script
+            # that resolves `lib/` relative to itself. Staging under $HOME and `mv`-ing is a same-filesystem
+            # rename rather than a copy, and the archive is deleted immediately — this job's disk budget is
+            # nearly spent by the emulator system image (see the note further down).
+            - name: Install Maestro CLI (pinned)
               if: steps.secrets.outcome == 'success'
+              env:
+                  MAESTRO_VERSION: '2.6.1'
+                  MAESTRO_SHA256: '3440825f514f537c6a96bcf5de995780c2a4a7f83a43208fdc95d4f1fecfad3b'
               run: |
-                  curl -Ls https://get.maestro.mobile.dev | bash
+                  set -euo pipefail
+                  archive="$RUNNER_TEMP/maestro.zip"
+                  curl --fail --location --silent --show-error --retry 3 --retry-all-errors \
+                      -o "$archive" \
+                      "https://github.com/mobile-dev-inc/maestro/releases/download/cli-${MAESTRO_VERSION}/maestro.zip"
+                  echo "${MAESTRO_SHA256}  ${archive}" | sha256sum --check --strict -
+                  rm -rf "$HOME/.maestro" "$HOME/.maestro-stage"
+                  unzip -q "$archive" -d "$HOME/.maestro-stage"
+                  rm -f "$archive"
+                  mv "$HOME/.maestro-stage/maestro" "$HOME/.maestro"
+                  rmdir "$HOME/.maestro-stage"
+                  # The archive must actually contain the version we pinned. Asserted by the versioned CLI
+                  # jar rather than `maestro --version`, because that needs a JVM this step does not have
+                  # yet and an output format upstream is free to change.
+                  test -f "$HOME/.maestro/lib/maestro-cli-${MAESTRO_VERSION}.jar"
                   echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
             - name: Set up JDK 17
               if: steps.secrets.outcome == 'success'

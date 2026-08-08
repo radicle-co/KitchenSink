@@ -296,6 +296,60 @@ jobs:
                   echo "::error::identity not serving HTTP 200 at $HEALTH_URL after ~$((attempts * delay))s (last=$code)"
                   exit 1
 
+            # Issue #137. The step above proves a container ANSWERS; it does not prove this deploy landed. A
+            # task running a weeks-old image returns the same 200 — which is exactly how a stale recipe build
+            # served pr-73 for fifteen days behind green checks. These are the two assertions `/health` cannot
+            # make, and they run the SAME smoke module the recipe leg uses rather than a second implementation:
+            #   • image currency  — the RUNNING task definition's tag must equal the image this run pushed.
+            #   • browser reach   — a CORS preflight is credential-less by spec, so a service whose auth layer
+            #                       answers OPTIONS with 401 is healthy to curl and unreachable from every
+            #                       browser. `identity.<domain>` is called cross-origin by the web app.
+            # The cross-service (food) checks are skipped by omitting `--food-origin`; identity has no food
+            # dependency and `runSmoke` gates both of those on that flag.
+            #
+            # ⚠️ The preflight the shared module sends is `OPTIONS /api/v1/recipes` — a recipe-shaped path,
+            # because the path is hardcoded there. It is still a valid identity assertion, verified live
+            # against identity.commise.app: `enableCors()` installs the CORS middleware ahead of routing AND
+            # ahead of `AuthMiddleware.forRoutes('*')`, so ANY path exercises the same layer (observed:
+            # `204` + `access-control-allow-origin: https://commise.app`). A `--preflight-path` flag on
+            # deployedSmoke.ts is the clean follow-up — do NOT fork the smoke into a second file to get it.
+            #
+            # Cluster + service come from the identity stack's own CloudFormation exports, not the
+            # `ecs list-clusters | grep` heuristic the recipe step still uses, so a renamed cluster fails
+            # loudly instead of matching nothing.
+            - name: Smoke test — identity service CURRENT and browser-reachable (prod)
+              if: steps.flags.outputs.deploy_service == 'true'
+              run: |
+                  set -euo pipefail
+                  # `>&2` on the diagnostic, NOT stdout: this function is called inside `$( … )`, so an
+                  # `::error::` written to stdout is captured into the variable and never reaches the log.
+                  # The `exit 1` ends the SUBSHELL, and `set -e` then fails the step on the assignment.
+                  lookup() {
+                    local name="$1" value
+                    value=$(aws cloudformation list-exports --query "Exports[?Name=='${name}'].Value" --output text)
+                    if [ -z "$value" ] || [ "$value" = "None" ]; then
+                      echo "::error::CloudFormation export '${name}' not found — is kitchensink-identity-service-${STAGE} deployed?" >&2
+                      exit 1
+                    fi
+                    echo "$value"
+                  }
+                  cluster=$(lookup "kitchensink-identity-service-${STAGE}:IdentityClusterArn")
+                  service=$(lookup "kitchensink-identity-service-${STAGE}:IdentityServiceArn")
+                  task_def=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+                    --query 'services[0].taskDefinition' --output text)
+                  image=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                    --query 'taskDefinition.containerDefinitions[0].image' --output text)
+                  # The `|| { … }` is NOT a suppression — it re-raises. It exists because the shared module's
+                  # own annotation is hardcoded to "the DEPLOYED recipe service", which is actively
+                  # misleading in an identity failure at 3am. Deriving that string from `--base-url` inside
+                  # deployedSmoke.ts is the proper fix and belongs with the `--preflight-path` follow-up.
+                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                    --base-url "https://identity.${{ vars.DOMAIN_NAME }}" \
+                    --web-origin "https://${{ vars.DOMAIN_NAME }}" \
+                    --expected-image-tag "${{ github.sha }}" \
+                    --running-image-tag "${image##*:}" \
+                    || { echo "::error::the DEPLOYED IDENTITY service failed post-deploy verification (running image ${image##*:}, expected ${{ github.sha }})" >&2; exit 1; }
+
             # ────────────────────────────────────────────────────────────────────────────────────────
             # Feature services (food, recipe). Until now prod-deploy handled only global infra +
             # identity + identity-webhooks, so NEITHER feature service had any production deploy path —
@@ -504,3 +558,54 @@ jobs:
                   done
                   echo "::error::food not serving HTTP 200 at $HEALTH_URL after ~$((attempts * delay))s (last=$code)"
                   exit 1
+
+    # ─────────────────────────────────────────────────────────────────────────────────────────────────────
+    # The production WEB front door — the only check in this repo that fetches a web page at all. Every
+    # smoke above probes `identity./recipe./food.` health.
+    #
+    # ⚠️ IT VERIFIES AN ORIGIN THIS PIPELINE DID NOT DEPLOY, ON PURPOSE. `@commise/web` is built and
+    # promoted by Vercel's own git integration, so nothing here can gate it at build time and no
+    # `steps.flags.outputs.deploy_*` says anything about it. That is precisely why it is checked here
+    # anyway: a prod deploy that leaves the web surface incoherent — a `pk_test` bundle in front of prod
+    # backends, a handshake through a Clerk DEVELOPMENT Frontend API, a redirect chain that never
+    # terminates — is a broken production, and this repo had no signal for any of it. That gap already
+    # shipped once (see the RED→GREEN record in the suite's docblock).
+    #
+    # Its own job rather than a step in `deploy`, because `deploy` runs `npm prune --omit=dev`: vitest is a
+    # devDependency, so running a test tier there would rest on `npx` fetching an unpinned vitest from the
+    # registry with no workspace config to resolve. A fresh checkout + `npm ci` is the honest way. It needs
+    # no AWS credentials — the probe is read-only public HTTP.
+    #
+    # `!cancelled()` rather than the implicit `success()`: the web surface is deployed independently of this
+    # workflow, so its coherence does not depend on the backend deploy having converged, and a failed deploy
+    # is exactly when you want to know whether the front door still serves. The `needs:` exists only to order
+    # the probe after the deploy, so it observes the post-deploy backend topology.
+    # ─────────────────────────────────────────────────────────────────────────────────────────────────────
+    web-surface:
+        name: Verify Production Web Surface
+        needs: [deploy]
+        if: ${{ !cancelled() }}
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            # Setting PROD_WEB_SMOKE_ORIGIN is the ENTIRE gate: the suite is `describe.runIf`-gated on it so
+            # that a production outage (or an offline laptop) cannot red every local and per-PR `npm run
+            # test`. Until this step existed the suite passed by never executing — the same silent success as
+            # a `|| true`, minus the grep-ability. `prod-deploy-smoke-depth.test.ts` now asserts this pairing.
+            - name: Smoke test — production web surface (stage coherence + termination)
+              working-directory: packages/infra/global
+              env:
+                  PROD_WEB_SMOKE_ORIGIN: https://${{ vars.DOMAIN_NAME }}
+              run: npx vitest run __tests__/prod-web-surface.integration.test.ts

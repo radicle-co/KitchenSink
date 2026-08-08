@@ -6,15 +6,14 @@
  * `prod-web-surface.test.ts` for the incident narrative and the hermetic proofs of every classifier used
  * here; this file only supplies the real artifact.
  *
- * ## Opt-in, and why that is a DISCLOSED GAP rather than a design choice
+ * ## Opt-in locally, LOAD-BEARING in production
  *
  * The probe needs the public internet and a live deployment, so it runs only when `PROD_WEB_SMOKE_ORIGIN` is
  * set. That makes it inert in the default `vitest run` — deliberately, because wiring a production dependency
  * into every local and per-PR `npm run test` would turn any prod outage or offline laptop into a repo-wide
  * red build.
  *
- * **It is therefore NOT yet load-bearing.** It becomes load-bearing only once `prod-deploy.yml` runs it as a
- * post-deploy step:
+ * It IS a gate, because `prod-deploy.yml`'s `web-surface` job sets that variable and runs this file:
  *
  * ```yaml
  * - name: Smoke test — production web surface (stage coherence + termination)
@@ -24,8 +23,11 @@
  *   run: npx vitest run __tests__/prod-web-surface.integration.test.ts
  * ```
  *
- * Until that step exists this file is an opt-in diagnostic, and saying so is the point: an env-gated test
- * that nothing sets is the same class of silent pass that `workflow-invariants.test.ts` inventories.
+ * That pairing is itself asserted, by `prod-deploy-smoke-depth.test.ts`: it discovers this suite's gate
+ * variable from the source and fails if no workflow step both SETS it and runs this file. Before that job
+ * existed, this was an env-gated test nothing switched on — the same class of silent pass that
+ * `workflow-invariants.test.ts` inventories, which is why the pairing is guarded rather than trusted. It runs
+ * in its own job (not a step in `deploy`) because `deploy` prunes dev dependencies, vitest among them.
  *
  * ## What it asserts, and why each assertion exists
  *

@@ -90,3 +90,13 @@ packages/apps/commise/mobile/ios/
 # Agent-isolation git worktrees (Claude Code `isolation: worktree`). These are real checkouts of
 # this repo living inside it; committing one would nest the repo in itself and balloon the tree.
 .claude/worktrees/
+
+# k6 load-test CREDENTIAL MATERIAL — generated, never committed. THIS REPO IS PUBLIC.
+# `tests/load/prepare-clerk-tokens.ts` mints a pool of real Clerk session JWTs (measured: 6,054
+# signed tokens, 4.2 MB) so a k6 run can exercise the auth hot path without hammering Clerk's
+# rate limit mid-test. Every one of them is a live bearer credential until it expires, so the
+# pool is regenerated per run and must never reach a commit — a leaked pool is 6,000 valid
+# sessions handed to whoever reads the repo. The public verification PEM is excluded for the
+# same reason it is fetched rather than vendored: it is per-instance and rotates.
+packages/services/identity/tests/load/clerk-tokens.json
+packages/services/identity/tests/load/clerk-public-key.pem

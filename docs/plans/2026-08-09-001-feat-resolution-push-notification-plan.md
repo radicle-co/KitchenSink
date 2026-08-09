@@ -183,25 +183,56 @@ rather than left standing.
 
 ### Resolve before implementation
 
-- **D1. Who owns the requester set.** `fetch_requesters` lives in the food service and is already
-  documented for WebSocket targeting. Either the completion event carries the requester ULIDs, or the
-  recipe service records its own subscription set when it initiates a fetch. The owner's stated framing was
-  "notify all apps that had called the recipe service", implying the latter — cleaner ownership, at the cost
-  of duplicating a set the food service already maintains. Deciding this fixes the event payload contract,
-  which is expensive to change later (cross-service, wire-visible).
+- **D2. How a completion reaches the socket, given multiple service copies.** The recipe service runs
+  several Fargate copies behind one ALB. A user's socket lives in the memory of exactly one copy — a
+  WebSocket is a stateful TCP session owned by one process, so it cannot be pooled, shared, or handed to
+  another task. The connection therefore cannot move; only the **message** can. Two shapes:
+    - _Broadcast + local filter (favoured)._ Every copy receives every completion and answers a purely
+      local question: "do I hold a socket for any of these recipients?" Copies that do push; copies that
+      do not ignore it. **No connection registry, no routing table, no copy needs to know what any other
+      copy holds.** Postgres `LISTEN`/`NOTIFY` is exactly this — a broadcast channel every listener
+      receives, and the food service already uses Postgres-as-queue with `LISTEN`/`NOTIFY`, so it is an
+      in-house pattern rather than a new dependency. Cost is one message per copy per event: negligible at
+      a handful of copies, wasteful at hundreds, which is comfortably beyond the one-cluster posture of
+      T-196.
+    - _Connections held outside the service._ API Gateway WebSocket owns every connection centrally, so
+      any copy can push to any user by connection id — genuinely a shared connection pool, as a managed
+      service. It removes the question outright and scales furthest, at the cost of the API Gateway surface
+      and browser-handshake bridge this plan otherwise deletes. A self-hosted socket tier is the same idea
+      without the managed part, and only helps if that tier runs a single copy — otherwise it relocates the
+      question one hop.
 
-- **D2. The cross-copy relay.** The recipe service runs multiple Fargate copies behind one ALB. A user's
-  socket lives on one copy; the event arrives at another. Candidates:
-    - _Postgres `LISTEN`/`NOTIFY`_ — no new infrastructure, and the food service already uses
-      Postgres-as-queue with `LISTEN`/`NOTIFY`, so it is an in-house pattern. Bounded by the one-cluster
-      topology (T-196), which is the standing decision until revenue.
-    - _API Gateway WebSocket_ — removes the problem by holding connections outside the service, at the cost
-      of the surface this plan otherwise deletes.
-    - _Single copy_ — no relay needed; caps scaling and drops all connections on deploy.
-    - _Redis pub/sub_ — conventional, purpose-built, new paid infrastructure.
+    Redis pub/sub is a third relay, conventional and purpose-built, but it is new paid infrastructure and
+    003 already deferred it once on cost.
 
     This decision determines deployment behaviour (do connections survive a rolling deploy?), so it must
     precede the connection-lifecycle units.
+
+### Decided
+
+- **D1. The recipe service owns its own subscription set; the food service's requester list is not the
+  source.** Resolved on a hard technical constraint rather than a preference: `FetchQueueDao.resolve`
+  **deletes** every `fetch_requesters` row for a food in the same transaction that removes its queue row
+  (DSN-10). At the instant the completion event fires, the requester list is gone — so sourcing recipients
+  from it is a race by construction. Avoiding that would mean capturing the list before the delete and
+  carrying user ULIDs in the event payload, which grows a cross-service contract with PII to serve a
+  concern the receiving service already has locally.
+
+    Every purpose the food service genuinely needs `requester_id` for happens **while the request is
+    pending** — fairness demotion (FR-043/FR-043a), the live distinct-requester count behind demand ordering
+    (FR-044), producer-provenance refusal (FR-048), and erasure (CR-002/U1). All of them die with the row.
+    Notification is the only claimed purpose that needs the data _after_ resolution, which is precisely why
+    it cannot live there.
+
+    **Consequence: no cross-service contract changes.** `FoodFetchCompletedDetail` already carries
+    `{eventId, timestamp, id, status}` — food id and terminal status, exactly what is needed and nothing
+    more.
+
+    **Stale comment to fix as part of this work:** `fetch_requesters` in
+    `packages/services/food-service/src/db/schema/operational.ts` documents its purpose as "(FR-043) and
+    WebSocket targeting". Targeting is impossible from a table that resolution empties, so that comment
+    names an intent the pruning rule contradicts, and it is what first pointed this design at the wrong
+    service.
 
 ### Deferred to implementation
 
@@ -213,8 +244,8 @@ rather than left standing.
 
 ## Dependencies / Assumptions
 
-- `FoodFetchCompleted` is published on EventBridge with a stable `detailType` and an existing rule. Its
-  current payload shape must be read before D1 is fixed; it may not carry requesters today.
+- `FoodFetchCompleted` is published on EventBridge with a stable `detailType` and an existing rule, and its
+  payload is `{eventId, timestamp, id, status}` — verified, and unchanged by this work (see D1).
 - `ingredients.food_id` is globally unique (one catalog row per food golden record), so an event maps to
   exactly one ingredient row by indexed lookup — and one update serves every user waiting on that food.
 - `requester_id` in `fetch_requesters` is the app-user ULID, not a Clerk `sub`.

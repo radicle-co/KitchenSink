@@ -92,19 +92,40 @@ phases:
         artifact: null
 
     implement:
-        state: ready
+        state: in-progress
         note: >-
-            Both prerequisites are cleared: revalidation approved 2026-08-07, and the v-model regeneration
-            for REQ-012..REQ-015 completed the same day. Next step is the Phase 6 test-first Red gate —
-            the Test-first tasks (T-017..T-021) must be written and confirmed FAILING before any
-            implementation task starts.
+            T-000 (scaffold) done for @kitchensink/cooking-core; T-017's MOD-019/MOD-020 layer is RED.
+            Remaining: @commise/features-cooking scaffold + T-018 component tests, then the green steps.
         red_gate:
-            status: not_run
-            tests: []
+            status: confirmed_failing
+            confirmed_at: 2026-08-07
+            command: npx vitest run (packages/shared/cooking)
+            result: 31 failed | 1 passed (32 total), 2 test files
+            tests:
+                - UTP-019-A (UTS-019-A1..A4)
+                - UTP-019-B (UTS-019-B1, B2, B2b)
+                - UTP-019-C (UTS-019-C1..C3)
+                - UTP-019-D (UTS-019-D1 + isChecked)
+                - UTP-020-A (UTS-020-A1..A5, 10 cases)
+                - UTP-020-B (UTS-020-B1..B5b)
+                - UTP-020-C (UTS-020-C1..C3)
+                - UTP-020-D (UTS-020-D1)
+            expected_pass:
+                - >-
+                    UTS-020-D2 passes by design — it is the structural invariant that MOD-020 imports no
+                    timer module (spec.md D-002). The invariant holds today, so the test is a regression
+                    guard, not coverage theatre.
+            note: >-
+                Three assertions initially passed against the stubs because a bare `.toThrow()` matches
+                the stub's generic Error. They were tightened to assert the specific custom error type
+                (UnknownIngredientError / InvalidQuantityError) and are now correctly failing — a test
+                that passes against an unimplemented stub proves nothing.
 
     code-review:
-        state: not-applicable
-        reason: No code changes exist yet for this feature.
+        state: not-started
+        note: >-
+            Code now exists (@kitchensink/cooking-core scaffold + T-017 red tests), so this is no longer
+            not-applicable. Runs after the implementation reaches green.
 
     verify:
         state: stale
@@ -190,5 +211,5 @@ gates:
           Revision 1 approved in full, conditional on the v-model V3/V5/V7/V9 regeneration for
           REQ-012..REQ-015 landing before implementation.
 
-next_action: implement-red-gate
+next_action: implement-green-mod019-mod020
 next_command: /speckit.product-forge.implement

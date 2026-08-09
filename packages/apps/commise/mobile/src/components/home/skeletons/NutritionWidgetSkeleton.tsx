@@ -24,7 +24,10 @@ export function NutritionWidgetSkeleton(): JSX.Element {
 
     return (
         <PlaceholderWidgetCard title={home.roadmap.titles.nutrition} comingSoonLabel={home.roadmap.comingSoon}>
-            <View style={styles.row}>
+            {/* Pure shape, so the whole row is hidden from assistive tech. `aria-hidden` (not RN's
+                `accessibilityElementsHidden`/`importantForAccessibility` pair, which RN reverse-maps from it
+                anyway) because that is the only spelling react-native-web projects to the DOM — see the shell. */}
+            <View aria-hidden style={styles.row}>
                 {/* The 64px ring: an unfilled track, since a filled arc would assert a real percentage. */}
                 <View style={styles.ring} />
                 <View style={styles.textBlock}>

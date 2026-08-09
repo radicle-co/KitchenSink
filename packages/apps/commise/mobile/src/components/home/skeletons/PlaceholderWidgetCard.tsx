@@ -6,10 +6,24 @@
  *
  * A roadmap placeholder means "this feature does not exist yet", NOT "content is loading". So the split is by
  * INFORMATION CONTENT: the heading and the visible "Coming soon" badge carry the information and are exposed
- * to assistive tech; the grey blocks carry none — they are a picture of a layout — and are hidden from it
- * (`importantForAccessibility="no-hide-descendants"` on Android, `accessibilityElementsHidden` on iOS). The
+ * to assistive tech; the grey blocks carry none — they are a picture of a layout — and are hidden from it. The
  * badge is deliberately visible, not screen-reader-only: a sighted viewer staring at grey rectangles has no
  * other way to tell "coming soon" from "stuck loading". There is no pulse animation — nothing is in progress.
+ *
+ * ## Hiding the shapes is the CALLER's job, exactly as on web
+ *
+ * This shell used to wrap `children` in one hidden subtree, and that was a defect: not every placeholder's
+ * children are pure shape. `MealPlanWidgetSkeleton` renders REAL, locale-formatted weekday names alongside the
+ * unknown meal thumbnails and its own JSDoc promises they "stay exposed to assistive tech" — but a hidden
+ * ancestor cannot be undone by a descendant, so the blanket wrapper silenced all seven on device. The web leaf
+ * refuses that wrapper for precisely this reason; native now matches, so the rule lives in ONE place across
+ * both platforms: each skeleton hides its own shapes and keeps whatever is real exposed.
+ *
+ * The skeletons spell that hiding `aria-hidden`, not RN's `accessibilityElementsHidden` +
+ * `importantForAccessibility` pair. The forms are equivalent on device — React Native's `View` reverse-maps
+ * `aria-hidden` onto both — but react-native-web translates the legacy pair to NO DOM attribute, so the ARIA
+ * spelling is the only one the component tier can see. That is not cosmetic: the blind spot is what let the
+ * meal-plan regression ship green.
  *
  * ## The widget is announced as a UNIT (#140)
  *
@@ -38,7 +52,11 @@ export interface PlaceholderWidgetCardProps {
     readonly title: string;
     /** The visible "coming soon" badge copy. */
     readonly comingSoonLabel: string;
-    /** The skeleton shape. Rendered inside an accessibility-hidden wrapper — pass presentation only. */
+    /**
+     * The skeleton shape. Rendered as-is: the caller marks its own shape nodes `aria-hidden`, so a placeholder
+     * whose children include something REAL (the meal-plan weekday names) can still expose it. Anything left
+     * exposed here must be information the viewer genuinely has — never invented data.
+     */
     readonly children: ReactNode;
 }
 
@@ -61,10 +79,7 @@ export function PlaceholderWidgetCard({ title, comingSoonLabel, children }: Plac
                 <Text style={styles.badge}>{comingSoonLabel}</Text>
             </View>
 
-            {/* The shapes carry no information — hide the whole subtree from assistive tech on both platforms. */}
-            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                {children}
-            </View>
+            {children}
         </GlassCard>
     );
 }

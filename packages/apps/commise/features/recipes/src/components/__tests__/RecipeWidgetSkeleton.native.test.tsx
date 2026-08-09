@@ -2,11 +2,12 @@
  * Native component tests for the recipe-widget loading skeleton (rendered via react-native-web under jsdom):
  * the caller-driven placeholder count, the MAX_RECENT_RECIPES default, and the empty (zero) count.
  *
- * Note on a11y: the native leaf hides the block from assistive tech via RN's `accessibilityElementsHidden`
- * + `importantForAccessibility="no-hide-descendants"`, the correct props for the on-device RN runtime.
- * react-native-web (0.20) does NOT translate those legacy props to a DOM attribute, so — unlike the web
- * leaf's `aria-hidden` — that facet is not observable here; the observable contract asserted is the
- * placeholder count. (The web spec covers the a11y-hidden branch on its platform.)
+ * Note on a11y: the native leaf hides the block from assistive tech, and it spells that `aria-hidden` rather
+ * than RN's `accessibilityElementsHidden` + `importantForAccessibility="no-hide-descendants"`. The two forms are
+ * equivalent on device — React Native's `View` reverse-maps `aria-hidden` onto BOTH of those props — but only
+ * the ARIA form survives react-native-web (0.20 translates the legacy pair to no DOM attribute at all,
+ * measured), so this is the spelling under which the hiding is actually ASSERTABLE here instead of being taken
+ * on trust the way it was.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
@@ -40,5 +41,11 @@ describe('RecipeWidgetSkeleton (native)', () => {
         const { container } = render(<RecipeWidgetSkeleton itemCount={0} />);
 
         expect(placeholderRow(container).children).toHaveLength(0);
+    });
+
+    it('hides the whole block from assistive tech — the rows carry no information to announce', () => {
+        const { container } = render(<RecipeWidgetSkeleton itemCount={3} />);
+
+        expect(placeholderRow(container).getAttribute('aria-hidden')).toBe('true');
     });
 });

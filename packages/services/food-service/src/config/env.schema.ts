@@ -46,6 +46,14 @@ const SourceAdapterConfigSchema = z.object({
 });
 
 /**
+ * The `FOOD_DEMOTE_THRESHOLD` field, hoisted out of {@link FoodOperationalConfigSchema} so the boot-time
+ * validation and the standalone {@link demoteThresholdFromEnv} reader share ONE default and ONE
+ * validation rule (FR-043/FR-043b). Both halves of fairness — the API's near-ceiling flood-shed and the
+ * worker's drain-time demotion — must agree on this number, so it gets exactly one representation.
+ */
+const DemoteThresholdSchema = z.coerce.number().int().positive().default(50);
+
+/**
  * Source-agnostic operational knobs for the queue, limiter, fairness/backpressure, lifecycle TTLs, and
  * worker scaling. All carry documented defaults so a minimal env (DB + source key) boots.
  */
@@ -65,7 +73,7 @@ const FoodOperationalConfigSchema = z.object({
     FOOD_WORKER_CONCURRENCY_PER_CPU: z.coerce.number().positive().default(2),
     // Per-`sub` pending threshold above which a requester is demoted at drain time / flood-shed near the
     // queue ceiling (FR-043/FR-043b).
-    FOOD_DEMOTE_THRESHOLD: z.coerce.number().int().positive().default(50),
+    FOOD_DEMOTE_THRESHOLD: DemoteThresholdSchema,
     // Hard `fetch_queue` depth ceiling; new enqueues fail closed with 503 at/above it (FR-046).
     FOOD_MAX_QUEUE_DEPTH: z.coerce.number().int().positive().default(10_000),
     // Max names accepted in one `POST /api/v1/foods/batch` (FR-045); over → 400.
@@ -168,4 +176,29 @@ export type Environment = z.infer<typeof EnvironmentSchema>;
  */
 export function resolveEnvironment(): Environment {
     return EnvironmentSchema.parse(process.env);
+}
+
+/**
+ * Read the per-`sub` pending demotion threshold (`FOOD_DEMOTE_THRESHOLD`, FR-043/FR-043b) from the
+ * ambient environment, validated by the SAME {@link DemoteThresholdSchema} the boot-time
+ * {@link EnvironmentSchema} check uses.
+ *
+ * Exists because the value is consumed OUTSIDE the NestJS injector: the drain-time demotion lives in
+ * `FetchQueueDao`, which the Fargate worker constructs with `new` and which has no `ConfigService`.
+ * Mirrors `sourceCapsFromEnv` at the rolling-window-limiter seam. Fails fast rather than coercing with a
+ * bare `Number()`, because `NaN` would silently disable the guard — every `pending > NaN` is `false`.
+ *
+ * @returns The configured threshold (50 when unset).
+ * @throws {Error} when the configured value is not a positive integer.
+ * @sideEffect Reads `process.env`.
+ */
+export function demoteThresholdFromEnv(): number {
+    const raw = process.env['FOOD_DEMOTE_THRESHOLD'];
+    const parsed = DemoteThresholdSchema.safeParse(raw);
+
+    if (!parsed.success) {
+        throw new Error(`Invalid FOOD_DEMOTE_THRESHOLD "${raw}" — expected a positive integer.`);
+    }
+
+    return parsed.data;
 }

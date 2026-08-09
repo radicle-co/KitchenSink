@@ -9,7 +9,7 @@
  * - One `sub`'s repeated adds CANNOT inflate priority: `request_count` is the distinct-`sub` count
  *   (structural `PRIORITY_CAP=1` via the `(food_id, requester_id)` PK), so genuine multi-requester demand wins.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 
 import { FetchQueueDao } from '../src/foods/dao/fetch-queue.dao.js';
@@ -113,5 +113,76 @@ describe.skipIf(!DATABASE_URL)('fairness-by-demotion + distinct-requester demand
 
         // Higher distinct demand drains first — the repeater cannot pin its single-requester food ahead.
         expect((await queue.leaseNext(30))?.foodId).toBe(popular);
+    });
+
+    /**
+     * T-199(a) — the drain-time threshold is CONFIGURED (`FOOD_DEMOTE_THRESHOLD`), not hardcoded.
+     * `leaseNext` embedded a literal `50` in its `ORDER BY`, so an operator who tuned the variable got no
+     * effect on the drain while the API's flood-shed honoured the new value — the two halves of FR-043
+     * silently disagreed. These assert the OBSERVABLE consequence (which row `leaseNext` claims), not that
+     * the DAO merely read a number.
+     */
+    describe('configured demotion threshold (T-199a, FR-043)', () => {
+        afterEach(() => {
+            vi.unstubAllEnvs();
+        });
+
+        /**
+         * Two tiers of demand over five pending rows:
+         * - `heavyFood` + three fillers are each requested by the SAME two subs, so every heavy sub holds
+         *   FOUR pending rows and each heavy food carries `request_count = 2`.
+         * - `lightFood` has one sub holding ONE pending row and `request_count = 1`.
+         *
+         * `heavyFood` is pinned oldest so the un-demoted ordering (`request_count DESC, first_requested
+         * ASC`) resolves to it deterministically. Demand therefore favours `heavyFood`, and ONLY demotion
+         * can put `lightFood` in front — which makes the claimed row a direct readout of the threshold.
+         */
+        async function seedTwoTierDemand(): Promise<{ heavyFood: string; lightFood: string }> {
+            const heavySubs = ['heavy_a', 'heavy_b'];
+            const heavyFood = await seedPending('heavy demand food', heavySubs);
+
+            for (let i = 0; i < 3; i += 1) {
+                await seedPending(`heavy filler ${i}`, heavySubs);
+            }
+
+            const lightFood = await seedPending('light demand food', ['light_a']);
+
+            await pool.query(`UPDATE fetch_queue SET first_requested = now() - interval '1 hour' WHERE food_id = $1`, [
+                heavyFood,
+            ]);
+
+            expect((await queue.getByFoodId(heavyFood))?.requestCount).toBe(2);
+            expect((await queue.getByFoodId(lightFood))?.requestCount).toBe(1);
+            expect(await queue.pendingCountForRequester('heavy_a')).toBe(4);
+            expect(await queue.pendingCountForRequester('light_a')).toBe(1);
+
+            return { heavyFood, lightFood };
+        }
+
+        it('honours FOOD_DEMOTE_THRESHOLD from the environment — a tuned value reorders the drain', async () => {
+            const { heavyFood, lightFood } = await seedTwoTierDemand();
+
+            // Threshold 3: every heavy sub holds 4 pending rows (> 3) → all four heavy foods demoted, so
+            // the LOWER-demand light food is claimed first.
+            vi.stubEnv('FOOD_DEMOTE_THRESHOLD', '3');
+            expect((await new FetchQueueDao(db).leaseNext(30))?.foodId).toBe(lightFood);
+
+            // Same five rows, threshold unset (the documented default of 50): nobody is over-demand, so
+            // demand ordering stands and the heavy food is claimed first. The ONLY difference is the env.
+            await queue.releaseInFlight();
+            vi.unstubAllEnvs();
+            expect((await new FetchQueueDao(db).leaseNext(30))?.foodId).toBe(heavyFood);
+        });
+
+        it('demotes strictly ABOVE the threshold — a sub holding exactly `threshold` rows stays promoted', async () => {
+            const { heavyFood, lightFood } = await seedTwoTierDemand();
+
+            // 4 pending rows is NOT over a threshold of 4 (`count <= threshold` keeps the food promoted).
+            expect((await new FetchQueueDao(db, { demoteThreshold: 4 }).leaseNext(30))?.foodId).toBe(heavyFood);
+
+            // One lower and the same subs are over-demand — the off-by-one boundary is load-bearing.
+            await queue.releaseInFlight();
+            expect((await new FetchQueueDao(db, { demoteThreshold: 3 }).leaseNext(30))?.foodId).toBe(lightFood);
+        });
     });
 });

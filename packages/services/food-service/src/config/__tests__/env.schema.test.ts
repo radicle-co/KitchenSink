@@ -9,10 +9,10 @@
  *   the adapter-boundary source credentials (`USDA_API_KEY`/`USDA_API_BASE_URL`) carry the source name.
  *   A valid env parses with documented defaults; bad values are rejected; required vars fail closed.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ZodError } from 'zod';
 
-import { EnvironmentSchema, resolveEnvironment } from '../env.schema.js';
+import { demoteThresholdFromEnv, EnvironmentSchema, resolveEnvironment } from '../env.schema.js';
 
 const VALID_ENV = {
     STAGE: 'test',
@@ -186,5 +186,39 @@ describe('resolveEnvironment', () => {
         } finally {
             process.env = saved;
         }
+    });
+});
+
+/**
+ * T-199(a) — `FOOD_DEMOTE_THRESHOLD` is consumed OUTSIDE the NestJS injector (the drain-time demotion
+ * lives in `FetchQueueDao`, which the Fargate worker constructs with `new`), so it needs a reader that
+ * shares ONE default + ONE validation rule with {@link EnvironmentSchema}. Before this existed the
+ * threshold was hardcoded in the DAO and read with a bare `Number()` in the admission service, so a
+ * tuned value had no effect on the drain and a malformed one degraded to `NaN` (which silently disables
+ * the near-ceiling flood-shed, because every `pending > NaN` comparison is `false`).
+ */
+describe('demoteThresholdFromEnv', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    it('defaults to the schema default (50) when FOOD_DEMOTE_THRESHOLD is unset', () => {
+        vi.stubEnv('FOOD_DEMOTE_THRESHOLD', undefined);
+
+        expect(demoteThresholdFromEnv()).toBe(50);
+        // The same default the boot-time validation applies — one source of truth, not two literals.
+        expect(EnvironmentSchema.parse(VALID_ENV).FOOD_DEMOTE_THRESHOLD).toBe(demoteThresholdFromEnv());
+    });
+
+    it('returns the operator-configured value (env vars arrive as strings)', () => {
+        vi.stubEnv('FOOD_DEMOTE_THRESHOLD', '7');
+
+        expect(demoteThresholdFromEnv()).toBe(7);
+    });
+
+    it.each(['fifty', '', '0', '-1', '2.5'])('throws on the malformed value %o rather than yielding NaN', (value) => {
+        vi.stubEnv('FOOD_DEMOTE_THRESHOLD', value);
+
+        expect(() => demoteThresholdFromEnv()).toThrow(/FOOD_DEMOTE_THRESHOLD/);
     });
 });

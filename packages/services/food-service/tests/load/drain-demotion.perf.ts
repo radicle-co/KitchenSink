@@ -63,6 +63,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
+import { demoteThresholdFromEnv } from '../../src/config/env.schema.js';
 import * as schema from '../../src/db/schema/index.js';
 import { FetchQueueDao } from '../../src/foods/dao/fetch-queue.dao.js';
 import {
@@ -127,8 +128,13 @@ const WARMUP = Math.max(1, Number(process.env['FOOD_DRAIN_WARMUP'] ?? 3));
  */
 const CLAIM_P95_BUDGET_MS = Number(process.env['FOOD_DRAIN_CLAIM_P95_MS'] ?? 60);
 
-/** `FetchQueueDao`'s hardcoded per-requester pending threshold (FR-043). */
-const DEMOTION_THRESHOLD = 50;
+/**
+ * The per-requester pending threshold the DAO under measurement actually uses (FR-043) — read from the
+ * SAME configured source as {@link FetchQueueDao}, never re-stated as a literal here. A copy would let a
+ * tuned `FOOD_DEMOTE_THRESHOLD` desynchronise the fixture from the query, which would silently stop
+ * exercising the expensive no-short-circuit demotion branch this script exists to time.
+ */
+const DEMOTION_THRESHOLD = demoteThresholdFromEnv();
 
 /** Pending rows each heavy requester is attached to — comfortably over {@link DEMOTION_THRESHOLD}. */
 const HEAVY_FANOUT = 400;

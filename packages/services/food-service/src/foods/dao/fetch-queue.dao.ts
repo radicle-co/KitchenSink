@@ -7,21 +7,49 @@
  * `reapExpiredLeases` reverts orphaned leases (FR-018). `resolve`/`tombstone` remove the row from the
  * pending set and prune its requester rows (DSN-10); `reactivate` revives a tombstone to `pending`.
  *
+ * The demotion threshold comes from `FOOD_DEMOTE_THRESHOLD` (see {@link FetchQueueDaoOptions}) — the SAME
+ * knob the API's near-ceiling flood-shed reads, because the two halves of FR-043 must not disagree.
+ *
  * @implements FR-014 FR-015 FR-018 FR-043 FR-044
  */
 import { eq, sql } from 'drizzle-orm';
 
+import { demoteThresholdFromEnv } from '../../config/env.schema.js';
 import type { FoodDrizzle } from '../../database/database.module.js';
 import { fetchQueue, type FetchQueueRow } from '../../db/schema/index.js';
 
 /** Default worker lease window in seconds (REQ-017). */
 const DEFAULT_LEASE_SECONDS = 30;
 
-/** Per-requester pending-threshold above which a requester is over-demand (REQ-043, drain-time demotion). */
-const DEMOTION_PENDING_THRESHOLD = 50;
+/** Options for {@link FetchQueueDao}. */
+export interface FetchQueueDaoOptions {
+    /**
+     * Per-requester pending-threshold above which a requester is over-demand (REQ-043, drain-time
+     * demotion). Defaults to the configured `FOOD_DEMOTE_THRESHOLD` (50 when unset).
+     *
+     * The default is resolved HERE rather than left to each composition root on purpose: a caller that
+     * forgets to pass the configured value silently falls back to the built-in one, which is exactly how
+     * the worker spent a slice of its life ignoring `FOOD_SOURCE_RATE_LIMIT_PER_HOUR` (see the note at
+     * `src/worker/main.ts`). The override exists for tests and for any future caller that already holds a
+     * validated `Environment`.
+     */
+    readonly demoteThreshold?: number;
+}
 
 export class FetchQueueDao {
-    public constructor(private readonly db: FoodDrizzle) {}
+    /** The resolved per-requester pending threshold used by {@link leaseNext}'s demotion ranking. */
+    private readonly demoteThreshold: number;
+
+    /**
+     * @param db - The food-schema Drizzle client.
+     * @param options - Optional demotion-threshold override (defaults to `FOOD_DEMOTE_THRESHOLD`).
+     */
+    public constructor(
+        private readonly db: FoodDrizzle,
+        options?: FetchQueueDaoOptions,
+    ) {
+        this.demoteThreshold = options?.demoteThreshold ?? demoteThresholdFromEnv();
+    }
 
     /**
      * Read the queue row for a food.
@@ -110,8 +138,10 @@ export class FetchQueueDao {
      * Claim the next eligible row, highest-demand first, under a lease stamped on `leased_at`
      * (`status='in_flight'`, FR-015/FR-017). Eligible = a `pending` row whose `last_requested <= now()`
      * OR an `in_flight` row whose lease lapsed (reaper-on-claim, FR-018). Ordering is the live
-     * drain-time demotion (a food sorts back only when ALL its requesters exceed the pending threshold,
-     * REQ-043) then `request_count DESC, first_requested ASC`. `FOR UPDATE SKIP LOCKED` keeps concurrent
+     * drain-time demotion (a food sorts back only when ALL its requesters exceed the CONFIGURED pending
+     * threshold `FOOD_DEMOTE_THRESHOLD`, REQ-043) then `request_count DESC, first_requested ASC`. The
+     * comparison is `<= threshold`, so a requester holding EXACTLY the threshold is still under-demand.
+     * `FOR UPDATE SKIP LOCKED` keeps concurrent
      * drains off the same row; a reclaim does NOT consume the failure budget (`attempts` untouched, DSN-5).
      *
      * @param leaseSeconds - Lease window in seconds (default 30).
@@ -133,7 +163,7 @@ export class FetchQueueDao {
                           AND (
                               SELECT count(*) FROM fetch_queue fq JOIN fetch_requesters fr USING (food_id)
                               WHERE fr.requester_id = r.requester_id AND fq.status IN ('pending', 'in_flight')
-                          ) <= ${DEMOTION_PENDING_THRESHOLD}
+                          ) <= ${this.demoteThreshold}
                     ) THEN 1 ELSE 0 END) ASC,
                     q.request_count DESC, q.first_requested ASC
                 LIMIT 1 FOR UPDATE SKIP LOCKED

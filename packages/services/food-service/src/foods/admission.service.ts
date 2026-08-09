@@ -20,14 +20,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 
+import { demoteThresholdFromEnv } from '../config/env.schema.js';
 import { DrizzleProvider, type FoodDrizzle } from '../database/database.module.js';
 import { FetchUnavailableError } from './foods.errors.js';
 
 /** Default hard `fetch_queue` depth ceiling (FR-046). */
 const DEFAULT_MAX_QUEUE_DEPTH = 10_000;
-
-/** Default per-`sub` pending threshold above which a flooding requester is shed near the ceiling (FR-043b). */
-const DEFAULT_DEMOTE_THRESHOLD = 50;
 
 /** Fraction of the ceiling at/above which near-ceiling flood-shedding engages. */
 const NEAR_CEILING_FRACTION = 0.9;
@@ -42,7 +40,10 @@ export class AdmissionService {
 
     public constructor(@Inject(DrizzleProvider) private readonly db: FoodDrizzle) {
         this.maxQueueDepth = Number(process.env['FOOD_MAX_QUEUE_DEPTH'] ?? DEFAULT_MAX_QUEUE_DEPTH);
-        this.demoteThreshold = Number(process.env['FOOD_DEMOTE_THRESHOLD'] ?? DEFAULT_DEMOTE_THRESHOLD);
+        // Shared with the worker's drain-time demotion (`FetchQueueDao`) through ONE validated reader, so
+        // an operator cannot tune the shed and the drain apart — and a malformed value fails fast instead
+        // of becoming `NaN`, which would make every `pending > NaN` false and disable the shed silently.
+        this.demoteThreshold = demoteThresholdFromEnv();
     }
 
     /**

@@ -123,6 +123,41 @@ jobs:
                   fi
                   echo "zizmor exited ${rc}; wrote $(wc -c < zizmor.sarif) bytes of SARIF."
 
+            # THE GATE (added 2026-08-08, after the burn-down took 251 findings -> 2).
+            #
+            # A SECOND invocation, deliberately, because the SARIF run above CANNOT gate: with
+            # `--format sarif` zizmor always exits 0, so its exit code carries no signal (the default format
+            # exits 12/14 when findings exist). Reusing one run for both jobs is what would silently turn the
+            # gate into a no-op the next time somebody changes `--format`.
+            #
+            # FLOOR IS `medium`, not `low`, and that is a deliberate, measured choice — not a fudge to get
+            # green. Current state: 0 high, 0 medium, 2 low. Both lows are the `artipacked` sites in
+            # prod-deploy `deploy` and sandbox-identity-deploy `deploy`, which keep their git credential ON
+            # PURPOSE because `dorny/paths-filter` really does `git fetch` from `origin` on
+            # `push`/`workflow_dispatch`. Gating at `low` would therefore fail forever on two findings that
+            # are correct as they stand, and a permanently-red required check teaches everyone to ignore red
+            # checks — which is strictly worse than no gate. Verified before wiring this:
+            # `--min-severity medium` exits 0 today, `--min-severity low` exits 12.
+            #
+            # What this gate actually buys: every class closed during the burn-down — template-injection
+            # (67 -> 0), excessive-permissions (7 -> 0, both High), unpinned-uses, secrets-inherit — is
+            # medium-or-above, so reintroducing ANY of them fails this job. Notably a new
+            # `${{ … }}` interpolation inside a `run:` body, which is the one genuinely exploitable class.
+            #
+            # To tighten to `low` later, first decide what happens to those two sites: either
+            # `# zizmor: ignore[artipacked]` comments there, or drop the credential and accept that
+            # paths-filter falls back to an API-only diff on push events.
+            - name: Gate on medium-or-above findings
+              run: |
+                  set -uo pipefail
+                  zizmor --min-severity medium --no-progress .github/
+                  rc=$?
+                  if [ "${rc}" -ne 0 ]; then
+                    echo "::error::zizmor found medium-or-above findings (exit ${rc}). These are gating: fix them, or justify a change to the severity floor in this workflow's header ledger."
+                    exit 1
+                  fi
+                  echo "zizmor gate passed: no medium-or-above findings."
+
             - name: Upload SARIF to code scanning
               uses: github/codeql-action/upload-sarif@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3.37.6
               with:

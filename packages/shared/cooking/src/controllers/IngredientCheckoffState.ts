@@ -1,11 +1,10 @@
+import { UnknownIngredientError } from '../errors.js';
+
 /**
  * MOD-019 — session-scoped ingredient checkoff state (FR-032a / REQ-012, REQ-013).
  *
  * Pure reducers over an array of ingredient ids. This module holds **ids only**, never ingredient
  * objects, so the stored recipe cannot be mutated through it (REQ-CN-001).
- *
- * @remarks RED GATE STUB — T-017's tests define the contract and currently fail against these
- * stubs. Implementation lands in T-015's green step.
  */
 
 /**
@@ -22,10 +21,15 @@ export function toggleIngredient(
     ingredientId: string,
     recipeIngredientIds: readonly string[],
 ): string[] {
-    void state;
-    void ingredientId;
-    void recipeIngredientIds;
-    throw new Error('not implemented');
+    if (!recipeIngredientIds.includes(ingredientId)) {
+        // Fail loudly rather than silently no-opping: a checkoff that appears to do nothing is a
+        // worse kitchen experience than a surfaced error, and it hides caller bugs.
+        throw new UnknownIngredientError(ingredientId);
+    }
+
+    // `filter` rather than `splice` on a found index: it removes any accidental duplicate and, being
+    // non-mutating, keeps the caller's array intact (asserted by UTS-019-A4).
+    return state.includes(ingredientId) ? state.filter((id) => id !== ingredientId) : [...state, ingredientId];
 }
 
 /**
@@ -36,9 +40,7 @@ export function toggleIngredient(
  * @returns `true` when the ingredient is checked.
  */
 export function isChecked(state: readonly string[], ingredientId: string): boolean {
-    void state;
-    void ingredientId;
-    throw new Error('not implemented');
+    return state.includes(ingredientId);
 }
 
 /**
@@ -52,7 +54,7 @@ export function isChecked(state: readonly string[], ingredientId: string): boole
  * @returns The reconciled checked-id array.
  */
 export function reconcile(state: readonly string[], recipeIngredientIds: readonly string[]): string[] {
-    void state;
-    void recipeIngredientIds;
-    throw new Error('not implemented');
+    // Silent by design, unlike `toggleIngredient`: a ghost id after restore means the recipe changed
+    // underneath the session, which is not the user's error and needs no interruption mid-cook.
+    return state.filter((id) => recipeIngredientIds.includes(id));
 }

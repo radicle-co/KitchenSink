@@ -1,6 +1,6 @@
 # Product Forge Lifecycle Status
 # Feature: 008-cooking-mode
-# Last updated: 2026-08-07
+# Last updated: 2026-08-09
 
 feature: 008-cooking-mode
 
@@ -94,13 +94,31 @@ phases:
     implement:
         state: in-progress
         note: >-
-            T-000 (scaffold) done for @kitchensink/cooking-core; T-017's MOD-019/MOD-020 layer is RED.
-            Remaining: @commise/features-cooking scaffold + T-018 component tests, then the green steps.
+            T-000 scaffold done for @kitchensink/cooking-core. MOD-019 / MOD-020 (T-015, T-016 logic
+            layer) are GREEN: 32/32 passing, verified by four deliberate mutations that each failed the
+            suite. Remaining: the rest of cooking-core (session, timer engine, wake lock, persistence),
+            the @commise/features-cooking scaffold with T-018 component tests, T-011/T-012 routes, and
+            T-019/T-020 Playwright + Maestro.
+        green_steps:
+            - id: MOD-019 IngredientCheckoffState
+              tests: UTP-019-A..D (14 scenarios)
+              status: passing
+            - id: MOD-020 YieldScalingState
+              tests: UTP-020-A..D (18 scenarios)
+              status: passing
+        mutation_check:
+            performed_at: 2026-08-09
+            note: >-
+                Coverage is not correctness, so the suite was checked against deliberate defects rather
+                than trusted because it was green. Advisory forced true -> 1 failure; purity broken by
+                in-place splice -> 1 failure; scaling made a no-op -> 2 failures; unknown-ingredient
+                guard removed -> 3 failures. Every mutation was caught and the source was restored.
         red_gate:
             status: confirmed_failing
             confirmed_at: 2026-08-07
             command: npx vitest run (packages/shared/cooking)
             result: 31 failed | 1 passed (32 total), 2 test files
+            superseded_by_green: 2026-08-09
             tests:
                 - UTP-019-A (UTS-019-A1..A4)
                 - UTP-019-B (UTS-019-B1, B2, B2b)
@@ -211,5 +229,5 @@ gates:
           Revision 1 approved in full, conditional on the v-model V3/V5/V7/V9 regeneration for
           REQ-012..REQ-015 landing before implementation.
 
-next_action: implement-green-mod019-mod020
+next_action: implement-cooking-core-remainder
 next_command: /speckit.product-forge.implement

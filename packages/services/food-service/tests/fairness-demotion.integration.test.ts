@@ -56,6 +56,7 @@ describe.skipIf(!DATABASE_URL)('fairness-by-demotion + distinct-requester demand
     it('demotes a food whose ALL requesters exceed 50 pending while a lighter food drains first (SC-012, no 429)', async () => {
         // Flooder pins 60 distinct foods pending → its pending count (60) exceeds the 50 threshold.
         const flooderFoods: string[] = [];
+
         for (let i = 0; i < 60; i += 1) {
             flooderFoods.push(await seedPending(`flooder food ${i}`, ['flooder']));
         }
@@ -77,6 +78,7 @@ describe.skipIf(!DATABASE_URL)('fairness-by-demotion + distinct-requester demand
         for (let i = 0; i < 53; i += 1) {
             await seedPending(`flooder filler ${i}`, ['flooder']);
         }
+
         const heavyA = await seedPending('heavy A', ['flooder']); // 54th flooder food
         await seedPending('heavy B', ['flooder']); // 55th flooder food (also demoted)
         const lightFood = await seedPending('light food', ['light']);
@@ -102,6 +104,7 @@ describe.skipIf(!DATABASE_URL)('fairness-by-demotion + distinct-requester demand
         for (let i = 0; i < 5; i += 1) {
             await requesters.add({ foodId: repeated.id, requesterId: 'repeater' });
         }
+
         await queue.enqueue(repeated.id);
 
         // A genuinely more-demanded food: three DISTINCT requesters.

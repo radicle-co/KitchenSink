@@ -49,15 +49,17 @@ async function bootstrap(): Promise<void> {
     const registry = new SourceAdapterRegistry();
     registry.register(new UsdaSourceAdapter(new UsdaApiClient({ apiKey })));
 
-    const ttlDays = Number(process.env['FOOD_UNRESOLVED_TTL_DAYS'] ?? 30);
     const consumer = new ChangeRefreshConsumer({
         sources: new FoodSourcesDao(db),
         candidates: new CandidateStore(db),
         registry,
+        // Both the rolling-window caps (FOOD_SOURCE_RATE_LIMIT_PER_HOUR) and the UNRESOLVED-candidate TTL
+        // (FOOD_UNRESOLVED_TTL_DAYS) are resolved through the ONE validated reader by the units that use
+        // them, so this scheduled task cannot charge USDA's shared quota at a different cap than the API and
+        // the fan-out worker, and cannot sweep on a stale or NaN TTL.
         limiter: new RollingWindowLimiter(new SourceCallLogDao(db)),
         enqueue: new EnqueueEmitter(pool),
         logger,
-        unresolvedTtlDays: ttlDays,
     });
 
     try {

@@ -9,25 +9,11 @@
  *
  * @implements FR-019 FR-020
  */
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 
+import { settingFromEnv } from '../../config/env.schema.js';
 import type { FoodDrizzle } from '../../database/database.module.js';
 import type { FoodSource } from './food-sources.dao.js';
-
-/**
- * The trailing window length (default 3,600s = 60 min, FR-019/FR-020). Configurable via
- * `FOOD_SOURCE_WINDOW_SECONDS` so a preview can use a short window to observe the rate-limit stall→resume
- * under load without waiting a full hour for calls to age out. Prod leaves the default (no behavior change).
- */
-const WINDOW_SECONDS = Number(process.env['FOOD_SOURCE_WINDOW_SECONDS'] ?? 3600);
-
-if (!Number.isInteger(WINDOW_SECONDS) || WINDOW_SECONDS <= 0) {
-    throw new Error(
-        `Invalid FOOD_SOURCE_WINDOW_SECONDS "${process.env['FOOD_SOURCE_WINDOW_SECONDS']}" — expected a positive integer (seconds).`,
-    );
-}
-
-const WINDOW = sql`make_interval(secs => ${WINDOW_SECONDS})`;
 
 /** Two-int advisory-lock classid for the per-source limiter (DSN-15) — distinct from drainer/dedup. */
 const LOCK_CLASS_LIMITER = 3;
@@ -49,7 +35,22 @@ export interface WindowCheckResult {
 }
 
 export class SourceCallLogDao {
-    public constructor(private readonly db: FoodDrizzle) {}
+    /**
+     * The trailing window this DAO counts and prunes over, as a SQL interval (default 3,600s = 60 min,
+     * FR-019/FR-020 — the default lives ONCE, in `FOOD_SOURCE_WINDOW_SECONDS`). Configurable so a preview
+     * can use a short window to observe the rate-limit stall→resume under load without waiting a full hour
+     * for calls to age out; prod leaves the default, so the emitted SQL is unchanged there.
+     *
+     * Resolved per instance rather than at module load: a malformed value must fail where the operator can
+     * attribute it (constructing this DAO), not as an import-time crash in whatever module happens to pull
+     * the file in first — and a frozen module constant made the knob unobservable to any test.
+     */
+    private readonly window: SQL;
+
+    /** @param db - The food-schema Drizzle client. */
+    public constructor(private readonly db: FoodDrizzle) {
+        this.window = sql`make_interval(secs => ${settingFromEnv('FOOD_SOURCE_WINDOW_SECONDS')})`;
+    }
 
     /**
      * Atomically record a call for `source` iff its trailing-60-min count is strictly under `cap`
@@ -71,14 +72,14 @@ export class SourceCallLogDao {
                 SELECT ${source}::food_source, now()
                 WHERE (
                     SELECT count(*) FROM source_call_log
-                     WHERE source = ${source}::food_source AND called_at > now() - ${WINDOW}
+                     WHERE source = ${source}::food_source AND called_at > now() - ${this.window}
                 ) < ${cap}
                 RETURNING id
             `);
 
             const counted = await tx.execute<{ n: number }>(sql`
                 SELECT count(*)::int AS n FROM source_call_log
-                 WHERE source = ${source}::food_source AND called_at > now() - ${WINDOW}
+                 WHERE source = ${source}::food_source AND called_at > now() - ${this.window}
             `);
 
             return { allowed: (inserted.rowCount ?? 0) === 1, windowCount: counted.rows[0]?.n ?? 0 };
@@ -95,7 +96,7 @@ export class SourceCallLogDao {
     public async countInWindow(source: FoodSource): Promise<number> {
         const result = await this.db.execute<{ n: number }>(sql`
             SELECT count(*)::int AS n FROM source_call_log
-             WHERE source = ${source}::food_source AND called_at > now() - ${WINDOW}
+             WHERE source = ${source}::food_source AND called_at > now() - ${this.window}
         `);
 
         return result.rows[0]?.n ?? 0;
@@ -113,7 +114,7 @@ export class SourceCallLogDao {
     public async pruneAged(source: FoodSource): Promise<number> {
         const result = await this.db.execute(sql`
             DELETE FROM source_call_log
-             WHERE source = ${source}::food_source AND called_at < now() - ${WINDOW}
+             WHERE source = ${source}::food_source AND called_at < now() - ${this.window}
         `);
 
         return result.rowCount ?? 0;

@@ -22,6 +22,7 @@
  *
  * @implements FR-025a FR-031 FR-032
  */
+import { settingFromEnv } from '../../config/env.schema.js';
 import { CandidateStore } from '../../foods/dao/food-candidates.dao.js';
 import { FoodSourcesDao } from '../../foods/dao/food-sources.dao.js';
 import { EnqueueEmitter } from '../../foods/enqueue.emitter.js';
@@ -35,9 +36,6 @@ import { ConsoleWorkerLogger, type WorkerLogger } from '../worker-logger.js';
 
 /** The named service principal recorded as the refresh requester (FR-048 — never a `'system'` shortcut). */
 export const SVC_CHANGE_REFRESH = 'svc_change_refresh';
-
-/** Default UNRESOLVED candidate-set TTL in days (FR-025a); overridable via `FOOD_UNRESOLVED_TTL_DAYS`. */
-const DEFAULT_UNRESOLVED_TTL_DAYS = 30;
 
 /** Default per-run scan budget — max backing items re-fetched in one scheduled pass (budget-bounded). */
 const DEFAULT_SCAN_LIMIT = 1000;
@@ -66,7 +64,12 @@ export interface ChangeRefreshConsumerDeps {
     readonly enqueue: EnqueueEmitter;
     /** Optional structured logger (defaults to a JSON console logger). */
     readonly logger?: WorkerLogger;
-    /** UNRESOLVED candidate-set TTL in days (default 30, `FOOD_UNRESOLVED_TTL_DAYS`). */
+    /**
+     * UNRESOLVED candidate-set TTL in days. Defaults to the CONFIGURED `FOOD_UNRESOLVED_TTL_DAYS` (30 when
+     * unset) resolved inside the constructor, not at the composition root: this task has no `ConfigModule`
+     * and nothing validates its environment at boot, so a root that forgot to pass the value would sweep on
+     * a built-in default and silently ignore the operator. The override exists for tests.
+     */
     readonly unresolvedTtlDays?: number;
     /** Per-run scan budget (default {@link DEFAULT_SCAN_LIMIT}). */
     readonly scanLimit?: number;
@@ -90,7 +93,7 @@ export class ChangeRefreshConsumer {
         this.limiter = deps.limiter;
         this.enqueue = deps.enqueue;
         this.logger = deps.logger ?? new ConsoleWorkerLogger();
-        this.unresolvedTtlDays = deps.unresolvedTtlDays ?? DEFAULT_UNRESOLVED_TTL_DAYS;
+        this.unresolvedTtlDays = deps.unresolvedTtlDays ?? settingFromEnv('FOOD_UNRESOLVED_TTL_DAYS');
         this.scanLimit = deps.scanLimit ?? DEFAULT_SCAN_LIMIT;
     }
 

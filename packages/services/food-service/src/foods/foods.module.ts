@@ -22,7 +22,7 @@ import { FoodAuthGuard } from '../auth/food-auth.guard.js';
 import { FoodServiceErasureAuthService } from '../auth/food-service-erasure-auth.service.js';
 import { FoodServiceErasureGuard } from '../auth/food-service-erasure.guard.js';
 import { SourceAdapterRegistry } from '../sources/food-source-adapter.js';
-import { RollingWindowLimiter, sourceCapsFromEnv } from '../sources/rolling-window-limiter.js';
+import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
 import { UsdaSourceAdapter } from '../sources/usda/usda.adapter.js';
 import { AdmissionService } from './admission.service.js';
 import { AdminMetricsDao } from './admin/admin-metrics.dao.js';
@@ -102,8 +102,7 @@ import { UserErasureService } from './user-erasure.service.js';
         {
             provide: RollingWindowLimiter,
             inject: [DrizzleProvider],
-            useFactory: (db: FoodDrizzle): RollingWindowLimiter =>
-                new RollingWindowLimiter(new SourceCallLogDao(db), { caps: sourceCapsFromEnv() }),
+            useFactory: (db: FoodDrizzle): RollingWindowLimiter => new RollingWindowLimiter(new SourceCallLogDao(db)),
         },
     ],
     exports: [FoodsService, EnqueueEmitter, UserErasureService],

@@ -9,6 +9,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: join(__dirname, '../../.env') });
 
 import { FoodServiceStack } from '../lib/food-service-stack.js';
+import { synthEnv } from '../lib/synth-env.js';
+
+// Validated ONCE, up front: a malformed count or TTL fails the synth here rather than being coerced to
+// `NaN`/`0` and emitted into a CloudFormation template (see lib/synth-env.ts).
+const { desiredCount, workerDesiredCount, unresolvedTtlDays } = synthEnv();
 
 const app = new App();
 const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
@@ -62,13 +67,11 @@ new FoodServiceStack(app, `FoodService-${stage}`, {
     domainName,
     vpcId,
     imageTag: process.env['FOOD_IMAGE_TAG'] ?? 'latest',
-    desiredCount: Number(process.env['FOOD_DESIRED_COUNT'] ?? 2),
-    workerDesiredCount: Number(process.env['FOOD_WORKER_DESIRED_COUNT'] ?? 1),
+    desiredCount,
+    workerDesiredCount,
     // USDA_API_KEY is injected into the containers from Secrets Manager (an out-of-band, externally
     // issued key imported by name `kitchensink/{stage}/food/usda-api-key`), not passed through here.
-    unresolvedTtlDays: process.env['FOOD_UNRESOLVED_TTL_DAYS']
-        ? Number(process.env['FOOD_UNRESOLVED_TTL_DAYS'])
-        : undefined,
+    unresolvedTtlDays,
 });
 
 app.synth();

@@ -9,8 +9,12 @@
  *
  * @implements FR-019 FR-020 FR-021 FR-026
  */
+import { settingFromEnv } from '../config/env.schema.js';
 import type { SourceCallLogDao, WindowCheckResult } from '../foods/dao/index.js';
 import type { FoodSourceId } from './food-source-adapter.js';
+
+/** Fraction of a source's hard cap at which the worker pauses draining, leaving read/resolve headroom. */
+const PAUSE_FRACTION = 0.9;
 
 /** A source's rolling-window caps: the hard ceiling and the soft (90%) pause threshold. */
 export interface SourceCap {
@@ -20,30 +24,25 @@ export interface SourceCap {
     readonly pauseThreshold: number;
 }
 
-/** Per-source caps. USDA: 1,000 hard cap, pause at 90% = 900 (FR-019). Additive per source. */
-export const DEFAULT_SOURCE_CAPS: Readonly<Record<FoodSourceId, SourceCap>> = {
-    usda: { hardCap: 1000, pauseThreshold: 900 },
-};
-
 /**
- * Build per-source caps from the source-agnostic env (`FOOD_SOURCE_RATE_LIMIT_PER_HOUR`, default 1,000);
- * the pause threshold is 90% of the hard cap (FR-019). Shared by the API DI (foods.module) AND the worker
- * entrypoint so BOTH honor the configured cap — the worker is what consults `isPaused`, so if only the API
- * read the env the pause would use the wrong ceiling. A preview can lower the cap to exercise the pause
- * under load without 900+ real USDA calls.
+ * Build per-source caps from the source-agnostic env (`FOOD_SOURCE_RATE_LIMIT_PER_HOUR`, default 1,000 —
+ * defined once in `config/env.schema.ts`); the pause threshold is 90% of the hard cap (FR-019). This is the
+ * limiter's own default, so EVERY process that constructs one honors the configured cap: the API, the
+ * fan-out worker (which is what consults `isPaused`), and the change-refresh task all charge the SAME
+ * external quota, and a preview can lower the cap to exercise the pause without 900+ real USDA calls.
  *
+ * @returns The per-source hard cap + 90% pause threshold.
+ * @throws {Error} when `FOOD_SOURCE_RATE_LIMIT_PER_HOUR` is not a positive integer.
  * @sideEffect Reads `process.env`.
  */
 export function sourceCapsFromEnv(): Record<FoodSourceId, SourceCap> {
-    const raw = process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'];
-    const hardCap = Number(raw ?? DEFAULT_SOURCE_CAPS.usda.hardCap);
+    // The ONE validated reader: the cap's default and its positive-integer rule live only in
+    // `config/env.schema.ts`, and a malformed value throws (naming the variable) instead of coercing to
+    // `NaN` — which would silently break pause AND admission, because every comparison against `NaN` is
+    // `false`, so the limiter would never pause and never consider the window full.
+    const hardCap = settingFromEnv('FOOD_SOURCE_RATE_LIMIT_PER_HOUR');
 
-    // Fail fast on a malformed value — NaN would silently break pause/admission (never pausing).
-    if (!Number.isInteger(hardCap) || hardCap <= 0) {
-        throw new Error(`Invalid FOOD_SOURCE_RATE_LIMIT_PER_HOUR "${raw}" — expected a positive integer.`);
-    }
-
-    return { usda: { hardCap, pauseThreshold: Math.floor(hardCap * 0.9) } };
+    return { usda: { hardCap, pauseThreshold: Math.floor(hardCap * PAUSE_FRACTION) } };
 }
 
 /** Default 429-failsafe back-off (ms) the window is treated as full for after a source `429`. */
@@ -51,7 +50,15 @@ const DEFAULT_BACKOFF_MS = 60_000;
 
 /** Options for {@link RollingWindowLimiter}. */
 export interface RollingWindowLimiterOptions {
-    /** Override per-source caps (e.g. small caps for tests); merged over {@link DEFAULT_SOURCE_CAPS}. */
+    /**
+     * Override per-source caps (e.g. small caps for tests); merged over the CONFIGURED caps
+     * ({@link sourceCapsFromEnv}).
+     *
+     * The configured value is the default resolved HERE rather than at each composition root on purpose: a
+     * caller who forgets to pass it would silently fall back to a built-in cap, which is exactly how the
+     * change-refresh task spent its life charging USDA's shared quota at 1,000/hr while the operator had
+     * lowered `FOOD_SOURCE_RATE_LIMIT_PER_HOUR` for the whole stage.
+     */
     readonly caps?: Partial<Record<FoodSourceId, SourceCap>>;
     /** 429-failsafe back-off in ms; defaults to {@link DEFAULT_BACKOFF_MS}. */
     readonly backoffMs?: number;
@@ -74,7 +81,7 @@ export class RollingWindowLimiter {
         private readonly dao: SourceCallLogDao,
         options?: RollingWindowLimiterOptions,
     ) {
-        this.caps = { ...DEFAULT_SOURCE_CAPS, ...options?.caps };
+        this.caps = { ...sourceCapsFromEnv(), ...options?.caps };
         this.backoffMs = options?.backoffMs ?? DEFAULT_BACKOFF_MS;
         this.now = options?.now ?? Date.now;
     }

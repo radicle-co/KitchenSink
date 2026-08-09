@@ -11,7 +11,7 @@
  * The EventBridge-schedule → ECS `RunTask` trigger is infra/CDK (T-001c) and out of this slice's scope;
  * this exercises the runnable task logic directly. No real network/AWS.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { ulid } from 'ulidx';
 import type pg from 'pg';
 
@@ -86,7 +86,9 @@ describe.skipIf(!DATABASE_URL)('ChangeRefreshConsumer (integration)', () => {
             limiter: new RollingWindowLimiter(new SourceCallLogDao(db)),
             enqueue,
             logger: new SilentWorkerLogger(),
-            unresolvedTtlDays: options?.unresolvedTtlDays ?? 30,
+            // Left UNSET unless a case names one, so the consumer resolves it from
+            // `FOOD_UNRESOLVED_TTL_DAYS` exactly as the deployed scheduled task does.
+            unresolvedTtlDays: options?.unresolvedTtlDays,
         });
     }
 
@@ -225,5 +227,75 @@ describe.skipIf(!DATABASE_URL)('ChangeRefreshConsumer (integration)', () => {
             (await pool.query('SELECT count(*)::int AS n FROM food_candidates WHERE food_id = $1', [food.id])).rows[0]
                 .n,
         ).toBe(1);
+    });
+
+    /**
+     * T-199 — the FR-025a candidate-set TTL is CONFIGURED, and the change-refresh task is the ONE process
+     * that applies it. Its entrypoint read `Number(process.env['FOOD_UNRESOLVED_TTL_DAYS'] ?? 30)`: a third
+     * copy of the default, and — since the task has no `ConfigModule` and nothing validates its environment
+     * at boot — the only reader of the value in the process. A malformed value became `NaN` and was handed
+     * straight into `make_interval(days => $1)`, so the sweep is now resolved through the ONE validated
+     * reader inside the consumer, where the composition root cannot forget it.
+     */
+    describe('configured UNRESOLVED-candidate TTL (T-199, FR-025a)', () => {
+        afterEach(() => {
+            vi.unstubAllEnvs();
+        });
+
+        /** An UNRESOLVED food whose candidate set was created `ageDays` ago. */
+        async function seedUnresolvedCandidateAged(name: string, ageDays: number): Promise<string> {
+            const food = await foodDao.createByName({ normalizedName: name, displayName: name });
+            await foodDao.setStatus({ id: food.id, status: 'UNRESOLVED' });
+            await pool.query(
+                `INSERT INTO food_candidates (id, food_id, source, external_key, name, created_at)
+                 VALUES ($1,$2,'usda','ek-' || $3,'Cand', now() - make_interval(days => $4))`,
+                [ulid(), food.id, name, ageDays],
+            );
+
+            return food.id;
+        }
+
+        async function candidateRows(foodId: string): Promise<number> {
+            const res = await pool.query<{ n: number }>(
+                'SELECT count(*)::int AS n FROM food_candidates WHERE food_id = $1',
+                [foodId],
+            );
+
+            return res.rows[0]?.n ?? 0;
+        }
+
+        it('honours FOOD_UNRESOLVED_TTL_DAYS from the environment — a tuned TTL changes what is swept', async () => {
+            const foodId = await seedUnresolvedCandidateAged('env ttl food', 10);
+
+            // TTL 5 days: a 10-day-old candidate set is expired, so the sweep clears it.
+            vi.stubEnv('FOOD_UNRESOLVED_TTL_DAYS', '5');
+            expect((await build(fakeAdapter({})).runOnce()).expiredCandidateRows).toBe(1);
+            expect(await candidateRows(foodId)).toBe(0);
+
+            // The SAME age under a 90-day TTL survives — the environment is the only difference, and a
+            // consumer that ignored it (or degraded it to NaN) could not tell these two runs apart.
+            const survivorId = await seedUnresolvedCandidateAged('env ttl survivor', 10);
+            vi.stubEnv('FOOD_UNRESOLVED_TTL_DAYS', '90');
+            expect((await build(fakeAdapter({})).runOnce()).expiredCandidateRows).toBe(0);
+            expect(await candidateRows(survivorId)).toBe(1);
+        });
+
+        it('falls back to the documented 30-day default when the variable is unset', async () => {
+            const staleId = await seedUnresolvedCandidateAged('default ttl stale', 31);
+            const freshId = await seedUnresolvedCandidateAged('default ttl fresh', 29);
+
+            vi.stubEnv('FOOD_UNRESOLVED_TTL_DAYS', undefined);
+            expect((await build(fakeAdapter({})).runOnce()).expiredCandidateRows).toBe(1);
+
+            expect(await candidateRows(staleId)).toBe(0);
+            expect(await candidateRows(freshId)).toBe(1);
+        });
+
+        it('refuses to run at all on a malformed TTL, rather than sweeping on a NaN interval', async () => {
+            await seedUnresolvedCandidateAged('malformed ttl food', 400);
+            vi.stubEnv('FOOD_UNRESOLVED_TTL_DAYS', 'thirty');
+
+            expect(() => build(fakeAdapter({}))).toThrow(/FOOD_UNRESOLVED_TTL_DAYS/);
+        });
     });
 });

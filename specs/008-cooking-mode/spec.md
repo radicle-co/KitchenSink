@@ -85,6 +85,14 @@ ingredients, active scale factor) and `CookingTimer`. None of it mutates the sto
   specified scaling _guidance_. Cook time does not scale linearly with yield — doubling a batch does not double bake time — so
   auto-scaling timers would produce wrong, potentially unsafe cooking instructions. FR-034a therefore scales **quantities only**
   and surfaces an advisory. The contradiction is resolved in favour of US-009.
+- **D-004 (voice control ships on BOTH platforms, 2026-08-09)**: US-006 was briefly recorded as an accepted web-only
+  divergence, because Expo ships no built-in speech recognition. The owner reversed that: voice control is required on web
+  **and** mobile, restoring compliance with the cross-platform rule. `expo-speech-recognition` provides the native capability
+  and exports a Web-Speech-compatible recognition class, so both adapters bind one shared restart/latch/dispose policy instead
+  of two implementations that could drift. Two consequences are recorded rather than hidden: the library's latest release
+  targets one Expo SDK generation behind this repo, so on-device behaviour is an open residual risk; and **microphone consent
+  is still unspecified** — US-006 needs an explicit opt-in requirement before voice is surfaced in the UI, since starting
+  recognition automatically on entry would be a privacy-hostile default. The native adapter fails safe on denial.
 - **D-003 (reuse `RecipeStep`, 2026-08-05)**: The prior plan defined a local `RecipeInstruction` type. `@kitchensink/recipe-core`
   already exports `RecipeStep` with the needed shape including `timerSeconds`; 008 imports it rather than duplicating it (GR-007).
 

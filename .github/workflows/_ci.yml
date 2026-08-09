@@ -497,6 +497,11 @@ jobs:
               run: npm run test:integration --workspace=@commise/web
             - name: Run recipe-service-client integration tests
               run: npm run test:integration --workspace=@kitchensink/recipe-service-client
+            # Feature 008 Cooking Mode. The integration tier drives session persistence across a
+            # simulated process restart; it is excluded from the package's default `test` glob, so
+            # without this step it would never run anywhere.
+            - name: Run cooking-core integration tests
+              run: npm run test:integration --workspace=@kitchensink/cooking-core
 
     e2e-food:
         name: E2E (food — booted app + Postgres + LocalStack)

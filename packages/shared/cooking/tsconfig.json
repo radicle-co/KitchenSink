@@ -1,7 +1,11 @@
 {
     "$schema": "https://json.schemastore.org/tsconfig",
     "extends": "@kitchensink/typescript/base.json",
-    "compilerOptions": { "outDir": "dist", "rootDir": "src" },
-    "include": ["src/**/*.ts"],
+    "compilerOptions": { "outDir": "dist", "rootDir": "." },
+    // Typecheck/editor/eslint project — it never emits (`build` uses tsconfig.build.json). The
+    // integration tier under `tests/` is deliberately INCLUDED: vitest transpiles without typechecking,
+    // so leaving it out gives those specs no static analysis at all and lets type drift accumulate
+    // unseen. `rootDir` is `.` rather than `src` so `tests/` can be part of the program at all.
+    "include": ["src/**/*.ts", "src/**/*.d.ts", "tests/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

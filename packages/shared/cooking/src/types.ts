@@ -36,6 +36,15 @@ export interface CookingTimer {
     isPaused: boolean;
     /** Remaining milliseconds captured at the moment the timer was paused. */
     pausedRemainingMs?: number;
+    /**
+     * ISO 8601 timestamp of when this timer's completion was announced to the user, if it has been.
+     *
+     * REQ-006 requires the completion alert to fire — once. Completion itself is *derived* from the
+     * clock, so without a recorded acknowledgement the alert would re-fire on every render tick, and a
+     * session restored from device storage would re-announce a timer that finished before the
+     * interruption. Persisting the acknowledgement is what makes "once" survive a resume.
+     */
+    alertedAt?: string;
 }
 
 /**

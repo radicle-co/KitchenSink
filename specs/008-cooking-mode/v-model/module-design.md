@@ -261,83 +261,163 @@ stateDiagram-v2
 
 ---
 
-### Module: MOD-004 (StepNavigationController)
+### Module: MOD-004 (CookingSessionReducer)
 
 **Parent Architecture Modules**: ARCH-004
-**Target Source File(s)**: `packages/shared/cooking/src/controllers/StepNavigationController.ts`
+**Target Source File(s)**: `packages/shared/cooking/src/session.ts`
 
 #### Algorithmic / Logic View
 
 ```pseudocode
-CLASS StepNavigationController:
+// Pure reducer over CookingSession (FR-032, FR-033 / REQ-001..003, REQ-008..010).
+// No instance state and no subscribers: every transition takes a session and returns a NEW one,
+// never mutating its input. Unchanged arrays are shared with the input (structural sharing), so
+// every session must be treated as immutable.
+//
+// `totalSteps` is deliberately NOT stored on the session. The step count belongs to the recipe
+// (`RecipeStep[]` from `@kitchensink/recipe-core`) and may legitimately differ from the count in
+// force when a persisted session was created, so callers pass the CURRENT count into every
+// transition that needs a boundary — and the transitions repair rather than trust a restored index.
 
-  PRIVATE stepIndex: number = 0
-  PRIVATE totalSteps: number = 0
-  PRIVATE onStepChangeCallbacks: Array<(index: number) => void> = []
+TYPE SessionStatus = 'idle' | 'cooking' | 'paused' | 'complete'   // derived, never stored
 
-  FUNCTION initialise(stepIndex: number, totalSteps: number) -> void:
-    IF totalSteps < 1:
-      THROW Error("totalSteps must be >= 1")
-    this.stepIndex = CLAMP(stepIndex, 0, totalSteps - 1)
-    this.totalSteps = totalSteps
-    NOTIFY_ALL(this.stepIndex)
+PRIVATE FUNCTION assertTotalSteps(totalSteps: number) -> void:
+    // `Number.isInteger` rejects NaN, Infinity and fractions in one predicate, so no non-integer
+    // can reach the arithmetic below and silently produce a fractional or NaN index.
+    IF NOT isInteger(totalSteps) OR totalSteps < 1:
+        THROW InvalidTotalStepsError(totalSteps)
 
-  FUNCTION goNext() -> void:
-    IF this.stepIndex >= this.totalSteps - 1:
-      RETURN  // boundary clamp — no-op at last step
-    this.stepIndex = this.stepIndex + 1
-    NOTIFY_ALL(this.stepIndex)
+PRIVATE FUNCTION clampIndex(index: number, lastIndex: number) -> number:
+    IF NOT isFinite(index): RETURN 0                 // Math.max(NaN, 0) is NaN — fall back to step 0
+    RETURN MIN(MAX(TRUNC(index), 0), lastIndex)
 
-  FUNCTION goPrev() -> void:
-    IF this.stepIndex <= 0:
-      RETURN  // boundary clamp — no-op at first step
-    this.stepIndex = this.stepIndex - 1
-    NOTIFY_ALL(this.stepIndex)
+PRIVATE FUNCTION withStepRecorded(completedSteps: readonly number[], stepIndex: number) -> number[]:
+    // Always a FRESH array, even when nothing is added: the returned session must never share a
+    // mutable array whose contents differ from the one the caller still holds.
+    RETURN completedSteps CONTAINS stepIndex
+             ? COPY(completedSteps)
+             : COPY(completedSteps) WITH stepIndex APPENDED
 
-  FUNCTION getState() -> { stepIndex: number, totalSteps: number }:
-    RETURN { stepIndex: this.stepIndex, totalSteps: this.totalSteps }
+PRIVATE FUNCTION isEveryStepCompleted(completedSteps: readonly number[], totalSteps: number) -> boolean:
+    // Membership of every required index, NOT a length comparison: a session restored against a
+    // recipe that gained or lost steps can hold ghost indices, and counting them would report a
+    // half-cooked recipe as finished.
+    RETURN EVERY i IN [0, totalSteps - 1] : completedSteps CONTAINS i
 
-  FUNCTION onStepChange(callback: (index: number) => void) -> UnsubscribeFn:
-    this.onStepChangeCallbacks.push(callback)
-    RETURN () => REMOVE(callback FROM this.onStepChangeCallbacks)
+FUNCTION createSession(input: { recipeId, totalSteps, startedAt }) -> CookingSession:   // REQ-008
+    assertTotalSteps(input.totalSteps)
+    RETURN {
+      recipeId: input.recipeId, startedAt: input.startedAt,
+      currentStepIndex: 0, completedSteps: [], checkedIngredientIds: [],
+      scaleFactor: 1, activeTimers: []
+    }
+    // `pausedAt` is OMITTED, never set to undefined: JSON.stringify drops undefined values, so an
+    // explicit key would make a persisted session differ from its restored copy.
 
-  PRIVATE FUNCTION NOTIFY_ALL(index: number) -> void:
-    FOR EACH callback IN this.onStepChangeCallbacks:
-      callback(index)
+FUNCTION advance(session: CookingSession, totalSteps: number) -> CookingSession:        // REQ-002
+    assertTotalSteps(totalSteps)
+    lastIndex      = totalSteps - 1
+    departingIndex = clampIndex(session.currentStepIndex, lastIndex)
+    RETURN { ...session,
+             currentStepIndex: MIN(departingIndex + 1, lastIndex),
+             completedSteps:   withStepRecorded(session.completedSteps, departingIndex) }
+    // Clamped at the last step, but the last step is still RECORDED — that is what makes the
+    // `complete` status reachable, and it makes the terminal advance idempotent rather than a
+    // growing list of duplicates.
+
+FUNCTION goBack(session: CookingSession) -> CookingSession:                             // REQ-003
+    // No `totalSteps` needed — moving backwards can only approach 0 — but a corrupt negative or
+    // non-finite index is still repaired, because MAX(NaN - 1, 0) would otherwise be NaN.
+    currentIndex = isFinite(session.currentStepIndex) ? TRUNC(session.currentStepIndex) : 0
+    RETURN { ...session, currentStepIndex: MAX(currentIndex - 1, 0) }
+    // `completedSteps` is deliberately left intact: FR-033 requires reviewing an earlier step
+    // "without losing their place", so going back REVEALS progress rather than undoing it.
+
+FUNCTION goToStep(session: CookingSession, index: number, totalSteps: number) -> CookingSession:
+    assertTotalSteps(totalSteps)
+    IF NOT isInteger(index) OR index < 0 OR index > totalSteps - 1:
+        THROW InvalidStepIndexError(index, totalSteps)   // REJECTED, not clamped
+    RETURN { ...session, currentStepIndex: index }       // records NOTHING as completed
+    // The opposite of the restore-repair above, on purpose: an explicit jump (step dots, restore)
+    // to a step that does not exist is a caller bug, and landing somewhere else would hide it.
+    // Skipping over steps is not the same as cooking them, so nothing is recorded.
+
+FUNCTION pause(session: CookingSession, pausedAtIso: string) -> CookingSession:         // FR-033
+    RETURN { ...session, pausedAt: pausedAtIso }
+
+FUNCTION resume(session: CookingSession) -> CookingSession:                             // FR-033
+    resumed = { ...session }
+    DELETE resumed.pausedAt      // delete, NOT `pausedAt: undefined` — see createSession
+    RETURN resumed               // safe on a session that was never paused
+
+FUNCTION sessionStatus(session: CookingSession, totalSteps: number) -> SessionStatus:
+    assertTotalSteps(totalSteps)
+    IF session.pausedAt IS PRESENT: RETURN 'paused'   // outranks the rest: the only EXPLICIT state,
+                                                     // and `resume` must stay reachable from it
+    IF isEveryStepCompleted(session.completedSteps, totalSteps): RETURN 'complete'
+    // Position alone cannot distinguish a fresh session from one that navigated back to step 0,
+    // so `idle` additionally requires that no step has been completed.
+    IF session.currentStepIndex == 0 AND session.completedSteps IS EMPTY: RETURN 'idle'
+    RETURN 'cooking'
 ```
 
 #### State Machine View
 
+The statechart is `plan.md` §4's `idle | cooking | paused | complete`. It is **derived** by `sessionStatus`, never stored — a
+stored copy would be a second representation of state the session already carries and could drift from it. `paused` is therefore
+an overlay reachable from every other state, and `resume` returns to whichever state the underlying progress implies.
+
 ```mermaid
 stateDiagram-v2
-    [*] --> Uninitialised
-    Uninitialised --> AtFirst : initialise(stepIndex=0, totalSteps=N)
-    AtFirst --> AtFirst : goPrev() [no-op, boundary]
-    AtFirst --> Middle : goNext() [totalSteps > 2]
-    AtFirst --> AtLast : goNext() [totalSteps == 2]
-    Middle --> Middle : goNext() / goPrev() [not at boundary]
-    Middle --> AtFirst : goPrev() [stepIndex becomes 0]
-    Middle --> AtLast : goNext() [stepIndex becomes totalSteps-1]
-    AtLast --> AtLast : goNext() [no-op, boundary]
-    AtLast --> Middle : goPrev() [totalSteps > 2]
-    AtLast --> AtFirst : goPrev() [totalSteps == 2]
+    [*] --> Idle : createSession({ totalSteps >= 1 })
+    Idle --> Idle : goBack() [clamped at step 0] / goToStep(0)
+    Idle --> Cooking : advance() [totalSteps > 1]
+    Idle --> Complete : advance() [totalSteps == 1 — the only step is recorded]
+    Cooking --> Cooking : advance() / goBack() / goToStep(i) [steps still outstanding]
+    Cooking --> Complete : advance() [records the last outstanding step]
+    Complete --> Complete : advance() [idempotent] / goBack() [progress is never undone]
+    Idle --> Paused : pause(nowIso)
+    Cooking --> Paused : pause(nowIso)
+    Complete --> Paused : pause(nowIso)
+    Paused --> Paused : pause(nowIso) [most recent timestamp wins]
+    Paused --> Idle : resume() [no step completed]
+    Paused --> Cooking : resume() [some steps completed]
+    Paused --> Complete : resume() [every step completed]
 ```
 
 #### Internal Data Structures
 
-| Name                    | Type                             | Size/Constraints      | Initialization | Description                         |
-| ----------------------- | -------------------------------- | --------------------- | -------------- | ----------------------------------- |
-| `stepIndex`             | `number`                         | `[0, totalSteps - 1]` | `0`            | Current step index                  |
-| `totalSteps`            | `number`                         | `>= 1`                | `0`            | Total number of steps in the recipe |
-| `onStepChangeCallbacks` | `Array<(index: number) => void>` | max 10 subscribers    | `[]`           | Registered step-change listeners    |
+The module holds **no** state of its own. The table describes the fields of the `CookingSession` value it transforms, plus the
+one parameter every boundary-taking transition receives.
+
+| Name               | Type                                            | Size/Constraints                                  | Initialization | Description                                                                                  |
+| ------------------ | ----------------------------------------------- | ------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `currentStepIndex` | `number`                                        | integer in `[0, totalSteps - 1]`; repaired on use | `0`            | Position within the recipe's steps                                                           |
+| `completedSteps`   | `number[]`                                      | ≤ `totalSteps` entries; never duplicated          | `[]`           | Steps recorded as cooked. **Array, not `Set`** — must survive a JSON round trip              |
+| `pausedAt`         | `string` \| key absent                          | ISO 8601 when present                             | key absent     | Set by `pause`, **deleted** by `resume` — never the literal `undefined`                      |
+| `totalSteps`       | `number` (parameter, not a field)               | integer `>= 1`                                    | —              | The recipe's _current_ step count, supplied per call; deliberately not stored on the session |
+| `SessionStatus`    | `'idle' \| 'cooking' \| 'paused' \| 'complete'` | enum                                              | derived        | Statechart position computed by `sessionStatus`; never persisted                             |
 
 #### Error Handling & Return Codes
 
-| Error Condition        | Error Code / Exception             | Architecture Contract                      | Recovery                                       |
-| ---------------------- | ---------------------------------- | ------------------------------------------ | ---------------------------------------------- |
-| `totalSteps < 1`       | `Error("totalSteps must be >= 1")` | ARCH-004 Interface: throws on invalid init | Caller (ARCH-001) must validate before calling |
-| `goNext` at last step  | No-op (silent)                     | ARCH-004 Interface: boundary clamp         | No state change; no notification emitted       |
-| `goPrev` at first step | No-op (silent)                     | ARCH-004 Interface: boundary clamp         | No state change; no notification emitted       |
+| Error Condition                                                | Error Code / Exception                                | Architecture Contract                                             | Recovery                                                                                           |
+| -------------------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `totalSteps` is not a positive integer (`0`, `-1`, `1.5`, NaN) | `InvalidTotalStepsError` + `isInvalidTotalStepsError` | ARCH-004 Interface: rejects an unusable step count                | Caller (MOD-001) validates the loaded recipe before opening or transitioning a session             |
+| `goToStep` index outside `[0, totalSteps - 1]`, or non-integer | `InvalidStepIndexError` + `isInvalidStepIndexError`   | ARCH-004 Interface: explicit jumps are **validated, not clamped** | Caller keeps the current step; a bad jump is a caller bug and must not be silently relocated       |
+| `advance` at the last step                                     | None — clamped                                        | ARCH-004 Interface: boundary clamp                                | Index stays at `totalSteps - 1`; the final step is still recorded, so `complete` remains reachable |
+| `goBack` at the first step                                     | None — clamped                                        | ARCH-004 Interface: boundary clamp                                | Index stays at `0`; the returned session is value-equal to its input                               |
+| Restored `currentStepIndex` out of range or non-finite         | None — repaired by `clampIndex`                       | ARCH-004 Interface: restore-repair                                | Lands inside `[0, totalSteps - 1]`; a non-finite index falls back to step `0`                      |
+
+> **Corrected 2026-08-09.** This section previously specified a **stateful class** `StepNavigationController` at
+> `packages/shared/cooking/src/controllers/StepNavigationController.ts`, with `initialise` / `goNext` / `goPrev`, a private
+> `stepIndex`, and an `onStepChange` subscriber list. No such file exists, and none should: the approved design is `plan.md` §4's
+> "statechart-shaped session reducer", and what shipped is the pure reducer specified above. The class shape is wrong, not merely
+> different, for two reasons. (a) A mutable singleton holding subscriber callbacks cannot be JSON-persisted and restored, which is
+> exactly what FR-033's session-resume requirement demands — the `CookingSession` **value** is the persisted unit
+> (`packages/shared/cooking/src/sessionPersistence.ts`), and `UTS-004-L1`…`L3` assert the round trip. (b) Subscription is the
+> consuming React layer's job (`useCookingSession` re-renders on the new value), so an `onStepChange` list would be a second,
+> drift-prone representation of state React already owns. The **`MOD-004` id is retained** — Matrix D, ARCH-004 and the whole
+> `UTP-004-*` range key off it — and only the name, target path and shape are corrected. Do not "restore" the class.
 
 ---
 
@@ -401,103 +481,172 @@ N/A — Stateless gesture adapter; delegates all state to StepNavigationControll
 ### Module: MOD-006 (TimerEngine)
 
 **Parent Architecture Modules**: ARCH-006
-**Target Source File(s)**: `packages/shared/cooking/src/services/TimerEngine.ts`
+**Target Source File(s)**: `packages/shared/cooking/src/timerEngine.ts`
 
 #### Algorithmic / Logic View
 
 ```pseudocode
-CLASS TimerEngine:
+// Pure, multi-timer, time-as-input countdown engine (FR-034 / REQ-004, REQ-005, REQ-006).
+//
+// SAFETY INVARIANT (spec.md D-002): this module has NO reference to yield scaling and imports no
+// scaling module. Cook time does not scale linearly with yield, so a scaled timer would emit wrong
+// and potentially unsafe instructions. The invariant is STRUCTURAL, not merely tested: UTS-006-F1
+// asserts the import graph and UTS-006-F2 the exported arities.
+//
+// Every function is pure and takes the current instant (`nowIso`) as an INPUT; the module never
+// reads the ambient clock (UTS-006-F3). Remaining time is DERIVED from timestamps, never decremented
+// by a tick. Concurrency lives in a caller-owned array (`CookingSession.activeTimers`), not in the
+// module. Scheduling the re-render tick, the audible alert (REQ-006) and notification delivery
+// belong to the platform widget (MOD-007), not to this domain engine.
 
-  PRIVATE status: 'idle' | 'running' | 'paused' | 'done' = 'idle'
-  PRIVATE remaining: number = 0
-  PRIVATE durationSeconds: number = 0
-  PRIVATE intervalId: NodeJS.Timeout | null = null
-  PRIVATE listeners: Array<(state: TimerState) => void> = []
+CONSTANT MS_PER_SECOND = 1000   // RecipeStep.timerSeconds is in SECONDS; minutes would be 60x wrong
 
-  FUNCTION start(durationSeconds: number) -> void:
-    IF durationSeconds <= 0:
-      LOG_WARNING("Invalid durationSeconds; timer not started")
-      RETURN
-    IF this.status == 'running':
-      RETURN  // already running — no-op
-    this.durationSeconds = durationSeconds
-    IF this.status != 'paused':
-      this.remaining = durationSeconds
-    this.status = 'running'
-    this.intervalId = SET_INTERVAL(() => this.tick(), 1000)
-    EMIT_STATE()
+PRIVATE FUNCTION parseTimestamp(value: string) -> number:
+    epochMs = Date.parse(value)                 // the platform's own ISO 8601 reader
+    IF isNaN(epochMs): THROW InvalidTimestampError(value)
+    RETURN epochMs
+    // Validated on the way IN because a session is restored from device storage, where a corrupt
+    // value would otherwise propagate silently as NaN through the whole countdown.
 
-  FUNCTION pause() -> void:
-    IF this.status != 'running':
-      RETURN
-    CLEAR_INTERVAL(this.intervalId)
-    this.intervalId = null
-    this.status = 'paused'
-    EMIT_STATE()
+PRIVATE FUNCTION toIsoString(epochMs: number) -> string:
+    RETURN canonical UTC ISO 8601 rendering of epochMs   // never a Date — stays JSON-round-trippable
 
-  FUNCTION reset() -> void:
-    CLEAR_INTERVAL(this.intervalId)
-    this.intervalId = null
-    this.remaining = 0
-    this.status = 'idle'
-    EMIT_STATE()
+PRIVATE FUNCTION clampToDuration(value: number, timer: CookingTimer) -> number:
+    IF NOT isFinite(timer.durationMs) OR timer.durationMs < 0:
+        THROW InvalidTimerStateError(timer.id, "durationMs is " + timer.durationMs)
+    RETURN MIN(MAX(value, 0), timer.durationMs)
+    // The UPPER bound is not cosmetic: a device clock corrected backwards mid-cook puts `now` before
+    // `startedAt`, which would otherwise display more time remaining than the timer was ever set for.
 
-  PRIVATE FUNCTION tick() -> void:
-    this.remaining = this.remaining - 1
-    IF this.remaining <= 0:
-      this.remaining = 0
-      this.status = 'done'
-      CLEAR_INTERVAL(this.intervalId)
-      this.intervalId = null
-      EMIT_STATE()
-      EMIT_EVENT('timerComplete')
-    ELSE:
-      EMIT_STATE()
+PRIVATE FUNCTION pausedRemainingOf(timer: CookingTimer) -> number:
+    IF timer.pausedRemainingMs IS ABSENT OR NOT finite:
+        // Unrepresentable through this module's own constructors, so reaching here means storage
+        // (or a hand-built object) lied. Resuming from `startedAt` instead would silently burn the
+        // paused interval off the clock.
+        THROW InvalidTimerStateError(timer.id, "paused with no captured remaining time")
+    RETURN clampToDuration(timer.pausedRemainingMs, timer)
 
-  FUNCTION subscribe(listener: (state: TimerState) => void) -> UnsubscribeFn:
-    this.listeners.push(listener)
-    RETURN () => REMOVE(listener FROM this.listeners)
+FUNCTION createTimerFromStep(step: RecipeStep, nowIso: string) -> CookingTimer:        // REQ-004
+    startedAt = toIsoString(parseTimestamp(nowIso))
+    IF step.timerSeconds IS ABSENT: THROW StepHasNoTimerError(step.stepNumber)
+    IF NOT isInteger(step.timerSeconds) OR step.timerSeconds <= 0:
+        THROW InvalidTimerDurationError(step.timerSeconds)   // 0 s would alert for a step with no wait
+    RETURN { id: step.id, label: step.instruction, stepNumber: step.stepNumber,
+             durationMs: step.timerSeconds * MS_PER_SECOND,  // the ONE seconds→ms conversion
+             startedAt, isPaused: false }
+    // The step is never mutated (REQ-CN-001). The STEP's id becomes the timer's id, so a step can
+    // hold at most one running timer and a double-start is caught by startTimer rather than
+    // producing two competing countdowns.
 
-  PRIVATE FUNCTION EMIT_STATE() -> void:
-    state = { remaining: this.remaining, status: this.status }
-    FOR EACH listener IN this.listeners:
-      listener(state)
+FUNCTION remainingMs(timer: CookingTimer, nowIso: string) -> number:                   // REQ-005
+    nowMs = parseTimestamp(nowIso)        // validated on BOTH branches, so the contract does not
+                                          // accept a bad clock value on one path and reject it on another
+    IF timer.isPaused: RETURN pausedRemainingOf(timer)
+    RETURN clampToDuration(timer.durationMs - (nowMs - parseTimestamp(timer.startedAt)), timer)
+
+FUNCTION isComplete(timer: CookingTimer, nowIso: string) -> boolean:                   // REQ-006
+    RETURN remainingMs(timer, nowIso) == 0     // true from the EXACT instant the duration elapses
+
+FUNCTION pauseTimer(timer: CookingTimer, nowIso: string) -> CookingTimer:
+    capturedRemainingMs = remainingMs(timer, nowIso)   // computed first, so nowIso is validated even
+                                                       // on the already-paused branch
+    IF timer.isPaused: RETURN timer                    // the SAME reference — a repeated tap cannot
+                                                       // re-capture, therefore cannot alter, the freeze
+    RETURN { ...timer, isPaused: true, pausedRemainingMs: capturedRemainingMs }
+
+FUNCTION resumeTimer(timer: CookingTimer, nowIso: string) -> CookingTimer:
+    nowMs = parseTimestamp(nowIso)
+    IF NOT timer.isPaused: RETURN timer                // no-op on a running timer
+    elapsedMs = timer.durationMs - pausedRemainingOf(timer)
+    resumed   = { ...timer, startedAt: toIsoString(nowMs - elapsedMs), isPaused: false }
+    DELETE resumed.pausedRemainingMs   // deleted rather than rebuilt field-by-field, which would
+                                       // silently drop any field later added to CookingTimer
+    RETURN resumed
+    // `startedAt` is REWOUND so that nowIso minus the already-elapsed portion lands on it. That
+    // keeps the countdown a pure function of two timestamps — no accumulated-pause bookkeeping to
+    // drift — and is why a pause/resume cycle can neither shorten nor extend the timer.
+
+FUNCTION startTimer(timers: readonly CookingTimer[], timer: CookingTimer) -> CookingTimer[]:
+    IF ANY running IN timers HAS running.id == timer.id: THROW DuplicateTimerIdError(timer.id)
+    RETURN [...timers, timer]          // never mutates `timers`
+    // Rejected rather than deduped: keeping the first would leave the caller believing it started a
+    // new countdown; replacing it would discard a running one.
+
+FUNCTION cancelTimer(timers: readonly CookingTimer[], id: string) -> CookingTimer[]:
+    IF NO running IN timers HAS running.id == id: THROW UnknownTimerError(id)
+    RETURN timers WITHOUT the timer whose id == id
+    // Fails loudly rather than no-opping: a silent cancel leaves a timer the user believes they
+    // stopped still running to an alert.
+
+FUNCTION completedTimers(timers: readonly CookingTimer[], nowIso: string) -> CookingTimer[]:  // REQ-006
+    RETURN timers FILTERED TO isComplete(timer, nowIso)   // source order preserved, one alert each
 ```
 
 #### State Machine View
 
+The machine below is **per timer**, and there is no `idle` state: a timer exists only from the instant `createTimerFromStep`
+builds it, and the set of live timers is the caller-owned array that `startTimer` / `cancelTimer` transform. `Complete` is
+likewise **derived** from the clock at each read rather than entered by an event — which is precisely why a backgrounded app needs
+no catch-up logic (HAZ-007).
+
 ```mermaid
 stateDiagram-v2
-    [*] --> Idle
-    Idle --> Running : start(durationSeconds > 0)
-    Running --> Running : tick() [remaining > 1]
-    Running --> Done : tick() [remaining == 1 → 0]
-    Running --> Paused : pause()
-    Paused --> Running : start() [resumes from remaining]
-    Paused --> Idle : reset()
-    Done --> Idle : reset()
-    Running --> Idle : reset()
-    Idle --> Idle : start(durationSeconds <= 0) [no-op + warning]
+    [*] --> Running : createTimerFromStep(step, nowIso)
+    Running --> Running : remainingMs(nowIso) > 0
+    Running --> Paused : pauseTimer(nowIso) [captures pausedRemainingMs]
+    Paused --> Paused : pauseTimer(nowIso) [no-op — same reference returned]
+    Paused --> Running : resumeTimer(nowIso) [startedAt rewound by the elapsed portion]
+    Running --> Running : resumeTimer(nowIso) [no-op — same reference returned]
+    Running --> Complete : remainingMs(nowIso) == 0 [derived, not an event]
+    Paused --> Complete : pausedRemainingMs == 0
+    Complete --> Complete : any later nowIso [clamped at 0; never negative]
+    Running --> [*] : cancelTimer(timers, id)
+    Paused --> [*] : cancelTimer(timers, id)
+    Complete --> [*] : cancelTimer(timers, id)
 ```
 
 #### Internal Data Structures
 
-| Name              | Type                                        | Size/Constraints       | Initialization | Description                               |
-| ----------------- | ------------------------------------------- | ---------------------- | -------------- | ----------------------------------------- |
-| `status`          | `'idle' \| 'running' \| 'paused' \| 'done'` | enum                   | `'idle'`       | Current timer lifecycle state             |
-| `remaining`       | `number`                                    | `[0, durationSeconds]` | `0`            | Seconds remaining in the countdown        |
-| `durationSeconds` | `number`                                    | `> 0`                  | `0`            | Total duration set on last `start()` call |
-| `intervalId`      | `NodeJS.Timeout \| null`                    | —                      | `null`         | Handle for the active `setInterval`       |
-| `listeners`       | `Array<(state: TimerState) => void>`        | max 5 subscribers      | `[]`           | State-change subscribers                  |
+The module holds **no** state of its own. `MS_PER_SECOND` is its only binding; every other row describes the caller-owned values
+it transforms (`CookingTimer`, defined in `packages/shared/cooking/src/types.ts`).
+
+| Name                | Type                              | Size/Constraints                                    | Initialization                | Description                                                                     |
+| ------------------- | --------------------------------- | --------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------- |
+| `MS_PER_SECOND`     | `number` (constant)               | `1_000`                                             | static                        | The single seconds→milliseconds conversion; `60` or `60_000` would be 60x wrong |
+| `timers`            | `readonly CookingTimer[]`         | ids unique; length = concurrent timers              | `CookingSession.activeTimers` | The concurrency model: an array passed in and returned, never module state      |
+| `durationMs`        | `number`                          | finite, `>= 0`                                      | `timerSeconds * 1000`         | Never multiplied by a yield scale factor (FR-034a / D-002)                      |
+| `startedAt`         | `string`                          | canonical UTC ISO 8601                              | normalised `nowIso`           | Rewound on resume, so remaining stays derivable from two timestamps             |
+| `isPaused`          | `boolean`                         | —                                                   | `false`                       | Selects the derived-countdown branch or the frozen-capture branch               |
+| `pausedRemainingMs` | `number` \| key absent            | present **iff** `isPaused`; clamped to `durationMs` | key absent                    | Paired invariant with `isPaused`; a violation is an `InvalidTimerStateError`    |
+| `nowIso`            | `string` (parameter, not a field) | parseable ISO 8601                                  | —                             | The clock, supplied by the caller — the module never reads the ambient one      |
 
 #### Error Handling & Return Codes
 
-| Error Condition                   | Error Code / Exception | Architecture Contract                          | Recovery                               |
-| --------------------------------- | ---------------------- | ---------------------------------------------- | -------------------------------------- |
-| `durationSeconds <= 0`            | LOG_WARNING (no throw) | ARCH-006 Interface: resets on invalid duration | Log warning; timer stays in `idle`     |
-| `start()` called while running    | No-op (silent)         | ARCH-006 Interface                             | Ignore duplicate start                 |
-| `pause()` called when not running | No-op (silent)         | ARCH-006 Interface                             | Ignore                                 |
-| Interval cleared unexpectedly     | `IntervalError`        | ARCH-006 Interface                             | `reset()` to return to idle; log error |
+Every error below ships with a matching `is*` type guard, so callers discriminate by guard rather than by message.
+
+| Error Condition                                                          | Error Code / Exception      | Architecture Contract                                        | Recovery                                                                                       |
+| ------------------------------------------------------------------------ | --------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Step carries no `timerSeconds`                                           | `StepHasNoTimerError`       | ARCH-006 Interface: only timed steps get timers              | Expected and common — MOD-007 renders the step with no timer control                           |
+| `timerSeconds` present but not a whole, positive, finite number          | `InvalidTimerDurationError` | ARCH-006 Interface: rejects an unusable duration             | Rejected rather than started-and-instantly-complete, which would alert for a step with no wait |
+| `nowIso` or a stored `startedAt` is not a parseable ISO 8601 instant     | `InvalidTimestampError`     | ARCH-006 Interface: timestamps validated on the way in       | Fail loudly rather than propagate `NaN` through the countdown                                  |
+| Paused timer with no usable `pausedRemainingMs`; non-finite `durationMs` | `InvalidTimerStateError`    | ARCH-006 Interface: internally inconsistent timer            | Corrupt restore from device storage — caller drops the timer rather than displaying garbage    |
+| `startTimer` with an id already running                                  | `DuplicateTimerIdError`     | ARCH-006 Interface: one running timer per step id            | Rejected, never deduped or replaced — either would lie to the caller                           |
+| `cancelTimer` with an id not in the list                                 | `UnknownTimerError`         | ARCH-006 Interface: cancels fail loudly                      | Caller reconciles its list; a silent no-op would leave the timer running to an alert           |
+| Device clock corrected backwards (`now` precedes `startedAt`)            | None — clamped              | ARCH-006 Interface: remaining stays within `[0, durationMs]` | `remainingMs` reports at most the full duration and never a negative value                     |
+
+> **Corrected 2026-08-09.** This section previously specified a **stateful single-timer class** `TimerEngine` at
+> `packages/shared/cooking/src/services/TimerEngine.ts`: `setInterval` at 1 Hz, a decrementing `remaining` **seconds** counter, a
+> `subscribe` listener list, `reset()`, and an `'idle' | 'running' | 'paused' | 'done'` status enum. No such file exists, and none
+> should. Three defects, each independently disqualifying. (a) It modelled **no concurrency at all** — one engine, one duration —
+> which contradicts `plan.md` §1 ("Timers: inline per step, multiple concurrent") and leaves HAZ-008 (multi-timer collision)
+> unaddressed; the shipped engine keeps the timer set in a caller-owned `CookingTimer[]` that `startTimer` / `cancelTimer` /
+> `completedTimers` transform. (b) A tick-decremented counter drifts, and stops entirely while a mobile app is backgrounded — the
+> normal case for a phone propped up in a kitchen — whereas remaining time _derived_ from `startedAt` plus a `nowIso` input is
+> correct the instant the app returns to the foreground, with no catch-up logic; this is HAZ-007's own recorded mitigation
+> ("computes remaining time from durable timestamps, not tick count"). (c) `setInterval` state cannot be unit-tested per
+> transition, while time-as-input makes every branch deterministic without fake timers. The **`MOD-006` id is retained** — Matrix D,
+> ARCH-006 and the whole `UTP-006-*` range key off it — and only the target path and shape are corrected. Do not "restore" the
+> `setInterval` class.
 
 ---
 
@@ -1340,3 +1489,12 @@ machine reaches timer state** — that is the REQ-015 invariant, asserted by STS
 > All module target paths in this document were also retargeted from the pre-reconciliation `src/features/cooking-mode/…`
 > convention — which matched no package in the monorepo — to the real layout: pure logic under `packages/shared/cooking/src/`
 > (`@kitchensink/cooking-core`) and UI under `packages/apps/commise/features/cooking/src/` (`@commise/features-cooking`).
+
+> **Corrected 2026-08-09 (MOD-004, MOD-006).** Both modules were specified as **stateful classes** — `StepNavigationController`
+> with `onStepChange` subscribers, and a `setInterval`-driven single-timer `TimerEngine` — contradicting `plan.md` §4's
+> "statechart-shaped session reducer" and the shipped code. Both are now specified as the **pure modules that exist**:
+> `packages/shared/cooking/src/session.ts` (session reducer, 58 unit tests) and `packages/shared/cooking/src/timerEngine.ts`
+> (multi-timer, time-as-input engine, 53 unit tests). The `MOD-004` / `MOD-006` **ids are unchanged**; MOD-004's _name_ changed
+> from `StepNavigationController` to `CookingSessionReducer`. The per-module correction notes record why the class designs were
+> wrong rather than merely different, so neither is "restored". `unit-test.md` (`UTP-004-*`, `UTP-006-*`) and
+> `traceability-matrix.md` Matrix D were regenerated against the shipped suites in the same pass.

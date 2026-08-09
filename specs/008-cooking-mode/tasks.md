@@ -78,12 +78,15 @@ they cover; the arrows above show coverage order, not "wait until implemented".
 - [ ] **T-006** [P2] [US-001] Build `CookingModeScreen` orchestrator composing StepDisplay, Navigation, and Timers — `packages/apps/commise/features/cooking/src/CookingModeScreen.tsx`
     - **Depends on**: T-002, T-007, T-008, T-009
     - **Implements**: plan.md §4 component architecture, FR-032
-    - **Acceptance**: Screen mounts at first step; sub-components render correctly; exit releases wake lock and clears session.
+    - **Acceptance**: Screen mounts at the first step and is the ONLY orchestrational component — it owns `useCookingSession`, the wake lock and the timers, and SELECTS which step surface to render, so no leaf ever receives a behaviour-switching mode flag. The wake lock is released on unmount and on finish.
+    - **`exit` and `finish` are DIFFERENT (corrected 2026-08-09)**: this line previously read "exit releases wake lock and **clears session**". Clearing on exit would make FR-033 / REQ-013's 24h resume window dead code — the whole point of US-007 is that a cook who leaves can come back. So `exit()` persists a **paused** session and stays resumable; only `finish()` clears storage.
+    - **Alert-once (REQ-006)**: the screen stamps `CookingTimer.alertedAt` when a completion is surfaced, so the alert cannot re-fire on every tick nor re-announce after a session restore. A double-start of a step's timer is guarded — `DuplicateTimerIdError` must never reach the user.
 
-- [ ] **T-011** [P3] [US-001] Add Cooking Mode web route/entry point wired to recipe selection — `packages/apps/commise/web/src/routes/cooking.tsx`
+- [ ] **T-011** [P3] [US-001] Add Cooking Mode web route/entry point wired to recipe selection — `packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/page.tsx`
     - **Depends on**: T-006, T-004
     - **Implements**: plan.md §1 Web target
-    - **Acceptance**: Route `/cooking/:recipeId` loads CookingModeScreen; steps come from the **existing** `GET /api/v1/recipes/{id}` detail payload (`steps: RecipeStepView[]`) via `@kitchensink/recipe-service-client` — **no new endpoint** is added and none is called (plan.md §3); auth gate enforced.
+    - **Acceptance**: Route `/{locale}/recipes/{id}/cook` loads `CookingModeScreen`; steps come from the **existing** `GET /api/v1/recipes/{id}` detail payload (`steps: RecipeStepView[]`) via `@kitchensink/recipe-service-client` — **no new endpoint** is added and none is called (plan.md §3); auth gate enforced.
+    - **Path corrected 2026-08-09**: the task previously named `web/src/routes/cooking.tsx` and a `/cooking/:recipeId` URL. `@commise/web` is a Next **App Router** app with no `src/routes/` directory at all, and every recipe surface is nested under `src/app/[locale]/recipes/[id]/…` (`edit`, `versions`). Cooking Mode is a recipe surface and belongs there too — a top-level `/cooking` route would also have lost the `[locale]` segment the whole app is keyed on.
 
 - [ ] **T-012** [P3] [US-001] Add Cooking Mode mobile screen entry wired to recipe selection — `packages/apps/commise/mobile/src/screens/CookingModeScreen.tsx`
     - **Depends on**: T-006, T-005
@@ -103,7 +106,7 @@ they cover; the arrows above show coverage order, not "wait until implemented".
 
 ## US-003 — Start timers directly from timed steps
 
-- [ ] **T-003** [P1] [US-003] Implement countdown timer engine with concurrent timer support — `packages/shared/cooking/src/timer-engine.ts`
+- [ ] **T-003** [P1] [US-003] Implement countdown timer engine with concurrent timer support — `packages/shared/cooking/src/timerEngine.ts`
     - **Depends on**: T-001
     - **Implements**: FR-034, plan.md §4 Timer Component
     - **Acceptance**: Multiple timers run concurrently; pause/resume per timer; remainingMs decrements accurately; no `any` types (NFR-001); unit tests cover concurrent + pause scenarios.
@@ -126,21 +129,32 @@ they cover; the arrows above show coverage order, not "wait until implemented".
 
 ## US-005 — Keep device screen awake while Cooking Mode is active
 
-- [ ] **T-004** [P2] [US-005] Implement web screen wake lock (`navigator.wakeLock`) returning a disposer — `packages/shared/cooking/src/wakeLock.ts`
-    - **Depends on**: T-000
-    - **Implements**: FR-035, plan.md §5 Screen Wake Lock (Web)
-    - **Acceptance**: `acquireWakeLock()` requests on entry and returns a disposer that removes the `visibilitychange` listener **and** releases the sentinel. **No listener is registered at module scope** — importing the module under SSR (no `document`) must not throw, and a test asserts import succeeds with `document`/`navigator` undefined. Re-acquires only while the session is live; graceful no-op on unsupported browsers; marked `@sideEffect`.
+> **Port/adapter split (corrected 2026-08-09).** T-000's acceptance requires `@kitchensink/cooking-core` to depend on **no
+> platform SDK**, but a wake-lock implementation must import `navigator.wakeLock` or `expo-keep-awake`. Putting either in
+> cooking-core would violate the package's own stated boundary. The contract therefore lives in cooking-core as a **port**, and
+> the two platform **adapters** live in the platform-bound feature package. This keeps cooking-core pure and still lets one
+> calling hook serve both platforms.
 
-- [ ] **T-005** [P2] [US-005] Implement Expo screen wake lock (`expo-keep-awake`) — `packages/shared/cooking/src/wakeLock.native.ts`
+- [ ] **T-004a** [P2] [US-005] Define the wake-lock port and balanced controller — `packages/shared/cooking/src/wakeLockPort.ts`
     - **Depends on**: T-000
+    - **Implements**: FR-035, plan.md §5
+    - **Acceptance**: Exports `WakeLockPort` (acquire returns its own disposer), `WakeLockDisposer`, `noopWakeLock`, and `createWakeLockController`. The controller keeps acquire/release **balanced**: a second `acquire()` without an intervening release must not take a second lock (React StrictMode double-invokes effects), concurrent acquires are serialized, `release()` is idempotent, and a release that throws must still clear the handle so a later acquire is not silently a no-op. Imports no browser or Expo API.
+
+- [ ] **T-004** [P2] [US-005] Implement the **web** wake-lock adapter (`navigator.wakeLock`) — `packages/apps/commise/features/cooking/src/wakeLock.ts`
+    - **Depends on**: T-004a
+    - **Implements**: FR-035, plan.md §5 Screen Wake Lock (Web)
+    - **Acceptance**: Satisfies `WakeLockPort`; requests on entry and returns a disposer that removes the `visibilitychange` listener **and** releases the sentinel. **No listener is registered at module scope** — a top-level `document.addEventListener` throws `ReferenceError: document is not defined` on SSR import and takes down the route, so a **structural** test asserts the source registers no listener at top level (a behavioural spy cannot prove this, since the module is imported before any spy can be installed). Re-acquires only while the session is live; graceful no-op when the API is absent or the request is rejected; marked `@sideEffect`.
+
+- [ ] **T-005** [P2] [US-005] Implement the **native** wake-lock adapter (`expo-keep-awake`) — `packages/apps/commise/features/cooking/src/wakeLock.native.ts`
+    - **Depends on**: T-004a
     - **Implements**: FR-035, plan.md §5 Screen Wake Lock (RN/Expo)
-    - **Acceptance**: Uses `activateKeepAwakeAsync(tag)` / `deactivateKeepAwake(tag)` — the API `expo-keep-awake@57` actually exports; `KeepAwake.activate()` does **not** exist and must not be used. File uses the `.native.ts` suffix so Metro resolves it (never `-rn`/`-native`); exports the **same** disposer signature as T-004 so the calling hook is platform-agnostic. Verified on iOS + Android.
+    - **Acceptance**: Uses `activateKeepAwakeAsync(tag)` / `deactivateKeepAwake(tag)` — the API `expo-keep-awake@57` actually exports; `KeepAwake.activate()` does **not** exist and must not be used. File uses the `.native.ts` suffix so Metro resolves it (never `-rn`/`-native`); satisfies the **same** `WakeLockPort` as T-004 so the calling hook is platform-agnostic. Activate/deactivate must use the SAME tag — a mismatch leaves the lock held forever (REQ-CN-002). Verified on iOS + Android.
 
 ---
 
 ## US-007 — Recover an in-progress session after short interruption
 
-- [ ] **T-013** [P3] [US-007] Implement session persistence and 24h resume logic (IndexedDB / AsyncStorage) — `packages/shared/cooking/src/session-persistence.ts`
+- [ ] **T-013** [P3] [US-007] Implement session persistence and 24h resume logic (IndexedDB / AsyncStorage) — `packages/shared/cooking/src/sessionPersistence.ts`
     - **Depends on**: T-002
     - **Implements**: plan.md §8 Session Resume, FR-033, FR-035
     - **Acceptance**: Session saved on pause/exit; resume prompt shown if <24h; restores step index and active timers; start-fresh option clears cache.
@@ -149,10 +163,39 @@ they cover; the arrows above show coverage order, not "wait until implemented".
 
 ## US-006 — Use voice commands for next/back/timer
 
-- [ ] **T-014** [P3] [US-006] Implement Web Speech API voice command controller (`next`, `back`, `timer`, `pause`) — `packages/shared/cooking/src/voice-control.ts`
+> **Port/adapter split — BOTH platforms (owner ruling, 2026-08-09).** The Web Speech API may not be imported into the
+> platform-free `cooking-core`, so T-014 is a **pure grammar + port** there, with **two adapters** in the feature package.
+>
+> An earlier revision of this note recorded voice as an accepted **web-only** divergence, on the grounds that Expo ships no
+> built-in speech recognition. **That ruling is reversed:** the owner requires voice on web _and_ mobile, restoring compliance
+> with the cross-platform rule. `expo-speech-recognition` supplies the native capability and, usefully, exports a
+> Web-Speech-**compatible** recognition class — so the restart/latch/dispose policy stays ONE representation that both adapters
+> bind, rather than two implementations free to drift.
+>
+> **Known risk, recorded not hidden:** that library's `latest` is `56.0.1` with no `sdk-57` dist-tag, while this repo runs
+> Expo 57 / RN 0.86 — one SDK generation behind. Stub-based tests prove the adapter's _contract_, not that the native module
+> works on a real device; on-device verification is an open residual risk (T-020 / device sweep).
+>
+> **Open requirement gap (now MORE pressing, since mobile prompts at the OS level):** nothing in the spec covers microphone
+> **consent**. Starting recognition automatically on entry would be a privacy-hostile default, so voice is NOT auto-wired into
+> `CookingModeScreen`; it stays behind an explicit opt-in that US-006 must specify before it is surfaced. On native the adapter
+> additionally requests OS permission and **fails safe** — a denial yields a working no-op, never a throw or a retry loop.
+
+- [ ] **T-014** [P3] [US-006] Implement the pure voice command grammar + port — `packages/shared/cooking/src/voiceControl.ts`
     - **Depends on**: T-002
     - **Implements**: plan.md §5 Voice Control, FR-033, FR-034
-    - **Acceptance**: Toggle on/off; commands mapped to session actions; error/retry feedback surfaced; English MVP.
+    - **Acceptance**: A **closed, whole-utterance** grammar — the normalized transcript must EQUAL a declared phrase. Containment matching is forbidden: "next door" or "pause the music" must resolve to `null`, because a misfired command loses the cook's place mid-recipe. Unrecognised input returns `null` rather than guessing. The synonym table rejects a duplicate phrase (ambiguity silently resolved by table order) and a phrase that normalizes to empty (which would make **silence** a command). English MVP; the matcher factory takes a synonym table so a localized grammar has a seam.
+
+- [ ] **T-014a** [P3] [US-006] Implement the **web** voice adapter over the Web Speech API — `packages/apps/commise/features/cooking/src/voiceControl.ts`
+    - **Depends on**: T-014
+    - **Implements**: plan.md §5 Voice Control
+    - **Acceptance**: Satisfies `VoiceControlPort`; SSR-safe (no `window`/`document` at module scope) and a no-op when the API is absent. Chrome ends recognition after silence, so `end` restarts it — bounded by a consecutive-restart cap and a fatal-error latch (`not-allowed`, `service-not-allowed`, `audio-capture`, `aborted`) so a dead recogniser cannot hot-loop the microphone. The disposer stops recognition and detaches every listener, and guards an event the browser had already queued. **Not auto-started** — see the consent gap above.
+
+- [ ] **T-014b** [P3] [US-006] Implement the **native** voice adapter over `expo-speech-recognition` — `packages/apps/commise/features/cooking/src/voiceControl.native.ts`
+    - **Depends on**: T-014
+    - **Implements**: plan.md §5 Voice Control, cross-platform rule (CLAUDE.md §14)
+    - **Acceptance**: Satisfies the SAME `VoiceControlPort` as T-014a and binds the SAME shared restart/latch/dispose policy — `expo-speech-recognition` exports a Web-Speech-**compatible** recognition class, so that policy must have one representation, not two. Requests OS permission via `ExpoSpeechRecognitionModule.requestPermissionsAsync()` before starting, and **fails safe on denial**: no start, no throw, no retry loop, and a working no-op disposer. The Expo config plugin is registered in `@commise/mobile`'s app config with explicit microphone and speech-recognition permission copy — without it neither OS can even prompt. Tested against a recording stub (the `expoKeepAwakeStub` pattern), with a test asserting both adapters honour the same policy so the platforms cannot drift.
+    - **Residual risk**: `expo-speech-recognition@56.0.1` is the latest published and carries no `sdk-57` dist-tag, while this repo runs Expo 57 / RN 0.86. The stub tests prove the adapter's contract, **not** that the native module works on-device; that needs a real device or EAS build (T-020 / device sweep).
 
 ---
 

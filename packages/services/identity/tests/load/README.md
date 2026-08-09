@@ -126,7 +126,7 @@ not** "improve" this by provisioning real Clerk users.
 | `IDENTITY_BULK_USERS`                            | `20000`                      | Filler `users` rows that give the admin scan real cost                             |
 | `IDENTITY_TOKEN_TTL_SECONDS`                     | `3600`                       | Minted-token lifetime                                                              |
 | `IDENTITY_LOAD_AZP`                              | `https://identity-load.test` | The `azp` valid tokens claim (must match the service's `CLERK_AUTHORIZED_PARTIES`) |
-| `IDENTITY_TOKENS_FILE`                           | `../clerk-tokens.json`       | Pool file the scripts `open()` — **script-relative**                               |
+| `IDENTITY_TOKENS_FILE`                           | `../clerk-tokens.json`       | Pool file `lib/common.js` `open()`s — **module-relative**, see the ⚠️ below        |
 | `IDENTITY_ME_P95_MS` / `_P99_MS`                 | `500` / `1000`               | Profile-read budgets                                                               |
 | `IDENTITY_PROVISION_P95_MS`                      | `1000`                       | First-sight provisioning budget                                                    |
 | `IDENTITY_RENAME_P95_MS`                         | `500`                        | Rename budget                                                                      |
@@ -136,9 +136,12 @@ not** "improve" this by provisioning real Clerk users.
 | `IDENTITY_REJECT_P95_MS`                         | `250`                        | `401` rejection budget                                                             |
 | `IDENTITY_READY_RATE`                            | `2`                          | Readiness probes per second                                                        |
 
-⚠️ **`open()` is resolved relative to the SCRIPT, not the process cwd.** `lib/common.js` therefore opens
-`../clerk-tokens.json`, which is correct whether k6 is invoked from the package directory or the repo
-root. Do not "fix" it to a cwd-relative path.
+⚠️ **`open()` resolves relative to the directory of the MODULE WHOSE CODE IS EXECUTING at the moment of the
+call** — not the process cwd, and not the entry script unconditionally. `lib/common.js` opens the pool at its
+own **module top level**, so the pool one directory up is `'../clerk-tokens.json'`. Measured on k6 v0.54.0;
+the full table (and why food-service's identical-looking helper correctly uses `'./'`, because its loader is
+a function the entry script calls) is in `lib/common.js` beside the constant. Do not reconcile the two
+suites to one prefix, and do not make either cwd-relative.
 
 ## Running
 
@@ -244,12 +247,36 @@ real scans worse. The fix, when it is needed, is a trigram (`pg_trgm` GIN) index
 not a bigger budget; `adminLookupById` is in the same script precisely so the indexed-vs-scan gap stays
 visible while it is still cheap.
 
-## CI
+## CI — `load-test-identity` in `_ci-heavy.yml`
 
-The k6 tier belongs in `_ci-heavy.yml`, gated behind the same `run_load_test` input as the recipe and
-food load jobs, so it never fires on ordinary PR pipelines. Because `clerk-tokens.json` is gitignored, the
-job **must mint the pool itself** (`npm run test:load:tokens`) — it can never assume the file exists, and
-must never fall back to skipping quietly. The exact job is specified in the accompanying task report; it
-mirrors the `load-test` job's shape (Postgres service container, Docker image boot, `--summary-export`
-artifacts, container logs on failure) and needs **no LocalStack**, since none of these four scenarios
-touches S3 or SQS.
+The tier **runs**: `.github/workflows/_ci-heavy.yml` → job `load-test-identity`, gated behind the same
+`run_load_test` input as the recipe and food load jobs, so it never fires on an ordinary PR pipeline. Ways
+in are the four `heavy-e2e.yml` documents (nightly schedule, manual dispatch, the `heavy-e2e` PR label, or
+a PR touching food's measured query paths) plus `recipe-loadtest.yml`'s weekly run — `run_load_test` is one
+input covering every k6 job, so identity's tier moves with the others.
+
+It mirrors the `load-test-food` job's shape: a Postgres service container, the **proven Docker image**,
+`--summary-export` artifacts (package root only — never `tests/load/`), and container logs on failure. It
+needs **no LocalStack** (no scenario here touches S3 or SQS, and the rename path's handle-sync publisher
+no-ops with `HANDLE_SYNC_TOPIC_ARN` unset) and **no Clerk secret or AWS credential** — which is also why it
+cannot collide with the `e2e-web` Playwright job over the shared Clerk dev instance's per-IP rate limit.
+Because `clerk-tokens.json` is gitignored, the job **mints the pool itself** and can never assume the file
+exists.
+
+Three repo-level guards now hold this in place, in `packages/infra/global/__tests__/`:
+
+- `k6-load-tier-wiring.test.ts` — fails if any committed `*.load.js` is invoked by no workflow step (the
+  state this suite was in), if a CI job's script order contradicts the `test:load` chain above, if an
+  artifact-upload path could capture the token pool, or if a prepare step emits credentials outside the
+  `.gitignore` rule.
+- `heavy-e2e-load-tier-gate.test.ts` — evaluates the real gate expressions and asserts this job runs on
+  every trigger the recipe and food jobs do.
+- `workflow-invariants.test.ts` — no `continue-on-error` / `|| true` may appear in the job un-inventoried.
+
+**Verified locally end to end** (2026-08-09, k6 v0.54.0, the production Docker image against a throwaway
+Docker Postgres 16 on a non-default port): all four scripts exit `0` on a reduced shape, both
+measurement-validity counters at `0`. The tier was also proven able to FAIL, twice: tightening
+`IDENTITY_REJECT_P95_MS` to `0.01` and booting with `IDENTITY_DEV_AUTH_USER_ID` set (which collapses the
+SC-006 check, exactly as warned above) each exit `99`. What is **not** proven is a real GitHub Actions run —
+no such run has happened yet, so runner-specific behaviour (timings on a 2-core runner, the service-container
+boot, the k6 apt install) is unvalidated.

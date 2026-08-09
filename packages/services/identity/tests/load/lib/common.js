@@ -133,25 +133,58 @@ export function totalRampDuration() {
 }
 
 // --- Token pool ---------------------------------------------------------------------------------
-// Where `prepare-clerk-tokens.ts` wrote the pools.
+// Where `prepare-clerk-tokens.ts` wrote the pools: `tests/load/clerk-tokens.json`, one level ABOVE this
+// helper. Hence `'../clerk-tokens.json'`.
 //
-// ⚠️ k6's `open()` resolves relative to the ENTRY SCRIPT, not to this module and not to the process cwd.
-// That distinction is the whole trap, and this comment previously reasoned its way to the wrong answer:
-// it argued that because the helper sits in `tests/load/lib/`, the pool "one directory up" is
-// `'../clerk-tokens.json'`. It is not. The entry scripts (`session-hot-path.load.js` and friends) live in
-// `tests/load/`, so resolution is relative to THERE — `'../…'` escapes to `tests/clerk-tokens.json`, one
-// level too high, and `open()` fails on a path nothing writes.
+// ⚠️ READ THIS BEFORE "FIXING" THE PATH. This constant has now been wrong in BOTH directions, each time
+// because somebody reasoned about `open()` instead of running it. The rule is not "relative to the entry
+// script" and not "relative to the process cwd" — it is:
 //
-// Measured on k6 v0.54.0 while building the food-service tier, whose `lib/common.js` hit the same thing and
-// documents it. The correct default is entry-relative: `'./clerk-tokens.json'`.
+//     `open()` resolves relative to the directory of the MODULE WHOSE CODE IS EXECUTING at the moment of
+//     the call.
 //
-// This was latent rather than observed: no CI job runs the identity tier yet, so nothing had executed the
-// default path. Do not "restore" the `../` form by reasoning from where THIS file lives.
-const TOKENS_FILE = __ENV['IDENTITY_TOKENS_FILE'] || './clerk-tokens.json';
+// MEASURED on k6 v0.54.0 (`k6 version`: commit/baba871c8a, go1.23.1), with an entry script at
+// `load/entry.load.js` importing a helper at `load/lib/common.js`, opening files placed in both directories:
+//
+//   | call site                                        | `'./x'` resolves to | `'../x'` resolves to |
+//   | ------------------------------------------------ | ------------------- | -------------------- |
+//   | `lib/common.js` MODULE TOP LEVEL (what we do)     | `load/lib/x`        | `load/x`  ✅         |
+//   | a function in `lib/` CALLED from the entry's init | `load/x`            | (one above `load/`)  |
+//
+// So the correct default depends on WHERE the `open()` runs, not on where the file that contains it lives.
+// This suite opens at module top level (below), so the pool beside the entry scripts is `'../'`. The
+// food-service suite opens inside `loadTokens()`, which its entry scripts call, so ITS correct default is
+// `'./'` — the two are both right and are NOT copies of one another. A previous edit here read food's
+// `'./'`, assumed one shared rule, and switched this to `'./'`; that resolved to
+// `tests/load/lib/clerk-tokens.json`, which nothing writes, and every one of the four scripts died at init
+// with `GoError: stat …/tests/load/lib/clerk-tokens.json: no such file or directory` (exit 107).
+//
+// That regression survived review because NO CI JOB RAN THIS TIER — the comment it replaced even said so
+// ("latent rather than observed"). `_ci-heavy.yml`'s `load-test-identity` job now executes exactly this
+// default path on every heavy run, and `packages/infra/global/__tests__/k6-load-tier-wiring.test.ts` fails
+// if any committed `.load.js` stops being invoked, so the next such edit fails loudly instead of latently.
+const TOKENS_FILE = __ENV['IDENTITY_TOKENS_FILE'] || '../clerk-tokens.json';
 
-// Parsed ONCE in the init context. Every scenario imports from here, so the file is opened exactly once
-// per run regardless of how many scripts share it.
-export const TOKENS = JSON.parse(open(TOKENS_FILE));
+/**
+ * The pools, parsed ONCE in the init context — every scenario imports from here, so the file is opened
+ * exactly once per run regardless of how many scripts share it.
+ *
+ * The `try` is not decoration: `clerk-tokens.json` is GENERATED, GITIGNORED credential material, so it is
+ * never present from a fresh checkout. A bare `open()` reports a Go `stat` error naming a path, which says
+ * nothing about the step that was skipped; this names it. (Same shape as food's `loadTokens()`.)
+ */
+export const TOKENS = (() => {
+    try {
+        return JSON.parse(open(TOKENS_FILE));
+    } catch (error) {
+        throw new Error(
+            `common.js: cannot read the Clerk token pool at '${TOKENS_FILE}' (${error}). It is generated, ` +
+                'gitignored credential material — run `npm run test:load:tokens` first, then ' +
+                '`npm run test:load:db`, and boot the service under test with ' +
+                'CLERK_JWT_KEY="$(cat tests/load/clerk-public-key.pem)".',
+        );
+    }
+})();
 
 /** Read-only headers (Bearer + Accept) for the given token. */
 export function authHeaders(token, extra) {

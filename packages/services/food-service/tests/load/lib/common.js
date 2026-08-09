@@ -160,18 +160,27 @@ export const SUMMARY_TREND_STATS = ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99
 
 // --- Generated fixtures -------------------------------------------------------------------------
 //
-// ⚠️ k6's `open()` resolves relative to the ENTRY SCRIPT'S DIRECTORY — not the process cwd, and NOT the
-// module that calls `open()`. MEASURED (k6 v0.54.0): with the entry script at `tests/load/x.load.js` and
-// this helper at `tests/load/lib/common.js`, a `'../perf-fixture.json'` here resolved to
-// `tests/perf-fixture.json`, i.e. one level above `tests/load/`, not above `tests/load/lib/`. So the
-// correct default for a fixture SITTING BESIDE THE ENTRY SCRIPTS is `'./<name>'`, even though this file is
-// one directory deeper. Do not "fix" these to `'../…'` to match the helper's own location, and do not make
-// them cwd-relative — the whole point is that `k6 run` works identically from the package directory and
-// from the repo root.
+// ⚠️ k6's `open()` resolves relative to the directory of the MODULE WHOSE CODE IS EXECUTING at the moment
+// of the call — not the process cwd, and not (as this comment previously claimed) the entry script's
+// directory unconditionally. The distinction only shows up in a helper module like this one, and it is
+// exactly what decides `'./'` vs `'../'`. RE-MEASURED on k6 v0.54.0 (commit/baba871c8a), entry script at
+// `load/entry.load.js`, helper at `load/lib/common.js`, probe files in both directories:
 //
-// (The identity suite's `lib/common.js` defaults to `'../clerk-tokens.json'` and describes that as
-// script-relative. By the behaviour measured above that path is wrong for its layout too; it has no CI job
-// yet, so the bug is latent. Flagged rather than copied.)
+//   | call site                                       | `'./x'` resolves to | `'../x'` resolves to |
+//   | ----------------------------------------------- | ------------------- | -------------------- |
+//   | this helper's MODULE TOP LEVEL                   | `load/lib/x`        | `load/x`             |
+//   | a function here CALLED from the entry's init     | `load/x`  ✅        | (one above `load/`)  |
+//
+// The loaders below are FUNCTIONS the entry scripts call, so they sit in the second row and `'./<name>'` is
+// correct for a fixture beside the entry scripts, even though this file is one directory deeper. Do not
+// "fix" these to `'../…'` to match the helper's own location, do not make them cwd-relative, and do not
+// move an `open()` call to this module's top level without changing the prefix with it — the whole point is
+// that `k6 run` works identically from the package directory and from the repo root.
+//
+// (The identity suite opens its pool at its helper's MODULE TOP LEVEL, i.e. the first row, so its correct
+// default is `'../clerk-tokens.json'`. An earlier edit there copied the `'./'` from here on the strength of
+// this comment's over-general rule and broke all four of its scripts at init. Both suites are right; they
+// are not copies. Do not reconcile them to one prefix.)
 //
 // Both files are GENERATED and GITIGNORED, so they are NEVER present from a fresh checkout: the loaders
 // below fail with an actionable message naming the prepare step rather than letting k6 report a bare

@@ -1,23 +1,97 @@
 /**
- * `FoodSearchDao` (T-134/T-180, MOD-001) — the local-store search read path for `GET /api/v1/foods/search`.
- * Combines **ranked full-text search** (the STORED generated `food.search_vector` + `food_search_vector_idx`
- * GIN index, `ts_rank` relevance, word-order-independent lexeme matching) with the committed `pg_trgm` GIN
- * indexes (`food_name_trgm_idx` / `food_description_trgm_idx`) as the **fuzzy/substring/typo fallback** —
- * returning internal `id`s ranked by relevance (FR-008/FR-010). It NEVER calls a source — search is
- * local-only (FR-009), a single SQL read with no adapter/registry seam.
+ * `FoodSearchDao` (T-134/T-180/T-198, MOD-001) — the local-store search read path for
+ * `GET /api/v1/foods/search`. It NEVER calls a source — search is local-only (FR-009), a single SQL read
+ * with no adapter/registry seam. Only `RESOLVED` foods are surfaced (a served golden record has a golden
+ * `name`); in-flight/terminal rows are excluded. Barcode / `external_key` crosswalk lookup is handled by
+ * {@link FoodSourcesDao} in the service, not here.
  *
- * Only `RESOLVED` foods are surfaced (a served golden record has a golden `name`); in-flight/terminal
- * rows are excluded. Barcode / `external_key` crosswalk lookup is handled by {@link FoodSourcesDao} in
- * the service, not here.
+ * ## Two statements, selected by query LENGTH (T-198) — and one of them changed the semantics
+ *
+ * Search is a **Strategy** chosen by {@link selectSearchStrategy}: a pure, database-free routing decision
+ * returning a discriminated union that {@link FoodSearchDao.search} dispatches on exhaustively (the
+ * exhaustive switch over the tag IS the Visitor — no polymorphic class hierarchy is added for it).
+ *
+ * - **3+ characters → `relevance` (UNCHANGED).** Ranked full-text search (the STORED generated
+ *   `food.search_vector` + `food_search_vector_idx` GIN index, `ts_rank` relevance, word-order-independent
+ *   lexeme matching) OR'd with the `pg_trgm` GIN indexes (`food_name_trgm_idx` /
+ *   `food_description_trgm_idx`) as the fuzzy/substring/typo fallback.
+ * - **1–2 characters → `wordInitialPrefix` (NEW, and a DELIBERATE SEMANTIC CHANGE).** Word-initial prefix
+ *   matching over the SAME `food_search_vector_idx`, via `to_tsquery('simple', '<token>:*')`.
+ *
+ * ### Why the short path exists at all (measured, T-195 → T-198)
+ *
+ * Below 3 characters the `relevance` statement is a **guaranteed sequential scan**, because every one of
+ * its four branches is dead or unservable at that length:
+ *
+ *  1. `name ILIKE '%ch%'` / `description ILIKE '%ch%'` cannot use a trigram index — a pattern with fewer
+ *     than 3 characters between the wildcards yields no complete trigram, so `pg_trgm` has nothing to
+ *     look up and the planner falls back to a full scan.
+ *  2. `search_vector @@ plainto_tsquery('english', 'ch')` matches NOTHING: the stored vector holds
+ *     stemmed lexemes and `plainto_tsquery` is exact-lexeme-after-stemming, so `ch` never matches
+ *     `chicken`. Measured: 0 rows for every 1–2 character query.
+ *  3. `name % 'ch'` (trigram similarity) also matches nothing — a 2-character needle against a golden
+ *     name scores ~0.06 against the 0.3 `pg_trgm` threshold. (Measured at 0.25 even for `chicken`
+ *     against a 45-character name, i.e. this branch contributes nothing at ANY length on realistic
+ *     names; that is a separate finding, deliberately NOT changed here.)
+ *  4. Worse, a 1–2 character query that is an English **stopword** (`a`, `be`, `it`, `on`, `is`) stems to
+ *     an EMPTY tsquery under the `english` config, so branch 2 is not merely unhelpful but void.
+ *
+ * Measured on a 50,000-`RESOLVED`-food store shaped like the deployed one (see the numbers table in
+ * `specs/003-usda-food-data/tasks.md` T-198): `b` → **156.5ms** sequential scan, `ch` → **134.2ms**,
+ * against SC-007's 200ms p95 budget. After: **13.6ms** and **6.2ms**, on an index the schema already had.
+ *
+ * ### Why `'simple'` and not `'english'` (do not "fix" this to match the stored vector's config)
+ *
+ * The stored `search_vector` is built with `english`, but the QUERY side here MUST use `simple`. Prefix
+ * matching compares stored lexeme TEXT, so `'ch':*` still matches the english-stemmed lexeme `chicken`;
+ * what `simple` buys is that it does **not** discard stopwords, so `to_tsquery('simple', 'be:*')` is a
+ * real query that finds `Beef, ground` while `to_tsquery('english', 'be:*')` is EMPTY and finds nothing.
+ * Swapping the config back re-introduces failure mode 4 above for every short stopword query.
+ *
+ * ### Why the token is whitelisted in application code (never interpolated)
+ *
+ * `to_tsquery` PARSES its argument, so a raw `&`, `|`, `!`, `:`, `(` or `'` raises
+ * `syntax error in tsquery` — a 500 on a keystroke. {@link selectSearchStrategy} therefore reduces the
+ * query to letters and digits before appending the `:*` prefix marker, and the value still travels as a
+ * bound parameter. A tsquery-parsing library (`pg-tsquery` and friends) is the wrong tool here: those
+ * exist to give users boolean query SYNTAX, which is precisely the capability that must NOT reach
+ * `to_tsquery` from a search box.
+ *
+ * ### The semantic change, stated plainly (FR-008/FR-010)
+ *
+ * A 1–2 character query used to match **mid-word** (`ch` matched `ranch`, `spinach`, and `Salmon` for
+ * `on`) ranked by trigram-similarity noise. It now matches **word-initially** (`ch` → `Chicken`,
+ * `Cheddar cheese`, `ground chuck`) and no longer matches `ranch`. Word-initial matching is the intended
+ * autocomplete behaviour; the accepted consequence is that a short query which only occurred mid-word now
+ * returns nothing. 3+ character queries keep mid-word matching, unchanged.
  *
  * @implements FR-008 FR-009 FR-010
  */
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 
 import type { FoodDrizzle } from '../../database/database.module.js';
 
 /** Max search rows returned (FR-010). */
 const SEARCH_LIMIT = 20;
+
+/**
+ * Longest query, in characters, routed to the word-initial prefix statement.
+ *
+ * The boundary IS the trigram: `pg_trgm` extracts no complete trigram from a pattern with fewer than 3
+ * characters between wildcards, so at 1–2 characters the `ILIKE` branches cannot be index-served at all
+ * (they scan), while at 3 they can. Raising this would needlessly narrow working substring search;
+ * lowering it re-opens the sequential scan for 2-character queries.
+ */
+const SHORT_QUERY_MAX_CHARACTERS = 2;
+
+/** Everything that is not a letter or a digit — i.e. every `to_tsquery` metacharacter, and whitespace. */
+const NON_SEARCHABLE = /[^\p{L}\p{N}]/gu;
+
+/**
+ * Weight of the name-initial bonus in the short-query score. A name-initial hit therefore always
+ * outranks a merely word-initial one (the length term below can never reach it).
+ */
+const NAME_INITIAL_WEIGHT = 0.5;
 
 /** A ranked search row. */
 export interface SearchHit {
@@ -25,20 +99,51 @@ export interface SearchHit {
     id: string;
     /** Golden display name. */
     name: string | null;
-    /** Relevance score: the greater of FTS `ts_rank` and `pg_trgm` name similarity. */
+    /** Relevance score — see {@link SearchStrategy} for the per-strategy definition. */
     score: number;
+}
+
+/**
+ * Which SQL statement a query resolves to (a discriminated union, so the dispatch is exhaustive and the
+ * routing decision is testable without a database).
+ *
+ * - `none` — nothing searchable survived sanitisation; the caller returns no hits WITHOUT a round trip.
+ * - `wordInitialPrefix` — the 1–2 character path; `tsquery` is `<token>:*` and `token` is the sanitised
+ *   needle used to rank name-initial hits first.
+ * - `relevance` — the pre-existing 3+ character ranked FTS + `pg_trgm` fallback statement.
+ */
+export type SearchStrategy =
+    | { readonly kind: 'none' }
+    | { readonly kind: 'wordInitialPrefix'; readonly tsquery: string; readonly token: string }
+    | { readonly kind: 'relevance' };
+
+/**
+ * Choose the search statement for a query. Pure.
+ *
+ * @param query - The trimmed user query.
+ * @returns The strategy to execute; `none` when a short query holds no letter or digit.
+ */
+export function selectSearchStrategy(query: string): SearchStrategy {
+    // Characters, not UTF-16 code units: a single astral character must not read as a 2-character query.
+    if ([...query].length > SHORT_QUERY_MAX_CHARACTERS) {
+        return { kind: 'relevance' };
+    }
+
+    const token = query.replace(NON_SEARCHABLE, '');
+
+    if (token.length === 0) {
+        return { kind: 'none' };
+    }
+
+    return { kind: 'wordInitialPrefix', tsquery: `${token}:*`, token };
 }
 
 export class FoodSearchDao {
     public constructor(private readonly db: FoodDrizzle) {}
 
     /**
-     * Ranked search over `RESOLVED` foods (FR-008/FR-010). A row matches when EITHER the ranked FTS path
-     * hits (`search_vector @@ plainto_tsquery('english', query)` — word-order-independent lexeme match
-     * over name + description) OR the pg_trgm fuzzy fallback hits (trigram-similar name `%`, or a
-     * name/description substring `ILIKE`). The score is `GREATEST(ts_rank, similarity(name))` so a strong
-     * full-text relevance OR a strong fuzzy/typo match both rank a row up; ties break on name. Never
-     * calls a source.
+     * Ranked search over `RESOLVED` foods (FR-008/FR-010), routed by query length — see the class doc for
+     * why, what changed, and the measurements. Never calls a source.
      *
      * @param query - The trimmed user query.
      * @param limit - Max rows (default 20).
@@ -46,8 +151,80 @@ export class FoodSearchDao {
      * @sideEffect Reads `food`.
      */
     public async search(query: string, limit: number = SEARCH_LIMIT): Promise<SearchHit[]> {
+        const strategy = selectSearchStrategy(query);
+
+        switch (strategy.kind) {
+            case 'none':
+                return [];
+
+            case 'wordInitialPrefix':
+                return this.run(this.wordInitialPrefixQuery(strategy, limit));
+
+            case 'relevance':
+                return this.run(this.relevanceQuery(query, limit));
+
+            default: {
+                const unreachable: never = strategy;
+
+                throw new Error(`unhandled search strategy '${String(unreachable)}'`);
+            }
+        }
+    }
+
+    /**
+     * The 1–2 character word-initial prefix statement (T-198). Pure.
+     *
+     * The score expression is ALSO the sort key (referenced by its output alias), so the ranking has ONE
+     * authoritative definition and cannot drift from the order rows come back in. That matters beyond
+     * tidiness: `FoodCatalogGateway` in the recipe service re-sorts hits by `score DESC, name ASC`, so a
+     * constant or non-monotone score would silently discard this ranking downstream. The score is
+     * {@link NAME_INITIAL_WEIGHT} for a name-initial hit plus a strictly-decreasing function of name
+     * length, which keeps it inside `(0, 1)` — below the `1` the service assigns a barcode/external-key
+     * crosswalk hit, so a crosswalk match still sorts first.
+     *
+     * Ranking, in order: a hit whose NAME starts with the needle (what a user typing two letters means),
+     * then the shortest name (in a USDA catalogue the short names are the generic staples — `Egg, whole,
+     * raw` before `Barbecue marinated grilled boneless chicken thigh pieces`), then `name` for a
+     * deterministic tie break. `length(...)` and `lower(...)` are Postgres', so case folding and character
+     * counting have one authority and cannot diverge from a JS approximation of them.
+     *
+     * @param strategy - The selected prefix strategy.
+     * @param limit - Max rows.
+     * @returns The composable statement.
+     */
+    private wordInitialPrefixQuery(
+        strategy: Extract<SearchStrategy, { kind: 'wordInitialPrefix' }>,
+        limit: number,
+    ): SQL {
+        return sql`
+            SELECT id, name,
+                   (CASE WHEN lower(left(name, length(${strategy.token}::text))) = lower(${strategy.token}::text)
+                         THEN ${NAME_INITIAL_WEIGHT}::float8 ELSE 0::float8 END
+                    + ${NAME_INITIAL_WEIGHT}::float8 / (1 + length(name)))::float8 AS score
+            FROM food
+            WHERE status = 'RESOLVED'
+              AND name IS NOT NULL
+              AND search_vector @@ to_tsquery('simple', ${strategy.tsquery}::text)
+            ORDER BY score DESC, name ASC
+            LIMIT ${limit}
+        `;
+    }
+
+    /**
+     * The pre-existing 3+ character statement, unchanged: a row matches when EITHER the ranked FTS path
+     * hits (`search_vector @@ plainto_tsquery('english', query)` — word-order-independent lexeme match
+     * over name + description) OR the pg_trgm fuzzy fallback hits (trigram-similar name `%`, or a
+     * name/description substring `ILIKE`). The score is `GREATEST(ts_rank, similarity(name))` so a strong
+     * full-text relevance OR a strong fuzzy/typo match both rank a row up; ties break on name. Pure.
+     *
+     * @param query - The trimmed user query.
+     * @param limit - Max rows.
+     * @returns The composable statement.
+     */
+    private relevanceQuery(query: string, limit: number): SQL {
         const pattern = `%${query}%`;
-        const result = await this.db.execute<{ id: string; name: string | null; score: number }>(sql`
+
+        return sql`
             SELECT id, name,
                    GREATEST(
                        ts_rank(search_vector, plainto_tsquery('english', ${query})),
@@ -64,7 +241,18 @@ export class FoodSearchDao {
               )
             ORDER BY score DESC, name ASC
             LIMIT ${limit}
-        `);
+        `;
+    }
+
+    /**
+     * Execute a search statement and narrow its rows to {@link SearchHit}s.
+     *
+     * @param statement - The statement to run.
+     * @returns The ranked hits.
+     * @sideEffect Reads `food`.
+     */
+    private async run(statement: SQL): Promise<SearchHit[]> {
+        const result = await this.db.execute<{ id: string; name: string | null; score: number }>(statement);
 
         return result.rows.map((row) => ({ id: row.id, name: row.name, score: Number(row.score) }));
     }

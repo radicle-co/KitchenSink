@@ -1,8 +1,8 @@
 name: CI — heavy tiers (reusable)
 
-# The HEAVY test tiers: mobile Maestro (Android emulator + Gradle APK build) and the recipe + food k6
-# load tests. Parameterized by `stage`, and called ONLY by heavy-e2e.yml / recipe-loadtest.yml /
-# ci-full.yml — never by ci-pr.yml or ci-main.yml.
+# The HEAVY test tiers: mobile Maestro (Android emulator + Gradle APK build) and the recipe + food +
+# identity k6 load tests. Parameterized by `stage`, and called ONLY by heavy-e2e.yml /
+# recipe-loadtest.yml / ci-full.yml — never by ci-pr.yml or ci-main.yml.
 #
 # ## Why these three jobs live in their OWN reusable workflow
 #
@@ -18,8 +18,8 @@ name: CI — heavy tiers (reusable)
 #
 # ## Why they are opt-in at all (cost + duration)
 #
-# Maestro boots an Android emulator and Gradle-builds a release APK (~50 min measured); the two k6 jobs
-# build and boot two service images and drive minutes of sustained load. Together that is tens of
+# Maestro boots an Android emulator and Gradle-builds a release APK (~50 min measured); the three k6 jobs
+# build and boot three service images and drive minutes of sustained load. Together that is tens of
 # runner-minutes per push, which contradicts the repo's cost posture (ADR-0007/ADR-0008). So they run
 # nightly, on demand, or on a PR carrying the `heavy-e2e` label — and they are BLOCKING when they do run:
 # a red load threshold or a broken on-device flow is a real defect.
@@ -46,8 +46,9 @@ on:
                 type: string
             run_load_test:
                 description: >-
-                    Run the recipe + food k6 load-test jobs. A caller opts each tier in independently so
-                    `recipe-loadtest.yml` can run k6 without paying for the 50-minute emulator job.
+                    Run the recipe + food + identity k6 load-test jobs. A caller opts each tier in
+                    independently so `recipe-loadtest.yml` can run k6 without paying for the 50-minute
+                    emulator job.
                 required: false
                 type: boolean
                 default: true
@@ -408,8 +409,8 @@ jobs:
         # Boots the recipe-service against a Postgres + LocalStack service pair and runs ALL SEVEN tests/load
         # k6 scripts; a threshold breach exits k6 non-zero and fails the job.
         #
-        # ⚠️ `run_load_test` covers BOTH k6 jobs, so the food-path auto-trigger runs this recipe job too. That
-        # is accepted (bounded extra runner-minutes) rather than plumbed around with a third input.
+        # ⚠️ `run_load_test` covers ALL THREE k6 jobs, so the food-path auto-trigger runs this recipe job too.
+        # That is accepted (bounded extra runner-minutes) rather than plumbed around with a per-service input.
         if: ${{ inputs.run_load_test }}
         services:
             postgres:
@@ -820,3 +821,214 @@ jobs:
             - name: Food-service logs on failure
               if: failure()
               run: docker logs food-load 2>&1 | tail -150 || true
+
+    load-test-identity:
+        name: Load test (identity — k6) · heavy tier
+        runs-on: ubuntu-latest
+        needs: [install]
+        # The NFR-011a / SC-005 / SC-006 / SC-007 performance gate for `@kitchensink/identity-service` — the
+        # third k6 job, gated behind the SAME `run_load_test` input as recipe and food so the whole tier moves
+        # together (nightly / manual / `heavy-e2e` PR label / a PR touching food's measured query paths) and
+        # never fires on an ordinary PR push.
+        #
+        # WHY THIS EXISTS AT ALL. The four scripts under `packages/services/identity/tests/load/` were written,
+        # reviewed and merged — and no job ran them, so identity was the one deployable HTTP service in this
+        # repo whose §7.1-mandated k6 tier had never executed. That is not a cosmetic gap: identity has the
+        # widest blast radius here (it is the ONE identity provider every preview and both stages sign in
+        # against), and its budgets were previously "asserted" only by `tests/perf/latency-perf.test.ts`, a
+        # unit-tier vitest file that compares constants to themselves under no load. Proof the gap was real and
+        # not theoretical: `tests/load/lib/common.js` documents an `open()` path bug found by READING rather
+        # than running, explicitly "latent … because no CI job runs the identity tier yet".
+        # `packages/infra/global/__tests__/k6-load-tier-wiring.test.ts` now fails if any committed `.load.js`
+        # is invoked by no workflow step, so this cannot silently recur for the next service.
+        #
+        # ⚠️ IT CONTACTS NO CLERK INSTANCE, AND THAT IS DELIBERATE — it is also why this job cannot collide
+        # with `e2e-web`. Identity verifies Clerk session tokens NETWORKLESSLY against a pinned PEM
+        # (`CLERK_JWT_KEY`) with `azp` enforcement, so `prepare-clerk-tokens.ts` mints the pools against a
+        # THROWAWAY keypair and the container is booted trusting its public half. The real verifier, the real
+        # `azp` boundary and the real read-through provisioning all run, with zero requests to Clerk. The
+        # shared sandbox Clerk dev instance is a single per-IP rate limit — two concurrent suites against it
+        # have already turned CI red for reasons unrelated to the code under test (measured on one commit:
+        # 84 failures versus 89 green) — so this job takes no Clerk secret, needs no AWS credentials, and has
+        # no `load-secrets` step. Do NOT "improve" it by provisioning real Clerk users.
+        #
+        # SIMPLER than the recipe job by design, like food's: none of these four scenarios touches S3 or SQS,
+        # and the rename path's handle-sync publisher no-ops when `HANDLE_SYNC_TOPIC_ARN` is unset
+        # (`users.module.ts`), so this needs only a migrated Postgres — no LocalStack.
+        if: ${{ inputs.run_load_test }}
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: identity_load
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # No job here performs a git push/fetch/remote operation (verified), so the
+                  # checkout token is pure attack surface left in the workspace (zizmor: artipacked).
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            - name: Install k6
+              run: |
+                  sudo gpg -k
+                  sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+                      --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+                  echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+                      | sudo tee /etc/apt/sources.list.d/k6.list
+                  sudo apt-get update
+                  sudo apt-get install -y k6
+            # Build the service AND its shared deps (turbo `^build`) so the Dockerfile can COPY their dist +
+            # prod.package.json, then build the PROVEN image — a plain `node dist/src/main.js` boot cannot
+            # resolve the workspace `@kitchensink/*` bare specifiers (identity's Dockerfile copies FOUR shared
+            # dists: identity-utils, clerk-verify, identity-db, identity-core). Mirrors the recipe/food jobs
+            # AND the identity image build in `prod-deploy.yml` / `sandbox-identity-deploy.yml`, which is the
+            # authoritative recipe for this image.
+            - name: Build identity-service (+ shared deps)
+              run: npx turbo run build --filter=@kitchensink/identity-service
+            # Rewrite the identity package.json exports/main to ./dist — the image COPYs prod.package.json
+            # over the committed package.json (which exports ./src). Same step both identity deploy workflows
+            # run before their `docker buildx build`.
+            - name: Prepare identity-service prod manifest
+              run: npm run docker:prepare --workspace=packages/services/identity
+            - name: Build identity-service image
+              run: docker build -f packages/services/identity/Dockerfile -t identity-load:ci .
+            # Mint the RS256 Clerk pools + a THROWAWAY keypair. FIRST, and for two independent reasons:
+            #   • the boot below is given the public half as CLERK_JWT_KEY, so a pool minted afterwards would
+            #     verify against a key the service does not hold and every request would be a 401; and
+            #   • `prepare-db` REFUSES to run without a readable pool whose warm size matches what it seeds
+            #     (a surplus token names an unseeded `sub`, which the hot-path scenario would silently
+            #     read-through-PROVISION and then report first-sight write latency as the steady-state read).
+            # `clerk-tokens.json` and `clerk-public-key.pem` are gitignored live credential material, so this
+            # job MUST mint them and can never assume a checkout provides them. Neither file is ever uploaded:
+            # the artifact step below is scoped to `k6-*-summary.json` at the PACKAGE root, and
+            # `k6-load-tier-wiring.test.ts` fails if any upload path could capture the pool.
+            - name: Mint the identity Clerk session-token pool
+              working-directory: packages/services/identity
+              run: npm run test:load:tokens
+            # Apply the ordered `src/database/migrations/*.sql` and seed the three fixture sets the scenarios
+            # need: the warm principals (so the hot path measures a steady-state read, not provisioning), the
+            # admin principal, and 20,000 filler `users` rows — the `ilike '%needle%'` admin scan has no index
+            # to use, so that population is what makes `admin-user-search.load.js` able to FAIL. It also
+            # ANALYZEs, so the measured plan is the one a real table would get. DROPs the `public` schema of
+            # this runner-local throwaway database by design.
+            - name: Prepare identity load database (migrate + seed)
+              working-directory: packages/services/identity
+              env:
+                  DATABASE_URL: postgres://postgres:postgres@localhost:5432/identity_load
+              run: npm run test:load:db
+            # PORT=3001 — identity's OWN default (src/config/env.schema.ts) and the host:port the k6 scripts
+            # default to, unlike the recipe/food jobs' 3000.
+            #
+            # STAGE=loadtest is a DEPLOYED stage as far as the env schema is concerned, which is the point: it
+            # makes CLERK_JWT_KEY + exactly one `azp` mode REQUIRED, so the container fails to boot rather than
+            # quietly skipping verification. CLERK_AUTHORIZED_PARTIES is the exact-match list mode the minted
+            # `azp` claims — the production posture (ADR-0001), not the preview pattern.
+            #
+            # DELETION_QUEUE_URL is schema-required but never reached: `DELETE /api/v1/users/me` is
+            # deliberately excluded from this tier (once per user lifetime, destructive, and it tombstones the
+            # very principal presenting the token), so a syntactically valid URL satisfies boot with no SQS
+            # traffic. HANDLE_SYNC_TOPIC_ARN is left UNSET so the rename path's publisher is the no-op.
+            #
+            # ⚠️ IDENTITY_DEV_AUTH_USER_ID is deliberately NOT set. That non-production bypass short-circuits
+            # `AuthMiddleware` entirely — no token verification and no read-through provisioning — i.e. it
+            # removes the two things this tier exists to measure. (The recipe jobs legitimately use their
+            # equivalent, because recipe's load is about recipe routes, not about auth.) The mistake would not
+            # be silent: under the bypass `auth-rejection.load.js`'s invalid credentials answer 200 and its
+            # SC-006 check collapses.
+            - name: Boot identity-service (Docker)
+              run: |
+                  docker run -d --name identity-load --network host \
+                      -e NODE_ENV=development \
+                      -e STAGE=loadtest \
+                      -e PORT=3001 \
+                      -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/identity_load \
+                      -e DELETION_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000000000000/identity-load-deletion \
+                      -e CLERK_JWT_KEY="$(cat packages/services/identity/tests/load/clerk-public-key.pem)" \
+                      -e CLERK_AUTHORIZED_PARTIES=https://identity-load.test \
+                      identity-load:ci
+                  for i in $(seq 1 40); do
+                      if curl -sf http://localhost:3001/health > /dev/null; then echo "service up"; break; fi
+                      sleep 2
+                  done
+                  curl -sf http://localhost:3001/health || { echo "service did not boot"; docker logs identity-load; exit 1; }
+            # ── The four scenarios, in the ONE order that is valid ───────────────────────────────────────
+            # ⚠️ SCRIPT ORDER IS LOAD-BEARING and is not a stylistic choice. It mirrors the package's own
+            # `test:load` script (the authoritative ordering), and
+            # `packages/infra/global/__tests__/k6-load-tier-wiring.test.ts` fails if the two ever disagree:
+            #
+            #   1. `provisioning-and-rename` is the only WRITE-heavy script (it inserts thousands of users).
+            #      Run earlier, it leaves Postgres autovacuuming and checkpointing DURING the read-sensitive
+            #      scripts. Measured (tests/load/README.md): with the rejection script running immediately
+            #      after it, `validUnderStorm` p95 was 722ms against a 500ms budget and rejection p95 263ms;
+            #      on a settled database the same script measured 5.4ms and 1.5ms. That ~130x artefact is a
+            #      red run that looks like a service defect and is not one.
+            #   2. Its cold tokens are SINGLE-USE — only "cold" against a database that has never seen their
+            #      `sub` — so running it last means the single `prepare-db` above covers the whole suite.
+            #
+            # Each script is its own step so the run graph attributes a failure to a scenario rather than to
+            # one opaque "run k6" block, and each exports a summary: the p99 the plan's NFR-011a target is
+            # stated in is enforced as a threshold, and a threshold whose VALUE you cannot read turns a
+            # failure into a guess. A breach exits k6 non-zero and fails the step — no `continue-on-error`,
+            # no `|| true`.
+            - name: Run k6 session hot-path load script (NFR-011a profile p95/p99, readiness under load)
+              working-directory: packages/services/identity
+              env:
+                  IDENTITY_API_BASE_URL: http://localhost:3001
+              run: k6 run --summary-export=k6-hotpath-summary.json tests/load/session-hot-path.load.js
+            - name: Run k6 auth-rejection load script (SC-006, and the no-starvation guard)
+              working-directory: packages/services/identity
+              env:
+                  IDENTITY_API_BASE_URL: http://localhost:3001
+              run: k6 run --summary-export=k6-rejection-summary.json tests/load/auth-rejection.load.js
+            - name: Run k6 admin-user-search load script (ilike scan vs the indexed probe)
+              working-directory: packages/services/identity
+              env:
+                  IDENTITY_API_BASE_URL: http://localhost:3001
+              run: k6 run --summary-export=k6-admin-search-summary.json tests/load/admin-user-search.load.js
+            # LAST, for the two reasons in the block above. Not reorderable.
+            - name: Run k6 provisioning + rename load script (first-sight write path — runs LAST)
+              working-directory: packages/services/identity
+              env:
+                  IDENTITY_API_BASE_URL: http://localhost:3001
+              run: k6 run --summary-export=k6-provisioning-summary.json tests/load/provisioning-and-rename.load.js
+            # PACKAGE ROOT only. `--summary-export` writes here (k6 runs with this working directory), which is
+            # deliberately NOT `tests/load/` — that directory holds `clerk-tokens.json`, thousands of live
+            # bearer JWTs, and this repo is PUBLIC. Widening this path, or pointing it at a directory, is the
+            # exfiltration this tier's guard test exists to prevent.
+            - name: Upload k6 summaries
+              if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: identity-k6-summaries-${{ inputs.stage }}
+                  path: packages/services/identity/k6-*-summary.json
+                  retention-days: 7
+                  if-no-files-found: warn
+            # A k6 threshold breach reports only latency/status aggregates; the service-side exception behind a
+            # 500 (a pool exhaustion, a failed transaction, a rejected token) is only in the container log.
+            # No `|| true`: GitHub runs `run:` under `bash -e` without `pipefail`, so the pipeline's status is
+            # `tail`'s and a missing container cannot mask the real failure that triggered this step.
+            - name: Identity-service logs on failure
+              if: failure()
+              run: docker logs identity-load 2>&1 | tail -150

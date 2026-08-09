@@ -1,12 +1,12 @@
 name: Heavy E2E (Maestro + k6)
 
 # The opt-in caller for the HEAVY test tiers: mobile Maestro (Android emulator + Gradle APK build) and the
-# recipe + food k6 load tests. Those jobs live in the reusable `_ci-heavy.yml`, which nothing else calls on
+# recipe + food + identity k6 load tests. Those jobs live in the reusable `_ci-heavy.yml`, which nothing else calls on
 # an ordinary PR or push — so this workflow is how they run at all.
 #
 # WHY a separate caller rather than folding them into ci-pr/ci-main: cost + duration. Maestro boots an
-# emulator and Gradle-builds a release APK (~50 min measured), and the two k6 jobs build/boot two service
-# images and drive minutes of sustained load — together tens of runner-minutes. Putting that on every PR
+# emulator and Gradle-builds a release APK (~50 min measured), and the three k6 jobs build/boot three
+# service images and drive minutes of sustained load — together tens of runner-minutes. Putting that on every PR
 # push and every main push contradicts the repo's cost posture (ADR-0007/ADR-0008). So they run only through
 # the four deliberate entry points listed below — and they are BLOCKING when they run (no continue-on-error):
 # a red load threshold or a broken on-device flow is a real defect, and the repo has no non-blocking-job
@@ -46,9 +46,12 @@ name: Heavy E2E (Maestro + k6)
 # here — a food-search change has no business Gradle-building an APK and booting an Android emulator for ~50
 # measured minutes — so `run_mobile_maestro` now requires the LABEL on a `pull_request`.
 #
-# Accepted, not overlooked: `run_load_test` covers BOTH k6 jobs (recipe + food), so an auto-trigger on food
-# paths also runs the recipe load job. Splitting them would mean a third input threaded through the reusable
-# workflow to save a bounded number of runner-minutes on an uncommon PR shape; the extra job stays.
+# Accepted, not overlooked: `run_load_test` covers ALL THREE k6 jobs (recipe + food + identity), so an
+# auto-trigger on food paths also runs the recipe and identity load jobs. Splitting them would mean a
+# per-service input threaded through the reusable workflow to save a bounded number of runner-minutes on an
+# uncommon PR shape; the extra jobs stay. The corollary is also deliberate: identity's tier has no
+# changed-path trigger of its own, so an identity-only PR reaches it via the LABEL (or the nightly run) —
+# the same posture as recipe's.
 #
 # ⚠️ The `detect` job MUST stay runnable on EVERY event. GitHub skips every dependent of a skipped job, so
 # gating it on `pull_request` would silently kill the nightly and dispatch runs while every `if:` below still
@@ -66,7 +69,7 @@ on:
     workflow_dispatch:
         inputs:
             run_load_test:
-                description: Run the recipe + food k6 load-test jobs
+                description: Run the recipe + food + identity k6 load-test jobs
                 type: boolean
                 default: true
             run_mobile_maestro:

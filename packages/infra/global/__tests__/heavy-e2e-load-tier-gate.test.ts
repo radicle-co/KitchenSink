@@ -101,8 +101,15 @@ const CALLEE_FILE = '_ci-heavy.yml';
 /** The job in `heavy-e2e.yml` that calls the heavy tiers. */
 const GATED_JOB = 'heavy';
 
-/** The `_ci-heavy.yml` job ids for each tier, as the callee names them. */
-const LOAD_TEST_JOBS = ['load-test', 'load-test-food'] as const;
+/**
+ * The `_ci-heavy.yml` job ids for each tier, as the callee names them.
+ *
+ * All THREE k6 jobs share the single `run_load_test` input on purpose (see the callee's header), so every
+ * scenario below asserts the whole tier moves together. Identity is listed for the same reason food is: its
+ * four scripts existed for weeks with no job running them, and a list that omitted the new job would let it
+ * be quietly gated differently — or dropped — without any scenario noticing.
+ */
+const LOAD_TEST_JOBS = ['load-test', 'load-test-food', 'load-test-identity'] as const;
 const MAESTRO_JOB = 'e2e-mobile-maestro';
 
 interface WorkflowStep {

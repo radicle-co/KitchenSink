@@ -2,8 +2,12 @@
 #
 # The recipe k6 job lives in the reusable `_ci-heavy.yml`, which no ordinary PR/push pipeline calls, so the
 # heavy run never fires on one. This workflow is the intended opt-in CALLER: it invokes `_ci-heavy.yml`
-# with the Maestro half switched off, so only `Load test (recipe — k6)` runs — on a weekly schedule and on
-# demand. (Mirrors the per-service load-test trigger pattern of food-loadtest.yml.)
+# with the Maestro half switched off, so the k6 jobs run without the 50-minute emulator — on a weekly
+# schedule and on demand. (Mirrors the per-service load-test trigger pattern of food-loadtest.yml.)
+#
+# NOTE: `run_load_test` is ONE input covering EVERY k6 job in `_ci-heavy.yml` (recipe + food + identity), so
+# this caller runs all of them, not only the recipe one. Accepted rather than plumbed around with a
+# per-service input — see the same note in heavy-e2e.yml.
 #
 # Trigger: Actions → "Recipe load test (k6)" → Run workflow, or `gh workflow run recipe-loadtest.yml`.
 #

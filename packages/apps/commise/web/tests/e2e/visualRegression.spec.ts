@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
@@ -45,17 +45,23 @@ import {
  *    pinned clock must produce against the fixed fixture timestamp; that assertion is the pin's proof.
  *  - **The capture is not blank.** A zero-height or all-white PNG uploads and diffs perfectly happily.
  *
- * ## The one thing that CANNOT be pinned from here, and is masked instead
+ * ## Home's greeting was MASKED here, and is now PINNED (#144)
  *
- * Home's greeting ("Good afternoon, Chef!" over the long date) is **server**-rendered and stays that way:
- * `HomeGreeting` carries `suppressHydrationWarning`, and React does not patch a suppressed text mismatch, so
- * the client's value never replaces the server's. Measured directly — with the browser clock pinned to
- * 03:00 UTC (the `night` bucket, "Still up, Chef?") the DOM still read "Good afternoon, Chef!" over the real
- * wall-clock date. `page.clock` is browser-side and cannot reach the Next server, so those two lines are
- * MASKED in the Home capture, and the mask targets are asserted to exist (a mask over nothing silently stops
- * protecting anything). This is a product defect, not a test compromise — the module's own JSDoc claims "the
- * client value wins on hydration", and `formatHomeDate` claims the date is "today as the viewer experiences
- * it"; both are false as shipped. When it is fixed, delete the mask and assert the pinned strings instead.
+ * It used to be the one thing this suite could not pin. `HomeGreeting` computed its bucket during the
+ * **server** render and carried `suppressHydrationWarning` — which only silences the mismatch warning; React
+ * keeps the server-rendered text — so the two lines showed the Next server's clock and zone, and `page.clock`
+ * (browser-side) could not reach them. Both were therefore painted over with a mask.
+ *
+ * The client clock is now the authority (the SSR pass commits to no bucket and reserves an `aria-hidden`
+ * placeholder until hydration), so the pin DOES reach the render and the mask is gone: the Home capture asserts
+ * {@link PINNED_GREETING} and {@link PINNED_GREETING_DATE} — the exact strings `VISUAL_CLOCK_ISO` +
+ * `VISUAL_TIMEZONE` must produce — before photographing them. That is a stronger guarantee than the mask it
+ * replaces, and of the same kind as the card-footer assertion above: it is the greeting's proof that the pinned
+ * clock reached the render. Reintroduce the server-clock read and this capture goes red rather than quietly
+ * baselining whatever the runner's wall clock said.
+ *
+ * The two lines are also now IN the baseline rather than flat grey, so this change moves the
+ * `home-widget-surface-desktop` baseline once, on purpose.
  *
  * ## Why THESE four surfaces
  *
@@ -92,9 +98,21 @@ const RECIPE_TITLE = 'Mediterranean Grilled Lamb';
  */
 const PINNED_CARD_TIMESTAMP = 'Created 21w ago';
 
-/** Home's server-clock-derived greeting lines, masked rather than pinned — see the module JSDoc. */
-const GREETING_HEADING = /^(Good (morning|afternoon|evening), Chef!|Still up, Chef\?)$/;
-const GREETING_DATE = /^\w+day, \w+ \d{1,2}, \d{4}$/;
+/**
+ * The greeting the pinned clock must produce, read from the VIEWER's clock (#144).
+ *
+ * `VISUAL_CLOCK_ISO` is 15:30 in `VISUAL_TIMEZONE`, which `greetingBucketForHour` buckets as `afternoon` (its
+ * boundaries are 05/12/17/22). Exact strings, not the four-bucket alternation this used to mask: a regex that
+ * accepts every bucket cannot tell "the client clock decided" from "some clock decided", which is the whole
+ * distinction #144 turned on.
+ */
+const PINNED_GREETING = 'Good afternoon, Chef!';
+
+/**
+ * The date subtitle the same pin must produce. 2026-05-31 is a SUNDAY — the wireframe's "Saturday" is fictional
+ * copy, and `formatHomeDate` renders the real weekday.
+ */
+const PINNED_GREETING_DATE = 'Sunday, May 31, 2026';
 
 /** A capture must be more than a trivially small PNG; a blank page still encodes to a valid image. */
 const MIN_PNG_BYTES = 5_000;
@@ -128,20 +146,16 @@ async function signInAndSeed(page: Page): Promise<void> {
 /**
  * Capture a surface and assert the PNG carries real content.
  *
+ * Takes no mask: every region in this suite's four captures is now ours and pinnable (#144 retired the last
+ * one). `captureStable` still exposes `mask` — it is the documented seam for reinstating the sign-in baseline
+ * over Clerk's remotely-rendered widget — but nothing here needs it.
+ *
  * @param page - A settled page.
  * @param name - The Argos screenshot name (also the file name, which is Argos's comparison key).
- * @param options - Whether to mask a region this suite does not own.
  * @sideEffect Screenshots the page and writes the file.
  */
-async function captureBaseline(
-    page: Page,
-    name: string,
-    options: { readonly mask?: readonly Locator[] } = {},
-): Promise<void> {
-    const png = await captureStable(page, {
-        path: `${ARGOS_SCREENSHOT_DIR}/web/${name}.png`,
-        ...(options.mask === undefined ? {} : { mask: options.mask }),
-    });
+async function captureBaseline(page: Page, name: string): Promise<void> {
+    const png = await captureStable(page, { path: `${ARGOS_SCREENSHOT_DIR}/web/${name}.png` });
 
     expect(
         png.byteLength,
@@ -165,15 +179,16 @@ test.describe('Argos visual-regression baselines — desktop', () => {
         await settleHomeWidgets(page, RECIPE_TITLE);
         await assertBrandWebfonts(page);
 
-        // The mask must actually cover the two server-clock lines: a mask whose locator resolves to nothing
-        // silently stops protecting the baseline, and the flap would only surface as a mystery diff a day
-        // later. Asserting they exist first is what keeps the mask honest.
-        const greeting = page.getByRole('heading', { level: 2, name: GREETING_HEADING });
-        const greetingDate = page.getByText(GREETING_DATE);
-        await expect(greeting).toHaveCount(1);
-        await expect(greetingDate).toHaveCount(1);
+        // #144 — the pinned BROWSER clock reached the greeting, which is the proof that the viewer's clock (not
+        // the Next server's) decides it: `page.clock` cannot reach the server, so a server-computed bucket
+        // could not match these strings except by the runner's coincidence. Exactly one node each, so a
+        // duplicated greeting (SSR text left beside the hydrated one) also fails here. `exact` on both, because
+        // Playwright's default name/text matching is case-insensitive SUBSTRING — which would accept a greeting
+        // that merely contains the pinned one.
+        await expect(page.getByRole('heading', { level: 2, name: PINNED_GREETING, exact: true })).toHaveCount(1);
+        await expect(page.getByText(PINNED_GREETING_DATE, { exact: true })).toHaveCount(1);
 
-        await captureBaseline(page, 'home-widget-surface-desktop', { mask: [greeting, greetingDate] });
+        await captureBaseline(page, 'home-widget-surface-desktop');
     });
 
     test('the recipe library (FR-006, FR-001c, FR-003a, FR-013a)', async ({ page }) => {

@@ -36,8 +36,19 @@ test.describe('Home widget surface (T104)', () => {
         await expect(page.getByRole('banner').getByText('Home')).toBeVisible();
         await expect(page.getByRole('navigation', { name: 'Main' }).first()).toBeVisible();
 
-        // The time-of-day greeting renders (any of the four buckets — the clock decides which).
-        await expect(page.getByRole('heading', { name: /Chef/u })).toBeVisible();
+        // The time-of-day greeting renders. Anchored to the four buckets EXACTLY (this used to be a bare
+        // `/Chef/u`, which a truncated greeting or a leaked `home.greetings.morning` dictionary key would still
+        // satisfy), plus the long-date subtitle beneath it, which was asserted nowhere. This spec runs on the
+        // real wall clock, so WHICH bucket is the clock's business — the guarantee that the VIEWER's clock is
+        // the one consulted (#144) is gated in `visualRegression.spec.ts`, where the browser clock is pinned to
+        // an instant the Next server cannot know.
+        await expect(
+            page.getByRole('heading', {
+                level: 2,
+                name: /^(Good (morning|afternoon|evening), Chef!|Still up, Chef\?)$/u,
+            }),
+        ).toBeVisible();
+        await expect(page.getByText(/^\w+day, \w+ \d{1,2}, \d{4}$/u)).toBeVisible();
 
         // The recipe (recent-recipes) widget renders with its heading and the viewer's recent recipe.
         await expect(page.getByRole('heading', { name: 'Recent recipes' })).toBeVisible();

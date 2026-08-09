@@ -82,7 +82,13 @@ import {
 const RECIPE_ID = 'rec_lamb';
 const RECIPE_TITLE = 'Mediterranean Grilled Lamb';
 
-/** Home's greeting heading, on either document — the wireframe's is `afternoon`, the app's is server-derived. */
+/**
+ * Home's greeting heading, on either document. Deliberately matched LOOSELY (any bucket) on both sides even
+ * though the pinned clock now settles the app's to `afternoon` (#144): the anchor's job is to REPORT a copy
+ * delta, and `probeAnchor` records an unmatched locator as ABSENT — so a tight string would turn a wording
+ * difference into a phantom "the implementation has no greeting". Same reasoning as `recentRecipesHeading`
+ * below. The exact pinned strings ARE asserted, as a gate, in `visualRegression.spec.ts`.
+ */
 const GREETING_HEADING = /^(Good (morning|afternoon|evening), Chef!|Still up, Chef\?)$/;
 
 /** A captured surface must carry real content; a blank page still encodes to a valid PNG. */
@@ -162,9 +168,9 @@ const PAIRS: readonly PairSpec[] = [
         route: '/',
         requirementIds: ['FR-044', 'FR-046'],
         caveats: [
-            'The greeting and its date line are SERVER-rendered (HomeGreeting carries suppressHydration' +
-                'Warning, and React never patches a suppressed text mismatch), so the pinned browser clock ' +
-                'cannot reach them and they show the Next server\u2019s clock and zone.',
+            'The greeting and its date line derive from the VIEWER\u2019s clock after hydration (#144), so the ' +
+                'pinned browser clock reaches them and both documents depict the same afternoon bucket \u2014 ' +
+                'any greeting delta on this pair is real copy drift, not two different clocks.',
             'Home v1 implements ONE live widget (recent recipes) by design \u2014 FR-046; the nutrition, ' +
                 'meal-plan and resume-cooking slots are deliberate "coming soon" roadmap placeholders.',
         ],

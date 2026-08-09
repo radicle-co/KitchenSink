@@ -119,6 +119,7 @@ describe('UsdaSourceAdapter.fetchByKey — mapToCanonical', () => {
         const adapter = makeAdapter(makeJsonFetch(body));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('171688');
         } catch (error) {
@@ -132,6 +133,7 @@ describe('UsdaSourceAdapter.fetchByKey — mapToCanonical', () => {
         const adapter = makeAdapter(makeJsonFetch(makeUsdaFoodDetailBody()));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('not-a-number');
         } catch (error) {
@@ -218,6 +220,7 @@ describe('UsdaSourceAdapter.fetchByKey — branded labelNutrients (per-serving p
         );
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('555001');
         } catch (error) {
@@ -233,6 +236,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeStatusFetch(429));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('171688');
         } catch (error) {
@@ -247,6 +251,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeStatusFetch(404));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('171688');
         } catch (error) {
@@ -261,6 +266,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeStatusFetch(503));
 
         let thrown: unknown;
+
         try {
             await adapter.fetchByKey('171688');
         } catch (error) {
@@ -275,6 +281,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeAbortingFetch());
 
         let thrown: unknown;
+
         try {
             await adapter.searchByName('broccoli');
         } catch (error) {
@@ -291,6 +298,7 @@ describe('UsdaSourceAdapter — error classification', () => {
         const adapter = makeAdapter(makeJsonFetch({ totalHits: 1, foods: [{ description: 'no fdcId' }] }));
 
         let thrown: unknown;
+
         try {
             await adapter.searchByName('broccoli');
         } catch (error) {

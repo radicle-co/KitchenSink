@@ -158,6 +158,7 @@ describe.skipIf(!DATABASE_URL)('@kitchensink/food-service-client against the boo
 
         const got = await client.getById(add.id);
         expect(got.status).toBe('RESOLVED');
+
         if (got.status === 'RESOLVED') {
             expect(got.food.id).toBe(add.id);
             expect(got.food.nutrients[0]?.nutrient).toBe('Protein');
@@ -209,6 +210,7 @@ describe.skipIf(!DATABASE_URL)('@kitchensink/food-service-client against the boo
             ]);
             await pool.query(`INSERT INTO fetch_queue (food_id, status) VALUES ($1, 'pending')`, [id]);
         }
+
         stub.programResolve('one too many');
 
         const error = await client.addByName('one too many').catch((caught: unknown) => caught);

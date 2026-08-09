@@ -28,9 +28,11 @@ describe('EnvironmentSchema — required, fail-closed config', () => {
         const result = EnvironmentSchema.safeParse(withoutKey);
 
         expect(result.success).toBe(false);
+
         if (result.success) {
             throw new Error('expected validation to fail');
         }
+
         expect(result.error).toBeInstanceOf(ZodError);
         expect(result.error.issues.some((issue) => issue.path.includes('USDA_API_KEY'))).toBe(true);
     });
@@ -178,6 +180,7 @@ describe('EnvironmentSchema — azp enforcement mode', () => {
 describe('resolveEnvironment', () => {
     it('parses process.env (smoke: returns the validated env when the required vars are present)', () => {
         const saved = { ...process.env };
+
         try {
             process.env['DATABASE_URL'] = VALID_ENV.DATABASE_URL;
             process.env['USDA_API_KEY'] = VALID_ENV.USDA_API_KEY;

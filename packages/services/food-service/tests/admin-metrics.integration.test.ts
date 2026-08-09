@@ -28,6 +28,7 @@ async function seed(
         input.id,
         input.status,
     ]);
+
     if (input.queue) {
         await pool.query(`INSERT INTO fetch_queue (food_id, status) VALUES ($1, $2)`, [input.id, input.queue]);
     }

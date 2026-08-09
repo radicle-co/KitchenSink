@@ -70,6 +70,7 @@ function build(options: {
     readonly maxConsecutiveFailures?: number;
 }) {
     const calls: string[] = [];
+
     const record =
         <T>(name: string, result: T) =>
         async (): Promise<T> => {

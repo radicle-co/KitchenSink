@@ -118,15 +118,18 @@ describe.skipIf(!DATABASE_URL)('kitchensink_food schema (integration)', () => {
                   WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
             );
             const names = new Set(rows.map((row) => row.table_name));
+
             for (const table of EXPECTED_TABLES) {
                 expect(names, `missing table ${table}`).toContain(table);
             }
+
             expect(names.size).toBe(EXPECTED_TABLES.length);
         });
 
         it('creates the 6 controlled-set enum types (DB-7)', async () => {
             const { rows } = await pool.query<{ typname: string }>(`SELECT typname FROM pg_type WHERE typtype = 'e'`);
             const names = new Set(rows.map((row) => row.typname));
+
             for (const enumType of EXPECTED_ENUMS) {
                 expect(names, `missing enum ${enumType}`).toContain(enumType);
             }

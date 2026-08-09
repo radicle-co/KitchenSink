@@ -229,6 +229,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         const { consumer, puts } = build(adapter);
 
         const dispositions: string[] = [];
+
         for (let pass = 0; pass < 5; pass += 1) {
             // Simulate the backoff window elapsing so the row is eligible again each pass.
             await pool.query(`UPDATE fetch_queue SET last_requested = now() - interval '1 second' WHERE food_id = $1`, [
@@ -330,9 +331,11 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
 
     it('limiter pause at 90% halts fan-out for that source (deferred; no source call, no event)', async () => {
         const id = await enqueueFood('paused food');
+
         for (let i = 0; i < 9; i += 1) {
             await pool.query(`INSERT INTO source_call_log (source, called_at) VALUES ('usda', now())`);
         }
+
         const adapter = makeFakeUsdaAdapter();
         const { consumer, puts } = build(adapter, { usda: { hardCap: 10, pauseThreshold: 9 } });
 
@@ -356,7 +359,9 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         const { consumer } = build(adapter, { usda: { hardCap: 3, pauseThreshold: 3 } });
 
         // Enqueue 5 distinct foods — more than the cap of 3.
-        for (let i = 0; i < 5; i += 1) await enqueueFood(`ratelimit food ${i}`);
+        for (let i = 0; i < 5; i += 1) {
+            await enqueueFood(`ratelimit food ${i}`);
+        }
 
         // The first 3 each charge one windowed call and reach a terminal state (row deleted).
         for (let i = 0; i < 3; i += 1) {
@@ -376,8 +381,11 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
 
         // RESUME: with the window clear, the stalled foods drain to a terminal state and leave the queue.
         for (let i = 0; i < 5; i += 1) {
-            if ((await consumer.processNext()) === 'idle') break;
+            if ((await consumer.processNext()) === 'idle') {
+                break;
+            }
         }
+
         const drained = await pool.query(`SELECT count(*)::int AS n FROM fetch_queue`);
         expect(Number(drained.rows[0].n)).toBe(0); // fully drained once the limit cleared
     });
@@ -391,8 +399,11 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
             expect(caps.usda.hardCap).toBe(20);
             expect(caps.usda.pauseThreshold).toBe(18); // 90%
         } finally {
-            if (prev === undefined) delete process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'];
-            else process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] = prev;
+            if (prev === undefined) {
+                delete process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'];
+            } else {
+                process.env['FOOD_SOURCE_RATE_LIMIT_PER_HOUR'] = prev;
+            }
         }
     });
 
@@ -406,6 +417,7 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
             maxInFlight = Math.max(maxInFlight, inFlight);
             await new Promise((res) => setTimeout(res, 40));
             inFlight -= 1;
+
             return [{ source: 'usda', externalKey: `k-${name}`, name }];
         });
         adapter.fetchByKeys.mockImplementation(async (keys) =>
@@ -413,7 +425,9 @@ describe.skipIf(!DATABASE_URL)('FoodConsumerService (integration)', () => {
         );
         const { consumer } = build(adapter, undefined, 4);
 
-        for (let i = 0; i < 8; i += 1) await enqueueFood(`concurrent food ${i}`);
+        for (let i = 0; i < 8; i += 1) {
+            await enqueueFood(`concurrent food ${i}`);
+        }
 
         const processed = await consumer.drain();
 

@@ -69,6 +69,7 @@ describe.skipIf(!DATABASE_URL)('AdmissionService backpressure + flood-shed (inte
         );
 
         expect(isFetchUnavailableError(error)).toBe(true);
+
         if (isFetchUnavailableError(error)) {
             expect(error.retryAfterSeconds).toBeGreaterThan(0); // jittered, positive
             expect(error.name).not.toContain('429');
@@ -80,6 +81,7 @@ describe.skipIf(!DATABASE_URL)('AdmissionService backpressure + flood-shed (inte
         for (let i = 0; i < 4; i += 1) {
             await seedPending(`flooder ${i}`, 'flooder');
         }
+
         for (let i = 0; i < 5; i += 1) {
             await seedPending(`other ${i}`, `light_${i}`);
         }

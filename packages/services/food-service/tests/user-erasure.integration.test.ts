@@ -47,9 +47,11 @@ describe.skipIf(!DATABASE_URL)('user-erasure (integration, T-056/FR-044)', () =>
     /** Create a PENDING food + pending queue row, attach `subs` as requesters. */
     async function seed(normalizedName: string, subs: string[]): Promise<string> {
         const { id } = await foodDao.createByName({ normalizedName, displayName: normalizedName });
+
         for (const requesterId of subs) {
             await requesters.add({ foodId: id, requesterId });
         }
+
         await queue.enqueue(id);
 
         return id;

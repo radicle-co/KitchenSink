@@ -24,7 +24,7 @@
         "test:load:fixture": "tsx tests/load/prepare-perf-fixture.ts",
         "test:load:drain": "tsx tests/load/drain-demotion.perf.ts",
         "test:load": "k6 run tests/load/local-store-read.load.js && k6 run tests/load/local-store-throughput.load.js && k6 run tests/load/search.load.js",
-        "lint": "eslint 'src/**/*.ts' --ignore-pattern '**/*.test.ts'",
+        "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts'",
         "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check .",

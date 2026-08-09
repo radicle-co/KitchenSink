@@ -40,9 +40,11 @@ describe.skipIf(!DATABASE_URL)('POST /api/v1/internal/account/erasure (booted Ne
 
     const post = async (token?: string): Promise<{ status: number; body: unknown }> => {
         const headers: Record<string, string> = {};
+
         if (token) {
             headers['authorization'] = `Bearer ${token}`;
         }
+
         const response = await fetch(`${baseUrl}/api/v1/internal/account/erasure`, { method: 'POST', headers });
         const text = await response.text();
 

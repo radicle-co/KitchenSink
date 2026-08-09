@@ -70,6 +70,7 @@ describe('SourceAdapterRegistry', () => {
         registry.register(makeStubAdapter('usda'));
 
         let thrown: unknown;
+
         try {
             registry.register(makeStubAdapter('usda'));
         } catch (error) {
@@ -83,6 +84,7 @@ describe('SourceAdapterRegistry', () => {
         const registry = new SourceAdapterRegistry();
 
         let thrown: unknown;
+
         try {
             registry.adapterFor('usda');
         } catch (error) {

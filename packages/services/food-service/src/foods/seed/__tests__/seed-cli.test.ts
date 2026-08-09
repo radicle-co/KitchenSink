@@ -80,6 +80,7 @@ describe('take', () => {
 
     it('stops consuming the SOURCE once the limit is reached (a bounded run must not read 3.4 GB)', async () => {
         let produced = 0;
+
         const instrumented = async function* (): AsyncGenerator<CanonicalCandidate> {
             for (let index = 0; index < 1_000; index += 1) {
                 produced += 1;

@@ -43,6 +43,7 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
             for (let i = 0; i < 50; i += 1) {
                 await requesters.add({ foodId: id, requesterId: 'user_solo' });
             }
+
             const row = await queue.enqueue(id);
 
             expect(row.requestCount).toBe(1);
@@ -55,6 +56,7 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
             for (let i = 0; i < 7; i += 1) {
                 await requesters.add({ foodId: id, requesterId: `user_${i}` });
             }
+
             const row = await queue.enqueue(id);
 
             expect(row.requestCount).toBe(7);

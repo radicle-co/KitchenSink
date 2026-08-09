@@ -50,6 +50,7 @@ describe('FoodAuthGuard — per-source 401-rate load-shed (FR-052/SC-011)', () =
                 UnauthorizedException,
             );
         }
+
         expect(mockVerify).toHaveBeenCalledTimes(3);
 
         // The flooder is now over the cap → further requests are shed with 503 and NOT verified.

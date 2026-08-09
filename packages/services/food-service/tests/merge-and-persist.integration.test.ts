@@ -78,15 +78,19 @@ describe.skipIf(!DATABASE_URL)('MergeAndPersistService (integration)', () => {
         expect(sourceIds.size).toBeGreaterThanOrEqual(1);
 
         expect(record?.nutrients).toHaveLength(2);
+
         for (const nutrient of record?.nutrients ?? []) {
             expect(sourceIds.has(nutrient.sourceId)).toBe(true);
             expect(nutrient.basis).toBe('per_100g');
         }
+
         for (const portion of record?.portions ?? []) {
             expect(sourceIds.has(portion.sourceId)).toBe(true);
         }
+
         const provenanceFields = (record?.fieldProvenance ?? []).map((entry) => entry.field).sort();
         expect(provenanceFields).toEqual(['brand_owner', 'description', 'kind', 'name']);
+
         for (const entry of record?.fieldProvenance ?? []) {
             expect(sourceIds.has(entry.sourceId)).toBe(true);
         }
@@ -193,6 +197,7 @@ describe.skipIf(!DATABASE_URL)('MergeAndPersistService (integration)', () => {
         expect(record?.nutrients).toHaveLength(2);
         // The pick is ordinary provenance — indistinguishable from a normal value, so refresh protects it.
         const sourceIds = new Set(record?.sources.map((source) => source.id));
+
         for (const nutrient of record?.nutrients ?? []) {
             expect(sourceIds.has(nutrient.sourceId)).toBe(true);
         }

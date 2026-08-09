@@ -201,6 +201,7 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* HTTP API (booted Nest + real Pos
     beforeAll(async () => {
         pool = new pg.Pool({ connectionString: DATABASE_URL });
         await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
+
         // DISCOVER the ordered migration set — never a hardcoded list. A hardcoded list has now silently
         // rotted TWICE (it predated 0002's `fetch_requesters` rekey, and then 0003's `food.origin`), and each
         // time the symptom was every route 500'ing against a schema the app expects but the test never

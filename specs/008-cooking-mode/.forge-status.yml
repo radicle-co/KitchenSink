@@ -92,13 +92,12 @@ phases:
         artifact: null
 
     implement:
-        state: in-progress
+        state: completed
         note: >-
-            T-000 scaffold done for @kitchensink/cooking-core. MOD-019 / MOD-020 (T-015, T-016 logic
-            layer) are GREEN: 32/32 passing, verified by four deliberate mutations that each failed the
-            suite. Remaining: the rest of cooking-core (session, timer engine, wake lock, persistence),
-            the @commise/features-cooking scaffold with T-018 component tests, T-011/T-012 routes, and
-            T-019/T-020 Playwright + Maestro.
+            All tasks implemented across both packages and both apps. Verified 2026-08-09: monorepo
+            typecheck clean, 45/45 test tasks, 50/50 lint tasks, and a real `next build` producing the
+            /{locale}/recipes/{id}/cook route. Playwright and Maestro are WRITTEN but were NOT executed
+            here (no Clerk dev keys, no emulator / Java 17) — they run in CI.
         green_steps:
             - id: MOD-019 IngredientCheckoffState
               tests: UTP-019-A..D (14 scenarios)
@@ -229,5 +228,5 @@ gates:
           Revision 1 approved in full, conditional on the v-model V3/V5/V7/V9 regeneration for
           REQ-012..REQ-015 landing before implementation.
 
-next_action: implement-cooking-core-remainder
-next_command: /speckit.product-forge.implement
+next_action: code-review
+next_command: /speckit.product-forge.code-review

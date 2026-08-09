@@ -32,26 +32,41 @@ import {
 import { resolveAzpEnforcement, verifyClerkToken } from '@kitchensink/clerk-verify';
 import type { NextFunction, Response } from 'express';
 
-import { AuthLoadShedder } from './auth-load-shedder.js';
+import { settingFromEnv } from '../config/env.schema.js';
+import { AuthLoadShedder, type AuthLoadShedderOptions } from './auth-load-shedder.js';
 import type { AuthenticatedRequest } from './authenticated-principal.js';
+
+/**
+ * The shedder's configured knobs (FR-052), resolved through the ONE validated reader so their rules live
+ * only in `config/env.schema.ts`. All three are `.optional()` there, so UNSET stays meaningful — it yields
+ * `undefined` and the shedder applies its own documented default — while a MALFORMED value throws.
+ *
+ * Throwing matters for this control specifically: an operator tightening the shed threshold is responding to
+ * an auth flood in progress, so silently substituting the built-in default (what the previous private
+ * `numberFromEnv` helper did for any non-positive or non-numeric value, fractions included) leaves the
+ * pre-verification cap wherever it was while the flood continues. The API validates the same three
+ * variables at boot, so a typo must not mean "the API refuses to start while the guard ignores you".
+ *
+ * @returns The configured shedder options; each field `undefined` when its variable is unset.
+ * @throws {Error} naming the variable when one is set to a value the schema rejects.
+ * @sideEffect Reads `process.env`.
+ */
+export function authShedderConfigFromEnv(): AuthLoadShedderOptions {
+    return {
+        maxConcurrent: settingFromEnv('FOOD_AUTH_MAX_CONCURRENT_VERIFICATIONS'),
+        shedThreshold: settingFromEnv('FOOD_AUTH_SHED_THRESHOLD'),
+        shedWindowMs: settingFromEnv('FOOD_AUTH_SHED_WINDOW_MS'),
+    };
+}
 
 /**
  * Process-wide auth load-shedder (FR-052). Module-level so every request shares one concurrency pool +
  * per-source failure window; configured once from env. Overridable per-instance for tests.
+ *
+ * A malformed knob therefore fails at IMPORT time, which for this module means the API refuses to boot —
+ * the same verdict `AppConfigModule` reaches on the same value, and the correct one for a DoS guard.
  */
-const defaultShedder = new AuthLoadShedder({
-    maxConcurrent: numberFromEnv('FOOD_AUTH_MAX_CONCURRENT_VERIFICATIONS'),
-    shedThreshold: numberFromEnv('FOOD_AUTH_SHED_THRESHOLD'),
-    shedWindowMs: numberFromEnv('FOOD_AUTH_SHED_WINDOW_MS'),
-});
-
-/** Read a positive integer env var, or `undefined` (let the shedder use its default). Pure. */
-function numberFromEnv(key: string): number | undefined {
-    const raw = process.env[key];
-    const value = raw === undefined ? Number.NaN : Number(raw);
-
-    return Number.isFinite(value) && value > 0 ? value : undefined;
-}
+const defaultShedder = new AuthLoadShedder(authShedderConfigFromEnv());
 
 /** Extract the bearer token from an `Authorization` header, else `undefined`. Pure. */
 function extractBearer(authorization: string | undefined): string | undefined {

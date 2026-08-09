@@ -7,7 +7,7 @@
  */
 import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import type { NextFunction, Response } from 'express';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@kitchensink/clerk-verify', async () => {
     const actual = await vi.importActual<typeof import('@kitchensink/clerk-verify')>('@kitchensink/clerk-verify');
@@ -18,7 +18,7 @@ vi.mock('@kitchensink/clerk-verify', async () => {
 import { ClerkVerificationError, verifyClerkToken } from '@kitchensink/clerk-verify';
 
 import { AuthLoadShedder } from '../auth-load-shedder.js';
-import { FoodAuthGuard } from '../food-auth.guard.js';
+import { authShedderConfigFromEnv, FoodAuthGuard } from '../food-auth.guard.js';
 import type { AuthenticatedRequest } from '../authenticated-principal.js';
 
 const mockVerify = vi.mocked(verifyClerkToken);
@@ -93,5 +93,58 @@ describe('FoodAuthGuard — verification-concurrency bound (FR-052)', () => {
         await guard.use(makeReq('good', '3.3.3.3'), {} as Response, vi.fn() as unknown as NextFunction);
 
         expect(shedder.inFlight()).toBe(0); // both verifications released their slot
+    });
+});
+
+/**
+ * The shedder's own configuration (FR-052). The guard resolved `FOOD_AUTH_MAX_CONCURRENT_VERIFICATIONS` /
+ * `FOOD_AUTH_SHED_THRESHOLD` / `FOOD_AUTH_SHED_WINDOW_MS` through a private `numberFromEnv` helper — a
+ * second, laxer copy of the reader this package now has exactly one of. It mapped ANY malformed value
+ * (and `0`, and a negative) to `undefined`, which silently substitutes the shedder's built-in default, and
+ * it accepted fractions the boot-time schema rejects. Silently substituting a default is the wrong answer
+ * for THIS control in particular: an operator tightening the shed threshold is responding to an auth flood
+ * in progress, and a typo would leave the pre-verification cap wherever it was while the flood continues.
+ */
+describe('the auth shedder configuration read from the environment', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    it('is entirely undefined when unset, so the shedder applies its own documented defaults', () => {
+        vi.stubEnv('FOOD_AUTH_MAX_CONCURRENT_VERIFICATIONS', undefined);
+        vi.stubEnv('FOOD_AUTH_SHED_THRESHOLD', undefined);
+        vi.stubEnv('FOOD_AUTH_SHED_WINDOW_MS', undefined);
+
+        expect(authShedderConfigFromEnv()).toEqual({
+            maxConcurrent: undefined,
+            shedThreshold: undefined,
+            shedWindowMs: undefined,
+        });
+    });
+
+    it('passes the configured knobs through', () => {
+        vi.stubEnv('FOOD_AUTH_MAX_CONCURRENT_VERIFICATIONS', '32');
+        vi.stubEnv('FOOD_AUTH_SHED_THRESHOLD', '7');
+        vi.stubEnv('FOOD_AUTH_SHED_WINDOW_MS', '15000');
+
+        expect(authShedderConfigFromEnv()).toEqual({
+            maxConcurrent: 32,
+            shedThreshold: 7,
+            shedWindowMs: 15_000,
+        });
+    });
+
+    it.each([
+        ['FOOD_AUTH_MAX_CONCURRENT_VERIFICATIONS', 'many'],
+        ['FOOD_AUTH_SHED_THRESHOLD', '0'],
+        ['FOOD_AUTH_SHED_THRESHOLD', '-1'],
+        // A fraction the boot-time schema rejects but the old `Number.isFinite` check waved through.
+        ['FOOD_AUTH_SHED_THRESHOLD', '2.5'],
+        ['FOOD_AUTH_SHED_WINDOW_MS', ''],
+        ['FOOD_AUTH_SHED_WINDOW_MS', 'NaN'],
+    ])('throws on %s=%o instead of silently reverting to the built-in default', (name, value) => {
+        vi.stubEnv(name, value);
+
+        expect(() => authShedderConfigFromEnv()).toThrow(new RegExp(name));
     });
 });

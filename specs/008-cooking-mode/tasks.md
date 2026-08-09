@@ -177,9 +177,12 @@ they cover; the arrows above show coverage order, not "wait until implemented".
 > works on a real device; on-device verification is an open residual risk (T-020 / device sweep).
 >
 > **Open requirement gap (now MORE pressing, since mobile prompts at the OS level):** nothing in the spec covers microphone
-> **consent**. Starting recognition automatically on entry would be a privacy-hostile default, so voice is NOT auto-wired into
-> `CookingModeScreen`; it stays behind an explicit opt-in that US-006 must specify before it is surfaced. On native the adapter
+> **consent** — RESOLVED 2026-08-09 by construction. Starting recognition automatically on entry would be a privacy-hostile
+> default, so `CookingModeScreen` renders an explicit **opt-in toggle** on both platforms and the press itself is the consent
+> signal: recognition never starts on mount. `denied` and `unsupported` are settled states that keep the control mounted,
+> `aria-disabled` and explained with a localized remedy, so a cook is never left pressing something inert. On native the adapter
 > additionally requests OS permission and **fails safe** — a denial yields a working no-op, never a throw or a retry loop.
+> US-006 should still record the opt-in as a stated requirement rather than leaving it an implementation choice.
 
 - [ ] **T-014** [P3] [US-006] Implement the pure voice command grammar + port — `packages/shared/cooking/src/voiceControl.ts`
     - **Depends on**: T-002
@@ -197,7 +200,7 @@ they cover; the arrows above show coverage order, not "wait until implemented".
     - **Acceptance**: Satisfies the SAME `VoiceControlPort` as T-014a and binds the SAME shared restart/latch/dispose policy — `expo-speech-recognition` exports a Web-Speech-**compatible** recognition class, so that policy must have one representation, not two. Requests OS permission via `ExpoSpeechRecognitionModule.requestPermissionsAsync()` before starting, and **fails safe on denial**: no start, no throw, no retry loop, and a working no-op disposer. The Expo config plugin is registered in `@commise/mobile`'s app config with explicit microphone and speech-recognition permission copy — without it neither OS can even prompt. Tested against a recording stub (the `expoKeepAwakeStub` pattern), with a test asserting both adapters honour the same policy so the platforms cannot drift.
     - **Residual risk — investigated 2026-08-09, and it CANNOT be closed by updating Expo.** Verified against the registry: `expo`'s `latest` is `57.0.11` and there is no stable SDK 58 (only a canary), while `expo-speech-recognition`'s `latest` is `56.0.1` with dist-tags stopping at `sdk-55`. **The app is already on the newest Expo SDK; the library is the one behind**, so moving Expo forward widens the gap rather than closing it. The only version-matching alternative would be downgrading the whole mobile app 57 → 56 — a large regression to accommodate one _Should Have_ feature, and not recommended.
       What makes it _plausible_ rather than merely hoped-for: the module declares `peerDependencies: { expo: '*' }`, has **no runtime dependencies**, and ships a standard `expo-module.config.json` with no pinned `expo-modules-core` — so autolinking is not version-gated. Expo modules are usually forward-tolerant across one generation.
-      What is still **unproven**: that it autolinks, builds, and captures audio on a real device under SDK 57. The stub tests prove the adapter's _contract_ only. Closing this needs a device or EAS build (T-020 / device sweep), or an upstream `sdk-57` release. The app was moved to the newest SDK 57 patch (`57.0.8 → 57.0.11`) as part of this work; mobile stayed green (383 tests, typecheck clean).
+      What is still **unproven**: that it autolinks, builds, and captures audio on a real device under SDK 57. The stub tests prove the adapter's _contract_ only. Closing this needs a device or EAS build (T-020 / device sweep), or an upstream `sdk-57` release. **The SDK patch bump attempted here (`57.0.8 → 57.0.11`) was REVERTED** — it broke the Android build. `~57.0.11` changed npm's hoisting, moving `@expo/cli` to the repo root, where its bundled `chalk@4` resolves the hoisted **ESM** `ansi-styles@6`; Node 24 (now the GitHub Actions default) `require()`s ESM instead of throwing, so chalk loads with no styles and `expo prebuild` crashes at import — the release APK build fails in ~3 minutes and the Maestro flow never runs. A version pin and two `overrides` forms were tried first; only the revert worked. Moving the SDK belongs in its own PR.
 
 ---
 

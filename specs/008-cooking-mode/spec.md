@@ -89,10 +89,16 @@ ingredients, active scale factor) and `CookingTimer`. None of it mutates the sto
   divergence, because Expo ships no built-in speech recognition. The owner reversed that: voice control is required on web
   **and** mobile, restoring compliance with the cross-platform rule. `expo-speech-recognition` provides the native capability
   and exports a Web-Speech-compatible recognition class, so both adapters bind one shared restart/latch/dispose policy instead
-  of two implementations that could drift. Two consequences are recorded rather than hidden: the library's latest release
-  targets one Expo SDK generation behind this repo, so on-device behaviour is an open residual risk; and **microphone consent
-  is still unspecified** — US-006 needs an explicit opt-in requirement before voice is surfaced in the UI, since starting
-  recognition automatically on entry would be a privacy-hostile default. The native adapter fails safe on denial.
+  of two implementations that could drift. Two consequences are recorded rather than hidden.
+  **(a) Consent — resolved by construction (2026-08-09).** `CookingModeScreen` renders an explicit **opt-in toggle** on both
+  platforms; recognition never starts on mount, so the press itself is the consent signal. `denied` / `unsupported` are settled
+  states that keep the control mounted and explained rather than inert, and the native adapter fails safe on denial. US-006
+  should still state the opt-in as a requirement rather than leaving it an implementation choice.
+  **(b) SDK generation — open, and NOT fixable by updating Expo.** `expo-speech-recognition`'s latest targets one SDK
+  generation behind this repo, but the app is _ahead_ of the library, not behind: `expo`'s own latest is 57.0.x with no stable 58. An attempted patch bump (`57.0.8 → 57.0.11`) was reverted because it re-hoisted `@expo/cli` to the repo root, where its
+  `chalk@4` picks up the ESM `ansi-styles@6` and — under Node 24, which now `require()`s ESM instead of throwing — loses its
+  styles and crashes `expo prebuild`, failing the Android APK build. On-device voice therefore remains unverified, and any SDK
+  move belongs in its own PR.
 - **D-003 (reuse `RecipeStep`, 2026-08-05)**: The prior plan defined a local `RecipeInstruction` type. `@kitchensink/recipe-core`
   already exports `RecipeStep` with the needed shape including `timerSeconds`; 008 imports it rather than duplicating it (GR-007).
 

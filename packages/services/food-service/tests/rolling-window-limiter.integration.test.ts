@@ -4,8 +4,9 @@
  * 429-failsafe (treat window full → deny + pause regardless of count), per-source scoping, and
  * atomicity under concurrency (FR-019, FR-020, FR-021, FR-026, SC-002).
  *
- * Caps are injected small so the boundary is cheap to exercise; production caps live in
- * `DEFAULT_SOURCE_CAPS` (USDA 1000/900).
+ * Caps are injected small so the boundary is cheap to exercise; the production caps are the CONFIGURED
+ * ones (`FOOD_SOURCE_RATE_LIMIT_PER_HOUR`, default 1,000 → pause at 900), which the limiter resolves
+ * itself via `sourceCapsFromEnv` when a caller passes none — see `src/sources/__tests__`.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type pg from 'pg';

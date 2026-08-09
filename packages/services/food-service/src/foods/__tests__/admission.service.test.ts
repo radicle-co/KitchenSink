@@ -189,6 +189,24 @@ describe('AdmissionService — near-ceiling flood-shed (FR-043b)', () => {
         await expect(new AdmissionService(makeDb(state).db).admit('flooder')).resolves.toBeUndefined();
     });
 
+    /**
+     * The shed's OTHER number, and the mutation lens caught this gap: restoring the original
+     * `Number(process.env['FOOD_DEMOTE_THRESHOLD'] ?? 50)` here survived the whole suite, because every
+     * threshold case above uses a VALID value. A malformed one is the same defect as the ceiling's —
+     * `pending > NaN` is `false`, so the flood-shed silently stops shedding while the service keeps
+     * reporting a healthy queue.
+     */
+    it.each(['fifty', '', '0', '-1', '2.5', 'NaN', 'Infinity'])(
+        'throws at construction on the malformed threshold %o rather than disabling the shed',
+        (value) => {
+            vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', '100');
+            vi.stubEnv('FOOD_DEMOTE_THRESHOLD', value);
+            const { db } = makeDb({ depth: 95, pendingByRequester: { flooder: 10_000 } });
+
+            expect(() => new AdmissionService(db)).toThrow(/FOOD_DEMOTE_THRESHOLD/);
+        },
+    );
+
     it('sheds strictly ABOVE the demote threshold — a requester holding exactly `threshold` is admitted', async () => {
         vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', '100');
         vi.stubEnv('FOOD_DEMOTE_THRESHOLD', '4');

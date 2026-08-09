@@ -9,7 +9,8 @@
  *
  * The three top-level destinations (my recipes, discover, collections) are TABS rendered under a persistent
  * tab bar; selecting a tab resets the stack to that root. Everything else (detail, create, edit, version
- * history, collection detail/create/rename) is a full-screen push with its own back/cancel affordance.
+ * history, Cooking Mode, collection detail/create/rename) is a full-screen push with its own back/cancel
+ * affordance.
  */
 import type { JSX } from 'react';
 import { useEffect, useMemo, useState } from 'react';
@@ -26,6 +27,7 @@ import { CollectionDetailScreen } from './CollectionDetailScreen.js';
 import { CollectionFormScreen } from './CollectionFormScreen.js';
 import { CollectionRecipePickerScreen } from './CollectionRecipePickerScreen.js';
 import { CollectionsScreen } from './CollectionsScreen.js';
+import { CookingModeScreen } from './CookingModeScreen.js';
 import { RecipeCreateScreen } from './RecipeCreateScreen.js';
 import { RecipeDetailScreen } from './RecipeDetailScreen.js';
 import { RecipeDiscoveryScreen } from './RecipeDiscoveryScreen.js';
@@ -45,6 +47,7 @@ type Surface =
     | { readonly id: 'create' }
     | { readonly id: 'edit'; readonly recipeId: string }
     | { readonly id: 'versions'; readonly recipeId: string }
+    | { readonly id: 'cooking'; readonly recipeId: string }
     | { readonly id: 'collectionDetail'; readonly collectionId: string }
     | { readonly id: 'collectionAddRecipe'; readonly collectionId: string }
     | { readonly id: 'collectionCreate' }
@@ -215,6 +218,9 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
                     onCloned={(recipeId) => nav.push({ id: 'detail', recipeId })}
                     // D6: reset to the discovery tab pre-filtered by the tapped tag (the visibility-scoped search).
                     onFilterByTag={(tag) => nav.reset([{ id: 'discovery', tags: [tag] }])}
+                    // 008 T-012 — push Cooking Mode over the detail, so leaving it lands back on the recipe
+                    // the cook came from (and the detail stays on the stack, unmounted state and all).
+                    onStartCooking={(recipeId) => nav.push({ id: 'cooking', recipeId })}
                 />
             );
         case 'create':
@@ -228,6 +234,18 @@ function renderSurface(surface: Surface, nav: Nav): JSX.Element {
             return <RecipeEditScreen recipeId={surface.recipeId} onSaved={() => nav.back()} onCancel={nav.back} />;
         case 'versions':
             return <RecipeVersionsScreen recipeId={surface.recipeId} onBack={nav.back} />;
+        case 'cooking':
+            // Exit and finish are DIFFERENT events and are wired as such: the cooking feature has already
+            // persisted a resumable session by the time `onExit` fires, and already CLEARED the stored one by
+            // the time `onFinish` does. They pop to the same place — the recipe the cook started from, which
+            // is the right destination for both — but they are kept as separate callbacks so that the day one
+            // of them wants a different destination, nothing about the session semantics has to move.
+            //
+            // The hardware back button pops this surface WITHOUT running either command, and that is safe by
+            // construction rather than by luck: the feature persists the session on every meaningful change
+            // (so it is already on the device, minus the `pausedAt` mark, which the restore path clears
+            // anyway), and its wake lock is released by the effect cleanup on unmount.
+            return <CookingModeScreen recipeId={surface.recipeId} onExit={nav.back} onFinish={nav.back} />;
         case 'collectionDetail':
             return (
                 <CollectionDetailScreen

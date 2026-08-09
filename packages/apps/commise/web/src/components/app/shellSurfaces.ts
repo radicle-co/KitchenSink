@@ -23,6 +23,7 @@ export const SHELL_SURFACE_IDS = [
     'recipeNew',
     'recipeDetail',
     'recipeEdit',
+    'recipeCooking',
     'recipeVersions',
     'discover',
     'collections',

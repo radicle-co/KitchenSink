@@ -193,9 +193,19 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
         <>
             {/* C1 wireframe parity: an explicit in-app back control on the detail header — mirrors mobile's
                 `onBack` (RecipeDetailScreen), which the web detail never had (it relied on browser back). */}
-            <Link href={`/${locale}/recipes` as Route} className={buttonSurfaceClass('secondary')}>
-                {recipes.actions.backAction}
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+                <Link href={`/${locale}/recipes` as Route} className={buttonSurfaceClass('secondary')}>
+                    {recipes.actions.backAction}
+                </Link>
+                {/* Feature 008 — the ONLY entry point into Cooking Mode on web. A real link, not a
+                    `router.push` button, so it keeps the link role, ⌘-click and open-in-new-tab (the same
+                    reasoning as the owner navigations below). Offered to EVERY viewer who can read the
+                    recipe: cooking is not an owner capability, and a recipe with no steps is a legitimate
+                    destination — Cooking Mode states that honestly rather than being hidden here. */}
+                <Link href={`/${locale}/recipes/${id}/cook` as Route} className={buttonSurfaceClass('primary')}>
+                    {recipes.actions.cookAction}
+                </Link>
+            </div>
             <RecipeDetailView
                 recipe={recipe}
                 checkedIngredients={cooking.checkedIngredients}

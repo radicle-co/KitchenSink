@@ -41,8 +41,15 @@ export { IngredientChecklist } from './IngredientChecklist';
 export { ScaleSelector } from './ScaleSelector';
 export type { IngredientChecklistProps, ScaleSelectorProps, ScaledIngredientLine } from './sessionExtras';
 
-// ── Platform adapters for the cooking-core ports (FR-035, US-006) ────────────
-// The wake-lock and voice adapters are exported so an app can inject a different one (a no-op in a
-// test, say). `CookingModeScreen` already defaults to the right one for its platform.
+// ── Platform adapters for the cooking-core ports (FR-035) ────────────────────
+// The wake-lock adapter is exported so an app can inject a different one (a no-op in a test, say).
+// `CookingModeScreen` already defaults to the right one for its platform.
 export { acquireWebWakeLock } from './wakeLock';
-export { MAX_CONSECUTIVE_RESTARTS, startWebVoiceControl } from './voiceControl';
+
+// The VOICE adapters are deliberately NOT re-exported here. Under Metro `./voiceControl` resolves to
+// the `.native` leaf, which imports `expo-speech-recognition` at module scope — so exporting it from
+// the barrel would drag an OS speech recogniser into the graph of every consumer, including ones that
+// only want `StepDisplay`. Nothing consumes them yet either: voice stays unwired until US-006
+// specifies microphone consent. When it does, import the leaf directly
+// (`@commise/features-cooking/src/voiceControl`) or give it its own package entry point, rather than
+// making every consumer pay for it.

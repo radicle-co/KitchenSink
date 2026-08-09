@@ -221,6 +221,45 @@ describe('RecipeDetailScreen — ready state', () => {
     });
 });
 
+describe('RecipeDetailScreen — Cooking Mode entry point (008 T-012)', () => {
+    it('renders and wires "Start cooking" only when onStartCooking is provided', () => {
+        useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ title: 'Weeknight Pasta' }) }));
+        const onStartCooking = vi.fn();
+
+        const { rerender } = render(<RecipeDetailScreen recipeId="rec_1" onStartCooking={onStartCooking} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Start cooking' }));
+        // The id must travel with the intent — the navigator pushes the cooking surface keyed by it, and a
+        // control that reported no id would open Cooking Mode on the wrong recipe (or none at all).
+        expect(onStartCooking).toHaveBeenCalledWith('rec_1');
+
+        rerender(<RecipeDetailScreen recipeId="rec_1" />);
+        expect(screen.queryByRole('button', { name: 'Start cooking' })).toBeNull();
+    });
+
+    it('offers "Start cooking" to a NON-owner — cooking is not an owner capability', () => {
+        // Mutation lens: moving this control inside the `viewerIsOwner` block (where every other action on
+        // this screen lives) would strand every viewer reading someone else's recipe with no way to cook it.
+        useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ ownerId: 'usr_owner' }) }));
+        useUserProfileMock.mockReturnValue(profile('usr_viewer'));
+
+        render(<RecipeDetailScreen recipeId="rec_1" onStartCooking={vi.fn()} />);
+
+        expect(screen.getByRole('button', { name: 'Start cooking' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Edit recipe' })).toBeNull();
+    });
+
+    it('still offers "Start cooking" for a recipe with no steps yet', () => {
+        // Deliberate: the cooking surface owns an empty state that tells the cook what to do about it, which
+        // is a better answer than an affordance that silently vanishes — and gating here would make that
+        // state unreachable on this platform.
+        useRecipeMock.mockReturnValue(detailResult({ data: makeRecipeDetail({ steps: [] }) }));
+
+        render(<RecipeDetailScreen recipeId="rec_1" onStartCooking={vi.fn()} />);
+
+        expect(screen.getByRole('button', { name: 'Start cooking' })).toBeTruthy();
+    });
+});
+
 describe('RecipeDetailScreen — owner actions', () => {
     beforeEach(() => {
         useRecipeMock.mockReturnValue(

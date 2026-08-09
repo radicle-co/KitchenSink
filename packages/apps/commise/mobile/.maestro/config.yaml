@@ -25,7 +25,12 @@
 #
 # `auth/welcome-flow.yaml` was removed with the welcome screen itself (owner decision 2026-07-28): the
 # signed-out app opens directly on the sign-in form, and `auth/login-flow.yaml` now covers that entry.
+#
+# `cooking/*` (feature 008, T-020) is listed for exactly the reason this file exists: Maestro's discovery
+# ignores subfolders, so without the pattern the cooking flow would be silently skipped and the job would go
+# green having never entered Cooking Mode at all.
 flows:
     - '*'
     - 'auth/login-flow.yaml'
+    - 'cooking/*'
     - 'recipes/*'

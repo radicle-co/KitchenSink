@@ -47,7 +47,23 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 ### MOD-001 — CookingModeScreen
 
 **Parent Architecture Modules**: ARCH-001
-**Target Source File**: `packages/apps/commise/features/cooking/src/screens/CookingModeScreen.tsx`
+**Target Source File**: `packages/apps/commise/features/cooking/src/useCookingSession.ts`,
+`packages/apps/commise/features/cooking/src/CookingModeScreen.tsx` / `.native.tsx`
+**Test Source File**: `packages/apps/commise/features/cooking/src/__tests__/useCookingSession.test.tsx` (42 tests),
+`.../__tests__/CookingModeScreen.test.tsx` (23) and `.../__tests__/CookingModeScreen.native.test.tsx` (23)
+
+> **Corrected 2026-08-09 (`UTP-001-D`, `UTP-001-E`, `UTP-001-F`).** `UTS-001-D1` and `UTS-001-E1` asserted calls into modules that do not exist —
+> `StepNavigationController.initialise(0, 2)` on mount and `TimerEngine.reset()` on unmount — the class design retired at MOD-004 /
+> MOD-006; see the MOD-001 correction note in `module-design.md`. They are rewritten against the shipped orchestrator: the wake lock
+> arrives as an INJECTED port, the session is opened by `createSession`, and unmount releases the lock **without** touching the
+> timers, because the running `CookingTimer[]` is part of the persisted session and each remainder is derived from `startedAt`.
+> `UTP-001-F` was retitled to the shipped command names (`goToNextStep` / `goToPreviousStep`) and its "`StepNavigationController`
+> real instance" mock note dropped — the reducer is pure, so there was never anything to instantiate. The ids, the case letters and
+> the scenario COUNTS are unchanged, so no coverage total moves.
+>
+> **Not corrected in this pass:** `UTP-001-A`, `UTP-001-B`, `UTP-001-C`, `UTP-001-G` and `UTP-001-H` still arrange an
+> `AuthGuard` → `RecipeDataAdapter` → `OfflineRecipeCache` mount chain that the feature never built (Cooking Mode receives the
+> recipe as a prop and issues no request at all). They are left visible rather than deleted or silently rewritten.
 
 ---
 
@@ -84,37 +100,39 @@ Each test case MUST identify its technique by name and anchor to a specific modu
 
 ---
 
-#### UTP-001-D — Mount: Happy path initialises all services
+#### UTP-001-D — Mount: Happy path opens the session and holds the screen awake
 
 **Technique**: Statement & Branch Coverage (Algorithmic/Logic View — success path)
-**Mocks**: Auth OK; adapter returns `[step1, step2]`; all services stubbed
+**Mocks**: In-memory `CookingSessionStore` (empty); injected `WakeLockPort` with `acquire` / `release` spies; `recipe` supplied as
+`{ status: 'ready', steps, ingredients }` — the screen fetches nothing, so there is no adapter to stub
 
-| Scenario   | Arrange                                           | Act             | Assert                                                                                                                                          |
-| ---------- | ------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| UTS-001-D1 | All dependencies succeed; adapter returns 2 steps | Mount component | `ScreenWakeLockManager.acquire` called; `StepNavigationController.initialise(0, 2)` called; `state.ready = true`; `<StepDisplayPanel>` rendered |
-
----
-
-#### UTP-001-E — Unmount: Services are torn down
-
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `ON_UNMOUNT` branch)
-**Mocks**: All mount dependencies succeed; `TimerEngine.reset` spy; `ScreenWakeLockManager.release` spy
-
-| Scenario   | Arrange                        | Act               | Assert                                                                           |
-| ---------- | ------------------------------ | ----------------- | -------------------------------------------------------------------------------- |
-| UTS-001-E1 | Component mounted successfully | Unmount component | `TimerEngine.reset()` called once; `ScreenWakeLockManager.release()` called once |
+| Scenario   | Arrange                                                                      | Act                                        | Assert                                                                                                                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UTS-001-D1 | Storage holds no session for this recipe; the recipe is `ready` with 3 steps | Mount, then settle the async restore chain | The injected `wakeLock` port is acquired exactly once and not released; `createSession` opens at `currentStepIndex = 0`; the `step` surface renders step 1 of 3. Nothing is acquired while still restoring |
 
 ---
 
-#### UTP-001-F — State: stepIndex updates on goNext / goPrev
+#### UTP-001-E — Unmount: The wake lock is released, the session is not reset
 
-**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `goNext` / `goPrev` functions)
-**Mocks**: All mount dependencies succeed; `StepNavigationController` real instance
+**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — effect cleanup / phase gate)
+**Mocks**: As UTP-001-D; `release` spy on the injected `WakeLockPort`
 
-| Scenario   | Arrange                                 | Act             | Assert                |
-| ---------- | --------------------------------------- | --------------- | --------------------- |
-| UTS-001-F1 | Component ready with 3 steps at index 0 | Call `goNext()` | `state.stepIndex = 1` |
-| UTS-001-F2 | Component ready at index 1              | Call `goPrev()` | `state.stepIndex = 0` |
+| Scenario   | Arrange                                        | Act               | Assert                                                                                                                                                                                 |
+| ---------- | ---------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UTS-001-E1 | A live session with at least one timer running | Unmount component | The injected `release` is called exactly once; **no timer is reset or cancelled** — the running `CookingTimer[]` stays in the persisted session so a resume derives the true remainder |
+
+---
+
+#### UTP-001-F — State: the rendered position updates on the navigation commands
+
+**Technique**: Statement & Branch Coverage (Algorithmic/Logic View — `goToNextStep` / `goToPreviousStep`)
+**Mocks**: None for the transition itself — MOD-004 is pure and is exercised for real; only the storage and wake-lock ports are
+injected fakes
+
+| Scenario   | Arrange                                       | Act                       | Assert                                                                      |
+| ---------- | --------------------------------------------- | ------------------------- | --------------------------------------------------------------------------- |
+| UTS-001-F1 | A live session for a 3-step recipe at index 0 | Call `goToNextStep()`     | `surface.stepIndex` is `1`, and the step just left is recorded as completed |
+| UTS-001-F2 | A live session at index 1                     | Call `goToPreviousStep()` | `surface.stepIndex` is `0`, and `completedSteps` is NOT unwound (FR-033)    |
 
 ---
 

@@ -24,7 +24,7 @@ Cooking Mode's 15 architecture modules (ARCH-001 through ARCH-015) are decompose
 | ARCH-001 | CookingModeScreen            | MOD-001                            |
 | ARCH-002 | StepDisplayPanel             | MOD-002                            |
 | ARCH-003 | StepTransitionAnimator       | MOD-003                            |
-| ARCH-004 | StepNavigationController     | MOD-004                            |
+| ARCH-004 | CookingSessionReducer        | MOD-004                            |
 | ARCH-005 | GestureInputAdapter          | MOD-005                            |
 | ARCH-006 | TimerEngine                  | MOD-006                            |
 | ARCH-007 | TimerDisplayWidget           | MOD-007                            |
@@ -44,105 +44,165 @@ Cooking Mode's 15 architecture modules (ARCH-001 through ARCH-015) are decompose
 ### Module: MOD-001 (CookingModeScreen)
 
 **Parent Architecture Modules**: ARCH-001
-**Target Source File(s)**: `packages/apps/commise/features/cooking/src/screens/CookingModeScreen.tsx`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/src/useCookingSession.ts` (headless orchestration),
+`packages/apps/commise/features/cooking/src/CookingModeScreen.tsx` / `.native.tsx` (the two platform shells)
 
 #### Algorithmic / Logic View
 
 ```pseudocode
-COMPONENT CookingModeScreen(props: { recipeId: string }) -> ReactElement:
+// The Humble Object split plan.md §4 prescribes: ONE orchestrational component, whose state, effects and
+// wiring live in a headless hook, and pure `props → JSX` leaves under it. Cooking Mode FETCHES NOTHING —
+// the recipe arrives as data, and the two ports it does use (device storage, wake lock) are INJECTED, so
+// nothing platform-specific is imported by the hook. It issues no request of any kind (REQ-CN-001).
 
-  // Mount phase
-  ON_MOUNT:
-    session = AWAIT AuthGuard.checkSession()
-    IF session IS AuthError:
-      navigate("Login")
-      RETURN
+TYPE CookingRecipeState =                                  // discriminated union, not a flag + nullable data
+    { status: 'loading' } | { status: 'error' }
+  | { status: 'ready', steps: readonly RecipeStepView[], ingredients: readonly RecipeIngredientView[] }
 
-    steps = AWAIT RecipeDataAdapter.adapt(props.recipeId)
-    IF steps IS RecipeNotFoundError OR ValidationError:
-      OfflineRecipeCache.getCachedRecipe(props.recipeId)
-        IF cache hit:
-          steps = cachedSteps
-        ELSE:
-          SET state.error = "Recipe unavailable offline"
-          RETURN
+TYPE SessionState =                                        // the session statechart
+    { phase: 'restoring' } | { phase: 'cooking', session } | { phase: 'ended', session }
 
-    OfflineRecipeCache.cacheRecipe(steps)
-    ScreenWakeLockManager.acquire()
-    StepNavigationController.initialise(stepIndex=0, totalSteps=steps.length)
-    SET state.steps = steps
-    SET state.ready = true
+HOOK useCookingSession({ recipeId, recipe, store, wakeLock, onExit, onFinish }) -> CookingSessionApi:
 
-  // Render
-  IF state.error IS NOT NULL:
-    RETURN <ErrorFallbackUI message=state.error />
+  state          = STATE<SessionState>({ phase: 'restoring' })
+  nowIso         = STATE<string>(currentIso())             // the ONE place this layer reads the clock
+  alertedTimerId = STATE<string | null>(null)
+  persistQueue   = REF<Promise<void>>(resolved)            // storage WRITE ORDER is not expressible as state
 
-  IF NOT state.ready:
-    RETURN <LoadingSpinner />
+  EFFECT restore-or-open [recipe ready, stepCount, recipeId, store]:
+      IF recipe NOT ready OR stepCount == 0 OR a session for THIS recipeId is already open: RETURN
+      TRY:
+          outcome = AWAIT restoreSession(store, recipeId, currentIso())      // sessionPersistence.ts
+          session = outcome.status == 'resumable'
+                      ? adoptRestoredSession(outcome.session, stepCount, currentIso())
+                      : createSession({ recipeId, totalSteps: stepCount, startedAt: currentIso() })
+      CATCH:
+          // A storage FAULT is not "nothing to resume" — the domain refuses to conflate them, leaving the
+          // choice here. Starting fresh costs the cook their place; refusing to open costs them the recipe.
+          session = createSession({ recipeId, totalSteps: stepCount, startedAt: currentIso() })
+      SET state = { phase: 'cooking', session }
 
-  currentStep = state.steps[state.stepIndex]
+  EFFECT persist [state, store]:                           // keyed on the session VALUE: one write per
+      IF state.phase == 'cooking':                         // transition, and none for a mere tick
+          enqueueWrite(() => persistSession(store, state.session))
+
+  EFFECT reconcile-checkoff [ingredientIds, recipe ready, state]:
+      // Drops ids the recipe no longer contains, on restore AND mid-session. Gated on `ready` so a refetch
+      // that briefly reports no ingredients cannot wipe the checkoff.
+
+  EFFECT wake-lock [controller, state.phase]:              // MOD-009; the phase gate releases on finish/exit
+      IF state.phase == 'cooking': controller.acquire()    // cleanup: controller.release()
+
+  EFFECT tick [isCounting]:                                // only while something is actually counting down
+      SET nowIso = currentIso()                            // immediately, so frame 1 is not a second stale
+      INTERVAL(TIMER_TICK_INTERVAL_MS = 1000): SET nowIso = currentIso()
+
+  EFFECT alert-once [alertedTimerId, nowIso, state]:                                  // REQ-006
+      due = FIRST timer IN session.activeTimers WHERE timer.alertedAt IS ABSENT AND isComplete(timer, nowIso)
+      IF due EXISTS: stamp due.alertedAt = currentIso() ON THE SESSION; SET alertedTimerId = due.id
+      // Completion is DERIVED, so it stays true on every later tick; `alertedAt` is what makes "once" real,
+      // and persisting it stops a restored session re-announcing a timer that finished before it.
+
+  // ── Derived view (nothing below is stored) ──
+  surface       = error ? {error} : loading ? {loading} : stepCount == 0 ? {empty}
+                        : session == null ? {loading}                    // device not yet answered
+                        : { kind: 'step', step: steps[CLAMP(index)], stepIndex, stepCount }
+  activeTimers  = session.activeTimers MAP timer -> { timer, remainingMs: remainingMs(timer, nowIso) }
+  completedTimer= session.activeTimers FIND id == alertedTimerId
+
+  // ── Commands (each inert unless phase == 'cooking') ──
+  goToNextStep      -> updateSession(s => advance(s, stepCount))          // MOD-004
+  goToPreviousStep  -> updateSession(goBack)
+  finish            -> phase := 'ended'; enqueueWrite(clearSession(store, recipeId)); onFinish()
+  exit              -> paused := pause(session, currentIso()); phase := 'ended'
+                       enqueueWrite(persistSession(store, paused)); onExit()
+                       // Written HERE, not left to the effect: the host commonly unmounts from onExit, and
+                       // an effect that never runs is a session the cook cannot resume.
+  startStepTimer(s) -> createTimerFromStep(s, currentIso()) then startTimer(...)       // MOD-006
+  pause/resume/cancelStepTimer(id) -> the addressed pure timer reducer
+  dismissTimerAlert(id)            -> alertedTimerId := null   // acknowledges; does NOT cancel the timer
+  toggleIngredient(id)             -> MOD-019 reducer
+  changeScaleFactor(f)             -> setScaleFactor(f) (MOD-020) then store on the session
+
+COMPONENT CookingModeScreen(props: CookingModeScreenProps) -> ReactElement:
+  session = useCookingSession({ ...props, store: props.sessionStore,
+                                wakeLock: props.wakeLock ?? acquireWebWakeLock })   // native: Expo adapter
+  isIngredientsOpen = STATE<boolean>(false)   // view state: never persisted, never resumed
+
   RETURN:
-    <ErrorBoundaryAndLogger>
-      <StepTransitionAnimator step=currentStep stepIndex=state.stepIndex>
-        <StepDisplayPanel step=currentStep stepIndex=state.stepIndex totalSteps=state.totalSteps />
-      </StepTransitionAnimator>
-      IF currentStep.durationSeconds IS NOT NULL:
-        <TimerDisplayWidget durationSeconds=currentStep.durationSeconds />
-      <NavigationControls onNext=goNext onPrev=goPrev />
-    </ErrorBoundaryAndLogger>
-
-  // Unmount phase
-  ON_UNMOUNT:
-    TimerEngine.reset()
-    ScreenWakeLockManager.release()
-
-FUNCTION goNext():
-  StepNavigationController.goNext()
-  SET state.stepIndex = StepNavigationController.stepIndex
-
-FUNCTION goPrev():
-  StepNavigationController.goPrev()
-  SET state.stepIndex = StepNavigationController.stepIndex
+    <section aria-label=modeLabel>
+      <header> exit control; ingredients toggle (only on the step surface) </header>
+      <TimerAlert completedTimer=session.completedTimer onDismiss=session.dismissTimerAlert />
+      SWITCH session.surface.kind:            // a TOTAL switch — adding a surface fails to COMPILE
+        'loading' -> <StepDisplayLoading />
+        'error'   -> <StepDisplayError onRetry=props.onRetry />   // the HOST owns the retry
+        'empty'   -> <StepDisplayEmpty />
+        'step'    -> <StepDisplay step=surface.step stepCount=surface.stepCount />
+      IF surface.kind == 'step':
+        <TimerBadge …/> <StepNavigation …/> <ActiveTimers …/> <ScaleSelector …/> <IngredientChecklist …/>
+    </section>
 ```
 
 #### State Machine View
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Loading : mount(recipeId)
-    Loading --> AuthChecking : checkSession()
-    AuthChecking --> Unauthenticated : AuthError
-    AuthChecking --> FetchingRecipe : session OK
-    Unauthenticated --> [*] : redirect to Login
-    FetchingRecipe --> CacheFallback : NetworkError
-    FetchingRecipe --> Caching : CookingStep[] received
-    CacheFallback --> Caching : cache hit
-    CacheFallback --> Error : cache miss
-    Caching --> Ready : cacheRecipe() + acquireWakeLock() + initialise()
-    Ready --> Ready : goNext / goPrev (stepIndex changes)
-    Ready --> [*] : unmount → reset + releaseWakeLock
-    Error --> [*] : user dismisses
+    [*] --> Restoring : mount(recipeId, recipe)
+    Restoring --> Restoring : recipe loading / error / zero steps — no session is opened, storage is not read
+    Restoring --> Cooking : resumable session adopted (index repaired, unreadable timers dropped)
+    Restoring --> Cooking : nothing to resume, storage failed, or session expired → createSession()
+    Cooking --> Cooking : navigate / timer / checkoff / scale — each a NEW session value + one persisted write
+    Cooking --> Ended : finish() → clear the stored session, release the wake lock, onFinish()
+    Cooking --> Ended : exit() → persist a paused session, release the wake lock, onExit()
+    Ended --> Ended : every command is inert; no write, no navigation, no lock
+    Ended --> [*] : the host navigates away
 ```
+
+`ended` deliberately KEEPS its session, so the last step stays on screen until the host navigates: a blank frame between "finish"
+and the host's navigation would be a worse ending than the step the cook just completed. A `recipeId` change under a mounted
+screen re-enters `Restoring`, because a session belonging to another recipe must never be adopted.
 
 #### Internal Data Structures
 
-| Name         | Type             | Size/Constraints        | Initialization | Description                                     |
-| ------------ | ---------------- | ----------------------- | -------------- | ----------------------------------------------- |
-| `steps`      | `CookingStep[]`  | 1–200 elements          | `[]`           | Adapted recipe steps for the current session    |
-| `stepIndex`  | `number`         | `[0, steps.length - 1]` | `0`            | Index of the currently displayed step           |
-| `totalSteps` | `number`         | `>= 1`                  | `0`            | Total number of steps; set on initialise        |
-| `ready`      | `boolean`        | —                       | `false`        | True once recipe loaded and wake lock acquired  |
-| `error`      | `string \| null` | max 256 chars           | `null`         | Non-null when session/recipe load fails fatally |
+| Name                     | Type                                 | Size/Constraints                              | Initialization          | Description                                                                                        |
+| ------------------------ | ------------------------------------ | --------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `state`                  | `SessionState` (discriminated union) | exactly one phase; `session` present by phase | `{ phase:'restoring' }` | Makes "there is a session" and "we are still restoring" unable to disagree                         |
+| `nowIso`                 | `string`                             | ISO 8601                                      | `currentIso()`          | The clock sample every countdown is derived against; advanced only by the tick                     |
+| `alertedTimerId`         | `string \| null`                     | a live timer id                               | `null`                  | Which completion is currently showing; `null` is "nothing to announce"                             |
+| `persistQueue`           | `Ref<Promise<void>>`                 | serialised chain                              | resolved                | Orders storage writes. **The one permitted ref** — external, non-declarative, order-sensitive      |
+| `ingredientIds`          | `readonly string[]`                  | folded to ONE separator-joined key            | `[]`                    | Stable identity across host re-renders, so effects do not restart every frame                      |
+| `isCounting`             | `boolean`                            | derived                                       | —                       | At least one unpaused timer; gates the interval so an idle session does not re-render for a braise |
+| `isIngredientsOpen`      | `boolean`                            | —                                             | `false`                 | View state on the screen, NOT session state — never persisted, never resumed                       |
+| `TIMER_TICK_INTERVAL_MS` | `number` (constant)                  | `1_000`                                       | static                  | One second: the finest granularity the `{minutes}:{seconds}` readout has                           |
 
 #### Error Handling & Return Codes
 
-| Error Condition             | Error Code / Exception | Architecture Contract                            | Recovery                                    |
-| --------------------------- | ---------------------- | ------------------------------------------------ | ------------------------------------------- |
-| Auth session missing        | `AuthError`            | ARCH-012 Interface: throws `AuthError`           | Navigate to Login screen                    |
-| Recipe not found            | `RecipeNotFoundError`  | ARCH-011 Interface: throws `RecipeNotFoundError` | Attempt cache fallback via ARCH-010         |
-| Recipe validation failure   | `ValidationError`      | ARCH-011 Interface: throws `ValidationError`     | Attempt cache fallback via ARCH-010         |
-| Cache miss on offline load  | `CacheMissError`       | ARCH-010 Interface: throws `CacheMissError`      | Set `state.error`; render `ErrorFallbackUI` |
-| Render error (child throws) | React render exception | ARCH-013 ErrorBoundary catches                   | ErrorBoundary renders fallback UI           |
+| Error Condition                                         | Error Code / Exception                                | Architecture Contract                                  | Recovery                                                                                                |
+| ------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Device storage read/write fails                         | Any rejection from the injected `CookingSessionStore` | ARCH-001 owns the choice the domain refuses to make    | Open a FRESH session and keep cooking; one failed write must not stall the queue behind it              |
+| Restored session names a step the recipe no longer has  | None — repaired                                       | ARCH-004 restore-repair (`goToStep` to the last index) | Lands inside the current range; also clamped once more at render                                        |
+| Restored timer is internally inconsistent               | `InvalidTimerStateError` / `InvalidTimestampError`    | ARCH-006 Interface: unreadable timer                   | Dropped at the restore boundary — the cook loses a countdown, not the session                           |
+| Start pressed for a step with no / a malformed duration | `StepHasNoTimerError`, `InvalidTimerDurationError`    | ARCH-006 Interface                                     | Ignored: unreachable from the UI (no badge renders), and a data defect is not worth interrupting a cook |
+| Start pressed twice on the same step                    | `DuplicateTimerIdError`                               | ARCH-006 Interface: one running timer per step id      | State unchanged — to the cook it is a repeated tap, and the ORIGINAL countdown survives                 |
+| Cancel pressed for a timer already gone                 | `UnknownTimerError`                                   | ARCH-006 Interface: cancels fail loudly                | Swallowed at this boundary; the alert is cleared if it named that timer                                 |
+| Yield factor outside the supported set                  | `UnsupportedScaleFactorError`                         | ARCH-015 Interface                                     | Propagates: the value crossed a component boundary and is validated by the domain, never trusted        |
+| Recipe could not be loaded by the host                  | `recipe.status === 'error'`                           | ARCH-001 Interface: the screen fetches nothing         | Error surface + a retry that reports UPWARD (`onRetry`); the exit affordance stays on every surface     |
+| Render error (child throws)                             | React render exception                                | ARCH-013 ErrorBoundary catches                         | ErrorBoundary renders fallback UI                                                                       |
+
+> **Corrected 2026-08-09.** This section specified a screen that authenticated, fetched and cached the recipe itself, then called
+> `StepNavigationController.initialise(stepIndex=0, totalSteps=…)` on mount and `TimerEngine.reset()` on unmount. Both calls are
+> **dead**: no such modules exist (see the MOD-004 and MOD-006 correction notes), and the shipped screen does none of that work —
+> it receives the recipe as a `CookingRecipeState` prop, issues no request at all (REQ-CN-001), and delegates every transition to a
+> pure reducer through the headless `useCookingSession`. The `AuthGuard` / `RecipeDataAdapter` / `OfflineRecipeCache` mount chain is
+> likewise unbuilt; entry auth belongs to the host route. `TimerEngine.reset()` is not merely renamed but **wrong in intent**: exit
+> must LEAVE the timers running inside the persisted session, because each remainder is derived from `startedAt` and a resume within
+> 24h has to show where the countdown genuinely is. The **`MOD-001` id is retained** — Matrix D, ARCH-001 and the `UTP-001-*` range
+> key off it — and only the target paths and the four views are corrected.
+>
+> **Not fixed in this pass, and visible on purpose:** `UTP-001-A` / `UTP-001-B` / `UTP-001-C` / `UTP-001-G` / `UTP-001-H` in
+> `unit-test.md` still arrange the auth/adapter/cache chain this section no longer specifies. Only `UTP-001-D`, `UTP-001-E` and
+> `UTP-001-F` — the cases that asserted the dead `initialise` / `reset` calls, and the one naming a `StepNavigationController`
+> instance — were corrected there.
 
 ---
 
@@ -460,7 +520,8 @@ COMPONENT GestureInputAdapter(props: {
 
 #### State Machine View
 
-N/A — Stateless gesture adapter; delegates all state to StepNavigationController.
+N/A — Stateless gesture adapter; it holds no step state and raises an intent to the orchestrator (MOD-001), which applies the
+MOD-004 reducer.
 
 #### Internal Data Structures
 
@@ -653,83 +714,123 @@ Every error below ships with a matching `is*` type guard, so callers discriminat
 ### Module: MOD-007 (TimerDisplayWidget)
 
 **Parent Architecture Modules**: ARCH-007
-**Target Source File(s)**: `packages/apps/commise/features/cooking/src/components/TimerDisplayWidget.tsx`
+**Target Source File(s)**: `packages/apps/commise/features/cooking/src/timerModel.ts` (the platform-neutral contract + pure
+presentation logic), and the three render leaves it serves — `TimerBadge`, `ActiveTimers`, `TimerAlert`, each with a `.tsx` (web)
+and a `.native.tsx` (mobile) sibling under `packages/apps/commise/features/cooking/src/`
 
 #### Algorithmic / Logic View
 
 ```pseudocode
-COMPONENT TimerDisplayWidget(props: {
-  timerState: TimerState,
-  onStart: (durationSeconds: number) => void,
-  onPause: () => void,
-  onReset: () => void
-}) -> ReactElement:
+// Pattern: Humble Object. Every decision worth proving lives in `timerModel.ts` as a pure function over
+// plain data, so it is provable without a renderer and CANNOT drift between the web and native leaves.
+// The leaves are the humble half: `props → JSX`, no fetching, no mutation, no timers of their own. The
+// live countdown is computed UPSTREAM by MOD-001 against MOD-006 and arrives already computed.
+//
+// Two type rules are load-bearing:
+//  - No recipe-shaped type is defined here (GR-007 / spec D-003): a step is the shipped `RecipeStepView`,
+//    the READ projection the client actually holds, which carries `stepNumber`, `instruction` and the
+//    inline `timerSeconds` — and NO `id`, which is why timer ids derive from `stepNumber` (MOD-006).
+//  - No timer type is redefined: a running timer IS the shipped `CookingTimer`.
+// There is deliberately NO scale factor anywhere in this contract — a timer surface that could accept one
+// would make the unsafe behaviour representable (FR-034a / spec D-002).
 
-  // Format remaining seconds as MM:SS
-  FUNCTION formatTime(seconds: number) -> string:
-    IF seconds <= 0:
-      RETURN "00:00"
-    minutes = FLOOR(seconds / 60)
-    secs = seconds MOD 60
-    RETURN PAD(minutes, 2) + ":" + PAD(secs, 2)
+TYPE ActiveTimerView = { timer: CookingTimer, remainingMs: number }   // a pairing, never a redefinition
 
-  displayTime = formatTime(props.timerState.remaining)
-  status = props.timerState.status
+FUNCTION stepTimerDurationMs(step: RecipeStepView) -> number | undefined:
+    seconds = step.timerSeconds
+    IF seconds IS ABSENT OR NOT isFinite(seconds) OR seconds <= 0: RETURN undefined
+    RETURN seconds * 1000
+    // `timerSeconds` is validated as a NON-NEGATIVE integer upstream, so 0 is representable on the wire; a
+    // zero-length countdown is not a timer, so it collapses to "no badge" rather than a 0:00 control that
+    // would complete the instant it started. The SECONDS→ms conversion exists exactly once, here.
 
-  // Determine control button state
-  IF status == 'idle' OR status == 'paused':
-    primaryAction = { label: "Start", icon: PlayIcon, onPress: props.onStart }
-  ELSE IF status == 'running':
-    primaryAction = { label: "Pause", icon: PauseIcon, onPress: props.onPause }
-  ELSE:  // 'done'
-    primaryAction = { label: "Reset", icon: ResetIcon, onPress: props.onReset }
+FUNCTION formatRemaining(remainingMs: number, template: string) -> string:
+    safeMs       = isFinite(remainingMs) ? remainingMs : 0
+    totalSeconds = MAX(0, CEIL(safeMs / 1000))          // round UP: a timer reads 0:01 for the whole of its
+    minutes      = FLOOR(totalSeconds / 60)             // final second, and 0:00 only when genuinely done
+    seconds      = totalSeconds MOD 60
+    RETURN template WITH {minutes} -> minutes, {seconds} -> PAD(seconds, 2)
+    // Seconds are zero-padded so the readout does not jitter in width; minutes are NOT padded and may
+    // exceed two digits for a long braise. An overshoot or a non-finite value clamps to 0:00 rather than
+    // rendering `-1:-1` or `NaN:NaN`. The separator comes from the LOCALIZED template, never hard-coded.
 
-  statusLabel = SWITCH status:
-    'idle'    -> "Timer ready"
-    'running' -> "Timer running"
-    'paused'  -> "Timer paused"
-    'done'    -> "Timer complete"
+COMPONENT TimerBadge(props: TimerBadgeProps { step, onStart }) -> ReactElement | null:
+    durationMs = stepTimerDurationMs(props.step)
+    IF durationMs IS undefined: RETURN null      // STRUCTURAL gate, not a disabled control: a step with no
+                                                 // duration offers no dead affordance to prod at (FR-034)
+    RETURN <duration chip: clock glyph + formatRemaining(durationMs, timeRemaining)>
+         + <start control (>= 44px target on EVERY viewport) onPress -> props.onStart(props.step)>
+    // The WHOLE step is handed back, so the orchestrator derives the CookingTimer without re-reading the
+    // recipe. The badge is inert until pressed — it raises nothing on render.
 
-  RETURN:
-    <View accessibilityRole="timer" accessibilityLabel=statusLabel>
-      IF status == 'done':
-        <Text>Timer Complete</Text>
-        <Icon name=CheckIcon />
-      ELSE:
-        <Text accessibilityLabel=(displayTime + " remaining")>
-          displayTime
-        </Text>
-      <TouchableOpacity
-        onPress=primaryAction.onPress
-        accessibilityLabel=primaryAction.label>
-        <Icon name=primaryAction.icon />
-        <Text>primaryAction.label</Text>
-      </TouchableOpacity>
-      IF status != 'idle':
-        <TouchableOpacity onPress=props.onReset accessibilityLabel="Reset timer">
-          <Icon name=ResetIcon />
-          <Text>Reset</Text>
-        </TouchableOpacity>
-    </View>
+COMPONENT ActiveTimers(props: ActiveTimersProps { timers, onPause, onResume, onCancel }) -> ReactElement | null:
+    IF timers IS EMPTY: RETURN null               // no empty labelled region for a screen reader to step through
+    RETURN <list role="list" aria-label=activeTimersLabel>
+             FOR EACH { timer, remainingMs } IN timers:
+               <row key=timer.id>
+                 <state glyph paused=timer.isPaused>          // non-colour pairing (NFR-004)
+                 <label>timer.label</label>
+                 <countdown role="timer" aria-label=timer.label>formatRemaining(remainingMs, …)</countdown>
+                 <toggle -> timer.isPaused ? onResume(timer.id) : onPause(timer.id)>   // ONE toggle per row
+                 <cancel -> onCancel(timer.id)>
+    // Command-shaped: every intent leaves with the timer's OWN id, so the reducer receives an ADDRESSED
+    // command rather than a positional one. Each countdown is a real ARIA `timer`, NAMED by its step label,
+    // so three concurrent timers are individually addressable (HAZ-008). Paused vs running is carried by the
+    // toggle's visible TEXT plus a dashed hairline — colour is never the sole conveyor (NFR-004).
+
+COMPONENT TimerAlert(props: TimerAlertProps { completedTimer?, onDismiss }) -> ReactElement | null:
+    IF completedTimer IS ABSENT: RETURN null      // an always-mounted empty live region invites spurious
+                                                  // announcements on unrelated re-renders
+    RETURN <banner>
+             <region role="alert" aria-live="assertive" aria-atomic="true">
+               bell glyph + timerCompleteAnnouncement WITH {label} -> completedTimer.label
+             </region>                            // scoped to the ANNOUNCEMENT alone, so the dismiss
+             <dismiss -> onDismiss(completedTimer.id)>   // control's label is not read out with it
+    // The audible chime is NOT this component's job: playing audio is a side effect and this leaf is pure.
+    // The orchestrator already holds the completion fact it passes down here, and plays the chime from
+    // there — there is deliberately no audio prop for a pure component to ignore.
 ```
 
 #### State Machine View
 
-N/A — Stateless presentational component; all timer state is owned by ARCH-006 (TimerEngine).
+N/A — three stateless presentational leaves. There is no timer status enum to transition through: what a leaf renders is a
+function of the `CookingTimer` it is handed (`isPaused`) and the `remainingMs` MOD-001 computed for that frame, and completion is
+DERIVED upstream rather than stored. The lifecycle those values move through belongs to MOD-006's state machine.
 
 #### Internal Data Structures
 
-| Name          | Type     | Size/Constraints | Initialization | Description                                   |
-| ------------- | -------- | ---------------- | -------------- | --------------------------------------------- |
-| `displayTime` | `string` | 5 chars (MM:SS)  | computed       | Formatted countdown string for display        |
-| `statusLabel` | `string` | max 20 chars     | computed       | Accessibility label describing current status |
+| Name                | Type                                      | Size/Constraints                           | Initialization | Description                                                                                     |
+| ------------------- | ----------------------------------------- | ------------------------------------------ | -------------- | ----------------------------------------------------------------------------------------------- |
+| `ActiveTimerView`   | `{ timer: CookingTimer, remainingMs }`    | one per running timer                      | from MOD-001   | The list's row model: the domain timer plus the remainder computed for THIS frame               |
+| `TimerBadgeProps`   | `{ step: RecipeStepView, onStart }`       | —                                          | props          | Duration in, start intent out. No scale factor exists on this contract (D-002)                  |
+| `ActiveTimersProps` | `{ timers, onPause, onResume, onCancel }` | ids unique; empty renders nothing          | props          | Intent leaves as a timer **id**; no state lives here                                            |
+| `TimerAlertProps`   | `{ completedTimer?, onDismiss }`          | absent ⇒ renders nothing                   | props          | The finished timer, or nothing at all — no idle live region                                     |
+| `durationMs`        | `number \| undefined`                     | `undefined` for absent / zero / non-finite | computed       | `undefined` is the "render NO badge" case, not a `0:00` control                                 |
+| `totalSeconds`      | `number`                                  | `>= 0`, rounded UP                         | computed       | Ceiling is the correct countdown semantic; flooring would show `0:00` while the timer still ran |
 
 #### Error Handling & Return Codes
 
-| Error Condition                | Error Code / Exception | Architecture Contract                       | Recovery                           |
-| ------------------------------ | ---------------------- | ------------------------------------------- | ---------------------------------- |
-| `timerState` is null/undefined | `PropsMissingError`    | ARCH-007 Interface: shows "—" when no timer | Render `"—"` placeholder; no crash |
-| `remaining` is negative        | None (defensive)       | ARCH-007 Interface                          | `formatTime` clamps to `"00:00"`   |
+| Error Condition                                                | Error Code / Exception | Architecture Contract                                | Recovery                                                                                    |
+| -------------------------------------------------------------- | ---------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Step declares no timer, a zero-length one, or a non-finite one | None — `undefined`     | ARCH-007 Interface: no badge at all                  | `stepTimerDurationMs` returns `undefined` and `TimerBadge` renders `null` (structural gate) |
+| `remainingMs` overshoots below zero, or is non-finite          | None — clamped         | ARCH-007 Interface: a countdown never runs backwards | `formatRemaining` clamps to `0:00`                                                          |
+| No timers are running                                          | None                   | ARCH-007 Interface                                   | `ActiveTimers` renders `null` — no empty labelled region                                    |
+| No timer has completed                                         | None                   | ARCH-007 Interface                                   | `TimerAlert` renders `null` — no idle live region to announce into                          |
+| Audio unavailable / denied                                     | Not raised here        | ARCH-008 owns audio                                  | Out of scope for these leaves: the visual completion cue is always rendered (NFR-004)       |
+
+> **Corrected 2026-08-09.** This section specified a single `TimerDisplayWidget` driven by a
+> `TimerState { remaining, status: 'idle' | 'running' | 'paused' | 'done' }` that it SUBSCRIBED to, with a start/pause/reset
+> control triple and an `MM:SS` formatter over a `remaining` **seconds** counter. None of that type or that component exists. The
+> status enum was the display half of the `setInterval` `TimerEngine` class already retired at MOD-006: with completion DERIVED from
+> timestamps there is no `'done'` state to hold, no `'idle'` state (a timer exists only once started) and nothing to subscribe to.
+> `reset()` has no counterpart either — the shipped intents are pause / resume / cancel, and dismissing an alert deliberately does
+> NOT remove the timer. The unit is also not one widget but a Humble Object plus THREE leaves (badge, list, banner) across two
+> platforms, which is what lets one recipe run several concurrent timers (HAZ-008) rather than one. The **`MOD-007` id and name are
+> retained** — ARCH-007, Matrix D and the whole `UTP-007-*` range key off them — and only the target paths and the four views are
+> corrected. Do not re-introduce a timer status enum.
+>
+> **Not fixed in this pass:** `UTP-007-A`…`UTP-007-E` in `unit-test.md` still arrange `timerState.status` values, and `ITP-007-A`
+> in `integration-test.md` still asserts a subscription to `TimerEngine`.
 
 ---
 
@@ -1468,7 +1569,7 @@ machine reaches timer state** — that is the REQ-015 invariant, asserted by STS
 | ARCH-001 | CookingModeScreen            | MOD-001                            | ✅       |
 | ARCH-002 | StepDisplayPanel             | MOD-002                            | ✅       |
 | ARCH-003 | StepTransitionAnimator       | MOD-003                            | ✅       |
-| ARCH-004 | StepNavigationController     | MOD-004                            | ✅       |
+| ARCH-004 | CookingSessionReducer        | MOD-004                            | ✅       |
 | ARCH-005 | GestureInputAdapter          | MOD-005                            | ✅       |
 | ARCH-006 | TimerEngine                  | MOD-006                            | ✅       |
 | ARCH-007 | TimerDisplayWidget           | MOD-007                            | ✅       |
@@ -1498,3 +1599,16 @@ machine reaches timer state** — that is the REQ-015 invariant, asserted by STS
 > from `StepNavigationController` to `CookingSessionReducer`. The per-module correction notes record why the class designs were
 > wrong rather than merely different, so neither is "restored". `unit-test.md` (`UTP-004-*`, `UTP-006-*`) and
 > `traceability-matrix.md` Matrix D were regenerated against the shipped suites in the same pass.
+
+> **Corrected 2026-08-09 (MOD-001, MOD-007).** Both still described the same non-existent class design from the other side of the
+> boundary: `MOD-001` called `StepNavigationController.initialise(0, N)` on mount and `TimerEngine.reset()` on unmount (inside an
+> auth → adapter → cache mount chain the feature never built), and `MOD-007` was specified against a
+> `TimerState { remaining, status: 'idle' | 'running' | 'paused' | 'done' }` it subscribed to. Both are now specified as what
+> shipped: `MOD-001` = the headless `useCookingSession` hook plus the two `CookingModeScreen` platform shells (a `restoring →
+cooking → ended` statechart, injected storage and wake-lock ports, one clock read, and Command-shaped intents onto the pure
+> reducers), and `MOD-007` = the `timerModel.ts` Humble Object plus the `TimerBadge` / `ActiveTimers` / `TimerAlert` leaves on both
+> platforms. The `MOD-001` / `MOD-007` **ids and names are unchanged**; only target paths and the four views moved, so Matrix D,
+> ARCH-001 / ARCH-007 and the `UTP-001-*` / `UTP-007-*` ranges are untouched. `unit-test.md`'s `UTS-001-D1` and `UTS-001-E1` — the
+> two scenarios asserting the dead `initialise` / `reset` calls — were corrected in the same pass; the remaining `UTP-001-*` and
+> `UTP-007-*` cases, and MOD-005's target path (`adapters/GestureInputAdapter.tsx`, actually the `PanResponder` inside
+> `StepNavigation.native.tsx` over the pure `stepNavigationModel`), are recorded as residual drift rather than silently corrected.

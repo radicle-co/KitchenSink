@@ -28,6 +28,20 @@
 > `module-design.md`. Status stays `Untested` per this matrix's own convention — the tests pass locally, but this document only
 > flips on real test-result ingestion. No other row was touched.
 
+> **Corrected 2026-08-09 (Matrix C — ARCH-004 only).** The row carried the name `StepNavigationController` and three scenarios
+> written against that class emitting `onStepChange`. `architecture-design.md` and `integration-test.md` have now been reconciled to
+> the shipped pure reducer (`packages/shared/cooking/src/session.ts` + the headless `useCookingSession`), so the row reads
+> `CookingSessionReducer` and gains **`ITS-004-A4`** — the reducer→persistence seam, which is precisely the handshake a
+> subscriber-holding class could not have satisfied. The `ARCH-004` and `ITP-004-A` **ids are unchanged**, nothing is retired, and
+> `integration-test.md`'s Coverage Summary moved from 42 to 43 scenario ids to match. Matrix D is untouched by this pass: MOD-001's
+> and MOD-007's module designs were reconciled, but no `UTP`/`UTS` id was added, removed or renamed (only `UTS-001-D1` and
+> `UTS-001-E1` had their assertions corrected in place). Status stays `Untested` per this matrix's convention.
+>
+> **Known-stale rows this pass did NOT touch**, recorded so the matrix is not read as reconciled: `ARCH-006` / `ARCH-007` in Matrix C
+> map `ITP-006-*` / `ITP-007-A`, which still describe the retired `setInterval` `TimerEngine` and a widget subscribing to it, and
+> `ARCH-008` / `ARCH-010` / `ARCH-011` / `ARCH-012` (Matrix C) and `MOD-008` / `MOD-010` / `MOD-011` / `MOD-012` (Matrix D) map cases
+> for an audio service, an offline cache, a recipe adapter and an in-feature auth guard that were never built.
+
 ## Matrix A — Validation (User View)
 
 | Requirement ID | Requirement Description                                                                                                                                                                                                                                                   | Test Case ID (AT/AC)                                                           | Validation Condition               | Scenario ID                                                                                                                                                                                                                                                                        | Status      |
@@ -95,7 +109,7 @@
 | **ARCH-001**           | CookingModeScreen            | SYS-001, SYS-004, SYS-006, SYS-007 | ITP-001-A, ITP-001-B, ITP-001-C | ITS-001-A1, ITS-001-A2, ITS-001-B1, ITS-001-B2, ITS-001-C1 | Untested |
 | **ARCH-002**           | StepDisplayPanel             | SYS-001                            | ITP-002-A                       | ITS-002-A1, ITS-002-A2                                     | Untested |
 | **ARCH-003**           | StepTransitionAnimator       | SYS-001                            | ITP-003-A, ITP-003-B            | ITS-003-A1, ITS-003-B1                                     | Untested |
-| **ARCH-004**           | StepNavigationController     | SYS-002                            | ITP-004-A                       | ITS-004-A1, ITS-004-A2, ITS-004-A3                         | Untested |
+| **ARCH-004**           | CookingSessionReducer        | SYS-002                            | ITP-004-A                       | ITS-004-A1, ITS-004-A2, ITS-004-A3, ITS-004-A4             | Untested |
 | **ARCH-005**           | GestureInputAdapter          | SYS-002                            | ITP-005-A, ITP-005-B            | ITS-005-A1, ITS-005-A2, ITS-005-B1                         | Untested |
 | **ARCH-006**           | TimerEngine                  | SYS-003                            | ITP-006-A, ITP-006-B, ITP-006-C | ITS-006-A1, ITS-006-A2, ITS-006-B1, ITS-006-C1             | Untested |
 | **ARCH-007**           | TimerDisplayWidget           | SYS-003                            | ITP-007-A                       | ITS-007-A1, ITS-007-A2                                     | Untested |

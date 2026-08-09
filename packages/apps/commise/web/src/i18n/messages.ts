@@ -162,6 +162,11 @@ export interface WebMessages {
         readonly actions: {
             /** Label of the in-app back control on the detail header, back to the recipe list (C1). */
             readonly backAction: string;
+            /**
+             * Label of the control that enters Cooking Mode (feature 008 / FR-032). Available to ANY viewer
+             * who can read the recipe — cooking is not an owner capability.
+             */
+            readonly cookAction: string;
             /** Label of the owner-only link to the recipe editor (W2/D1 — restores the web detail entry point). */
             readonly editAction: string;
             /** Label of the owner-only link to the recipe's version history (W2/D1). */
@@ -336,6 +341,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                     recipeNew: 'New recipe',
                     recipeDetail: 'Recipe',
                     recipeEdit: 'Edit recipe',
+                    recipeCooking: 'Cooking mode',
                     recipeVersions: 'Version history',
                     discover: 'Discover',
                     collections: 'Collections',
@@ -400,6 +406,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
             },
             actions: {
                 backAction: 'Back',
+                cookAction: 'Start cooking',
                 editAction: 'Edit recipe',
                 versionHistory: 'Version history',
                 deleteAction: 'Delete recipe',

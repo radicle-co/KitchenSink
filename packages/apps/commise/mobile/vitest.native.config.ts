@@ -94,6 +94,15 @@ export default defineConfig({
             // bridge to native views with no jsdom runtime — stub them; real gradient/blur is emulator-only.
             'expo-linear-gradient': path.resolve(import.meta.dirname, 'tests/stubs/expoLinearGradient.tsx'),
             'expo-blur': path.resolve(import.meta.dirname, 'tests/stubs/expoBlur.tsx'),
+            // `expo-keep-awake` bridges to an OS keep-awake service with no jsdom runtime, and the cooking
+            // feature's native wake-lock adapter reaches for it the moment a session opens (FR-035). The stub
+            // RECORDS acquire/release so the screen suite can assert the lock, rather than silently succeeding.
+            'expo-keep-awake': path.resolve(import.meta.dirname, 'tests/stubs/expoKeepAwake.ts'),
+            // `expo-speech-recognition` bridges to an OS recogniser (through `expo` itself, which cannot even
+            // be imported under jsdom). The cooking barrel's native voice adapter imports it at top level, so
+            // it reaches the graph merely by importing the package — stub it inert. See the stub's own note
+            // for why it is not a recording double.
+            'expo-speech-recognition': path.resolve(import.meta.dirname, 'tests/stubs/expoSpeechRecognition.ts'),
             // `react-native-safe-area-context` ships Flow-typed source that Vitest cannot parse at all
             // (`Unexpected token 'typeof'`), and bridges to a native module for the device's window insets.
             // The shared `FullScreenSheet` recipe primitive reads `useSafeAreaInsets`, so every screen that

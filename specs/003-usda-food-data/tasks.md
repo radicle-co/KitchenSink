@@ -733,11 +733,97 @@ T-172, T-185.
 
 - [ ] **T-198** [S] [Test-first: true] **SC-007 short-query index bypass** — a 2-char query yields no complete trigram, so the `ILIKE` branches Seq Scan 51,000 rows at ~158ms. Gate them behind `length(query) >= 3` (or enforce a minimum at the boundary) — `packages/services/food-service/src/foods/dao/food-search.dao.ts:48` (SC-007, FR-008, FR-010)
       This CHANGES SEARCH SEMANTICS (a 2-char query stops matching mid-word), so it needs a product call, not just a DAO edit.
+      **Implemented 2026-08-09 as ROUTING, not gating** — a 1–2 char query is served by a second statement (word-initial prefix matching over the GIN index the schema ALREADY had), not refused. **No migration and no new index were needed.** Measured evidence, the semantic change, and the rejected alternatives are recorded in "T-198 — measured evidence" below.
 
 - [ ] **T-199** [S] [Test-first: true] **Two defects T-195 found in shipped code, unrelated to perf:**
       (a) `FOOD_DEMOTE_THRESHOLD` is validated in `env.schema.ts` (default 50) and covered by tests, but `fetch-queue.dao.ts:21` hardcodes `DEMOTION_PENDING_THRESHOLD = 50` and never reads it — an operator tuning that variable gets NO effect, silently.
       (b) `FOOD_METRIC.localStoreServeRate` (`src/observability/emf-metrics.ts:33`) is declared and asserted in a test but **emitted nowhere**, so SC-004 and SC-005 have no runtime metric in production — they are provable only under load test, never observable in service.
       Also: `npm run lint` globs `src/**/*.ts`, so the whole `tests/` tree is unlinted (two pre-existing `padding-line-between-statements` errors in `tests/load/prepare-erasure-tokens.ts` confirm it).
+
+### T-198 — measured evidence (2026-08-09)
+
+Implemented as **routing by query length** in `FoodSearchDao.selectSearchStrategy`, not as the `length(query) >= 3`
+gate the ticket proposed: a 1–2 character query is not refused, it is served by a second statement —
+word-initial prefix matching, `search_vector @@ to_tsquery('simple', '<token>:*')`, over the **existing**
+`food_search_vector_idx`. 3+ characters keep the previous statement byte for byte.
+
+Postgres 16 (Docker, local, database `food_it_198`), 50,000 `RESOLVED` foods, warm cache,
+`EXPLAIN (ANALYZE, BUFFERS)`, best of three. `name`/`description` shaped the way production writes them —
+both USDA ingestion paths set `description := name` (`usda.adapter.ts:290`, `usda-bulk.parser.ts:165`).
+
+| query             | chars        | BEFORE                         | AFTER                                                   | change  |
+| ----------------- | ------------ | ------------------------------ | ------------------------------------------------------- | ------- |
+| `b`               | 1            | Seq Scan · **156.5ms**         | Bitmap Index Scan `food_search_vector_idx` · **13.6ms** | 11.5×   |
+| `c`               | 1            | Parallel Seq Scan · **87.5ms** | Bitmap Index Scan · **15.1ms**                          | 5.8×    |
+| `a`               | 1 (stopword) | Parallel Seq Scan · **95.4ms** | Bitmap Index Scan · **5.5ms**                           | 17×     |
+| `s`               | 1            | Parallel Seq Scan · **85.2ms** | Bitmap Index Scan · **12.9ms**                          | 6.6×    |
+| `ch`              | 2            | Seq Scan · **134.2ms**         | Bitmap Index Scan · **6.2ms**                           | 21.6×   |
+| `qu`              | 2            | Seq Scan · **127.3ms**         | Bitmap Index Scan · **5.4ms**                           | 23×     |
+| `be`              | 2 (stopword) | Seq Scan · **125.8ms**         | Bitmap Index Scan · **3.9ms**                           | 32×     |
+| `on`              | 2 (stopword) | Seq Scan · **130.9ms**         | Bitmap Index Scan · **0.06ms**                          | ~2,400× |
+| `zq`              | 2 (no match) | Seq Scan · **119.8ms**         | Bitmap Index Scan · **0.05ms**                          | ~2,500× |
+| `chicken`         | 7            | Bitmap Heap Scan · **15.6ms**  | _unchanged — same statement_                            | —       |
+| `grilled chicken` | 15           | Bitmap Heap Scan · **41.6ms**  | _unchanged — same statement_                            | —       |
+
+Worst case over all 26 single letters, on the more pessimistic T-195 fixture shape (verbose descriptions):
+**32.6ms** (`m`, which word-initially matches all 50,000 rows there), against SC-007's 200ms p95 — 6.1×
+headroom, in family with the other shapes' 8–35× instead of the ~1.3× the `short` shape had. End-to-end
+through the shipped DAO (wall clock, including round trip): `b` 8.7ms, `c` 9.3ms, `ch` 4.0ms,
+`chicken` 16.8ms.
+
+**Four causes, all reproduced on real data — the ticket named only the first.**
+
+1. `ILIKE '%ch%'` cannot use a trigram index below 3 characters (as stated).
+2. The FTS branch is **also dead** at 1–2 characters, for an unrelated reason: `plainto_tsquery('english', …)`
+   is exact-lexeme-after-stemming, so `ch` never matches `chicken`. Measured 0 rows for every 1–2 char query.
+3. **Stopword trap confirmed.** `plainto_tsquery('english', 'be'|'a'|'on'|'it'|'is')` is EMPTY, and so is
+   `to_tsquery('english', 'be:*')` — which is why the new statement uses the **`simple`** config. Prefix
+   matching compares stored lexeme text, so `simple` still matches the `english`-stemmed stored vector
+   (verified: `be:*` → `Beef`) while not discarding the needle as a stopword.
+4. **`name % query` contributes nothing at ANY length** on realistic names: max `similarity()` was 0.25 for
+   `chicken` against a 45-char name, below the 0.3 threshold, and 0.03–0.06 at 1–2 chars — where it was the
+   only thing feeding the score. Left in place (≥3 chars is unchanged by mandate).
+
+**Why no migration: the index the ticket assumed is not needed, and its design is measurably wrong.** A
+left-anchored `lower(name) text_pattern_ops` btree prefix index was built and measured — genuinely ~100×
+faster (0.14ms, index-ordered early termination) but it matches **name-initially only**, and on the 50,000-food
+fixture `ch` returned **0 rows** through it (fixture names begin with the preparation word) where the shipped
+query returns 8,695. It would miss the canonical `eg` → `Large egg` case. A name-only `tsvector` column + GIN
+index was also built and measured (worst case 32.6ms → 17.1ms), then **rejected as redundant**: production
+sets `description := name`, so `search_vector` already indexes only the name's words. Note also that ordering
+by `lower(name)` needs a `COLLATE "C"` sort key to be index-ordered at all — plain `ORDER BY name` sorted
+14,286 rows at 10.7ms — so the btree route is not the cheap win it appears to be.
+
+**The semantic change (the product call), stated exactly.** A 1–2 character query used to match **mid-word**
+and rank by trigram noise; it now matches **word-initially**. Queries that used to return rows and now return
+none: `ic` (matched `Chicken`, `Rice`), `an` (`Ranch`, `Banana`), `on` (`Salmon` — 9,720 rows on the fixture),
+`ee` (`Beef`, `Cheese`), and any 1–2 character needle occurring only inside a word. Gained: `eg` now finds
+`Large egg`, and `be`/`a`/`on`/`it`/`is` work at all. Ranking is name-initial first, then shortest name, then
+`name`; the score **encodes** that order, because `FoodCatalogGateway` in the recipe service re-sorts hits by
+`score DESC, name ASC` and would otherwise discard it.
+
+Tests: `src/foods/dao/__tests__/food-search.dao.test.ts` (34 unit — the pure routing/sanitisation) and the
+`word-initial prefix path` block in `tests/food-search.dao.integration.test.ts` (real Postgres).
+Mutation-verified: flipping `simple`→`english`, dropping the metacharacter whitelist, moving the length
+threshold, dropping `:*`, and removing either ranking term each fail ≥1 test. There is deliberately **no
+query-plan assertion** — see the comment in the integration file for why one was written, measured and
+removed (forcing the planner does not discriminate, and natural plan choice is cost-model noise below
+production scale).
+
+Follow-ups this opened, none done here:
+
+- `tests/load/search.load.js` still grants the `short` shape its own looser `SEARCH_SHORT_P95_MS` budget. That
+  exemption existed for this defect and should be removed so `short` runs at the full SC-007 200ms budget — it
+  is the real latency gate.
+- `description ILIKE '%q%'` in the ≥3-character statement is **dead work in production**: it can never match
+  anything `name ILIKE` does not, because `description` is a copy of `name`. Same for `name % …` per cause 4.
+  Removing both would cut the ≥3-character shapes' cost and is behaviour-preserving on production data.
+- `tests/load/perf-fixture.ts`'s note that a one-word description "would make SC-007 pass for the wrong
+  reason" is **inverted**: production descriptions ARE one-line names, so the fixture's verbose boilerplate
+  makes every index larger and every short query broader than deployed. T-195's numbers are therefore a
+  pessimistic bound — the safe direction, but the stated reason is wrong.
+- `src/sources/usda/bulk/usda-bulk.parser.ts:130` contains a **literal NUL byte** in a template string (a hash
+  field separator), which makes `grep`/`rg` treat the whole file as binary. Should be `\0`.
 
 ---
 

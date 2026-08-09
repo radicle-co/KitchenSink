@@ -816,11 +816,90 @@ query-plan assertion** — see the comment in the integration file for why one w
 removed (forcing the planner does not discriminate, and natural plan choice is cost-model noise below
 production scale).
 
+### T-198a — closing the regression hole T-198 left (2026-08-09)
+
+T-198 proved the fix but left the GUARD in the wrong place: the only thing holding short-query latency was the
+k6 `short` shape, and `load-test-food` is **HEAVY-TIER** (`heavy-e2e` label, the 07:00 UTC nightly, or manual
+dispatch), so an ordinary PR could revert the routing behind green checks. Two changes, no production code
+touched:
+
+**1. The `SEARCH_SHORT_P95_MS` exemption is DELETED.** It defaulted to `SEARCH_P95_MS` (200ms), so it never
+loosened anything by itself — but it was a knob whose only possible use was to raise the `short` shape above
+the success criterion it is named after, and the finding that justified it no longer exists. All seven shapes
+now read `SEARCH_P95_MS`, and the threshold loop in `search.load.js` is uniform so a per-shape exemption
+cannot be reintroduced invisibly. **Per-shape attribution is unchanged** — it comes from the `{shape:…}`
+threshold tag, never from a per-shape constant. The budget stays at exactly SC-007's **200ms**, not a tighter
+round number: the measured DB-side worst case is 32.6ms, but the endpoint is three queries behind a
+signature verification on a 512-CPU-unit Fargate task, and inventing a budget the spec does not state would
+manufacture flake instead of catching regressions.
+
+**2. The load-bearing guards moved to the tiers that run UNLABELLED** — `unit` and `integration-food` in
+`_ci.yml`, both on every PR:
+
+- **Routing** (`selectSearchStrategy`, pure, no DB) — the "can't happen" layer. Length 0 / 1 / 2 / 3 / long,
+  whitespace-only, punctuation-only, astral-character counting, and the metacharacter whitelist.
+- **Statement shape** (NEW, unit tier) — `FoodSearchDao.search` runs against a fake client that renders the
+  executed SQL through drizzle's `PgDialect`, exactly as the `pg` driver receives it. A 1–2 character query
+  must carry `to_tsquery('simple', $n::text)` and must contain **none** of `ILIKE` / `name %` /
+  `similarity(` / `plainto_tsquery`, and must bind no `%q%` pattern; a 3+ character query must carry all of
+  them and none of the prefix form. Also pinned: exactly ONE statement per call, `status = 'RESOLVED'`, and
+  the `LIMIT` (a single letter is word-initial across most of a real catalogue, so an unbounded prefix
+  statement is an SC-007 breach by itself). This is the layer the pure routing test cannot cover: the
+  selector can be correct while `search` ignores what it selected.
+- **Behaviour** (integration tier, real Postgres) — the semantic contract pinned in BOTH directions: the
+  queries that must now match (`eg` → `Large egg`, and the five stopwords) and the ones that must now return
+  nothing (`ic`, `ee`, `an` for `Ranch`, `on` for `Salmon`). Plus: only `RESOLVED` rows surface even when
+  PENDING/UNRESOLVED/NOT_FOUND/FAILED rows carry a matching name, the FR-010 cap holds at 25 candidates, and
+  every token the whitelist ADMITS is a tsquery Postgres will parse (a bare digit, a non-ASCII letter, and
+  both cases of it) — the mirror of the existing "metacharacters do not throw" cases, which only prove the
+  characters it REMOVES are safe.
+
+**Still deliberately NOT added: a query-plan assertion.** T-198's reasons stand and are recorded in the
+integration file — forcing `enable_seqscan=off` does not discriminate (`food_status_idx` lets the OLD
+statement avoid a Seq Scan too), and natural plan choice is cost-model noise below production scale (the same
+statement chose different plans at 3k/6k/12k/25k/50k rows).
+
+**Mutation-verified — every guard was broken on purpose and the failure observed.** Reverting the dispatch to
+one statement: 9 unit + 3 integration failures. Threshold `2 → 1`: 31 unit + 3 integration. `simple` →
+`english` in the SQL: 4 unit + 6 integration. Dropping `:*`: 16 unit + 12 integration. Removing the
+whitelist: 25 unit + 12 integration. Removing the prefix statement's `LIMIT`: 2 unit + 1 integration.
+Removing its `RESOLVED` filter: 1 unit + 1 integration. OR-ing an `ILIKE` branch back in (a partial revert):
+3 unit + 1 integration. Flattening the score: 3 unit + 1 integration. Removing the shortest-name term: 3
+unit + 2 integration. The first mutation pass also found a defect in the new tests themselves — they pinned
+placeholder NUMBERS (`$5`, `$6`), so an unrelated ranking edit failed them for the wrong reason; they now
+match `$\d+`, which keeps the discrimination without the brittleness.
+
+**k6 verified live**, against the built image on 4,000 RESOLVED foods (a reduced local population — this is
+NOT an SC-007 validation at 50,000): all seven shapes registered and passed at `p(95)<200`, with
+`{ shape:short }` at **p95 4.64ms** — now the tightest shape, where T-195 measured it as the loosest at
+~160ms. Loophole proven closed: with `FOOD_SEARCH_P95_MS=3` **and** `FOOD_SEARCH_SHORT_P95_MS=100000` set,
+`{ shape:short }` still breached and k6 exited `99`; the deleted override is inert.
+
+**Residual risk, stated plainly.** A _latency_ regression whose symptom is time rather than statement shape —
+principally a dropped `food_search_vector_idx`, or the RESOLVED population growing past SC-007's 50,000
+ceiling — is still caught ONLY by the label-gated k6 tier, so in practice by the nightly (within 24h of
+merge) rather than on the PR. The deterministic tiers pin shape, not time, and this note does not claim
+otherwise. Making it unconditional is not free: the `short` shape needs the 50,000-food fixture, which means
+the Docker image build + seed + boot that `load-test-food` already does (~several minutes). The cheapest
+honest options, in order of cost: (a) make the `heavy-e2e` label required for merge on any PR touching
+`food-service/src/foods/dao/**`; (b) add a `search`-only k6 job at a reduced population, which would catch a
+missing index (an index-less scan of 5,000 rows is still ~10× a prefix scan) but not a growth breach; (c)
+move `load-test-food` to run on push-to-`main`, catching it post-merge but pre-deploy. Not chosen here — it
+is a CI-topology call with a cost, and belongs to the owner. A second, smaller residual: the two suites
+cannot see each other's blind spots by construction (unit cannot see data, integration cannot see SQL text),
+so both must keep running — removing either leaves a mutation uncaught, which is why the mutation table above
+records BOTH tiers' counts.
+
+Also found while verifying, NOT fixed here (separate concerns, both pre-existing):
+`ApiExceptionFilter.catch` swallows every unclassified throwable with **no log line at all** — a genuine 500
+in the food API is invisible on the container's stdout, which is how the `TypeError` below took a debug patch
+to find. And `tsx src/main.ts` cannot boot this service at all: esbuild does not emit
+`emitDecoratorMetadata`, so every Nest constructor injection resolves to `undefined` and the first handler
+throws `Cannot read properties of undefined`. A local run needs `nest build` + the Docker image (as
+`_ci-heavy.yml` does), which is worth a line in the load README if anyone else tries it.
+
 Follow-ups this opened, none done here:
 
-- `tests/load/search.load.js` still grants the `short` shape its own looser `SEARCH_SHORT_P95_MS` budget. That
-  exemption existed for this defect and should be removed so `short` runs at the full SC-007 200ms budget — it
-  is the real latency gate.
 - `description ILIKE '%q%'` in the ≥3-character statement is **dead work in production**: it can never match
   anything `name ILIKE` does not, because `description` is a copy of `name`. Same for `name % …` per cause 4.
   Removing both would cut the ≥3-character shapes' cost and is behaviour-preserving on production data.

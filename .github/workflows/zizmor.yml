@@ -27,27 +27,32 @@
 #     entry, because SHA-pinning without Dependabot owning the pins just rots them (see dependabot.yml).
 #   • unpinned-uses 133 → 17 and artipacked 37 → 6 (details below).
 #
-# THE REMAINING 26, and why each is still here:
-#   • 21 in `_ci-heavy.yml` (17 unpinned-uses + 4 artipacked) — NOT touched, deliberately: it was being
-#     edited concurrently. Purely mechanical; the resolved SHAs it needs are `actions/setup-java@v4` →
-#     cf277c60eb25467037889841efdb72551f06f6c3 (v4.9.1) and
-#     `reactivecircus/android-emulator-runner@v2` → a421e43855164a8197daf9d8d40fe71c6996bb0d (v2.38.0),
-#     alongside the same checkout/setup-node/cache/upload-artifact pins used everywhere else.
-#   • 3 secrets-inherit — `ci-full.yml` (heavy), `heavy-e2e.yml`, `recipe-loadtest.yml`. BLOCKED, not
-#     declined: a caller can only stop inheriting once the CALLEE declares `on.workflow_call.secrets`,
-#     and the callee is `_ci-heavy.yml`. It consumes exactly `AWS_ACCESS_KEY_ID` +
-#     `AWS_SECRET_ACCESS_KEY`, so it needs the same optional-secrets block `_ci.yml` now carries. The
-#     three `_ci.yml` callers were converted and are clean.
+# `_ci-heavy.yml` CLOSED OUT (same day, once the concurrent edit landed): its 17 unpinned-uses and 4
+#   artipacked are gone. All four checkouts take `persist-credentials: false` — verified first that NO job
+#   in that workflow performs a git push/fetch/remote operation — and every action is pinned to the same
+#   SHAs used elsewhere, plus `actions/setup-java` → cf277c60eb25467037889841efdb72551f06f6c3 (v4.9.1) and
+#   `reactivecircus/android-emulator-runner` → a421e43855164a8197daf9d8d40fe71c6996bb0d (v2.38.0). Both
+#   were re-verified against the live tag API before use; note that `actions/setup-java@v4` currently
+#   resolves to exactly that commit, so the pin is behaviour-neutral (the repo is on v5 now — bumping the
+#   MAJOR is a separate decision, and the Maestro Android build has been fragile before).
+#   `on.workflow_call.secrets` is declared there too, which let all three callers drop `secrets: inherit`.
+#
+# THE REMAINING 2 — both LOW, and both deliberate:
 #   • 2 artipacked — prod-deploy `deploy` and sandbox-identity-deploy `deploy` keep their git credential
 #     ON PURPOSE. `dorny/paths-filter` only uses the GitHub API on `pull_request`; on `push` /
-#     `workflow_dispatch` it falls through to `getChangedFilesFromGit`, which fetches from `origin`.
-#     Each site carries a `⚠️ DELIBERATE` note. Every other checkout in the repo now sets
+#     `workflow_dispatch` it falls through to `getChangedFilesFromGit`, which fetches from `origin`. Each
+#     site carries a `⚠️ DELIBERATE` note. Every other checkout in the repo sets
 #     `persist-credentials: false`.
 #
-# Gating is the owner's call, not this file's. What it would take: land the `_ci-heavy.yml` pins +
-# secrets block (closes 24 of the 26), then decide whether the 2 deliberate artipacked sites get
-# `# zizmor: ignore[artipacked]` comments or whether the gate runs at a severity floor above `low`.
+# CURRENT MEASUREMENT (2026-08-08, `zizmor .github/`): **62 findings, 60 of them suppressed by zizmor's
+#   own default persona — 2 actionable: 0 high, 0 medium, 2 low.** Down from 251. No `# zizmor: ignore`
+#   comment and no config file exists in this repo; nothing has been silenced to reach that number.
 #
+# GATING IS NOW VIABLE and is the owner's call. With 0 high / 0 medium, a gate at a `medium` severity
+#   floor would pass today and would catch every class that was closed above from regressing. Gating at
+#   `low` needs a decision on the 2 deliberate artipacked sites first — either
+#   `# zizmor: ignore[artipacked]` comments there, or accept that the gate reports them forever. Note the
+#   exit-code caveat below before wiring any gate.
 # SCOPED TO `.github/` DELIBERATELY, not the repo root. A root-scoped run also audits the vendored
 # third-party workflows under `.specify/extensions/**` (36 extra findings in code we do not own and
 # cannot fix), which is noise that would bury our own findings.

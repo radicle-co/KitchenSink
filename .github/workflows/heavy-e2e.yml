@@ -84,4 +84,8 @@ jobs:
         # Same as ci-pr.yml / ci-main.yml: the composite load-secrets action needs AWS_ACCESS_KEY_ID /
         # AWS_SECRET_ACCESS_KEY to read kitchensink/sandbox/identity/keys. Fork PRs get no secrets, so
         # load-secrets' `continue-on-error` skips the Clerk-dependent steps rather than failing.
-        secrets: inherit
+        # Explicit, not `inherit` — `_ci-heavy.yml` declares exactly these two, and `inherit` would hand it
+        # every repository secret regardless of need.
+        secrets:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

@@ -52,6 +52,19 @@ on:
                 type: boolean
                 default: true
 
+        # Declared EXPLICITLY rather than relying on the caller's `secrets: inherit`. `inherit` hands this
+        # workflow every secret the repository holds, including ones it has no business seeing, and zizmor
+        # flags it for that reason. These two are the only secrets any job here consumes (grepped), and both
+        # are `required: false` so a fork or Dependabot PR still runs — the jobs degrade via their own
+        # secret-presence check rather than failing on a missing input.
+        secrets:
+            AWS_ACCESS_KEY_ID:
+                description: AWS access key id, used only to read stage-scoped secrets from Secrets Manager
+                required: false
+            AWS_SECRET_ACCESS_KEY:
+                description: AWS secret access key paired with AWS_ACCESS_KEY_ID
+                required: false
+
 permissions:
     contents: read
 
@@ -65,14 +78,18 @@ jobs:
         # Owns its own copy because a reusable workflow cannot `needs:` a job in another workflow; every
         # heavy job below restores the cache this saves. See the file header.
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # No job here performs a git push/fetch/remote operation (verified), so the
+                  # checkout token is pure attack surface left in the workspace (zizmor: artipacked).
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - run: npm ci
             - name: Cache dependencies
-              uses: actions/cache/save@v5
+              uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -111,13 +128,17 @@ jobs:
                     --health-timeout 5s
                     --health-retries 5
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # No job here performs a git push/fetch/remote operation (verified), so the
+                  # checkout token is pure attack surface left in the workspace (zizmor: artipacked).
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -206,7 +227,7 @@ jobs:
                   echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
             - name: Set up JDK 17
               if: steps.secrets.outcome == 'success'
-              uses: actions/setup-java@v4
+              uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
               with:
                   distribution: temurin
                   java-version: '17'
@@ -333,7 +354,7 @@ jobs:
             # A generous MAESTRO_DRIVER_STARTUP_TIMEOUT absorbs first-run driver-install latency.
             - name: Run Maestro flows on emulator
               if: steps.secrets.outcome == 'success'
-              uses: reactivecircus/android-emulator-runner@v2
+              uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
               env:
                   MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
               with:
@@ -356,7 +377,7 @@ jobs:
                   script: bash packages/apps/commise/mobile/tests/e2e/run-maestro-flows.sh
             - name: Upload Maestro artifacts
               if: failure() && steps.secrets.outcome == 'success'
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                   name: maestro-report-${{ inputs.stage }}
                   path: ~/.maestro/tests
@@ -416,13 +437,17 @@ jobs:
                     --health-timeout 5s
                     --health-retries 20
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # No job here performs a git push/fetch/remote operation (verified), so the
+                  # checkout token is pure attack surface left in the workspace (zizmor: artipacked).
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -575,7 +600,7 @@ jobs:
                   k6 run --summary-export=k6-version-archive-summary.json tests/load/version-archive-read.load.js
             - name: Upload k6 summaries
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                   name: recipe-k6-summaries-${{ inputs.stage }}
                   path: packages/services/recipe-service/k6-*-summary.json
@@ -614,13 +639,17 @@ jobs:
                     --health-timeout 5s
                     --health-retries 5
         steps:
-            - uses: actions/checkout@v6
-            - uses: actions/setup-node@v6
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # No job here performs a git push/fetch/remote operation (verified), so the
+                  # checkout token is pure attack surface left in the workspace (zizmor: artipacked).
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
                   node-version: 24
                   cache: npm
             - name: Restore dependencies
-              uses: actions/cache/restore@v5
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
               with:
                   path: |
                       node_modules
@@ -770,7 +799,7 @@ jobs:
               run: npx tsx tests/load/drain-demotion.perf.ts
             - name: Upload k6 summaries
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                   name: food-k6-summaries-${{ inputs.stage }}
                   path: packages/services/food-service/k6-*-summary.json

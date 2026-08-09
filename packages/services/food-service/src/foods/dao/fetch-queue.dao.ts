@@ -14,7 +14,7 @@
  */
 import { eq, sql } from 'drizzle-orm';
 
-import { demoteThresholdFromEnv } from '../../config/env.schema.js';
+import { settingFromEnv } from '../../config/env.schema.js';
 import type { FoodDrizzle } from '../../database/database.module.js';
 import { fetchQueue, type FetchQueueRow } from '../../db/schema/index.js';
 
@@ -48,7 +48,7 @@ export class FetchQueueDao {
         private readonly db: FoodDrizzle,
         options?: FetchQueueDaoOptions,
     ) {
-        this.demoteThreshold = options?.demoteThreshold ?? demoteThresholdFromEnv();
+        this.demoteThreshold = options?.demoteThreshold ?? settingFromEnv('FOOD_DEMOTE_THRESHOLD');
     }
 
     /**

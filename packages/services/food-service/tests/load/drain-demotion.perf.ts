@@ -63,7 +63,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-import { demoteThresholdFromEnv } from '../../src/config/env.schema.js';
+import { settingFromEnv } from '../../src/config/env.schema.js';
 import * as schema from '../../src/db/schema/index.js';
 import { FetchQueueDao } from '../../src/foods/dao/fetch-queue.dao.js';
 import {
@@ -134,7 +134,7 @@ const CLAIM_P95_BUDGET_MS = Number(process.env['FOOD_DRAIN_CLAIM_P95_MS'] ?? 60)
  * tuned `FOOD_DEMOTE_THRESHOLD` desynchronise the fixture from the query, which would silently stop
  * exercising the expensive no-short-circuit demotion branch this script exists to time.
  */
-const DEMOTION_THRESHOLD = demoteThresholdFromEnv();
+const DEMOTION_THRESHOLD = settingFromEnv('FOOD_DEMOTE_THRESHOLD');
 
 /** Pending rows each heavy requester is attached to — comfortably over {@link DEMOTION_THRESHOLD}. */
 const HEAVY_FANOUT = 400;

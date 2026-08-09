@@ -20,7 +20,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 
-import { demoteThresholdFromEnv, maxQueueDepthFromEnv } from '../config/env.schema.js';
+import { settingFromEnv } from '../config/env.schema.js';
 import { DrizzleProvider, type FoodDrizzle } from '../database/database.module.js';
 import { FetchUnavailableError } from './foods.errors.js';
 
@@ -41,10 +41,10 @@ export class AdmissionService {
         // which would not raise these guards but REMOVE them: every `depth >= NaN` / `pending > NaN`
         // comparison is `false`, so the 503 backstop and the flood-shed would silently stop firing and the
         // service would accept unbounded enqueues behind no error and no log.
-        this.maxQueueDepth = maxQueueDepthFromEnv();
+        this.maxQueueDepth = settingFromEnv('FOOD_MAX_QUEUE_DEPTH');
         // The threshold is shared with the worker's drain-time demotion (`FetchQueueDao`) through the same
         // reader, so an operator cannot tune the shed and the drain apart.
-        this.demoteThreshold = demoteThresholdFromEnv();
+        this.demoteThreshold = settingFromEnv('FOOD_DEMOTE_THRESHOLD');
     }
 
     /**

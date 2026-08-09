@@ -12,7 +12,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ZodError } from 'zod';
 
-import { demoteThresholdFromEnv, EnvironmentSchema, maxQueueDepthFromEnv, resolveEnvironment } from '../env.schema.js';
+import {
+    EnvironmentSchema,
+    FOOD_SETTING_SCHEMAS,
+    type FoodSettingName,
+    resolveEnvironment,
+    settingFromEnv,
+} from '../env.schema.js';
 
 const VALID_ENV = {
     STAGE: 'test',
@@ -72,9 +78,10 @@ describe('EnvironmentSchema — source-agnostic operational defaults', () => {
         expect(env.FOOD_NOT_FOUND_TTL_DAYS).toBe(30);
         expect(env.FOOD_UNRESOLVED_TTL_DAYS).toBe(30);
         expect(env.FOOD_STALE_THRESHOLD_DAYS).toBe(30);
-        // Worker lease + scaling (FR-018).
+        // Worker lease (FR-018). The Fargate TASK COUNTS are deliberately absent: `FOOD_DESIRED_COUNT` /
+        // `FOOD_WORKER_DESIRED_COUNT` are consumed only by the CDK app at synth time and never reach a
+        // container, so they are defined and validated in `infra/lib/synth-env.ts` instead of here.
         expect(env.FOOD_LEASE_TIMEOUT_SECONDS).toBe(30);
-        expect(env.FOOD_WORKER_DESIRED_COUNT).toBe(1);
     });
 
     it('keeps the source credentials at the adapter boundary (USDA_API_KEY / USDA_API_BASE_URL only)', () => {
@@ -178,96 +185,184 @@ describe('EnvironmentSchema — azp enforcement mode', () => {
 });
 
 describe('resolveEnvironment', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    // Mutates through `vi.stubEnv` and NEVER by reassigning `process.env`: a whole-object replacement
+    // detaches the runner's env-stub machinery, after which `vi.stubEnv(name, undefined)` silently stops
+    // deleting and `vi.unstubAllEnvs()` silently stops restoring — poisoning every later test in the file
+    // (measured: three `settingFromEnv` cases below saw a leaked value from an earlier case).
     it('parses process.env (smoke: returns the validated env when the required vars are present)', () => {
-        const saved = { ...process.env };
+        vi.stubEnv('DATABASE_URL', VALID_ENV.DATABASE_URL);
+        vi.stubEnv('USDA_API_KEY', VALID_ENV.USDA_API_KEY);
 
-        try {
-            process.env['DATABASE_URL'] = VALID_ENV.DATABASE_URL;
-            process.env['USDA_API_KEY'] = VALID_ENV.USDA_API_KEY;
-            const env = resolveEnvironment();
-            expect(env.FOOD_SOURCE_RATE_LIMIT_PER_HOUR).toBe(1000);
-        } finally {
-            process.env = saved;
-        }
+        expect(resolveEnvironment().FOOD_SOURCE_RATE_LIMIT_PER_HOUR).toBe(1000);
     });
 });
 
 /**
- * T-199(a) — `FOOD_DEMOTE_THRESHOLD` is consumed OUTSIDE the NestJS injector (the drain-time demotion
- * lives in `FetchQueueDao`, which the Fargate worker constructs with `new`), so it needs a reader that
- * shares ONE default + ONE validation rule with {@link EnvironmentSchema}. Before this existed the
- * threshold was hardcoded in the DAO and read with a bare `Number()` in the admission service, so a
- * tuned value had no effect on the drain and a malformed one degraded to `NaN` (which silently disables
- * the near-ceiling flood-shed, because every `pending > NaN` comparison is `false`).
+ * `settingFromEnv` — the ONE validated reader for a single food setting, replacing the per-variable
+ * `*FromEnv()` copies (T-199a/c) and the hand-rolled `Number(process.env[...] ?? DEFAULT)` reads scattered
+ * across the DAOs, the workers, and the API entrypoint.
+ *
+ * Why it exists: most of this service's settings are consumed OUTSIDE the NestJS injector (both Fargate
+ * entrypoints, the DAOs the worker constructs with `new`), where no `ConfigService` and no boot-time
+ * validation is in play. A bare `Number()` there turns a malformed value into `NaN`, and every comparison
+ * against `NaN` is `false` — so a safety control does not tighten, it DISAPPEARS, with no error and no log.
+ *
+ * The invariant these tests defend is stronger than "it throws": the reader resolves each variable through
+ * the SAME schema node {@link EnvironmentSchema} validates it with, so the boot check and the runtime read
+ * can NEVER disagree about a default or a rule. The property tests below assert that mechanically, over
+ * EVERY declared setting — a reader with its own private copy of any rule cannot pass them.
  */
-describe('demoteThresholdFromEnv', () => {
+describe('settingFromEnv', () => {
+    /** Every setting the boot-time schema declares — read from the registry, never re-listed by hand. */
+    const SETTING_NAMES = Object.keys(FOOD_SETTING_SCHEMAS) as FoodSettingName[];
+
+    /**
+     * Values chosen to straddle every rule in the schema: blank, non-numeric, zero, negative, fractional,
+     * the two coercion traps (`NaN`/`Infinity` are numbers to `Number()` but not integers), a valid
+     * positive integer, and a URL (the only shape `USDA_API_BASE_URL` accepts).
+     */
+    const CANDIDATES = ['', 'lots', '0', '-1', '2.5', '7', 'NaN', 'Infinity', 'https://example.com/v1'] as const;
+
+    /** Index a parsed environment by a dynamic setting name (the parsed type has no index signature). */
+    function settingOf(env: unknown, name: FoodSettingName): unknown {
+        return (env as Record<string, unknown>)[name];
+    }
+
     afterEach(() => {
         vi.unstubAllEnvs();
     });
 
-    it('defaults to the schema default (50) when FOOD_DEMOTE_THRESHOLD is unset', () => {
-        vi.stubEnv('FOOD_DEMOTE_THRESHOLD', undefined);
-
-        expect(demoteThresholdFromEnv()).toBe(50);
-        // The same default the boot-time validation applies — one source of truth, not two literals.
-        expect(EnvironmentSchema.parse(VALID_ENV).FOOD_DEMOTE_THRESHOLD).toBe(demoteThresholdFromEnv());
+    it('covers the whole declared setting surface (a new schema field is readable without new code)', () => {
+        expect(SETTING_NAMES).toContain('FOOD_MAX_QUEUE_DEPTH');
+        expect(SETTING_NAMES).toContain('FOOD_SOURCE_WINDOW_SECONDS');
+        expect(SETTING_NAMES).toContain('FOOD_WORKER_CONCURRENCY');
+        expect(SETTING_NAMES).toContain('PORT');
+        // The DB block is a union (`DATABASE_URL` OR the discrete `DB_*` parts), so it is deliberately NOT
+        // a per-variable setting — `database/pool-config.ts` owns that either/or contract.
+        expect(SETTING_NAMES).not.toContain('DATABASE_URL');
+        expect(SETTING_NAMES).not.toContain('DB_PORT');
     });
 
-    it('returns the operator-configured value (env vars arrive as strings)', () => {
-        vi.stubEnv('FOOD_DEMOTE_THRESHOLD', '7');
+    it.each(SETTING_NAMES)('%s — an unset variable yields exactly the default the boot-time schema applies', (name) => {
+        vi.stubEnv(name, undefined);
 
-        expect(demoteThresholdFromEnv()).toBe(7);
-    });
+        const booted = EnvironmentSchema.safeParse({ ...VALID_ENV, [name]: undefined });
 
-    it.each(['fifty', '', '0', '-1', '2.5'])('throws on the malformed value %o rather than yielding NaN', (value) => {
-        vi.stubEnv('FOOD_DEMOTE_THRESHOLD', value);
+        if (!booted.success) {
+            // No default and no `.optional()` (e.g. USDA_API_KEY): the reader must fail closed too,
+            // naming the variable, rather than hand back `undefined` for a required credential.
+            expect(() => settingFromEnv(name)).toThrow(new RegExp(name));
 
-        expect(() => demoteThresholdFromEnv()).toThrow(/FOOD_DEMOTE_THRESHOLD/);
-    });
-});
-
-/**
- * T-199(c) — the same reader treatment for `FOOD_MAX_QUEUE_DEPTH`, the FR-046 hard ceiling. `AdmissionService`
- * read it with a bare `Number(process.env[...] ?? 10_000)`, so a malformed value became `NaN`, every
- * `depth >= NaN` comparison was `false`, and the `503` backpressure backstop stopped firing entirely — the
- * service accepted unbounded enqueues with no ceiling, no error and no log. The boot-time
- * {@link EnvironmentSchema} check would have rejected the value, but the ceiling must not depend on a
- * separate validation happening to run first: the reader now shares ONE default and ONE rule with it.
- */
-describe('maxQueueDepthFromEnv', () => {
-    afterEach(() => {
-        vi.unstubAllEnvs();
-    });
-
-    it('defaults to the schema default (10,000) when FOOD_MAX_QUEUE_DEPTH is unset', () => {
-        vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', undefined);
-
-        expect(maxQueueDepthFromEnv()).toBe(10_000);
-        // The same default the boot-time validation applies — one source of truth, not two literals.
-        expect(EnvironmentSchema.parse(VALID_ENV).FOOD_MAX_QUEUE_DEPTH).toBe(maxQueueDepthFromEnv());
-    });
-
-    it('returns the operator-configured value (env vars arrive as strings)', () => {
-        vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', '250');
-
-        expect(maxQueueDepthFromEnv()).toBe(250);
-    });
-
-    it.each(['lots', '', '0', '-1', '2.5', 'NaN', 'Infinity'])(
-        'throws on the malformed value %o rather than yielding NaN',
-        (value) => {
-            vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', value);
-
-            expect(() => maxQueueDepthFromEnv()).toThrow(/FOOD_MAX_QUEUE_DEPTH/);
-        },
-    );
-
-    it('rejects every malformed value the boot-time schema also rejects (one rule, not two)', () => {
-        for (const value of ['lots', '', '0', '-1', '2.5', 'NaN', 'Infinity']) {
-            vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', value);
-
-            expect(EnvironmentSchema.safeParse({ ...VALID_ENV, FOOD_MAX_QUEUE_DEPTH: value }).success).toBe(false);
-            expect(() => maxQueueDepthFromEnv()).toThrow();
+            return;
         }
+
+        expect(settingFromEnv(name)).toEqual(settingOf(booted.data, name));
+    });
+
+    it.each(SETTING_NAMES)('%s — accepts and rejects exactly what the boot-time schema does', (name) => {
+        for (const value of CANDIDATES) {
+            vi.stubEnv(name, value);
+
+            const booted = EnvironmentSchema.safeParse({ ...VALID_ENV, [name]: value });
+
+            if (booted.success) {
+                // Accepted: the reader must also return the SAME coerced value, not merely not-throw.
+                expect(settingFromEnv(name)).toEqual(settingOf(booted.data, name));
+            } else {
+                // Rejected: a loud failure that names the offending variable, never a silent fallback.
+                expect(() => settingFromEnv(name)).toThrow(new RegExp(name));
+            }
+        }
+    });
+
+    it('names the variable AND quotes the offending value, so the operator can find the typo', () => {
+        vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', 'lots');
+
+        expect(() => settingFromEnv('FOOD_MAX_QUEUE_DEPTH')).toThrow(/FOOD_MAX_QUEUE_DEPTH/);
+        expect(() => settingFromEnv('FOOD_MAX_QUEUE_DEPTH')).toThrow(/lots/);
+    });
+
+    /**
+     * T-199(a) — `FOOD_DEMOTE_THRESHOLD` gates BOTH halves of FR-043 fairness: the API's near-ceiling
+     * flood-shed (`AdmissionService`) and the worker's drain-time demotion (`FetchQueueDao`, constructed
+     * with `new` by the Fargate worker — no injector, no boot validation). A `NaN` here made every
+     * `pending > NaN` comparison `false`, silently disabling the shed.
+     */
+    describe('FOOD_DEMOTE_THRESHOLD (FR-043/FR-043b)', () => {
+        it('defaults to the schema default when unset — one source of truth, not two literals', () => {
+            vi.stubEnv('FOOD_DEMOTE_THRESHOLD', undefined);
+
+            expect(settingFromEnv('FOOD_DEMOTE_THRESHOLD')).toBe(
+                EnvironmentSchema.parse(VALID_ENV).FOOD_DEMOTE_THRESHOLD,
+            );
+        });
+
+        it('returns the operator-configured value (env vars arrive as strings)', () => {
+            vi.stubEnv('FOOD_DEMOTE_THRESHOLD', '7');
+
+            expect(settingFromEnv('FOOD_DEMOTE_THRESHOLD')).toBe(7);
+        });
+
+        it.each(['fifty', '', '0', '-1', '2.5'])(
+            'throws on the malformed value %o rather than yielding NaN',
+            (value) => {
+                vi.stubEnv('FOOD_DEMOTE_THRESHOLD', value);
+
+                expect(() => settingFromEnv('FOOD_DEMOTE_THRESHOLD')).toThrow(/FOOD_DEMOTE_THRESHOLD/);
+            },
+        );
+    });
+
+    /**
+     * T-199(c) — `FOOD_MAX_QUEUE_DEPTH` is the FR-046 hard ceiling, the `503` backpressure backstop. `NaN`
+     * does not raise that ceiling, it REMOVES it: every `depth >= NaN` is `false`, so the service accepts
+     * unbounded enqueues behind no error and no log.
+     */
+    describe('FOOD_MAX_QUEUE_DEPTH (FR-046)', () => {
+        it('defaults to the schema default when unset — one source of truth, not two literals', () => {
+            vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', undefined);
+
+            expect(settingFromEnv('FOOD_MAX_QUEUE_DEPTH')).toBe(
+                EnvironmentSchema.parse(VALID_ENV).FOOD_MAX_QUEUE_DEPTH,
+            );
+        });
+
+        it('returns the operator-configured value (env vars arrive as strings)', () => {
+            vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', '250');
+
+            expect(settingFromEnv('FOOD_MAX_QUEUE_DEPTH')).toBe(250);
+        });
+
+        it.each(['lots', '', '0', '-1', '2.5', 'NaN', 'Infinity'])(
+            'throws on the malformed value %o rather than yielding NaN',
+            (value) => {
+                vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', value);
+
+                expect(() => settingFromEnv('FOOD_MAX_QUEUE_DEPTH')).toThrow(/FOOD_MAX_QUEUE_DEPTH/);
+            },
+        );
+    });
+
+    /**
+     * `FOOD_WORKER_CONCURRENCY` is the one setting whose ABSENCE is meaningful: unset means "size the
+     * drainer off the container's vCPUs" (see `worker/concurrency.ts`), so the reader must hand back
+     * `undefined` rather than a stand-in default — while still refusing a malformed value.
+     */
+    describe('FOOD_WORKER_CONCURRENCY (an optional setting with no default)', () => {
+        it('is undefined when unset, so the caller can tell "unset" from "set to a number"', () => {
+            vi.stubEnv('FOOD_WORKER_CONCURRENCY', undefined);
+
+            expect(settingFromEnv('FOOD_WORKER_CONCURRENCY')).toBeUndefined();
+        });
+
+        it('still refuses a malformed value instead of degrading it to "unset"', () => {
+            vi.stubEnv('FOOD_WORKER_CONCURRENCY', 'eight');
+
+            expect(() => settingFromEnv('FOOD_WORKER_CONCURRENCY')).toThrow(/FOOD_WORKER_CONCURRENCY/);
+        });
     });
 });

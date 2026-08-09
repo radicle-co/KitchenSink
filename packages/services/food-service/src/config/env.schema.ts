@@ -54,6 +54,15 @@ const SourceAdapterConfigSchema = z.object({
 const DemoteThresholdSchema = z.coerce.number().int().positive().default(50);
 
 /**
+ * The `FOOD_MAX_QUEUE_DEPTH` field, hoisted out of {@link FoodOperationalConfigSchema} for the same reason
+ * as {@link DemoteThresholdSchema}: the boot-time validation and the standalone
+ * {@link maxQueueDepthFromEnv} reader must share ONE default and ONE validation rule (FR-046). This is the
+ * hard `fetch_queue` depth ceiling — the `503` backpressure backstop — so a value the ceiling and the boot
+ * check could disagree about is a safety control with two opinions.
+ */
+const MaxQueueDepthSchema = z.coerce.number().int().positive().default(10_000);
+
+/**
  * Source-agnostic operational knobs for the queue, limiter, fairness/backpressure, lifecycle TTLs, and
  * worker scaling. All carry documented defaults so a minimal env (DB + source key) boots.
  */
@@ -75,7 +84,7 @@ const FoodOperationalConfigSchema = z.object({
     // queue ceiling (FR-043/FR-043b).
     FOOD_DEMOTE_THRESHOLD: DemoteThresholdSchema,
     // Hard `fetch_queue` depth ceiling; new enqueues fail closed with 503 at/above it (FR-046).
-    FOOD_MAX_QUEUE_DEPTH: z.coerce.number().int().positive().default(10_000),
+    FOOD_MAX_QUEUE_DEPTH: MaxQueueDepthSchema,
     // Max names accepted in one `POST /api/v1/foods/batch` (FR-045); over → 400.
     FOOD_MAX_BATCH_NAMES: z.coerce.number().int().positive().default(100),
     // NOT_FOUND tombstone TTL (FR-025): an add after this many days may re-attempt the fan-out.
@@ -198,6 +207,31 @@ export function demoteThresholdFromEnv(): number {
 
     if (!parsed.success) {
         throw new Error(`Invalid FOOD_DEMOTE_THRESHOLD "${raw}" — expected a positive integer.`);
+    }
+
+    return parsed.data;
+}
+
+/**
+ * Read the hard `fetch_queue` depth ceiling (`FOOD_MAX_QUEUE_DEPTH`, FR-046) from the ambient environment,
+ * validated by the SAME {@link MaxQueueDepthSchema} the boot-time {@link EnvironmentSchema} check uses.
+ *
+ * Mirrors {@link demoteThresholdFromEnv} — the two halves of admission (`AdmissionService`'s ceiling and its
+ * near-ceiling flood-shed) now resolve both of their numbers through validated readers. Fails fast rather
+ * than coercing with a bare `Number()`, because `NaN` does not raise the ceiling, it REMOVES it: every
+ * `depth >= NaN` comparison is `false`, so the `503` backstop stops firing and the service accepts unbounded
+ * enqueues behind no error and no log. A process that cannot know its own limit must not serve.
+ *
+ * @returns The configured ceiling in rows (10,000 when unset).
+ * @throws {Error} when the configured value is not a positive integer.
+ * @sideEffect Reads `process.env`.
+ */
+export function maxQueueDepthFromEnv(): number {
+    const raw = process.env['FOOD_MAX_QUEUE_DEPTH'];
+    const parsed = MaxQueueDepthSchema.safeParse(raw);
+
+    if (!parsed.success) {
+        throw new Error(`Invalid FOOD_MAX_QUEUE_DEPTH "${raw}" — expected a positive integer.`);
     }
 
     return parsed.data;

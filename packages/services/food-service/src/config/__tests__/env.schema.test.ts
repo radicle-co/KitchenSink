@@ -12,7 +12,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ZodError } from 'zod';
 
-import { demoteThresholdFromEnv, EnvironmentSchema, resolveEnvironment } from '../env.schema.js';
+import { demoteThresholdFromEnv, EnvironmentSchema, maxQueueDepthFromEnv, resolveEnvironment } from '../env.schema.js';
 
 const VALID_ENV = {
     STAGE: 'test',
@@ -223,5 +223,51 @@ describe('demoteThresholdFromEnv', () => {
         vi.stubEnv('FOOD_DEMOTE_THRESHOLD', value);
 
         expect(() => demoteThresholdFromEnv()).toThrow(/FOOD_DEMOTE_THRESHOLD/);
+    });
+});
+
+/**
+ * T-199(c) — the same reader treatment for `FOOD_MAX_QUEUE_DEPTH`, the FR-046 hard ceiling. `AdmissionService`
+ * read it with a bare `Number(process.env[...] ?? 10_000)`, so a malformed value became `NaN`, every
+ * `depth >= NaN` comparison was `false`, and the `503` backpressure backstop stopped firing entirely — the
+ * service accepted unbounded enqueues with no ceiling, no error and no log. The boot-time
+ * {@link EnvironmentSchema} check would have rejected the value, but the ceiling must not depend on a
+ * separate validation happening to run first: the reader now shares ONE default and ONE rule with it.
+ */
+describe('maxQueueDepthFromEnv', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    it('defaults to the schema default (10,000) when FOOD_MAX_QUEUE_DEPTH is unset', () => {
+        vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', undefined);
+
+        expect(maxQueueDepthFromEnv()).toBe(10_000);
+        // The same default the boot-time validation applies — one source of truth, not two literals.
+        expect(EnvironmentSchema.parse(VALID_ENV).FOOD_MAX_QUEUE_DEPTH).toBe(maxQueueDepthFromEnv());
+    });
+
+    it('returns the operator-configured value (env vars arrive as strings)', () => {
+        vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', '250');
+
+        expect(maxQueueDepthFromEnv()).toBe(250);
+    });
+
+    it.each(['lots', '', '0', '-1', '2.5', 'NaN', 'Infinity'])(
+        'throws on the malformed value %o rather than yielding NaN',
+        (value) => {
+            vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', value);
+
+            expect(() => maxQueueDepthFromEnv()).toThrow(/FOOD_MAX_QUEUE_DEPTH/);
+        },
+    );
+
+    it('rejects every malformed value the boot-time schema also rejects (one rule, not two)', () => {
+        for (const value of ['lots', '', '0', '-1', '2.5', 'NaN', 'Infinity']) {
+            vi.stubEnv('FOOD_MAX_QUEUE_DEPTH', value);
+
+            expect(EnvironmentSchema.safeParse({ ...VALID_ENV, FOOD_MAX_QUEUE_DEPTH: value }).success).toBe(false);
+            expect(() => maxQueueDepthFromEnv()).toThrow();
+        }
     });
 });

@@ -43,6 +43,7 @@ import {
     type FoodSourceId,
     SourceAdapterRegistry,
 } from '../sources/food-source-adapter.js';
+import { FoodMetrics } from '../observability/emf-metrics.js';
 import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
 
 /** Estimated wait reported on a fresh enqueue (plan §3). */
@@ -63,6 +64,7 @@ export class FoodsService {
         private readonly registry: SourceAdapterRegistry,
         private readonly limiter: RollingWindowLimiter,
         private readonly admission: AdmissionService,
+        private readonly metrics: FoodMetrics,
     ) {}
 
     /**
@@ -72,9 +74,17 @@ export class FoodsService {
      * @returns The golden record (200) when `RESOLVED`.
      * @throws {FoodPendingError} (→ 202) for `PENDING`/`UNRESOLVED`.
      * @throws {FoodNotFoundError} (→ 404) for `NOT_FOUND`/`FAILED`/no row.
+     * @sideEffect Emits one local-store serve-rate observation (SC-004/SC-005).
      */
     public async getFood(id: string): Promise<FoodResponse> {
         const record = await this.foodDao.readGoldenRecord(id);
+
+        // SC-004/SC-005: this is the ONE path that knows whether the local store could answer a read
+        // without a source fetch, so it is where the serve rate is observed — before the branch, so every
+        // outcome (200 / 202 / 404) contributes exactly one observation and the ratio cannot be skewed by a
+        // thrown error. `getStatus`/`search` are deliberately NOT counted: neither can ever reach a source,
+        // so including them would push the rate toward 100% by construction and hide a cold store.
+        this.metrics.recordLocalStoreServe(record?.status === 'RESOLVED');
 
         if (record === null) {
             throw new FoodNotFoundError(id);

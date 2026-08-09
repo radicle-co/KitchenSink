@@ -114,6 +114,37 @@ describe('emf-metrics', () => {
             expect(parsed['source-rolling-window-count']).toBe(12);
         });
 
+        /**
+         * T-199(b) — SC-004 ("local-store serve rate > 80%") / SC-005. Emitted as ONE observation per
+         * read (`100` served / `0` not) rather than a pre-computed ratio: a single API task cannot see the
+         * rolling window SC-004 is defined over, and a horizontally scaled service would have as many
+         * private ratios as tasks. CloudWatch does the aggregation — `Average` over any period IS the
+         * serve-rate percentage, so the SC-004 bar reads directly as `> 80`, and `Sum / 100` is the served
+         * read count SC-005 asks for.
+         */
+        it('records a served local-store read as 100 Percent (the CloudWatch Average is the serve rate)', () => {
+            const sink = vi.fn();
+            new FoodMetrics(sink).recordLocalStoreServe(true);
+
+            const parsed = JSON.parse(sink.mock.calls[0]![0] as string) as EmfPayload;
+
+            expect(parsed._aws.CloudWatchMetrics[0].Metrics).toEqual([
+                { Name: 'food-local-store-serve-rate', Unit: 'Percent' },
+            ]);
+            expect(parsed['food-local-store-serve-rate']).toBe(100);
+            expect(parsed._aws.CloudWatchMetrics[0].Dimensions).toEqual([[]]);
+        });
+
+        it('records an unserved read as 0 Percent (so it counts against the rate, not out of it)', () => {
+            const sink = vi.fn();
+            new FoodMetrics(sink).recordLocalStoreServe(false);
+
+            const parsed = JSON.parse(sink.mock.calls[0]![0] as string) as EmfPayload;
+
+            expect(parsed['food-local-store-serve-rate']).toBe(0);
+            expect(parsed._aws.CloudWatchMetrics[0].Metrics[0]!.Unit).toBe('Percent');
+        });
+
         it('records the operational snapshot gauges (queue depth, backlog, tombstone, pending age)', () => {
             const sink = vi.fn();
             const metrics = new FoodMetrics(sink);

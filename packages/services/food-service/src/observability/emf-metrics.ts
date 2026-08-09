@@ -1,5 +1,6 @@
 /**
- * CloudWatch Embedded Metric Format (EMF) emitter for the food fan-out worker (T-181). The worker
+ * CloudWatch Embedded Metric Format (EMF) emitter for the food service (T-181; extended to the API by
+ * T-199b for the SC-004/SC-005 local-store serve rate). The emitter
  * writes a single EMF JSON line to stdout per metric; CloudWatch auto-extracts the metric from the
  * Fargate log group with NO extra IAM (no `cloudwatch:PutMetricData` call, no SDK). The metric-name
  * constants exported here are the single source of truth for the worker emission AND the CDK dashboard
@@ -127,24 +128,37 @@ export function buildEmf(input: EmfInput): EmfPayload {
 }
 
 /**
+ * The default line sink: stdout via `console.log`, resolved on EVERY call rather than captured once.
+ * The late binding is deliberate — a default of `console.log` itself freezes the reference at definition
+ * time, which would bypass any `console` interception installed later in the process (the Sentry log
+ * forwarder, a test spy). Same observable behaviour, one fewer footgun.
+ *
+ * @param line - The line to write.
+ * @sideEffect Writes one line to stdout.
+ */
+function writeLine(line: string): void {
+    console.log(line);
+}
+
+/**
  * Emit one EMF record as a single JSON line for CloudWatch to auto-extract.
  *
  * @param input - The metrics + optional dimensions.
- * @param sink - The line sink (defaults to `console.log`; injected in tests).
+ * @param sink - The line sink (defaults to stdout; injected in tests).
  * @sideEffect Writes one line to the sink (stdout in production).
  */
-export function emitMetric(input: EmfInput, sink: (line: string) => void = console.log): void {
+export function emitMetric(input: EmfInput, sink: (line: string) => void = writeLine): void {
     sink(JSON.stringify(buildEmf(input)));
 }
 
 /**
- * Typed recorder over an EMF sink — the worker's single seam for publishing operational metrics. Each
+ * Typed recorder over an EMF sink — the service's single seam for publishing operational metrics. Each
  * method emits exactly one EMF line using a {@link FOOD_METRIC} name so the emitted metric matches the
  * CDK dashboard/alarm reference.
  */
 export class FoodMetrics {
-    /** @param sink - The line sink (defaults to `console.log`; injected in tests). */
-    public constructor(private readonly sink: (line: string) => void = console.log) {}
+    /** @param sink - The line sink (defaults to stdout via {@link writeLine}; injected in tests). */
+    public constructor(private readonly sink: (line: string) => void = writeLine) {}
 
     /**
      * Record an end-to-end per-row resolution latency (SC-002).
@@ -217,6 +231,28 @@ export class FoodMetrics {
      */
     public recordWorkerError(count: number = 1): void {
         emitMetric({ metrics: [{ name: FOOD_METRIC.workerErrorCount, value: count, unit: 'Count' }] }, this.sink);
+    }
+
+    /**
+     * Record ONE local-store read outcome for the serve-rate metric (SC-004/SC-005): `100` when the read
+     * was answered from the local store with no source call, `0` when it was not.
+     *
+     * Emitted as a per-request OBSERVATION rather than a pre-computed ratio. SC-004 is defined over a
+     * rolling 24-hour window that no single API task can see, and a horizontally scaled service would
+     * otherwise publish one private ratio per task — so CloudWatch does the aggregation: `Average` over any
+     * period IS the serve-rate percentage (the SC-004 bar reads directly as `> 80`), `SampleCount` is the
+     * total reads, and `Sum / 100` is the served-read count SC-005 is written in. `Percent` with a 100/0
+     * value keeps the unit honest for that `Average`, which a `Count` of 1/0 would not (its average is a
+     * fraction, and its `Sum` would be a count wearing a name that ends in `-rate`).
+     *
+     * @param served - Whether the local store answered the read (no source call).
+     * @sideEffect Emits one EMF line.
+     */
+    public recordLocalStoreServe(served: boolean): void {
+        emitMetric(
+            { metrics: [{ name: FOOD_METRIC.localStoreServeRate, value: served ? 100 : 0, unit: 'Percent' }] },
+            this.sink,
+        );
     }
 
     /**

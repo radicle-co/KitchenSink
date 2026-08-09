@@ -44,6 +44,7 @@ const FOOD_METRIC = {
     pendingAgeSeconds: 'food-fetch-pending-age-seconds',
     inFlightLeases: 'food-in-flight-leases',
     workerErrorCount: 'food-worker-error-count',
+    localStoreServeRate: 'food-local-store-serve-rate',
 } as const;
 
 /** The single shared base logical database on the persistent platform instance (ADR-0006). */
@@ -853,6 +854,18 @@ export class FoodServiceStack extends Stack {
             new cloudwatch.GraphWidget({
                 title: 'Worker error rate',
                 left: [emfMetric(FOOD_METRIC.workerErrorCount, 'sum')],
+            }),
+        );
+        // SC-004/SC-005 (T-199b). The API emits ONE `Percent` observation per golden-record read (100 when
+        // the local store served it, 0 when it needed a source fetch), so the AVERAGE over the period is
+        // the serve-rate percentage the criterion is written in. Charted but deliberately NOT alarmed:
+        // SC-004's ">80%" only holds "once the local store contains 5,000+ unique RESOLVED foods", so a
+        // cold store or a per-PR preview sits legitimately below it and an alarm would page on that.
+        dashboard.addWidgets(
+            new cloudwatch.GraphWidget({
+                title: 'Local-store serve rate (%, SC-004)',
+                left: [emfMetric(FOOD_METRIC.localStoreServeRate, 'Average')],
+                leftYAxis: { min: 0, max: 100 },
             }),
         );
 

@@ -17,6 +17,7 @@ import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common
 import { UsdaApiClient } from '@kitchensink/usda-client';
 
 import { DrizzleProvider, type FoodDrizzle } from '../database/database.module.js';
+import { FoodMetrics } from '../observability/emf-metrics.js';
 import { FoodAuthGuard } from '../auth/food-auth.guard.js';
 import { FoodServiceErasureAuthService } from '../auth/food-service-erasure-auth.service.js';
 import { FoodServiceErasureGuard } from '../auth/food-service-erasure.guard.js';
@@ -72,6 +73,10 @@ import { UserErasureService } from './user-erasure.service.js';
             inject: [DrizzleProvider],
             useFactory: (db: FoodDrizzle): FoodSearchDao => new FoodSearchDao(db),
         },
+        // T-199b — the EMF recorder the read path publishes the SC-004/SC-005 local-store serve rate
+        // through. A factory rather than a bare class provider because its only constructor parameter is
+        // the injectable line sink (defaulting to `console.log`), which Nest's DI cannot resolve.
+        { provide: FoodMetrics, useFactory: (): FoodMetrics => new FoodMetrics() },
         {
             provide: SourceAdapterRegistry,
             useFactory: (): SourceAdapterRegistry => {

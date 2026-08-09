@@ -367,6 +367,98 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* HTTP API (booted Nest + real Pos
             const res = await call('GET', '/api/v1/foods/not-a-ulid', { token: 'user' });
             expect(res.status).toBe(400);
         });
+
+        /**
+         * T-199(b), SC-004/SC-005 — the local-store serve rate must be observable IN SERVICE, not only
+         * under k6. Asserted through the real wired stack (guard → controller → service → DAO) because the
+         * defect being fixed was a wiring gap: the metric name existed and was unit-tested, but nothing in
+         * the running app ever emitted it. Reads the EMF line off `console.log`, which is the production
+         * sink (CloudWatch auto-extracts it from the task log group — no `PutMetricData`, no extra IAM).
+         */
+        describe('local-store serve-rate EMF metric (SC-004/SC-005)', () => {
+            /** One EMF record CloudWatch would extract from the task's stdout. */
+            interface EmfLine {
+                readonly _aws: {
+                    readonly CloudWatchMetrics: readonly {
+                        readonly Namespace: string;
+                        readonly Metrics: readonly { readonly Name: string; readonly Unit: string }[];
+                    }[];
+                };
+                readonly [key: string]: unknown;
+            }
+
+            /**
+             * The serve-rate EMF records the running service emitted while `run` executed.
+             *
+             * `console.log` IS the production sink (the emitter resolves it per call, so a spy installed
+             * after the app booted still fires), and it is the right boundary to assert on here: under
+             * vitest `globalThis.console` is replaced with a Console over the runner's own stream, so
+             * spying `process.stdout.write` observes nothing — the first attempt captured zero lines. What
+             * CloudWatch reads from that line is covered by the EMF-shape unit suite.
+             */
+            async function serveRateRecords(run: () => Promise<unknown>): Promise<EmfLine[]> {
+                const lines: string[] = [];
+                const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]): void => {
+                    lines.push(String(args[0]));
+                });
+
+                try {
+                    await run();
+                } finally {
+                    spy.mockRestore();
+                }
+
+                return lines
+                    .filter((line) => line.includes('food-local-store-serve-rate'))
+                    .map((line) => JSON.parse(line) as EmfLine);
+            }
+
+            /** The serve-rate observation values (100 served / 0 not) emitted while `run` executed. */
+            async function serveRateValues(run: () => Promise<unknown>): Promise<number[]> {
+                return (await serveRateRecords(run)).map((record) => record['food-local-store-serve-rate'] as number);
+            }
+
+            it('emits 100 for a 200 golden-record read and 0 for a read the store cannot serve', async () => {
+                const resolved = await seedResolved('Broccoli, raw');
+                const pending = await seedFood('PENDING', 'pending food');
+
+                const served = await serveRateValues(() => call('GET', `/api/v1/foods/${resolved}`, { token: 'user' }));
+                const unserved = await serveRateValues(() =>
+                    call('GET', `/api/v1/foods/${pending}`, { token: 'user' }),
+                );
+
+                expect(served).toEqual([100]);
+                expect(unserved).toEqual([0]);
+            });
+
+            it('emits it in the Commise/Food namespace with the Percent unit CloudWatch averages', async () => {
+                const resolved = await seedResolved('Broccoli, raw', '171689');
+
+                const [record] = await serveRateRecords(() =>
+                    call('GET', `/api/v1/foods/${resolved}`, { token: 'user' }),
+                );
+
+                expect(record).toBeDefined();
+                expect(record!._aws.CloudWatchMetrics[0]!.Namespace).toBe('Commise/Food');
+                expect(record!._aws.CloudWatchMetrics[0]!.Metrics).toEqual([
+                    { Name: 'food-local-store-serve-rate', Unit: 'Percent' },
+                ]);
+            });
+
+            it('does NOT emit on the status poll or search — neither can ever call a source (no tautology)', async () => {
+                const resolved = await seedResolved('Broccoli, raw', '171690');
+
+                const fromStatus = await serveRateValues(() =>
+                    call('GET', `/api/v1/foods/${resolved}/status`, { token: 'user' }),
+                );
+                const fromSearch = await serveRateValues(() =>
+                    call('GET', '/api/v1/foods/search?query=broccoli', { token: 'user' }),
+                );
+
+                expect(fromStatus).toEqual([]);
+                expect(fromSearch).toEqual([]);
+            });
+        });
     });
 
     // ── GET /api/v1/foods/{id}/status (T-132) ──────────────────────────────────────────────────────────

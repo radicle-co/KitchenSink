@@ -87,6 +87,7 @@ const FOOD_METRIC = {
     fetchQueueDepth: 'food-fetch-queue-depth',
     tombstoneCount: 'food-tombstone-count',
     pendingAgeSeconds: 'food-fetch-pending-age-seconds',
+    localStoreServeRate: 'food-local-store-serve-rate',
 } as const;
 
 // NetworkStack/DataStack/SharedAlbStack assertions live with the deployed (global) definitions in
@@ -480,6 +481,39 @@ describe('Observability — dashboard, alarms, SNS (T-182/T-183)', () => {
         serviceTemplate.hasResourceProperties('AWS::CloudWatch::Dashboard', {
             DashboardName: 'test-food-data',
         });
+    });
+
+    /** The dashboard's rendered JSON body, whether CDK emitted it as a literal or as an `Fn::Join`. */
+    function dashboardBody(): string {
+        const dashboards = serviceTemplate.findResources('AWS::CloudWatch::Dashboard');
+        const body = Object.values(dashboards)[0]?.Properties?.DashboardBody as
+            | string
+            | { 'Fn::Join': [string, unknown[]] };
+
+        if (typeof body === 'string') {
+            return body;
+        }
+
+        return body['Fn::Join'][1].map((part) => (typeof part === 'string' ? part : JSON.stringify(part))).join('');
+    }
+
+    /**
+     * T-199(b) — SC-004/SC-005 had no charted signal, so the local-store serve rate was provable only under
+     * k6. The API emits ONE `Percent` observation per golden-record read (100 served / 0 not), so `Average`
+     * over the period IS the serve-rate percentage the criterion is written in.
+     *
+     * Deliberately a WIDGET and not an alarm: SC-004's ">80%" only holds "once the local store contains
+     * 5,000+ unique RESOLVED foods", and a per-PR preview (or a cold prod store) legitimately sits far
+     * below that — an alarm would page on an expected state.
+     */
+    it('charts the local-store serve rate as an Average on a 0–100 axis (SC-004/SC-005, T-199b)', () => {
+        const body = dashboardBody();
+
+        // CDK omits `stat` when it is the widget default (Average) and renders it explicitly otherwise
+        // (`{"stat":"Sum"}`, `{"stat":"p50"}` above), so a BARE metric entry is the assertion that this is
+        // averaged. Summing 100/0 observations would report a nonsense multiple of the read count.
+        expect(body).toContain(`["Commise/Food","${FOOD_METRIC.localStoreServeRate}"]`);
+        expect(body).toContain('"yAxis":{"left":{"min":0,"max":100}}');
     });
 
     it('creates the alarm SNS topic', () => {

@@ -17,10 +17,11 @@
  *
  * The screen performs NO recipe write of any kind (REQ-CN-001).
  */
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { palette } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
+import type { RecipeStepView } from '@kitchensink/recipe-core';
 import { useState, type FC, type ReactElement } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -31,8 +32,12 @@ import { StepDisplay, StepDisplayEmpty, StepDisplayError, StepDisplayLoading } f
 import { StepNavigation } from './StepNavigation';
 import { TimerAlert } from './TimerAlert';
 import { TimerBadge } from './TimerBadge';
+import { VoiceControlToggle } from './VoiceControlToggle';
 import { cookingMessages } from './messages';
+import { formatStepPosition } from './stepPosition';
 import { useCookingSession, type CookingModeScreenProps, type CookingStepSurface } from './useCookingSession';
+import { startNativeVoiceControl } from './voiceControl.native';
+import { formatStepAnnouncement } from './voiceControlModel';
 import { acquireNativeWakeLock } from './wakeLock.native';
 
 /** Decorative exit glyph. Hidden from assistive tech — the Button's label owns the accessible name. */
@@ -50,10 +55,12 @@ const BasketGlyph: FC = () => (
 );
 
 /**
- * The Cooking Mode screen: one step at a time, its timers, its ingredients, and the yield control.
+ * The Cooking Mode screen: one step at a time, its timers, its ingredients, the yield control, and the
+ * opt-in voice control.
  *
- * `wakeLock` defaults to the Expo keep-awake adapter — the ONE place the native platform binding is
- * made, so the hook below it stays platform-free.
+ * `wakeLock` and `voiceControl` default to the Expo adapters — the ONE place the native platform bindings
+ * are made, so the hook below stays platform-free. Both are named with an explicit `.native` specifier
+ * because the platform adapter must be the Expo one here.
  */
 export const CookingModeScreen: FC<CookingModeScreenProps> = ({
     recipeId,
@@ -63,11 +70,35 @@ export const CookingModeScreen: FC<CookingModeScreenProps> = ({
     onExit,
     onFinish,
     wakeLock = acquireNativeWakeLock,
+    voiceControl = startNativeVoiceControl,
 }) => {
     const messages = useMessages(cookingMessages);
+    const locale = useLocale();
     // View state, not session state: never persisted, never resumed.
     const [isIngredientsOpen, setIsIngredientsOpen] = useState(false);
-    const session = useCookingSession({ recipeId, recipe, store: sessionStore, wakeLock, onExit, onFinish });
+    const session = useCookingSession({
+        recipeId,
+        recipe,
+        store: sessionStore,
+        wakeLock,
+        voiceControl,
+        onExit,
+        onFinish,
+    });
+
+    /**
+     * The sentence the `repeat` voice command speaks: the localized position, then the instruction.
+     *
+     * @param step - The step currently on screen.
+     * @param stepCount - How many steps the recipe has.
+     * @returns The announcement text.
+     */
+    const repeatAnnouncement = (step: RecipeStepView, stepCount: number): string =>
+        formatStepAnnouncement(
+            messages.voiceRepeatAnnouncement,
+            formatStepPosition(messages.stepPosition, { current: step.stepNumber, total: stepCount }, locale),
+            step.instruction,
+        );
 
     /**
      * Chooses the step surface. A total switch over the union — adding a surface makes this fail to
@@ -98,13 +129,17 @@ export const CookingModeScreen: FC<CookingModeScreenProps> = ({
                     {messages.exitLabel}
                 </Button>
                 {surface.kind === 'step' && (
-                    <Button
-                        variant="secondary"
-                        icon={<BasketGlyph />}
-                        onPress={() => setIsIngredientsOpen((open) => !open)}
-                    >
-                        {messages.ingredientsLabel}
-                    </Button>
+                    <View style={styles.headerActions}>
+                        {/* The press IS the microphone consent — nothing here listens until it happens. */}
+                        <VoiceControlToggle state={session.voiceState} onToggle={session.toggleVoice} />
+                        <Button
+                            variant="secondary"
+                            icon={<BasketGlyph />}
+                            onPress={() => setIsIngredientsOpen((open) => !open)}
+                        >
+                            {messages.ingredientsLabel}
+                        </Button>
+                    </View>
                 )}
             </View>
 
@@ -116,6 +151,18 @@ export const CookingModeScreen: FC<CookingModeScreenProps> = ({
 
                 {surface.kind === 'step' && (
                     <View style={styles.body}>
+                        {/* Where the `repeat` command speaks (US-006). The region is MOUNTED for the whole
+                            step so the screen reader is already observing it, and the sentence is keyed by
+                            the request count so asking twice for the SAME step still announces. Clipped
+                            rather than hidden: `display: none` would remove it from the accessibility tree,
+                            and repeating the instruction visibly would just duplicate the step. */}
+                        <View role="status" aria-live="assertive" aria-atomic style={styles.announcement}>
+                            {session.repeatAnnouncementId > 0 && (
+                                <Text key={session.repeatAnnouncementId}>
+                                    {repeatAnnouncement(surface.step, surface.stepCount)}
+                                </Text>
+                            )}
+                        </View>
                         <TimerBadge step={surface.step} onStart={session.startStepTimer} />
                         <StepNavigation
                             currentStep={surface.stepIndex}
@@ -156,6 +203,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[4],
         paddingTop: nativeTokens.spacing[4],
     },
+    headerActions: { flexDirection: 'row', alignItems: 'flex-start', gap: nativeTokens.spacing[3] },
     body: { gap: nativeTokens.spacing[4], paddingHorizontal: nativeTokens.spacing[4] },
+    // Clipped to a point: still in the accessibility tree (so the live region works), invisible on screen.
+    announcement: { position: 'absolute', width: 1, height: 1, overflow: 'hidden' },
     glyph: { fontSize: nativeTokens.fontSize.bodyLg, color: palette.coral },
 });

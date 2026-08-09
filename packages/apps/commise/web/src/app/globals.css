@@ -17,6 +17,11 @@
 /* The shared design-system components (e.g. @commise/ui/button) carry their own utility classes — scan
    their source too, or the Button's tier/surface classes are never generated. */
 @source "../../../ui/src/**/*.{ts,tsx}";
+/* Cooking Mode is rendered entirely from @commise/features-cooking, and its leaves were never scanned —
+   so every utility class they use (the step surface's ramp, the navigation tap zones, and the voice
+   announcement's `sr-only`) was missing from the bundle. `sr-only` is not merely cosmetic there: without
+   it the assistive-technology-only step announcement renders VISIBLY under the step it repeats. */
+@source "../../../features/cooking/src/**/*.{ts,tsx}";
 
 @layer base {
     body {

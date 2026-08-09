@@ -81,6 +81,38 @@ export interface CookingMessages {
     /** Body copy shown when the recipe has no ingredients. */
     readonly ingredientsEmptyBody: string;
 
+    // ── Voice control (US-006 / D-004) ───────────────────────────────────────
+    /** Name of the voice-control toggle. Pairs with one state label below to form its accessible name. */
+    readonly voiceControlLabel: string;
+    /**
+     * The toggle's accessible name; contains `{label}` and `{state}`.
+     *
+     * Composed EXPLICITLY rather than left to the accessible-name calculation over the two visible text
+     * nodes: react-native-web renders them as its own `Text` elements and the computed name came out
+     * unspaced ("Voice controlOff") where the web leaf's came out spaced — the same control announcing
+     * two different names on the two platforms.
+     */
+    readonly voiceControlName: string;
+    /** State word shown when voice control is off — the state Cooking Mode always opens in. */
+    readonly voiceIdleLabel: string;
+    /** State word shown while the microphone is open and listening for commands. */
+    readonly voiceListeningLabel: string;
+    /** State word shown when the platform refused the microphone. */
+    readonly voiceDeniedLabel: string;
+    /** State word shown when this platform has no speech recogniser at all. */
+    readonly voiceUnavailableLabel: string;
+    /** What the cook can do about a refused microphone. Announced with the disabled control. */
+    readonly voiceDeniedHint: string;
+    /** What the cook can do on a platform with no recogniser. Announced with the disabled control. */
+    readonly voiceUnavailableHint: string;
+    /**
+     * The sentence the `repeat` voice command announces; contains `{position}` and `{instruction}`.
+     *
+     * Both a template and a joining rule: a locale whose sentence order or punctuation differs changes
+     * this string rather than the components.
+     */
+    readonly voiceRepeatAnnouncement: string;
+
     // ── Yield scaling (FR-034a) ──────────────────────────────────────────────
     /** Accessible name for the yield scale control. */
     readonly scaleLabel: string;
@@ -130,6 +162,16 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
         closeIngredientsLabel: 'Close ingredients',
         ingredientsChecked: '{checked} of {total} checked',
         ingredientsEmptyBody: 'This recipe has no ingredients listed.',
+
+        voiceControlLabel: 'Voice control',
+        voiceControlName: '{label} {state}',
+        voiceIdleLabel: 'Off',
+        voiceListeningLabel: 'Listening',
+        voiceDeniedLabel: 'Microphone blocked',
+        voiceUnavailableLabel: 'Not available',
+        voiceDeniedHint: 'Cooking mode cannot hear you until microphone access is allowed in your device settings.',
+        voiceUnavailableHint: 'This device cannot listen for voice commands. Use the on-screen controls.',
+        voiceRepeatAnnouncement: '{position}. {instruction}',
 
         scaleLabel: 'Servings',
         scaleOption: '{factor}x',

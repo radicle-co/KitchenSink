@@ -1,8 +1,13 @@
 import { ExpoSpeechRecognitionModule, ExpoWebSpeechRecognition } from 'expo-speech-recognition';
 
-import type { VoiceCommandListener, VoiceControlDisposer, VoiceControlPort } from '@kitchensink/cooking-core';
+import type { VoiceCommandListener, VoiceControlDisposer } from '@kitchensink/cooking-core';
 
-import { startVoiceControl, type SpeechRecognitionLike } from './voiceControlPolicy';
+import {
+    startVoiceControl,
+    type CookingVoiceControlPort,
+    type SpeechRecognitionLike,
+    type VoiceControlStatusListener,
+} from './voiceControlPolicy';
 
 /**
  * Native (Expo) adapter for Cooking Mode voice control (US-006, FR-033/FR-034).
@@ -71,14 +76,20 @@ async function requestNativeRecognitionPermission(): Promise<boolean> {
  * Starts listening for Cooking Mode voice commands on device.
  *
  * @param onCommand - Invoked once per recognised command, never for an unrecognised utterance.
+ * @param onStatus - Optional. Told when the session starts listening, and when it cannot — which is how
+ * a refused microphone reaches the surface instead of vanishing into a silent degradation.
  * @returns A disposer that stops recognition and detaches every listener. Working even when permission
  * was denied or the request never resolved.
  * @sideEffect Requests OS microphone permission, then opens the microphone and holds listeners for the
  * session's lifetime. Never throws: a denial, a rejected request, and an unavailable native module all
  * degrade to a working no-op disposer.
  */
-export const startNativeVoiceControl: VoiceControlPort = (onCommand: VoiceCommandListener): VoiceControlDisposer =>
+export const startNativeVoiceControl: CookingVoiceControlPort = (
+    onCommand: VoiceCommandListener,
+    onStatus?: VoiceControlStatusListener,
+): VoiceControlDisposer =>
     startVoiceControl(
         { createRecognition: createNativeRecognition, requestPermission: requestNativeRecognitionPermission },
         onCommand,
+        onStatus,
     );

@@ -154,7 +154,10 @@ test.describe('cooking mode (feature 008)', () => {
         await expect(page.getByRole('radio', { name: '1x' })).toBeChecked();
         await page.getByRole('radio', { name: '2x' }).click();
 
-        await expect(page.getByRole('alert')).toHaveText(
+        // Scoped to `main`: Next.js always renders its own empty `role="alert"` route announcer
+        // (`#__next-route-announcer__`) outside the page content, so a bare `getByRole('alert')`
+        // matches two elements and trips Playwright's strict mode.
+        await expect(page.getByRole('main').getByRole('alert')).toHaveText(
             'Quantities are scaled. Cook times are not — check for doneness as you go.',
         );
         // The rescaled line keeps its checked state — checkoff is per ingredient, not per quantity.

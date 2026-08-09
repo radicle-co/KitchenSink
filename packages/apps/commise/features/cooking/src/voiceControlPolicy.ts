@@ -19,6 +19,13 @@ import { matchVoiceCommand, type VoiceCommandListener, type VoiceControlDisposer
  * - an optional {@link RecognitionPermissionGate} — whether this platform must ask before listening.
  *   The browser prompts on `start()` and needs no gate; the OS does not, and native must ask first.
  *
+ * **Why the session also REPORTS a status.** Degrading silently is right for the recogniser and wrong for
+ * the surface: a cook who pressed "Voice control" and got nothing is owed the reason. `VoiceControlPort`
+ * (`@kitchensink/cooking-core`) is deliberately fire-and-forget, so this layer widens it — additively —
+ * into {@link CookingVoiceControlPort}, whose second, OPTIONAL parameter receives
+ * {@link VoiceControlStatus}. Every `VoiceControlPort` remains assignable to it (a function of fewer
+ * parameters always is), so the core contract still holds and a caller that does not care passes nothing.
+ *
  * Four properties are deliberate and load-bearing:
  *
  * 1. **Nothing touches a platform global at module scope.** `@commise/web` server-renders, so a
@@ -52,11 +59,43 @@ export const MAX_CONSECUTIVE_RESTARTS = 5;
 const RECOGNITION_LANGUAGE = 'en-US';
 
 /**
- * Recognition errors that no restart can fix: the user denied the microphone, the platform refused the
- * service, no capture device exists, or the session was aborted. Anything else (notably `no-speech`
- * and `network`) is transient and worth another attempt.
+ * What a voice session can tell its caller about itself, in the caller's terms rather than the
+ * platform's.
+ *
+ * Only three facts are worth surfacing, and each maps to something a cook can act on: it IS listening,
+ * the microphone was refused (fix it in settings), or this platform has no recogniser at all (use the
+ * on-screen controls). Transient noise — `no-speech`, `network`, a restart — is deliberately absent: it
+ * resolves itself, and flickering the control would be worse than saying nothing.
  */
-const FATAL_RECOGNITION_ERRORS: readonly string[] = ['not-allowed', 'service-not-allowed', 'audio-capture', 'aborted'];
+export type VoiceControlStatus = 'listening' | 'denied' | 'unsupported';
+
+/** Receives each {@link VoiceControlStatus} change, in the order it happened. Never called after disposal. */
+export type VoiceControlStatusListener = (status: VoiceControlStatus) => void;
+
+/**
+ * A {@link VoiceControlPort} that ALSO reports its status.
+ *
+ * The status listener is optional precisely so the core `VoiceControlPort` — including
+ * `noopVoiceControl` and any test fake — satisfies this type unchanged.
+ */
+export type CookingVoiceControlPort = (
+    onCommand: VoiceCommandListener,
+    onStatus?: VoiceControlStatusListener,
+) => VoiceControlDisposer;
+
+/**
+ * Recognition errors that no restart can fix, each mapped to the status it leaves the session in.
+ *
+ * `aborted` maps to `null` — it is what our OWN disposer produces, so there is nothing to tell the cook.
+ * Anything absent from this table (notably `no-speech` and `network`) is transient and worth another
+ * attempt.
+ */
+const FATAL_RECOGNITION_ERRORS: Readonly<Record<string, VoiceControlStatus | null | undefined>> = Object.freeze({
+    'not-allowed': 'denied',
+    'service-not-allowed': 'denied',
+    'audio-capture': 'unsupported',
+    aborted: null,
+});
 
 // ── Minimal structural types for the Web Speech API ──────────────────────────
 // `lib.dom` types `SpeechRecognitionResult` and friends but NOT `SpeechRecognition` itself, so the
@@ -145,16 +184,36 @@ export interface VoiceControlPolicy {
  *
  * @param policy - The platform's recogniser factory and optional permission gate.
  * @param onCommand - Invoked once per recognised command, never for an unrecognised utterance.
+ * @param onStatus - Optional. Told when the session starts listening, and when it cannot.
  * @returns A disposer that stops recognition and detaches every listener. Safe to call more than once.
  * @sideEffect Opens the microphone through the platform recogniser and holds listeners for the
  * session's lifetime. Never throws: an absent recogniser, a refused permission, and a rejected
  * `start()` all degrade to a working no-op disposer.
  */
-export function startVoiceControl(policy: VoiceControlPolicy, onCommand: VoiceCommandListener): VoiceControlDisposer {
+export function startVoiceControl(
+    policy: VoiceControlPolicy,
+    onCommand: VoiceCommandListener,
+    onStatus?: VoiceControlStatusListener,
+): VoiceControlDisposer {
     let disposed = false;
     let fatallyFailed = false;
     let consecutiveRestarts = 0;
     let recognition: SpeechRecognitionLike | null = null;
+
+    /**
+     * Reports one status upward, unless the session is already over.
+     *
+     * The `disposed` gate matters for the same reason it does on `result`: a permission dialog can be
+     * answered — and a platform error can arrive — after the cook has left Cooking Mode, and a status
+     * landing then would repaint a control the session no longer owns.
+     */
+    const report = (status: VoiceControlStatus): void => {
+        if (disposed || onStatus === undefined) {
+            return;
+        }
+
+        onStatus(status);
+    };
 
     /** Starts recognition, absorbing the `InvalidStateError` a double start raises. */
     const startRecognition = (): void => {
@@ -197,8 +256,16 @@ export function startVoiceControl(policy: VoiceControlPolicy, onCommand: VoiceCo
     };
 
     const onError = (event: SpeechRecognitionErrorEventLike): void => {
-        if (FATAL_RECOGNITION_ERRORS.includes(event.error)) {
-            fatallyFailed = true;
+        const outcome = FATAL_RECOGNITION_ERRORS[event.error];
+
+        if (outcome === undefined) {
+            return;
+        }
+
+        fatallyFailed = true;
+
+        if (outcome !== null) {
+            report(outcome);
         }
     };
 
@@ -231,6 +298,8 @@ export function startVoiceControl(policy: VoiceControlPolicy, onCommand: VoiceCo
         }
 
         if (created === null) {
+            report('unsupported');
+
             return;
         }
 
@@ -245,6 +314,10 @@ export function startVoiceControl(policy: VoiceControlPolicy, onCommand: VoiceCo
         recognition.addEventListener('error', onError);
         recognition.addEventListener('end', onEnd);
         startRecognition();
+        // Optimistic by necessity: the browser only decides about the microphone asynchronously, after
+        // `start()`. A refusal arrives moments later as a fatal `error`, which CORRECTS this to `denied`
+        // — so the cook briefly reads "Listening" and then the reason, rather than nothing at all.
+        report('listening');
     };
 
     const permissionGate = policy.requestPermission;
@@ -260,10 +333,15 @@ export function startVoiceControl(policy: VoiceControlPolicy, onCommand: VoiceCo
                 (granted) => {
                     if (granted) {
                         beginSession();
+
+                        return;
                     }
+
+                    report('denied');
                 },
                 () => {
                     // A permission request that fails outright is treated exactly as a denial.
+                    report('denied');
                 },
             );
     }

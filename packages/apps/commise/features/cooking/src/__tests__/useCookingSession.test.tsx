@@ -14,9 +14,12 @@
  * `setInterval` — so pending work is flushed explicitly through {@link settle}.
  */
 import {
+    noopVoiceControl,
     serializeSession,
     type CookingSession,
     type CookingTimer,
+    type CookingVoiceCommand,
+    type VoiceCommandListener,
     type WakeLockDisposer,
     type WakeLockPort,
 } from '@kitchensink/cooking-core';
@@ -25,6 +28,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useCookingSession, type CookingRecipeState, type UseCookingSessionOptions } from '../useCookingSession';
+import type { CookingVoiceControlPort, VoiceControlStatus } from '../voiceControlPolicy';
 
 afterEach(() => {
     cleanup();
@@ -121,6 +125,48 @@ const makeWakeLock = () => {
     return { port: acquire as WakeLockPort, acquire, release };
 };
 
+/**
+ * A voice-control port that records its lifetime and hands the test the recogniser's two callbacks.
+ *
+ * The real adapters are proven against their own platform fakes in `voiceControl(.native).test.tsx`;
+ * what the hook owes is the WIRING — that nothing starts before the cook asks, that every command
+ * reaches the right session action, and that the session is disposed exactly once per stop.
+ */
+const makeVoiceControl = () => {
+    const dispose = vi.fn();
+    let emit: VoiceCommandListener | null = null;
+    let report: ((status: VoiceControlStatus) => void) | null = null;
+
+    const start = vi.fn((onCommand: VoiceCommandListener, onStatus?: (status: VoiceControlStatus) => void) => {
+        emit = onCommand;
+        report = onStatus ?? null;
+
+        return dispose;
+    });
+
+    return {
+        port: start as CookingVoiceControlPort,
+        start,
+        dispose,
+        /** Delivers one recognised command, as the recogniser would. */
+        say(command: CookingVoiceCommand): void {
+            if (emit === null) {
+                throw new Error('no voice session is listening');
+            }
+
+            emit(command);
+        },
+        /** Reports a session status, as the adapter does on denial or on an absent recogniser. */
+        announce(status: VoiceControlStatus): void {
+            if (report === null) {
+                throw new Error('no voice session is listening');
+            }
+
+            report(status);
+        },
+    };
+};
+
 /** The session as it was last written to storage. */
 const persistedSession = (store: ReturnType<typeof makeStore>): CookingSession => {
     const raw = store.entries.get(RECIPE_ID);
@@ -167,6 +213,8 @@ const renderSession = (overrides: Partial<UseCookingSessionOptions> = {}) => {
         ingredients: makeIngredients(),
     };
 
+    const voiceControl = overrides.voiceControl;
+
     return renderHook(() =>
         useCookingSession({
             recipeId: overrides.recipeId ?? RECIPE_ID,
@@ -174,6 +222,7 @@ const renderSession = (overrides: Partial<UseCookingSessionOptions> = {}) => {
             recipe: { ...recipe },
             store,
             wakeLock,
+            voiceControl,
             onExit,
             onFinish,
         }),
@@ -877,5 +926,353 @@ describe('useCookingSession — Cooking Mode is READ-ONLY on the recipe (REQ-CN-
         expect(fetchSpy).not.toHaveBeenCalled();
         expect(steps).toEqual(stepsSnapshot);
         expect(ingredients).toEqual(ingredientsSnapshot);
+    });
+});
+
+describe('useCookingSession — voice control is OPT-IN (US-006 / D-004)', () => {
+    it('does NOT open the microphone on mount — only an explicit toggle starts recognition', async () => {
+        const voice = makeVoiceControl();
+        const { result } = renderSession({ voiceControl: voice.port });
+        await settle();
+
+        expect(voice.start).not.toHaveBeenCalled();
+        expect(result.current.voiceState).toBe('idle');
+
+        act(() => {
+            result.current.toggleVoice();
+        });
+        await settle();
+
+        expect(voice.start).toHaveBeenCalledTimes(1);
+        expect(result.current.voiceState).toBe('listening');
+    });
+
+    it('waits for the session to be live before listening, so a toggle during restore is not lost', async () => {
+        const voice = makeVoiceControl();
+        const { result } = renderSession({ voiceControl: voice.port });
+
+        act(() => {
+            result.current.toggleVoice();
+        });
+
+        expect(voice.start).not.toHaveBeenCalled();
+
+        await settle();
+
+        expect(voice.start).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops and DISPOSES the recogniser when the cook toggles voice back off', async () => {
+        const voice = makeVoiceControl();
+        const { result } = renderSession({ voiceControl: voice.port });
+        await settle();
+
+        act(() => {
+            result.current.toggleVoice();
+        });
+        await settle();
+        act(() => {
+            result.current.toggleVoice();
+        });
+        await settle();
+
+        expect(voice.dispose).toHaveBeenCalledTimes(1);
+        expect(voice.start).toHaveBeenCalledTimes(1);
+        expect(result.current.voiceState).toBe('idle');
+    });
+
+    it('disposes the recogniser on UNMOUNT, so the microphone cannot outlive the screen', async () => {
+        const voice = makeVoiceControl();
+        const { result, unmount } = renderSession({ voiceControl: voice.port });
+        await settle();
+
+        act(() => {
+            result.current.toggleVoice();
+        });
+        await settle();
+
+        expect(voice.dispose).not.toHaveBeenCalled();
+
+        act(() => {
+            unmount();
+        });
+
+        expect(voice.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('disposes the recogniser when the session ENDS', async () => {
+        const voice = makeVoiceControl();
+        const { result } = renderSession({ voiceControl: voice.port });
+        await settle();
+
+        act(() => {
+            result.current.toggleVoice();
+        });
+        await settle();
+        act(() => {
+            result.current.finish();
+        });
+        await settle();
+
+        expect(voice.dispose).toHaveBeenCalledTimes(1);
+        expect(result.current.voiceState).toBe('idle');
+    });
+
+    it('ignores a command the platform had already queued when the session was disposed', async () => {
+        const voice = makeVoiceControl();
+        const { result } = renderSession({ voiceControl: voice.port });
+        await settle();
+
+        act(() => {
+            result.current.toggleVoice();
+        });
+        await settle();
+        act(() => {
+            result.current.toggleVoice();
+        });
+        await settle();
+
+        act(() => {
+            voice.say('next');
+        });
+        await settle();
+
+        expect(result.current.surface).toMatchObject({ kind: 'step', stepIndex: 0 });
+    });
+});
+
+describe('useCookingSession — voice commands reach the SAME actions as the tap controls (FR-033/FR-034)', () => {
+    /** Mounts a live session with voice already listening. */
+    const listeningSession = async (overrides: Partial<UseCookingSessionOptions> = {}) => {
+        const voice = makeVoiceControl();
+        const rendered = renderSession({ ...overrides, voiceControl: voice.port });
+        await settle();
+
+        act(() => {
+            rendered.result.current.toggleVoice();
+        });
+        await settle();
+
+        return { voice, ...rendered };
+    };
+
+    it('advances one step on "next"', async () => {
+        const { voice, result } = await listeningSession();
+
+        act(() => {
+            voice.say('next');
+        });
+        await settle();
+
+        expect(result.current.surface).toMatchObject({ kind: 'step', stepIndex: 1 });
+    });
+
+    it('goes back one step on "back", and stays put at the FIRST step', async () => {
+        const { voice, result } = await listeningSession();
+
+        act(() => {
+            voice.say('next');
+        });
+        await settle();
+        act(() => {
+            voice.say('back');
+        });
+        await settle();
+
+        expect(result.current.surface).toMatchObject({ kind: 'step', stepIndex: 0 });
+
+        act(() => {
+            voice.say('back');
+        });
+        await settle();
+
+        expect(result.current.surface).toMatchObject({ kind: 'step', stepIndex: 0 });
+    });
+
+    it('does NOT finish the session when "next" is spoken on the LAST step (HAZ-006)', async () => {
+        const store = makeStore();
+        const onFinish = vi.fn();
+        const { voice, result } = await listeningSession({ store, onFinish });
+
+        act(() => {
+            result.current.goToNextStep();
+        });
+        await settle();
+        act(() => {
+            result.current.goToNextStep();
+        });
+        await settle();
+
+        expect(result.current.surface).toMatchObject({ kind: 'step', stepIndex: 2 });
+
+        act(() => {
+            voice.say('next');
+        });
+        await settle();
+
+        expect(result.current.surface).toMatchObject({ kind: 'step', stepIndex: 2 });
+        expect(onFinish).not.toHaveBeenCalled();
+        expect(store.remove).not.toHaveBeenCalled();
+        // `advance` records the step it LEAVES as completed, so a spoken "next" that slipped past the
+        // boundary would mark the final step cooked — the state the session's `complete` status reads.
+        expect(persistedSession(store).completedSteps).toEqual([0, 1]);
+    });
+
+    it('starts the current step timer on "start-timer", and does nothing on a step with none', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-08-09T12:00:00.000Z'));
+
+        const { voice, result } = await listeningSession();
+
+        act(() => {
+            voice.say('start-timer');
+        });
+        await settle();
+
+        // Step 1 declares no duration: nothing starts, and nothing throws.
+        expect(result.current.activeTimers).toHaveLength(0);
+
+        act(() => {
+            voice.say('next');
+        });
+        await settle();
+        act(() => {
+            voice.say('start-timer');
+        });
+        await settle();
+
+        expect(result.current.activeTimers).toHaveLength(1);
+        expect(result.current.activeTimers[0]?.timer.label).toBe('Sweat the onion');
+        expect(result.current.activeTimers[0]?.remainingMs).toBe(60_000);
+    });
+
+    it('pauses the running timer on "pause-timer", and is a no-op when nothing is running', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-08-09T12:00:00.000Z'));
+
+        const { voice, result } = await listeningSession();
+
+        act(() => {
+            voice.say('pause-timer');
+        });
+        await settle();
+
+        expect(result.current.activeTimers).toHaveLength(0);
+
+        act(() => {
+            voice.say('next');
+        });
+        await settle();
+        act(() => {
+            voice.say('start-timer');
+        });
+        await settle();
+        await tick(20_000);
+        act(() => {
+            voice.say('pause-timer');
+        });
+        await settle();
+
+        expect(result.current.activeTimers[0]?.timer.isPaused).toBe(true);
+        expect(result.current.activeTimers[0]?.remainingMs).toBe(40_000);
+
+        // A paused timer stays paused; the countdown does not resume behind the cook's back.
+        await tick(30_000);
+
+        expect(result.current.activeTimers[0]?.remainingMs).toBe(40_000);
+    });
+
+    it('re-announces the current step on "repeat", without moving or changing anything else', async () => {
+        const { voice, result } = await listeningSession();
+
+        expect(result.current.repeatAnnouncementId).toBe(0);
+
+        act(() => {
+            voice.say('repeat');
+        });
+        await settle();
+
+        expect(result.current.repeatAnnouncementId).toBe(1);
+
+        // Each request is its own announcement — a screen reader must not swallow the second one.
+        act(() => {
+            voice.say('repeat');
+        });
+        await settle();
+
+        expect(result.current.repeatAnnouncementId).toBe(2);
+        expect(result.current.surface).toMatchObject({ kind: 'step', stepIndex: 0 });
+        expect(result.current.activeTimers).toHaveLength(0);
+    });
+});
+
+describe('useCookingSession — voice degrades honestly when it cannot listen (US-006 is Should Have)', () => {
+    it('reports DENIED when the platform refuses the microphone, and never re-asks', async () => {
+        const voice = makeVoiceControl();
+        const { result } = renderSession({ voiceControl: voice.port });
+        await settle();
+
+        act(() => {
+            result.current.toggleVoice();
+        });
+        await settle();
+
+        expect(() => {
+            act(() => {
+                voice.announce('denied');
+            });
+        }).not.toThrow();
+        await settle();
+
+        expect(result.current.voiceState).toBe('denied');
+
+        // A settled denial is not retried: pressing again must not open a second session.
+        act(() => {
+            result.current.toggleVoice();
+        });
+        await settle();
+
+        expect(voice.start).toHaveBeenCalledTimes(1);
+        expect(result.current.voiceState).toBe('denied');
+    });
+
+    it('reports UNSUPPORTED when the adapter finds no recogniser at all', async () => {
+        const voice = makeVoiceControl();
+        const { result } = renderSession({ voiceControl: voice.port });
+        await settle();
+
+        act(() => {
+            result.current.toggleVoice();
+        });
+        await settle();
+        act(() => {
+            voice.announce('unsupported');
+        });
+        await settle();
+
+        expect(result.current.voiceState).toBe('unsupported');
+    });
+
+    it('states UNSUPPORTED up front when the host injects no voice port', async () => {
+        const { result } = renderSession();
+        await settle();
+
+        expect(result.current.voiceState).toBe('unsupported');
+
+        expect(() => {
+            act(() => {
+                result.current.toggleVoice();
+            });
+        }).not.toThrow();
+        await settle();
+
+        expect(result.current.voiceState).toBe('unsupported');
+    });
+
+    it('states UNSUPPORTED for the core no-op port, which MEANS "this platform has no recogniser"', async () => {
+        const { result } = renderSession({ voiceControl: noopVoiceControl });
+        await settle();
+
+        expect(result.current.voiceState).toBe('unsupported');
     });
 });

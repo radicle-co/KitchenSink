@@ -41,15 +41,23 @@ export { IngredientChecklist } from './IngredientChecklist';
 export { ScaleSelector } from './ScaleSelector';
 export type { IngredientChecklistProps, ScaleSelectorProps, ScaledIngredientLine } from './sessionExtras';
 
+// ── Voice control (US-006 / D-004) ───────────────────────────────────────────
+// The TOGGLE and its model are platform-free (the leaf resolves per bundler, and neither file imports a
+// recogniser), so both are safe to re-export. The ADAPTERS below are not.
+export { VoiceControlToggle } from './VoiceControlToggle';
+export { canToggleVoiceControl, formatStepAnnouncement } from './voiceControlModel';
+export type { VoiceControlState, VoiceControlToggleProps } from './voiceControlModel';
+export type { CookingVoiceControlPort, VoiceControlStatus } from './voiceControlPolicy';
+
 // ── Platform adapters for the cooking-core ports (FR-035) ────────────────────
 // The wake-lock adapter is exported so an app can inject a different one (a no-op in a test, say).
 // `CookingModeScreen` already defaults to the right one for its platform.
 export { acquireWebWakeLock } from './wakeLock';
 
-// The VOICE adapters are deliberately NOT re-exported here. Under Metro `./voiceControl` resolves to
-// the `.native` leaf, which imports `expo-speech-recognition` at module scope — so exporting it from
-// the barrel would drag an OS speech recogniser into the graph of every consumer, including ones that
-// only want `StepDisplay`. Nothing consumes them yet either: voice stays unwired until US-006
-// specifies microphone consent. When it does, import the leaf directly
-// (`@commise/features-cooking/src/voiceControl`) or give it its own package entry point, rather than
-// making every consumer pay for it.
+// The VOICE adapters are deliberately NOT re-exported here, and this must stay true. Under Metro
+// `./voiceControl` resolves to the `.native` leaf, which imports `expo-speech-recognition` at module
+// scope — so exporting it from the barrel would drag an OS speech recogniser into the graph of every
+// consumer, including ones that only want `StepDisplay`. `CookingModeScreen` imports its own platform
+// adapter directly (`./voiceControl` on web, `./voiceControl.native` on mobile) and defaults the
+// `voiceControl` prop to it, which is the ONE place that binding is made. A host wanting a different
+// adapter passes it as that prop, or imports the leaf directly — it does not come through here.

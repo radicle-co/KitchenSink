@@ -1,6 +1,11 @@
-import type { VoiceCommandListener, VoiceControlDisposer, VoiceControlPort } from '@kitchensink/cooking-core';
+import type { VoiceCommandListener, VoiceControlDisposer } from '@kitchensink/cooking-core';
 
-import { startVoiceControl, type SpeechRecognitionLike } from './voiceControlPolicy';
+import {
+    startVoiceControl,
+    type CookingVoiceControlPort,
+    type SpeechRecognitionLike,
+    type VoiceControlStatusListener,
+} from './voiceControlPolicy';
 
 /**
  * Web adapter for Cooking Mode voice control (US-006, FR-033/FR-034).
@@ -68,11 +73,15 @@ function createWebRecognition(): SpeechRecognitionLike | null {
  * Starts listening for Cooking Mode voice commands in the browser.
  *
  * @param onCommand - Invoked once per recognised command, never for an unrecognised utterance.
+ * @param onStatus - Optional. Told when the session starts listening, and when it cannot.
  * @returns A disposer that stops recognition and detaches every listener.
  * @sideEffect Opens the microphone via the Web Speech API and holds listeners for the session's
  * lifetime. Returns a working no-op disposer — it never throws — when recognition is unavailable.
  */
-export const startWebVoiceControl: VoiceControlPort = (onCommand: VoiceCommandListener): VoiceControlDisposer =>
+export const startWebVoiceControl: CookingVoiceControlPort = (
+    onCommand: VoiceCommandListener,
+    onStatus?: VoiceControlStatusListener,
+): VoiceControlDisposer =>
     // No permission gate: the browser prompts on `start()`, and a denial surfaces as the fatal
-    // `not-allowed` error the shared policy already latches on.
-    startVoiceControl({ createRecognition: createWebRecognition }, onCommand);
+    // `not-allowed` error the shared policy already latches on — and reports as `denied`.
+    startVoiceControl({ createRecognition: createWebRecognition }, onCommand, onStatus);

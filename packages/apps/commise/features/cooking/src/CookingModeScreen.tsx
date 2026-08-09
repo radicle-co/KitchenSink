@@ -20,8 +20,9 @@
  * The screen performs NO recipe write of any kind (REQ-CN-001): it is handed the recipe as data and holds
  * no writer, so there is nothing here that could mutate it. All copy comes from `cookingMessages`.
  */
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import type { RecipeStepView } from '@kitchensink/recipe-core';
 import { useState, type FC, type ReactElement } from 'react';
 
 import { ActiveTimers } from './ActiveTimers';
@@ -31,8 +32,12 @@ import { StepDisplay, StepDisplayEmpty, StepDisplayError, StepDisplayLoading } f
 import { StepNavigation } from './StepNavigation';
 import { TimerAlert } from './TimerAlert';
 import { TimerBadge } from './TimerBadge';
+import { VoiceControlToggle } from './VoiceControlToggle';
 import { cookingMessages } from './messages';
+import { formatStepPosition } from './stepPosition';
 import { useCookingSession, type CookingModeScreenProps, type CookingStepSurface } from './useCookingSession';
+import { startWebVoiceControl } from './voiceControl';
+import { formatStepAnnouncement } from './voiceControlModel';
 import { acquireWebWakeLock } from './wakeLock';
 
 /** Decorative exit glyph. `aria-hidden`, so the control's accessible name stays the localized label. */
@@ -63,10 +68,13 @@ const BasketGlyph: FC = () => (
 );
 
 /**
- * The Cooking Mode screen: one step at a time, its timers, its ingredients, and the yield control.
+ * The Cooking Mode screen: one step at a time, its timers, its ingredients, the yield control, and the
+ * opt-in voice control.
  *
- * `wakeLock` defaults to the browser Screen Wake Lock adapter — the ONE place the web platform binding
- * is made, so the hook below it stays platform-free.
+ * `wakeLock` and `voiceControl` default to the browser adapters — the ONE place the web platform bindings
+ * are made, so the hook below stays platform-free. `./voiceControl` is imported HERE rather than through
+ * the package barrel on purpose: under Metro that specifier resolves to the `.native` leaf, which pulls an
+ * OS speech recogniser into the graph, and only a screen that is already platform-bound may pay for it.
  */
 export const CookingModeScreen: FC<CookingModeScreenProps> = ({
     recipeId,
@@ -76,12 +84,36 @@ export const CookingModeScreen: FC<CookingModeScreenProps> = ({
     onExit,
     onFinish,
     wakeLock = acquireWebWakeLock,
+    voiceControl = startWebVoiceControl,
 }) => {
     const messages = useMessages(cookingMessages);
+    const locale = useLocale();
     // Panel visibility is view state, not session state: it is never persisted and never resumed, so it
     // stays here rather than widening the session the hook has to keep JSON-round-trippable.
     const [isIngredientsOpen, setIsIngredientsOpen] = useState(false);
-    const session = useCookingSession({ recipeId, recipe, store: sessionStore, wakeLock, onExit, onFinish });
+    const session = useCookingSession({
+        recipeId,
+        recipe,
+        store: sessionStore,
+        wakeLock,
+        voiceControl,
+        onExit,
+        onFinish,
+    });
+
+    /**
+     * The sentence the `repeat` voice command speaks: the localized position, then the instruction.
+     *
+     * @param step - The step currently on screen.
+     * @param stepCount - How many steps the recipe has.
+     * @returns The announcement text.
+     */
+    const repeatAnnouncement = (step: RecipeStepView, stepCount: number): string =>
+        formatStepAnnouncement(
+            messages.voiceRepeatAnnouncement,
+            formatStepPosition(messages.stepPosition, { current: step.stepNumber, total: stepCount }, locale),
+            step.instruction,
+        );
 
     /**
      * Chooses the step surface. A total switch over the union — adding a surface makes this fail to
@@ -112,13 +144,17 @@ export const CookingModeScreen: FC<CookingModeScreenProps> = ({
                     {messages.exitLabel}
                 </Button>
                 {surface.kind === 'step' && (
-                    <Button
-                        variant="secondary"
-                        icon={<BasketGlyph />}
-                        onPress={() => setIsIngredientsOpen((open) => !open)}
-                    >
-                        {messages.ingredientsLabel}
-                    </Button>
+                    <div className="flex items-start gap-3">
+                        {/* The press IS the microphone consent — nothing here listens until it happens. */}
+                        <VoiceControlToggle state={session.voiceState} onToggle={session.toggleVoice} />
+                        <Button
+                            variant="secondary"
+                            icon={<BasketGlyph />}
+                            onPress={() => setIsIngredientsOpen((open) => !open)}
+                        >
+                            {messages.ingredientsLabel}
+                        </Button>
+                    </div>
                 )}
             </header>
 
@@ -131,6 +167,17 @@ export const CookingModeScreen: FC<CookingModeScreenProps> = ({
 
             {surface.kind === 'step' && (
                 <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+                    {/* Where the `repeat` command speaks (US-006). The region is MOUNTED for the whole step
+                        so an assistive technology is already observing it, and the sentence is keyed by the
+                        request count so asking twice for the SAME step is still a change worth announcing.
+                        Assertive: a cook who asked to hear the step again is waiting for it, not browsing. */}
+                    <div role="status" aria-live="assertive" aria-atomic="true" className="sr-only">
+                        {session.repeatAnnouncementId > 0 && (
+                            <span key={session.repeatAnnouncementId}>
+                                {repeatAnnouncement(surface.step, surface.stepCount)}
+                            </span>
+                        )}
+                    </div>
                     <TimerBadge step={surface.step} onStart={session.startStepTimer} />
                     <StepNavigation
                         currentStep={surface.stepIndex}

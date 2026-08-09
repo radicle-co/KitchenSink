@@ -10,10 +10,12 @@
  *  - a **statechart** over `restoring → cooking → ended`, kept as one discriminated union so "there is a
  *    session" and "we are still restoring one" cannot disagree (illegal states are unrepresentable, and
  *    every effect gates on the phase rather than on a nullable session);
- *  - **ports and adapters** — the wake lock arrives as a {@link WakeLockPort} and device storage as a
- *    {@link CookingSessionStore}, so nothing platform-specific is imported here. The web screen injects
- *    `acquireWebWakeLock`, the native screen `acquireNativeWakeLock`, and a test a fake. Importing an
- *    adapter here would make one platform silently run the other's implementation;
+ *  - **ports and adapters** — the wake lock arrives as a {@link WakeLockPort}, device storage as a
+ *    {@link CookingSessionStore} and speech recognition as a {@link CookingVoiceControlPort}, so nothing
+ *    platform-specific is imported here. The web screen injects `acquireWebWakeLock` /
+ *    `startWebVoiceControl`, the native screen the Expo pair, and a test a fake. Importing an adapter
+ *    here would make one platform silently run the other's implementation — and would drag an OS speech
+ *    recogniser into every consumer of this module;
  *  - **Command**-shaped timer intents (`start` / `pause` / `resume` / `cancel`, addressed by timer id),
  *    each delegating to the pure reducers in `@kitchensink/cooking-core`.
  *
@@ -42,6 +44,7 @@ import {
     isInvalidTimerDurationError,
     isStepHasNoTimerError,
     isUnknownTimerError,
+    noopVoiceControl,
     pause,
     pauseTimer,
     persistSession,
@@ -56,13 +59,17 @@ import {
     type CookingSession,
     type CookingSessionStore,
     type CookingTimer,
+    type CookingVoiceCommand,
     type ScaleFactor,
     type WakeLockPort,
 } from '@kitchensink/cooking-core';
 import type { RecipeIngredientView, RecipeStepView } from '@kitchensink/recipe-core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { isAtFirstStep, isAtLastStep } from './stepNavigationModel';
 import type { ActiveTimerView } from './timerModel';
+import { canToggleVoiceControl, type VoiceControlState } from './voiceControlModel';
+import type { CookingVoiceControlPort } from './voiceControlPolicy';
 
 /**
  * How often the countdown re-renders while at least one timer is running.
@@ -141,6 +148,15 @@ export interface UseCookingSessionOptions {
      * stable, for the same reason as {@link store}.
      */
     readonly wakeLock: WakeLockPort;
+    /**
+     * Voice-control port (US-006 / D-004), injected so this hook stays platform-free. MUST be
+     * referentially stable, for the same reason as {@link store} — a new function each render would
+     * restart recognition, and restarting a recogniser means re-opening a microphone.
+     *
+     * Omitted (or core's `noopVoiceControl`) MEANS "this platform has no recogniser", which the surface
+     * states up front rather than letting the cook discover it by pressing a control that does nothing.
+     */
+    readonly voiceControl?: CookingVoiceControlPort;
     /** Invoked after the cook leaves mid-session; the session stays resumable for 24h. */
     readonly onExit: () => void;
     /** Invoked after the cook finishes the recipe; the stored session is cleared. */
@@ -178,6 +194,12 @@ export interface CookingModeScreenProps {
      * tests — and any host on a platform without one — can supply their own.
      */
     readonly wakeLock?: WakeLockPort;
+    /**
+     * Voice-control adapter (US-006 / D-004). Each platform screen defaults it to its own adapter — the
+     * ONE place the platform binding is made, so the recogniser never reaches the barrel and never lands
+     * in the graph of a consumer that only wanted a step surface.
+     */
+    readonly voiceControl?: CookingVoiceControlPort;
 }
 
 /** The session surface a Cooking Mode screen drives. Every field is derived; nothing here is a setter. */
@@ -214,6 +236,22 @@ export interface CookingSessionApi {
     readonly toggleIngredient: (ingredientId: string) => void;
     /** Changes the yield factor (FR-034a). */
     readonly changeScaleFactor: (factor: ScaleFactor) => void;
+    /** Whether voice control is off, listening, refused, or impossible here (US-006 / D-004). */
+    readonly voiceState: VoiceControlState;
+    /**
+     * Starts or stops listening for voice commands. The press that calls this IS the cook's microphone
+     * consent — nothing else in Cooking Mode opens a recogniser. Inert once the answer is settled
+     * (`denied` / `unsupported`), which is also why it is never retried.
+     */
+    readonly toggleVoice: () => void;
+    /**
+     * Counts the times the cook asked, by voice, for the current step to be re-announced.
+     *
+     * `0` means they never have. The screen keys its assertive live region on this value so that a second
+     * "repeat" of the SAME step is still a change the live region announces, rather than an identical
+     * string a screen reader ignores.
+     */
+    readonly repeatAnnouncementId: number;
 }
 
 /**
@@ -286,7 +324,7 @@ function adoptRestoredSession(restored: CookingSession, totalSteps: number, nowI
  * session is live, and runs a one-second interval while at least one timer is counting down.
  */
 export function useCookingSession(options: UseCookingSessionOptions): CookingSessionApi {
-    const { recipeId, recipe, store, wakeLock, onExit, onFinish } = options;
+    const { recipeId, recipe, store, wakeLock, voiceControl, onExit, onFinish } = options;
 
     const [state, setState] = useState<SessionState>({ phase: 'restoring' });
     const [nowIso, setNowIso] = useState<string>(currentIso);
@@ -686,6 +724,117 @@ export function useCookingSession(options: UseCookingSessionOptions): CookingSes
         updateSession((current) => ({ ...current, scaleFactor: validated }));
     };
 
+    // ── Voice control, OPT-IN (US-006 / D-004) ───────────────────────────────
+    // Recognition starts on the cook's press and on nothing else — never on mount. A microphone that
+    // opens because a screen rendered is a privacy-hostile default, and there is no other consent signal
+    // in this feature; the toggle IS it. The session's lifetime is therefore exactly the lifetime of
+    // "requested AND cooking", expressed as one effect so stopping cannot be forgotten on any path.
+    const [isVoiceRequested, setIsVoiceRequested] = useState(false);
+    const [voiceSessionState, setVoiceSessionState] = useState<VoiceControlState>('idle');
+    const [repeatAnnouncementId, setRepeatAnnouncementId] = useState(0);
+
+    // An omitted port and the core no-op port both MEAN "no recogniser here", and the surface says so
+    // up front rather than after a press that visibly does nothing.
+    const hasRecogniser = voiceControl !== undefined && voiceControl !== noopVoiceControl;
+    const voiceState: VoiceControlState = hasRecogniser ? voiceSessionState : 'unsupported';
+
+    /**
+     * One action per command, as a TOTAL record: a command added to the domain's union fails to compile
+     * here rather than silently doing nothing on both platforms.
+     *
+     * Every action obeys the SAME boundary rules the tap controls obey — notably, a spoken "next" on the
+     * last step does NOT finish the session, because ending a cook must stay a deliberate press on the
+     * finish affordance (HAZ-006), and `advance` would additionally record the final step as completed.
+     */
+    const voiceActions: Readonly<Record<CookingVoiceCommand, () => void>> = {
+        next: () => {
+            if (surface.kind === 'step' && !isAtLastStep(surface.stepIndex, surface.stepCount)) {
+                goToNextStep();
+            }
+        },
+        back: () => {
+            if (surface.kind === 'step' && !isAtFirstStep(surface.stepIndex, surface.stepCount)) {
+                goToPreviousStep();
+            }
+        },
+        'start-timer': () => {
+            if (surface.kind === 'step') {
+                // A step with no duration is already a no-op inside `startStepTimer`, so a misfired
+                // "start timer" on a step that has none costs the cook nothing.
+                startStepTimer(surface.step);
+            }
+        },
+        'pause-timer': () => {
+            const running = activeTimers.find((entry) => !entry.timer.isPaused);
+
+            if (running !== undefined) {
+                pauseStepTimer(running.timer.id);
+            }
+        },
+        repeat: () => {
+            if (surface.kind === 'step') {
+                setRepeatAnnouncementId((current) => current + 1);
+            }
+        },
+    };
+
+    // Ref, deliberately, and for the same reason the persist queue is one: the recogniser is a genuinely
+    // external, non-declarative system holding a live microphone. Re-subscribing whenever the actions
+    // change identity (every render) would stop and restart recognition continuously; keeping the LATEST
+    // actions behind a ref lets the session live as long as the cook asked for it while still dispatching
+    // against current state.
+    const voiceActionsRef = useRef(voiceActions);
+
+    useEffect(() => {
+        voiceActionsRef.current = voiceActions;
+    });
+
+    useEffect(() => {
+        // Gated on `isLive` as well as on the request: a toggle pressed during the restore is remembered
+        // and honoured once the session exists, and the session ending (finish or exit) stops the
+        // microphone through this effect's cleanup rather than through a second, drift-prone path.
+        if (!isVoiceRequested || !isLive || voiceControl === undefined) {
+            return undefined;
+        }
+
+        let active = true;
+
+        setVoiceSessionState('listening');
+
+        const dispose = voiceControl(
+            (command) => {
+                // `active` swallows the command the platform had already queued when disposal ran.
+                if (active) {
+                    voiceActionsRef.current[command]();
+                }
+            },
+            (status) => {
+                if (active) {
+                    setVoiceSessionState(status);
+                }
+            },
+        );
+
+        return () => {
+            active = false;
+            dispose();
+            setVoiceSessionState('idle');
+        };
+    }, [isLive, isVoiceRequested, voiceControl]);
+
+    const toggleVoice = (): void => {
+        // `denied` and `unsupported` are settled answers. Re-asking would spam the OS permission dialog
+        // mid-recipe and, on a platform with no recogniser, could never succeed.
+        if (!canToggleVoiceControl(voiceState)) {
+            return;
+        }
+
+        // Derived from what the control SHOWS, not from flipping the flag: the two can disagree once a
+        // session ends (the flag stays set while the state falls back to `idle`), and a blind flip would
+        // then need two presses to start listening again — the first merely clearing a stale request.
+        setIsVoiceRequested(voiceState !== 'listening');
+    };
+
     return {
         surface,
         checkedIngredientIds: session?.checkedIngredientIds ?? [],
@@ -703,5 +852,8 @@ export function useCookingSession(options: UseCookingSessionOptions): CookingSes
         dismissTimerAlert,
         toggleIngredient: toggle,
         changeScaleFactor,
+        voiceState,
+        toggleVoice,
+        repeatAnnouncementId,
     };
 }

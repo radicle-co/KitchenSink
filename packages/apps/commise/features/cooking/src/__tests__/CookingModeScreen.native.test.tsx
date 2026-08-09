@@ -13,9 +13,12 @@
  */
 import { LocaleProvider } from '@commise/i18n/react';
 import {
+    noopVoiceControl,
     serializeSession,
     type CookingSession,
     type CookingTimer,
+    type CookingVoiceCommand,
+    type VoiceCommandListener,
     type WakeLockDisposer,
     type WakeLockPort,
 } from '@kitchensink/cooking-core';
@@ -25,6 +28,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingModeScreen } from '../CookingModeScreen.native';
 import type { CookingModeScreenProps, CookingRecipeState } from '../useCookingSession';
+import type { CookingVoiceControlPort, VoiceControlStatus } from '../voiceControlPolicy';
 
 afterEach(() => {
     cleanup();
@@ -101,6 +105,42 @@ const makeWakeLock = () => {
     return { port: acquire as WakeLockPort, acquire, release };
 };
 
+/** A voice-control port that records its lifetime and hands the test the recogniser's two callbacks. */
+const makeVoiceControl = () => {
+    const dispose = vi.fn();
+    let emit: VoiceCommandListener | null = null;
+    let report: ((status: VoiceControlStatus) => void) | null = null;
+
+    const start = vi.fn((onCommand: VoiceCommandListener, onStatus?: (status: VoiceControlStatus) => void) => {
+        emit = onCommand;
+        report = onStatus ?? null;
+
+        return dispose;
+    });
+
+    return {
+        port: start as CookingVoiceControlPort,
+        start,
+        dispose,
+        /** Delivers one recognised command, as the recogniser would. */
+        say(command: CookingVoiceCommand): void {
+            if (emit === null) {
+                throw new Error('no voice session is listening');
+            }
+
+            emit(command);
+        },
+        /** Reports a session status, as the adapter does on denial or on an absent recogniser. */
+        announce(status: VoiceControlStatus): void {
+            if (report === null) {
+                throw new Error('no voice session is listening');
+            }
+
+            report(status);
+        },
+    };
+};
+
 /** The session as it was last written to storage. */
 const persistedSession = (store: ReturnType<typeof makeStore>): CookingSession => {
     const raw = store.entries.get(RECIPE_ID);
@@ -143,6 +183,7 @@ const renderScreen = (overrides: Partial<CookingModeScreenProps> = {}) => {
         onExit: overrides.onExit ?? vi.fn(),
         onFinish: overrides.onFinish ?? vi.fn(),
         wakeLock: overrides.wakeLock ?? makeWakeLock().port,
+        voiceControl: overrides.voiceControl,
     };
 
     return render(
@@ -506,6 +547,131 @@ describe('CookingModeScreen (native) — ingredient checkoff and yield scaling (
         expect(screen.getByRole('checkbox', { name: '60 g Butter' })).toBeTruthy();
         expect(persistedSession(store).scaleFactor).toBe(2);
         expect(screen.getByRole('timer', { name: 'Sweat the onion' }).textContent).toBe('1:00');
+    });
+});
+
+describe('CookingModeScreen (native) — voice control (US-006 / D-004)', () => {
+    it('offers voice as an explicit OPT-IN: the toggle is off, and nothing is listening on arrival', async () => {
+        const voice = makeVoiceControl();
+        renderScreen({ voiceControl: voice.port });
+        await settle();
+
+        expect(screen.getByRole('button', { name: 'Voice control Off' })).toBeTruthy();
+        expect(voice.start).not.toHaveBeenCalled();
+    });
+
+    it('starts listening only when the cook presses the toggle — the press IS the consent', async () => {
+        const voice = makeVoiceControl();
+        renderScreen({ voiceControl: voice.port });
+        await settle();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Voice control Off' }));
+        await settle();
+
+        expect(voice.start).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: 'Voice control Listening' }).getAttribute('aria-pressed')).toBe(
+            'true',
+        );
+    });
+
+    it('stops listening when the toggle is pressed again', async () => {
+        const voice = makeVoiceControl();
+        renderScreen({ voiceControl: voice.port });
+        await settle();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Voice control Off' }));
+        await settle();
+        fireEvent.click(screen.getByRole('button', { name: 'Voice control Listening' }));
+        await settle();
+
+        expect(voice.dispose).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: 'Voice control Off' })).toBeTruthy();
+    });
+
+    it('advances the RENDERED step on a spoken "next", exactly as the tap zone does', async () => {
+        const voice = makeVoiceControl();
+        renderScreen({ voiceControl: voice.port });
+        await settle();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Voice control Off' }));
+        await settle();
+
+        await act(async () => {
+            voice.say('next');
+        });
+        await settle();
+
+        expect(shownInstruction()).toContain('Sweat the onion');
+    });
+
+    it('re-announces the current step ASSERTIVELY on "repeat", and announces nothing before it is asked', async () => {
+        const voice = makeVoiceControl();
+        renderScreen({ voiceControl: voice.port });
+        await settle();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Voice control Off' }));
+        await settle();
+
+        expect(screen.queryByText('Step 1 of 3. Chop the onion')).toBeNull();
+
+        await act(async () => {
+            voice.say('repeat');
+        });
+        await settle();
+
+        const announcement = screen.getByText('Step 1 of 3. Chop the onion');
+
+        expect(announcement.closest('[aria-live]')?.getAttribute('aria-live')).toBe('assertive');
+    });
+
+    it('shows a DENIED microphone in words and refuses to re-ask (US-006 degrades, it never breaks)', async () => {
+        const voice = makeVoiceControl();
+        renderScreen({ voiceControl: voice.port });
+        await settle();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Voice control Off' }));
+        await settle();
+
+        await act(async () => {
+            voice.announce('denied');
+        });
+        await settle();
+
+        const control = screen.getByRole('button', { name: 'Voice control Microphone blocked' });
+
+        expect(control.getAttribute('aria-disabled')).toBe('true');
+
+        fireEvent.click(control);
+        await settle();
+
+        expect(voice.start).toHaveBeenCalledTimes(1);
+        // Tap navigation is untouched by a failed microphone.
+        fireEvent.click(screen.getByRole('button', { name: 'Next step' }));
+        await settle();
+
+        expect(shownInstruction()).toContain('Sweat the onion');
+    });
+
+    it('renders the toggle as UNAVAILABLE — never absent — where the platform has no recogniser', async () => {
+        renderScreen({ voiceControl: noopVoiceControl });
+        await settle();
+
+        expect(screen.getByRole('button', { name: 'Voice control Not available' }).getAttribute('aria-disabled')).toBe(
+            'true',
+        );
+    });
+
+    it('disposes the recogniser when the cook leaves cooking mode', async () => {
+        const voice = makeVoiceControl();
+        renderScreen({ voiceControl: voice.port });
+        await settle();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Voice control Off' }));
+        await settle();
+        fireEvent.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+        await settle();
+
+        expect(voice.dispose).toHaveBeenCalledTimes(1);
     });
 });
 

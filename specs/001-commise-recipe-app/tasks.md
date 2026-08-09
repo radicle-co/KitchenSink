@@ -401,13 +401,13 @@ tracked by **T060**, not by this rubric.
 
 - [x] T150 **[DECIDED — NO, owner ruling 2026-08-08; cross-feature 001 ↔ 003]** **Recipe → food-DB write-back ("resulting food") — WILL NOT BE BUILT.** The question was whether a _finished_ recipe should be registered as a food entity in the food service (`kitchensink_food`, 003) so a composed dish could be referenced as an ingredient in another recipe, or logged as a food.
 
-          **Ruling, in the owner's words:** _"no a finished recipe is not a food because there is more than one way to make something like a pizza."_ A recipe is a **method**, not a substance. Two cooks' pizzas share a name and nothing else — different doughs, different quantities, different yields — so registering "pizza" as a food entity would assert a nutritional identity that does not exist. Any downstream consumer resolving that entity would get one arbitrary cook's numbers presented as the dish's numbers.
+              **Ruling, in the owner's words:** _"no a finished recipe is not a food because there is more than one way to make something like a pizza."_ A recipe is a **method**, not a substance. Two cooks' pizzas share a name and nothing else — different doughs, different quantities, different yields — so registering "pizza" as a food entity would assert a nutritional identity that does not exist. Any downstream consumer resolving that entity would get one arbitrary cook's numbers presented as the dish's numbers.
 
-          **Naming context that makes this clearer (owner, same ruling):** the "food" service is _poorly named_ — it is really an **ingredient** service, and its data comes from the USDA. _"I'd preferred to have named it the ingredient service, but it's not worth the change right now."_ Read every `food_*` identifier as `ingredient_*`. Once you do, the answer stops looking like a trade-off: a finished recipe is not an ingredient, so it has no place in an ingredient catalogue sourced from the USDA. **Do not rename the service** — the cost is not worth paying today; this note exists so the name does not mislead the next reader into re-proposing this.
+              **Naming context that makes this clearer (owner, same ruling):** the "food" service is _poorly named_ — it is really an **ingredient** service, and its data comes from the USDA. _"I'd preferred to have named it the ingredient service, but it's not worth the change right now."_ Read every `food_*` identifier as `ingredient_*`. Once you do, the answer stops looking like a trade-off: a finished recipe is not an ingredient, so it has no place in an ingredient catalogue sourced from the USDA. **Do not rename the service** — the cost is not worth paying today; this note exists so the name does not mislead the next reader into re-proposing this.
 
-          **Standing design, unchanged:** the relationship is one-directional and stays that way. Ingredients reference the ingredient/food service by opaque `food_id` via `@kitchensink/food-service-client`; 001 computes a recipe-side nutrition summary from those ingredients; the finished dish is **never** written back. The food DB keeps a single writer — the USDA/source pipeline.
+              **Standing design, unchanged:** the relationship is one-directional and stays that way. Ingredients reference the ingredient/food service by opaque `food_id` via `@kitchensink/food-service-client`; 001 computes a recipe-side nutrition summary from those ingredients; the finished dish is **never** written back. The food DB keeps a single writer — the USDA/source pipeline.
 
-          **Consequences accepted:** a recipe cannot be used as an ingredient in another recipe (no "add my marinara to my lasagna"), and a cooked dish cannot be logged as a food for nutrition tracking. If either is ever wanted, it is a NEW feature with its own spec — modelling a user-authored composite distinct from a USDA ingredient — not a write-back into this catalogue.
+              **Consequences accepted:** a recipe cannot be used as an ingredient in another recipe (no "add my marinara to my lasagna"), and a cooked dish cannot be logged as a food for nutrition tracking. If either is ever wanted, it is a NEW feature with its own spec — modelling a user-authored composite distinct from a USDA ingredient — not a write-back into this catalogue.
 
 ---
 
@@ -601,18 +601,47 @@ remediation items, the P1–P9 pattern prescriptions, delivery/release-gating, a
 lives in **`docs/superpowers/plans/2026-07-18-001-mockup-parity-reconciliation.md`** — execute from the
 MASTER PROGRAM ORDER there.
 
-- [ ] **T171** W0 — spec reconciliation: `recipe-list.md` merged-card + draft-presentation note (done); CR-002 (list-card merge), CR-003 (collections FR-010/011), CR-004 (versions/conflict FR-007b/c); this register.
+> **PROGRAM CLOSED 2026-08-08 — reconciled against evidence, not asserted.** Every box below was
+> unchecked while the work had in fact shipped: the plan's own checkboxes were never maintained (the
+> master plan carries 130 unchecked / 0 checked, and the nine child plans 231 unchecked / 0 checked
+> between them), so "unchecked" recorded nothing about state. What closes the program is its OWN
+> definition of program-DONE — `verify-report.md` / `release-audit-report.md` fully mapped with no
+> `⬜ Untested` — and that is independently attested:
+>
+> - `v-model/traceability-matrix.md`: **449 rows, 0 `⬜ Untested`, 0 `❌ MISSING`.**
+> - `v-model/release-audit-report.md`: **RELEASE READY WITH WAIVERS**, 0 missing traceability mapping
+>   cells, "Audit complete — release-ready. No blocking action remains."
+> - The program-DONE clause "W9/W10/W11 registers closed or explicitly deferred with owner sign-off" is
+>   satisfied by the 6 approved waivers **WAV-001..006** in `v-model/waivers.md` — scoped deferrals, not
+>   release blockers.
+> - All nine child-plan documents exist at their registered paths.
+>
+> **Verified directly in code** (not taken from the audit): CP-1 `wizard/Wizard.tsx` + `.native.tsx` +
+> `useDiscardGuard`; CP-2 `collections/CollectionActions.*` + `PullUpdatesDialog.native.tsx` + screens on
+> both platforms; CP-3 `versions/VersionCompareView.*` + `RecipeVersionList.*`; CP-4 `useRecipeEditor.ts`
+> (real conflict statechart, per-field/per-element mine-vs-theirs merge, `computeConflictDiff`); CP-7's
+> S-I2 — `POST /api/v1/users/upsert` is gone AND two e2e tests assert 404 on both path spellings.
+>
+> **NOT re-verified item-by-item, stated so the tick is not read as more than it is:** the ~100
+> individual members of CP-5 (cache/policy seam), CP-6 (headless-hook seams) and CP-9 (quality
+> remainder). Those rest on the V-Model matrix — the artifact built to trace requirement → code → test —
+> rather than on a fresh reading of each item. If one of them turns out to be undone, the matrix is where
+> the error lives, and that is the right place to fix it.
+>
+> T116 (full CI pipeline green end-to-end) stays OPEN deliberately: it is in flight on PR #91.
+
+- [x] **T171** W0 — spec reconciliation: `recipe-list.md` merged-card + draft-presentation note (done); CR-002 (list-card merge), CR-003 (collections FR-010/011), CR-004 (versions/conflict FR-007b/c); this register.
 - [x] **T172** S-I1 — activate global DTO validation via `APP_PIPE` (identity) + remove the inert `ValidationPipe` token (food-service). _Shipped._
 - [x] **T173** S-I2 — delete the dead `POST /v1/users/upsert` endpoint + drop it from the identity OpenAPI contract. _Shipped._
-- [ ] **T174** Transport pass — B16 (client safe-JSON on error bodies), B26 (web `apiClient` 202/empty-body), DA1 (parse-don't-validate at the wire boundary), P6 (`expect` helper).
-- [ ] **T175** S-R3 — Specification-to-SQL predicate module (before W8-a.3).
-- [ ] **T176** W8-a — shared contract & data (calories, handle + sync, draft status, read-path 404, enriched-409, deviceLabel, S3-fallback, pull-preview, sort/facets, erasure assertion), each with its own e2e + k6.
-- [ ] **T177** W1/W2/W4 — list (FAB, merged card, chips, tabs, responsive nav), detail (dead-end + carousel + badges + interactivity), search (cards, facet registry, sort, paginate).
-- [ ] **T178** Child plan CP-1 — W3 recipe-edit wizard (statechart + compound `Wizard`).
-- [ ] **T179** Child plan CP-2 — W5 collections (pull-preview / clone / visibility).
-- [ ] **T180** Child plan CP-3 — W6 version history (preview / compare / diff).
-- [ ] **T181** Child plan CP-4 — W7 conflict resolution (changed-only diff + A/B/C; X5-min ships earlier as a ship-gate item).
-- [ ] **T182** Child plans CP-5/CP-6 — W9 cache/policy seam (DA2, T1, P4+DA6, P5, DA3/DA4, B1) and headless-hook seams (B4, P1–P3, T3/T4, B24).
-- [ ] **T183** Child plans CP-7/CP-8 — W10 identity (S-I3–S-I7) and recipe-service (S-R1/S-R2, S-R4–S-R8) remediation.
-- [ ] **T184** Child plan CP-9 — quality remainder (B6–B23, B25, DA5, DA8–DA10, T2, T5–T7).
-- [ ] **T185** W8-b — test-coverage consolidation & audit; `verify-report.md` / `release-audit-report.md` fully mapped (program-DONE = merge point of PR #73).
+- [x] **T174** Transport pass — B16 (client safe-JSON on error bodies), B26 (web `apiClient` 202/empty-body), DA1 (parse-don't-validate at the wire boundary), P6 (`expect` helper).
+- [x] **T175** S-R3 — Specification-to-SQL predicate module (before W8-a.3).
+- [x] **T176** W8-a — shared contract & data (calories, handle + sync, draft status, read-path 404, enriched-409, deviceLabel, S3-fallback, pull-preview, sort/facets, erasure assertion), each with its own e2e + k6.
+- [x] **T177** W1/W2/W4 — list (FAB, merged card, chips, tabs, responsive nav), detail (dead-end + carousel + badges + interactivity), search (cards, facet registry, sort, paginate).
+- [x] **T178** Child plan CP-1 — W3 recipe-edit wizard (statechart + compound `Wizard`).
+- [x] **T179** Child plan CP-2 — W5 collections (pull-preview / clone / visibility).
+- [x] **T180** Child plan CP-3 — W6 version history (preview / compare / diff).
+- [x] **T181** Child plan CP-4 — W7 conflict resolution (changed-only diff + A/B/C; X5-min ships earlier as a ship-gate item).
+- [x] **T182** Child plans CP-5/CP-6 — W9 cache/policy seam (DA2, T1, P4+DA6, P5, DA3/DA4, B1) and headless-hook seams (B4, P1–P3, T3/T4, B24).
+- [x] **T183** Child plans CP-7/CP-8 — W10 identity (S-I3–S-I7) and recipe-service (S-R1/S-R2, S-R4–S-R8) remediation.
+- [x] **T184** Child plan CP-9 — quality remainder (B6–B23, B25, DA5, DA8–DA10, T2, T5–T7).
+- [x] **T185** W8-b — test-coverage consolidation & audit; `verify-report.md` / `release-audit-report.md` fully mapped (program-DONE = merge point of PR #73).

@@ -7,10 +7,10 @@ name: Heavy E2E (Maestro + k6)
 # WHY a separate caller rather than folding them into ci-pr/ci-main: cost + duration. Maestro boots an
 # emulator and Gradle-builds a release APK (~50 min measured), and the two k6 jobs build/boot two service
 # images and drive minutes of sustained load — together tens of runner-minutes. Putting that on every PR
-# push and every main push contradicts the repo's cost posture (ADR-0007/ADR-0008). So they run on a
-# schedule, on demand, or on an explicitly labelled PR — and they are BLOCKING when they run (no
-# continue-on-error): a red load threshold or a broken on-device flow is a real defect, and the repo has no
-# non-blocking-job convention.
+# push and every main push contradicts the repo's cost posture (ADR-0007/ADR-0008). So they run only through
+# the four deliberate entry points listed below — and they are BLOCKING when they run (no continue-on-error):
+# a red load threshold or a broken on-device flow is a real defect, and the repo has no non-blocking-job
+# convention.
 #
 # This file calls ONLY `_ci-heavy.yml`. It has no business re-running lint/typecheck/test/build/integration/
 # e2e: on a labelled PR ci-pr.yml has already run them on the SAME commit, and re-running them here started
@@ -20,14 +20,42 @@ name: Heavy E2E (Maestro + k6)
 # the base/heavy file split makes it structurally impossible instead. For the FULL pipeline plus both heavy
 # tiers, use ci-full.yml.
 #
-# Three ways in:
+# Four ways in:
 #   1. NIGHTLY (schedule) — the routine regression signal.
 #   2. MANUAL (workflow_dispatch) — with per-tier toggles, for iterating on one tier.
 #   3. LABELLED PR — add the `heavy-e2e` label to a pull request. This is the ONLY path that works before
 #      this file reaches the default branch: `schedule` and `workflow_dispatch` are resolved from the DEFAULT
 #      BRANCH only, so neither can fire for this workflow until it is merged to `main`. `pull_request`
 #      resolves the workflow (and `_ci-heavy.yml`) from the PR head, so a same-repo PR runs the version on
-#      its own branch. Re-labelling (remove + re-add) re-triggers a run.
+#      its own branch. Re-labelling (remove + re-add) re-triggers a run. Still the only way in that also runs
+#      MAESTRO on a PR.
+#   4. AUTOMATIC, on a PR that touches food's MEASURED QUERY PATHS — k6 only, no emulator (see below).
+#
+# ## Why path 4 exists (T-198) — and why it is k6-only
+#
+# T-198 put 1–2 character food searches back on the `food_search_vector_idx` GIN index (156ms -> 14ms).
+# Deterministic tests run on every PR and make the OLD query SHAPE structurally impossible to reintroduce.
+# They cannot see a pure LATENCY regression: drop that index, alter the schema, or grow the RESOLVED
+# population past the tested size and every one of them still passes — only the k6 tier fails. Leaving that
+# behind a LABEL meant the guard depended on a human remembering to apply one, which is not a guard.
+#
+# So the `detect` job below computes whether the PR touched the code whose change can plausibly slow the
+# measured queries, and the `heavy` gate ORs that in. Cost is still paid only where it can buy something:
+# the filter is the SQL and the harness (schema + ordered migrations, the food DAOs, the search orchestration,
+# and the k6 scripts + perf fixture), not the whole food package. Maestro is deliberately NOT switched on
+# here — a food-search change has no business Gradle-building an APK and booting an Android emulator for ~50
+# measured minutes — so `run_mobile_maestro` now requires the LABEL on a `pull_request`.
+#
+# Accepted, not overlooked: `run_load_test` covers BOTH k6 jobs (recipe + food), so an auto-trigger on food
+# paths also runs the recipe load job. Splitting them would mean a third input threaded through the reusable
+# workflow to save a bounded number of runner-minutes on an uncommon PR shape; the extra job stays.
+#
+# ⚠️ The `detect` job MUST stay runnable on EVERY event. GitHub skips every dependent of a skipped job, so
+# gating it on `pull_request` would silently kill the nightly and dispatch runs while every `if:` below still
+# read correctly — the same silent-skip class as ADR-0010's `deploy-food`. Only the paths-filter STEP is
+# PR-scoped; on any other event the step is skipped, the job output is empty, and the gate falls through to
+# clause 1. `packages/infra/global/__tests__/heavy-e2e-load-tier-gate.test.ts` evaluates all of that from the
+# parsed YAML and fails if any link of it drifts.
 on:
     schedule:
         # 07:00 UTC = 03:00 ET — off-peak, and outside the 09:00 ET sandbox wake window (ADR-0007). These
@@ -48,7 +76,9 @@ on:
     pull_request:
         branches: [main]
         # `labeled` is what makes the opt-in usable: adding `heavy-e2e` to an open PR starts a run without a
-        # new push. `opened`/`synchronize`/`reopened` keep an already-labelled PR covered on every push.
+        # new push. `opened`/`synchronize`/`reopened` keep an already-labelled PR covered on every push, and
+        # are also what carries the AUTOMATIC path (clause 4) — `paths-filter` diffs against the PR's BASE, not
+        # the previous push, so a PR that touched a measured path stays covered for the rest of its life.
         types: [opened, synchronize, reopened, labeled]
 
 permissions:
@@ -61,14 +91,78 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
+    # Changed-path detection is not available in a job-level `if:` expression, so the answer is computed here
+    # and read through `needs`. Deliberately UNGATED at the job level (see the ⚠️ note in the header): a
+    # skipped dependency skips its dependents, so an `if:` here would take the nightly run down with it.
+    # Two cheap steps on every run — checkout plus a filter that self-skips off `pull_request` — buys a
+    # `needs` edge that cannot become a silent skip.
+    detect:
+        name: Detect food-search changes
+        runs-on: ubuntu-latest
+        outputs:
+            # Empty string on schedule/dispatch (the step below is skipped), which the gate reads as "not
+            # true" — correct, because those events reach the tier through clause 1 anyway.
+            search: ${{ steps.changes.outputs.search }}
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  # `dorny/paths-filter` DOES `git fetch` from `origin` — but only in its
+                  # `getChangedFilesFromGit` fallback, which it takes on `push`/`workflow_dispatch`. This step
+                  # runs the filter ONLY on `pull_request`, where the action asks the GitHub API for the PR's
+                  # file list instead, so no git credential is needed and none is left in the workspace
+                  # (zizmor: artipacked). That is why this checkout can drop the credential while
+                  # `prod-deploy.yml` and `sandbox-identity-deploy.yml` deliberately keep theirs.
+                  persist-credentials: false
+            # Scoped to what can plausibly slow the queries the food k6 job MEASURES (SC-001/003/004/005/007
+            # and the erasure route) — not the whole package:
+            #
+            #   • `src/db/**`             the ordered migration DDL and the Drizzle schema. `food_search_vector_idx`
+            #                             is created in `0001_food_fts.sql`; dropping or altering an index is the
+            #                             central scenario, and it is invisible to every deterministic test.
+            #   • `src/foods/dao/**`      the SQL itself. `food-search.dao.ts` is the query T-198 tuned, and the
+            #                             same job measures reads (`food.dao`, nutrients/portions), the drain
+            #                             claim (`fetch-queue.dao`) and the erasure DELETE
+            #                             (`fetch-requesters.dao`). A DIRECTORY, not a file list, so a DAO added
+            #                             to a measured path is covered on the day it lands rather than the day
+            #                             somebody remembers to extend this filter.
+            #   • `foods.service.ts`      the orchestration ON the measured paths — `search()` is a thin pass to
+            #                             the DAO plus TWO sequential crosswalk lookups, so latency added here
+            #                             shows up only in k6.
+            #   • `tests/load/**`         the scripts, their thresholds and the 50,000-food perf fixture. Changing
+            #                             what is measured must re-measure it; a shrunken fixture would otherwise
+            #                             hide a regression behind a green check.
+            #
+            # NOT included: controllers, DTOs, guards, merge/admission logic, the USDA adapters, admin, seed
+            # and infra. Those change often and cannot move a query plan, and every runner-minute here is paid
+            # against the repo's cost posture (ADR-0007/ADR-0008). The label remains the escape hatch for a
+            # change this filter does not name.
+            - name: Detect food-search changes
+              id: changes
+              if: github.event_name == 'pull_request'
+              uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
+              with:
+                  filters: |
+                      search:
+                          - 'packages/services/food-service/src/db/**'
+                          - 'packages/services/food-service/src/foods/dao/**'
+                          - 'packages/services/food-service/src/foods/foods.service.ts'
+                          - 'packages/services/food-service/tests/load/**'
+
     heavy:
         name: Heavy tiers (sandbox)
-        # Label gate. On a pull_request event the job runs ONLY when the PR carries `heavy-e2e`; otherwise it
-        # is skipped (a neutral, non-red status), so this workflow adds no cost to ordinary PRs. Schedule and
-        # dispatch runs are always allowed through.
+        needs: [detect]
+        # THE GATE. On a `pull_request` the job runs when the PR carries `heavy-e2e` OR when it touched the
+        # measured query paths; otherwise it is skipped (a neutral, non-red status), so this workflow still
+        # adds no cost to an ordinary PR. Schedule and dispatch runs are always allowed through.
+        #
+        # Deliberately NOT skip-tolerant (`always()` / `!cancelled()`): if `detect` FAILS, this job is skipped
+        # and the run is RED — visible and re-runnable — whereas a skip-tolerant gate would evaluate the third
+        # clause against an empty output and skip the tier anyway, just without the red. Losing the tier must
+        # never be quieter than losing the detection.
         if: >-
             github.event_name != 'pull_request' ||
-            contains(github.event.pull_request.labels.*.name, 'heavy-e2e')
+            contains(github.event.pull_request.labels.*.name, 'heavy-e2e') ||
+            needs.detect.outputs.search == 'true'
         uses: ./.github/workflows/_ci-heavy.yml
         with:
             # SANDBOX, never prod. The Maestro job does a REAL Clerk sign-in from the emulator, and Clerk
@@ -78,9 +172,17 @@ jobs:
             stage: sandbox
             # `github.event.inputs.*` (a string, empty on non-dispatch events) rather than the `inputs`
             # context, so the expression is well-defined for `schedule` and `pull_request` too. The
-            # short-circuit makes both tiers ON for schedule/PR runs and per-toggle for a manual dispatch.
+            # short-circuit makes the k6 tier ON for schedule/PR runs and per-toggle for a manual dispatch —
+            # any PR that got past the gate above wants k6, whichever clause let it through.
             run_load_test: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.run_load_test == 'true' }}
-            run_mobile_maestro: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.run_mobile_maestro == 'true' }}
+            # Maestro keeps the dispatch toggle AND additionally requires the LABEL on a `pull_request`, so the
+            # automatic path (clause 3 of the gate) never boots the ~50-minute emulator for a query change.
+            # Written as an extra AND on the existing expression rather than an enumeration of the events that
+            # DO want it: adding a trigger later then defaults Maestro on, as it does today, instead of
+            # silently switching it off for the new event.
+            run_mobile_maestro: >-
+                ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.run_mobile_maestro == 'true') &&
+                (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'heavy-e2e')) }}
         # Same as ci-pr.yml / ci-main.yml: the composite load-secrets action needs AWS_ACCESS_KEY_ID /
         # AWS_SECRET_ACCESS_KEY to read kitchensink/sandbox/identity/keys. Fork PRs get no secrets, so
         # load-secrets' `continue-on-error` skips the Clerk-dependent steps rather than failing.

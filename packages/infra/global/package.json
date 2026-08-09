@@ -30,6 +30,7 @@
         "dotenv": "*",
         "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
+        "minimatch": "^10.2.6",
         "prettier": "^3.0.0",
         "tsx": "*",
         "typescript": "^5.9.3",

@@ -24,6 +24,11 @@ name: CI — heavy tiers (reusable)
 # nightly, on demand, or on a PR carrying the `heavy-e2e` label — and they are BLOCKING when they do run:
 # a red load threshold or a broken on-device flow is a real defect.
 #
+# The k6 half has ONE further way in, which the emulator deliberately does not share: `heavy-e2e.yml` also
+# switches `run_load_test` on automatically for a PR that touched food's measured query paths (T-198 — a pure
+# latency regression such as a dropped index is invisible to every deterministic tier). The caller owns that
+# decision and its rationale; nothing in this file needs to know which clause let the run through.
+#
 # ## Why `install` is duplicated from `_ci.yml`
 #
 # The heavy jobs restore the dependency cache `install` saves. A reusable workflow cannot `needs:` a job
@@ -396,11 +401,15 @@ jobs:
         name: Load test (recipe — k6) · heavy tier
         runs-on: ubuntu-latest
         needs: [install]
-        # T081/SC-009 performance gate. Gated behind `run_load_test` (default false) so the heavy k6 run
-        # never fires on ordinary PR / push pipelines; a caller opts in with `run_load_test: true`
-        # (`heavy-e2e.yml` — nightly schedule, manual dispatch, or the `heavy-e2e` PR label). Boots the
-        # recipe-service against a Postgres + LocalStack service pair and runs ALL SEVEN tests/load k6
-        # scripts; a threshold breach exits k6 non-zero and fails the job.
+        # T081/SC-009 performance gate. Gated behind `run_load_test` so the heavy k6 run never fires on an
+        # ordinary PR / push pipeline — no such pipeline calls this file at all, and a caller that wants only
+        # the emulator switches the input off. Reached via `heavy-e2e.yml` (nightly schedule, manual dispatch,
+        # the `heavy-e2e` PR label, or a PR touching food's measured query paths) and `recipe-loadtest.yml`.
+        # Boots the recipe-service against a Postgres + LocalStack service pair and runs ALL SEVEN tests/load
+        # k6 scripts; a threshold breach exits k6 non-zero and fails the job.
+        #
+        # ⚠️ `run_load_test` covers BOTH k6 jobs, so the food-path auto-trigger runs this recipe job too. That
+        # is accepted (bounded extra runner-minutes) rather than plumbed around with a third input.
         if: ${{ inputs.run_load_test }}
         services:
             postgres:
@@ -616,9 +625,12 @@ jobs:
         name: Load test (food — k6) · heavy tier
         runs-on: ubuntu-latest
         needs: [install]
-        # CR-002 / U4b performance gate for food's internal service-principal erasure route — the food mirror
-        # of the recipe `load-test` job, gated behind the SAME `run_load_test` input so both heavy k6 runs
-        # fire together (nightly / manual / `heavy-e2e` PR label) and never on an ordinary PR push.
+        # CR-002 / U4b performance gate for food's internal service-principal erasure route, PLUS the T-195
+        # SC-001/003/004/005/007 tier — the food mirror of the recipe `load-test` job, gated behind the SAME
+        # `run_load_test` input so both heavy k6 runs fire together (nightly / manual / `heavy-e2e` PR label /
+        # a PR touching food's measured query paths) and never on an ordinary PR push. This is the job the
+        # automatic path exists FOR: the SC-007 search script here is what catches a latency regression that
+        # every deterministic tier passes straight through.
         #
         # SIMPLER than the recipe job by design: food's erase is a SYNCHRONOUS indexed DELETE on
         # `fetch_requesters` with no SQS hand-off and no S3, so this needs only a migrated Postgres — no

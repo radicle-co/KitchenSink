@@ -86,6 +86,8 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
+import { type Truth, evaluateCondition, isSkipTolerant } from './workflow-expression.js';
+
 const WORKFLOW_DIR = fileURLToPath(new URL('../../../../.github/workflows/', import.meta.url));
 
 interface WorkflowStep {
@@ -179,204 +181,17 @@ function triggerEvents(doc: WorkflowDocument): readonly string[] {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// A three-valued evaluator for GitHub `if:` expressions.
+// Event-name reasoning over GitHub `if:` expressions.
 //
-// The question asked of an `if` is only ever "can this be FALSE for certain under event E?". Anything the
-// evaluator does not model — `inputs.*`, `needs.*.result`, `contains(...)`, secrets — is UNKNOWN, i.e. it
+// The boolean grammar (`!`, `&&`, `||`, parens, call atoms) lives ONCE, in `./workflow-expression.ts`, and is
+// shared with `heavy-e2e-load-tier-gate.test.ts` — see that module's header for why the atom resolver is a
+// parameter. What is local to THIS guard is the resolver's POLICY.
+//
+// The question asked of an `if` here is only ever "can this be FALSE for certain under event E?". Anything
+// the resolver does not model — `inputs.*`, `needs.*.result`, `contains(...)`, secrets — is UNKNOWN, i.e. it
 // might be true, so the job might run. That asymmetry is deliberate: a guard that guesses "false" would
 // invent unreachable jobs, whereas guessing "unknown" only ever loses a finding.
 // ---------------------------------------------------------------------------------------------------------
-
-type Truth = 'true' | 'false' | 'unknown';
-
-function negate(value: Truth): Truth {
-    if (value === 'true') {
-        return 'false';
-    }
-
-    return value === 'false' ? 'true' : 'unknown';
-}
-
-function conjoin(left: Truth, right: Truth): Truth {
-    if (left === 'false' || right === 'false') {
-        return 'false';
-    }
-
-    return left === 'unknown' || right === 'unknown' ? 'unknown' : 'true';
-}
-
-function disjoin(left: Truth, right: Truth): Truth {
-    if (left === 'true' || right === 'true') {
-        return 'true';
-    }
-
-    return left === 'unknown' || right === 'unknown' ? 'unknown' : 'false';
-}
-
-/** Strip a single wrapping `${{ … }}`, which is optional on `if:` and carries no meaning. */
-function unwrap(condition: string): string {
-    const trimmed = condition.trim();
-
-    return (/^\$\{\{([\s\S]*)\}\}$/.exec(trimmed)?.[1] ?? trimmed).trim();
-}
-
-/** Index of the `)` closing the `(` at `open`, quote-aware. */
-function closingParen(expression: string, open: number): number {
-    let depth = 0;
-
-    for (let index = open; index < expression.length; index += 1) {
-        const char = expression[index];
-
-        if (char === "'" || char === '"') {
-            const end = expression.indexOf(char, index + 1);
-
-            index = end === -1 ? expression.length : end;
-            continue;
-        }
-
-        if (char === '(') {
-            depth += 1;
-        }
-
-        if (char === ')') {
-            depth -= 1;
-
-            if (depth === 0) {
-                return index;
-            }
-        }
-    }
-
-    return expression.length - 1;
-}
-
-/**
- * Split an expression into `&&` / `||` / `!` / parens and opaque atoms.
- *
- * A `(` directly after an identifier is a CALL, so its argument list is swallowed into the atom — otherwise
- * `contains(a, 'b')` would shatter into fragments and the parse would be nonsense.
- */
-function tokenize(expression: string): readonly string[] {
-    const tokens: string[] = [];
-    let atom = '';
-
-    function flush(): void {
-        if (atom.trim() !== '') {
-            tokens.push(atom.trim());
-        }
-
-        atom = '';
-    }
-
-    for (let index = 0; index < expression.length; index += 1) {
-        const char = expression[index] as string;
-        const pair = expression.slice(index, index + 2);
-
-        if (char === "'" || char === '"') {
-            const end = expression.indexOf(char, index + 1);
-            const close = end === -1 ? expression.length - 1 : end;
-
-            atom += expression.slice(index, close + 1);
-            index = close;
-            continue;
-        }
-
-        if (pair === '&&' || pair === '||') {
-            flush();
-            tokens.push(pair);
-            index += 1;
-            continue;
-        }
-
-        if (char === '!' && pair !== '!=') {
-            flush();
-            tokens.push('!');
-            continue;
-        }
-
-        if (char === '(') {
-            if (/[\w.]$/.test(atom)) {
-                const end = closingParen(expression, index);
-
-                atom += expression.slice(index, end + 1);
-                index = end;
-                continue;
-            }
-
-            flush();
-            tokens.push('(');
-            continue;
-        }
-
-        if (char === ')') {
-            flush();
-            tokens.push(')');
-            continue;
-        }
-
-        atom += char;
-    }
-
-    flush();
-
-    return tokens;
-}
-
-/** Evaluate a condition, resolving each atom through `atomTruth`. */
-function evaluateCondition(condition: string, atomTruth: (atom: string) => Truth): Truth {
-    const tokens = tokenize(unwrap(condition));
-    let position = 0;
-
-    function parseUnary(): Truth {
-        const token = tokens[position];
-
-        if (token === '!') {
-            position += 1;
-
-            return negate(parseUnary());
-        }
-
-        if (token === '(') {
-            position += 1;
-
-            const inner = parseDisjunction();
-
-            if (tokens[position] === ')') {
-                position += 1;
-            }
-
-            return inner;
-        }
-
-        position += 1;
-
-        return token === undefined ? 'unknown' : atomTruth(token);
-    }
-
-    function parseConjunction(): Truth {
-        let value = parseUnary();
-
-        while (tokens[position] === '&&') {
-            position += 1;
-            value = conjoin(value, parseUnary());
-        }
-
-        return value;
-    }
-
-    function parseDisjunction(): Truth {
-        let value = parseConjunction();
-
-        while (tokens[position] === '||') {
-            position += 1;
-            value = disjoin(value, parseConjunction());
-        }
-
-        return value;
-    }
-
-    return parseDisjunction();
-}
 
 /** Resolve an atom against a known event name; everything else is UNKNOWN. */
 function eventAtomTruth(atom: string, event: string, eventKnown: boolean): Truth {
@@ -405,15 +220,6 @@ function mayRun(condition: string | undefined, event: string, eventKnown: boolea
     }
 
     return evaluateCondition(condition, (atom) => eventAtomTruth(atom, event, eventKnown)) !== 'false';
-}
-
-/**
- * Whether an `if` survives a SKIPPED dependency. GitHub skips every dependent of a skipped job unless the
- * dependent opts out of the implicit `success()` — which is exactly what `sandbox-deploy.yml`'s
- * `deploy-recipe` does, and why it must keep doing it (ADR-0010).
- */
-function isSkipTolerant(condition: string | undefined): boolean {
-    return /always\(\)|!\s*cancelled\(\)|!\s*failure\(\)/.test(condition ?? '');
 }
 
 /** `workflow_call` inputs of a reusable workflow. */

@@ -17,15 +17,19 @@
 //   brand    a brand token                  ~n/17 rows on an axis independent of the ingredient
 //   miss     a nonsense token               ZERO matches: every branch runs to completion, and the limit
 //                                           can never short-circuit the scan
-//   short    two characters                 too short for trigram extraction, so `ILIKE '%ch%'` cannot use
-//                                           `food_name_trgm_idx` — the sequential-scan case a real user
-//                                           produces after two keystrokes
+//   short    two characters                 the 1-2 character path (T-198): word-initial prefix matching
+//                                           over `food_search_vector_idx`. This shape is the LATENCY gate
+//                                           on that path — losing the index is the regression only a timed
+//                                           tier can see, and it is what a real user's first two
+//                                           keystrokes cost
 //   barcode  a seeded GTIN-13               drives the crosswalk branch (`findFoodIdByBarcode`), which runs
 //                                           on EVERY search regardless of the text predicate
 //
-// Each shape carries its own threshold at the SAME 200ms budget (SC-007 grants no per-shape exemption), so
-// a fast narrow query can never hide a slow broad or short one. `short` is separately overridable only so a
-// finding can be quantified without deleting the gate — see the README's SC-007 note.
+// Every shape carries its own threshold at the SAME 200ms SC-007 budget, so a fast narrow query can never
+// hide a slow broad or short one. `short` used to get its own separately-overridable budget; that existed
+// only so T-195's short-query finding could be quantified without deleting the gate, and T-198 fixed the
+// finding (125-157ms sequential scan -> 3.9-15.1ms index scan), so the exemption is gone. There is no
+// per-shape budget left to raise.
 //
 //   npm run test:load:tokens
 //   DATABASE_URL=… npm run test:load:fixture
@@ -42,7 +46,6 @@ import {
     BASE_URL,
     PEAK_VUS,
     SEARCH_P95_MS,
-    SEARCH_SHORT_P95_MS,
     SUMMARY_TREND_STATS,
     authHeaders,
     forIteration,
@@ -73,12 +76,14 @@ const SHAPES = [
 
 const searchTrend = new Trend('food_search_duration', true);
 
-/** Per-shape p95 thresholds, all at the SC-007 budget except the separately-overridable short-query case. */
+/**
+ * Per-shape p95 thresholds. ONE budget, SEARCH_P95_MS, for every shape — the loop is uniform on purpose,
+ * so there is no place for a per-shape exemption to be reintroduced without it being obvious in the diff.
+ */
 const shapeThresholds = {};
 
 for (const shape of SHAPES) {
-    const budget = shape.name === 'short' ? SEARCH_SHORT_P95_MS : SEARCH_P95_MS;
-    shapeThresholds[`http_req_duration{shape:${shape.name}}`] = [`p(95)<${budget}`];
+    shapeThresholds[`http_req_duration{shape:${shape.name}}`] = [`p(95)<${SEARCH_P95_MS}`];
 }
 
 export const options = {

@@ -79,22 +79,30 @@ export const SUSTAIN_FRACTION = Number(__ENV['FOOD_SUSTAIN_FRACTION'] || 0.85);
 // SC-007 verbatim: "Food search queries against a local store of up to 50,000 foods MUST return results
 // (canonical ids) within 200ms at p95."
 //
-// BREACHABLE BY: `FoodSearchDao.search` ORs FOUR predicates — ranked FTS (`search_vector @@
-// plainto_tsquery`), trigram similarity (`name % query`) and two substring `ILIKE '%q%'` scans — then
-// ranks EVERY match by `GREATEST(ts_rank, similarity(name, query))` before applying `LIMIT 20`. So a
-// broad query must score thousands of rows, and growth of the RESOLVED population moves this directly.
+// ONE budget for EVERY query shape, short ones included. There used to be a second, separately
+// overridable `SEARCH_SHORT_P95_MS` beside this: it defaulted to the same 200ms, but it existed so the
+// T-195 short-query finding could be quantified without deleting the gate, and once T-198 fixed that
+// finding it was a standing loophole — a knob whose only possible use is to raise the short shape's bar
+// above the success criterion it is named after. SC-007 grants no per-shape exemption, so neither does
+// this file. Per-shape ATTRIBUTION is unaffected: it comes from the threshold's `{shape:…}` tag in
+// `search.load.js`, not from a per-shape constant.
+//
+// BREACHABLE BY, at 3+ characters: `FoodSearchDao.search` ORs FOUR predicates — ranked FTS
+// (`search_vector @@ plainto_tsquery`), trigram similarity (`name % query`) and two substring
+// `ILIKE '%q%'` scans — then ranks EVERY match by `GREATEST(ts_rank, similarity(name, query))` before
+// applying `LIMIT 20`. So a broad query must score thousands of rows, and growth of the RESOLVED
+// population moves this directly.
+//
+// BREACHABLE BY, at 1–2 characters (the `short` shape): that statement is not used at all — T-198 routes
+// short queries to `search_vector @@ to_tsquery('simple', '<token>:*')` over `food_search_vector_idx`,
+// measured at 3.9–15.1ms where the old statement sequentially scanned at 125–157ms. What breaches THIS is
+// losing that index, or the routing being reverted so the `ILIKE` branches run below 3 characters again.
+// The revert is caught deterministically on every PR by the DAO's unit + integration suites; k6 is the
+// only tier that catches the dropped index, because that symptom is time rather than statement shape.
+//
 // `FoodsService.search` additionally issues TWO crosswalk lookups (barcode, then `external_key`) on every
 // single search, so the endpoint is three queries, not one.
 export const SEARCH_P95_MS = Number(__ENV['FOOD_SEARCH_P95_MS'] || 200);
-
-// A search query too SHORT for trigram extraction (`show_trgm('ch')` yields only padded partials), which
-// makes `name ILIKE '%ch%'` unservable by `food_name_trgm_idx` and forces a sequential scan with a
-// per-row `similarity()` computation. This is what a real user's first two keystrokes cost.
-//
-// It is budgeted SEPARATELY from SEARCH_P95_MS and defaults to the SAME value, so the two are held to one
-// bar while remaining independently attributable in the summary — SC-007 grants no exemption for short
-// queries, and collapsing them into one threshold would let a fast broad query hide a slow short one.
-export const SEARCH_SHORT_P95_MS = Number(__ENV['FOOD_SEARCH_SHORT_P95_MS'] || SEARCH_P95_MS);
 
 // p95 budget (ms) for the internal EdDSA-guarded erasure POST — a single indexed DELETE-by-requester with
 // no async hand-off (CR-002/U4b). Tighter than recipe's because there is no SQS enqueue.

@@ -58,9 +58,20 @@ async function openRecipeDetail(page: Page): Promise<void> {
     await expect(page.getByRole('link', { name: 'Start cooking' })).toBeVisible();
 }
 
-/** Enter Cooking Mode from the recipe-detail page — the only web entry point into it. */
+/**
+ * Enter Cooking Mode from the recipe-detail page — the only web entry point into it.
+ *
+ * Waits for the navigation explicitly rather than letting a later `toHaveURL` catch it on its 5s
+ * default. `mockRecipeApi` intercepts at the BROWSER (`page.route`), so the cook route's server-side
+ * prefetch is not mocked: it dials a recipe service that is unreachable in this job and only resolves
+ * when that socket aborts. The page is correct either way — `prefetchQuery` never throws, and the
+ * client refetch hits the mock — but the RSC navigation can outlast 5s, which made this suite flaky
+ * rather than failing (it passed on retry). The wait is generous because it is bounded by a network
+ * abort, not by anything the page does.
+ */
 async function startCooking(page: Page): Promise<void> {
     await page.getByRole('link', { name: 'Start cooking' }).click();
+    await page.waitForURL(new RegExp(`${route(`/recipes/${RECIPE_ID}/cook`)}$`), { timeout: 30_000 });
 }
 
 test.describe('cooking mode (feature 008)', () => {

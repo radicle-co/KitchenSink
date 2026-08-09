@@ -8,8 +8,12 @@
  * - FR-010  → results ranked by relevance (a closer lexical match ranks higher).
  * - FR-009  → search is local-only: the DAO has no source dependency and issues a single SQL read
  *             (structurally cannot call a source — there is no adapter/registry seam here).
- * - SC-007  → a 1–2 character query is served by an INDEX, not the 85–157ms sequential scan T-195
- *             measured; asserted on the query PLAN of the exact statement the DAO runs.
+ * - SC-007  → a 1–2 character query is served by the GIN-indexed prefix predicate, not the 85–157ms
+ *             sequential scan T-195 measured. Asserted BEHAVIOURALLY here (the `ILIKE '%q%'` branches
+ *             that caused the scan can no longer be running, because their mid-word matches are gone)
+ *             and STRUCTURALLY in `src/foods/dao/__tests__/food-search.dao.test.ts`, which renders the
+ *             executed SQL and asserts those branches are absent. Deliberately NOT asserted on the query
+ *             PLAN — see the long note at the foot of this file for the two measurements that ruled it out.
  *
  * The ranked-FTS path is isolated from the pg_trgm fuzzy fallback by a WORD-ORDER-INDEPENDENT query
  * ("breast chicken"): a substring/`ILIKE`/trigram match cannot match the reversed phrase, but
@@ -112,8 +116,8 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
      * the new one would: the `eg` → `Large egg` case fails for a left-anchored `lower(name) LIKE 'eg%'`
      * index (the obvious alternative), the stopword cases fail if the tsquery config is changed from
      * `simple` to `english` (the query becomes empty and matches nothing), the metacharacter cases fail if
-     * the token whitelist is removed (`to_tsquery` raises `syntax error in tsquery`), and the plan case
-     * fails if the predicate is written in any form a GIN index cannot serve.
+     * the token whitelist is removed (`to_tsquery` raises `syntax error in tsquery`), and the mid-word
+     * cases fail if the `ILIKE '%q%'` branches are ever routed back into the 1–2 character range.
      */
     describe('word-initial prefix path for 1–2 character queries (T-198)', () => {
         it('matches word-initially on ONE character and ranks a name-initial hit first', async () => {
@@ -216,16 +220,47 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
             expect((await dao.search("'c")).map((hit) => hit.id)).toEqual(['f_cheddar']);
         });
 
-        it('no longer matches MID-word at 2 characters (the deliberate semantic change)', async () => {
+        it('builds a VALID tsquery for every token the whitelist ADMITS — digits and non-ASCII letters', async () => {
+            await seedFood(pool, { id: 'f_milk', name: '2% reduced fat milk' });
+            await seedFood(pool, { id: 'f_epinards', name: 'Épinards, raw' });
+
+            // The whitelist strips metacharacters, but what it KEEPS must still parse: `to_tsquery` is
+            // handed a bare digit here and a non-ASCII letter there, and either raising `syntax error in
+            // tsquery` is the same 500-on-a-keystroke the whitelist exists to prevent, arriving through
+            // the characters it admits rather than the ones it removes. Postgres also owns the case
+            // folding (`simple` lowercases the needle), so `Ép` and `ép` must behave identically.
+            expect((await dao.search('2')).map((hit) => hit.id)).toContain('f_milk');
+            expect((await dao.search('2%')).map((hit) => hit.id)).toContain('f_milk');
+            expect((await dao.search('ép')).map((hit) => hit.id)).toContain('f_epinards');
+            expect((await dao.search('Ép')).map((hit) => hit.id)).toContain('f_epinards');
+        });
+
+        it('no longer matches MID-word at 1–2 characters (the deliberate semantic change)', async () => {
             await seedFood(pool, { id: 'f_chicken', name: 'Chicken breast, raw' });
             await seedFood(pool, { id: 'f_ranch', name: 'Ranch dressing' });
+            await seedFood(pool, { id: 'f_salmon', name: 'Salmon, raw' });
+            await seedFood(pool, { id: 'f_onion', name: 'Onion, raw' });
+            await seedFood(pool, { id: 'f_beef', name: 'Beef, ground' });
+            await seedFood(pool, { id: 'f_cheddar', name: 'Cheddar cheese' });
 
-            // Both used to match `ILIKE '%ic%'` / `ILIKE '%an%'` and rank by trigram noise.
-            expect(await dao.search('ic')).toEqual([]);
+            // Each of these used to match `ILIKE '%q%'` and rank by trigram noise. This is the exact list
+            // recorded under "T-198 — measured evidence" in `specs/003-usda-food-data/tasks.md`: it is the
+            // agreed contract of the semantic change, so it is pinned in BOTH directions rather than left
+            // as prose. A revert makes these four assertions fail immediately.
+            expect(await dao.search('ic')).toEqual([]); // matched Chicken
+            expect(await dao.search('ee')).toEqual([]); // matched Beef, Cheddar cheese
             expect((await dao.search('an')).map((hit) => hit.id)).not.toContain('f_ranch');
-            // …while the word-initial forms of the same rows still match.
-            expect((await dao.search('ch')).map((hit) => hit.id)).toContain('f_chicken');
+            expect((await dao.search('on')).map((hit) => hit.id)).not.toContain('f_salmon');
+
+            // …while the word-initial forms of the SAME rows still match, so the loss is mid-word only and
+            // not "short queries stopped working" — the failure the routing exists to avoid.
+            const cheeseIds = (await dao.search('ch')).map((hit) => hit.id);
+            expect(cheeseIds).toContain('f_chicken');
+            expect(cheeseIds).toContain('f_cheddar');
             expect((await dao.search('ra')).map((hit) => hit.id)).toContain('f_ranch');
+            expect((await dao.search('sa')).map((hit) => hit.id)).toContain('f_salmon');
+            expect((await dao.search('on')).map((hit) => hit.id)).toContain('f_onion');
+            expect((await dao.search('be')).map((hit) => hit.id)).toContain('f_beef');
         });
 
         it('leaves 3+ character behaviour UNCHANGED — a mid-word substring still matches', async () => {
@@ -238,6 +273,37 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
             // And the relevance statement still searches the DESCRIPTION, which the prefix path does not
             // need to (both USDA ingestion paths set `description := name`).
             expect((await dao.search('soybeans')).map((hit) => hit.id)).toContain('f_desc');
+        });
+
+        it('surfaces ONLY RESOLVED rows — an in-flight or terminal food is not a search result', async () => {
+            await seedFood(pool, { id: 'f_resolved', name: 'Cheddar cheese' });
+
+            // A non-RESOLVED row can carry a provisional name (`normalized_name` is required, and the
+            // add-by-name path writes one on creation), so `name IS NOT NULL` does NOT exclude it. Only the
+            // status filter does — and a PENDING/UNRESOLVED/NOT_FOUND row is a request in flight, not a
+            // golden record anyone may be shown (FR-008). `seedFood` writes RESOLVED, so these go direct.
+            for (const status of ['PENDING', 'UNRESOLVED', 'NOT_FOUND', 'FAILED']) {
+                await pool.query(
+                    `INSERT INTO food (id, name, normalized_name, status)
+                     VALUES ($1, $2, lower($2), $3)`,
+                    [`f_${status.toLowerCase()}`, `Cheddar ${status}`, status],
+                );
+            }
+
+            expect((await dao.search('ch')).map((hit) => hit.id)).toEqual(['f_resolved']);
+        });
+
+        it('caps the result set at the FR-010 limit, which a single letter can otherwise blow past', async () => {
+            // A 1-character query is word-initial against a large share of a real catalogue (measured: `m`
+            // matched all 50,000 rows on the T-195 fixture), so the `LIMIT` is what keeps the short path
+            // inside SC-007 at scale rather than a nicety. 25 > the 20-row default, so an unbounded
+            // statement shows up here as 25.
+            for (let index = 0; index < 25; index += 1) {
+                await seedFood(pool, { id: `f_c_${index}`, name: `Cheese variety ${index}` });
+            }
+
+            expect(await dao.search('c')).toHaveLength(20);
+            expect(await dao.search('c', 5)).toHaveLength(5);
         });
 
         it('returns only word-initial matches for a highly selective 2-character query', async () => {
@@ -264,9 +330,22 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao ranked full-text search (integrati
     //     `food_status_idx`, and 50,000 chose `food_search_vector_idx` again. Any threshold picked here
     //     would flake on a planner, statistics, or `random_page_cost` change.
     //
-    // The behavioural guard above IS the regression guard: the sequential scan existed *because* of the
-    // two `ILIKE '%q%'` branches, so `search('ic') === []` proves they no longer run at 1–2 characters.
-    // The latency gate belongs where T-195 put it — the k6 `short` shape in `tests/load/search.load.js`
-    // at 50,000 foods — and the measured before/after plans are recorded on T-198 in
-    // `specs/003-usda-food-data/tasks.md`.
+    // What guards this instead, and where (all three run on EVERY pull request except the last):
+    //
+    //  - BEHAVIOUR (here, the `integration-food` job): the sequential scan existed *because* of the two
+    //    `ILIKE '%q%'` branches, so `search('ic') === []` and `search('ee') === []` prove they no longer
+    //    run at 1–2 characters. This tier also owns everything only real Postgres can answer: that
+    //    `simple` matches the `english`-stemmed stored vector, that the stopword queries return rows at
+    //    all, and that every token the whitelist admits is a tsquery Postgres will parse.
+    //  - STATEMENT SHAPE (`src/foods/dao/__tests__/food-search.dao.test.ts`, the `unit` job): the executed
+    //    SQL is rendered through `PgDialect` and asserted to carry the prefix predicate and NONE of the
+    //    substring branches at 1–2 characters, and the reverse at 3+. A revert fails there with no
+    //    dependence on the planner, on row count, or on timing.
+    //  - LATENCY (the k6 `short` shape in `tests/load/search.load.js` at 50,000 foods): the only tier that
+    //    can catch a regression whose symptom is time rather than shape — a dropped
+    //    `food_search_vector_idx`, or population growth. It is HEAVY-TIER (`heavy-e2e` label, nightly
+    //    schedule, or manual dispatch), so it is a backstop and not the primary guard; that asymmetry is
+    //    the reason the two tiers above exist. Its `short` shape now runs at the full SC-007 200ms budget.
+    //
+    // The measured before/after plans are recorded on T-198 in `specs/003-usda-food-data/tasks.md`.
 });

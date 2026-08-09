@@ -136,37 +136,90 @@ export class FetchQueueDao {
 
     /**
      * Claim the next eligible row, highest-demand first, under a lease stamped on `leased_at`
-     * (`status='in_flight'`, FR-015/FR-017). Eligible = a `pending` row whose `last_requested <= now()`
-     * OR an `in_flight` row whose lease lapsed (reaper-on-claim, FR-018). Ordering is the live
-     * drain-time demotion (a food sorts back only when ALL its requesters exceed the CONFIGURED pending
-     * threshold `FOOD_DEMOTE_THRESHOLD`, REQ-043) then `request_count DESC, first_requested ASC`. The
-     * comparison is `<= threshold`, so a requester holding EXACTLY the threshold is still under-demand.
-     * `FOR UPDATE SKIP LOCKED` keeps concurrent
-     * drains off the same row; a reclaim does NOT consume the failure budget (`attempts` untouched, DSN-5).
+     * (`status='in_flight'`, FR-015/FR-017). Eligible = a `pending` row whose `last_requested <= now()`,
+     * plus any `in_flight` row whose lease lapsed — folded back into the pending set first
+     * (reaper-on-claim, FR-018) so it competes on demand like any other pending row, `attempts`
+     * untouched (a reclaim is not a failure, DSN-5). Priority is FR-043's live drain-time demotion (a
+     * food sorts back only when ALL its requesters exceed the CONFIGURED pending threshold
+     * `FOOD_DEMOTE_THRESHOLD`) and then `request_count DESC, first_requested ASC`. The comparison is
+     * `<= threshold`, so a requester holding EXACTLY the threshold is still under-demand.
+     * `FOR UPDATE SKIP LOCKED` keeps concurrent drains off the same row.
+     *
+     * ## Why the query is shaped like this (T-197/DSN-11 — do not "simplify" it back)
+     *
+     * The demotion used to be the LEADING key of the `ORDER BY`, expressed as a correlated `COUNT(*)`
+     * over a join. A computed leading sort key must be evaluated for EVERY eligible row before the first
+     * row is known, so `LIMIT 1` could not avoid the work and `idx_fetch_queue_priority` — which already
+     * indexes exactly `(request_count DESC, first_requested ASC) WHERE status = 'pending'` — was unusable.
+     * T-195 measured the consequence at the FR-046 ceiling: a Seq Scan + Sort costing 20.2s and 27.8M
+     * buffer hits per claim at depth 10,000 (541ms at 1,000), i.e. drain throughput collapsing exactly
+     * when the queue is deepest. The rewrite keeps the SAME outcome and gets the index back:
+     *
+     * 1. **The fairness term became a FILTER, not a sort key**, so the `ORDER BY` matches the index and
+     *    the scan stops at the first qualifying row (measured: 9.3ms at depth 10,000 with nothing
+     *    demoted, `rows=1 loops=1` on the index scan; 35.6ms with EVERYTHING demoted, where the scan
+     *    must legitimately examine every row before concluding the promoted tier is empty).
+     * 2. **`over_demand` computes every requester's outstanding count ONCE per claim**, set-based
+     *    (`MATERIALIZED` is load-bearing — inlined, the planner would re-run it per candidate row). It is
+     *    inherently small: a requester in it holds more than `demoteThreshold` rows, so it cannot exceed
+     *    `queue_depth / demoteThreshold` entries.
+     * 3. **`NOT IN` over that CTE, not `NOT EXISTS`**, because an uncorrelated `NOT IN` becomes a hashed
+     *    SubPlan built ONCE for the statement, leaving each examined row a couple of hash probes over its
+     *    own requester rows; the `NOT EXISTS` form re-planned an anti-join per row and measured 108ms at
+     *    the ceiling — 3x slower — for identical results. Safe against `NOT IN`'s NULL trap because
+     *    `fetch_requesters.requester_id` is `NOT NULL`.
+     * 4. **Two branches, one statement.** `COALESCE` evaluates the second `SELECT` only when the first
+     *    yields nothing (verified: `never executed` in `EXPLAIN ANALYZE`), and when the first yields
+     *    nothing EVERY eligible row is demoted — so the fallback needs no demotion predicate, and
+     *    "highest-demand promoted row, else highest-demand demoted row" is exactly what the old
+     *    `CASE … ASC, request_count DESC, first_requested ASC` computed. One statement keeps both
+     *    branches on ONE snapshot and keeps the claim atomic; `SKIP LOCKED` still applies per branch, so
+     *    a row another worker is claiming is skipped rather than double-claimed. (The eligibility
+     *    predicate and the ordering are spelled out twice on purpose: a shared CTE cannot carry
+     *    `FOR UPDATE`, and pushing either through one would cost the index-ordered access path.)
      *
      * @param leaseSeconds - Lease window in seconds (default 30).
      * @returns The leased row, or `undefined` when nothing is eligible.
-     * @sideEffect Updates `fetch_queue` (status/leased_at).
+     * @sideEffect Updates `fetch_queue` (status/leased_at) — including reverting lapsed leases.
      */
     public async leaseNext(leaseSeconds: number = DEFAULT_LEASE_SECONDS): Promise<FetchQueueRow | undefined> {
+        // Reaper-on-claim as its own statement (FR-018). A lapsed `in_flight` row always has
+        // `last_requested <= now()` — nothing pushes that stamp forward without also setting
+        // `status = 'pending'` — so reverting it here makes it eligible for THIS claim at exactly the
+        // rank the old `OR (status = 'in_flight' AND …)` branch gave it, while leaving the claim itself a
+        // single-status predicate. That is what the partial index needs: an OR across two statuses forces
+        // a BitmapOr plus a full sort, which is the early termination the rewrite exists to restore.
+        await this.reapExpiredLeases(leaseSeconds);
+
         const result = await this.db.execute<{ food_id: string }>(sql`
+            WITH over_demand AS MATERIALIZED (
+                SELECT fr.requester_id
+                  FROM fetch_requesters fr
+                  JOIN fetch_queue fq USING (food_id)
+                 WHERE fq.status IN ('pending', 'in_flight')
+                 GROUP BY fr.requester_id
+                HAVING count(*) > ${this.demoteThreshold}
+            )
             UPDATE fetch_queue
             SET status = 'in_flight', leased_at = now()
-            WHERE food_id = (
-                SELECT q.food_id FROM fetch_queue q
-                WHERE (q.status = 'pending' AND q.last_requested <= now())
-                   OR (q.status = 'in_flight' AND q.leased_at < now() - make_interval(secs => ${leaseSeconds}))
-                ORDER BY
-                    (CASE WHEN NOT EXISTS (
-                        SELECT 1 FROM fetch_requesters r
-                        WHERE r.food_id = q.food_id
-                          AND (
-                              SELECT count(*) FROM fetch_queue fq JOIN fetch_requesters fr USING (food_id)
-                              WHERE fr.requester_id = r.requester_id AND fq.status IN ('pending', 'in_flight')
-                          ) <= ${this.demoteThreshold}
-                    ) THEN 1 ELSE 0 END) ASC,
-                    q.request_count DESC, q.first_requested ASC
-                LIMIT 1 FOR UPDATE SKIP LOCKED
+            WHERE food_id = COALESCE(
+                (
+                    SELECT q.food_id FROM fetch_queue q
+                     WHERE q.status = 'pending' AND q.last_requested <= now()
+                       AND EXISTS (
+                           SELECT 1 FROM fetch_requesters r
+                            WHERE r.food_id = q.food_id
+                              AND r.requester_id NOT IN (SELECT o.requester_id FROM over_demand o)
+                       )
+                     ORDER BY q.request_count DESC, q.first_requested ASC
+                     LIMIT 1 FOR UPDATE SKIP LOCKED
+                ),
+                (
+                    SELECT q.food_id FROM fetch_queue q
+                     WHERE q.status = 'pending' AND q.last_requested <= now()
+                     ORDER BY q.request_count DESC, q.first_requested ASC
+                     LIMIT 1 FOR UPDATE SKIP LOCKED
+                )
             )
             RETURNING food_id
         `);

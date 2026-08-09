@@ -157,7 +157,26 @@ export class DataStack extends Stack {
             backupRetention: Duration.days(7),
             multiAz: false,
             databaseName: this.databaseName,
-            deletionProtection: false,
+            // ON for every stage (owner ruling 2026-08-08). It is free, and it is the ONLY thing between an
+            // accidental replacement and total data loss: this instance has no Multi-AZ standby (T-196 closed
+            // that as WON'T DO — one cluster, one AZ, one region until the product earns) and
+            // `removalPolicy: DESTROY` below takes NO safety snapshot.
+            //
+            // The concrete hazard it closes is ADR-0002's: changing the prod VPC CIDR, or any construct id
+            // feeding the VPC, REPLACES the prod VPC and its RDS with no snapshot. Protection converts that
+            // from silent data loss into a loud CloudFormation failure.
+            //
+            // SANDBOX IS INCLUDED DELIBERATELY. It is not disposable — it hosts the single shared identity
+            // service every PR preview signs in against, and the teardown rules say the shared RDS must never
+            // be destroyed. Per-PR cleanup operates on LOGICAL databases inside this instance and on
+            // `Environment=pr-{N}` resources, so protecting the instance cannot block it.
+            //
+            // ⚠️ ACCEPTED CONSEQUENCE: with protection on and `removalPolicy: DESTROY` retained, a genuine
+            // teardown FAILS until someone disables protection first. That extra deliberate step is the
+            // point — it makes destroying a database an explicit act, not a side effect of a rename.
+            // `removalPolicy` is intentionally left as-is: flipping it to RETAIN is a separate decision that
+            // would change teardown semantics ADR-0002 documents.
+            deletionProtection: true,
             publiclyAccessible: false,
             removalPolicy: RemovalPolicy.DESTROY,
             autoMinorVersionUpgrade: true,

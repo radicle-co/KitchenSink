@@ -245,3 +245,44 @@ describe('Food DB bootstrap on prod (safety of the merge-time change)', () => {
         expect(bootstrap.Properties.Environment.Variables.STAGE).toBe('prod');
     });
 });
+
+describe('RDS deletion protection (owner ruling 2026-08-08)', () => {
+    /**
+     * Deletion protection is ON for every stage. It costs nothing, and it is the only thing standing between
+     * an accidental `cdk destroy`/replacement and total data loss on an instance that has NO Multi-AZ standby
+     * and NO safety snapshot (`removalPolicy: DESTROY`, ruled deliberate in feature 003 T-196: one cluster,
+     * one AZ, one region until the product makes money).
+     *
+     * The specific hazard it closes is recorded in ADR-0002: changing the prod VPC CIDR — or any construct id
+     * feeding the VPC — REPLACES the prod VPC and its RDS, with no snapshot taken. Deletion protection turns
+     * that from silent data loss into a loud CloudFormation failure.
+     *
+     * SANDBOX IS INCLUDED ON PURPOSE. It is not disposable: it hosts the single shared identity service every
+     * PR preview signs in against, and the repo's teardown rules state the shared RDS must never be torn down.
+     * Per-PR cleanup works on LOGICAL databases inside this instance and on `Environment=pr-{N}` resources, so
+     * protecting the instance cannot block it.
+     *
+     * ⚠️ CONSEQUENCE, deliberate: with protection on and `removalPolicy: DESTROY` retained, a genuine teardown
+     * FAILS until someone disables protection first. That extra step is the feature, not a defect — it is what
+     * makes destroying a database an explicit act rather than a side effect of a rename.
+     */
+    it('enables deletionProtection on the DB instance in EVERY stage', () => {
+        for (const stage of ['prod', 'sandbox', 'dev']) {
+            dataTemplate(stage).hasResourceProperties('AWS::RDS::DBInstance', {
+                DeletionProtection: true,
+            });
+        }
+    });
+
+    it('keeps Multi-AZ off, so protection is not mistaken for redundancy', () => {
+        // T-196 closed Multi-AZ as WON'T DO. Deletion protection guards against deletion, not an AZ failure;
+        // recovery from a zone loss is still restore-from-snapshot. Pinning both together keeps the pair of
+        // facts in one place rather than letting someone read "protected" as "highly available".
+        for (const stage of ['prod', 'sandbox']) {
+            dataTemplate(stage).hasResourceProperties('AWS::RDS::DBInstance', {
+                DeletionProtection: true,
+                MultiAZ: false,
+            });
+        }
+    });
+});

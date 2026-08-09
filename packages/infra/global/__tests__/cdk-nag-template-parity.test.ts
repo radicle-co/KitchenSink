@@ -16,7 +16,10 @@
  *
  * WHY this is the highest-value test in the change. ADR-0002 keeps prod on `10.0.0.0/16` precisely so the
  * explicit value produces NO diff, because replacing the prod VPC replaces the prod RDS — `removalPolicy:
- * DESTROY`, `deletionProtection: false`, no safety snapshot. ADR-0008 makes the same no-prod-diff promise
+ * DESTROY`, no safety snapshot. (`deletionProtection` was `false` when this was written; it is now `true`
+ * for every stage per the owner ruling of 2026-08-08, which turns that particular accident from silent data
+ * loss into a loud CloudFormation failure. The no-diff discipline still matters: protection blocks a DELETE,
+ * it does not make an unintended REPLACE safe to attempt.) ADR-0008 makes the same no-prod-diff promise
  * for the gp3/Spot/budget levers. An Aspect runs over every construct in the tree, so an output-mutating
  * one would breach that line everywhere at once and be invisible in review. This suite makes that
  * impossible to land silently: it compares the FULL template JSON, per stack, and the negative control

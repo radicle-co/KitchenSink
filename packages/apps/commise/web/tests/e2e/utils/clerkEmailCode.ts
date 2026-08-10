@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { clerkPrimarySubmit } from './clerkForm';
+
 /**
  * Which Clerk attempt resource is being verified. Clerk sends the email code with a `prepare_*` POST
  * against the in-flight attempt, and the two flows differ in BOTH the collection and the suffix — these
@@ -104,7 +106,7 @@ export async function submitClerkEmailCode(page: Page, options: SubmitEmailCodeO
      * already navigated away and the button is detached.
      */
     const submitIfPresent = async (): Promise<void> => {
-        const verifyContinue = page.getByRole('button', { name: 'Continue' });
+        const verifyContinue = clerkPrimarySubmit(page);
 
         if (await verifyContinue.isVisible().catch(() => false)) {
             await verifyContinue.click().catch(() => undefined);

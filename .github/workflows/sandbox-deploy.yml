@@ -78,17 +78,29 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            # ⚠️ DELIBERATE — this step MUST NOT be able to abort the job. See the analyzer in
+            # packages/infra/global/__tests__/sandbox-reclamation-reachability.test.ts.
+            #
+            # The hosted zone is an input to ONE part of teardown (the preview DNS record). The stacks, ECR
+            # repos and log groups — all of the billable compute — need no zone at all. When this step
+            # ended in `exit 1`, a lookup failure skipped the teardown step entirely and leaked 9 merged
+            # PRs' worth of running Fargate tasks behind a red check nobody read, and the daily reaper
+            # failed all 11 times it ever ran. So an unresolvable zone is reported here and handed to the
+            # script as an EMPTY value: teardown-sandbox-pr.sh already treats that as an `::error::` +
+            # non-zero exit (section 0) while still reclaiming everything that does not depend on it.
+            # `--optional` is what keeps absence from aborting; never re-add an `exit` to this step.
             - name: Resolve the sandbox hosted zone
               id: zone
               run: |
                   set -euo pipefail
                   # Resolved through the shared helper: ListExports PAGES, and `--query` is applied per page,
                   # so the inline form returns "VALUE\nNone" or "None\nVALUE" depending on which page holds
-                  # the export. See .github/scripts/cfn-export.sh.
-                  ZONE=$(bash .github/scripts/cfn-export.sh 'kitchensink-domain-sandbox:HostedZoneId' "$REGION")
-                  if [ -z "$ZONE" ] || [ "$ZONE" = "None" ]; then
-                    echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — the preview DNS record cannot be removed"
-                    exit 1
+                  # the export — and that two-line value is what GitHub rejected with `Invalid format 'None'`,
+                  # failing this step. The helper collapses it to exactly one line.
+                  # See .github/scripts/cfn-export.sh.
+                  ZONE=$(bash .github/scripts/cfn-export.sh --optional 'kitchensink-domain-sandbox:HostedZoneId' "$REGION")
+                  if [ -z "$ZONE" ]; then
+                    echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — the preview DNS record cannot be removed; the rest of the teardown still runs and the job will fail"
                   fi
                   echo "hosted_zone_id=$ZONE" >> "$GITHUB_OUTPUT"
             # All teardown logic lives in one script so the on-close cleanup and the scheduled reaper
@@ -210,6 +222,10 @@ jobs:
             REGION: ${{ vars.DEFAULT_AWS_REGION }}
             GH_TOKEN: ${{ github.token }}
             STALE_DAYS: '30'
+            # Grace period before a still-standing stack for a CLOSED PR is treated as a cleanup failure
+            # rather than a close still in flight. One day would be enough for the on-close job itself; two
+            # absorbs a same-day close whose stack delete was legitimately still running.
+            STALE_ORPHAN_DAYS: '2'
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -225,17 +241,22 @@ jobs:
                   aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
                   aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
                   aws-region: ${{ vars.DEFAULT_AWS_REGION }}
+            # ⚠️ DELIBERATE — must not abort, for exactly the reason spelled out on the `cleanup` job's
+            # copy of this step. The reaper is the ONLY retry left for a stack that failed to delete on
+            # close, so a step that aborts here disables the entire safety net: pr-57 and pr-59 sat in
+            # DELETE_FAILED from 2026-07-05 and were never retried, because this step failed on all 11
+            # scheduled runs the reaper has ever had. `--optional`; never re-add an `exit` here.
             - name: Resolve the sandbox hosted zone
               id: zone
               run: |
                   set -euo pipefail
                   # Resolved through the shared helper: ListExports PAGES, and `--query` is applied per page,
                   # so the inline form returns "VALUE\nNone" or "None\nVALUE" depending on which page holds
-                  # the export. See .github/scripts/cfn-export.sh.
-                  ZONE=$(bash .github/scripts/cfn-export.sh 'kitchensink-domain-sandbox:HostedZoneId' "$REGION")
-                  if [ -z "$ZONE" ] || [ "$ZONE" = "None" ]; then
-                    echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — dangling preview DNS records cannot be reaped"
-                    exit 1
+                  # the export — the two-line value GitHub rejects with `Invalid format 'None'`.
+                  # See .github/scripts/cfn-export.sh.
+                  ZONE=$(bash .github/scripts/cfn-export.sh --optional 'kitchensink-domain-sandbox:HostedZoneId' "$REGION")
+                  if [ -z "$ZONE" ]; then
+                    echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — dangling preview DNS records cannot be reaped; the rest of the sweep still runs and the job will fail"
                   fi
                   echo "hosted_zone_id=$ZONE" >> "$GITHUB_OUTPUT"
             - name: Reap pr-{N} resources whose PR is closed or long-stale
@@ -257,11 +278,12 @@ jobs:
                   # only CANDIDATE discovery — the teardown script re-applies the anchored pr-{N} match
                   # (and the DNS half re-checks the exact record label), so an incidental "pr-5"
                   # substring can never widen the blast radius.
+                  stacks=$(aws cloudformation list-stacks --region "$REGION" \
+                      --stack-status-filter CREATE_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE ROLLBACK_FAILED UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED IMPORT_COMPLETE IMPORT_ROLLBACK_COMPLETE IMPORT_ROLLBACK_FAILED DELETE_FAILED \
+                      --query 'StackSummaries[].StackName' --output text 2>/dev/null | tr '\t' '\n')
                   tokens=$(
                       {
-                          aws cloudformation list-stacks --region "$REGION" \
-                              --stack-status-filter CREATE_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE ROLLBACK_FAILED UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED IMPORT_COMPLETE IMPORT_ROLLBACK_COMPLETE IMPORT_ROLLBACK_FAILED DELETE_FAILED \
-                              --query 'StackSummaries[].StackName' --output text 2>/dev/null | tr '\t' '\n'
+                          printf '%s\n' "$stacks"
                           aws ecr describe-repositories --region "$REGION" \
                               --query 'repositories[].repositoryName' --output text 2>/dev/null | tr '\t' '\n'
                           aws logs describe-log-groups --region "$REGION" \
@@ -270,11 +292,17 @@ jobs:
                               --query 'ResourceRecordSets[].Name' --output text 2>/dev/null | tr '\t' '\n'
                       } | grep -oE 'pr-[0-9]+' | sort -u
                   )
+                  # Tokens that still own a STACK. A long-closed PR appearing here is direct evidence the
+                  # on-close `cleanup` job did not do its job — see the stale-orphan check in the loop.
+                  stack_tokens=$(printf '%s\n' "$stacks" | grep -oE 'pr-[0-9]+' | sort -u)
                   if [ -z "$tokens" ]; then echo "No pr-{N} sandbox resources found."; exit 0; fi
                   echo "Candidate previews: $(echo "$tokens" | tr '\n' ' ')"
 
                   now=$(date -u +%s)
                   reaper_failed=0
+                  # Set when this sweep had to repair something the on-close path owed us. Reported as a
+                  # FAILURE at the end even though the reap itself succeeded — see the rationale there.
+                  stale_orphans=''
                   for pr in $tokens; do
                       n="${pr#pr-}"
                       pr_json=$(gh api "repos/${REPOSITORY}/pulls/$n" 2>/dev/null) || pr_json=""
@@ -287,6 +315,21 @@ jobs:
                       reason=""
                       if [ "$state" = "closed" ]; then
                           reason="PR #$n is closed"
+                          # ── Silent-success guard ──────────────────────────────────────────────────
+                          # A stack for a PR that closed days ago should not exist: the on-close cleanup
+                          # owned it. When it does, this sweep is a REPAIR, not a routine no-op, and the
+                          # distinction has to leave the runner — "the reaper found nothing to do" and
+                          # "the reaper never ran" are otherwise indistinguishable from outside, which is
+                          # exactly how a broken cleanup stayed invisible while 9 merged PRs kept 27
+                          # Fargate tasks running. Keyed on a STACK (not on any leftover token) so it
+                          # reports real un-reclaimed infrastructure and stays silent in steady state.
+                          closed=$(printf '%s' "$pr_json" | jq -r '.closed_at // empty')
+                          closed_at=$(date -u -d "${closed:-@0}" +%s 2>/dev/null || echo 0)
+                          if printf '%s\n' "$stack_tokens" | grep -qxF "$pr" &&
+                              [ "$closed_at" -gt 0 ] &&
+                              [ "$(( (now - closed_at) / 86400 ))" -ge "$STALE_ORPHAN_DAYS" ]; then
+                              stale_orphans="$stale_orphans $pr"
+                          fi
                       elif [ "$state" = "open" ] && [ -n "$updated" ]; then
                           upd=$(date -u -d "$updated" +%s 2>/dev/null || echo 0)
                           if [ "$upd" -gt 0 ] && [ "$(( (now - upd) / 86400 ))" -ge "$STALE_DAYS" ]; then
@@ -306,11 +349,15 @@ jobs:
                           echo "keeping $pr (state=$state)"
                       fi
                   done
+                  if [ -n "$stale_orphans" ]; then
+                      echo "::error::on-close cleanup did NOT reclaim:${stale_orphans} — each still owned a CloudFormation stack ${STALE_ORPHAN_DAYS}+ days after its PR closed. This sweep repaired it; fix the cleanup job, because the reaper is the backstop, not the mechanism."
+                      reaper_failed=1
+                  fi
                   if [ "$reaper_failed" -ne 0 ]; then
                       echo "::error::Reaper sweep finished with failures."
                       exit 1
                   fi
-                  echo "Reaper sweep complete."
+                  echo "Reaper sweep complete — nothing was owed by the on-close cleanup."
 
     # ═══════════════════════════════════════════════════════════════════
     # Per-service sandbox deploy jobs.

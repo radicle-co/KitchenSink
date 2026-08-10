@@ -7,14 +7,14 @@
 
 ## Dependencies
 
-| Spec                                                            | Relationship                                                                                                                               |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| [002-user-auth](../002-user-auth/spec.md)           | **Required** — Subscriber authentication and authenticated identity for recipient resolution use the shared auth mechanism owned by 002.   |
-| [003-usda-food-data](../003-usda-food-data/spec.md)             | **Downstream (launch consumer)** — 003 US-005 / FR-NOTIF publishes `food.backfill.completed` and `food.fetch.failed` through this service. |
+| Spec                                                        | Relationship                                                                                                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — Subscriber authentication and authenticated identity for recipient resolution use the shared auth mechanism owned by 002.   |
+| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Downstream (launch consumer)** — 003 US-005 / FR-NOTIF publishes `food.backfill.completed` and `food.fetch.failed` through this service. |
 | [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Downstream** — recipe lifecycle notifications owned by 001 contract updates will be published through this service.                      |
-| [005-ai-integration](../005-ai-integration/spec.md)             | **Downstream** — AI-generated content disclosure events owned by 005 contract updates will use this service.                               |
-| [008-cooking-mode](../008-cooking-mode/spec.md)                 | **Downstream** — timer alert events owned by 008 contract updates will use this service.                                                   |
-| [009-nutrition-planning](../009-nutrition-planning/spec.md)     | **Downstream** — compliance-gap events owned by 009 contract updates will use this service.                                                |
+| [005-ai-integration](../005-ai-integration/spec.md)         | **Downstream** — AI-generated content disclosure events owned by 005 contract updates will use this service.                               |
+| [008-cooking-mode](../008-cooking-mode/spec.md)             | **Downstream** — timer alert events owned by 008 contract updates will use this service.                                                   |
+| [009-nutrition-planning](../009-nutrition-planning/spec.md) | **Downstream** — compliance-gap events owned by 009 contract updates will use this service.                                                |
 
 Resolves `specs/cross-feature-consistency-report.md` §5.3 / **WA-004** (no owner for notification delivery).
 
@@ -255,6 +255,76 @@ A producer feature can be rate-limited independently to protect the shared infra
 - **FR-022**: The system MUST resolve group membership at delivery time, not at publish time.
 - **FR-023**: The system MUST treat `payload` as opaque and MUST NOT validate, inspect, or transform it beyond size limits.
 
+**Dual ingress — EventBridge and HTTP (added 2026-08-10, owner decision)**
+
+Producers reach this service by **two paths**, because the platform's async features already emit domain events and
+must not be forced to grow a second synchronous notification call inside a database transaction. The paths differ
+only in how a request arrives.
+
+- **FR-024** _(one core, two adapters)_: The system MUST accept publishes over BOTH an authenticated HTTP endpoint
+  (FR-001) and an EventBridge subscription, and BOTH MUST execute the **same** validation, registry check,
+  producer authorization, idempotency, durability and routing logic. Neither path may bypass any rule that binds
+  the other. The ingress mechanism MUST be an adapter over a single core; a rule enforced in only one adapter is a
+  defect.
+- **FR-025** _(envelopes, never domain events)_: The EventBridge path MUST ingest **notification envelopes only**,
+  carried on a dedicated `detailType` reserved by this service. It MUST NOT subscribe to producers' domain events
+  (e.g. 003's `FoodFetchCompleted`). A domain event describes what happened in a domain and carries no recipient;
+  resolving one into a recipient would require this service to inspect `payload` (forbidden by FR-023) or to call
+  back into the producer, reintroducing the coupling the event path exists to remove.
+- **FR-026** _(minimum envelope — normative wire contract)_: Every envelope, on either path, MUST carry:
+
+    | Field            | Requirement                                        | Why it is mandatory                                                                                           |
+    | ---------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+    | `schemaVersion`  | REQUIRED, integer                                  | Two ingress paths and many producers make this a versioned wire contract; retrofitting a version is expensive |
+    | `recipient`      | REQUIRED (`kind` + `id`, FR-004)                   | Routing is impossible without it, and `payload` may not be inspected to find it                               |
+    | `messageType`    | REQUIRED, registry-checked                         | FR-016/FR-017 enforcement                                                                                     |
+    | `occurredAt`     | REQUIRED, ISO-8601, producer-assigned              | The FIFO ordering key (FR-029) and the retention-window origin (FR-012)                                       |
+    | `idempotencyKey` | REQUIRED on the EventBridge path; optional on HTTP | EventBridge delivery is at-least-once, so without it redelivery duplicates a user-visible notification        |
+    | `producer`       | REQUIRED on the EventBridge path                   | The event path has no bearer token to derive identity from (FR-027)                                           |
+    | `payload`        | REQUIRED, opaque, size-bounded                     | FR-023                                                                                                        |
+
+    An envelope missing any required field MUST be rejected — never partially routed, and never defaulted.
+
+- **FR-027** _(event-path authorization — the trust boundary)_: The HTTP path derives producer identity from an
+  authenticated credential (FR-002). The EventBridge path has **no credential**, so its trust boundary MUST be
+  (a) an EventBridge resource policy restricting which principals may put events on the notification bus, AND
+  (b) validation of the event's `source` against an allowlist of registered producers. Both are required: without
+  them the event path is an unauthenticated publish channel through which any principal with bus access could
+  address a notification to any user, defeating FR-005, FR-020 and FR-021.
+- **FR-028** _(event-path failure handling)_: An envelope rejected on the EventBridge path — malformed (FR-015),
+  unregistered `messageType` under enforcement (FR-017), quota-exceeded (FR-019), or failing FR-027 — MUST be
+  routed to a dead-letter queue and counted. There is no caller to receive a structured error, so a rejection that
+  is merely dropped is indistinguishable from successful delivery. DLQ depth MUST be observable and alarmed.
+- **FR-029** _(ordering key)_: EventBridge does not preserve ordering, so per-recipient FIFO (FR-008) MUST be
+  defined over the producer-assigned `occurredAt`, with a deterministic tiebreaker, rather than over arrival order.
+  FIFO across paths for one recipient MUST hold under this definition or FR-008 MUST be narrowed to say where it
+  does not.
+- **FR-030** _(idempotency key derivation)_: An `idempotencyKey` MUST be derived from durable domain state (e.g. a
+  job identity plus terminal status) so that it is **stable across producer retries**. A key derived from a
+  transport identifier or a clock changes on retry and provides no deduplication.
+
+**Fan-in ownership (added 2026-08-10)**
+
+- **FR-031** _(producers own correlation; this service does not aggregate)_: A single user action may fan out into
+  many independent completions — 004's recipe import submits every parsed ingredient name to 003 for asynchronous
+  resolution, bounded at 100 names per request by 003's FR-045. This service MUST NOT aggregate, batch, correlate
+  or collapse envelopes; FR-023 forbids the payload inspection that would require. Producers MUST correlate their
+  own fan-out and publish **one** envelope per user-meaningful outcome. A producer that publishes one envelope per
+  underlying completion is misusing this service, and the resulting notification storm is a producer defect.
+  Producer features SHOULD implement this as a **translator**: a feature-owned consumer that subscribes to its own
+  domain events, resolves recipients, correlates the job, and then publishes a single envelope here.
+
+**Producer authentication, named (added 2026-08-10)**
+
+- **FR-032** _(concrete mechanism)_: FR-002's "mechanism aligned with feature 002" MUST resolve to the platform's
+  **Ed25519 service-principal token** verified **networklessly** against a public key (the scheme already deployed
+  as `FOOD_SERVICE_PRINCIPAL_JWT_KEY`). It MUST NOT resolve to Clerk machine tokens: 003's FR-042 records that
+  verifying those requires a networked Clerk Backend API call with the secret key, which at the FR-031 fan-out
+  bound would put up to 100 outbound third-party round trips behind one user action.
+- **FR-033** _(quota floor)_: The per-producer quota of FR-019 MUST be sized at or above the documented fan-out
+  bound of its registered producers, and a quota rejection MUST be alarmed rather than silent. A quota sized for
+  steady-state traffic turns a legitimate burst into dropped notifications.
+
 ### Non-Functional Requirements _(constitution-derived)_
 
 - **NFR-001 (Reliability)**: The publish API MUST achieve ≥ 99.9% availability (aligned with feature 003's API tier).
@@ -286,6 +356,10 @@ A producer feature can be rate-limited independently to protect the shared infra
 - **SC-005**: Subscription identity binding is verified: 100% of attempted cross-user subscriptions are rejected (US-007).
 - **SC-006**: At least 5 distinct `messageType` keywords are registered in the central registry by launch, covering the launch consumer feature (003) plus reserved namespaces for 001 / 005 / 008 / 009.
 - **SC-007**: WA-004 in `specs/cross-feature-consistency-report.md` is closed, with a citation to this feature as the owner of cross-feature notification delivery.
+- **SC-008**: Both ingress paths are proven equivalent: the same envelope published over HTTP and over EventBridge produces an identical delivered message, and a rule violated on one path (malformed, unregistered, quota-exceeded) is rejected identically on the other. Verified by a paired test per rule, not by inspection (FR-024).
+- **SC-009**: The event path rejects spoofing: 100% of envelopes whose `source` is not an allowlisted producer are rejected and dead-lettered, and no such envelope is ever delivered to a subscriber (FR-027, FR-028).
+- **SC-010**: A recipe import of 30 unknown ingredient names results in **one** delivered notification, not 30. Verified end-to-end against 003's resolution lifecycle (FR-031).
+- **SC-011**: An EventBridge envelope redelivered by the transport is delivered to the client exactly once, proven by replaying the same event with an unchanged `idempotencyKey` (FR-026, FR-030).
 
 ## Assumptions
 

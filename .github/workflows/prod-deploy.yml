@@ -59,7 +59,13 @@ jobs:
             # credential would make that fetch anonymous, and this is the change-detection step the whole
             # deploy gate is built on. `web-surface` below computes nothing from git, so it DOES drop the
             # credential. Revisit if paths-filter is ever replaced or the trigger stops including `push`.
-            - name: Checkout
+            #
+            # The `zizmor: ignore[artipacked]` below is how that exception is DECLARED, per-site, so the gate in
+            # zizmor.yml can sit at the `low` floor and still fail on any artipacked we have NOT accepted. It is
+            # scoped to this ONE step and to that ONE audit: every other finding here still reports, and the
+            # `web-surface` checkout below keeps `persist-credentials: false`. Removing the paths-filter step (or
+            # gating it to `pull_request` only) means dropping BOTH the credential and this ignore.
+            - name: Checkout # zizmor: ignore[artipacked]
               uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
             # Per-service change detection so identity-service and identity-webhooks deploy

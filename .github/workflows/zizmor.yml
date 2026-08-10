@@ -37,22 +37,45 @@
 #   MAJOR is a separate decision, and the Maestro Android build has been fragile before).
 #   `on.workflow_call.secrets` is declared there too, which let all three callers drop `secrets: inherit`.
 #
-# THE REMAINING 2 — both LOW, and both deliberate:
+# THE REMAINING 2 — both deliberate, and now DECLARED rather than hidden under a severity floor:
 #   • 2 artipacked — prod-deploy `deploy` and sandbox-identity-deploy `deploy` keep their git credential
 #     ON PURPOSE. `dorny/paths-filter` only uses the GitHub API on `pull_request`; on `push` /
 #     `workflow_dispatch` it falls through to `getChangedFilesFromGit`, which fetches from `origin`. Each
-#     site carries a `⚠️ DELIBERATE` note. Every other checkout in the repo sets
-#     `persist-credentials: false`.
+#     site carries a `⚠️ DELIBERATE` note AND a `# zizmor: ignore[artipacked]` on its `- name: Checkout`
+#     line. Every other checkout in the repo sets `persist-credentials: false`.
 #
-# CURRENT MEASUREMENT (2026-08-08, `zizmor .github/`): **62 findings, 60 of them suppressed by zizmor's
-#   own default persona — 2 actionable: 0 high, 0 medium, 2 low.** Down from 251. No `# zizmor: ignore`
-#   comment and no config file exists in this repo; nothing has been silenced to reach that number.
+# ⚠️ artipacked's SEVERITY IS NOT STABLE ACROSS RUNS — this is what broke the first version of the gate,
+#   and it is the reason the floor is now `low`. The audit "produces lower-severity findings when v6.0.0 or
+#   higher of actions/checkout is used" (docs.zizmor.sh/audits/#artipacked). Both sites pin checkout by
+#   SHA (`d23441a4… # v6.1.0`), and resolving a SHA to its tag needs the GitHub API — so the v6 downgrade
+#   only applies in ONLINE mode. Measured on 1.29.0, same tree, same invocation, the ONLY difference being
+#   whether `GITHUB_TOKEN`/`GH_TOKEN` is in the environment:
+#     • online  (token present) → `0 low` becomes `2 low`    … artipacked graded LOW
+#     • offline (no token)      → `2 medium`                 … artipacked graded MEDIUM
+#   The zizmor step in THIS workflow passes no token, so CI is offline and graded them MEDIUM; the earlier
+#   local measurements in this ledger were taken in a shell that had `GITHUB_TOKEN` exported and graded
+#   them LOW. That is the whole explanation for "2 low" here versus "2 medium" in CI on the same commit —
+#   nothing regressed, and the two findings never changed.
 #
-# GATING IS NOW VIABLE and is the owner's call. With 0 high / 0 medium, a gate at a `medium` severity
-#   floor would pass today and would catch every class that was closed above from regressing. Gating at
-#   `low` needs a decision on the 2 deliberate artipacked sites first — either
-#   `# zizmor: ignore[artipacked]` comments there, or accept that the gate reports them forever. Note the
-#   exit-code caveat below before wiring any gate.
+#   Why that made a `medium` floor UNSOUND rather than merely wrong-looking. Verified by introducing a real
+#   new artipacked (dropped `persist-credentials: false` from heavy-e2e.yml's v6 SHA-pinned checkout) and
+#   running all four combinations:
+#     • floor=medium, ONLINE  → exit 0   ← THE GATE SILENTLY MISSES A BRAND-NEW artipacked
+#     • floor=medium, offline → exit 13
+#     • floor=low,    ONLINE  → exit 12
+#     • floor=low,    offline → exit 13
+#   So at a `medium` floor the gate's ability to catch this class depends on whether zizmor happened to run
+#   offline — i.e. on an env var, not on the code. Anyone adding a token to that step (to enable the online
+#   audits) would silently disarm it. A v4-pinned checkout grades MEDIUM in both modes, so the hole is
+#   specific to v6+ and would widen as checkouts are upgraded.
+#
+# CURRENT MEASUREMENT (2026-08-10, `zizmor .github/`): **63 findings, 61 suppressed by zizmor's own default
+#   persona, 2 ignored by the two declared `artipacked` comments — 0 actionable at every severity.** With
+#   both exceptions declared, `--min-severity low` AND `--min-severity informational` both exit 0 offline.
+#   The floor is set to `low` (not `informational`): `low` is what artipacked needs to be caught in BOTH
+#   modes, and it is the tightening this ledger already named as the next step. `informational` passes today
+#   too, but the informational classes have not been reviewed, so adopting them is a separate decision with
+#   a known-clean baseline.
 # SCOPED TO `.github/` DELIBERATELY, not the repo root. A root-scoped run also audits the vendored
 # third-party workflows under `.specify/extensions/**` (36 extra findings in code we do not own and
 # cannot fix), which is noise that would bury our own findings.
@@ -130,33 +153,41 @@ jobs:
             # exits 12/14 when findings exist). Reusing one run for both jobs is what would silently turn the
             # gate into a no-op the next time somebody changes `--format`.
             #
-            # FLOOR IS `medium`, not `low`, and that is a deliberate, measured choice — not a fudge to get
-            # green. Current state: 0 high, 0 medium, 2 low. Both lows are the `artipacked` sites in
-            # prod-deploy `deploy` and sandbox-identity-deploy `deploy`, which keep their git credential ON
-            # PURPOSE because `dorny/paths-filter` really does `git fetch` from `origin` on
-            # `push`/`workflow_dispatch`. Gating at `low` would therefore fail forever on two findings that
-            # are correct as they stand, and a permanently-red required check teaches everyone to ignore red
-            # checks — which is strictly worse than no gate. Verified before wiring this:
-            # `--min-severity medium` exits 0 today, `--min-severity low` exits 12.
+            # FLOOR IS `low`, and the two accepted exceptions are DECLARED AT THEIR SITES rather than left to
+            # hide beneath the floor. The first version of this gate sat at `medium` because that happened to
+            # be just above the two known `artipacked` findings — which is brittle by construction: it made
+            # the gate's severity threshold do the job an exception list should do, and it silently coupled
+            # the gate's strength to how artipacked happens to be graded. It is graded inconsistently (see
+            # the ledger above: LOW online, MEDIUM offline, same version, same tree, decided purely by
+            # whether a token is in the environment), so a `medium` floor was measured to MISS a brand-new
+            # artipacked entirely in online mode. `low` catches that class in both modes.
             #
-            # What this gate actually buys: every class closed during the burn-down — template-injection
-            # (67 -> 0), excessive-permissions (7 -> 0, both High), unpinned-uses, secrets-inherit — is
-            # medium-or-above, so reintroducing ANY of them fails this job. Notably a new
-            # `${{ … }}` interpolation inside a `run:` body, which is the one genuinely exploitable class.
+            # The two exceptions are now `# zizmor: ignore[artipacked]` on the `- name: Checkout` line of
+            # prod-deploy `deploy` and sandbox-identity-deploy `deploy`. Each is scoped to ONE step and ONE
+            # audit, sits directly under the `⚠️ DELIBERATE` note that justifies it, and is placed on the
+            # `name:` line specifically so the `uses:` line's `# v6.1.0` comment — which Dependabot parses to
+            # bump the pin — stays a lone version comment.
             #
-            # To tighten to `low` later, first decide what happens to those two sites: either
-            # `# zizmor: ignore[artipacked]` comments there, or drop the credential and accept that
-            # paths-filter falls back to an API-only diff on push events.
-            - name: Gate on medium-or-above findings
+            # What this gate buys: every class closed during the burn-down — template-injection (67 -> 0),
+            # excessive-permissions (7 -> 0, both High), unpinned-uses, secrets-inherit — plus artipacked
+            # itself, now that the floor reaches it. Notably a new `${{ … }}` interpolation inside a `run:`
+            # body, which is the one genuinely exploitable class. VERIFIED by mutation, not by assumption:
+            # dropping `persist-credentials: false` from heavy-e2e.yml's checkout exits 13 offline / 12
+            # online at this floor, and the same mutation exits 0 under the old `medium` floor online.
+            #
+            # A NEW deliberate exception is a per-site `# zizmor: ignore[<audit>]` next to the reason it is
+            # accepted — never a floor change. Raising the floor to bury a finding is the failure this
+            # replaced; lowering to `informational` is a separate, currently-unreviewed decision.
+            - name: Gate on low-or-above findings
               run: |
                   set -uo pipefail
-                  zizmor --min-severity medium --no-progress .github/
+                  zizmor --min-severity low --no-progress .github/
                   rc=$?
                   if [ "${rc}" -ne 0 ]; then
-                    echo "::error::zizmor found medium-or-above findings (exit ${rc}). These are gating: fix them, or justify a change to the severity floor in this workflow's header ledger."
+                    echo "::error::zizmor found low-or-above findings (exit ${rc}). These are gating. Fix them, or — if the site is a deliberate, justified exception — declare it with a per-site '# zizmor: ignore[<audit>]' comment next to the reason it is accepted. Do NOT raise the severity floor to bury a finding."
                     exit 1
                   fi
-                  echo "zizmor gate passed: no medium-or-above findings."
+                  echo "zizmor gate passed: no low-or-above findings outside the declared per-site ignores."
 
             - name: Upload SARIF to code scanning
               uses: github/codeql-action/upload-sarif@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3.37.6

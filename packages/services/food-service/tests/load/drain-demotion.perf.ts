@@ -18,33 +18,34 @@
  *
  * ## What DSN-11 says, and what this decides
  *
- * `leaseNext`'s `ORDER BY` opens with FR-043's live fairness demotion:
+ * The stabilization ledger flagged FR-043's live fairness demotion MEDIUM (DSN-11) with the caveat
+ * "acceptable at launch scale (< 10,000 rows), revisit/materialize a per-`sub` pending count at scale —
+ * cost is covered by the drain/demotion perf test in T-195". This script IS that test.
  *
- *     CASE WHEN NOT EXISTS (
- *         SELECT 1 FROM fetch_requesters r WHERE r.food_id = q.food_id
- *           AND ( SELECT count(*) FROM fetch_queue fq JOIN fetch_requesters fr USING (food_id)
- *                  WHERE fr.requester_id = r.requester_id AND fq.status IN ('pending','in_flight')
- *               ) <= 50
- *     ) THEN 1 ELSE 0 END ASC
- *
- * That is a per-row, per-requester correlated `COUNT(*)` inside the `ORDER BY` of a `… FOR UPDATE SKIP
- * LOCKED LIMIT 1`, with no supporting index — and because it is a SORT KEY, the `LIMIT 1` cannot avoid
- * evaluating it for every candidate row. The stabilization ledger flagged it MEDIUM (DSN-11) with the
- * caveat "acceptable at launch scale (< 10,000 rows), revisit/materialize a per-`sub` pending count at
- * scale — cost is covered by the drain/demotion perf test in T-195". This script IS that test.
+ * ⚠️ The query it measures has CHANGED since this file was written, and the numbers moved with it. As
+ * written, `leaseNext`'s demotion was the LEADING key of the `ORDER BY`, expressed as a per-row,
+ * per-requester correlated `COUNT(*)`; because a computed leading sort key must be evaluated for every
+ * eligible row, `LIMIT 1` could not avoid it and the run measured ~20s per claim at the ceiling. **T-197
+ * rewrote it**: the fairness term is now a `WHERE` filter over an `over_demand AS MATERIALIZED` CTE
+ * (computed ONCE per claim), which restored `idx_fetch_queue_priority` and cut the ceiling to tens of
+ * milliseconds. Read the current shape in `fetch-queue.dao.ts`'s `leaseNext` JSDoc — do not read the
+ * profiles below as descriptions of a correlated subquery that no longer exists.
  *
  * ## The two requester profiles, and why both are needed
  *
- * The inner `NOT EXISTS` SHORT-CIRCUITS on the first requester found under the threshold. So the cost
- * depends entirely on the requester mix, and one profile would measure only one side of it:
+ * The cost depends entirely on the requester mix, and one profile would measure only one side of it:
  *
  *   - `mixed` — every food has one heavy requester (hundreds pending) AND one requester of its own with a
- *     single pending row. The `EXISTS` finds an under-threshold requester almost immediately, nothing is
- *     demoted, and this is the realistic steady state.
- *   - `adversarial` — every requester of every food is over the threshold, so the `EXISTS` can never
- *     short-circuit: it evaluates a full correlated `COUNT(*)` for every requester of every candidate row.
- *     This is FR-043's own worst case (a queue dominated by heavy requesters is exactly when demotion is
- *     supposed to engage) and the shape DSN-11 is about.
+ *     single pending row. Nothing is demoted, so the promoted-tier branch finds a qualifying row almost
+ *     immediately and the index scan early-terminates (`rows=1 loops=1`). This is the realistic steady
+ *     state.
+ *   - `adversarial` — every requester of every food is over the threshold, so NOTHING qualifies for the
+ *     promoted tier and the branch must examine EVERY eligible row before it can conclude the tier is
+ *     empty and fall through to the demoted fallback. This is FR-043's own worst case (a queue dominated
+ *     by heavy requesters is exactly when demotion is supposed to engage), it is the series that still
+ *     breaches at depth 10,000 on CI hardware (85.52ms p95 vs the 60ms budget), and it is the shape the
+ *     re-opened DSN-11 escalation is about. Post-T-197 the cost is the full-scan-to-prove-empty, not the
+ *     aggregate: `mixed` is now much FASTER than `adversarial`, the reverse of the pre-T-197 finding.
  *
  * Both are measured at every depth, so the report distinguishes "the query is fine" from "the query is fine
  * until fairness actually has work to do".

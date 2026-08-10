@@ -796,15 +796,35 @@ jobs:
                   FOOD_DRAIN_DEPTHS: '100'
               run: npx tsx tests/load/drain-demotion.perf.ts
             # (2) The FR-046 CEILING probe — the measurement T-195's acceptance explicitly requires ("at the
-            #     FR-046 10,000-row ceiling"). ⚠️ THIS STEP IS EXPECTED TO FAIL as it lands, and that failure IS
-            #     the DSN-11 flag T-195 asks for: measured locally, the per-`sub` correlated COUNT(*) in
-            #     leaseNext()'s ORDER BY costs ~0.5s per claim at depth 1,000 and ~7.5-11s per claim at the
-            #     10,000-row ceiling, against a 60ms budget. There is deliberately NO `continue-on-error` and
-            #     no `|| true`: a step that reported success for a 12-second drain claim is exactly the class of
-            #     silent-green failure this repo has already paid for.
-            #     Resolving it means implementing DSN-11 (materialize the per-`sub` pending count) — NOT raising
-            #     FOOD_DRAIN_CLAIM_P95_MS, and NOT deleting this step.
-            - name: Drain-claim FR-046 ceiling probe (depths 1000+10000, DSN-11 — RED until DSN-11 lands)
+            #     FR-046 10,000-row ceiling"). There is deliberately NO `continue-on-error` and no `|| true`: a
+            #     step that reported success for an over-budget drain claim is exactly the class of silent-green
+            #     failure this repo has already paid for.
+            #
+            #     ⚠️ STATUS as of 2026-08-10 — RED on CI, and NOT for the reason this comment used to give.
+            #     T-197's rewrite (`over_demand AS MATERIALIZED` + the fairness term moved from the ORDER BY
+            #     into a WHERE filter) LANDED, and it took the ceiling from ~11-20s per claim to tens of
+            #     milliseconds. The old text here — "~0.5s at depth 1,000 and ~7.5-11s at the ceiling" —
+            #     described the PRE-T-197 query and is wrong by ~100x; it was never updated when T-197 landed.
+            #
+            #     What CI actually measures now (run 31323016643, budget p95 <= 60ms):
+            #       depth  1,000 mixed        3.98ms  PASS      depth  1,000 adversarial  10.76ms  PASS
+            #       depth 10,000 mixed       16.73ms  PASS      depth 10,000 adversarial  85.52ms  BREACH
+            #     One series breaches, by 1.43x. The SC-003 contract gate above (depth 100) passes with ~12x
+            #     headroom, so SC-003 itself is NOT breached — this is FR-046 ceiling headroom.
+            #
+            #     Why that ONE series: in `adversarial` every row is demoted, so the promoted-tier branch must
+            #     examine all 10,000 eligible rows before it can conclude the tier is empty and fall through
+            #     (the DAO's own note measures that case at 35.6ms locally vs 9.3ms with nothing demoted). It is
+            #     a QUERY-SHAPE cost, not a missing index — `idx_fetch_queue_priority` is being used.
+            #     T-197 recorded this probe as PASSING on the strength of a LOCAL 28.66ms, and explicitly chose
+            #     NOT to materialize a per-requester count because "the per-claim CTE pass costs 5-9ms at the
+            #     ceiling". CI hardware measures ~2.4-3x slower than that dev machine, which is what turns
+            #     28.66ms into 85.52ms. So the open question is T-197's declined escalation, re-opened by CI
+            #     numbers: make "the promoted tier is empty" a set-based/maintained determination so the
+            #     fallback is reached without the full 10,000-row examination.
+            #     Resolving it is that query change — NOT raising FOOD_DRAIN_CLAIM_P95_MS, NOT adding
+            #     `continue-on-error`, and NOT deleting this step. Owner decision recorded in tasks.md T-197.
+            - name: Drain-claim FR-046 ceiling probe (depths 1000+10000, DSN-11)
               working-directory: packages/services/food-service
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_load

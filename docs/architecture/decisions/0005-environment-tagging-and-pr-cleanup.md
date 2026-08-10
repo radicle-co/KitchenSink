@@ -74,16 +74,22 @@ defect and **failed all 11 runs it has ever made**, which also meant the only re
   and passed to the script as an EMPTY value; the script then reclaims everything it can and exits non-zero,
   which fails the job just as loudly without leaking. Both zone steps use `cfn-export.sh --optional`, and
   neither may regain an `exit`.
+- **Each teardown step carries `if: ${{ !cancelled() }}`.** The rule above removes _deliberate_ aborts; this
+  removes the consequence of any other failure, because GitHub skips every remaining step once one fails — and
+  the fatal step here failed by writing a malformed `$GITHUB_OUTPUT` line, not by exiting. The teardown now runs
+  on its own merits and reports its own outcome. `!cancelled()` rather than `always()` on purpose: a cancelled
+  run must not start deleting infrastructure. Same double protection as the deploy ordering in ADR-0010 — a
+  structural rule AND an explicit condition, so neither alone is load-bearing.
 - **The reaper fails when it had to repair something the on-close path owed it.** A CloudFormation stack for a
   PR closed more than `STALE_ORPHAN_DAYS` (2) ago is proof `cleanup` did not work, so the sweep reports it as
   an error even though the reap itself succeeded. Previously "the reaper found nothing to do" and "the reaper
   never ran" were indistinguishable from outside — which is precisely how this stayed invisible. The signal is
   keyed on a **stack**, not on any leftover token, so it reports real un-reclaimed infrastructure and stays
   silent in steady state.
-- Both rules are enforced by `packages/infra/global/__tests__/sandbox-reclamation-reachability.test.ts`, which
-  parses the workflow YAML: analyzer 1 removes the coupling, analyzer 2 pins every export lookup to the shared
-  helper. Neither `actionlint` nor `zizmor` can see either failure — the YAML is valid and the shell is
-  well-formed.
+- All of it is enforced by `packages/infra/global/__tests__/sandbox-reclamation-reachability.test.ts`, which
+  parses the workflow YAML: analyzer 1 removes the _coupling_, analyzer 2 removes the _trigger_ (every export
+  lookup is pinned to the shared helper), analyzer 3 removes the _consequence_. Neither `actionlint` nor
+  `zizmor` can see any of these failures — the YAML is valid and the shell is well-formed.
 
 **Known residues found while reclaiming, NOT fixed here** — each is a real leak, each deserves its own change:
 

@@ -106,7 +106,14 @@ jobs:
             # All teardown logic lives in one script so the on-close cleanup and the scheduled reaper
             # cannot drift. It is scoped hard to pr-{N} (name, Environment tag, or exact DNS label), so
             # the shared global/identity/data infra can never match.
+            # `!cancelled()` is the SECOND protection, independent of the analyzer's ordering rule: GitHub
+            # skips every remaining step once any step fails, so without this a predecessor that fails
+            # WITHOUT an explicit `exit` — a command failing under `set -e`, or the malformed
+            # `$GITHUB_OUTPUT` write that caused this incident — silently skips reclamation again. The
+            # teardown now runs on its own merits and reports its own outcome. `!cancelled()` rather than
+            # `always()` on purpose: a cancelled run must not start deleting infrastructure.
             - name: Tear down ${{ env.PR }} sandbox resources
+              if: ${{ !cancelled() }}
               env:
                   PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
                   PREVIEW_HOSTED_ZONE_ID: ${{ steps.zone.outputs.hosted_zone_id }}
@@ -259,7 +266,9 @@ jobs:
                     echo "::error::CloudFormation export 'kitchensink-domain-sandbox:HostedZoneId' not found — dangling preview DNS records cannot be reaped; the rest of the sweep still runs and the job will fail"
                   fi
                   echo "hosted_zone_id=$ZONE" >> "$GITHUB_OUTPUT"
+            # Second protection, for the reason given on the `cleanup` job's teardown step.
             - name: Reap pr-{N} resources whose PR is closed or long-stale
+              if: ${{ !cancelled() }}
               env:
                   REPOSITORY: ${{ github.repository }}
                   PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}

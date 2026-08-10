@@ -1,7 +1,8 @@
 // @vitest-environment node
 /**
  * Repo-wide guard: per-PR reclamation is REACHABLE — nothing that runs before the teardown script may
- * pre-empt it, and no CloudFormation export is resolved with the idiom that emits two lines.
+ * pre-empt it, the teardown runs even after an earlier step has failed, and no CloudFormation export is
+ * resolved with the idiom that emits two lines.
  *
  * ## The incident this exists to make impossible
  *
@@ -59,9 +60,19 @@
  * stopped a caller from open-coding the broken idiom again, which is precisely how it reached both
  * reclamation jobs. This analyzer pins every export lookup in every workflow to the helper.
  *
- * Analyzer 1 alone would not have caught the original defect *shape* forever — a future prerequisite could
- * fail without an `exit 1`, e.g. by writing a malformed `$GITHUB_OUTPUT` line as this one ultimately did. So
- * the two analyzers are complements, not alternatives: 1 removes the *coupling*, 2 removes the *trigger*.
+ * ## 3 — a failed earlier step must not be able to skip the teardown at all
+ *
+ * Analyzers 1 and 2 between them remove the coupling and the trigger, but neither closes the general case:
+ * GitHub skips every remaining step once any step fails, so a predecessor that fails **without** an explicit
+ * `exit` still takes the teardown with it — and that is literally what happened here, since the fatal step
+ * failed by writing a malformed `$GITHUB_OUTPUT` line rather than by exiting. So each teardown step must also
+ * carry a skip-tolerant `if:` (`!cancelled()`), making it run on its own merits and report its own outcome.
+ *
+ * The three are complements, not alternatives: 1 removes the *coupling*, 2 removes the *trigger*, 3 removes
+ * the *consequence*. This is the same double protection the food/recipe deploy ordering uses (ADR-0010) — a
+ * structural rule AND an explicit condition, so neither alone is load-bearing. Skip-tolerance is decided by
+ * the shared `isSkipTolerant` helper, not a local regex, so this guard and `workflow-invariants.test.ts`
+ * cannot disagree about what the phrase means.
  *
  * ## Mutation evidence (each applied, and the named test watched to fail)
  *
@@ -81,6 +92,8 @@
  *      is the whole argument for running mutations rather than trusting a green suite.
  *   5. `shellLines`' comment filter removed → the `ignores a commented-out exit` fixture fails, showing the
  *      analyzers read code rather than prose.
+ *   6. `if: ${{ !cancelled() }}` dropped from the `cleanup` job's teardown step → analyzer 3 reports
+ *      `sandbox-deploy.yml#cleanup » Tear down …`, and the `reap-abandoned` copy does not vouch for it.
  *
  * Every function here is pure: parsed workflows in, a sorted list of compact violation IDs out.
  */
@@ -90,6 +103,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+
+import { isSkipTolerant } from './workflow-expression.js';
 
 const WORKFLOW_DIR = fileURLToPath(new URL('../../../../.github/workflows/', import.meta.url));
 
@@ -104,6 +119,7 @@ interface WorkflowStep {
     readonly id?: string;
     readonly uses?: string;
     readonly run?: string;
+    readonly if?: string;
 }
 
 interface WorkflowJob {
@@ -221,6 +237,38 @@ export function unpaginatedExportLookups(workflows: readonly ParsedWorkflow[]): 
     return violations.sort();
 }
 
+/**
+ * Analyzer 3 — teardown invocations that a preceding step's failure would silently skip.
+ *
+ * Analyzer 1 removes *deliberate* aborts, which is the defect that actually happened. It cannot cover the
+ * general case: GitHub skips every remaining step once any step fails, so a predecessor that fails **without**
+ * an explicit `exit` — a failing command under `set -e`, or the malformed `$GITHUB_OUTPUT` write that caused
+ * this very incident — still takes the teardown down with it. The durable fix is to make the teardown step
+ * skip-tolerant, so it runs on its own merits and reports its own outcome.
+ *
+ * This is the same double protection the food/recipe deploy ordering uses (ADR-0010): a structural rule AND an
+ * explicit `!cancelled()`, so neither alone is load-bearing. `always()` would also satisfy it, but
+ * `!cancelled()` is preferred — a cancelled run should not start deleting infrastructure.
+ *
+ * Skip-tolerance is decided by the shared `isSkipTolerant` from `workflow-expression.ts` rather than a local
+ * regex, so this guard and `workflow-invariants.test.ts` cannot disagree about what the phrase means.
+ */
+export function skippableTeardownSteps(workflows: readonly ParsedWorkflow[]): readonly string[] {
+    const violations: string[] = [];
+
+    for (const { file, doc } of workflows) {
+        for (const [job, definition] of Object.entries(doc.jobs ?? {})) {
+            (definition.steps ?? []).forEach((step, index) => {
+                if (step.run?.includes(TEARDOWN_SCRIPT) && !isSkipTolerant(step.if)) {
+                    violations.push(stepId(file, job, step, index));
+                }
+            });
+        }
+    }
+
+    return violations.sort();
+}
+
 /** Parse an inline workflow body, for fixture-driven proofs that the analyzers are not vacuous. */
 function fixture(body: string): readonly ParsedWorkflow[] {
     return [{ file: 'fixture.yml', doc: parse(body) as WorkflowDocument }];
@@ -246,6 +294,10 @@ describe('per-PR reclamation is reachable', () => {
 
     it('resolves every CloudFormation export through the paginated helper', () => {
         expect(unpaginatedExportLookups(workflows)).toEqual([]);
+    });
+
+    it('runs the teardown even when an earlier step has already failed', () => {
+        expect(skippableTeardownSteps(workflows)).toEqual([]);
     });
 });
 
@@ -398,5 +450,51 @@ jobs:
         );
 
         expect(violations).toEqual([]);
+    });
+});
+
+describe('skippableTeardownSteps', () => {
+    it('reports a teardown step with no skip-tolerant condition', () => {
+        const violations = skippableTeardownSteps(
+            fixture(`
+jobs:
+    cleanup:
+        steps:
+            - name: Tear down
+              run: .github/scripts/${TEARDOWN_SCRIPT} "$PR"
+`),
+        );
+
+        expect(violations).toEqual(['fixture.yml#cleanup » Tear down']);
+    });
+
+    it('accepts `!cancelled()`, so a failed predecessor cannot skip reclamation', () => {
+        const violations = skippableTeardownSteps(
+            fixture(`
+jobs:
+    cleanup:
+        steps:
+            - name: Tear down
+              if: \${{ !cancelled() }}
+              run: .github/scripts/${TEARDOWN_SCRIPT} "$PR"
+`),
+        );
+
+        expect(violations).toEqual([]);
+    });
+
+    it('rejects a condition that is merely present but not skip-tolerant', () => {
+        const violations = skippableTeardownSteps(
+            fixture(`
+jobs:
+    cleanup:
+        steps:
+            - name: Tear down
+              if: \${{ github.event.action == 'closed' }}
+              run: .github/scripts/${TEARDOWN_SCRIPT} "$PR"
+`),
+        );
+
+        expect(violations).toEqual(['fixture.yml#cleanup » Tear down']);
     });
 });

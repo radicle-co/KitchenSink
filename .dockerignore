@@ -46,3 +46,5 @@
 !packages/schemas/food/prod.package.json
 !packages/schemas/identity/dist
 !packages/schemas/identity/prod.package.json
+!packages/schemas/recipe/dist
+!packages/schemas/recipe/prod.package.json

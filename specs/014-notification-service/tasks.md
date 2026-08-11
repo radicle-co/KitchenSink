@@ -204,27 +204,31 @@ off this path.
 
 ## Integration & Cross-Feature
 
-- [ ] **T-017** [P] [US-001..US-006] Integrate 003 producer contract: publish `food.backfill.completed` and `food.fetch.failed` through 014. — `packages/services/notification-service/src/integration/feature-003.adapter.ts`
-    - **Depends on**: T-003, T-005, T-007
-    - **Implements**: FR-001, cross-feature contract (003)
-    - **Acceptance**: 003 backfill completion triggers 014 publish; 014 delivers to subscribed user.
+- [ ] **T-017** [P] [US-001..US-006] Publish the **producer integration guide** so a producer can integrate without reading this service's source: the envelope contract, both ingress paths, registration (keyword, `source` allowlisting, declared quota), and the FR-031 correlation obligation. — `specs/014-notification-service/README.md`
+    - **Depends on**: T-034, T-035, T-037, T-039
+    - **Implements**: FR-024..FR-033
+    - **Acceptance**: this service ships NO per-producer adapter and contains no code naming another feature's domain — that is the property the guide exists to preserve (FR-025). The 003 leg itself is producer-side work, tracked as T-044.
+    - **Rewritten 2026-08-11.** It previously created `src/integration/feature-003.adapter.ts` — a per-producer adapter inside the generic service, the exact coupling FR-025 forbids — and told the implementer to publish `food.backfill.completed` / `food.fetch.failed`, **neither of which exists**: 003's real event is `FoodFetchCompleted`. Anyone building it as written would have subscribed to nothing and found no bug, because the code would simply never fire.
 
-- [ ] **T-018** [P] [US-001..US-006] Integrate 005, 008, 009 producer contracts: publish AI disclosure, timer alert, compliance-gap events through 014. — `packages/services/notification-service/src/integration/feature-005-008-009.adapter.ts`
-    - **Depends on**: T-007, T-009, T-011
-    - **Implements**: FR-001, cross-feature contracts (005/008/009)
-    - **Acceptance**: End-to-end trace: each producer feature emits event → 014 publishes → client receives.
+- [ ] **T-018** [P] [US-001..US-006] Register 005, 008, 009's `messageType` keywords, `source` allowlist entries and declared quotas as **configuration** — the AI disclosure, timer alert and compliance-gap notifications. — `packages/services/notification-service/src/registry/message-type.registry.ts`
+    - **Depends on**: T-014, T-018, T-035, T-046
+    - **Implements**: FR-016, FR-027, FR-031, FR-033
+    - **Acceptance**: onboarding a producer is a config change plus that producer's own declaration — **no code change in this service**. Registry entries are DATA; the publishing and correlation are that feature's own work (FR-031).
+    - **Rewritten 2026-08-11**: previously created a per-producer adapter in `src/integration/`, which FR-025 forbids.
     - **⚠️ Blocked**: 005, 008 and 009 are specification-only — no code exists to integrate (plan.md → "Which of these actually exist in code").
 
-- [ ] **T-021** [P] [US-001] Integrate 012 producer contract: publish creator moderation / action-result notifications through 014. — `packages/services/notification-service/src/integration/feature-012.adapter.ts`
-    - **Depends on**: T-007, T-009, T-011
-    - **Implements**: FR-001, cross-feature contract (012)
-    - **Acceptance**: 012 moderation outcome emits event → 014 publishes → creator's client receives.
+- [ ] **T-021** [P] [US-001..US-006] Register 012's `messageType` keywords, `source` allowlist entries and declared quotas as **configuration** — the creator moderation / action-result notifications. — `packages/services/notification-service/src/registry/message-type.registry.ts`
+    - **Depends on**: T-014, T-018, T-035, T-046
+    - **Implements**: FR-016, FR-027, FR-031, FR-033
+    - **Acceptance**: onboarding a producer is a config change plus that producer's own declaration — **no code change in this service**. Registry entries are DATA; the publishing and correlation are that feature's own work (FR-031).
+    - **Rewritten 2026-08-11**: previously created a per-producer adapter in `src/integration/`, which FR-025 forbids.
     - **⚠️ Blocked**: 012 is specification-only. Added 2026-08-05 — plan.md named 012 mandatory for M8 with no task (sync-report DRIFT-004).
 
-- [ ] **T-022** [P] [US-001, US-002] Integrate 013 producer contract: publish/enroll milestone notifications to learners and creators through 014. — `packages/services/notification-service/src/integration/feature-013.adapter.ts`
-    - **Depends on**: T-007, T-009, T-011
-    - **Implements**: FR-001, cross-feature contract (013)
-    - **Acceptance**: 013 publish and enroll milestones emit events → 014 publishes → learner/creator clients receive.
+- [ ] **T-022** [P] [US-001..US-006] Register 013's `messageType` keywords, `source` allowlist entries and declared quotas as **configuration** — the publish/enroll milestone notifications. — `packages/services/notification-service/src/registry/message-type.registry.ts`
+    - **Depends on**: T-014, T-018, T-035, T-046
+    - **Implements**: FR-016, FR-027, FR-031, FR-033
+    - **Acceptance**: onboarding a producer is a config change plus that producer's own declaration — **no code change in this service**. Registry entries are DATA; the publishing and correlation are that feature's own work (FR-031).
+    - **Rewritten 2026-08-11**: previously created a per-producer adapter in `src/integration/`, which FR-025 forbids.
     - **⚠️ Blocked**: 013 is specification-only. Added 2026-08-05 (sync-report DRIFT-004).
 
 ## Client Surface — In-App Notification Bell
@@ -284,7 +288,7 @@ off this path.
 
 ## Dual ingress, event-path trust, and producer onboarding (added 2026-08-10)
 
-- [ ] **T-034** [P] [US-001] EventBridge ingress adapter delegating to the SAME core as the HTTP controller (validate → registry → authz → idempotency → durable accept → route). Adapters carry transport concerns only. — `packages/services/notification-service/src/ingress/eventbridge.consumer.ts`
+- [ ] **T-034** [P] [US-001] EventBridge ingress adapter delegating to the SAME core as the HTTP controller. **The core is `src/ingress/publish-core.service.ts`** — validate → registry → authz → idempotency → durable accept → route — and both adapters (`src/ingress/eventbridge.consumer.ts`, the existing `publish.controller.ts`) hold transport concerns ONLY. Naming the core matters: it is the single most consequential file in this amendment, and an unnamed shared core is how a rule ends up enforced in one adapter and not the other. — `packages/services/notification-service/src/ingress/publish-core.service.ts` + `src/ingress/eventbridge.consumer.ts`
     - **Depends on**: T-003, T-013, T-026
     - **Implements**: FR-024, FR-025
     - **Acceptance**: the same envelope over HTTP and over EventBridge produces byte-identical deliveries, asserted by a paired test per validation rule (SC-008). Only the reserved `detailType` is ingested; a producer domain event on the bus is ignored, not interpreted.

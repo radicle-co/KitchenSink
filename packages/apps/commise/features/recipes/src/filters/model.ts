@@ -28,6 +28,7 @@
  */
 import type { Locale } from '@commise/i18n';
 import type { Ingredient, RecipeFacetCount, RecipeSearchParams } from '@kitchensink/recipe-core';
+import type { RecipeSearchFacets } from '@kitchensink/schema-recipe';
 
 import { fillTemplate } from '../list/model.js';
 import { meetsIngredientSearchThreshold } from '../hooks/ingredientResolver.model.js';
@@ -98,16 +99,21 @@ export const TIME_BUCKETS_MINUTES: readonly number[] = [15, 30, 60];
 export const TOTAL_TIME_BUCKETS_MINUTES: readonly number[] = TIME_BUCKETS_MINUTES;
 
 /**
- * The facet counts the bar consumes — structurally the service's `RecipeSearchFacets` wire shape, but
- * declared here (over `RecipeFacetCount` from recipe-core) so this presentational package need not depend on
- * the HTTP client. The composing container passes the search response's `facets` straight in.
+ * The facet counts the FILTER BAR consumes — a deliberately NARROWER view-model DERIVED from the wire shape,
+ * not an independent declaration of it.
+ *
+ * It differs from `RecipeSearchFacets` in two ways that are real, not incidental:
+ *  - it covers only the three dimensions the bar renders as chips, omitting `totalTime` (which the bar offers
+ *    as a bound via {@link TIME_BUCKETS_MINUTES}, not as a facet value list);
+ *  - every dimension is OPTIONAL, because a container may render the bar before a search has resolved, or
+ *    pass a partial block — whereas the wire contract always carries all four (an empty dimension is `[]`).
+ *
+ * `Pick` + `Partial` over the generated wire type is what keeps those differences INTENTIONAL: adding,
+ * removing or renaming a facet dimension in the contract now fails this package's typecheck instead of
+ * silently leaving a stale hand-written copy behind. The previous declaration was structurally independent,
+ * which is how the server and client came to disagree about whether a facet block could be absent at all.
  */
-export interface RecipeFacets {
-    readonly dietaryFlags?: readonly RecipeFacetCount[];
-    readonly tags?: readonly RecipeFacetCount[];
-    /** Distinct cuisines in the match sample (W8-a.9) — drives the single-select Cuisine group (S2). */
-    readonly cuisine?: readonly RecipeFacetCount[];
-}
+export type RecipeFacets = Partial<Pick<RecipeSearchFacets, 'dietaryFlags' | 'tags' | 'cuisine'>>;
 
 /**
  * One rendered facet chip: a value, its match count (absent when the value is selected but the sampled

@@ -494,11 +494,53 @@ function toFacetCounts(values: readonly string[]): RecipeFacetCount[] {
     return [...counts].map(([value, count]) => ({ value, count }));
 }
 
-/** Aggregate the dietary-flag + tag facet buckets over a match set, as the search DAL's facet CTE does. Pure. */
+/**
+ * The stable total-time bucket ids the search DAL aggregates into, in display order. Mutually exclusive, so
+ * the counts sum to the match-set size.
+ */
+const TOTAL_TIME_BUCKET_IDS = ['0-15', '16-30', '31-60', '61+'] as const;
+
+/**
+ * Classify a recipe's total time into its DAL bucket id.
+ *
+ * @param minutes - The recipe's total time in minutes.
+ * @returns The bucket id the DAL would place it in. Pure.
+ */
+function toTotalTimeBucket(minutes: number): (typeof TOTAL_TIME_BUCKET_IDS)[number] {
+    if (minutes <= 15) {
+        return '0-15';
+    }
+
+    if (minutes <= 30) {
+        return '16-30';
+    }
+
+    return minutes <= 60 ? '31-60' : '61+';
+}
+
+/**
+ * Aggregate ALL FOUR facet dimensions over a match set, as the search DAL's facet CTE does. Pure.
+ *
+ * All four are computed, not just the two this helper used to emit: the wire contract requires every dimension
+ * (an empty one is `[]`, never absent), and a fixture that omitted `cuisine`/`totalTime` was asserting against
+ * a response the service cannot actually produce -- which is the whole class of drift the generated contract
+ * exists to remove. `cuisine` excludes recipes with no cuisine, matching the DAL's NULL exclusion.
+ */
 function toSearchFacets(recipes: readonly Recipe[]): RecipeSearchFacets {
+    const bucketed = recipes.map((recipe) => toTotalTimeBucket(recipe.totalTimeMinutes));
+
     return {
         dietaryFlags: toFacetCounts(recipes.flatMap((recipe) => recipe.dietaryFlags)),
         tags: toFacetCounts(recipes.flatMap((recipe) => recipe.tags)),
+        cuisine: toFacetCounts(
+            recipes.map((recipe) => recipe.cuisine).filter((cuisine): cuisine is string => cuisine !== undefined),
+        ),
+        // Ordered by the stable bucket ladder rather than by first appearance, so the fixture's ordering is
+        // deterministic and matches what the DAL returns.
+        totalTime: TOTAL_TIME_BUCKET_IDS.filter((id) => bucketed.includes(id)).map((id) => ({
+            value: id,
+            count: bucketed.filter((entry) => entry === id).length,
+        })),
     };
 }
 

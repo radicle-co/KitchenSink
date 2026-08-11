@@ -229,7 +229,16 @@ export function makeRecipeSearchResponse(overrides: Partial<RecipeSearchResponse
         page: 1,
         pageSize: 20,
         hasMore: false,
-        facets: { dietaryFlags: [{ value: 'vegan', count: 1 }], tags: [{ value: 'soup', count: 1 }] },
+        // All FOUR dimensions, because the contract requires them: the service always aggregates every
+        // dimension over the match sample and sends `[]` for an empty one, never an absent key. This
+        // fixture previously supplied only two, which typechecked while the client's own type declared
+        // them optional -- the drift the generated contract now makes impossible.
+        facets: {
+            dietaryFlags: [{ value: 'vegan', count: 1 }],
+            tags: [{ value: 'soup', count: 1 }],
+            cuisine: [],
+            totalTime: [],
+        },
         ...overrides,
     };
 }

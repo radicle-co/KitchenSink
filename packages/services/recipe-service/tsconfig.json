@@ -14,6 +14,6 @@
     // its own test exclusions). Unit tests are deliberately INCLUDED: vitest transpiles without
     // typechecking, so excluding them here left them with no static analysis at all and let ~13 type
     // errors accumulate unseen (incl. a test double that had drifted from the interface it doubles).
-    "include": ["src/**/*.ts", "tests/**/*.ts", "__tests__/**/*.ts"],
+    "include": ["src/**/*.ts", "tests/**/*.ts", "__tests__/**/*.ts", "contract/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

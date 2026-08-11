@@ -119,9 +119,14 @@ describe('recipeQueries (P5 repository read seam)', () => {
     });
 
     it('pins search() to a tighter 15s policy — results churn faster than a single recipe', async () => {
-        const searchRecipes = vi
-            .fn()
-            .mockResolvedValue({ results: [], total: 0, page: 1, pageSize: 20, hasMore: false, facets: {} });
+        const searchRecipes = vi.fn().mockResolvedValue({
+            results: [],
+            total: 0,
+            page: 1,
+            pageSize: 20,
+            hasMore: false,
+            facets: { dietaryFlags: [], tags: [], cuisine: [], totalTime: [] },
+        });
         const client = makeFakeClient({ searchRecipes });
         const params = { query: 'pie' };
         const options = recipeQueries(client).search(params);
@@ -133,9 +138,14 @@ describe('recipeQueries (P5 repository read seam)', () => {
     });
 
     it('keys searchInfinite() under the SAME search key (not a distinct namespace) at the 15s policy', async () => {
-        const searchRecipes = vi
-            .fn()
-            .mockResolvedValue({ results: [], total: 0, page: 2, pageSize: 20, hasMore: true, facets: {} });
+        const searchRecipes = vi.fn().mockResolvedValue({
+            results: [],
+            total: 0,
+            page: 2,
+            pageSize: 20,
+            hasMore: true,
+            facets: { dietaryFlags: [], tags: [], cuisine: [], totalTime: [] },
+        });
         const client = makeFakeClient({ searchRecipes });
         const params = { query: 'pie' };
         const options = recipeQueries(client).searchInfinite(params);
@@ -145,7 +155,14 @@ describe('recipeQueries (P5 repository read seam)', () => {
         expect(options.initialPageParam).toBe(1);
         expect(
             options.getNextPageParam(
-                { results: [], total: 0, page: 2, pageSize: 20, hasMore: true, facets: {} },
+                {
+                    results: [],
+                    total: 0,
+                    page: 2,
+                    pageSize: 20,
+                    hasMore: true,
+                    facets: { dietaryFlags: [], tags: [], cuisine: [], totalTime: [] },
+                },
                 [],
                 1,
                 [],
@@ -153,7 +170,14 @@ describe('recipeQueries (P5 repository read seam)', () => {
         ).toBe(3);
         expect(
             options.getNextPageParam(
-                { results: [], total: 0, page: 2, pageSize: 20, hasMore: false, facets: {} },
+                {
+                    results: [],
+                    total: 0,
+                    page: 2,
+                    pageSize: 20,
+                    hasMore: false,
+                    facets: { dietaryFlags: [], tags: [], cuisine: [], totalTime: [] },
+                },
                 [],
                 1,
                 [],

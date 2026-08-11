@@ -11,7 +11,7 @@ import { Controller, Get, Query, UsePipes, ValidationPipe } from '@nestjs/common
 
 import { SearchService } from './search.service.js';
 import { SearchRecipesQueryDto } from './dto/search-recipes.query.dto.js';
-import type { RecipeSearchResponse } from './dto/search-response.dto.js';
+import type { RecipeSearchResponse } from './search.schema.js';
 import { OwnerId } from '../auth/current-principal.decorator.js';
 import { SearchRateLimit } from '../common/throttle/throttle.decorators.js';
 

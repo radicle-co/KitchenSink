@@ -22,6 +22,7 @@
  *   `webRecentSearchStore` port. Choosing one routes through the SAME `onSearchChange` a keystroke does.
  */
 import { RecipeBrowseRails, RecipeDiscoveryList, RecipeFilterBar } from '@commise/features-recipes';
+import type { RecipeFacets } from '@commise/features-recipes';
 import type {
     FacetDimension,
     RecipeBrowseCuisineShortcut,
@@ -155,7 +156,10 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
     const cloningId = clone.isPending ? clone.variables : null;
 
     const results = search.data?.pages.flatMap((page) => page.results) ?? [];
-    const facets = search.data?.pages[0]?.facets ?? {};
+    // Annotated with the NARROW view-model rather than inferred: the `?? {}` fallback (no page yet)
+    // would otherwise widen the type to `{}` and silently lose every facet dimension. `RecipeFacets`
+    // permits an empty object by design -- see its docstring for why the bar's shape is partial.
+    const facets: RecipeFacets = search.data?.pages[0]?.facets ?? {};
 
     const searching = searchInput.trim().length > 0 || hasActiveFilters(filters);
     const browsing = !searching && !browseDismissed;

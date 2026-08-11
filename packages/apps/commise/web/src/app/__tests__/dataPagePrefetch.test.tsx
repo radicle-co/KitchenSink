@@ -160,7 +160,7 @@ describe('[locale]/discover/page.tsx SSR prefetch', () => {
         mockAuthed();
         const response: RecipeSearchResponse = {
             results: [{ recipe: makeRecipe({ visibility: 'public' as never }) }],
-            facets: {},
+            facets: { dietaryFlags: [], tags: [], cuisine: [], totalTime: [] },
             total: 1,
             page: 1,
             pageSize: 20,

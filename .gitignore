@@ -121,3 +121,7 @@ packages/services/*/tests/load/perf-fixture.json
 # artifacts with a 7-day retention, and committing them would put one machine's timings in the tree where
 # the next reader mistakes them for the agreed budgets. The budgets live in the scripts.
 packages/services/*/k6-*-summary.json
+
+# Build INTERMEDIATE of the contract generator. `src/metadata.ts` is derived wholly from the authored
+# `*.schema.ts` sources, so committing it would only add a large single-line file to review diffs.
+packages/services/recipe-service/src/metadata.ts

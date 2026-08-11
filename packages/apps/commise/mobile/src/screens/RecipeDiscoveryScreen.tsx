@@ -37,6 +37,7 @@ import {
     type RecipeDiscoveryStatus,
     type RecipeFilterState,
 } from '@commise/features-recipes';
+import type { RecipeFacets } from '@commise/features-recipes';
 import {
     useBrowseRails,
     useDebouncedValue,
@@ -130,7 +131,10 @@ export function RecipeDiscoveryScreen({ onSelectRecipe, initialFilters }: Recipe
     const cloningId = clone.isPending ? (clone.variables ?? null) : null;
 
     const results = search.data?.pages.flatMap((page) => page.results) ?? [];
-    const facets = search.data?.pages[0]?.facets ?? {};
+    // Annotated with the NARROW view-model rather than inferred: the `?? {}` fallback (no page yet) would
+    // otherwise widen the type to `{}` and silently lose every facet dimension. `RecipeFacets` permits an
+    // empty object by design -- see its docstring for why the bar's shape is intentionally partial.
+    const facets: RecipeFacets = search.data?.pages[0]?.facets ?? {};
 
     const searching = searchValue.trim().length > 0 || hasActiveFilters(filters);
     const browsing = !searching && !browseDismissed;

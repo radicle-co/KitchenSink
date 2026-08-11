@@ -12,7 +12,7 @@ import type { RecipeSearchParams } from '@kitchensink/recipe-core';
 
 import { toPageEnvelope } from '../common/pagination.js';
 import { SearchDal, DEFAULT_SEARCH_PAGE_SIZE } from './dal/search.dal.js';
-import type { RecipeSearchResponse } from './dto/search-response.dto.js';
+import type { RecipeSearchResponse } from './search.schema.js';
 
 /** DI token for the search DAL — provided by `SearchModule` via `useFactory` over the Drizzle client. */
 export const SEARCH_DAL = 'SEARCH_DAL';

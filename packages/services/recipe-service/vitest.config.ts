@@ -9,7 +9,7 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
     test: {
-        include: ['src/**/*.test.ts', 'infra/__tests__/**/*.test.ts'],
+        include: ['src/**/*.test.ts', 'infra/__tests__/**/*.test.ts', 'contract/**/*.test.ts'],
         // `**/__tests__/integration/**` (not just `src/**/…`) because the integration tier now uses the
         // `.integration.test.ts` suffix, which the `infra/__tests__/**/*.test.ts` include above would
         // otherwise collect into the unit run — the exact bleed Constitution Principle IV forbids.

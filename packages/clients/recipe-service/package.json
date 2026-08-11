@@ -21,6 +21,7 @@
     },
     "dependencies": {
         "@kitchensink/recipe-core": "*",
+        "@kitchensink/schema-recipe": "*",
         "@tanstack/react-query": "^5.62.0",
         "ky": "^1.7.5",
         "zod": "^4.4.3"

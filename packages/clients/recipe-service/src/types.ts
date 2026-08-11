@@ -10,14 +10,13 @@
  * `Collection` WIDENED with the recipe service's response-only pull-provenance fields (see below) — every
  * client method that returns a collection returns THIS shape, not the narrower core entity.
  */
-import type {
-    Collection as CoreCollection,
-    Ingredient,
-    Recipe,
-    RecipeFacetCount,
-    RecipeSearchResult,
-    RecipeVisibility,
-} from '@kitchensink/recipe-core';
+import type { RecipeSearchFacets } from '@kitchensink/schema-recipe';
+
+// The search wire shapes now live in the GENERATED contract. Re-exported here so modules that already
+// import them from `./types.js` keep working, and so there is exactly ONE declaration behind both paths.
+export type { RecipeSearchFacets, RecipeSearchResponse } from '@kitchensink/schema-recipe';
+
+import type { Collection as CoreCollection, Ingredient, Recipe, RecipeVisibility } from '@kitchensink/recipe-core';
 
 /** Sort key for `listRecipes` (`GET /api/v1/recipes`). */
 export type RecipeListSortBy = 'updatedAt' | 'createdAt' | 'title';
@@ -250,27 +249,9 @@ export interface ErasureRequestAcceptedResponse {
     readonly status: 'queued' | 'running';
 }
 
-/** Ordered facet buckets for a single search facet (an object-per-bucket, extensible per entry). */
-export type RecipeSearchFacetCounts = readonly RecipeFacetCount[];
-
 /**
- * Facet counts returned alongside recipe search results. The server aggregates dietary flags, tags, the
- * distinct cuisines in the match sample (drives the single-select Cuisine facet + discovery's cuisine
- * shortcuts, W8-a.9), and the total-time buckets (`quickest`/`maxTotalTime`).
+ * Ordered facet buckets for a single search facet (an object-per-bucket, extensible per entry).
+ *
+ * DERIVED from the generated contract rather than declared, so it cannot drift from what the service sends.
  */
-export interface RecipeSearchFacets {
-    readonly dietaryFlags?: RecipeSearchFacetCounts;
-    readonly tags?: RecipeSearchFacetCounts;
-    readonly cuisine?: RecipeSearchFacetCounts;
-    readonly totalTime?: RecipeSearchFacetCounts;
-}
-
-/** Response from `searchRecipes` (`GET /api/v1/search/recipes`). Results are an object-per-hit envelope. */
-export interface RecipeSearchResponse {
-    readonly results: readonly RecipeSearchResult[];
-    readonly total: number;
-    readonly page: number;
-    readonly pageSize: number;
-    readonly hasMore: boolean;
-    readonly facets: RecipeSearchFacets;
-}
+export type RecipeSearchFacetCounts = RecipeSearchFacets['tags'];

@@ -71,8 +71,6 @@ export type {
     PullFromSourceResponse,
     RecipeListSortBy,
     RecipeSearchFacetCounts,
-    RecipeSearchFacets,
-    RecipeSearchResponse,
     UpdateCollectionRequest,
     UploadUrlResponse,
 } from './types.js';
@@ -88,3 +86,7 @@ export type {
     RecipeStepView,
     RestoreVersionResponse,
 } from '@kitchensink/recipe-core';
+
+// Wire shapes owned by the GENERATED contract package (authored as zod in the recipe service). Re-exported
+// under their existing names so this barrel's public surface is unchanged for its ~121 consumer files.
+export type { RecipeSearchFacets, RecipeSearchResponse } from '@kitchensink/schema-recipe';

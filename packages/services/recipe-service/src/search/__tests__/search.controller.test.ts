@@ -10,7 +10,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { SearchController } from '../search.controller.js';
 import type { SearchService } from '../search.service.js';
-import type { RecipeSearchResponse } from '../dto/search-response.dto.js';
+import type { RecipeSearchResponse } from '../search.schema.js';
 import type { SearchRecipesQueryDto } from '../dto/search-recipes.query.dto.js';
 
 const OWNER = '01J000000000000000000FREE0';

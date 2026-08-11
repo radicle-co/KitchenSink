@@ -24,6 +24,10 @@ import { sql, type SQL } from 'drizzle-orm';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import type { Recipe, RecipeFacetCount, RecipeSearchResult } from '@kitchensink/recipe-core';
 
+// The CONTRACT owns this shape (it is a public response-body field); the DAL merely computes a value of
+// it. It used to be declared and exported here, which made a data-access internal define the public API.
+import type { RecipeSearchFacets } from '../search.schema.js';
+
 import type { RecipeDrizzle } from '../../database/client.js';
 import { clampPage, clampPageSize, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../../common/pagination.js';
 import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
@@ -88,21 +92,6 @@ export interface RecipeSearchFilters {
     readonly pageSize: number;
     /** Result ordering. */
     readonly sortBy: RecipeSearchSortBy;
-}
-
-/** Facet aggregations returned alongside a page of results. Buckets are the canonical `RecipeFacetCount`. */
-export interface RecipeSearchFacets {
-    readonly dietaryFlags: RecipeFacetCount[];
-    readonly tags: RecipeFacetCount[];
-    /** Distinct cuisines in the match sample (W8-a.9), most-common first. NULL cuisines are excluded. */
-    readonly cuisine: RecipeFacetCount[];
-    /**
-     * Total-time buckets over the match sample (W8-a.9), keyed by the stable bucket ids in
-     * {@link TOTAL_TIME_BUCKETS} (`0-15` | `16-30` | `31-60` | `61+`) — mutually exclusive so the counts
-     * sum to the sample size. The `totalTime` dimension is the one the `quickest` sort and the `maxTotalTime`
-     * filter also key on; the client maps each id to display copy ("Under 15 min", …).
-     */
-    readonly totalTime: RecipeFacetCount[];
 }
 
 /** What {@link SearchDal.search} returns: the ranked page, its facets, and the unpaged total. */

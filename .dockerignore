@@ -38,3 +38,11 @@
 !packages/shared/recipe-core/prod.package.json
 !packages/clients/food-service/dist
 !packages/clients/food-service/prod.package.json
+# The GENERATED wire-contract leaf packages (CODING_STANDARDS §15.2). Each service's `main.ts` imports its
+# schema package's published `CONTRACT_HASH` to run the drift-layer-3 skew assertion as the FIRST thing the
+# process does, so these are runtime imports on the very first line of the boot path: without the dist and a
+# dist-pointing prod manifest in the image, the container crash-loops before it can report why.
+!packages/schemas/food/dist
+!packages/schemas/food/prod.package.json
+!packages/schemas/identity/dist
+!packages/schemas/identity/prod.package.json

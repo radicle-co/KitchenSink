@@ -21,6 +21,11 @@ COPY packages/clients/usda/dist ./packages/clients/usda/dist
 # erasure route verifies against — a runtime import, so its dist must ship in the image.
 COPY packages/shared/recipe-core/prod.package.json ./packages/shared/recipe-core/package.json
 COPY packages/shared/recipe-core/dist ./packages/shared/recipe-core/dist
+# The GENERATED wire-contract leaf (CODING_STANDARDS §15.2). `main.ts` imports its published CONTRACT_HASH to
+# run the drift-layer-3 skew assertion BEFORE anything else, so this is a genuine runtime import on the very
+# first line of the boot path: without its dist in the image the process crash-loops before it can report why.
+COPY packages/schemas/food/prod.package.json ./packages/schemas/food/package.json
+COPY packages/schemas/food/dist ./packages/schemas/food/dist
 
 EXPOSE 3000
 

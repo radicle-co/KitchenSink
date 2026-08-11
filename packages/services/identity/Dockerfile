@@ -31,6 +31,11 @@ COPY packages/shared/identity-db/dist ./packages/shared/identity-db/dist
 # dist-pointing prod manifest must be in the image or the bare-specifier import crash-loops at boot.
 COPY packages/shared/identity-core/prod.package.json ./packages/shared/identity-core/package.json
 COPY packages/shared/identity-core/dist ./packages/shared/identity-core/dist
+# The GENERATED wire-contract leaf (CODING_STANDARDS §15.2). `main.ts` imports its published CONTRACT_HASH to
+# run the drift-layer-3 skew assertion BEFORE anything else, so this is a genuine runtime import on the very
+# first line of the boot path: without its dist in the image the process crash-loops before it can report why.
+COPY packages/schemas/identity/prod.package.json ./packages/schemas/identity/package.json
+COPY packages/schemas/identity/dist ./packages/schemas/identity/dist
 
 EXPOSE 3000
 # Preload Sentry instrumentation before app modules (native ESM — a top-level import is not a

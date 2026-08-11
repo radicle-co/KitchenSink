@@ -20,6 +20,7 @@
         "@kitchensink/identity-core": "*",
         "@kitchensink/identity-db": "*",
         "@kitchensink/identity-utils": "*",
+        "@kitchensink/schema-identity": "*",
         "@nestjs/common": "^11.1.27",
         "@nestjs/config": "^4.0.0",
         "@nestjs/core": "^11.0.0",

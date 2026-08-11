@@ -231,6 +231,12 @@ export class FetchQueueDao {
      * slower than this machine, so **the CI probe is the only arbiter of the absolute numbers**; what is
      * hardware-independent is the buffer count and the `never executed` branch, and both are asserted.
      *
+     * **CONFIRMED ON CI** (run 31451860784, budget p95 <= 60ms, before -> after on the same runner class):
+     * `adversarial` @10,000 **85.52ms -> 10.81ms** (7.9x, now 5.6x inside budget), @1,000 10.76ms -> 3.91ms,
+     * @100 2.64ms -> 2.65ms; `mixed` @10,000 16.73ms -> 16.59ms, @1,000 3.98ms -> 5.46ms, @100 4.78ms ->
+     * 4.87ms. Every series passes. Note the local prediction was 7.20ms and CI measured 10.81ms — the ~3x
+     * hardware factor applies to the REMAINING aggregate too, which is why the probe stays the contract.
+     *
      * **Residual, stated rather than hidden:** the claim is still linear in `fetch_requesters` ROWS, because
      * one aggregate must read them to know each requester's outstanding count. It is no longer linear in
      * QUEUE DEPTH, which is what FR-046 bounds and what DSN-11 escalated. Removing the remaining term needs

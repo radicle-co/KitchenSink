@@ -842,8 +842,16 @@ jobs:
             #     4.03ms, mixed unchanged. Equivalence is proven by
             #     `drain-claim-ranking-differential.integration.test.ts` (drain order vs FR-043's literal
             #     ranking over 12 randomised queues) and the plan shape is asserted by
-            #     `drain-claim-scaling.integration.test.ts`. THIS STEP is still the only arbiter of the CI
-            #     numbers — local timings say nothing about this runner.
+            #     `drain-claim-scaling.integration.test.ts`.
+            #
+            #     CONFIRMED HERE (run 31451860784), before -> after, budget p95 <= 60ms:
+            #       depth    100 mixed  4.78 ->  4.87ms      depth    100 adversarial   2.64 ->  2.65ms
+            #       depth  1,000 mixed  3.98 ->  5.46ms      depth  1,000 adversarial  10.76 ->  3.91ms
+            #       depth 10,000 mixed 16.73 -> 16.59ms      depth 10,000 adversarial  85.52 -> 10.81ms
+            #     The breaching series is 7.9x faster and now sits 5.6x inside the budget. Worth noting the
+            #     local prediction was 7.20ms against this 10.81ms: the ~3x hardware factor applies to the
+            #     remaining per-claim aggregate as well, which is exactly why THIS STEP, not a dev machine,
+            #     is the arbiter of the absolute numbers.
             #
             #     If it ever breaches again, the fix is the query — NOT raising FOOD_DRAIN_CLAIM_P95_MS, NOT
             #     adding `continue-on-error`, and NOT deleting this step. Owner decision in tasks.md T-197.

@@ -317,12 +317,58 @@ outstanding count); it is no longer linear in QUEUE DEPTH, which is the quantity
 remaining term would need a maintained per-requester counter, i.e. a second representation of the same
 number — the T-199a split-brain by construction — and it is not justified at the measured cost.
 
+**Confirmed on CI** (run 31451860784, the runner that produced the Stage-1 breach), before → after:
+
+| Profile       | Depth  | p95 before | p95 after |
+| ------------- | ------ | ---------- | --------- |
+| `mixed`       | 100    | 4.78ms     | 4.87ms    |
+| `mixed`       | 1,000  | 3.98ms     | 5.46ms    |
+| `mixed`       | 10,000 | 16.73ms    | 16.59ms   |
+| `adversarial` | 100    | 2.64ms     | 2.65ms    |
+| `adversarial` | 1,000  | 10.76ms    | 3.91ms    |
+| `adversarial` | 10,000 | 85.52ms ✗  | 10.81ms ✓ |
+
+The breaching series is 7.9× faster and sits 5.6× inside the budget. Note the local prediction was 7.20ms
+against CI's 10.81ms: the ~3× hardware factor applies to the REMAINING per-claim aggregate too.
+
 **Local numbers are not evidence about CI** (~3× slower), which is why the invariants that hold regardless of
 hardware are asserted separately: `tests/drain-claim-ranking-differential.integration.test.ts` proves the
 ranking is unchanged against FR-043 stated literally, and `tests/drain-claim-scaling.integration.test.ts`
 asserts from the real `EXPLAIN` plan that the claim pulls O(1) tuples from `idx_fetch_queue_priority` when
 nothing is promoted. `FOOD_DRAIN_CLAIM_P95_MS` exists for exploration; **raising it changes the reported
 number, not the drain rate.**
+
+### 🔴 Finding 3 (SC-007), OPEN: `narrow` and `phrase` breach the 200ms budget on CI hardware
+
+Finding 1 said to "treat SC-007 as AT RISK … and as unvalidated on deployed hardware". That has now been
+measured, and two shapes are over budget on the CI runner — not the `short` shape Finding 1 was about, which
+T-198 fixed and which now measures 51.66ms.
+
+| Shape    | workstation (3 runs) | CI 31323016643 | CI 31451273786 | CI 31451860784 |
+| -------- | -------------------- | -------------- | -------------- | -------------- |
+| `narrow` | 105.07 / 68.2 / 68.4 | 196.73 ✓       | 258.74 ✗       | 253.10 ✗       |
+| `phrase` | 130.89 / 52.6 / 52.1 | 152.41 ✓       | 185.20 ✓       | 206.29 ✗       |
+
+Read together with the drain-claim numbers above, this is the SAME lesson twice: CI measures ~2.5–3.8×
+slower than the workstation these budgets were validated on, so a shape that lands at 68ms locally lands at
+~200–255ms there. `narrow` passed its first CI run by 1.7% and has failed both since; `phrase` has now
+crossed as well. This is a MARGINAL BUDGET, not a flake — the distributions barely move run to run
+(`narrow` avg 145.6 → 156.4 → 154.2ms), only the p95 tail crosses.
+
+**Not attributable to the T-197/T-201 drain work**: nothing in those changes touches `FoodSearchDao`, the
+search indexes, or the fixture, and the drain claim runs in a separate process after the k6 scripts.
+
+**What must NOT be done about it:** raise `SEARCH_P95_MS`. The 200ms comes from SC-007 verbatim, and
+widening it changes the reported number rather than the latency — the same rule that governs
+`FOOD_DRAIN_CLAIM_P95_MS`. The fix belongs in the search path, and per T-198 any change to which rows match
+(or their order) needs a product call rather than a DAO edit. `narrow` is a 3-lexeme AND plus a long `ILIKE`
+pattern, so the index intersection and the per-row `GREATEST(ts_rank, similarity(…))` ranking over every
+matched row are where the time goes; the candidate that changes no semantics is to stop ranking rows that
+cannot reach the `LIMIT 20`.
+
+**Consequence while it is open:** the `Load test (food — k6)` job is RED, and it fails at the search step —
+which is why both drain-claim steps now carry `if: ${{ !cancelled() }}` (see `_ci-heavy.yml`). Without that,
+a search breach silently skipped the FR-046 probe and the run reported no drain number at all.
 
 ## CI
 

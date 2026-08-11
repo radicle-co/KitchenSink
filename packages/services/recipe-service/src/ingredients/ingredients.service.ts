@@ -45,6 +45,7 @@ import { FoodCatalogGateway } from './food-catalog.gateway.js';
 import { FoodServiceClients } from './food-service-clients.factory.js';
 import { blendIngredientSuggestions } from './ingredient-suggestion.js';
 import type { IngredientSuggestions } from './ingredient-suggestion.js';
+import type { IngredientCandidate } from './ingredients.schema.js';
 import { foodNotAdmissible, ingredientNotFound } from '../recipes/recipe.error.js';
 
 /**
@@ -131,6 +132,32 @@ export function extractNutrition(food: FoodView): IngredientNutrition {
         proteinGPer100g: nutrientPer100g(n, (name) => name.includes('protein')),
         carbsGPer100g: nutrientPer100g(n, (name) => name.includes('carbohydrate')),
         fatGPer100g: nutrientPer100g(n, (name) => name.includes('lipid') || name.includes('fat')),
+    };
+}
+
+/**
+ * Map the food service's `CandidateView` onto the RECIPE API's own candidate shape.
+ *
+ * This one-line adapter is the whole point of the ownership decision recorded in `ingredients.schema.ts`: the
+ * recipe API's public response body is `IngredientCandidate`, which recipe owns, and `CandidateView` is an
+ * implementation detail of how recipe happens to obtain it. Before this, the controller returned
+ * `readonly CandidateView[]` — so ANOTHER SERVICE'S CLIENT LIBRARY defined this endpoint's contract, and the
+ * recipe client had to re-declare the shape to avoid depending on it.
+ *
+ * It is written field-by-field rather than as a pass-through cast on purpose: a field FOOD adds does not
+ * silently become part of RECIPE's contract, and a field food REMOVES is a compile error here — at the seam
+ * that has to decide what to do about it — rather than a silently-missing key on the wire.
+ *
+ * @param view - The food service's candidate view.
+ * @returns The recipe API's candidate shape. Pure.
+ */
+function toIngredientCandidate(view: CandidateView): IngredientCandidate {
+    return {
+        candidateId: view.candidateId,
+        source: view.source,
+        externalKey: view.externalKey,
+        name: view.name,
+        summary: view.summary,
     };
 }
 
@@ -407,7 +434,7 @@ export class IngredientsService {
      * @throws {RecipeError} `RECIPE_NOT_FOUND` (→ 404) when no such ingredient exists.
      * @sideEffect Calls the food service.
      */
-    public async getCandidates(caller: CallerToken | undefined, id: string): Promise<readonly CandidateView[]> {
+    public async getCandidates(caller: CallerToken | undefined, id: string): Promise<readonly IngredientCandidate[]> {
         const ingredient = await this.requireIngredient(id);
 
         if (ingredient.foodId === undefined) {
@@ -416,7 +443,7 @@ export class IngredientsService {
 
         const result = await this.foodClients.standard(caller).getCandidates(ingredient.foodId);
 
-        return result.candidates;
+        return result.candidates.map(toIngredientCandidate);
     }
 
     /**

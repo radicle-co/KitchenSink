@@ -78,6 +78,10 @@ import type {
     UploadUrlResponse,
 } from './types.js';
 
+// Runtime schemas from the GENERATED contract — the same zod the service validates with, so these two
+// boundaries are now CHECKED rather than trusted. See CODING_STANDARDS §15.2.
+import { ingredientCandidatesResponseSchema, ingredientSuggestionsResponseSchema } from '@kitchensink/schema-recipe';
+
 /**
  * The `Collection` response schema, WIDENED (W5 Task 5) from `@kitchensink/recipe-core`'s `collectionSchema`
  * with the recipe service's response-only pull-provenance fields (`./types.js`'s local `Collection`). This
@@ -460,7 +464,7 @@ export class RecipeServiceClient {
     public async suggestIngredients(query: string, limit?: number): Promise<IngredientSuggestions> {
         const res = await this.send('GET', '/api/v1/ingredients/suggest', undefined, { q: query, limit });
 
-        return this.expectUnvalidated<IngredientSuggestions>(res, 200);
+        return this.expect(res, 200, ingredientSuggestionsResponseSchema);
     }
 
     /**
@@ -550,7 +554,7 @@ export class RecipeServiceClient {
     public async getIngredientCandidates(id: string): Promise<readonly IngredientCandidate[]> {
         const res = await this.send('GET', `/api/v1/ingredients/${encodeURIComponent(id)}/candidates`);
 
-        return this.expectUnvalidated<readonly IngredientCandidate[]>(res, 200);
+        return this.expect(res, 200, ingredientCandidatesResponseSchema);
     }
 
     /**

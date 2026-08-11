@@ -67,13 +67,11 @@ const RESPONSES_WITHOUT_SCHEMA: readonly string[] = [
     'createCollection 201',
     'exportAccount 200',
     'getCollectionById 200',
-    'getIngredientCandidates 200',
     'listCollections 200',
     'previewPullFromSource 200',
     'pullCollectionFromSource 200',
     'requestAccountErasure 202',
     'requestServiceErasure 202',
-    'suggestIngredients 200',
     'updateCollection 200',
 ];
 

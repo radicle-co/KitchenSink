@@ -22,16 +22,23 @@
  * section that follows it. That is a structural, not cosmetic, choice — it removes the layout-shift class of
  * jank entirely, and it survives the catalog section being empty (F2 degradation) with no visible reflow.
  *
+ * WHERE THE WIRE TYPES LIVE. `CatalogAvailability`, `IngredientSuggestion` and the response envelope are
+ * AUTHORED as zod in `ingredients.schema.ts` and re-exported here, so the shape this reduction produces and the
+ * shape `@kitchensink/schema-recipe` publishes cannot be two things. This file used to declare them, which made
+ * a pure helper the authority for a public response body — the same inversion `search.schema.ts` records
+ * fixing. `CatalogHit` and `BlendSuggestionsInput` stay here: they are this function's INPUT, never on the
+ * wire.
+ *
  * @implements FR-007 FR-007a
  */
 import type { Ingredient } from '@kitchensink/recipe-core';
 
-/**
- * Whether the food-service catalog contributed to a blend, and if not, why (F2). Distinct kinds because the
- * caller renders them differently: `unavailable` is a transient degradation worth telling the user about,
- * `disabled` is an operator decision that must NOT surface as an error.
- */
-export type CatalogAvailability = 'ok' | 'unavailable' | 'disabled';
+export type {
+    CatalogAvailability,
+    IngredientSuggestion,
+    IngredientSuggestionsResponse as IngredientSuggestions,
+} from './ingredients.schema.js';
+import type { IngredientSuggestion } from './ingredients.schema.js';
 
 /** One food-service catalog hit, normalized (non-null trimmed name) for the blend. */
 export interface CatalogHit {
@@ -41,36 +48,6 @@ export interface CatalogHit {
     readonly name: string;
     /** food-service's relevance score (higher is better). */
     readonly score: number;
-}
-
-/**
- * One blended typeahead suggestion. Discriminated on `provenance` so a consumer renders it with an
- * exhaustive `switch` and can never treat a not-yet-admitted catalog hit as a pickable ingredient row.
- */
-export type IngredientSuggestion =
-    | {
-          /** A real `ingredients` row — pickable as-is. */
-          readonly provenance: 'local';
-          /** The catalog row, with any nutrition it already carries. */
-          readonly ingredient: Ingredient;
-      }
-    | {
-          /** A food-service golden record with no `ingredients` row yet — must be admitted on pick. */
-          readonly provenance: 'catalog';
-          /** The opaque `food_id` to admit via `POST /api/v1/ingredients/by-food`. */
-          readonly foodId: string;
-          /** The golden display name. */
-          readonly name: string;
-          /** food-service's relevance score. */
-          readonly score: number;
-      };
-
-/** The `GET /api/v1/ingredients/suggest` response envelope. */
-export interface IngredientSuggestions {
-    /** The blended, deduped, sectioned suggestions (local section first). */
-    readonly suggestions: readonly IngredientSuggestion[];
-    /** Whether the food catalog contributed (F2) — lets the picker say so instead of silently showing less. */
-    readonly catalogAvailability: CatalogAvailability;
 }
 
 /** The facts {@link blendIngredientSuggestions} reduces into one sectioned, deduped suggestion list. */

@@ -12,11 +12,30 @@
  */
 import type { RecipeSearchFacets } from '@kitchensink/schema-recipe';
 
-// The search wire shapes now live in the GENERATED contract. Re-exported here so modules that already
-// import them from `./types.js` keep working, and so there is exactly ONE declaration behind both paths.
+// The search and ingredient wire shapes now live in the GENERATED contract. Re-exported here so modules that
+// already import them from `./types.js` keep working, and so there is exactly ONE declaration behind both
+// paths. NOTHING below is re-declared: where a name here differs from the contract's, it is an ALIAS of the
+// contract type, never a second definition (§15 Rule 1).
 export type { RecipeSearchFacets, RecipeSearchResponse } from '@kitchensink/schema-recipe';
 
-import type { Collection as CoreCollection, Ingredient, Recipe, RecipeVisibility } from '@kitchensink/recipe-core';
+export type { AddIngredientByFoodRequest, IngredientCandidate } from '@kitchensink/schema-recipe';
+// Imported (not merely re-exported) because `IngredientSuggestionProvenance` below is DERIVED from it, and a
+// re-export does not bring a name into this module's scope.
+import type { IngredientSuggestion } from '@kitchensink/schema-recipe';
+
+export type { IngredientSuggestion } from '@kitchensink/schema-recipe';
+
+/**
+ * Whether the food catalog contributed to a blend (F2). ALIAS of the contract's `CatalogAvailability` — the
+ * client-side name is kept because 25 export sites and 5 consumer files use it, and renaming it would be a
+ * breaking change to this package's public surface for no gain.
+ */
+export type { CatalogAvailability as IngredientCatalogAvailability } from '@kitchensink/schema-recipe';
+
+/** Response envelope of `suggestIngredients`. ALIAS of the contract's `IngredientSuggestionsResponse`. */
+export type { IngredientSuggestionsResponse as IngredientSuggestions } from '@kitchensink/schema-recipe';
+
+import type { Collection as CoreCollection, Recipe, RecipeVisibility } from '@kitchensink/recipe-core';
 
 /** Sort key for `listRecipes` (`GET /api/v1/recipes`). */
 export type RecipeListSortBy = 'updatedAt' | 'createdAt' | 'title';
@@ -35,83 +54,17 @@ export interface ListCollectionsParams {
 }
 
 /**
- * A single cross-source disambiguation candidate for an `UNRESOLVED` ingredient (response item of
- * `getIngredientCandidates` — `GET /api/v1/ingredients/{id}/candidates`). Mirrors the food client's
- * `CandidateView` but is declared here so the recipe client never depends on `@kitchensink/food-service-client`.
- * Source-agnostic: keyed by the candidate's own opaque handle, never a USDA `fdcId`.
- */
-export interface IngredientCandidate {
-    /** The candidate row id — the handle passed back to `resolveIngredient`. */
-    readonly candidateId: string;
-    /** The source the candidate came from (e.g. `usda`). */
-    readonly source: string;
-    /** That source's opaque key for the item (NOT a user-facing identifier). */
-    readonly externalKey: string;
-    /** Candidate display name. */
-    readonly name: string;
-    /** One-line disambiguation hint, when present. */
-    readonly summary: string | null;
-}
-
-/**
  * Where a blended typeahead suggestion came from (`GET /api/v1/ingredients/suggest`, search Stage 2).
  *
  *  - `local` — a real `ingredients` catalog row. Pickable as-is: its `id` is a valid recipe-line
  *    `ingredientId`, and it carries whatever nutrition the row already has.
  *  - `catalog` — a food-service golden record with **no `ingredients` row yet**. It has NO ingredient id and
  *    NO nutrition; picking it must first ADMIT it via `addIngredientByFood`.
- */
-export type IngredientSuggestionProvenance = 'local' | 'catalog';
-
-/**
- * One blended ingredient-typeahead suggestion (response item of `suggestIngredients` —
- * `GET /api/v1/ingredients/suggest`). A DISCRIMINATED UNION rather than a widened `Ingredient`, because the two
- * kinds are structurally different and only one of them is pickable without a round-trip: collapsing them
- * would force a fabricated ingredient id onto a catalog hit, which ends as a foreign-key violation or a
- * nutrition-less recipe line. Narrow on `provenance` before using a suggestion.
- */
-export type IngredientSuggestion =
-    | {
-          readonly provenance: 'local';
-          /** The catalog row, with any nutrition it already carries. */
-          readonly ingredient: Ingredient;
-      }
-    | {
-          readonly provenance: 'catalog';
-          /** The opaque food-service id to pass to `addIngredientByFood`. Never a source-native key. */
-          readonly foodId: string;
-          /** The golden display name. */
-          readonly name: string;
-          /** Relevance score from the food catalog (higher is better). */
-          readonly score: number;
-      };
-
-/**
- * Whether the food catalog contributed to a blend (F2). Three states, not a boolean, because a consumer
- * renders each differently: `unavailable` is a transient degradation worth telling the user about, whereas
- * `disabled` is an operator switching the blend off and must NEVER surface as an error.
- */
-export type IngredientCatalogAvailability = 'ok' | 'unavailable' | 'disabled';
-
-/**
- * Response envelope of `suggestIngredients` (`GET /api/v1/ingredients/suggest`).
  *
- * Sectioned, not interleaved: every `local` suggestion precedes every `catalog` one, and that order is
- * stable. Consumers should render them as two labeled sections — the fast familiar list never reorders when
- * the catalog section appears or vanishes, which removes the layout-shift class of typeahead jank.
+ * DERIVED from the contract's discriminated union rather than declared, so it cannot drift from the values the
+ * service actually sends — the same pattern as `RecipeSearchFacetCounts` below.
  */
-export interface IngredientSuggestions {
-    /** The blended, deduped suggestions — local section first. */
-    readonly suggestions: readonly IngredientSuggestion[];
-    /** Whether the food catalog contributed; drives the picker's degraded-catalog notice. */
-    readonly catalogAvailability: IngredientCatalogAvailability;
-}
-
-/** Request body for `addIngredientByFood` (`POST /api/v1/ingredients/by-food`). */
-export interface AddIngredientByFoodRequest {
-    /** The opaque food-service id taken from a `catalog` suggestion. */
-    readonly foodId: string;
-}
+export type IngredientSuggestionProvenance = IngredientSuggestion['provenance'];
 
 /** Request body for `createPhotoUploadUrl` (`POST /api/v1/recipes/{id}/photos/upload-url`). */
 export interface PhotoUploadUrlRequest {

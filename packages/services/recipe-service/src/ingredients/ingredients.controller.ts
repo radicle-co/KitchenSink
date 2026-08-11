@@ -6,8 +6,10 @@
  * absent (route escaped auth) — here it is used PURELY as an authentication assertion: the shared
  * `ingredients` catalog is intentionally ownerless (data-model R5), so no endpoint keys on the caller, but
  * every one still proves the caller is authenticated exactly the way the sibling controllers (recipes,
- * ratings, account) do. Bodies are validated by class-validator DTOs under the same controller-scoped
- * `ValidationPipe` (`transform + whitelist`) the siblings use, so a stray/spoofed field is stripped:
+ * ratings, account) do. Bodies are validated by the controller-scoped `ZodValidationPipe` against the DTOs in
+ * `dto/`, which ARE the authored wire contract (`ingredients.schema.ts`) rather than a second set of
+ * `class-validator` rules beside it — CODING_STANDARDS §15.2. Unknown keys are stripped, so a stray/spoofed
+ * field never reaches the service:
  *
  *   - `GET /api/v1/ingredients/search?q=&limit=` — fuzzy + full-text autocomplete over the shared catalog
  *     (`200` → `Ingredient[]`). A missing/blank `q` is a `400`.
@@ -29,7 +31,9 @@
  *     read from the caller's view (idempotent, convergent) and carries the generous read limit so a
  *     client polling a `PENDING` food is never throttled into a false failure mid-resolution.
  *   - `GET /api/v1/ingredients/{id}/candidates` — the disambiguation candidate set for an `UNRESOLVED`
- *     food-backed ingredient (`200` → `Candidate[]`; empty for a freeform or non-`UNRESOLVED` row).
+ *     food-backed ingredient (`200` → `IngredientCandidate[]`, RECIPE's own wire shape — see
+ *     `ingredients.schema.ts` for why this endpoint no longer returns the food client's `CandidateView`;
+ *     empty for a freeform or non-`UNRESOLVED` row).
  *   - `POST /api/v1/ingredients/{id}/resolve` `{ candidateIds }` — resolve an `UNRESOLVED` ingredient from a
  *     candidate pick, then re-poll so the newly-`RESOLVED` nutrition is persisted (`200` → `Ingredient`).
  *     A missing/empty/oversized `candidateIds` is a `400`; a missing ingredient is a `404`.
@@ -58,16 +62,16 @@ import {
     Post,
     Query,
     UsePipes,
-    ValidationPipe,
 } from '@nestjs/common';
+import { ZodValidationPipe } from 'nestjs-zod';
 import type { Ingredient } from '@kitchensink/recipe-core';
-import type { CandidateView } from '@kitchensink/food-service-client';
 
 import { CallerBearerToken } from '../auth/caller-token.decorator.js';
 import type { CallerToken } from '../auth/caller-token.js';
 import { OwnerId } from '../auth/current-principal.decorator.js';
 import { IngredientsService } from './ingredients.service.js';
 import type { IngredientSuggestions } from './ingredient-suggestion.js';
+import type { IngredientCandidate } from './ingredients.schema.js';
 import { AddIngredientByFoodDto } from './dto/add-ingredient-by-food.dto.js';
 import { CreateIngredientDto } from './dto/create-ingredient.dto.js';
 import { ResolveIngredientDto } from './dto/resolve-ingredient.dto.js';
@@ -93,7 +97,7 @@ function parseLimit(raw: string | undefined): number | undefined {
 // webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
 // inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
 @Controller(['api/v1/ingredients', 'v1/ingredients'])
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
+@UsePipes(ZodValidationPipe)
 export class IngredientsController {
     public constructor(private readonly ingredients: IngredientsService) {}
 
@@ -282,7 +286,7 @@ export class IngredientsController {
         @OwnerId() _ownerId: string,
         @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
-    ): Promise<readonly CandidateView[]> {
+    ): Promise<readonly IngredientCandidate[]> {
         return this.ingredients.getCandidates(caller, id);
     }
 

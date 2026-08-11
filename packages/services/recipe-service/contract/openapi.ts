@@ -70,6 +70,13 @@ import {
 
 import { healthStatusSchema, healthUnavailableSchema } from '../src/health/health.schema.js';
 import {
+    addIngredientByFoodRequestSchema,
+    createIngredientRequestSchema,
+    ingredientCandidatesResponseSchema,
+    ingredientSuggestionsResponseSchema,
+    resolveIngredientRequestSchema,
+} from '../src/ingredients/ingredients.schema.js';
+import {
     confirmPhotoRequestSchema,
     createPhotoUploadRequestSchema,
     photoUploadUrlResponseSchema,
@@ -103,6 +110,11 @@ const components = {
     ReorderPhotosRequest: reorderPhotosRequestSchema,
     Ingredient: ingredientSchema,
     IngredientList: z.array(ingredientSchema),
+    IngredientCandidateList: ingredientCandidatesResponseSchema,
+    IngredientSuggestions: ingredientSuggestionsResponseSchema,
+    CreateIngredientRequest: createIngredientRequestSchema,
+    AddIngredientByFoodRequest: addIngredientByFoodRequestSchema,
+    ResolveIngredientRequest: resolveIngredientRequestSchema,
     RecipeVersion: recipeVersionSchema,
     RecipeVersionList: z.array(recipeVersionSchema),
     RestoreVersionResponse: restoreVersionResponseSchema,
@@ -535,13 +547,13 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             operationId: 'suggestIngredients',
             summary: 'Blended typeahead over the local catalog and the food (ingredient) service.',
             description:
-                'RESPONSE BODY NOT YET DESCRIBED. `IngredientSuggestions` is a discriminated union with no authored `*.schema.ts` on either side — it is one of the boundaries the typed client validates with `expectUnvalidated`. See §15.2.5.',
+                'Sectioned, never interleaved: every `local` suggestion precedes every `catalog` one, so the familiar list does not reorder when the catalog section appears or vanishes. A `catalog` hit has no ingredient id and must be admitted via `by-food` before it can go on a recipe line — narrow on `provenance`.',
             parameters: [
                 { name: 'q', in: 'query', required: true, description: 'The search term.', schema: z.string().min(1) },
                 { name: 'limit', in: 'query', description: 'Maximum results.', schema: z.number().int().positive() },
             ],
             responses: {
-                '200': { description: 'Blended suggestions, local section first.' },
+                '200': { description: 'Blended suggestions, local section first.', schema: 'IngredientSuggestions' },
                 ...sharedErrorResponses(),
             },
         },
@@ -550,7 +562,7 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         post: {
             operationId: 'createIngredient',
             summary: 'Create a user-entered ingredient.',
-            description: 'REQUEST BODY NOT YET DESCRIBED — no authored schema for `{ name }` exists.',
+            requestBody: { description: 'The ingredient name.', required: true, schema: 'CreateIngredientRequest' },
             responses: {
                 '201': { description: 'The created ingredient.', schema: 'Ingredient' },
                 ...sharedErrorResponses(),
@@ -561,7 +573,9 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         post: {
             operationId: 'addIngredientByName',
             summary: 'Admit an ingredient by name, resolving it against the food catalog asynchronously.',
-            description: 'REQUEST BODY NOT YET DESCRIBED — no authored schema for `{ name }` exists.',
+            description:
+                'Returns `202`, not `201`: the row is created synchronously but nutrition resolution is not, so the caller polls `GET …/{id}/status`.',
+            requestBody: { description: 'The ingredient name.', required: true, schema: 'CreateIngredientRequest' },
             responses: {
                 '202': { description: 'Accepted; resolution continues in the background.', schema: 'Ingredient' },
                 ...sharedErrorResponses(),
@@ -572,7 +586,11 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         post: {
             operationId: 'addIngredientByFood',
             summary: 'Admit a food-catalog golden record as a local ingredient row.',
-            description: 'REQUEST BODY NOT YET DESCRIBED — no authored schema for `{ foodId }` exists.',
+            requestBody: {
+                description: 'The opaque food id from a `catalog` suggestion.',
+                required: true,
+                schema: 'AddIngredientByFoodRequest',
+            },
             responses: {
                 '200': { description: 'The admitted ingredient.', schema: 'Ingredient' },
                 ...sharedErrorResponses(),
@@ -596,10 +614,13 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             operationId: 'getIngredientCandidates',
             summary: 'List cross-source disambiguation candidates for an unresolved ingredient.',
             description:
-                'RESPONSE BODY NOT YET DESCRIBED, and the reason is an OWNERSHIP question, not an oversight: the body is the food service’s `CandidateView`. Whose contract owns it is recorded as an open decision — see the note in `contract/generate.ts`.',
+                'The body is RECIPE’s own `IngredientCandidate`, mapped at the gateway from the food service’s `CandidateView` — see `src/ingredients/ingredients.schema.ts` for that ownership decision and its accepted consequences. Source-agnostic: keyed by the candidate’s opaque handle, never a USDA `fdcId`.',
             parameters: [uuidPathParam('id', 'The ingredient id.')],
             responses: {
-                '200': { description: 'The candidates, or an empty array when the ingredient has no food id.' },
+                '200': {
+                    description: 'The candidates, or an empty array when the ingredient has no food id.',
+                    schema: 'IngredientCandidateList',
+                },
                 '404': { description: 'No such ingredient.', schema: 'ErrorResponse' },
                 ...sharedErrorResponses(),
             },
@@ -609,7 +630,11 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         post: {
             operationId: 'resolveIngredient',
             summary: 'Resolve an unresolved ingredient by picking one or more candidates.',
-            description: 'REQUEST BODY NOT YET DESCRIBED — no authored schema for `{ candidateIds }` exists.',
+            requestBody: {
+                description: 'The candidate handles to resolve against (1..20).',
+                required: true,
+                schema: 'ResolveIngredientRequest',
+            },
             parameters: [uuidPathParam('id', 'The ingredient id.')],
             responses: {
                 '200': { description: 'The resolved ingredient.', schema: 'Ingredient' },

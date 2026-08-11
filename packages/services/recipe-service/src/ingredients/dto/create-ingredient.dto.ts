@@ -1,25 +1,16 @@
 /**
- * T029 — request DTO for `POST /api/v1/ingredients` and `POST /api/v1/ingredients/by-name`, mirroring the
- * `CreateIngredientRequest` schema in `contracts/api.openapi.yaml`.
+ * Request DTO for `POST /api/v1/ingredients` and `POST /api/v1/ingredients/by-name`.
  *
- * Both routes take the SAME body — a single display `name` — so they share one DTO (one piece of
- * knowledge, one place to change). The name is trimmed by `@Transform` BEFORE validation, so a
- * whitespace-only name fails `@IsNotEmpty` (→ 400) and the length bound is measured on the trimmed value,
- * exactly as the previous hand-rolled `requireName` did — but now under the same controller-scoped
- * `ValidationPipe` (`transform + whitelist`) every sibling controller uses, so a stray body field is
- * stripped rather than trusted. The trimmed value on the instance is what reaches the service.
+ * A thin `nestjs-zod` adapter over the AUTHORED contract in `../ingredients.schema.ts`
+ * (CODING_STANDARDS §15.2), so the shape the pipe enforces and the shape `@kitchensink/schema-recipe`
+ * publishes are one object. The name is trimmed BEFORE the length bound is applied, so `'  '` is a `400`
+ * rather than an ingredient literally named two spaces.
  */
-import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
 
-/** Max length of a freeform/food display name (mirrors the OpenAPI `CreateIngredientRequest.name`). */
-export const MAX_INGREDIENT_NAME_LENGTH = 120;
+import { createIngredientRequestSchema } from '../ingredients.schema.js';
 
 /** Body of `POST /api/v1/ingredients` and `POST /api/v1/ingredients/by-name`. */
-export class CreateIngredientDto {
-    @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-    @IsString()
-    @IsNotEmpty()
-    @MaxLength(MAX_INGREDIENT_NAME_LENGTH)
-    name!: string;
-}
+export class CreateIngredientDto extends createZodDto(createIngredientRequestSchema) {}
+
+export { MAX_INGREDIENT_NAME_LENGTH } from '../ingredients.schema.js';

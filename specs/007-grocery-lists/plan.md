@@ -96,6 +96,64 @@ interface IngredientAggregator {
 
 ## 3. API Contracts
 
+### 3.0 Contract ownership and drift (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
+
+🟠 **OPEN — which service owns `/api/v1/grocery-lists/*`?** This plan does not say, and it is not derivable
+from §15 or any existing ADR. **Question for the owner: `@kitchensink/recipe-service`, or a new
+`@kitchensink/grocery-service`?** The answer picks the schema package name, so nothing below names it. **The
+obligation binds whichever service ends up owning the paths.**
+
+**The owning service MUST** author every grocery-list, item, pantry-flag and order request/response shape as
+**zod in that service** at `src/**/*.schema.ts` beside its controller; **validate its own requests with that
+same zod** via `nestjs-zod`'s `createZodDto`; generate and commit `packages/schemas/<service>` exporting the
+zod, `z.infer` types, `contract-hash.ts`, a barrel and a **derived** `openapi.yaml` (outbound only — never a
+codegen input); and keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts` files**.
+
+**Every client MUST** — separately mandatory, because mandating only the service half is exactly how the
+client half got skipped portfolio-wide:
+
+- Import its wire **types and zod** from that service's schema package, and **declare no grocery-list request
+  or response body type of its own** — including in `@commise/web`, `@commise/mobile` and feature packages
+  (GR-015 §15-b.4).
+- **Derive** any divergent consumer shape with `Pick` / `Omit` / `Partial`. The check-off list view model and
+  the aisle-grouped projection are derivations of the item wire type, never parallel interfaces. Reference:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **007 is also a CLIENT of our other services**, bound identically: recipe/ingredient reads via
+  `@kitchensink/recipe-service-client` → `@kitchensink/schema-recipe`, and food data via
+  `@kitchensink/food-service-client` → `@kitchensink/schema-food`. 007 declares no 001 or 003 wire type.
+- **A new endpoint is not complete until its types are reachable from the schema package.**
+
+**Drift gates** — inherited from GR-015 §15-c, all three required: turbo `inputs` rebuild, the
+regenerate-and-diff CI gate, and the `CONTRACT_HASH` boot assertion.
+
+⚠️ **`storeMapping` is NOT a wire type we may invent from a retailer's shape.** The `storeMapping` field and
+the `status` enum in the response below are **ours** — 007 authors them as zod in the owning service. What
+comes back from the retailer is not.
+
+### ⛔ THE EXCEPTION — Walmart and Instacart are third-party APIs. NEVER converge them. (GR-015 §15-d)
+
+**We do not serve the retailer APIs.** There is no service of ours to own their types, and their contracts
+change without telling us. So §5 _Store Integration_'s adapters are governed by §15-d, not §15-b:
+
+- The **Walmart adapter** and the **Instacart adapter** MUST **validate the raw upstream wire shape at the
+  boundary with zod**, the moment a body arrives — product/SKU lookups, cart creation, order placement, and
+  order-status polling alike.
+- Those adapters **MAY declare their own types**, and the normalized shape they hand back (our `storeMapping`,
+  our `status` enum) **deliberately differs** from the raw retailer payload. That difference is the
+  normalization, not drift.
+- **No OpenAPI document is written for Walmart or Instacart**, and their shapes are **not** folded into our
+  schema package as though we owned them. Instacart's `/idp/api/v1/products/*` is likewise **exempt from
+  GR-002** — it is their URL, not ours.
+- `packages/clients/usda` is the reference implementation; its `schemas.ts` must never be "converged".
+- **Deleting a retailer boundary schema under §15-b is a security regression**, not a cleanup: this path
+  spends real money on a user's behalf, and the parse is what stands between a retailer's JSON and an order
+  request. Order-status polling is the sharpest case — an unvalidated status string decides whether we tell a
+  user their groceries are coming.
+
 ### Endpoints
 
 | Method | Path                                               | Auth     | Description                     |

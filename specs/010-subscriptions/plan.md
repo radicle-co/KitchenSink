@@ -100,6 +100,69 @@ CREATE INDEX idx_accounts_stripe_subscription_id ON accounts(stripe_subscription
 
 ## 3. API Contracts
 
+### 3.0 Contract ownership and drift (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
+
+**010 straddles the rule, and getting the two halves backwards here is expensive.** `/api/v1/billing/*` is
+**ours** (§15-b: converge it). **Stripe is not** (§15-d: never converge it). The webhook endpoint has one of
+each in the same request: the **inbound body is Stripe's**, the **response is ours**.
+
+🟠 **OPEN — which service owns `/api/v1/billing/*`?** §5 _Module Structure_ shows a `src/billing/` module
+alongside `auth/jwt-auth.guard.ts` "from 002", which reads like it lands **inside the identity service**, but
+this plan never says so and no ADR decides it. **Question for the owner: does billing live in
+`@kitchensink/identity-service`, or in a new `@kitchensink/billing-service`?** The answer picks the schema
+package (`@kitchensink/schema-identity` vs a new `@kitchensink/schema-billing`), so nothing below names it. It
+also decides where `@RequirePremium()` / `PlanGuard` live relative to every gated feature. **The contract
+obligation binds whichever service ends up owning the paths.**
+
+**The owning service MUST** author every checkout, portal, and subscription-status request/response shape — and
+the webhook endpoint's own response — as **zod in that service** at `src/**/*.schema.ts` beside its controller;
+**validate its own requests with that same zod** via `nestjs-zod`'s `createZodDto`; generate and commit
+`packages/schemas/<service>` exporting the zod, `z.infer` types, `contract-hash.ts`, a barrel and a **derived**
+`openapi.yaml` (outbound only — never a codegen input); and keep every `*.schema.ts` importing **only `zod` and
+other `*.schema.ts` files** — notably **no Stripe SDK type**, since importing one would drag a third-party
+shape into a contract we publish.
+
+**Every client MUST** — separately mandatory:
+
+- Import its wire **types and zod** from that service's schema package, and **declare no billing request or
+  response body type of its own** — including in `@commise/web`, `@commise/mobile` and feature packages
+  (GR-015 §15-b.4).
+- **The `SubscriptionStatus` shape and the plan/entitlement enum are the load-bearing case.** Every gated
+  surface across 004, 007, 009, 012 and 013 branches on them. A client that re-declares that enum can drift
+  from the server by one member and **fail open** — showing a premium feature to a free user, or the reverse —
+  with `typecheck` green. It is imported, never re-declared.
+- **Derive** any divergent consumer shape (a paywall banner model, a plan-comparison row) with
+  `Pick` / `Omit` / `Partial`. Reference: `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **A new billing endpoint is not complete until its types are reachable from the schema package.**
+
+**Drift gates** — inherited from GR-015 §15-c, all three required. The `CONTRACT_HASH` **boot assertion** is
+especially load-bearing here: a released **mobile binary** pinned to an older entitlement shape while the
+service moves ahead is exactly how a paywall silently misbehaves in production.
+
+### ⛔ THE EXCEPTION — Stripe is a third-party API. NEVER converge it. (GR-015 §15-d)
+
+**We do not serve Stripe's API.** There is no service of ours to own its types, and Stripe versions and evolves
+its own contract independently of us.
+
+- **The inbound webhook body is STRIPE's shape, not ours.** `checkout.session.completed`, `invoice.paid`,
+  `invoice.payment_failed`, `customer.subscription.updated` / `.deleted`, `trial_will_end` — each MUST be
+  **validated at the boundary** (after `@golevelup/nestjs-stripe`'s signature verification, which authenticates
+  the sender but does **not** guarantee the shape) before any field drives a `subscriptions` or
+  `webhook_events` write. Signature-verified is **not** the same as shape-verified.
+- Stripe's types (whether from `stripe`'s own SDK typings or a boundary zod schema) **stay on the Stripe side of
+  the adapter** and are **not** folded into our schema package as though we owned them. Only `/api/v1/billing/*`
+  request/response shapes are ours.
+- The adapter **MAY declare its own types**, and our normalized `SubscriptionStatus` **deliberately differs**
+  from Stripe's subscription object. That difference is the normalization, not drift.
+- **No OpenAPI document is written for Stripe.**
+- **Deleting a Stripe boundary schema under §15-b is a security and correctness regression**, not a cleanup:
+  this is the path that decides who has paid. `packages/clients/usda` is the reference implementation and its
+  `schemas.ts` must never be "converged".
+
 ### Billing Endpoints
 
 | Method | Path                           | Auth             | Description                                                |

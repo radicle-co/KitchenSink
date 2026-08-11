@@ -151,12 +151,62 @@ every added column is nullable or defaulted, so the migration is deployable ahea
 
 ## 3. API contract
 
-**Contract-first.** These endpoints are added **before** any handler is written, and the typed client
-`@kitchensink/recipe-service-client` is extended from the contract.
+**Contract-first, and the contract is zod in the recipe service** — authored **before** any handler is
+written. Normative sources: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
 
-> The recipe service has ONE OpenAPI document, at `specs/001-commise-recipe-app/contracts/api.openapi.yaml`
-> (service code refers to it relatively as `contracts/api.openapi.yaml`). 004 extends that document — one
-> service, one contract — rather than starting a second one under this feature's folder.
+> ⚠️ **Amended 2026-08-11 (GR-015).** This section previously said the typed client
+> `@kitchensink/recipe-service-client` "is extended from the contract", and named
+> `specs/001-commise-recipe-app/contracts/api.openapi.yaml` as the recipe service's one OpenAPI document that
+> 004 extends. **Both statements are superseded.** The authority is now the zod authored in the recipe service
+> at `src/**/*.schema.ts` and copied into `@kitchensink/schema-recipe`; the hand-written 001 document is
+> verified by nothing, is superseded in principle, and **must not be extended with 004's endpoints**. "One
+> service, one contract" still holds — the contract just moved to where it can be enforced. 004 adds no second
+> contract artifact and no schema package of its own.
+
+### 3.0 Contract ownership and drift (GR-015)
+
+| Role                                   | Binding for 004                                                                                                                 |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)   | `@kitchensink/recipe-service` — the import endpoints' `*.schema.ts` live beside the import controller                           |
+| Schema package (generated, committed)  | `@kitchensink/schema-recipe` — `packages/schemas/recipe` (**shared with 001; 004 adds to it, never forks it**)                  |
+| Consuming client                       | `@kitchensink/recipe-service-client`                                                                                            |
+| Consuming apps / feature packages      | `@commise/web`, `@commise/mobile`, `packages/apps/commise/features/*`                                                           |
+| 004 as a **client** of another (§15-b) | ingredient resolution via `@kitchensink/food-service-client` → imports `@kitchensink/schema-food`, declares no food wire shapes |
+
+**The service MUST**: author every import/job/draft request and response shape — and the admin
+paywalled-domain surface — as zod in the recipe service beside its controller; validate its own requests with
+that same zod via `nestjs-zod`'s `createZodDto`; regenerate `@kitchensink/schema-recipe` so the new shapes are
+exported; and keep those `*.schema.ts` files importing **only `zod` and other `*.schema.ts` files** (no
+extractor type, no Drizzle schema, no Nest symbol).
+
+**Every client MUST** — separately mandatory, and this is the half that got skipped portfolio-wide: import
+import-job, draft and error wire types **and zod** from `@kitchensink/schema-recipe`, and **declare none of
+its own**. The **draft-review UI is the load-bearing case**: a review screen's editable model is a
+**DERIVATION** of the draft wire type via `Pick` / `Omit` / `Partial`, never a hand-written parallel
+interface — and it must be derived once and shared, not re-typed on web and again on mobile. Reference:
+`packages/apps/commise/features/recipes/src/filters/model.ts`. **An import endpoint is not complete until its
+types are reachable from `@kitchensink/schema-recipe`**; "the review screen will add the type" is a contract
+fork, not a task.
+
+**Drift gates** — inherited from GR-015 §15-c, all three required: turbo `inputs` rebuild, the
+regenerate-and-diff CI gate, and the `CONTRACT_HASH` boot assertion.
+
+### ⚠️ Everything 004 IMPORTS FROM is a third-party surface (GR-015 §15-d)
+
+This feature's entire input side is untrusted external data, and none of it is a contract we own:
+
+- **Scraped web pages, schema.org / JSON-LD recipe blobs, Instagram oEmbed payloads, uploaded files, OCR
+  output.** A publisher's JSON-LD is not an API we serve; it is arbitrary, attacker-influenceable input.
+- Every extraction adapter therefore **validates the raw upstream shape at the boundary with zod** before any
+  field reaches a draft, and **MAY declare its own types**. The normalized draft shape deliberately differs
+  from whatever the page emitted — that difference is the normalization, not drift. This is what §0's
+  **Ports & Adapters** register entry already implies; §15-d makes it a requirement.
+- **No OpenAPI document is written for any upstream source**, and none of these shapes goes into
+  `@kitchensink/schema-recipe` as though we owned it. Only 004's **own** endpoints do.
+- `packages/clients/usda` is the reference implementation. **Do not "converge" a boundary schema away**: on
+  this feature it is the parse standing between a hostile page and the recipe write path.
 
 | Method | Path                                              | Auth        | Success | Notes                                   |
 | ------ | ------------------------------------------------- | ----------- | ------- | --------------------------------------- |

@@ -80,6 +80,61 @@ meal_plan_nutrition (
 
 ## 3. API Contracts
 
+### 3.0 Contract ownership and drift (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). This section states the
+bindings for this feature; the rule lives there and wins on any detail.
+
+🟠 **OPEN — which service owns `/api/v1/meal-plans/*`?** This plan does not say, and it is not derivable from
+§15 or any existing ADR. There is no meal-planning service package in `packages/services/`, and 006 does not
+declare one. **Question for the owner: does the meal-plan surface land in `@kitchensink/recipe-service`, or in
+a new `@kitchensink/meal-planning-service`?** The answer picks the schema package name
+(`@kitchensink/schema-recipe` vs a new `@kitchensink/schema-meal-planning`), so nothing below can name it.
+**The obligation itself does not wait on that answer** — it binds whichever service ends up owning the paths.
+
+**The owning service MUST**:
+
+- Author every meal-plan, entry, nutrition-summary and suggestion request/response shape as **zod in that
+  service** at `src/**/*.schema.ts`, beside the controller it serves.
+- **Validate its own requests with that same zod** via `nestjs-zod`'s `createZodDto` — not a separate
+  `class-validator` DTO that agrees with the schema by convention.
+- Generate and commit `packages/schemas/<service>` (`@kitchensink/schema-<service>`) exporting the zod,
+  `z.infer` types, `contract-hash.ts`, a barrel, and a **derived** `openapi.yaml` (outbound only — for
+  `oasdiff`, docs and integrators, **never a codegen input**).
+- Keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts` files**.
+
+**Every client MUST** — separately mandatory, because mandating only the service half is exactly how the
+client half got skipped portfolio-wide (276 + 144 lines of redeclared wire types survived behind green
+builds):
+
+- Import its wire **types and zod** from that service's schema package.
+- **Declare no meal-plan request or response body type of its own** — not in `packages/clients/*`, and not in
+  `@commise/web` / `@commise/mobile` / a feature package either (GR-015 §15-b.4).
+- **Derive** any divergent consumer shape with `Pick` / `Omit` / `Partial` over the wire type. The calendar
+  grid's per-slot view model is the obvious case here: it is a derivation of the entry wire type, never a
+  parallel interface. Reference: `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **006 is also a CLIENT of other services** and §15-b binds it there identically: nutrition data via
+  `@kitchensink/food-service-client` → `@kitchensink/schema-food`; recipe reads via
+  `@kitchensink/recipe-service-client` → `@kitchensink/schema-recipe`; AI suggestions via 005 →
+  `@kitchensink/schema-ai`. **006 declares no wire type belonging to 001, 003, 005 or 007.**
+- **A new endpoint is not complete until its types are reachable from the schema package.** "The calendar UI
+  will add the type" is a contract fork, not a task.
+
+**Drift gates** — inherited from GR-015 §15-c, all three required, not reinvented per feature: turbo
+`inputs`-driven rebuild, a **regenerate-and-diff CI gate** (the strong gate), and a `CONTRACT_HASH` **boot
+assertion** (the only layer that catches a deployed service running ahead of a released mobile binary).
+
+**⚠️ Third-party APIs (GR-015 §15-d).** 006 consumes no external API directly today. If one is added, it is
+the **opposite** case: we do not serve it, so its client **validates the raw upstream shape at the boundary
+with zod**, **may declare its own types**, and **gets no OpenAPI document**. `packages/clients/usda` is the
+reference implementation and its `schemas.ts` must never be "converged".
+
+> **Note on paths below**: the endpoint table still uses bare `/v1/*`. That is a **GR-002 violation** —
+> canonical is `/api/v1/*`, and GR-002's Current State records 006 as the last holdout. Fixing it is out of
+> scope for this GR-015 amendment but remains required before 006 merges.
+
 ### Endpoints
 
 | Method | Path                                      | Auth     | Description                           |

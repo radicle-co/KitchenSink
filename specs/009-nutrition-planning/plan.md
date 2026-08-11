@@ -117,6 +117,55 @@ interface MacroCalculator {
 
 ## 3. API Contracts
 
+### 3.0 Contract ownership and drift (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
+
+🟠 **OPEN — which service owns `/api/v1/nutrition-plans/*`?** This plan does not say, and it is not derivable
+from §15 or any existing ADR. **Question for the owner: `@kitchensink/recipe-service`, or a new
+`@kitchensink/nutrition-service`?** The answer picks the schema package name, so nothing below names it. **The
+obligation binds whichever service ends up owning the paths.**
+
+**The owning service MUST** author every nutrition-plan, target, link and compliance-report request/response
+shape as **zod in that service** at `src/**/*.schema.ts` beside its controller; **validate its own requests
+with that same zod** via `nestjs-zod`'s `createZodDto`; generate and commit `packages/schemas/<service>`
+exporting the zod, `z.infer` types, `contract-hash.ts`, a barrel and a **derived** `openapi.yaml` (outbound
+only — never a codegen input); and keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts`
+files**.
+
+**Every client MUST** — separately mandatory, because mandating only the service half is exactly how the client
+half got skipped portfolio-wide:
+
+- Import its wire **types and zod** from that service's schema package, and **declare no nutrition-plan request
+  or response body type of its own** — including in `@commise/web`, `@commise/mobile` and feature packages
+  (GR-015 §15-b.4).
+- **Derive** any divergent consumer shape with `Pick` / `Omit` / `Partial`. The macro-progress ring model and
+  the compliance chart's series model are derivations of the compliance-report wire type, never parallel
+  interfaces. Reference: `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **009 is also a CLIENT of our other services**, bound identically: nutrient data via
+  `@kitchensink/food-service-client` → `@kitchensink/schema-food`, recipe/meal-plan reads via their own
+  schema packages. 009 declares no 001, 003 or 006 wire type.
+- **A new endpoint is not complete until its types are reachable from the schema package.**
+
+**Drift gates** — inherited from GR-015 §15-c, all three required: turbo `inputs` rebuild, the
+regenerate-and-diff CI gate, and the `CONTRACT_HASH` boot assertion.
+
+⚠️ **This feature's wire shapes carry GDPR Article 9 special-category health data (§1, §4).** That raises the
+stakes on the client half specifically: a hand-written client type is a second, unreviewed description of what
+health fields cross the wire, and a data-minimization review of the service tells you nothing about it. Keeping
+one authored definition is what makes "only necessary fields" auditable in one place. A **redacted** or
+trainer-visible projection is a `Pick`/`Omit` **derivation** of the wire type — never a separately declared
+shape that could silently regain a field.
+
+**⚠️ Third-party APIs (GR-015 §15-d).** 009 consumes no external API directly today. If one is added (a
+wearable, fitness-tracker, or health-platform integration is the obvious candidate), it is the **opposite**
+case: we do not serve it, so its client **validates the raw upstream shape at the boundary with zod**, **may
+declare its own types**, and **gets no OpenAPI document**. On health data that boundary parse is a privacy
+control as well as a correctness one. `packages/clients/usda` is the reference implementation and its
+`schemas.ts` must never be "converged".
+
 ### Endpoints
 
 | Method | Path                                      | Auth     | Description                      |

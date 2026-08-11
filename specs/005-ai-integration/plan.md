@@ -211,6 +211,65 @@ All endpoints are served under `/api/v1/*` per [`docs/api-conventions.md`](../..
 (GR-002), via `app.setGlobalPrefix('api/v1', { exclude: ['health'] })`. `/health` stays unprefixed — ECS
 and ALB health checks target it.
 
+### 3.0 Contract ownership and drift (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). Bindings for this feature
+only; the rule lives there and wins on any detail.
+
+| Role                                  | Binding for 005                                                                                                                      |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Owning service (**authors** the zod)  | `@kitchensink/ai-service` — `packages/services/ai-service/src/**/*.schema.ts`, beside each controller                                |
+| Schema package (generated, committed) | `@kitchensink/schema-ai` — `packages/schemas/ai` — **new package, does not exist yet**                                               |
+| Consuming clients / apps              | `@commise/web`, `@commise/mobile`; `@kitchensink/ai-workers` for the intake/job shapes it shares with the service                    |
+| 005 as a **client** of others (§15-b) | `@kitchensink/recipe-service-client` → `@kitchensink/schema-recipe`; `@kitchensink/food-service-client` → `@kitchensink/schema-food` |
+
+**The service MUST**: author every BYOK, generation-intake, job-status, streaming-chunk and optimize-preview
+shape as zod in `ai-service` beside its controller; validate its own requests with that same zod via
+`nestjs-zod`'s `createZodDto`; generate and commit `@kitchensink/schema-ai`; derive `openapi.yaml` from the zod
+(outbound only — never a codegen input); and keep every `*.schema.ts` importing **only `zod` and other
+`*.schema.ts` files** — no Nest symbol, no Secrets Manager type, no provider SDK type.
+
+**Every client MUST** (separately mandatory): import its wire types **and** zod from `@kitchensink/schema-ai`
+and **declare no AI-service request or response shape of its own**. Two cases carry real risk here:
+
+- **The streaming surface.** `POST /api/v1/ai/generate/recipe/stream` emits partial objects then
+  `{ done: true }`. The **partial/chunk envelope is a wire shape** and belongs in the schema package —
+  hand-writing it in the web and mobile stream readers is how a chunk shape drifts on two platforms
+  independently. The zod for a partial is a `Partial`/`.partial()` **derivation** of the full shape, not a
+  second declaration.
+- **`ai-workers` is a consumer too.** It shares the job/intake envelope with `ai-service`; that envelope is
+  authored once as zod and imported, never re-declared per deployable.
+- A divergent consumer shape (a preview view model, a job-progress badge model) is **DERIVED** with
+  `Pick` / `Omit` / `Partial`. Reference: `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **A new AI endpoint is not complete until its types are reachable from `@kitchensink/schema-ai`.**
+
+**Drift gates** — inherited from GR-015 §15-c, all three: turbo `inputs` rebuild, regenerate-and-diff CI gate,
+`CONTRACT_HASH` boot assertion.
+
+### ⛔ 005's provider boundary is the SHARPEST third-party case in the portfolio (GR-015 §15-d)
+
+**Model output is untrusted input by this plan's own §1.2 security boundary.** Everything on the provider side
+is governed by §15-d, not §15-b:
+
+- **LLM provider responses** (via the Vercel AI SDK — Anthropic, OpenAI, and any other) and **structured
+  generation output** MUST be **validated at the boundary with zod** before any field is used, logged, or
+  persisted. We do not serve those APIs, cannot author their types, and they change without telling us.
+- **Clerk's OAuth 2.1 / dynamic-client-registration surface** (ADR-0012) is likewise third-party: validated at
+  the boundary, its shapes not folded into `@kitchensink/schema-ai`.
+- These clients **MAY declare their own types**, and the normalized shape we hand onward deliberately differs
+  from the raw provider payload.
+- **No OpenAPI document is written for a provider API we do not serve.**
+- **Converging these schemas away would delete the exact parse that keeps prompt-injected or malformed model
+  output from reaching `ai-service`'s Clerk-actor-token capability.** On this feature that is not a style
+  question — it is the control §1.2 is built on. `packages/clients/usda` is the reference pattern.
+
+⚠️ **Note the asymmetry, because it is easy to get backwards:** a generated recipe that 005 saves goes through
+`recipeServiceClient.createRecipe()`, whose shape **is** ours and **is** governed by §15-b (imported from
+`@kitchensink/schema-recipe`, never re-declared). The model's raw output on the way in is §15-d. Same request
+path, opposite rules.
+
 ### 3.1 BYOK key management (`ai-service`)
 
 | Method   | Path                             | Behaviour                                                                                                     |

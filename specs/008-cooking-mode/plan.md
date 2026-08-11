@@ -70,6 +70,58 @@ interface RecipeInstruction {
 
 ## 3. API Contracts
 
+### 3.0 Contract ownership and drift (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
+
+**008 is mostly a client feature, which makes the CLIENT half of GR-015 the whole of its obligation.** Cooking
+mode owns almost no new server surface: its one read endpoint belongs to 001's recipe service, and its session
+state is local. That is precisely the shape in which the client half gets skipped, so it is stated first.
+
+**Every client MUST** — separately mandatory:
+
+- Import the recipe instruction/step wire **types and zod** from **`@kitchensink/schema-recipe`** (via
+  `@kitchensink/recipe-service-client`) and **declare no recipe wire type of its own** — not in
+  `packages/shared/cooking`, not in `@commise/web`, not in `@commise/mobile` (GR-015 §15-b.4 binds shared and
+  app packages identically to `packages/clients/*`).
+- **`packages/shared/cooking` is the highest-risk site in this feature.** A shared "cooking step" interface
+  hand-written there would be a second representation of 001's step contract, imported by both platforms, and
+  it would drift silently — exactly the failure GR-015 exists to prevent. The cooking-mode step model is a
+  **DERIVATION** of the recipe step wire type via `Pick` / `Omit` / `Partial` (cooking mode needs
+  `text`, `durationMinutes`, ordering — not the whole recipe), **not a parallel declaration**. Reference:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- A per-step display model, a timer view model, and the wake-lock state are **genuinely client-side** and
+  belong to 008. Only shapes that cross the wire are governed by the schema package.
+
+**If 008 adds any server surface** — a persisted cooking session (§8 Session Resume), or the real-time step
+sync below — **the service half applies in full**: zod authored in the owning service at
+`src/**/*.schema.ts` beside its controller, requests validated with that same zod via `nestjs-zod`'s
+`createZodDto`, a generated and committed `packages/schemas/<service>` (zod + `z.infer` types +
+`contract-hash.ts` + barrel + a **derived**, outbound-only `openapi.yaml`), and `*.schema.ts` files importing
+**only `zod` and other `*.schema.ts` files**.
+
+🟠 **OPEN — is `CookingSessionEvent` a wire contract, and if so whose?** The WebSocket block below declares
+`CookingSessionEvent` inline in this plan. If multi-device sync ships, that event **crosses the wire between
+devices via a server** and is therefore a wire contract that must be authored as zod in the owning service and
+exported from its schema package — not declared in a plan document and re-typed on each platform. Two things
+are undetermined and neither is derivable from §15 or an existing ADR: **(a) which service owns the
+cooking-session/WebSocket surface** (§9 lists real-time sync as an open question at all), and **(b) whether
+GR-015's HTTP-shaped rule extends to a WebSocket event envelope**, since §15 is written for HTTP services.
+**Questions for the owner.** Until they are answered, `CookingSessionEvent` stays illustrative and MUST NOT be
+copied into a shared package as an authored type.
+
+**Drift gates** — inherited from GR-015 §15-c; 008 adds none of its own. The `CONTRACT_HASH` **boot assertion**
+is the layer that matters most to this feature, because cooking mode ships inside a **released mobile binary**
+that cannot be updated in step with a recipe-service deploy.
+
+**⚠️ Third-party APIs (GR-015 §15-d).** 008 consumes no external API. If one is added (a voice or
+speech-recognition provider for §5's voice navigation, say), it is the **opposite** case: we do not serve it,
+so its client **validates the raw upstream shape at the boundary with zod**, **may declare its own types**, and
+**gets no OpenAPI document**. `packages/clients/usda` is the reference implementation and its `schemas.ts` must
+never be "converged".
+
 ### Endpoints (from 001)
 
 | Method | Path                                | Auth     | Description                              |

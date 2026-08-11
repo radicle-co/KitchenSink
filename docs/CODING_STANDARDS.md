@@ -907,3 +907,74 @@ PR reviewers MUST verify:
    public API.
 4. No `.mobile.*` files introduced.
 5. `tasks.md` (if present) lists paired web + mobile tasks.
+
+---
+
+## 15. API Contracts — the service OWNS its wire types
+
+**The rule:** for every HTTP service in this repo, the **service** is the single authoritative source
+of its wire contract. That contract is expressed as an **OpenAPI document generated from the
+service's own DTOs**, and every client consumes **types the service owns**. A client package MUST NOT
+re-declare a request or response shape it does not own.
+
+### 15.1 Why this is a hard rule, not a preference
+
+A hand-written client type is a **second, independent representation of one piece of knowledge** — the
+wire contract — and it is the most expensive kind of duplication this codebase can carry, because the
+two copies drift _silently_ and the drift surfaces at the worst possible layer.
+
+Measured on 2026-08-11, before this section existed: `@kitchensink/recipe-service-client` declared 276
+lines of types and `@kitchensink/food-service-client` 144, and **neither imported anything from the
+service it speaks to**. No service had `@nestjs/swagger` installed; no service emitted OpenAPI. So a
+backend change that altered a response shape did not break any consumer's `typecheck` — the client
+went on asserting its own beliefs about the server. The only place the mismatch could surface was an
+end-to-end run against a live deployment: a **~50-minute Android emulator job** for mobile, or
+production.
+
+That is the failure this section exists to make structurally impossible. Contract drift must fail at
+**`typecheck`** (~1.6 minutes), not in e2e, and never in production.
+
+### 15.2 The required shape
+
+For each service, a **contract package** — `packages/contracts/<service>` (`@kitchensink/<service>-contract`) —
+is the single seam:
+
+1. **The service annotates its DTOs** with `@nestjs/swagger` decorators. The DTOs remain the source of
+   truth; nothing is authored twice.
+2. **The contract package exports the request/response types** the DTOs imply, plus the generated
+   `openapi.yaml`. It is a **leaf**: no runtime dependencies, no NestJS import, so a client can depend
+   on it without pulling a server's dependency graph.
+3. **The service depends on the contract package** and its controllers are typed by it, so the server
+   cannot drift from the document it publishes.
+4. **Every client imports its types from the contract package.** `types.ts` in a client holds only
+   types genuinely client-side (config, options, its own error shapes) — never a wire shape.
+5. **`openapi.yaml` is committed and regenerated in CI.** Two gates:
+    - **drift**: regenerate from the code and fail if it differs from the committed document — a
+      contract that is not what the code serves is worse than no contract;
+    - **breaking**: `oasdiff breaking` against the base branch, so a breaking change is a deliberate,
+      reviewed act rather than an accident.
+
+### 15.3 Third-party APIs are the OPPOSITE case — do not "converge" them
+
+For an API we do **not** own (USDA FoodData Central, Clerk, Vercel), there is no service of ours to own
+the type, and the upstream contract cannot be trusted. Those clients **validate at the boundary with a
+runtime schema** (zod) and may legitimately declare their own types.
+
+`packages/clients/usda` is the reference implementation: `schemas.ts` validates the **raw upstream wire
+shape** the moment a body arrives, and deliberately differs from the normalized public type the client
+returns. **Do not delete those schemas in the name of this section, and do not add an OpenAPI contract
+for an API we do not serve.** §15.1's reasoning does not apply: duplication is only wrong when one side
+could have been derived from the other, and here it could not.
+
+### Rules
+
+1. A `packages/clients/*` package MUST NOT declare a type describing a request or response body of a
+   service in `packages/services/*`. Import it from that service's contract package.
+2. Every HTTP service MUST emit an OpenAPI document from its DTOs, committed, with the drift and
+   breaking-change gates wired in CI.
+3. A new endpoint is not complete until its types are reachable from the contract package. "The client
+   will add the type" is a contract fork, not a task.
+4. A third-party API client MUST validate responses at the boundary with a runtime schema, and MUST NOT
+   be given a hand-written OpenAPI document for an API we do not serve.
+5. Where this section and an existing hand-written client type conflict, **this section wins** — the
+   client is the one that changes.

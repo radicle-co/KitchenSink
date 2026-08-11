@@ -13,6 +13,26 @@
  * Tolerance: USDA returns many fields we do not model. Every object schema uses `.passthrough()`
  * so unknown extra keys are preserved rather than rejected; only the fields the client actually
  * consumes are constrained.
+ *
+ * ⚠️ DELIBERATE — DO NOT "CONVERGE" THIS FILE ONTO A SCHEMA PACKAGE.
+ *
+ * `docs/CODING_STANDARDS.md` §15 / GR-015 / ADR-0014 require every client of one of OUR services to
+ * import its wire types and zod from `@kitchensink/schema-<service>` and to declare none of its own.
+ * This client is the codified EXCEPTION (§15.3), and applying that rule here would delete a security
+ * boundary rather than remove a duplication:
+ *
+ *   • USDA FoodData Central is a third-party API we do not serve. There is no service of ours whose
+ *     DTOs could own these types, so there is nothing to generate a schema package FROM.
+ *   • The duplication §15 forbids is one representation that COULD have been derived from another.
+ *     Here it could not — this file is the only place the upstream shape is asserted at all, and it
+ *     deliberately differs from the client's public type (see the paragraph above).
+ *   • Deleting or relaxing these schemas removes the check that stops malformed upstream data
+ *     reaching `@kitchensink/food-service`. That is a regression in kind, not a cleanup.
+ *
+ * The same reasoning covers every third-party boundary (Clerk session claims and svix webhook bodies,
+ * Vercel, Stripe): validate the raw shape at the edge, and never publish an OpenAPI document for an
+ * API we do not serve. `packages/clients/usda` is named in §15.3 and ADR-0014 as the reference
+ * implementation of this pattern — keep it that way.
  */
 import { z } from 'zod';
 

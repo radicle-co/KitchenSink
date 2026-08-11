@@ -956,7 +956,7 @@ packages/services/<service>/src/**/*.schema.ts   ← zod authored HERE, beside t
                                                     controller it serves, and used
                                                     directly for request validation
                         │
-                        │  copy  (turbo: schema-<service> dependsOn <service>)
+                        │  copy  (turbo: $TURBO_ROOT$ inputs — NOT dependsOn; see 15.2.5)
                         ▼
 packages/schemas/<service>/        @kitchensink/schema-<service>  — GENERATED, committed
 ├── src/schemas.ts                 the zod, assembled from the service's *.schema.ts
@@ -1011,7 +1011,12 @@ check must fail loudly, naming the file and symbol.
 4. **Every client imports its wire types and zod from the schema package.** `types.ts` in a client holds
    only genuinely client-side types (config, options, its own error shapes) — never a wire shape.
 5. **Three drift layers, each catching what the others cannot. All three are required:**
-    - **Rebuild (turbo):** `schema-<service>#build` `dependsOn` `<service>#build`, with `inputs` covering
+    - **Rebuild (turbo): `inputs`, NOT `dependsOn`.** ⚠️ `schema-<service>#build` `dependsOn`
+      `<service>#build` is **unavailable and must not be re-proposed** — `recipe-service` devDepends on
+      `recipe-service-client` for its contract test tier, so that edge closes the cycle
+      `client → schema → service → client` and turbo rejects the graph. It is also not what the
+      requirement needs: the generated files are committed, and `build` only compiles what is on disk, so
+      ordering was never the point. `$TURBO_ROOT$`-anchored `inputs` covering
       the service's `*.schema.ts` sources, so content hashing rebuilds the package automatically.
     - **Correctness (CI):** regenerate and fail on any diff against the committed artifacts. This is the
       strong gate — it is what catches generated output that someone hand-edited.

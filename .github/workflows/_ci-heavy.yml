@@ -57,6 +57,20 @@ on:
                 required: false
                 type: boolean
                 default: true
+            maestro_flow_selector:
+                description: >-
+                    WHICH Maestro flows to run, as `<name>=true|false` pairs (`full`, plus one per flow
+                    vertical — see `maestro_select_flows` in
+                    packages/apps/commise/mobile/tests/e2e/run-maestro-flows.sh). Composed by
+                    `heavy-e2e.yml` from what the PR changed.
+
+                    The DEFAULT IS THE FAIL-SAFE and must stay that way: empty means "run every flow".
+                    `ci-full.yml` and `recipe-loadtest.yml` call this workflow WITHOUT this input, and a
+                    caller that says nothing must get the whole suite, never an empty run reporting green.
+                    The script treats an absent, malformed or unattributed selector identically — it widens.
+                required: false
+                type: string
+                default: ''
 
         # Declared EXPLICITLY rather than relying on the caller's `secrets: inherit`. `inherit` hands this
         # workflow every secret the repository holds, including ones it has no business seeing, and zizmor
@@ -363,6 +377,12 @@ jobs:
               uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
               env:
                   MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+                  # Per-vertical FLOW SELECTION, passed as an ENVIRONMENT VARIABLE and never expanded into
+                  # the `script:` body below. That is not style: a `${{ … }}` interpolated into a shell body
+                  # is the zizmor `template-injection` class, and `script:` is a shell body. The script reads
+                  # `MAESTRO_FLOW_SELECTOR`, validates every pair, and widens to the FULL suite on anything it
+                  # cannot read — so even a nonsense value costs runner-minutes, never coverage.
+                  MAESTRO_FLOW_SELECTOR: ${{ inputs.maestro_flow_selector }}
               with:
                   api-level: 34
                   arch: x86_64

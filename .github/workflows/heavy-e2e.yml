@@ -123,6 +123,24 @@ jobs:
             # in this file's header describes (a skipped dependency skips its dependents, killing the
             # nightly run while every `if:` below still read correctly).
             mobile: ${{ steps.changes.outputs.mobile }}
+            # ── The five FLOW VERTICALS ───────────────────────────────────────────────────────────────
+            # These do NOT decide whether the emulator boots (`mobile`, above, does that). They narrow WHICH
+            # FLOWS it runs once it has, and they are strictly finer than `mobile`: every pattern behind them
+            # is inside one of `mobile`'s, so a vertical can never fire for a change that does not enter the
+            # tier in the first place (asserted in maestro-flow-selection.test.ts — a mapping that narrows but
+            # cannot admit reads, in the log, exactly like one that did).
+            #
+            # Deliberately NO `flows_all` key. "Everything else" is the FALLBACK inside
+            # `run-maestro-flows.sh`, not a pattern list here: a changed file that matches none of these
+            # implicates no vertical, and the script treats that as attribution FAILURE and runs the whole
+            # suite. That is why an incomplete list here can only ever cost runner-minutes, never coverage —
+            # and it is also why a leading-`!` negation must never appear below (see the POSITIVE-patterns
+            # note on the filter step).
+            flows_auth: ${{ steps.changes.outputs.flows_auth }}
+            flows_home: ${{ steps.changes.outputs.flows_home }}
+            flows_collections: ${{ steps.changes.outputs.flows_collections }}
+            flows_discovery: ${{ steps.changes.outputs.flows_discovery }}
+            flows_recipes: ${{ steps.changes.outputs.flows_recipes }}
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -189,12 +207,16 @@ jobs:
             #   • `shared/clerk-verify|identity-core`   likewise COPY'd into the image.
             #
             # NOT included, and each for a MEASURED reason rather than an assumption:
-            #   - `food-service/**` — the food service is never booted, `FOOD_SERVICE_URL` deliberately points
-            #     at nothing, and the one flow that covers the catalog
-            #     (`.maestro/recipes/ingredient-catalog-blend.yaml`) is NOT in the `FLOWS` list that
-            #     `tests/e2e/run-maestro-flows.sh` executes — so it does not run in CI at all. Triggering the
-            #     emulator on a food change would therefore buy literally zero additional coverage. (Its
+            #   - `food-service/**` — the food service is never booted and `FOOD_SERVICE_URL` deliberately
+            #     points at nothing, so the catalog flow
+            #     (`.maestro/recipes/ingredient-catalog-blend.yaml`) asserts the F2 DEGRADED path that absence
+            #     produces, deterministically, every run. No food-service change can alter that outcome, so
+            #     triggering the emulator on one would buy literally zero additional coverage. (Its
             #     `clients/food-service` counterpart IS included, because that one is compiled into the image.)
+            #     ⚠️ This reasoning REPLACES an earlier note that said the exclusion held because that flow was
+            #     "NOT in the `FLOWS` list … so it does not run in CI at all". That was true and was a DEFECT:
+            #     a committed, reviewed flow that nothing executed. It now runs (in the `recipes` vertical),
+            #     and the exclusion above stands on the environment instead of on the flow being dead.
             #   - `services/identity/**` — replaced at runtime by `tests/e2e/profile-stub-server.mjs`, so its
             #     controllers/DAOs/middleware cannot change a flow's outcome. Only its `src/types/**` reach
             #     mobile, and then only as erased `import type` — a typecheck concern the base tier already
@@ -202,13 +224,20 @@ jobs:
             #   - `apps/commise/web/**`, `identity-webhooks/**`, `infra/**`, `docs/**`, `specs/**` — no build
             #     or runtime edge to the APK.
             #
-            # ⚠️ COST CONSEQUENCE, stated rather than discovered later: this filter is now wide enough that a
-            # large share of PRs will pay the emulator. Measured on nightly run 31471786779 that is 52.75m, of
+            # ⚠️ COST CONSEQUENCE, stated rather than discovered later: this filter is wide enough that a
+            # large share of PRs pay the emulator. Measured on nightly run 31471786779 that is 52.75m, of
             # which only 17.3m is fixed setup (12.9m APK build + ~1.5m emulator/AVD/boot/install + ~2.9m
-            # checkout/deps/service build/seed) and 35.5m is FLOW EXECUTION across 23 flows. Because the
-            # variable half dominates 2:1, per-vertical flow SELECTION is the lever that makes this filter
-            # affordable — not Gradle/AVD caching, which targets the smaller fixed half. That selection is not
-            # implemented here; until it is, accept the ~53m or use the label deliberately.
+            # checkout/deps/service build/seed) and 35.5m is FLOW EXECUTION. Because the variable half
+            # dominates 2:1, per-vertical flow SELECTION is the lever that makes this filter affordable — not
+            # Gradle/AVD caching, which targets the smaller fixed half (~2.8%, refuted; do not re-propose it).
+            #
+            # That selection IS now implemented: the `flows_*` filters below name the verticals a change could
+            # plausibly break, `maestro_flow_selector` threads them to the emulator job, and
+            # `tests/e2e/run-maestro-flows.sh` narrows the run to those verticals plus the SPINE
+            # (`auth/login-flow` — the only signed-out flow, which also exercises the app shell, the auth gate,
+            # Home and the recipes crossing every other flow composes; that is what makes narrowing safe).
+            # Anything unattributable still runs all 24 flows, so the ~53m remains the WORST case, not the
+            # typical one.
             #
             # POSITIVE patterns only, deliberately: `dorny/paths-filter` answers "does any pattern match", so a
             # leading-`!` negation is TRUE for every unrelated file and would turn this filter into "always" —
@@ -226,6 +255,78 @@ jobs:
                           - 'packages/services/food-service/src/foods/dao/**'
                           - 'packages/services/food-service/src/foods/foods.service.ts'
                           - 'packages/services/food-service/tests/load/**'
+                      # ── The five FLOW VERTICALS ─────────────────────────────────────────────────────
+                      # Each key answers "could a change here break these flows?", and every pattern is a
+                      # SUBSET of the `mobile` key above (which is what admits the tier at all). Attribution
+                      # is deliberately conservative: it covers only the places where the blast radius is
+                      # provable from the layering, and everything else — the app shell, `@commise/ui`, the
+                      # i18n dictionaries, the recipe CLIENT and `recipe-core`, the harness, `.maestro/config`
+                      # and the shared `auth/signin*.yaml` sub-flows — is left UNLISTED so it widens to the
+                      # full suite through the script's fallback.
+                      #
+                      # Two attributions look too narrow and are not, because of the SPINE. Every narrowed run
+                      # still executes `auth/login-flow`, which launches from cleared state, signs in through
+                      # Clerk, and crosses Home's widget surface into the recipes list via the same
+                      # `auth/signin.yaml` sub-flow every story composes. So `mobile/src/auth/**` (the auth
+                      # gate) and `features/core/src/**` + `features/recipes/src/widget/**` (the Home widget
+                      # surface and the "See all recipes" entry) are on every flow's critical path AND are
+                      # fully exercised by the spine — narrowing them is safe precisely because the shared
+                      # entry path is re-proven on every run.
+                      #
+                      # `services/recipe-service/src/**` is split by DOMAIN rather than treated as one blob:
+                      # the collections endpoints back the collections flows and nothing else, and the same
+                      # holds for ratings/versions/photos. `src/search/**` appears in TWO keys on purpose (it
+                      # backs both Discover and the my-recipes search), which is how a path that implicates
+                      # two verticals is expressed — the script unions them.
+                      #
+                      # Flow FILES are attributed only where the filename is unambiguous (`collections*.yaml`,
+                      # `discover*.yaml`, `home.yaml`, `auth/login-flow.yaml`, `account-danger-zone.yaml`).
+                      # Editing any OTHER flow file widens to the full suite; that asymmetry is accepted
+                      # (safe direction) rather than papered over with a 15-filename list that rots.
+                      flows_auth:
+                          - 'packages/apps/commise/features/account/src/**'
+                          - 'packages/apps/commise/mobile/src/auth/**'
+                          - 'packages/apps/commise/mobile/src/screens/login.tsx'
+                          - 'packages/apps/commise/mobile/src/screens/signup.tsx'
+                          - 'packages/apps/commise/mobile/src/screens/profile.tsx'
+                          - 'packages/apps/commise/mobile/src/screens/AccountSettings.tsx'
+                          - 'packages/apps/commise/mobile/.maestro/auth/login-flow.yaml'
+                          - 'packages/apps/commise/mobile/.maestro/account-danger-zone.yaml'
+                          - 'packages/services/recipe-service/src/account/**'
+                      flows_home:
+                          - 'packages/apps/commise/features/core/src/**'
+                          - 'packages/apps/commise/features/recipes/src/widget/**'
+                          - 'packages/apps/commise/mobile/src/screens/HomeScreen.tsx'
+                          - 'packages/apps/commise/mobile/.maestro/home.yaml'
+                      flows_collections:
+                          - 'packages/apps/commise/features/recipes/src/collections/**'
+                          - 'packages/apps/commise/mobile/src/screens/Collection*.tsx'
+                          - 'packages/apps/commise/mobile/.maestro/recipes/collections*.yaml'
+                          - 'packages/services/recipe-service/src/collections/**'
+                      flows_discovery:
+                          - 'packages/apps/commise/features/recipes/src/discovery/**'
+                          - 'packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx'
+                          - 'packages/apps/commise/mobile/.maestro/recipes/discover*.yaml'
+                          - 'packages/services/recipe-service/src/authors/**'
+                          - 'packages/services/recipe-service/src/search/**'
+                      flows_recipes:
+                          - 'packages/apps/commise/features/recipes/src/card/**'
+                          - 'packages/apps/commise/features/recipes/src/detail/**'
+                          - 'packages/apps/commise/features/recipes/src/filters/**'
+                          - 'packages/apps/commise/features/recipes/src/form/**'
+                          - 'packages/apps/commise/features/recipes/src/list/**'
+                          - 'packages/apps/commise/features/recipes/src/photos/**'
+                          - 'packages/apps/commise/features/recipes/src/rating/**'
+                          - 'packages/apps/commise/features/recipes/src/versions/**'
+                          - 'packages/apps/commise/features/recipes/src/wizard/**'
+                          - 'packages/apps/commise/mobile/src/screens/Recipe*.tsx'
+                          - 'packages/apps/commise/mobile/src/components/IngredientPicker.tsx'
+                          - 'packages/services/recipe-service/src/recipes/**'
+                          - 'packages/services/recipe-service/src/ratings/**'
+                          - 'packages/services/recipe-service/src/versions/**'
+                          - 'packages/services/recipe-service/src/photos/**'
+                          - 'packages/services/recipe-service/src/ingredients/**'
+                          - 'packages/services/recipe-service/src/search/**'
                       mobile:
                           - 'packages/apps/commise/mobile/**'
                           - 'packages/apps/commise/ui/src/**'
@@ -298,6 +399,36 @@ jobs:
                 ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.run_mobile_maestro == 'true') &&
                 (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'heavy-e2e') ||
                 needs.detect.outputs.mobile == 'true') }}
+            # WHICH FLOWS that emulator then runs. `run_mobile_maestro` decides IF the tier runs; this decides
+            # HOW MUCH of it, and the two are separate because 35.5m of the job's measured 52.75m is flow
+            # execution — the fixed 17.3m is paid either way.
+            #
+            # `format()` rather than six booleans threaded through the reusable workflow: tier membership and
+            # `run_*` plumbing are what `_ci-heavy.yml`'s header set out to delete, and one opaque-to-YAML
+            # string keeps the DECISION in one testable place (`run-maestro-flows.sh`'s pure
+            # `maestro_select_flows`) instead of spreading it across six `if:` expressions. Each argument is a
+            # BOOLEAN expression, so every pair is rendered `true` or `false` — never the empty string a bare
+            # `steps.*.outputs.*` would produce on a non-PR event, which the script would have to guess about.
+            #
+            # `full=` is the manual/complete-run door and keeps three promises:
+            #   • the `heavy-e2e` LABEL remains a manual override that runs EVERYTHING (it is the only entry
+            #     point that runs both heavy tiers regardless of what changed, and narrowing it would quietly
+            #     take that away);
+            #   • `schedule` — the nightly regression — is a full run, because there is no diff to narrow
+            #     against and nightly is where an unattributed break must surface; and
+            #   • `workflow_dispatch` likewise: a human asking for the tier by hand gets all of it.
+            # Everything not covered by a vertical below ALSO ends up full, but through the script's fallback
+            # rather than here (see the `flows_*` note on the detect job) — one fail-safe, in one place,
+            # exercised by every malformed/unattributed case in maestro-flow-selection.test.ts.
+            maestro_flow_selector: >-
+                ${{ format('full={0} auth={1} home={2} collections={3} discovery={4} recipes={5}',
+                github.event_name != 'pull_request' ||
+                contains(github.event.pull_request.labels.*.name, 'heavy-e2e'),
+                needs.detect.outputs.flows_auth == 'true',
+                needs.detect.outputs.flows_home == 'true',
+                needs.detect.outputs.flows_collections == 'true',
+                needs.detect.outputs.flows_discovery == 'true',
+                needs.detect.outputs.flows_recipes == 'true') }}
         # Same as ci-pr.yml / ci-main.yml: the composite load-secrets action needs AWS_ACCESS_KEY_ID /
         # AWS_SECRET_ACCESS_KEY to read kitchensink/sandbox/identity/keys. Fork PRs get no secrets, so
         # load-secrets' `continue-on-error` skips the Clerk-dependent steps rather than failing.

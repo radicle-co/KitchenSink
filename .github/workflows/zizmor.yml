@@ -106,8 +106,8 @@
 #         ecosystem to dependabot.yml (verify first that it discovers Actions `services:` images at all),
 #         then pin and delete these 16 comments.
 #
-# CURRENT MEASUREMENT (2026-08-10, offline, same tree, after the above): **47 findings — 18 declared
-#   per-site ignores (16 unpinned-images + 2 artipacked), 29 suppressed, 0 shown at EVERY severity.**
+# CURRENT MEASUREMENT (2026-08-11, offline, after the Environments work below): **22 findings — 18 declared
+#   per-site ignores (16 unpinned-images + 2 artipacked), 4 suppressed, 0 shown at EVERY severity.**
 #   `--persona pedantic --min-severity informational --strict-collection` exits 0. The floor is now
 #   `informational` rather than `low`, which removes the severity filter entirely: at the pedantic persona
 #   the informational tier holds exactly ONE audit class in this repo (`anonymous-definition`), it was
@@ -115,19 +115,44 @@
 #   `low` no longer applies. zizmor is EXACTLY version-pinned, so no upstream change can add a class here
 #   without a repo change to point at.
 #
-# ⛔ WHAT THIS GATE STILL CANNOT SEE — 29 findings, ONE audit, and it is an OWNER DECISION, not an oversight.
-#   All 29 remaining suppressed findings are `secrets-outside-env` at the `auditor` persona, Medium, High
-#   confidence. Read the annotation literally: "secret is accessed outside of a dedicated **environment**" —
-#   it is NOT about `env:` blocks. It fires on every job that reads a `secrets.*` value without binding
-#   itself to a GitHub **Environment**, which is what would let the secret carry protection rules instead of
-#   being ambiently available to the job. Where they are:
-#     sandbox-deploy 14 · sandbox-web-preview 4 · sandbox-router-deploy 3 · food-loadtest 2 ·
-#     prod-deploy 2 · sandbox-identity-deploy 2 · claude 1 · claude-code-review 1
-#   The remediation is repository configuration plus a real operational change (approval gates on deploys),
-#   and it is ALREADY a recorded, undone hardening path — see `_ci.yml`'s header: "move AWS auth to OIDC with
-#   two stage-scoped roles and adopt GitHub Environments so prod secrets are unreachable from PR runs", and
-#   docs/CI_ARCHITECTURE.md. So this is escalated rather than buried under 29 ignore comments: accepting it
-#   by comment would be deciding the repository's secret-scoping posture in a lint annotation.
+# ENVIRONMENTS BURN-DOWN (2026-08-11, PR #91) — `secrets-outside-env` 29 → 27 → **4**, by adopting GitHub
+#   Environments rather than by annotating the findings away. Read the audit's annotation literally: "secret is
+#   accessed outside of a dedicated **environment**" — it is NOT about `env:` blocks. It fires on every job
+#   that reads a `secrets.*` value without binding itself to a GitHub Environment. What was done:
+#     • `Production` created with a REQUIRED REVIEWER (gooftroop) and a main-only branch policy, and
+#       prod-deploy's `deploy` job bound to it (2 → 0). This one is a real operational gate, not a label:
+#       prod now waits for a human. `web-surface` is left UNBOUND on purpose — it is a read-only post-deploy
+#       smoke, and gating it would demand a second approval to verify what was just approved.
+#     • `Sandbox` created with ZERO protection rules, and all 8 sandbox deploy/teardown jobs bound to it:
+#       sandbox-deploy 14 → 0 (cleanup, preview-domain, reap-abandoned, deploy-food, deploy-recipe),
+#       sandbox-web-preview 4 → 0 (route), sandbox-router-deploy 3 → 0, sandbox-identity-deploy 2 → 0.
+#       Zero rules is a CONSTRAINT, not laxity: those jobs run unattended on every non-closed
+#       `pull_request` and on a `schedule`, and a reviewer or branch policy would stall every preview —
+#       including the two jobs that RECLAIM per-PR infrastructure, turning a PR close into a resource leak.
+#     • Workflow-level `SENTRY_AUTH_TOKEN` reads moved into the single consuming job in prod-deploy and
+#       sandbox-identity-deploy. A workflow-level secret is in scope for EVERY job in the file and no per-job
+#       Environment binding can narrow it back down. Note this audit does NOT see workflow-level reads at
+#       all, so that change moved no number — it was made on its own merits.
+#
+#   ⚠️ BE HONEST ABOUT WHAT THE SANDBOX HALF BUYS TODAY: LESS THAN THE ZERO SUGGESTS. `AWS_ACCESS_KEY_ID` and
+#   `AWS_SECRET_ACCESS_KEY` are ORGANIZATION secrets (verified: `gh api
+#   repos/:owner/:repo/actions/organization-secrets`), and an org secret CANNOT be scoped to an Environment —
+#   environment secrets are repo-level only. So every job in every workflow here can still reach those keys
+#   regardless of its binding, and one key pair still serves both prod and sandbox. The bindings make the
+#   deploy target explicit, give each stage its own deployment history, and pre-wire the seam; the trust
+#   boundary MOVES when the sandbox and prod credentials become separate stage-scoped identities held as
+#   `Sandbox` / `Production` environment secrets (or OIDC roles). That is still the undone hardening path
+#   `_ci.yml`'s header and docs/CI_ARCHITECTURE.md record.
+#
+# ⛔ THE REMAINING 4 — deliberately NOT bound, and that is the correct outcome:
+#     food-loadtest 2 · claude 1 · claude-code-review 1
+#   None of these is a deployment. Binding a CI/automation job to the zero-protection `Sandbox` would silence
+#   the finding without moving any boundary — the exact "accepting it by comment" failure this ledger refuses
+#   elsewhere — and binding it to a protected environment would make every PR wait on a human reviewer. The
+#   CI workflows (`_ci`, `ci-pr`, `ci-main`, `ci-full`, `heavy-e2e`, the two loadtests, `claude*`) are
+#   therefore left unbound BY DECISION, and this 4 is reported as residual rather than driven to zero. Note
+#   the residual is what the org-secret caveat above makes unavoidable anyway: while the AWS keys are
+#   org-scoped, a bound CI job would be no less able to read them than an unbound one.
 #
 #   ⚠️ AND ZIZMOR STILL HAS NO AUDIT FOR THE ACTOR-TRUST CLASS AT ALL, at any persona. The missing
 #   `author_association` guard on `claude.yml` (a PUBLIC repo handing `CLAUDE_CODE_OAUTH_TOKEN` to a
@@ -236,9 +261,13 @@ jobs:
             #    ever ran the regular persona could not see `unpinned-images`, `undocumented-permissions`,
             #    workflow-level `excessive-permissions`, `concurrency-limits` or `anonymous-definition` AT ANY
             #    SEVERITY. Moving here was a burn-down, not a flag flip — see the ledger's per-audit account.
-            #    `auditor` is deliberately NOT adopted: its remaining 29 `secrets-outside-env` findings are an
-            #    owner decision about GitHub Environments, and the ledger escalates them rather than accepting
-            #    them by comment.
+            #    `auditor` is deliberately NOT adopted, but its one extra audit has now been BURNED DOWN
+            #    rather than left escalated: `secrets-outside-env` went 29 → 4 by creating the `Production`
+            #    and `Sandbox` environments and binding all 9 deploy jobs to them (see the ledger). The 4 that
+            #    remain are CI/automation jobs that are not deployments, left unbound by decision — which is
+            #    also why the persona stays `pedantic`: adopting `auditor` would gate on findings whose only
+            #    resolutions are to bind a CI job to a zero-protection environment (silencing without
+            #    hardening) or to a protected one (blocking every PR).
             #
             # 2. `--min-severity informational` (was `low`). This removes the severity filter entirely, so no
             #    finding can hide beneath a threshold. `low` existed because artipacked is graded

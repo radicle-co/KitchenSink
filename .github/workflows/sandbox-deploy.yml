@@ -58,6 +58,31 @@ jobs:
         name: Destroy sandbox preview
         runs-on: ubuntu-latest
         if: github.event_name == 'pull_request' && github.event.action == 'closed'
+
+        # ── THE `Sandbox` BINDING — read this once; the other jobs here just point back at it ──────────
+        #
+        # Every job in this workflow that reads `secrets.*` is bound to the `Sandbox` GitHub Environment, so
+        # the credential it uses is attached to a named environment instead of being ambiently available to
+        # the whole file. This is the seam zizmor's `secrets-outside-env` audit asks for.
+        #
+        # ⚠️ BE HONEST ABOUT WHAT IT DOES AND DOES NOT BUY TODAY. `AWS_ACCESS_KEY_ID` /
+        # `AWS_SECRET_ACCESS_KEY` are ORGANIZATION secrets (verified via
+        # `gh api repos/:owner/:repo/actions/organization-secrets`), and an org secret CANNOT be scoped to an
+        # Environment — environment secrets are repo-level only. So this binding does not yet narrow which
+        # jobs can reach those keys; it makes the deploy target explicit, gives sandbox deploys their own
+        # deployment history, and pre-wires the seam so that moving to stage-scoped credentials becomes a
+        # secrets change with no workflow edit. The boundary actually moves when the sandbox key becomes a
+        # `Sandbox` environment secret (or an OIDC role) and stops being an org secret — the hardening path
+        # `_ci.yml`'s header and docs/CI_ARCHITECTURE.md already record as undone.
+        #
+        # ⛔ `Sandbox` MUST KEEP ZERO PROTECTION RULES. It is not laxity, it is a constraint: these jobs run
+        # unattended on every non-closed `pull_request` event and on a `schedule`, so a required reviewer or
+        # a branch policy would stall every preview — and, worse, would stall THIS job and `reap-abandoned`,
+        # which are what reclaim per-PR infrastructure on close. A protection rule here converts a PR close
+        # into a resource leak. Approval gating belongs on `Production` (see prod-deploy.yml), which is bound
+        # to exactly one job and has no unattended trigger.
+        environment: Sandbox
+
         env:
             PR: pr-${{ github.event.pull_request.number }}
             REGION: ${{ vars.DEFAULT_AWS_REGION }}
@@ -120,6 +145,11 @@ jobs:
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
                   VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
                   VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+                  # Reclaims this PR's `sandbox-preview/pr-{N}` GitHub Environment (teardown section 0b).
+                  # NOT `github.token`: `administration` is not a grantable `permissions:` key, so the
+                  # workflow token structurally cannot delete an environment. While this secret is unset the
+                  # step WARNS and skips rather than failing the close — see the script.
+                  GH_ENVIRONMENT_ADMIN_TOKEN: ${{ secrets.GH_ENVIRONMENT_ADMIN_TOKEN }}
               run: |
                   chmod +x .github/scripts/teardown-sandbox-pr.sh
                   .github/scripts/teardown-sandbox-pr.sh "$PR" "$REGION"
@@ -156,6 +186,8 @@ jobs:
         if: |
             github.event_name == 'pull_request' && github.event.action != 'closed' &&
             github.event.pull_request.head.repo.full_name == github.repository
+        # Reads AWS + Vercel credentials — see the `Sandbox` binding note on `cleanup` above.
+        environment: Sandbox
         env:
             PR: pr-${{ github.event.pull_request.number }}
             REGION: ${{ vars.DEFAULT_AWS_REGION }}
@@ -222,6 +254,10 @@ jobs:
         name: Reap abandoned sandbox previews
         runs-on: ubuntu-latest
         if: github.event_name == 'schedule'
+        # Reads AWS + Vercel credentials — see the `Sandbox` binding note on `cleanup` above. A protection
+        # rule on `Sandbox` would stall this scheduled sweep, which is the ONLY retry a stack that failed to
+        # delete on close ever gets.
+        environment: Sandbox
         permissions:
             contents: read
             pull-requests: read # read each candidate's PR state, so only a CONFIRMED-closed PR is reaped
@@ -273,6 +309,9 @@ jobs:
                   REPOSITORY: ${{ github.repository }}
                   PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
                   PREVIEW_HOSTED_ZONE_ID: ${{ steps.zone.outputs.hosted_zone_id }}
+                  # Lets the sweep reclaim the `sandbox-preview/pr-{N}` GitHub Environment of a PR whose
+                  # on-close cleanup never ran — the only path that reaches the 43 existing orphans.
+                  GH_ENVIRONMENT_ADMIN_TOKEN: ${{ secrets.GH_ENVIRONMENT_ADMIN_TOKEN }}
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
                   VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
                   VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
@@ -451,6 +490,10 @@ jobs:
         if: |
             (github.event_name == 'pull_request' && github.event.action != 'closed') ||
             (github.event_name == 'workflow_dispatch' && github.event.inputs.service == 'food')
+        # Reads AWS credentials and deploys — see the `Sandbox` binding note on `cleanup` above. It must stay
+        # unprotected: ADR-0010 requires this job to reach a CONCLUSION on every non-closed PR event, because
+        # a skipped dependency skips `deploy-recipe`.
+        environment: Sandbox
         env:
             STAGE: ${{ github.event.inputs.stage || format('pr-{0}', github.event.pull_request.number) }}
             FOOD_VPC_ID: ${{ vars.SANDBOX_VPC_ID }} # the SHARED sandbox VPC (baseStage), not per-PR
@@ -645,6 +688,8 @@ jobs:
               (github.event_name == 'pull_request' && github.event.action != 'closed') ||
               (github.event_name == 'workflow_dispatch' && github.event.inputs.service == 'recipe')
             )
+        # Reads AWS credentials and deploys — see the `Sandbox` binding note on `cleanup` above.
+        environment: Sandbox
         env:
             STAGE: ${{ github.event.inputs.stage || format('pr-{0}', github.event.pull_request.number) }}
             # A per-PR feature deploy rides the SHARED sandbox platform tier (ADR-0006), so every export

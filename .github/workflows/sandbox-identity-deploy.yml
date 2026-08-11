@@ -36,12 +36,27 @@ env:
     CDK_DEFAULT_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
     STAGE: sandbox
     DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
-    SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
 jobs:
     deploy:
         name: Deploy Sandbox Identity
         runs-on: ubuntu-latest
+
+        # Binds the one job here — which authenticates to AWS with static keys and deploys the PERSISTENT
+        # shared sandbox identity tier — to the `Sandbox` GitHub Environment. Full rationale, including what
+        # this does and does NOT buy while the AWS keys are ORGANIZATION secrets (which cannot be
+        # environment-scoped) and why `Sandbox` must keep zero protection rules, is on `sandbox-deploy.yml`'s
+        # `cleanup` job. Note the asymmetry with prod-deploy.yml: this tier is shared and long-lived, but its
+        # trigger is `pull_request`, so an approval rule would gate every identity-touching PR.
+        environment: Sandbox
+
+        # ⚠️ Scoped to this job, NOT to the workflow-level `env:` above (same change as prod-deploy.yml). A
+        # workflow-level secret read is in scope for EVERY job in the file — including any added later that
+        # has no business with it — and no per-job Environment binding can narrow it back down. Sole consumer
+        # is the identity-webhooks CDK deploy's source-map upload, which no-ops while the secret is unset (it
+        # is set at neither repo nor organization scope today, so this move is behaviour-neutral).
+        env:
+            SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
         steps:
             # ⚠️ DELIBERATE: this checkout KEEPS its git credential (`persist-credentials` left at its `true`

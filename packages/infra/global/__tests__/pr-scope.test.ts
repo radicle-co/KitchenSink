@@ -63,6 +63,15 @@ const run = (...args: readonly string[]): number => {
 const isToken = (token: string): boolean => run('is-token', token) === 0;
 const belongs = (token: string, name: string): boolean => run('belongs', token, name) === 0;
 const pathBelongs = (token: string, name: string): boolean => run('path-belongs', token, name) === 0;
+const envBelongs = (token: string, name: string): boolean => run('env-belongs', token, name) === 0;
+const isProtectedEnv = (name: string): boolean => run('protected-env', name) === 0;
+
+/**
+ * GitHub Environments that must survive every teardown. Deleting one is destructive to repository
+ * CONFIGURATION, not just to a resource: `Production` carries the required-reviewer rule and the main-only
+ * branch policy that gate prod deploys, so removing it does not fail closed — it silently removes the gate.
+ */
+const PROTECTED_ENVIRONMENTS = ['Production', 'Sandbox', 'Preview', 'copilot'];
 
 describe('pr-scope.sh — the file exists where teardown sources it from', () => {
     it('is present at .github/scripts/pr-scope.sh', () => {
@@ -160,5 +169,69 @@ describe('pr_scope_path_belongs — the same rule for a `/`-delimited log-group 
     it.each(GLOBAL_NAMES)('refuses the persistent global log path for %s', (name) => {
         expect(pathBelongs('pr-1', `/aws/lambda/${name}`)).toBe(false);
         expect(pathBelongs('pr-73', `/aws/ecs/containerinsights/${name}-cluster/performance`)).toBe(false);
+    });
+});
+
+/**
+ * The GitHub-Environment half of the scope rule, added when teardown gained section 0b.
+ *
+ * Nothing had ever reclaimed the `sandbox-preview/pr-{N}` environments `sandbox-web-preview.yml` creates for
+ * the PR's preview button: 51 existed against 8 open PRs on 2026-08-11. The teardown now deletes them, and
+ * the blast radius of getting this predicate wrong is worse than for a stack — an environment name carries no
+ * `pr-{N}` marker and no `Environment` tag, so there is no second independent signal to catch a mistake, and
+ * `DELETE /repos/{o}/{r}/environments/Production` would take the prod approval gate with it.
+ */
+describe('pr_scope_is_protected_environment — the environments a teardown may never delete', () => {
+    it.each(PROTECTED_ENVIRONMENTS)('protects %s', (name) => {
+        expect(isProtectedEnv(name)).toBe(true);
+    });
+
+    it('does not protect a per-PR preview environment (or it could never be reclaimed)', () => {
+        expect(isProtectedEnv('sandbox-preview/pr-73')).toBe(false);
+    });
+
+    // Case-sensitivity is asserted rather than assumed: GitHub environment names are compared literally by
+    // the API, so `production` is a DIFFERENT environment from `Production` and must not be silently
+    // conflated in either direction.
+    it.each(['production', 'sandbox', 'PRODUCTION', 'Production-old', 'my-Production'])(
+        'does not treat the near-miss %j as one of the protected names',
+        (name) => {
+            expect(isProtectedEnv(name)).toBe(false);
+        },
+    );
+});
+
+describe('pr_scope_environment_belongs — ownership of a per-PR GitHub Environment', () => {
+    it('matches exactly the environment sandbox-web-preview.yml creates for the PR', () => {
+        expect(envBelongs('pr-73', 'sandbox-preview/pr-73')).toBe(true);
+        expect(envBelongs('pr-1', 'sandbox-preview/pr-1')).toBe(true);
+    });
+
+    // The delimiter case, in the form it takes here: equality makes it structural rather than something a
+    // trailing `-` has to catch. Closing PR #1 must not claim #15's or #100's preview environment.
+    it('never lets pr-1 claim pr-15, pr-100 or pr-1x', () => {
+        expect(envBelongs('pr-1', 'sandbox-preview/pr-15')).toBe(false);
+        expect(envBelongs('pr-1', 'sandbox-preview/pr-100')).toBe(false);
+        expect(envBelongs('pr-1', 'sandbox-preview/pr-1x')).toBe(false);
+        expect(envBelongs('pr-1', 'sandbox-preview/pr-1-extra')).toBe(false);
+    });
+
+    // ⛔ The regression that matters. These are the names that share the environment LIST with the per-PR
+    // ones, so they are what a loosened predicate would reach first.
+    it.each(PROTECTED_ENVIRONMENTS)('refuses the persistent environment %s', (name) => {
+        expect(envBelongs('pr-1', name)).toBe(false);
+        expect(envBelongs('pr-73', name)).toBe(false);
+    });
+
+    it('refuses a bare token, a different prefix, and an empty name', () => {
+        expect(envBelongs('pr-73', 'pr-73')).toBe(false);
+        expect(envBelongs('pr-73', 'preview/pr-73')).toBe(false);
+        expect(envBelongs('pr-73', 'sandbox-preview/pr-73/extra')).toBe(false);
+        expect(envBelongs('pr-73', '')).toBe(false);
+    });
+
+    it('refuses to answer at all for a malformed token (exit 2, not a match)', () => {
+        expect(run('env-belongs', 'pr-', 'sandbox-preview/pr-73')).toBe(2);
+        expect(run('env-belongs', '', 'Production')).toBe(2);
     });
 });

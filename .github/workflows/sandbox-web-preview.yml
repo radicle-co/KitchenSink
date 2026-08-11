@@ -27,6 +27,15 @@ jobs:
     route:
         name: Update PR route in KVS
         runs-on: ubuntu-latest
+        # Authenticates to AWS (router KVS) and to Vercel (preview deploy + readiness) — full `Sandbox`
+        # rationale on `sandbox-deploy.yml`'s `cleanup` job.
+        #
+        # ⚠️ DO NOT CONFUSE THIS KEY WITH THE `environment:` PROPERTIES BELOW. The two inside the
+        # `github-script` steps (`environment: \`sandbox-preview/pr-${pr}\``) are arguments to the GitHub
+        # Deployments API — they name the per-PR environment this job CREATES for the preview button. This
+        # one is the job key that binds the job's own secrets. They are different things at different layers,
+        # and the per-PR ones are exactly what `.github/scripts/teardown-sandbox-pr.sh` §0b now reclaims.
+        environment: Sandbox
         permissions:
             contents: read # checkout of this PR's tree
             deployments: write # publish the PR's own GitHub deployment pointing at the working preview URL

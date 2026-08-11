@@ -42,6 +42,12 @@ jobs:
     deploy:
         name: Deploy sandbox router
         runs-on: ubuntu-latest
+        # Authenticates to AWS and deploys the singleton sandbox router, then seeds the Vercel bypass key into
+        # its KVS — so it reads three secrets. Full `Sandbox` rationale on `sandbox-deploy.yml`'s `cleanup`
+        # job. Zero protection rules matters here too: this workflow's whole purpose includes a DAILY
+        # drift-heal of a singleton whose out-of-band deletion once left every preview NXDOMAIN for three
+        # weeks, and an approval gate would leave that heal pending instead of applied.
+        environment: Sandbox
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:

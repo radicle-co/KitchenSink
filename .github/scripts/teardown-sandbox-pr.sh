@@ -14,6 +14,13 @@
 #   PREVIEW_ZONE            e.g. sandbox.commise.app
 #   PREVIEW_HOSTED_ZONE_ID  the Route 53 zone holding it
 #   VERCEL_TOKEN / VERCEL_PROJECT_ID / VERCEL_TEAM_ID
+#
+# Environment (required for the GitHub-Environment step, section 0b):
+#   GH_ENVIRONMENT_ADMIN_TOKEN  a token with `Administration: write` on this repo. Deliberately NOT
+#                               `github.token`/`GH_TOKEN`: the workflow token CANNOT delete an environment
+#                               (`administration` is not a grantable `permissions:` key), so reusing that
+#                               name would guarantee a 403 on every run. Unset ⇒ the step warns and skips.
+#   GITHUB_REPOSITORY           owner/repo; set automatically by GitHub Actions.
 set -uo pipefail
 
 PR="${1:?usage: teardown-sandbox-pr.sh <pr-N> [region]}"
@@ -65,6 +72,71 @@ elif (cd "$REPO_ROOT" && PR_TOKEN="$PR" npx --no-install tsx packages/apps/commi
 else
     echo "::error::preview-domain teardown FAILED for $PR — the Route 53 record may still point at Vercel (subdomain-takeover vector); remove $PR.$PREVIEW_ZONE by hand"
     teardown_failed=1
+fi
+
+## 0b. The PR's GitHub ENVIRONMENT — `sandbox-preview/pr-{N}`, created by `sandbox-web-preview.yml`'s
+##     Deployments-API call so the PR gets a "View deployment" button pointing at the working preview URL.
+##
+##     Nothing has ever reclaimed these. Measured 2026-08-11: 51 `sandbox-preview/pr-{N}` environments
+##     existed against 8 open PRs — 43 orphans, the same leak class as the DELETE_FAILED stacks and the
+##     dangling CNAMEs, and invisible for the same reason (no signal, and `transient_environment: true`
+##     does NOT make GitHub delete anything).
+##
+##     EARLY, like section 0 and for the same reason: it needs no AWS credentials and costs one API call,
+##     so it must not be queued behind a stack delete that can hang for an hour.
+##
+##     Scope: the environment list is enumerated and filtered through `pr_scope_environment_belongs`, which
+##     demands EXACT equality with `sandbox-preview/$PR` and refuses the persistent `Production` / `Sandbox`
+##     / `Preview` / `copilot` environments outright — re-asserted at the delete site below, because this
+##     one call would remove `Production`'s required-reviewer rule and prod's whole deployment history.
+##
+##     ⚠️ It LISTS and matches rather than constructing the URL and treating 404 as "already gone". That is
+##     the difference between idempotent and blind: the name contains a `/` that must reach the API as
+##     `%2F`, and an UNENCODED path answers 404 exactly like an absent environment (measured), so a
+##     404-means-success shortcut would report success forever while deleting nothing. Here, absent means
+##     "no name in the list matched" and a listed environment that fails to delete is an error.
+if [ -z "${GH_ENVIRONMENT_ADMIN_TOKEN:-}" ]; then
+    # A WARNING, not an error, and the asymmetry with section 0 is deliberate: a dangling DNS record is a
+    # subdomain-takeover vector, whereas a leaked environment costs nothing and exposes nothing — it is
+    # clutter plus stale deployment history. Failing every PR-close run over it would train people to
+    # ignore the red on the job whose real work is reclaiming billable compute, which is the failure mode
+    # this script has already been rebuilt twice to remove. Provision the token to close it.
+    echo "::warning::GH_ENVIRONMENT_ADMIN_TOKEN is unset — the GitHub Environment 'sandbox-preview/$PR' will be left behind (43 such orphans existed on 2026-08-11). github.token CANNOT delete an environment; this needs a token with Administration: write, stored as the GH_ENVIRONMENT_ADMIN_TOKEN secret."
+elif [ -z "${GITHUB_REPOSITORY:-}" ]; then
+    echo "::error::GITHUB_REPOSITORY is unset, so the GitHub Environment for $PR cannot be resolved — it will be left behind"
+    teardown_failed=1
+elif ! gh_envs=$(GH_TOKEN="$GH_ENVIRONMENT_ADMIN_TOKEN" gh api --paginate \
+    "repos/${GITHUB_REPOSITORY}/environments" --jq '.environments[].name' 2>&1); then
+    # `--paginate` is load-bearing: the default page size is 30 and there were 55 environments, so an
+    # unpaginated list would silently stop reclaiming past the first page.
+    echo "::error::could not list GitHub Environments for ${GITHUB_REPOSITORY} — 'sandbox-preview/$PR' may be left behind: ${gh_envs}"
+    teardown_failed=1
+else
+    gh_env_deleted=0
+    while IFS= read -r gh_env; do
+        [ -n "$gh_env" ] || continue
+        pr_scope_environment_belongs "$PR" "$gh_env" || continue
+        # Second, independent assertion at the point of destruction — the same predicate, re-run on the
+        # exact string about to be spliced into a DELETE. `pr_scope_environment_belongs` already refuses
+        # these, so reaching here means the scope rule itself regressed, and that must fail loudly rather
+        # than proceed.
+        if pr_scope_is_protected_environment "$gh_env"; then
+            echo "::error::refusing to delete the PERSISTENT GitHub Environment '$gh_env' — the scope predicate let it through, which is a bug in pr-scope.sh"
+            teardown_failed=1
+            continue
+        fi
+        if GH_TOKEN="$GH_ENVIRONMENT_ADMIN_TOKEN" gh api --silent --method DELETE \
+            "repos/${GITHUB_REPOSITORY}/environments/${gh_env//\//%2F}"; then
+            echo "[gh-env] deleted $gh_env"
+            gh_env_deleted=$((gh_env_deleted + 1))
+        else
+            echo "::error::failed to delete the GitHub Environment '$gh_env' — a token with Administration: write is required; delete it by hand"
+            teardown_failed=1
+        fi
+    done <<<"$gh_envs"
+    if [ "$gh_env_deleted" -eq 0 ]; then
+        echo "[gh-env] no 'sandbox-preview/$PR' environment to delete (already reclaimed)"
+    fi
 fi
 
 ## 1. Per-PR food logical DB (ADR-0006) — drop BEFORE the stack is deleted, because the in-VPC

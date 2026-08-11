@@ -42,13 +42,25 @@ env:
     CDK_DEFAULT_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
     STAGE: prod
     DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
-    # Source-map upload (U11). The upload step no-ops until this secret is set.
-    SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
 jobs:
     deploy:
         name: Deploy Production
         runs-on: ubuntu-latest
+
+        # Binds the one job that authenticates to prod AWS to the `Production` GitHub Environment,
+        # which carries a required-reviewer rule and a main-only branch policy. This is what makes
+        # the approval gate FIRE: without the binding the environment is a label that protects
+        # nothing. `web-surface` below is deliberately NOT bound — it is a read-only post-deploy
+        # smoke, so gating it would demand a second approval to verify what was already approved.
+        environment: Production
+
+        # ⚠️ Scoped to this job on purpose, NOT to the workflow-level `env:` above. A secret read at
+        # workflow level is in scope for EVERY job in the file, including ones that never need it, and
+        # no per-job Environment binding can narrow it back down. Its only consumer is the source-map
+        # upload step below, which still no-ops while the secret is unset.
+        env:
+            SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
         steps:
             # ⚠️ DELIBERATE: this is the ONE checkout in this file that KEEPS its git credential

@@ -96,21 +96,44 @@ ECS Container Insights log groups, out-of-band ECR repos). See
 > Until a feature service actually deploys per-PR, the `cleanup` job has nothing to match. Pre-existing
 > orphans created before this convention carry no `Environment` tag and need a one-off manual sweep.
 
-## Recommended hardening (needs repo/IAM setup — not yet done)
+## Recommended hardening (step 2 DONE for deploys; step 1 still open)
 
-Current auth uses static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` repo secrets, and those creds
-can read both sandbox and prod secrets — there is no AWS-side least-privilege boundary between PR and
-main runs. To close that:
+Current auth uses static `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, and those creds can read both
+sandbox and prod secrets — there is no AWS-side least-privilege boundary between PR and main runs. To
+close that:
 
-1. **OIDC with two stage-scoped IAM roles.** Add `permissions: id-token: write`, switch the composite
-   to `role-to-assume`, and scope each role's trust policy by the OIDC `sub` claim — the sandbox role
-   trusts `repo:radicle-co/KitchenSink:pull_request` / `environment:sandbox`, the prod role trusts
-   `environment:production` / `ref:refs/heads/main`. Restrict each role's `secretsmanager:GetSecretValue`
+1. **OIDC with two stage-scoped IAM roles — STILL OPEN, and it is now the load-bearing half.** Add
+   `permissions: id-token: write`, switch the composite to `role-to-assume`, and scope each role's trust
+   policy by the OIDC `sub` claim — the sandbox role trusts
+   `repo:radicle-co/KitchenSink:pull_request` / `environment:Sandbox`, the prod role trusts
+   `environment:Production` / `ref:refs/heads/main`. Restrict each role's `secretsmanager:GetSecretValue`
    to its own `kitchensink/<stage>/*` ARNs. This makes prod secrets physically unreachable from a PR.
-2. **GitHub Environments** (`sandbox`, `production`) declared on the secret-using jobs in `_ci.yml`
-   (object form: `environment: { name: ... }`), with a deployment-branch rule restricting `production`
-   to `main`. Note environment secrets cannot be forwarded via `workflow_call` — the `environment:`
-   key must live in `_ci.yml`, not the callers.
+
+    ⚠️ The environment bindings in step 2 do NOT achieve that on their own, and the reason is specific:
+    `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are **organization** secrets (verified via
+    `gh api repos/:owner/:repo/actions/organization-secrets`), and an org secret **cannot** be scoped to a
+    GitHub Environment — environment secrets are repo-level only. So every job in every workflow here can
+    still read the one key pair that serves both stages, whatever its `environment:` key says. The trust
+    boundary moves only when the credential itself becomes per-stage: either these OIDC roles, or two
+    distinct IAM users held as `Sandbox` / `Production` **environment** secrets with the org secret
+    removed from this repo's scope.
+
+2. **GitHub Environments — DONE for the deploy surface (2026-08-11, PR #91).** `Production` exists with a
+   required reviewer (`gooftroop`) and a `main`-only branch policy, bound to `prod-deploy.yml`'s `deploy`
+   job; `Sandbox` exists with **zero** protection rules, bound to all 8 sandbox deploy/teardown jobs
+   across `sandbox-deploy.yml`, `sandbox-identity-deploy.yml`, `sandbox-router-deploy.yml` and
+   `sandbox-web-preview.yml`. `Sandbox` must STAY unprotected: those jobs run unattended on every
+   non-closed `pull_request` and on a `schedule`, and any rule would stall previews — including the
+   `cleanup` and `reap-abandoned` jobs that reclaim per-PR infrastructure, turning a PR close into a
+   resource leak.
+
+    The **CI** workflows (`_ci`, `ci-pr`, `ci-main`, `ci-full`, `heavy-e2e`, the loadtests, `claude*`) are
+    deliberately left **unbound**: none is a deployment, binding them to a zero-protection environment
+    would silence zizmor's `secrets-outside-env` without moving any boundary, and binding them to a
+    protected one would make every PR wait on a human. That residual (4 findings) is recorded as residual
+    in `zizmor.yml`'s ledger. Note for whoever does step 1: environment secrets cannot be forwarded via
+    `workflow_call`, so an `environment:` key intended to scope a secret must live in `_ci.yml` itself,
+    not in its callers.
 
 ## Notes for whoever updates branch protection / rulesets
 

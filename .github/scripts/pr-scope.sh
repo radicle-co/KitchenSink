@@ -96,13 +96,22 @@ PR_SCOPE_PREVIEW_ENV_PREFIX='sandbox-preview/'
 #   • `Production` carries the required-reviewer rule and the main-only branch policy that gate prod
 #     deploys — deleting it silently REMOVES the approval gate rather than failing closed;
 #   • `Sandbox` is the (deliberately unprotected) binding every sandbox deploy job names;
-#   • `Preview` is Vercel's own environment; `copilot` is GitHub's.
+#   • `Preview` is Vercel's own environment; `copilot` is GitHub's;
+#   • `sandbox-preview` is the ONE shared environment every PR's web preview deployment now targets
+#     (`sandbox-web-preview.yml`). It replaced the per-PR `sandbox-preview/pr-{N}` names precisely because
+#     no workflow can ever delete an environment — `Administration: write` is not a grantable `permissions:`
+#     scope — so a per-PR name created garbage only an admin PAT could collect. Deleting the shared one
+#     would break the "View deployment" button on EVERY open PR at once.
 # An explicit denylist is the exception to ADR-0005's no-denylist rule, and it is warranted precisely
 # because these names carry NO `pr-{N}` marker and NO `Environment` tag to cross-check — unlike a stack,
 # there is no second, independent signal that would catch a mistake here.
+#
+# `sandbox-preview` is ALSO refused by `pr_scope_environment_belongs` on its own terms (that predicate
+# demands exact equality with `sandbox-preview/pr-{N}`, and the shared name has no `/pr-{N}` suffix), so
+# this listing is the SECOND independent guard, not the only one.
 pr_scope_is_protected_environment() {
     case "${1-}" in
-        Production | Sandbox | Preview | copilot) return 0 ;;
+        Production | Sandbox | Preview | copilot | sandbox-preview) return 0 ;;
         *) return 1 ;;
     esac
 }

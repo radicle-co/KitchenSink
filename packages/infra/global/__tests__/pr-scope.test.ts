@@ -71,7 +71,7 @@ const isProtectedEnv = (name: string): boolean => run('protected-env', name) ===
  * CONFIGURATION, not just to a resource: `Production` carries the required-reviewer rule and the main-only
  * branch policy that gate prod deploys, so removing it does not fail closed — it silently removes the gate.
  */
-const PROTECTED_ENVIRONMENTS = ['Production', 'Sandbox', 'Preview', 'copilot'];
+const PROTECTED_ENVIRONMENTS = ['Production', 'Sandbox', 'Preview', 'copilot', 'sandbox-preview'];
 
 describe('pr-scope.sh — the file exists where teardown sources it from', () => {
     it('is present at .github/scripts/pr-scope.sh', () => {
@@ -243,9 +243,22 @@ describe('pr_scope_is_protected_environment — the environments a teardown may 
 });
 
 describe('pr_scope_environment_belongs — ownership of a per-PR GitHub Environment', () => {
-    it('matches exactly the environment sandbox-web-preview.yml creates for the PR', () => {
+    // ⚠️ HISTORICAL SHAPE. `sandbox-web-preview.yml` no longer creates `sandbox-preview/pr-{N}` — it targets
+    // the ONE shared `sandbox-preview` environment, because no workflow can delete an environment at any
+    // permission level (`Administration: write` is not a grantable `permissions:` scope), so a per-PR name
+    // produced garbage only an admin PAT could collect. This predicate is retained to reclaim the 43 that
+    // already exist; it is the cleanup path for a shape we have stopped generating.
+    it('matches exactly the per-PR environment shape that already exists in the repo', () => {
         expect(envBelongs('pr-73', 'sandbox-preview/pr-73')).toBe(true);
         expect(envBelongs('pr-1', 'sandbox-preview/pr-1')).toBe(true);
+    });
+
+    // The whole point of the switch: the shared name must be unclaimable by ANY PR's teardown. Deleting it
+    // would break the "View deployment" button on every open PR at once, and it is now the only environment
+    // the preview flow depends on.
+    it.each(['pr-1', 'pr-73', 'pr-91'])('never lets %s claim the SHARED sandbox-preview environment', (token) => {
+        expect(envBelongs(token, 'sandbox-preview')).toBe(false);
+        expect(isProtectedEnv('sandbox-preview')).toBe(true);
     });
 
     // The delimiter case, in the form it takes here: equality makes it structural rather than something a

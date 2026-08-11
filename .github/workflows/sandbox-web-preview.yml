@@ -31,10 +31,15 @@ jobs:
         # rationale on `sandbox-deploy.yml`'s `cleanup` job.
         #
         # ⚠️ DO NOT CONFUSE THIS KEY WITH THE `environment:` PROPERTIES BELOW. The two inside the
-        # `github-script` steps (`environment: \`sandbox-preview/pr-${pr}\``) are arguments to the GitHub
-        # Deployments API — they name the per-PR environment this job CREATES for the preview button. This
-        # one is the job key that binds the job's own secrets. They are different things at different layers,
-        # and the per-PR ones are exactly what `.github/scripts/teardown-sandbox-pr.sh` §0b now reclaims.
+        # `github-script` steps (`environment: 'sandbox-preview'`) are arguments to the GitHub Deployments
+        # API — they name the environment the PREVIEW DEPLOYMENT is recorded against, which is what renders
+        # the PR's "View deployment" button. This one is the job key that binds the job's own secrets. They
+        # are different things at different layers.
+        #
+        # Both of those now use ONE SHARED, PERSISTENT name rather than `sandbox-preview/pr-{N}`, because no
+        # workflow can delete a GitHub Environment at any permission level — see the full reasoning at the
+        # `createDeployment` call below. `teardown-sandbox-pr.sh` §0b still exists, but only to reclaim the
+        # per-PR environments created BEFORE this change; it is not part of the steady state.
         environment: Sandbox
         permissions:
             contents: read # checkout of this PR's tree
@@ -66,14 +71,31 @@ jobs:
                           ? `https://pr-${pr}.sandbox.commise.app/`
                           : `https://sandbox.commise.app/pr-${pr}/`;
                       const mode = subdomain ? 'subdomain' : 'path-routed';
+                      // ⛔ ONE STABLE environment name, deliberately NOT `sandbox-preview/pr-${pr}`.
+                      //
+                      // A per-PR name created a GitHub Environment per PR, and NOTHING can reclaim them from
+                      // CI: `DELETE /repos/{o}/{r}/environments/{name}` requires `Administration: write`,
+                      // which is not a grantable `permissions:` scope for `GITHUB_TOKEN` at all — no workflow
+                      // can delete an environment, at any permission level. `transient_environment` does not
+                      // help either; it auto-inactivates DEPLOYMENTS, never the environment. So the per-PR
+                      // name manufactured a resource whose only cleanup path is an `Administration: write`
+                      // PAT held as a secret in a PUBLIC repo — a credential that can rewrite branch
+                      // protection and repo settings, provisioned to tidy up a UI grouping. Not worth it.
+                      // 51 environments had accumulated against 8 open PRs by 2026-08-11.
+                      //
+                      // Nothing observable is lost. The PR's "View deployment" button comes from the
+                      // deployment STATUS's `environment_url` below, and the PR association comes from
+                      // `ref` (the head sha) — the environment name is only a grouping label in the
+                      // Deployments UI. Keep this name in sync with `pr_scope_is_protected_environment`,
+                      // which now refuses to delete it.
                       const dep = await github.rest.repos.createDeployment({
                           ...context.repo,
                           ref: context.payload.pull_request.head.sha,
-                          environment: `sandbox-preview/pr-${pr}`,
+                          environment: 'sandbox-preview',
                           transient_environment: true,
                           auto_merge: false,
                           required_contexts: [],
-                          description: `${mode} sandbox preview`,
+                          description: `pr-${pr} ${mode} sandbox preview`,
                       });
                       await github.rest.repos.createDeploymentStatus({
                           ...context.repo,
@@ -88,9 +110,15 @@ jobs:
               with:
                   script: |
                       const pr = context.payload.pull_request.number;
+                      // ⚠️ Scoped by SHA, not by environment. Every PR's preview now shares the one
+                      // `sandbox-preview` environment, so listing by environment alone would return EVERY
+                      // open PR's deployments and this loop would mark them all inactive — killing the live
+                      // "View deployment" links on every other open PR each time any one of them closed.
+                      // The head sha is what makes a deployment this PR's.
                       const deps = await github.rest.repos.listDeployments({
                           ...context.repo,
-                          environment: `sandbox-preview/pr-${pr}`,
+                          environment: 'sandbox-preview',
+                          sha: context.payload.pull_request.head.sha,
                       });
                       for (const d of deps.data) {
                           await github.rest.repos.createDeploymentStatus({

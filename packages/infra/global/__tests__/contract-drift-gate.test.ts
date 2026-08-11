@@ -198,6 +198,24 @@ describe('the gate against a real repository', () => {
         });
     });
 
+    it('does NOT flag an ignored dist/ or tsbuildinfo — those are build output, not committed artifacts', () => {
+        withContractRepo((root) => {
+            write(root, '.gitignore', 'dist\n*.tsbuildinfo\n');
+            write(root, 'packages/schemas/recipe/dist/index.js', 'export const x = 1;\n');
+            write(root, 'packages/schemas/recipe/tsconfig.tsbuildinfo', '{}\n');
+            execFileSync('git', ['add', '.gitignore'], { cwd: root });
+            execFileSync('git', ['commit', '--quiet', '--no-verify', '-m', 'ignore build output'], { cwd: root });
+
+            // This is the false positive that a `packages/schemas` wholesale pathspec produced on the real
+            // repository: 121 "ignored contract artifacts", every one of them legitimate build output, which
+            // would have opened the gate permanently red the moment anything had been built.
+            const result = runGate(root);
+
+            expect(result.output).not.toContain('git-IGNORED');
+            expect(result.status).toBe(0);
+        });
+    });
+
     it('fails when a generated artifact is git-IGNORED, naming that as the cause', () => {
         withContractRepo((root) => {
             write(root, '.gitignore', 'packages/schemas/**/openapi.yaml\n');

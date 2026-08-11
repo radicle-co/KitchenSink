@@ -51,14 +51,50 @@
  * deleted/ignored paths hermetically, without constructing a repo state for each. Same pattern as
  * `scripts/boundariesRatchet.mjs`.
  *
+ * ⚠️ KNOWN LIMITATION, stated because it will otherwise be mistaken for a bug. Drift is `git diff … HEAD` over
+ * the WHOLE tree, so run locally on a dirty branch this reports the contributor's own uncommitted edits as
+ * drift. In CI — the case it is built for — the tree is clean apart from regeneration, so the report is exactly
+ * the generator's output. The `--all` scope is deliberate (a generator writing OUTSIDE its declared artifact set
+ * is drift too), and narrowing it to the contract paths would give that up. The clean fix is to move the
+ * regeneration INTO this script so it can snapshot `git status` before and after and report only what the
+ * generator touched; that is a follow-up, not a thing to paper over with a path filter.
+ *
  * @sideEffect Spawns git (read-only apart from `add --intent-to-add`, which touches only the index) and writes
  *   to stdout/stderr and `$GITHUB_STEP_SUMMARY`.
  */
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 
-/** Where generated wire-contract artifacts live. Every path under these must be visible to git. */
-const GENERATED_ROOTS = ['packages/schemas', 'packages/services/*/src/contract'];
+/**
+ * The COMMITTED wire-contract artifacts, as pathspecs. Every path under these must be visible to git.
+ *
+ * ⚠️ SCOPED TO THE COMMITTED SET, NOT TO `packages/schemas` WHOLESALE — measured, after the broad form failed
+ * on the real repository. A schema package also contains `dist/` and `*.tsbuildinfo`, which are BUILD OUTPUT
+ * and are `.gitignore`d for good reason; the broad spelling reported 121 "ignored contract artifacts" and would
+ * have opened this gate permanently red the moment anything had been built. What the check is actually for is
+ * an artifact that is SUPPOSED to be committed and has been hidden from git, so it names those paths.
+ */
+const GENERATED_ROOTS = [
+    'packages/schemas/*/openapi.yaml',
+    // ⚠️ `:(glob)` AND the `/**` SUFFIX ARE BOTH REQUIRED, and both were measured against real git rather
+    // than reasoned about. Two separate traps:
+    //
+    //  1. `packages/schemas/*/src` (no suffix) matches the DIRECTORY and returns NOTHING for the files in it,
+    //     so the check goes silently VACUOUS — the worst state a gate can be in, reporting green having looked
+    //     at nothing.
+    //  2. Without `:(glob)`, git's `*` uses fnmatch WITHOUT `FNM_PATHNAME`, so it happily crosses `/`:
+    //     `packages/services/*/src/contract/**` also matched
+    //     `packages/services/recipe-service/dist/src/contract/**`, i.e. BUILD OUTPUT, which is correctly
+    //     `.gitignore`d — 24 false positives on the real repository. `:(glob)` restores the intuitive meaning
+    //     (`*` within one path segment, `**` across segments).
+    //
+    // The `does NOT flag an ignored dist/` and `fails when a generated artifact is git-IGNORED` cases pin
+    // both directions, so neither trap can be reintroduced quietly.
+    ':(glob)packages/schemas/*/src/**',
+    'packages/schemas/*/package.json',
+    'packages/schemas/*/prod.package.json',
+    ':(glob)packages/services/*/src/contract/**',
+];
 
 /** The command that rewrites the artifacts, quoted in every failure message. */
 const REGENERATE_COMMAND = 'npm run contract:generate';

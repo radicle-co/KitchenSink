@@ -37,7 +37,12 @@ paths:
       responses:
         "200":
           description: The service is running.
-      description: Deliberately PUBLIC — the ALB target group calls it with no credential.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+      description: Deliberately PUBLIC — the ALB target group calls it with no credential, and a consumer checking for
+        contract skew must be able to ask before it holds one. `contractHash` is that skew signal (§15.2.5).
   /health/ready:
     get:
       operationId: getReadiness
@@ -45,9 +50,17 @@ paths:
       security: []
       responses:
         "200":
-          description: The service is ready to serve traffic.
+          description: The database answered; the service is ready.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
         "503":
-          description: A dependency is unavailable.
+          description: The database did not answer within the probe timeout.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthUnavailable"
       description: Deliberately PUBLIC.
   /api/v1/recipes:
     post:
@@ -2805,6 +2818,40 @@ components:
       required:
         - code
         - message
+      additionalProperties: false
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+        service:
+          type: string
+          enum:
+            - recipe
+        contractHash:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+      required:
+        - status
+        - service
+        - contractHash
+      additionalProperties: false
+    HealthUnavailable:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - unavailable
+        service:
+          type: string
+          enum:
+            - recipe
+      required:
+        - status
+        - service
       additionalProperties: false
     Recipe:
       type: object

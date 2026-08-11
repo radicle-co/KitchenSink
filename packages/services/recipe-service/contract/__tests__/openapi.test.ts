@@ -57,8 +57,9 @@ const CONTROLLERS: readonly NewableFunction[] = [
  * new endpoint shipped without a described response body, and that needs saying out loud in a PR rather than
  * slipping in behind a green check.
  *
- * The two health probes are here and are NOT a gap to close by the same route as the others: their bodies are
- * operational, not part of the recipe wire contract, and no client compiles against them.
+ * The health probes USED to be here. They came off when `contractHash` was added to their payload for drift
+ * layer 3: the moment a consumer is expected to read a field off `/health`, that body IS wire contract, so it
+ * got an authored `health.schema.ts` like everything else.
  */
 const RESPONSES_WITHOUT_SCHEMA: readonly string[] = [
     'addRecipeToCollection 201',
@@ -66,10 +67,7 @@ const RESPONSES_WITHOUT_SCHEMA: readonly string[] = [
     'createCollection 201',
     'exportAccount 200',
     'getCollectionById 200',
-    'getHealth 200',
     'getIngredientCandidates 200',
-    'getReadiness 200',
-    'getReadiness 503',
     'listCollections 200',
     'previewPullFromSource 200',
     'pullCollectionFromSource 200',

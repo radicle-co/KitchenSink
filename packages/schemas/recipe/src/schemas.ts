@@ -8,6 +8,7 @@
  * discarded rather than shipped.
  */
 
+export * from './schemas/health.schema.js';
 export * from './schemas/photos.schema.js';
 export * from './schemas/ratings.schema.js';
 export * from './schemas/search.schema.js';

@@ -11,6 +11,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, hasDatabaseUrl, type BootedRecipeApp } from './harness.js';
+import { CONTRACT_HASH } from '../../src/contract/contract-hash.js';
 
 describe.skipIf(!hasDatabaseUrl)('recipe-service e2e harness (booted app + Docker Postgres)', () => {
     let booted: BootedRecipeApp;
@@ -27,6 +28,10 @@ describe.skipIf(!hasDatabaseUrl)('recipe-service e2e harness (booted app + Docke
         const response = await fetch(`${booted.baseUrl}/health`);
 
         expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toEqual({ status: 'ok', service: 'recipe' });
+        await expect(response.json()).resolves.toEqual({
+            status: 'ok',
+            service: 'recipe',
+            contractHash: CONTRACT_HASH,
+        });
     });
 });

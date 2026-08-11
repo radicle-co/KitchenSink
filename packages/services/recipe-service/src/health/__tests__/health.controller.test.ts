@@ -9,6 +9,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ServiceUnavailableException } from '@nestjs/common';
 import type pg from 'pg';
 
+import { CONTRACT_HASH } from '../../contract/contract-hash.js';
 import { HealthController, READINESS_QUERY_TIMEOUT_MS } from '../health.controller.js';
 
 /** A pool exposing only the `query` method the controller uses. */
@@ -26,7 +27,7 @@ describe('HealthController', () => {
             const query = vi.fn();
             const controller = new HealthController(makePool(query));
 
-            expect(controller.getHealth()).toEqual({ status: 'ok', service: 'recipe' });
+            expect(controller.getHealth()).toEqual({ status: 'ok', service: 'recipe', contractHash: CONTRACT_HASH });
             expect(query).not.toHaveBeenCalled();
         });
     });
@@ -36,7 +37,11 @@ describe('HealthController', () => {
             const query = vi.fn().mockResolvedValue({ rows: [{ '?column?': 1 }] });
             const controller = new HealthController(makePool(query));
 
-            await expect(controller.getReadiness()).resolves.toEqual({ status: 'ok', service: 'recipe' });
+            await expect(controller.getReadiness()).resolves.toEqual({
+                status: 'ok',
+                service: 'recipe',
+                contractHash: CONTRACT_HASH,
+            });
             expect(query).toHaveBeenCalledWith('SELECT 1');
         });
 

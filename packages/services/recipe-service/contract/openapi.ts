@@ -22,11 +22,13 @@
  * A response gets a schema here only when a zod schema that is TRUE of what the server actually sends
  * already exists. Concretely:
  *
- *  - **Covered** — the recipes, photos, versions, ingredient-CRUD, search and rating-read bodies, because
+ *  - **Covered** — the health probes (their payload carries `contractHash`, the drift-layer-3 skew signal, so
+ *    it IS wire contract and has an authored `health.schema.ts`), plus the recipes, photos, versions,
+ *    ingredient-CRUD, search and rating-read bodies, because
  *    `@kitchensink/recipe-core` already owns their zod AND `@kitchensink/recipe-service-client` PARSES
- *    production responses with those same schemas today. That is empirical evidence of truth, not a
- *    guess: were `recipeDetailSchema` wrong about a detail response, the shipped client would already be
- *    throwing on every read.
+ *    production responses with those same schemas today. That is empirical evidence of truth, not a guess:
+ *    were `recipeDetailSchema` wrong about a detail response, the shipped client would already be throwing
+ *    on every read.
  *  - **NOT covered** — collections, account export/erasure, and the two blended ingredient endpoints
  *    (`suggest`, `candidates`). Those are exactly the boundaries the client validates with
  *    `expectUnvalidated`, i.e. the ones with no shared schema on either side. They are filled in as each
@@ -66,6 +68,7 @@ import {
     updateRecipeInputSchema,
 } from '@kitchensink/recipe-core';
 
+import { healthStatusSchema, healthUnavailableSchema } from '../src/health/health.schema.js';
 import {
     confirmPhotoRequestSchema,
     createPhotoUploadRequestSchema,
@@ -84,6 +87,8 @@ import { recipeSearchResponseSchema } from '../src/search/search.schema.js';
  */
 const components = {
     ErrorResponse: recipeErrorSchema,
+    HealthStatus: healthStatusSchema,
+    HealthUnavailable: healthUnavailableSchema,
     Recipe: recipeSchema,
     RecipeDetail: recipeDetailSchema,
     PaginatedRecipes: paginatedResponseSchema(recipeSchema),
@@ -177,9 +182,12 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         get: {
             operationId: 'getHealth',
             summary: 'Liveness probe.',
-            description: 'Deliberately PUBLIC — the ALB target group calls it with no credential.',
+            description:
+                'Deliberately PUBLIC — the ALB target group calls it with no credential, and a consumer checking for contract skew must be able to ask before it holds one. `contractHash` is that skew signal (§15.2.5).',
             security: [],
-            responses: { '200': { description: 'The service is running.' } },
+            responses: {
+                '200': { description: 'The service is running.', schema: 'HealthStatus' },
+            },
         },
     },
     '/health/ready': {
@@ -189,8 +197,11 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             description: 'Deliberately PUBLIC.',
             security: [],
             responses: {
-                '200': { description: 'The service is ready to serve traffic.' },
-                '503': { description: 'A dependency is unavailable.' },
+                '200': { description: 'The database answered; the service is ready.', schema: 'HealthStatus' },
+                '503': {
+                    description: 'The database did not answer within the probe timeout.',
+                    schema: 'HealthUnavailable',
+                },
             },
         },
     },

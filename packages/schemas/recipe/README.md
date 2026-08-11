@@ -54,8 +54,8 @@ they declare**; the other 15 carry a described operation with an _undescribed bo
 authored zod on either side yet. `contract:generate` prints the exact `operationId statusCode` list on every
 run, and `contract/__tests__/openapi.test.ts` pins it as a ratchet, so the set cannot grow silently.
 
-The gaps are: the whole **collections** vertical, **account** export/erasure, the two blended **ingredient**
-endpoints (`suggest`, `candidates`), and the two health probes. Those are precisely the boundaries the typed
-client validates with `expectUnvalidated` — no shared schema on either side — and they close as each vertical
+The gaps are: the whole **collections** vertical, **account** export/erasure, and the two blended
+**ingredient** endpoints (`suggest`, `candidates`). Those are precisely the boundaries the typed client
+validates with `expectUnvalidated` — no shared schema on either side — and they close as each vertical
 gains an authored `*.schema.ts`. A hopeful shape published for them now would be a contract that lies, which
 is worse than an obviously incomplete one.

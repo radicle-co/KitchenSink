@@ -8,21 +8,24 @@
  *     drain a task that has lost its database without killing it.
  *
  * Both routes are unauthenticated (see `AuthMiddleware.PUBLIC_PATHS`).
+ *
+ * Both `200` payloads also carry `contractHash` — the wire-contract fingerprint this binary was built
+ * against, and the SKEW SIGNAL for drift layer 3 (CODING_STANDARDS §15.2.5). See `health.schema.ts` for why it
+ * is published unauthenticated and why it leaks nothing.
  */
 import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import type pg from 'pg';
 
+import { CONTRACT_HASH } from '../contract/contract-hash.js';
+import type { HealthStatus, HealthUnavailable } from './health.schema.js';
 import { PgPoolProvider } from '../database/database.module.js';
 
 /** Upper bound on the readiness `SELECT 1`; a slower DB is reported not-ready rather than hanging the probe. */
 export const READINESS_QUERY_TIMEOUT_MS = 2_000;
 
-/** The health payload shape shared by both probes. */
-interface HealthStatus {
-    status: string;
-    service: string;
-}
+/** The `200` payload both probes return. Built once so the two routes cannot answer differently. */
+const OK: HealthStatus = { status: 'ok', service: 'recipe', contractHash: CONTRACT_HASH };
 
 @Controller('health')
 @SkipThrottle()
@@ -35,14 +38,14 @@ export class HealthController {
      */
     @Get()
     public getHealth(): HealthStatus {
-        return { status: 'ok', service: 'recipe' };
+        return OK;
     }
 
     /**
      * Readiness probe: the service can reach its database. Runs a bounded `SELECT 1`; a failure or
      * timeout surfaces as `503 Service Unavailable` so traffic is routed away until the DB recovers.
      *
-     * @returns `{ status: 'ok', service: 'recipe' }` when the DB answers within the timeout.
+     * @returns The `ok` payload (with `contractHash`) when the DB answers within the timeout.
      * @throws {ServiceUnavailableException} (→ 503) when the probe query fails or times out.
      * @sideEffect Issues a `SELECT 1` against the connection pool.
      */
@@ -51,10 +54,13 @@ export class HealthController {
         try {
             await this.probeDatabase();
         } catch {
-            throw new ServiceUnavailableException({ status: 'unavailable', service: 'recipe' });
+            throw new ServiceUnavailableException({
+                status: 'unavailable',
+                service: 'recipe',
+            } satisfies HealthUnavailable);
         }
 
-        return { status: 'ok', service: 'recipe' };
+        return OK;
     }
 
     /**

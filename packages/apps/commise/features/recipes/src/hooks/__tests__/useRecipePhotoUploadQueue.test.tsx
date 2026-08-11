@@ -136,8 +136,20 @@ describe('useRecipePhotoUploadQueue — sequential drive + per-file status', () 
         });
 
         // ONLY once file A settled did file B's presign fire — never interleaved with A's.
+        //
+        // B's `uploading` is the SYNCHRONISATION POINT for the call-count assertion, not merely another
+        // assertion, and the order of these two lines is load bearing. `uploading` is derived from
+        // `activeFileId` (see `toPublicItems`), which "start next" sets in the same effect body immediately
+        // before it calls `upload` — so once B renders `uploading`, B's presign has necessarily already
+        // fired. Asserting the count first read the render the `waitFor` above returned on, which is the
+        // commit where A became `ok` and `activeFileId` was cleared; "start next" only runs AFTER that
+        // commit, so B is still `queued` there and the count is observed one commit too early. That window
+        // is a single React commit — invisible to a user, but a coin flip for a synchronous assertion, and
+        // it is what made this test fail under CI load while passing on an idle machine.
+        await waitFor(() => {
+            expect(result.current.queue.items.find((item) => item.fileName === 'b.png')?.status).toBe('uploading');
+        });
         expect(presign.mutateAsync).toHaveBeenCalledTimes(2);
-        expect(result.current.queue.items.find((item) => item.fileName === 'b.png')?.status).toBe('uploading');
 
         act(() => {
             presign.resolveNext({ uploadUrl: 'https://s3.example.com/put', key: 'kB' });

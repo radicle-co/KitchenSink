@@ -34,6 +34,7 @@ import type { NextFunction, Response } from 'express';
 
 import { settingFromEnv } from '../config/env.schema.js';
 import { AuthLoadShedder, type AuthLoadShedderOptions } from './auth-load-shedder.js';
+import { extractBearer } from './bearer.js';
 import type { AuthenticatedRequest } from './authenticated-principal.js';
 
 /**
@@ -67,17 +68,6 @@ export function authShedderConfigFromEnv(): AuthLoadShedderOptions {
  * the same verdict `AppConfigModule` reaches on the same value, and the correct one for a DoS guard.
  */
 const defaultShedder = new AuthLoadShedder(authShedderConfigFromEnv());
-
-/** Extract the bearer token from an `Authorization` header, else `undefined`. Pure. */
-function extractBearer(authorization: string | undefined): string | undefined {
-    if (typeof authorization !== 'string') {
-        return undefined;
-    }
-
-    const match = authorization.match(/^Bearer\s+(.+)$/i);
-
-    return match ? match[1]!.trim() : undefined;
-}
 
 @Injectable()
 export class FoodAuthGuard implements NestMiddleware {

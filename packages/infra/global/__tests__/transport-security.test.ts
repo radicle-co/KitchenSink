@@ -35,7 +35,7 @@
  * SQS is the opposite case and needs no special handling: `Queue.addToResourcePolicy` (which both
  * `enforceSSL` and `SqsSubscription`'s SNS grant go through) reuses one singleton `Queue/Policy`.
  */
-import { App, Aspects, Stack } from 'aws-cdk-lib';
+import { App } from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
 import { attachSecurityChecks } from '@kitchensink/infra-security';
 import { describe, expect, it } from 'vitest';

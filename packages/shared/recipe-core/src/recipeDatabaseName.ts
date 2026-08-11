@@ -63,10 +63,22 @@ export function recipeDatabaseNameForStage(stage: string, baseStage: string, imp
         return importedBaseName;
     }
 
+    // The trims are single-character and anchored (`/^_/`, `/_$/`) rather than the `/^_+|_+$/` they replace,
+    // because the collapse on the line above turns every MAXIMAL run of non-alphanumerics into exactly one
+    // `_`. Its output therefore carries at most one leading and one trailing underscore and no internal run,
+    // so `+` could never consume a second character — the two forms are equivalent here (verified over
+    // 222,621 inputs: exhaustive to length 4 over a mixed alphabet, plus 200,000 random ones).
+    //
+    // The `_+$` form is quadratic on a long run of underscores, because the engine retries the trailing
+    // match from every position (CodeQL `js/polynomial-redos`). The collapse means such a run can never
+    // actually reach it, so the alert is a false positive *in this composition* — but the single-character
+    // form is linear no matter what it is handed, and it states the invariant it depends on instead of
+    // defending against input the previous line has already made impossible.
     const suffix = stage
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '');
+        .replace(/^_/, '')
+        .replace(/_$/, '');
 
     if (suffix === '') {
         throw new Error(

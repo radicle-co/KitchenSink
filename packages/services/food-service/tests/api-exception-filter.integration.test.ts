@@ -33,10 +33,21 @@ const PENDING_ID = '01J9ZZZZZZZZZZZZZZZZZZZZZZ';
 /** Routes that throw one representative of each branch the filter resolves. */
 @Controller('api/v1/foods')
 class ThrowingController {
-    /** A genuine bug: the exact shape (`TypeError` from a bad property read) the fix was written for. */
+    /**
+     * A genuine bug: the exact shape (`TypeError` from a bad property read) the fix was written for.
+     *
+     * The empty rows are DESERIALIZED rather than written as `undefined as unknown as …`, and that matters
+     * for more than tidiness. The cast form made the dereference statically provable — CodeQL reported
+     * `js/property-access-on-non-object` ("the base expression of this property access is always
+     * undefined") against this line, which is a true finding about the TEST rather than a finding about the
+     * filter. It was also a less faithful reproduction: the production bug this route stands in for is a
+     * query that came back with no rows, not a variable assigned a literal `undefined`. Going through
+     * `JSON.parse` reproduces the real thing — a runtime-empty result typed as populated — and the
+     * `TypeError` it raises reaches the filter's unclassified branch for exactly the right reason.
+     */
     @Get('bug')
     public bug(): string {
-        const rows = undefined as unknown as Array<{ nutrients: string }>;
+        const rows = JSON.parse('[]') as Array<{ nutrients: string }>;
 
         return rows[0].nutrients;
     }

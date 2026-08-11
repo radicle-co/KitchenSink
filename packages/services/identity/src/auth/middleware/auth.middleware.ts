@@ -19,12 +19,25 @@ function getPath(req: Request): string {
     return req.originalUrl?.split('?')[0]?.replace(/\/$/, '') || '/';
 }
 
+/**
+ * Extract the bearer token from an `Authorization` header value, or `undefined` when absent/malformed.
+ *
+ * The credential group is `\S.*`, not `.+`: `.` matches a space, so `.+` and the preceding `\s+` overlap,
+ * and for a header the pattern REJECTS the engine retries every split of the whitespace run between them —
+ * quadratic in the header's length (CodeQL `js/polynomial-redos`; measured 270ms at 40KB on the old
+ * pattern), on the credential path of every request. Requiring the credential to start with a non-space
+ * leaves exactly one candidate split, so the parse is linear. It also makes `'Bearer    '` yield
+ * `undefined` rather than `''` — the honest answer for "no credential".
+ *
+ * @param authorization - The raw `Authorization` header value, if any.
+ * @returns The trimmed token, or `undefined`. Pure.
+ */
 function extractBearerToken(authorization: string | undefined): string | undefined {
     if (typeof authorization !== 'string') {
         return undefined;
     }
 
-    const match = authorization.match(/^Bearer\s+(.+)$/i);
+    const match = authorization.match(/^Bearer\s+(\S.*)$/i);
 
     return match ? match[1]!.trim() : undefined;
 }

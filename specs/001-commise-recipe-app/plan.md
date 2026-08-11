@@ -148,6 +148,81 @@ packages/
 
 **Structure Decision**: Monorepo split along a platform/product boundary (CODING_STANDARDS §5.1, Option B): KitchenSink **platform** packages (backend services, workers, clients, shared libs, tools, infra) are `@kitchensink/*` at `packages/{services,clients,shared,tools,infra}/<name>` and keep the existing role-suffix style (`-service`, `-workers`, `-service-client`); the Commise **product** (apps + feature/UI packages) is `@commise/*` under `packages/apps/commise/{web,mobile,features/*,ui}`. The recipe backend (`@kitchensink/recipe-service`) is a NestJS service that uses the **shared RDS instance with its own logical database `kitchensink_recipes`** (provisioned by a `RecipeDbBootstrap` custom resource mirroring `FoodDbBootstrap` (passwordless IAM-auth `recipe_app` role + `kitchensink_recipes` DB); the service authenticates via RDS IAM tokens (no password secret) and `Fn.importValue`s the shared instance endpoint like food — no new RDS instance; there is no shared `db` package). Worker Lambdas (`@kitchensink/recipe-workers`) follow the `identity-webhooks` pattern; the **version-archive worker** and the **erasure worker** are **VPC-attached** (they read the shared RDS (`kitchensink_recipes`) via the shared t4g.nano NAT instance). Photos are stored and served as-is (no resizing/async processing), so there is no photo-processor Lambda. The typed recipe API client is `@kitchensink/recipe-service-client` (mirrors the existing `@kitchensink/food-service-client`); pure recipe types live in `@kitchensink/recipe-core`; frontend widget/feature UI in `@commise/features-recipes`. Frontend apps in `packages/apps/commise/{web,mobile}/`. The service attaches to the **shared ALB** (`SharedAlbStack`, global infra) via a host-based listener rule at **priority 300** (identity=100, food=200, recipe=300) and does **not** create its own ALB; Fargate runs in **public subnets with `assignPublicIp`** (egress via IGW, not NAT). Per-PR feature deploys tag `Environment=pr-{N}` and name resources `kitchensink-recipe-*-pr-{N}` (ADR-0005) with a per-PR logical DB (ADR-0006). The version-archive worker is intentionally separated from the synchronous API path so DB-side commits and user responses are never blocked on S3 latency or failure.
 
+## API Contracts — ownership and drift (GR-015)
+
+**Normative sources — read them before adding an endpoint or a client type**:
+[`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). This section states only
+the **bindings for this feature**; the rule itself lives there and wins on any detail.
+
+| Role                                  | Binding for 001                                                                                                        |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)  | `@kitchensink/recipe-service` — `packages/services/recipe-service/src/**/*.schema.ts`, beside the controller it serves |
+| Schema package (generated, committed) | `@kitchensink/schema-recipe` — `packages/schemas/recipe`                                                               |
+| Consuming client                      | `@kitchensink/recipe-service-client` — `packages/clients/recipe-service`                                               |
+| Consuming apps / feature packages     | `@commise/web`, `@commise/mobile`, `packages/apps/commise/features/recipes`                                            |
+| Domain types (a **different** axis)   | `@kitchensink/recipe-core` — reused `import type`, **never re-declared** in the schema package (GR-007)                |
+
+### The service's obligation
+
+- Every request and response shape of `/api/v1/recipes/*`, `/api/v1/collections/*`, photos, ratings and
+  search is authored as **zod in the recipe service**, at `src/**/*.schema.ts`, next to its controller.
+- The service **validates its own requests with that same zod** via `nestjs-zod`'s `createZodDto`. There is
+  no second DTO definition that "agrees with" the schema by convention.
+- `@kitchensink/schema-recipe` is **generated and committed** from those sources — `schemas.ts`, `types.ts`,
+  `contract-hash.ts`, the barrel, and a **derived** `openapi.yaml`. Nothing in it is hand-edited.
+- A `*.schema.ts` imports **only `zod` and other `*.schema.ts` files**. `RecipeSearchResponse.facets`
+  currently takes its wire type from `../dal/search.dal.js` — that is the exact leak the constraint forbids
+  and it is fixed by moving the shape into the schema file, not by relaxing the constraint.
+
+### The CLIENT's obligation — separately mandatory, and the half that got skipped
+
+`@kitchensink/recipe-service-client` shipped **276 lines** of independently declared wire types and imported
+nothing from the service. That is what this feature is being corrected for, so the client half is stated as
+its own obligation rather than left to follow from the service half:
+
+- The client imports its wire **types and zod** from `@kitchensink/schema-recipe`.
+- The client **declares no request or response body type of the recipe service.** `types.ts` in the client
+  holds only genuinely client-side concerns — base URL and fetch config, retry options, its own error shapes.
+- Where a consumer shape **genuinely differs** — a form model, a filter view model, a narrowed list
+  projection — it is **DERIVED** from the wire type with `Pick` / `Omit` / `Partial` / mapped types, never
+  independently declared. Reference implementation already in this feature's own UI:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- `@commise/web` and `@commise/mobile` are bound identically. A wire shape re-typed in an app or feature
+  package is the same violation as one re-typed in the client.
+- **A new recipe endpoint is not complete until its types are reachable from `@kitchensink/schema-recipe`.**
+  "The web app will add the type" is a contract fork, not a task.
+
+### Drift gates — inherited from GR-015 §15-c, not reinvented here
+
+All three are required: turbo `inputs`-driven rebuild of `schema-recipe` from the service's `*.schema.ts`; a
+**regenerate-and-diff CI gate** (the strong gate — it catches a hand-edited generated file); and a
+`CONTRACT_HASH` **boot assertion** in the service, which is the only layer that can catch a deployed recipe
+service running ahead of a **released mobile binary's** pinned schema.
+
+### ⚠️ Third-party APIs — the exception, do NOT converge them (GR-015 §15-d)
+
+001 consumes the food/ingredient catalog through `@kitchensink/food-service-client`. That **is** one of our
+services, so 15-b applies to it in full. But 001's ingredient data ultimately originates at **USDA
+FoodData Central**, whose client is `packages/clients/usda`, and **that** client is the opposite case: we do
+not serve that API, its contract cannot be trusted, so it validates the raw upstream shape at the boundary
+with zod and legitimately declares its own types. **`packages/clients/usda/src/schemas.ts` must never be
+"converged" under this section** — deleting it replaces a checked parse with unchecked trust in a remote
+party's JSON. See 003 for the full statement.
+
+### Status — IN PROGRESS, and 001's hand-written contract is not yet replaced
+
+- ✅ `packages/schemas/recipe` exists with `schemas.ts`, `types.ts`, `contract-hash.ts` and a barrel.
+  **Converged so far: the search / photos / ratings vertical only.**
+- ❌ **`openapi.yaml` has not been generated for recipe.** The package's `package.json` already declares the
+  `./openapi.yaml` export, so that export currently names a file that does not exist.
+- ❌ [`contracts/api.openapi.yaml`](./contracts/api.openapi.yaml) — 2810 hand-written lines that **57 source
+  files cite as their authority**, verified by nothing — is **superseded in principle** by recipe's generated
+  document per §15.2(6). The generated document does not exist yet, so the citations have **not** been
+  repointed and the file has not been deleted. Do not treat it as normative for a shape the service's zod
+  also describes: where they disagree, **the service's `*.schema.ts` wins.**
+
 ## Reliability Architecture (FR-001a, FR-007b-i, C-007, FR-011)
 
 ### Atomic Recipe Save with Independent Photo Uploads (FR-001a)

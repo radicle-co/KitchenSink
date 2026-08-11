@@ -1,3 +1,20 @@
+# ⚠️ SUPERSEDED IN PRINCIPLE — HAND-WRITTEN, VERIFIED BY NOTHING. NOT THE CONTRACT AUTHORITY.
+#
+# Per GR-015 / docs/CODING_STANDARDS.md §15 / ADR-0014, the recipe service AUTHORS its wire contract as
+# zod in packages/services/recipe-service/src/**/*.schema.ts, and the normative document is the
+# openapi.yaml DERIVED into packages/schemas/recipe (@kitchensink/schema-recipe).
+#
+# These 2810 lines are hand-maintained and cited as authority by ~57 source files, while nothing verifies
+# them against the running service. Where this file and the service's *.schema.ts disagree, THE SERVICE'S
+# ZOD WINS.
+#
+# STATUS (2026-08-11): the replacement has NOT been generated yet — recipe's openapi.yaml does not exist,
+# and these citations have NOT been repointed. So this file is still the only OpenAPI document for recipe,
+# and it is retained for that reason ONLY. Do not extend it with a new endpoint: author the zod in the
+# service instead. Two documents both claiming to be normative is the state §15 exists to end.
+#
+# See: docs/architecture/decisions/0014-service-owned-api-contracts.md
+#      specs/001-commise-recipe-app/plan.md → "API Contracts — ownership and drift (GR-015)"
 openapi: 3.0.3
 info:
     title: Commise Recipe Management API

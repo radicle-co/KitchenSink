@@ -101,7 +101,7 @@ client half got skipped portfolio-wide.
   "converged".
 
 Full bindings, including the HTML-fragment widget caveat, are in
-[`spec.md` → _Contract ownership (GR-015)_](./spec.md#contract-ownership-gr-015--the-service-authors-it-and-clients-declare-nothing).
+[`spec.md` → _Contract ownership (GR-015)_](./spec.md#contract-ownership-gr-015).
 
 ### Additional cross-feature guardrails applied
 

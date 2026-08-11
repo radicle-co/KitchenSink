@@ -227,7 +227,9 @@ shipped package uses (see [GR-009 Current State](../governance-rules.md#gr-009-p
 | GET    | `/api/v1/creators/:handle/widget`          | Embed widget HTML fragment             |
 | POST   | `/api/v1/creators/:handle/tip`             | Initiate tip (delegates to 010)        |
 
-### Contract ownership (GR-015) — the service authors it, and clients declare nothing
+### Contract ownership (GR-015)
+
+_The service authors it; clients declare nothing._
 
 **Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
 [`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·

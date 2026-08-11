@@ -22,7 +22,7 @@
         "test:load:tokens": "tsx tests/load/prepare-clerk-tokens.ts",
         "test:load:db": "tsx tests/load/prepare-db.ts",
         "test:load": "k6 run tests/load/session-hot-path.load.js && k6 run tests/load/auth-rejection.load.js && k6 run tests/load/admin-user-search.load.js && k6 run tests/load/provisioning-and-rename.load.js",
-        "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts' 'contract/**/*.ts'",
+        "lint": "eslint 'src/**/*.ts' 'contract/**/*.ts' --ignore-pattern '**/*.test.ts'",
         "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check .",

@@ -56,7 +56,14 @@ on:
                 default: false
 
 permissions:
-    contents: read
+    contents: read # checkout only — the AWS/Clerk work uses repo secrets, not the GITHUB_TOKEN
+
+# A load test provisions a distinct-user pool against a SHARED Clerk instance and then tears it down, so
+# two concurrent runs would race each other's users and skew both reports. `cancel-in-progress: false`
+# because killing a run mid-flight is what LEAKS those users (teardown never executes) — queue instead.
+concurrency:
+    group: food-loadtest-${{ github.event.inputs.base_stage }}
+    cancel-in-progress: false
 
 env:
     NODE_VERSION: 24
@@ -64,6 +71,7 @@ env:
 
 jobs:
     loadtest:
+        name: Run k6 food-API journey
         runs-on: ubuntu-latest
         timeout-minutes: 30
         steps:

@@ -224,7 +224,7 @@ jobs:
         if: github.event_name == 'schedule'
         permissions:
             contents: read
-            pull-requests: read
+            pull-requests: read # read each candidate's PR state, so only a CONFIRMED-closed PR is reaped
         env:
             REGION: ${{ vars.DEFAULT_AWS_REGION }}
             GH_TOKEN: ${{ github.token }}

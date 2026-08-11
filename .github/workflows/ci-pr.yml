@@ -20,7 +20,7 @@ jobs:
         # `contents: read` is restated because a job-level block REPLACES the workflow default.
         permissions:
             contents: read
-            id-token: write
+            id-token: write # granted so _ci.yml e2e-web can reach it (a callee only downgrades)
         with:
             stage: sandbox
         # Explicit, not `inherit`: pass ONLY the two secrets `_ci.yml` declares, instead of exposing every

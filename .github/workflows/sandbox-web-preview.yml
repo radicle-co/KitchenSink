@@ -13,9 +13,11 @@ concurrency:
     group: sandbox-web-preview-${{ github.event.pull_request.number }}
     cancel-in-progress: true
 
+# Workflow-level default is READ-ONLY on purpose. `deployments: write` is granted on the one job that
+# needs it, not here: a workflow-level grant would be inherited by any job added later, which is exactly
+# how a helper job ends up able to publish deployment statuses it has no business touching.
 permissions:
     contents: read
-    deployments: write
 
 env:
     AWS_REGION: us-east-1
@@ -25,6 +27,9 @@ jobs:
     route:
         name: Update PR route in KVS
         runs-on: ubuntu-latest
+        permissions:
+            contents: read # checkout of this PR's tree
+            deployments: write # publish the PR's own GitHub deployment pointing at the working preview URL
         # Only same-repo PRs may touch AWS/Vercel. Fork PRs get no repo secrets by default, but this
         # guard also blocks a future `pull_request_target` foot-gun from running fork code with creds.
         if: github.event.pull_request.head.repo.full_name == github.repository

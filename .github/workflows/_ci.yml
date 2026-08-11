@@ -261,7 +261,7 @@ jobs:
         needs: [install]
         services:
             postgres:
-                image: postgres:16
+                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -316,7 +316,7 @@ jobs:
         needs: [install]
         services:
             postgres:
-                image: postgres:16
+                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -361,7 +361,7 @@ jobs:
         needs: [install]
         services:
             postgres:
-                image: postgres:16
+                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -413,7 +413,7 @@ jobs:
         # its only remaining effect was to make a script RENAME fail silently green. Dropped.
         services:
             postgres:
-                image: postgres:16
+                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -426,7 +426,7 @@ jobs:
                     --health-timeout 5s
                     --health-retries 5
             localstack:
-                image: localstack/localstack:4.4.0
+                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     # Community tier — no auth token. recipe-service's AWS surface (S3 archive, SQS,
                     # EventBridge=`events`, Secrets Manager, SSM) is all free/Community.
@@ -497,7 +497,7 @@ jobs:
         # self-provision their S3 buckets via CreateBucket, so no bucket-init step is needed here.
         services:
             postgres:
-                image: postgres:16
+                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -510,7 +510,7 @@ jobs:
                     --health-timeout 5s
                     --health-retries 5
             localstack:
-                image: localstack/localstack:4.4.0
+                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     # Community tier — no auth token. The workers' AWS surface is S3 only (SQS is driven
                     # via the exported seams, not a live queue), but the S3 family is free/Community.
@@ -637,7 +637,7 @@ jobs:
         # container is provisioned now so the Phase 3 AWS-service flows plug straight in.
         services:
             postgres:
-                image: postgres:16
+                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -650,7 +650,7 @@ jobs:
                     --health-timeout 5s
                     --health-retries 5
             localstack:
-                image: localstack/localstack:4.4.0
+                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     # Community tier — no auth token. Every service food-service uses (EventBridge=`events`,
                     # SQS, SNS, Secrets Manager, SSM, IAM, STS, CloudWatch Logs) is free/Community; the
@@ -703,7 +703,7 @@ jobs:
         needs: [install]
         services:
             postgres:
-                image: postgres:16
+                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -716,7 +716,7 @@ jobs:
                     --health-timeout 5s
                     --health-retries 5
             localstack:
-                image: localstack/localstack:4.4.0
+                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     SERVICES: s3,sqs,sns,events,secretsmanager,sts,iam,logs,cloudwatch,ssm
                 ports:
@@ -890,7 +890,7 @@ jobs:
         # a job-level `permissions:` REPLACES the workflow default rather than adding to it.
         permissions:
             contents: read
-            id-token: write
+            id-token: write # the secretless Argos OIDC exchange — see the note above
         # Base tier. Gating this is what stops a labelled PR from running TWO concurrent Playwright suites
         # on the same commit (ci-pr.yml + heavy-e2e.yml) against the shared sandbox Clerk instance.
         # Pin BOTH API origins the web app resolves from env. `src/config/env.ts` declares them with NO

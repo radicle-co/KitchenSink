@@ -50,7 +50,7 @@ jobs:
         # replaces the workflow default.
         permissions:
             contents: read
-            id-token: write
+            id-token: write # granted so _ci.yml e2e-web can reach it (a callee only downgrades)
         with:
             stage: ${{ inputs.stage }}
         # Explicit, not `inherit` — see ci-pr.yml. Only the two secrets `_ci.yml` declares are passed.

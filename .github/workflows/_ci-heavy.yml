@@ -121,7 +121,7 @@ jobs:
         if: ${{ inputs.run_mobile_maestro }}
         services:
             postgres:
-                image: postgres:16
+                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -414,7 +414,7 @@ jobs:
         if: ${{ inputs.run_load_test }}
         services:
             postgres:
-                image: postgres:16
+                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -431,7 +431,7 @@ jobs:
             # `version-archive-read` reads a snapshot the fixture PUTs to S3, and `save-under-archive`
             # measures save latency *while the archive is queued*. LocalStack Community covers S3 + SQS.
             localstack:
-                image: localstack/localstack:4.4.0
+                image: localstack/localstack:4.4.0 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     SERVICES: s3,sqs
                     # Path-style SQS URLs (http://localhost:4566/000000000000/<name>) so the queue the
@@ -639,7 +639,7 @@ jobs:
         if: ${{ inputs.run_load_test }}
         services:
             postgres:
-                image: postgres:16
+                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres
@@ -910,7 +910,7 @@ jobs:
         if: ${{ inputs.run_load_test }}
         services:
             postgres:
-                image: postgres:16
+                image: postgres:16 # zizmor: ignore[unpinned-images] — see the note in this file’s header
                 env:
                     POSTGRES_USER: postgres
                     POSTGRES_PASSWORD: postgres

@@ -18,8 +18,11 @@
  * Nothing in the toolchain models this class: `actionlint` validates syntax and contexts; CodeQL's
  * `actions` pack looks for injection and untrusted checkout; and **zizmor 1.29.0 has no audit for it** —
  * `dangerous-triggers` covers only `pull_request_target` and `workflow_run`, and the nearest thing,
- * `secrets-outside-env`, is `auditor`-persona-only, so the `--min-severity low` gate in `zizmor.yml`
- * never sees it (persona and severity are ORTHOGONAL filters). That is why the invariant lives here.
+ * `secrets-outside-env`, is `auditor`-persona-only, so `zizmor.yml`'s gate — now `--persona pedantic`
+ * with no severity floor — still never sees it (persona and severity are ORTHOGONAL filters; raising the
+ * floor alone changed nothing here). And even at `auditor` it would not have caught THIS bug:
+ * `secrets-outside-env` asserts "no GitHub Environment scopes this secret", not "any stranger can trigger
+ * this job" — it points at the same LINE for an unrelated reason. That is why the invariant lives here.
  *
  * ## Why it checks REACHABILITY rather than looking for a guard
  *

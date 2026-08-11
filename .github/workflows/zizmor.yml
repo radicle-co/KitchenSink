@@ -45,7 +45,8 @@
 #     line. Every other checkout in the repo sets `persist-credentials: false`.
 #
 # ⚠️ artipacked's SEVERITY IS NOT STABLE ACROSS RUNS — this is what broke the first version of the gate,
-#   and it is the reason the floor is now `low`. The audit "produces lower-severity findings when v6.0.0 or
+#   and it is why the floor was moved off `medium` (it is now `informational`, i.e. no floor at all, which
+#   makes this class unconditionally in-scope). The audit "produces lower-severity findings when v6.0.0 or
 #   higher of actions/checkout is used" (docs.zizmor.sh/audits/#artipacked). Both sites pin checkout by
 #   SHA (`d23441a4… # v6.1.0`), and resolving a SHA to its tag needs the GitHub API — so the v6 downgrade
 #   only applies in ONLINE mode. Measured on 1.29.0, same tree, same invocation, the ONLY difference being
@@ -69,40 +70,81 @@
 #   audits) would silently disarm it. A v4-pinned checkout grades MEDIUM in both modes, so the hole is
 #   specific to v6+ and would widen as checkouts are upgraded.
 #
-# CURRENT MEASUREMENT (2026-08-10, `zizmor .github/`, offline): **58 findings, 56 suppressed by zizmor's own
-#   default persona, 2 ignored by the two declared `artipacked` comments — 0 actionable at every severity.**
-#   With both exceptions declared, `--min-severity low` AND `--min-severity informational` both exit 0.
-#   (It read 63/61 before the `claude.yml` hardening added the permission comments, the workflow-level
-#   `permissions` block, a `concurrency` group and a job `name:` — five pedantic findings closed as a
-#   side effect, which is the only thing that moved the totals.)
-#   The floor is set to `low` (not `informational`): `low` is what artipacked needs to be caught in BOTH
-#   modes, and it is the tightening this ledger already named as the next step. `informational` passes today
-#   too, but the informational classes have not been reviewed, so adopting them is a separate decision with
-#   a known-clean baseline.
+# ⚠️ THE FLOOR WAS NEVER THE ONLY FILTER — `--persona` IS THE OTHER, AND IT IS ORTHOGONAL. Raising the
+#   floor to `low` on 2026-08-08 closed one filter and left the other wide open. Measured on 1.29.0,
+#   offline, on the tree BEFORE the persona burn-down below (58 findings total, 2 declared ignores):
+#     • default `regular` persona, --min-severity low            → exit 0, **56 suppressed**
+#     • default `regular` persona, --min-severity informational  → exit 0, **56 suppressed**
+#     • --persona pedantic                                       → 27 shown, 29 still suppressed
+#     • --persona auditor                                        → 56 shown, 0 suppressed
+#   Two invocations differing ONLY in persona saw 0 and 56 findings on the same tree at the same severity.
+#   So a `regular`-persona green said far less than it looked like it said, and the classes it could not
+#   see included EVERY `secrets-outside-env` in the repo.
 #
-# ⚠️ THE FLOOR IS NOT THE ONLY FILTER — `--persona` IS THE OTHER, AND IT IS ORTHOGONAL. The "56
-#   suppressed" above are suppressed by zizmor's DEFAULT `regular` persona and are invisible at EVERY
-#   severity, including `informational`. That is a real blind spot with a measured instance: the missing
+# PERSONA BURN-DOWN (2026-08-10, PR #91). The gate moved from `regular` to **`pedantic`**, which required
+#   emptying pedantic's 27 rather than flipping a flag. By audit, with what was done to each:
+#     • undocumented-permissions  8 → 0  FIXED. zizmor wants the explanation on the permission's OWN line;
+#         codeql.yml already had a preceding block comment and still fired. Now every `permissions:` key in
+#         ci-pr / ci-main / ci-full / _ci / codeql / zizmor / sandbox-deploy / sandbox-web-preview carries a
+#         trailing comment saying what needs it.
+#     • excessive-permissions     1 → 0  FIXED. sandbox-web-preview.yml held `deployments: write` at the
+#         WORKFLOW level for its single job. Moved to that job, so a job added later does not inherit the
+#         ability to publish deployment statuses. (This is the same class the 2026-08-08 burn-down closed at
+#         the regular persona; the pedantic tier sees workflow-level grants the regular tier does not.)
+#     • concurrency-limits        1 → 0  FIXED. food-loadtest.yml gained a `concurrency:` group keyed on
+#         `base_stage`, with `cancel-in-progress: false` — two concurrent runs would race each other's
+#         distinct-user pool on a SHARED Clerk instance, and cancelling mid-run is what LEAKS those users
+#         (teardown never executes), so queueing is the correct resolution rather than the reflexive one.
+#     • anonymous-definition      1 → 0  FIXED. food-loadtest.yml's `loadtest` job gained a `name:`.
+#     • unpinned-images          16 → DECLARED, not fixed. Every one is a `services:` container in `_ci.yml`
+#         or `_ci-heavy.yml` (`postgres:16` ×13, `localstack/localstack:4.4.0` ×3), each now carrying a
+#         per-site `# zizmor: ignore[unpinned-images]`. Pinning them by digest is a real hardening step and
+#         a SEPARATE decision, because nothing would own the resulting pins: `.github/dependabot.yml`
+#         declares `npm` and `github-actions` only, with no `docker` ecosystem, and a SHA pin nobody bumps is
+#         the pinned-and-forgotten failure that file's own header warns about. `postgres:16` is also
+#         deliberately a floating MINOR that tracks the production RDS engine. To close this: add a `docker`
+#         ecosystem to dependabot.yml (verify first that it discovers Actions `services:` images at all),
+#         then pin and delete these 16 comments.
+#
+# CURRENT MEASUREMENT (2026-08-10, offline, same tree, after the above): **47 findings — 18 declared
+#   per-site ignores (16 unpinned-images + 2 artipacked), 29 suppressed, 0 shown at EVERY severity.**
+#   `--persona pedantic --min-severity informational --strict-collection` exits 0. The floor is now
+#   `informational` rather than `low`, which removes the severity filter entirely: at the pedantic persona
+#   the informational tier holds exactly ONE audit class in this repo (`anonymous-definition`), it was
+#   enumerated and fixed above, so the "informational classes are unreviewed" caveat that kept the floor at
+#   `low` no longer applies. zizmor is EXACTLY version-pinned, so no upstream change can add a class here
+#   without a repo change to point at.
+#
+# ⛔ WHAT THIS GATE STILL CANNOT SEE — 29 findings, ONE audit, and it is an OWNER DECISION, not an oversight.
+#   All 29 remaining suppressed findings are `secrets-outside-env` at the `auditor` persona, Medium, High
+#   confidence. Read the annotation literally: "secret is accessed outside of a dedicated **environment**" —
+#   it is NOT about `env:` blocks. It fires on every job that reads a `secrets.*` value without binding
+#   itself to a GitHub **Environment**, which is what would let the secret carry protection rules instead of
+#   being ambiently available to the job. Where they are:
+#     sandbox-deploy 14 · sandbox-web-preview 4 · sandbox-router-deploy 3 · food-loadtest 2 ·
+#     prod-deploy 2 · sandbox-identity-deploy 2 · claude 1 · claude-code-review 1
+#   The remediation is repository configuration plus a real operational change (approval gates on deploys),
+#   and it is ALREADY a recorded, undone hardening path — see `_ci.yml`'s header: "move AWS auth to OIDC with
+#   two stage-scoped roles and adopt GitHub Environments so prod secrets are unreachable from PR runs", and
+#   docs/CI_ARCHITECTURE.md. So this is escalated rather than buried under 29 ignore comments: accepting it
+#   by comment would be deciding the repository's secret-scoping posture in a lint annotation.
+#
+#   ⚠️ AND ZIZMOR STILL HAS NO AUDIT FOR THE ACTOR-TRUST CLASS AT ALL, at any persona. The missing
 #   `author_association` guard on `claude.yml` (a PUBLIC repo handing `CLAUDE_CODE_OAUTH_TOKEN` to a
-#   third-party action for any commenter on the internet) was found by human review, not here. zizmor has
-#   NO audit for that class at all — `dangerous-triggers` covers only `pull_request_target` and
-#   `workflow_run`, never the comment triggers — and the nearest signal, `secrets-outside-env`, fires on
-#   `claude.yml` only under `--persona auditor`. Measured on 1.29.0, offline, same tree:
-#     • default persona, --min-severity low            → exit 0   (this gate), 56 suppressed
-#     • default persona, --min-severity informational  → exit 0,               56 suppressed
-#     • --persona pedantic                             → 58 findings, 29 still suppressed
-#     • --persona auditor                              → 58 findings, 0 suppressed (29 medium appear)
-#   The 56 the gate cannot see include EVERY `secrets-outside-env` in the repo. So do NOT read "the zizmor
-#   gate is green" as "the workflows are audited for actor trust". Adopting `--persona auditor` is a
-#   separate decision with its own 58-finding baseline to review (it adds `secrets-outside-env` on every
-#   secret-bearing job, plus `concurrency-limits` and `undocumented-permissions` tree-wide). Until then the
-#   invariant is asserted in the repo's own tests:
-#   `packages/infra/global/__tests__/comment-trigger-guard.test.ts`.
+#   third-party action for any commenter on the internet) was found by human review. `dangerous-triggers`
+#   covers only `pull_request_target` and `workflow_run`, never the comment triggers.
+#   `secrets-outside-env` points at the same LINE — it is where the token is read — but what it asserts is
+#   "no Environment scopes this secret", not "any stranger can trigger this job", so adopting `auditor`
+#   would not have caught it either. That invariant is asserted only by the repo's own test:
+#   `packages/infra/global/__tests__/comment-trigger-guard.test.ts`. So: green here means "no pedantic-tier
+#   zizmor finding outside the 18 declared ignores". It does NOT mean "the workflows are audited for actor
+#   trust", and it does NOT mean the repo's secrets are environment-scoped.
 #
-# ⚠️ A WORKFLOW ZIZMOR CANNOT PARSE DROPS OUT OF THE AUDIT WITH ONLY A `WARN`, and the directory-level run
-#   still exits 0 — so an invalid workflow is silently unaudited rather than reported. `--strict-collection`
-#   is the flag that turns that into a failure. NOT adopted here (untested against this tree, and it is a
-#   separate decision), but it is the thing to reach for if a file ever appears to have no findings at all.
+# ✅ A WORKFLOW ZIZMOR CANNOT PARSE USED TO DROP OUT OF THE AUDIT WITH ONLY A `WARN` — now adopted and
+#   verified. Measured by dropping a syntactically invalid workflow into a copy of `.github/workflows/`:
+#   without the flag zizmor logged `WARN … failed to parse input` and still exited **0** ("No findings to
+#   report. Good job!"), so an invalid file was silently unaudited; with `--strict-collection` it exits
+#   **1** naming the file. It is a no-op on the current tree (exit 0), and it is on BOTH invocations.
 #
 # SCOPED TO `.github/` DELIBERATELY, not the repo root. A root-scoped run also audits the vendored
 # third-party workflows under `.specify/extensions/**` (36 extra findings in code we do not own and
@@ -142,9 +184,9 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         permissions:
-            security-events: write
-            contents: read
-            actions: read
+            security-events: write # upload the zizmor SARIF to code scanning
+            contents: read # read the checkout being analysed
+            actions: read # read workflow run metadata, which the analysis needs on PRs
         steps:
             - name: Checkout repository
               uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -164,9 +206,14 @@ jobs:
             - name: Run zizmor
               # `rc` rather than `status`: harmless in bash, but `status` is a read-only special in some
               # shells and this script should stay portable if the shell is ever changed.
+              #
+              # SAME PERSONA AS THE GATE, on purpose. If this run were left at the default `regular` while
+              # the gate audits `pedantic`, the Security tab would show a strictly SMALLER picture than the
+              # thing that can fail the build, and the two would disagree about what "clean" means.
+              # `--strict-collection` so an unparseable workflow cannot silently drop out of the SARIF either.
               run: |
                   set -uo pipefail
-                  zizmor --format sarif .github/ > zizmor.sarif
+                  zizmor --persona pedantic --strict-collection --format sarif .github/ > zizmor.sarif
                   rc=$?
                   if [ ! -s zizmor.sarif ]; then
                     echo "::error::zizmor produced no SARIF output (exit ${rc}) — the audit did not run."
@@ -181,41 +228,61 @@ jobs:
             # exits 12/14 when findings exist). Reusing one run for both jobs is what would silently turn the
             # gate into a no-op the next time somebody changes `--format`.
             #
-            # FLOOR IS `low`, and the two accepted exceptions are DECLARED AT THEIR SITES rather than left to
-            # hide beneath the floor. The first version of this gate sat at `medium` because that happened to
-            # be just above the two known `artipacked` findings — which is brittle by construction: it made
-            # the gate's severity threshold do the job an exception list should do, and it silently coupled
-            # the gate's strength to how artipacked happens to be graded. It is graded inconsistently (see
-            # the ledger above: LOW online, MEDIUM offline, same version, same tree, decided purely by
-            # whether a token is in the environment), so a `medium` floor was measured to MISS a brand-new
-            # artipacked entirely in online mode. `low` catches that class in both modes.
+            # THREE FLAGS, THREE SEPARATE DECISIONS — all three measured, none of them cosmetic:
             #
-            # The two exceptions are now `# zizmor: ignore[artipacked]` on the `- name: Checkout` line of
-            # prod-deploy `deploy` and sandbox-identity-deploy `deploy`. Each is scoped to ONE step and ONE
-            # audit, sits directly under the `⚠️ DELIBERATE` note that justifies it, and is placed on the
-            # `name:` line specifically so the `uses:` line's `# v6.1.0` comment — which Dependabot parses to
-            # bump the pin — stays a lone version comment.
+            # 1. `--persona pedantic` (was the implicit `regular`). PERSONA IS A FILTER ORTHOGONAL TO
+            #    SEVERITY, and it was the bigger hole of the two: on the same tree, at the same severity, the
+            #    regular persona showed 0 findings while pedantic showed 27 and auditor 56. A gate that only
+            #    ever ran the regular persona could not see `unpinned-images`, `undocumented-permissions`,
+            #    workflow-level `excessive-permissions`, `concurrency-limits` or `anonymous-definition` AT ANY
+            #    SEVERITY. Moving here was a burn-down, not a flag flip — see the ledger's per-audit account.
+            #    `auditor` is deliberately NOT adopted: its remaining 29 `secrets-outside-env` findings are an
+            #    owner decision about GitHub Environments, and the ledger escalates them rather than accepting
+            #    them by comment.
             #
-            # What this gate buys: every class closed during the burn-down — template-injection (67 -> 0),
-            # excessive-permissions (7 -> 0, both High), unpinned-uses, secrets-inherit — plus artipacked
-            # itself, now that the floor reaches it. Notably a new `${{ … }}` interpolation inside a `run:`
-            # body, which is the one genuinely exploitable class. VERIFIED by mutation, not by assumption:
-            # dropping `persist-credentials: false` from heavy-e2e.yml's checkout exits 13 offline / 12
-            # online at this floor, and the same mutation exits 0 under the old `medium` floor online.
+            # 2. `--min-severity informational` (was `low`). This removes the severity filter entirely, so no
+            #    finding can hide beneath a threshold. `low` existed because artipacked is graded
+            #    inconsistently — LOW online, MEDIUM offline, same version and tree, decided purely by whether
+            #    a token is in the environment — which made the earlier `medium` floor MISS a brand-new
+            #    artipacked in online mode. With no floor at all, that coupling is gone for every class, not
+            #    just artipacked. The caveat that kept it at `low` (unreviewed informational classes) is
+            #    resolved: at this persona the informational tier holds exactly one class in this repo, and it
+            #    was enumerated and fixed.
+            #
+            # 3. `--strict-collection`. Without it a workflow zizmor cannot PARSE drops out of the audit with
+            #    only a `WARN` and the directory-level run still exits 0 — an invalid file reads as a clean
+            #    one. Measured both ways against a copy of this tree carrying one invalid workflow: exit 0
+            #    without the flag, exit 1 naming the file with it. No-op on the current tree.
+            #
+            # The 18 accepted exceptions are DECLARED AT THEIR SITES rather than left to hide beneath a filter:
+            # `# zizmor: ignore[artipacked]` on the `- name: Checkout` line of prod-deploy `deploy` and
+            # sandbox-identity-deploy `deploy`, and `# zizmor: ignore[unpinned-images]` on each `services:`
+            # image in `_ci.yml` / `_ci-heavy.yml`. Each is scoped to ONE step and ONE audit. The artipacked
+            # two sit on the `name:` line specifically so the `uses:` line's `# v6.1.0` comment — which
+            # Dependabot parses to bump the pin — stays a lone version comment.
+            #
+            # VERIFIED BY MUTATION, not by assumption. Each of these reds THIS gate and passes the old
+            # `regular --min-severity low` one on the same tree:
+            #   • a new unpinned `services:` image in heavy-e2e.yml   → exit 14 here, exit 0 under the old gate
+            #   • an undocumented `issues: read` added to this file   → exit 12 here, exit 0 under the old gate
+            #   • one syntactically invalid workflow added            → exit  1 here, exit 0 under the old gate
+            # Plus the classes the earlier burn-down closed and this gate still holds: template-injection
+            # (67 -> 0) — notably a new `${{ … }}` interpolation in a `run:` body, the one genuinely
+            # exploitable class — excessive-permissions, unpinned-uses, secrets-inherit, artipacked.
             #
             # A NEW deliberate exception is a per-site `# zizmor: ignore[<audit>]` next to the reason it is
-            # accepted — never a floor change. Raising the floor to bury a finding is the failure this
-            # replaced; lowering to `informational` is a separate, currently-unreviewed decision.
-            - name: Gate on low-or-above findings
+            # accepted — never a persona downgrade and never a floor change. Weakening either filter to bury a
+            # finding is the exact failure this step has now been rebuilt twice to stop.
+            - name: Gate on all pedantic-persona findings
               run: |
                   set -uo pipefail
-                  zizmor --min-severity low --no-progress .github/
+                  zizmor --persona pedantic --min-severity informational --strict-collection --no-progress .github/
                   rc=$?
                   if [ "${rc}" -ne 0 ]; then
-                    echo "::error::zizmor found low-or-above findings (exit ${rc}). These are gating. Fix them, or — if the site is a deliberate, justified exception — declare it with a per-site '# zizmor: ignore[<audit>]' comment next to the reason it is accepted. Do NOT raise the severity floor to bury a finding."
+                    echo "::error::zizmor found pedantic-persona findings, or could not parse a workflow (exit ${rc}). These are gating. Fix them, or — if the site is a deliberate, justified exception — declare it with a per-site '# zizmor: ignore[<audit>]' comment next to the reason it is accepted. Do NOT lower the persona or raise the severity floor to bury a finding."
                     exit 1
                   fi
-                  echo "zizmor gate passed: no low-or-above findings outside the declared per-site ignores."
+                  echo "zizmor gate passed: no pedantic-persona findings outside the declared per-site ignores, and every workflow parsed."
 
             - name: Upload SARIF to code scanning
               uses: github/codeql-action/upload-sarif@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3.37.6

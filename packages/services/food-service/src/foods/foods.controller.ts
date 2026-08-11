@@ -54,6 +54,10 @@ import {
     isNotResolvableError,
 } from './foods.errors.js';
 import { FoodsService } from './foods.service.js';
+// The AUTHORED wire contract (CODING_STANDARDS §15.2): the request schemas below are the validators this
+// controller runs AND the definitions `@kitchensink/schema-food` publishes to every client, so there is one
+// representation of each shape instead of a server-side check and a client-side belief about it.
+import { addFoodRequestSchema, batchAddFoodRequestSchema, resolveFoodRequestSchema } from './foods.schema.js';
 import type {
     AddResponse,
     BatchResponse,
@@ -63,7 +67,7 @@ import type {
     ResolveResponse,
     SearchResponse,
     StatusResponse,
-} from './foods.types.js';
+} from './foods.schema.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
 // `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard
@@ -261,26 +265,43 @@ export class FoodsController {
         }
     }
 
-    /** Validate + extract a non-empty `name` from the add body → else `400`. */
+    /**
+     * Validate + extract a non-empty `name` from the add body → else `400`.
+     *
+     * Parses with {@link addFoodRequestSchema} — the SAME definition `@kitchensink/schema-food` publishes and
+     * `openapi.yaml` documents — so "what counts as an empty name" has one representation rather than a zod
+     * schema for clients and a hand-rolled `typeof`/`trim` check for the server (CODING_STANDARDS §15.2).
+     * The `400` body is unchanged: the shape is the contract, the label is the wire.
+     */
     private requireName(body: unknown): string {
-        const name = this.field(body, 'name');
+        const parsed = addFoodRequestSchema.safeParse(body);
 
-        if (typeof name !== 'string' || name.trim().length === 0) {
+        if (!parsed.success) {
             throw new BadRequestException({ error: 'Empty name' });
         }
 
-        return name;
+        return parsed.data.name;
     }
 
-    /** Validate + extract the `names` array (≤100, all strings) → else `400`. */
+    /**
+     * Validate + extract the `names` array (all strings, ≤ the configured maximum) → else `400`.
+     *
+     * The SHAPE is checked by {@link batchAddFoodRequestSchema} (the published definition). The two rules that
+     * are NOT in it stay here on purpose and are not duplication:
+     *  - dropping blank entries is server-side normalization, not a shape a caller must satisfy — and as a
+     *    `.transform()` it could not be represented in the published JSON Schema at all;
+     *  - the cap is `FOOD_MAX_BATCH_NAMES`, a RUNTIME configuration value. A static bound in the contract would
+     *    be a second representation that silently disagrees the moment the environment variable is tuned, so
+     *    the configured value is enforced here and reported in the `400` body where a caller can read it.
+     */
     private requireNames(body: unknown): string[] {
-        const names = this.field(body, 'names');
+        const parsed = batchAddFoodRequestSchema.safeParse(body);
 
-        if (!Array.isArray(names) || names.some((entry) => typeof entry !== 'string')) {
+        if (!parsed.success) {
             throw new BadRequestException({ error: 'Invalid names' });
         }
 
-        const cleaned = (names as string[]).map((name) => name.trim()).filter((name) => name.length > 0);
+        const cleaned = parsed.data.names.filter((name) => name.length > 0);
         const maxNames = this.config.get('FOOD_MAX_BATCH_NAMES', { infer: true });
 
         if (cleaned.length > maxNames) {
@@ -290,20 +311,20 @@ export class FoodsController {
         return cleaned;
     }
 
-    /** Validate + extract the non-empty `candidateIds` array (malformed body → `400`, DSN-14). */
+    /**
+     * Validate + extract the non-empty `candidateIds` array (malformed body → `400`, DSN-14).
+     *
+     * `.min(1)` lives in {@link resolveFoodRequestSchema}, so the published contract states the requirement
+     * instead of leaving a client to discover it from a `400`.
+     */
     private requireCandidateIds(body: unknown): string[] {
-        const ids = this.field(body, 'candidateIds');
+        const parsed = resolveFoodRequestSchema.safeParse(body);
 
-        if (!Array.isArray(ids) || ids.length === 0 || ids.some((entry) => typeof entry !== 'string')) {
+        if (!parsed.success) {
             throw new BadRequestException({ error: 'Invalid candidateIds' });
         }
 
-        return ids as string[];
-    }
-
-    /** Read a property off an unknown body, or `undefined`. */
-    private field(body: unknown, key: string): unknown {
-        return body !== null && typeof body === 'object' ? (body as Record<string, unknown>)[key] : undefined;
+        return parsed.data.candidateIds;
     }
 
     /** Map a read-path error: `FoodNotFoundError` → `404` with the status in the body; else rethrow. */

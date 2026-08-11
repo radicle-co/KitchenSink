@@ -145,14 +145,30 @@ const BODYLESS_STATUSES: readonly string[] = ['204', '304'];
  * inline a shared shape (`NutrientView`) into every parent that uses it, so a reader could not tell that two
  * inlined copies are one type, and `oasdiff` would report an unrelated change at every use site.
  *
+ * Each component is ALSO converted on its own first, purely so that a schema zod cannot represent — most often
+ * a `.transform()` — fails with the component's NAME attached. zod's own error is a bare
+ * "Transforms cannot be represented in JSON Schema" with a stack through its internals, which for a document of
+ * twenty components tells the author nothing about which one to look at.
+ *
  * @param components - Name → zod schema.
  * @returns The `components.schemas` object.
- * @throws When zod cannot represent a schema in JSON Schema.
+ * @throws When zod cannot represent a schema in JSON Schema, naming the component and the reason.
  */
 function buildComponentSchemas(components: Readonly<Record<string, ZodType>>): Record<string, Record<string, unknown>> {
     const registry = z.registry<{ id: string }>();
 
     for (const [name, schema] of Object.entries(components)) {
+        try {
+            z.toJSONSchema(schema, { target: 'openapi-3.0' });
+        } catch (error) {
+            throw new Error(
+                `Component '${name}' cannot be represented in JSON Schema: ${error instanceof Error ? error.message : String(error)}. ` +
+                    'A `.transform()`/`.pipe()` is the usual cause. Server-side normalization is not part of the ' +
+                    'shape a caller must satisfy — move it out of the published schema and into the handler.',
+                { cause: error },
+            );
+        }
+
         registry.add(schema, { id: name });
     }
 

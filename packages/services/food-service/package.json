@@ -24,12 +24,13 @@
         "test:load:fixture": "tsx tests/load/prepare-perf-fixture.ts",
         "test:load:drain": "tsx tests/load/drain-demotion.perf.ts",
         "test:load": "k6 run tests/load/local-store-read.load.js && k6 run tests/load/local-store-throughput.load.js && k6 run tests/load/search.load.js",
-        "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts'",
+        "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts' 'contract/**/*.ts'",
         "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "db:generate": "drizzle-kit generate",
-        "seed:usda-bulk": "tsx src/foods/seed/main.ts"
+        "seed:usda-bulk": "tsx src/foods/seed/main.ts",
+        "contract:generate": "tsx contract/generate.ts"
     },
     "dependencies": {
         "@aws-sdk/rds-signer": "^3.935.0",
@@ -52,9 +53,10 @@
         "zod": "^4.4.3"
     },
     "devDependencies": {
+        "@kitchensink/contract-gen": "*",
         "@kitchensink/eslint": "*",
-        "@kitchensink/infra-security": "*",
         "@kitchensink/food-service-client": "*",
+        "@kitchensink/infra-security": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",

@@ -28,19 +28,38 @@ export {
     isUnexpectedResponseError,
 } from './errors.js';
 
+// The wire types are the food service's own, re-exported from `@kitchensink/schema-food` (CODING_STANDARDS
+// §15). The CANONICAL names are the service's; the `*Result`/`FoodView` names below are `@deprecated` aliases
+// kept so this package's public surface did not churn when the hand-written copies were deleted.
+export type {
+    AddResponse,
+    ApiErrorBody,
+    BatchItemView,
+    BatchResponse,
+    CandidateView,
+    CandidatesResponse,
+    ControllerError,
+    ErrorResponse,
+    FoodResponse,
+    FoodStatus,
+    GetFoodResult,
+    NestHttpError,
+    NutrientView,
+    PendingFoodStatus,
+    PendingResponse,
+    PortionView,
+    ResolveResponse,
+    SearchResponse,
+    SearchResultView,
+    StatusResponse,
+} from './types.js';
+
 export type {
     AddResult,
-    BatchItemView,
     BatchResult,
-    CandidateView,
     CandidatesResult,
-    FoodStatus,
     FoodView,
-    GetFoodResult,
-    NutrientView,
-    PortionView,
     ResolveResult,
     SearchResult,
-    SearchResultView,
     StatusResult,
 } from './types.js';

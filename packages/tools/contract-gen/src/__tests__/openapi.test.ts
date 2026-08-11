@@ -357,6 +357,29 @@ describe('buildOpenApiDocument', () => {
             ).toThrow(/Opaque component schema/u);
         });
 
+        // zod's own failure here is a bare "Transforms cannot be represented in JSON Schema" with a stack
+        // through its internals. For a document of twenty components that tells the author nothing about which
+        // one to look at, which is the difference between a two-minute fix and an afternoon.
+        it('names the component when zod cannot represent it, and says what to do about it', () => {
+            const withTransform = {
+                ...components,
+                Normalized: z.object({ names: z.array(z.string()).transform((names) => names.slice(0, 1)) }),
+            };
+
+            expect(() =>
+                buildOpenApiDocument({
+                    ...makeSpec(),
+                    components: withTransform,
+                } as unknown as OpenApiSpec<typeof components>),
+            ).toThrow(/Component 'Normalized' cannot be represented in JSON Schema/u);
+            expect(() =>
+                buildOpenApiDocument({
+                    ...makeSpec(),
+                    components: withTransform,
+                } as unknown as OpenApiSpec<typeof components>),
+            ).toThrow(/move it out of the published schema/u);
+        });
+
         it('accepts a record whose VALUES are described, which is not opaque', () => {
             const withRecord = { ...components, Provenance: z.record(z.string(), z.string()) };
 

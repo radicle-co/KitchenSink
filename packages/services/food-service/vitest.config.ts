@@ -2,7 +2,15 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
     test: {
-        include: ['src/**/__tests__/**/*.test.ts', 'tests/**/*.test.ts', 'infra/__tests__/**/*.test.ts'],
+        include: [
+            'src/**/__tests__/**/*.test.ts',
+            'tests/**/*.test.ts',
+            'infra/__tests__/**/*.test.ts',
+            // The wire-contract drift gates (CODING_STANDARDS §15.2.5). Run in the DEFAULT tier on purpose:
+            // they need no database and no network, and a gate that lives in its own tier is a gate someone
+            // has to remember to add to CI.
+            'contract/__tests__/**/*.test.ts',
+        ],
         exclude: ['tests/e2e/**', '**/*.integration.test.ts', 'node_modules', 'dist'],
         typecheck: {
             enabled: false,

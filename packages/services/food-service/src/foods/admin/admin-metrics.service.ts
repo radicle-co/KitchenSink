@@ -9,33 +9,11 @@
 import { Injectable } from '@nestjs/common';
 
 import { RollingWindowLimiter } from '../../sources/rolling-window-limiter.js';
-import { AdminMetricsDao, type BacklogMetrics, type QueueDepthMetrics } from './admin-metrics.dao.js';
-
-/** A wired source's trailing-60-min window utilization signal. */
-export interface SourceWindowMetrics {
-    /** Source id (e.g. `usda`). */
-    source: string;
-    /** Calls recorded in the trailing 60 minutes (FR-019/FR-020). */
-    windowCount: number;
-    /** The source's hard cap (the absolute ceiling). */
-    hardCap: number;
-    /** The 90% pause threshold the worker self-throttles at. */
-    pauseThreshold: number;
-    /** `windowCount / hardCap`, clamped to `[0, 1]`. */
-    utilization: number;
-    /** Whether the worker is currently paused on this source (count ≥ threshold or 429 failsafe). */
-    paused: boolean;
-}
-
-/** The aggregate operational-metrics payload for the dashboard. */
-export interface OperationalMetrics {
-    /** `fetch_queue` depths by operational status. */
-    queue: QueueDepthMetrics;
-    /** Food lifecycle backlog counts. */
-    backlog: BacklogMetrics;
-    /** Per-wired-source rolling-window utilization. */
-    sources: SourceWindowMetrics[];
-}
+import { AdminMetricsDao } from './admin-metrics.dao.js';
+// AUTHORED wire contract (CODING_STANDARDS §15.2), published via `@kitchensink/schema-food`. Re-exported so
+// this module's historical import sites keep working, but no longer DEFINED here.
+export type { OperationalMetrics, SourceWindowMetrics } from './admin-metrics.schema.js';
+import type { OperationalMetrics, QueueDepthMetrics, SourceWindowMetrics } from './admin-metrics.schema.js';
 
 @Injectable()
 export class AdminMetricsService {

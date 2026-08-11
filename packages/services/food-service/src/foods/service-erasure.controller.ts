@@ -23,7 +23,7 @@ import { FoodServiceErasureGuard } from '../auth/food-service-erasure.guard.js';
 import { ServiceErasurePrincipal } from '../auth/service-principal.decorator.js';
 import type { ServicePrincipal } from '../auth/service-principal.js';
 import { UserErasureService } from './user-erasure.service.js';
-import type { FoodServiceErasureAcceptedResponse } from './dto/service-erasure.dto.js';
+import type { FoodServiceErasureAcceptedResponse } from './dto/service-erasure.schema.js';
 
 // Canonically served under the `/api/{version}/` prefix. The bare `v1/...` entry is a DEPRECATED ALIAS:
 // `/v1/*` is live in production and held by consumers configured OUTSIDE this repo (the Clerk dashboard

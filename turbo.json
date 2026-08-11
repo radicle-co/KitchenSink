@@ -42,6 +42,41 @@
             ],
             "outputs": ["dist/**"]
         },
+        "@kitchensink/schema-food#build": {
+            // DRIFT LAYER 1 (Rebuild) for the food (INGREDIENT) contract — the same shape, and the same
+            // reasoning, as `@kitchensink/schema-recipe#build` above. This package is GENERATED OUTPUT copied
+            // from `packages/services/food-service/src/**/*.schema.ts`, and the `$TURBO_ROOT$` input is what puts
+            // those sources inside turbo's hash for this task: without it a relative `../../services/...` glob is
+            // silently ignored and an edited schema serves a stale cache hit.
+            //
+            // NOTE THE DIRECTION: the service is the SOURCE and never imports this package. There is deliberately
+            // no `dependsOn: ["@kitchensink/food-service#build"]` — `food-service` devDepends on
+            // `food-service-client` (its e2e tier drives the real client against the booted app) and the client
+            // now depends on this package, so that edge would close client -> schema-food -> service -> client,
+            // which turbo rejects outright. Ordering was never what layer 1 needed: the generated files are
+            // COMMITTED, so `build` only compiles what is already on disk. Generation is `contract:generate`, and
+            // the regenerate-and-diff gate is `food-service`'s own `contract/__tests__` suite.
+            "inputs": [
+                "src/**",
+                "openapi.yaml",
+                "package.json",
+                "tsconfig*.json",
+                "$TURBO_ROOT$/packages/services/food-service/src/**/*.schema.ts"
+            ],
+            "outputs": ["dist/**"]
+        },
+        "@kitchensink/schema-identity#build": {
+            // DRIFT LAYER 1 (Rebuild) for the identity contract. See `@kitchensink/schema-food#build` above for
+            // the full reasoning; the only difference is which service authors the sources.
+            "inputs": [
+                "src/**",
+                "openapi.yaml",
+                "package.json",
+                "tsconfig*.json",
+                "$TURBO_ROOT$/packages/services/identity/src/**/*.schema.ts"
+            ],
+            "outputs": ["dist/**"]
+        },
         "contract:generate": {
             "cache": false,
             "outputs": []

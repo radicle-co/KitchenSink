@@ -1,20 +1,22 @@
 {
-    "name": "@kitchensink/food-service-client",
+    "name": "@kitchensink/schema-food",
     "version": "0.0.0",
     "private": true,
     "type": "module",
+    "sideEffects": false,
     "main": "./src/index.ts",
     "types": "./src/index.ts",
     "exports": {
-        ".": "./src/index.ts"
+        ".": "./src/index.ts",
+        "./openapi.yaml": "./openapi.yaml"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
-        "test": "vitest run",
-        "lint": "eslint 'src/**/*.ts'",
         "typecheck": "tsc --noEmit",
-        "format": "prettier --write .",
-        "format:check": "prettier --check ."
+        "contract:generate": "npm run contract:generate --workspace=@kitchensink/food-service"
+    },
+    "dependencies": {
+        "zod": "^4.4.3"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
@@ -28,8 +30,5 @@
     },
     "engines": {
         "node": "24.x"
-    },
-    "dependencies": {
-        "@kitchensink/schema-food": "*"
     }
 }

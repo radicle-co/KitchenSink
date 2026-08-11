@@ -9,6 +9,7 @@ import {
     isNotResolvableError,
 } from '../../foods/foods.errors.js';
 import { ConsoleWorkerLogger, type LogContext, type WorkerLogger } from '../../worker/worker-logger.js';
+import type { ApiErrorBody } from '../api-error.schema.js';
 
 /**
  * Machine-readable error codes surfaced to `/api/v1/foods/*` clients. One code per food domain error, so a
@@ -40,15 +41,11 @@ export const FOOD_ERROR_STATUS: Record<FoodErrorCode, number> = {
     [FoodErrorCode.INTERNAL_ERROR]: HttpStatus.INTERNAL_SERVER_ERROR,
 };
 
-/**
- * Structured error envelope returned to API clients: `{ code, message, details? }`. Shared verbatim with
- * the identity and recipe services so one client-side handler covers all three.
- */
-export interface ApiErrorBody {
-    code: string;
-    message: string;
-    details?: Record<string, unknown>;
-}
+// The envelope is AUTHORED as zod in `../api-error.schema.ts` and published via `@kitchensink/schema-food`
+// (CODING_STANDARDS §15.2), so the shape this filter writes and the shape clients parse are ONE definition
+// rather than two hand-written interfaces on either side of the wire. Re-exported here because this module is
+// where every existing import site expects to find it.
+export type { ApiErrorBody } from '../api-error.schema.js';
 
 /** A classified food domain error: its stable code plus any extra `details` / `Retry-After` seconds. */
 interface ClassifiedFoodError {

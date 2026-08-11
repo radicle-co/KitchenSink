@@ -30,6 +30,7 @@ import type {
     FoodStatus,
     FoodView,
     GetFoodResult,
+    PendingResponse,
     ResolveResult,
     SearchResult,
     StatusResult,
@@ -131,9 +132,16 @@ export class FoodServiceClient {
         }
 
         if (res.status === 202) {
-            const body = res.body as { id: string; status: 'PENDING' | 'UNRESOLVED'; estimatedWaitSeconds?: number };
+            // The `202` body's shape is the service's `PendingResponse`, NOT a shape this client gets to
+            // restate: an inline `{ id; status; estimatedWaitSeconds? }` here was a hand-written wire type on
+            // the far side of a boundary that could not typecheck against the server (CODING_STANDARDS §15).
+            const body = res.body as PendingResponse;
 
-            return { status: body.status, id: body.id, estimatedWaitSeconds: body.estimatedWaitSeconds };
+            return {
+                status: body.status as 'PENDING' | 'UNRESOLVED',
+                id: body.id,
+                estimatedWaitSeconds: body.estimatedWaitSeconds,
+            };
         }
 
         throw this.toError(res, id);

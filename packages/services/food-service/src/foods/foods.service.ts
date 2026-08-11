@@ -36,7 +36,7 @@ import type {
     ResolveResponse,
     SearchResponse,
     StatusResponse,
-} from './foods.types.js';
+} from './foods.schema.js';
 import {
     isSourceApiError,
     type CanonicalCandidate,

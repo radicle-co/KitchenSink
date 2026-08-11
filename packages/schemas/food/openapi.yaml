@@ -1,0 +1,941 @@
+# ⚠️ GENERATED FILE — DO NOT EDIT.
+#
+# DERIVED from the food (ingredient) service's authored zod. Regenerate with:
+#   npm run contract:generate --workspace=@kitchensink/food-service
+#
+# This document is for EXTERNAL consumption (oasdiff, docs, integrators). It is NOT a codegen input
+# and NOT the type authority — that is the zod exported from ./src/index.ts.
+
+openapi: 3.0.3
+info:
+  title: Commise Food (Ingredient) API
+  version: 1.0.0
+  description: "The source-agnostic ingredient catalog. Despite the `food_*` naming, this service holds INGREDIENTS
+    sourced from the USDA, not dishes: a recipe is a method, not a substance, and is never written back here (feature
+    001 T150). Every food is addressed by its internal ULID; no source-native key (`fdcId`) appears in any public shape
+    (SC-013). ⚠️ Error bodies are NOT uniform: see `ErrorResponse`, a union of the shared `{ code, message, details? }`
+    envelope (ARCH-PS-2), Nest's default `{ statusCode, message, error }`, and the controller's `{ error, …extras }`.
+    Which one a caller receives depends on which layer failed; converging them is a tracked breaking change. Every path
+    is also served under the DEPRECATED `/v1/*` alias held by already-shipped clients (ADR-0011); only the canonical
+    `/api/v1/*` form is documented."
+servers:
+  - url: https://food.commise.app
+    description: production
+  - url: https://food-pr-{n}.commise.app
+    description: per-PR sandbox preview (ADR-0010)
+security:
+  - clerkSession: []
+paths:
+  /api/v1/foods/search:
+    get:
+      operationId: searchFoods
+      summary: Search the local ingredient catalog
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: Ranked hits, possibly empty.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "401":
+          description: No valid Clerk session or M2M token (FR-051).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: Local fuzzy / barcode-crosswalk search. NEVER calls an upstream source, so a miss is an empty result set
+        rather than a fetch (FR-008).
+      parameters:
+        - name: query
+          in: query
+          required: false
+          description: The search text. Absent is treated as empty, which yields no results.
+          schema:
+            type: string
+  /api/v1/foods:
+    post:
+      operationId: addFoodByName
+      summary: Add an ingredient by name
+      security:
+        - clerkSession: []
+      responses:
+        "202":
+          description: Accepted; poll the id for its lifecycle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddResponse"
+        "400":
+          description: Empty name after trimming (FR-006).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No valid Clerk session or M2M token (FR-051).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. Carries `Retry-After`; this
+            service never answers `429`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying.
+              schema:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+      description: Deduplicates against the existing catalog and enqueues a source fetch on a miss. Always `202` — resolution
+        is asynchronous (FR-005).
+      requestBody:
+        description: The display name to resolve.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddFoodRequest"
+  /api/v1/foods/batch:
+    post:
+      operationId: addFoodsByNameBatch
+      summary: Add up to the configured maximum of ingredients by name
+      security:
+        - clerkSession: []
+      responses:
+        "201":
+          description: Per-item partial results.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchResponse"
+        "400":
+          description: Malformed `names`, or more names than the configured maximum.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No valid Clerk session or M2M token (FR-051).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. Carries `Retry-After`; this
+            service never answers `429`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying.
+              schema:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+      description: "Per-item partial result: inline hits come back `RESOLVED`, misses `PENDING`. The maximum name count is the
+        service-configured `FOOD_MAX_BATCH_NAMES` and is reported in the `400` body when exceeded, so it is discoverable
+        at runtime rather than pinned in this document (FR-045)."
+      requestBody:
+        description: The names to add.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchAddFoodRequest"
+  /api/v1/foods/{id}:
+    get:
+      operationId: getFood
+      summary: Read an ingredient golden record
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The golden record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FoodResponse"
+        "202":
+          description: PENDING or UNRESOLVED — not yet readable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingResponse"
+        "400":
+          description: Malformed id or request body (FR-006).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No valid Clerk session or M2M token (FR-051).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such food, or NOT_FOUND / FAILED. The status is in the body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: "The lifecycle IS the status code: `200` a golden record, `202` still pending or awaiting disambiguation,
+        `404` tombstoned (`NOT_FOUND`) or exhausted (`FAILED`) — with the status still in the body
+        (FR-002/FR-003/FR-004)."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
+          schema:
+            type: string
+    patch:
+      operationId: resolveFood
+      summary: Resolve an UNRESOLVED ingredient from a candidate pick
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: Resolved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolveResponse"
+        "400":
+          description: Malformed id or empty `candidateIds` (DSN-14).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No valid Clerk session or M2M token (FR-051).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such food.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A candidate is not in this food's set (`CANDIDATE_MISMATCH`), or the food is not awaiting disambiguation
+            (`NOT_RESOLVABLE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. Carries `Retry-After`; this
+            service never answers `429`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying.
+              schema:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+      description: Merges the picked candidates into the golden record (FR-RES-2).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
+          schema:
+            type: string
+      requestBody:
+        description: The picked candidate row ids.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveFoodRequest"
+  /api/v1/foods/{id}/status:
+    get:
+      operationId: getFoodStatus
+      summary: Poll an ingredient lifecycle status
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The current status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          description: Malformed id or request body (FR-006).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No valid Clerk session or M2M token (FR-051).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such food.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: Never enqueues a fetch. Includes the golden record once `RESOLVED` (FR-007).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
+          schema:
+            type: string
+  /api/v1/foods/{id}/candidates:
+    get:
+      operationId: getFoodCandidates
+      summary: Read the disambiguation candidate set
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The candidate set, possibly empty.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandidatesResponse"
+        "400":
+          description: Malformed id or request body (FR-006).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No valid Clerk session or M2M token (FR-051).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such food.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: The non-expired cross-source candidates for an `UNRESOLVED` food; empty for any other status (FR-RES-1).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
+          schema:
+            type: string
+  /api/v1/foods/{id}/refetch:
+    post:
+      operationId: refetchFood
+      summary: Re-enqueue an ingredient fetch (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "202":
+          description: Re-enqueued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddResponse"
+        "400":
+          description: Malformed id or request body (FR-006).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No valid Clerk session or M2M token (FR-051).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but lacking the `food:admin` scope (FR-039).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such food.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. Carries `Retry-After`; this
+            service never answers `429`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying.
+              schema:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+      description: Operational manual re-enqueue. Requires the `food:admin` scope, checked BEFORE id validation so `403`
+        precedes `400` (FR-039/FR-051).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
+          schema:
+            type: string
+  /api/v1/foods/admin/metrics:
+    get:
+      operationId: getAdminMetrics
+      summary: Read the full operational dashboard signals (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The operational metrics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationalMetrics"
+        "401":
+          description: No valid Clerk session or M2M token (FR-051).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but lacking the `food:admin` scope (FR-039).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: Queue depths, lifecycle backlog, and per-source rolling-window utilization (FR-039).
+  /api/v1/foods/admin/queue:
+    get:
+      operationId: getAdminQueueDepths
+      summary: Read the fetch-queue depths (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The queue depths.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueDepthMetrics"
+        "401":
+          description: No valid Clerk session or M2M token (FR-051).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Authenticated but lacking the `food:admin` scope (FR-039).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: The focused queue-depth signals on their own (FR-039).
+  /api/v1/internal/account/erasure:
+    post:
+      operationId: eraseAccountFootprint
+      summary: Erase the token-bound owner's ingredient footprint (service-to-service)
+      security:
+        - serviceToken: []
+      responses:
+        "200":
+          description: Erased. `deletedRequesterRows` is the reconciliation residue signal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FoodServiceErasureAcceptedResponse"
+        "401":
+          description: The service token is absent, malformed, or not bound to the food audience.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: "Called by the identity deletion-worker / erasure-reconciliation on a `user.deleted` or account-closure
+        event. Synchronous and idempotent: an owner with no footprint erases 0 rows and still succeeds. The target owner
+        comes ONLY from the verified token's bound claim — there is no request body (CR-002/U4b/R11)."
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness probe
+      security: []
+      responses:
+        "200":
+          description: The process is up.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+      description: Static. Deliberately does NOT touch the database — a transient RDS blip must not make ECS kill an
+        otherwise-healthy container.
+  /health/ready:
+    get:
+      operationId: getReadiness
+      summary: Readiness probe
+      security: []
+      responses:
+        "200":
+          description: Ready to serve traffic.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: Database not reachable (`NOT_READY`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: Probes the database pool so the ALB can drain an instance whose database is unreachable (ARCH-PS-3).
+components:
+  securitySchemes:
+    clerkSession:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: A Clerk session token (user) or an M2M token, verified in-process by `FoodAuthGuard`. Admin routes
+        additionally require the `food:admin` scope from the token's `public_metadata`.
+    serviceToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: A signed, single-target service token with the food audience, verified by `FoodServiceErasureGuard`. The
+        target owner is BOUND IN THE TOKEN — there is no request body and no `ownerId` to smuggle.
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: {}
+      required:
+        - code
+        - message
+      additionalProperties: {}
+    NestHttpError:
+      type: object
+      properties:
+        statusCode:
+          type: number
+        message:
+          type: string
+        error:
+          type: string
+      required:
+        - statusCode
+        - message
+        - error
+      additionalProperties: {}
+    ControllerError:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        id:
+          type: string
+        status:
+          type: string
+        maxNames:
+          type: number
+        retryAfterSeconds:
+          type: number
+      required:
+        - error
+      additionalProperties: {}
+    ErrorResponse:
+      anyOf:
+        - $ref: "#/components/schemas/ApiError"
+        - $ref: "#/components/schemas/ControllerError"
+        - $ref: "#/components/schemas/NestHttpError"
+    NutrientView:
+      type: object
+      properties:
+        nutrient:
+          type: string
+        amount:
+          type: number
+        unit:
+          type: string
+        basis:
+          type: string
+        source:
+          type: string
+      required:
+        - nutrient
+        - amount
+        - unit
+        - basis
+        - source
+      additionalProperties: false
+    PortionView:
+      type: object
+      properties:
+        label:
+          type: string
+        gramWeight:
+          type: number
+        source:
+          type: string
+      required:
+        - label
+        - gramWeight
+        - source
+      additionalProperties: false
+    FoodResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          nullable: true
+          type: string
+        description:
+          nullable: true
+          type: string
+        kind:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING
+            - UNRESOLVED
+            - RESOLVED
+            - NOT_FOUND
+            - FAILED
+        nutrients:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutrientView"
+        portions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortionView"
+        provenance:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+        - id
+        - name
+        - description
+        - kind
+        - status
+        - nutrients
+        - portions
+        - provenance
+      additionalProperties: false
+    PendingResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING
+            - UNRESOLVED
+            - RESOLVED
+            - NOT_FOUND
+            - FAILED
+        estimatedWaitSeconds:
+          type: number
+      required:
+        - id
+        - status
+      additionalProperties: false
+    StatusResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING
+            - UNRESOLVED
+            - RESOLVED
+            - NOT_FOUND
+            - FAILED
+        estimatedWaitSeconds:
+          type: number
+        food:
+          allOf:
+            - $ref: "#/components/schemas/FoodResponse"
+      required:
+        - id
+        - status
+      additionalProperties: false
+    CandidateView:
+      type: object
+      properties:
+        candidateId:
+          type: string
+        source:
+          type: string
+        externalKey:
+          type: string
+        name:
+          type: string
+        summary:
+          nullable: true
+          type: string
+      required:
+        - candidateId
+        - source
+        - externalKey
+        - name
+        - summary
+      additionalProperties: false
+    CandidatesResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CandidateView"
+      required:
+        - id
+        - candidates
+      additionalProperties: false
+    SearchResultView:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          nullable: true
+          type: string
+        score:
+          type: number
+      required:
+        - id
+        - name
+        - score
+      additionalProperties: false
+    SearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResultView"
+      required:
+        - results
+      additionalProperties: false
+    AddResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING
+            - UNRESOLVED
+            - RESOLVED
+            - NOT_FOUND
+            - FAILED
+        estimatedWaitSeconds:
+          type: number
+      required:
+        - id
+        - status
+      additionalProperties: false
+    BatchItemView:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING
+            - UNRESOLVED
+            - RESOLVED
+            - NOT_FOUND
+            - FAILED
+        name:
+          nullable: true
+          type: string
+        estimatedWaitSeconds:
+          type: number
+      required:
+        - id
+        - status
+      additionalProperties: false
+    BatchResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchItemView"
+      required:
+        - items
+      additionalProperties: false
+    ResolveResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING
+            - UNRESOLVED
+            - RESOLVED
+            - NOT_FOUND
+            - FAILED
+      required:
+        - id
+        - status
+      additionalProperties: false
+    AddFoodRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+      required:
+        - name
+      additionalProperties: false
+    BatchAddFoodRequest:
+      type: object
+      properties:
+        names:
+          type: array
+          items:
+            type: string
+      required:
+        - names
+      additionalProperties: false
+    ResolveFoodRequest:
+      type: object
+      properties:
+        candidateIds:
+          minItems: 1
+          type: array
+          items:
+            type: string
+      required:
+        - candidateIds
+      additionalProperties: false
+    QueueDepthMetrics:
+      type: object
+      properties:
+        pending:
+          type: number
+        inFlight:
+          type: number
+        tombstone:
+          type: number
+      required:
+        - pending
+        - inFlight
+        - tombstone
+      additionalProperties: false
+    BacklogMetrics:
+      type: object
+      properties:
+        unresolved:
+          type: number
+        notFound:
+          type: number
+        failed:
+          type: number
+      required:
+        - unresolved
+        - notFound
+        - failed
+      additionalProperties: false
+    SourceWindowMetrics:
+      type: object
+      properties:
+        source:
+          type: string
+        windowCount:
+          type: number
+        hardCap:
+          type: number
+        pauseThreshold:
+          type: number
+        utilization:
+          type: number
+        paused:
+          type: boolean
+      required:
+        - source
+        - windowCount
+        - hardCap
+        - pauseThreshold
+        - utilization
+        - paused
+      additionalProperties: false
+    OperationalMetrics:
+      type: object
+      properties:
+        queue:
+          $ref: "#/components/schemas/QueueDepthMetrics"
+        backlog:
+          $ref: "#/components/schemas/BacklogMetrics"
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceWindowMetrics"
+      required:
+        - queue
+        - backlog
+        - sources
+      additionalProperties: false
+    FoodServiceErasureAcceptedResponse:
+      type: object
+      properties:
+        requesterId:
+          type: string
+        deletedRequesterRows:
+          type: number
+      required:
+        - requesterId
+        - deletedRequesterRows
+      additionalProperties: false
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+      required:
+        - status
+        - service
+      additionalProperties: false

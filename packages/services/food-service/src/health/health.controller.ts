@@ -3,12 +3,10 @@ import type { Pool } from 'pg';
 
 import { PgPoolProvider } from '../database/database.module.js';
 import { probeDatabase } from './readiness.js';
-
-/** The shape of the food health/readiness payloads. */
-interface HealthStatus {
-    status: string;
-    service: string;
-}
+// AUTHORED wire contract, published via `@kitchensink/schema-food` (CODING_STANDARDS §15.2). The probe payload
+// is part of the contract: its `service` discriminator is what lets a deploy smoke tell this service's answer
+// from the shared ALB's default 404 (ADR-0003/ADR-0010).
+import type { HealthStatus } from './health.schema.js';
 
 /**
  * Health probes for the food service. Liveness (`GET /health`) is static — it answers "is the process

@@ -8,26 +8,13 @@
 import { sql } from 'drizzle-orm';
 
 import type { FoodDrizzle } from '../../database/database.module.js';
+import type { BacklogMetrics, QueueDepthMetrics } from './admin-metrics.schema.js';
 
-/** `fetch_queue` depth by operational status (FR-046 backpressure / FR-018 lease signals). */
-export interface QueueDepthMetrics {
-    /** Rows awaiting a drain. */
-    pending: number;
-    /** Rows currently leased to the worker. */
-    inFlight: number;
-    /** Terminal (DLQ-equivalent) rows — NOT_FOUND / FAILED foods. */
-    tombstone: number;
-}
-
-/** `food` lifecycle backlog counts (DSN-9 keeps NOT_FOUND distinct from the alarmed FAILED). */
-export interface BacklogMetrics {
-    /** Foods awaiting a human disambiguation pick (FR-RES-1). */
-    unresolved: number;
-    /** Foods no wired source has (a normal, non-alarmed outcome, DSN-9). */
-    notFound: number;
-    /** Foods whose every source errored past the retry budget (the alarmed signal, FR-016). */
-    failed: number;
-}
+// The wire shapes these queries fill are AUTHORED in `admin-metrics.schema.ts` and published via
+// `@kitchensink/schema-food`. They are re-exported here so the DAO's historical import sites keep working,
+// but the DAO is deliberately no longer where they are DEFINED: a data-access module defining a response
+// body is the leak CODING_STANDARDS §15.2 exists to close.
+export type { BacklogMetrics, QueueDepthMetrics } from './admin-metrics.schema.js';
 
 export class AdminMetricsDao {
     public constructor(private readonly db: FoodDrizzle) {}

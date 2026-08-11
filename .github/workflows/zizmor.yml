@@ -69,15 +69,18 @@
 #   audits) would silently disarm it. A v4-pinned checkout grades MEDIUM in both modes, so the hole is
 #   specific to v6+ and would widen as checkouts are upgraded.
 #
-# CURRENT MEASUREMENT (2026-08-10, `zizmor .github/`): **63 findings, 61 suppressed by zizmor's own default
-#   persona, 2 ignored by the two declared `artipacked` comments — 0 actionable at every severity.** With
-#   both exceptions declared, `--min-severity low` AND `--min-severity informational` both exit 0 offline.
+# CURRENT MEASUREMENT (2026-08-10, `zizmor .github/`, offline): **58 findings, 56 suppressed by zizmor's own
+#   default persona, 2 ignored by the two declared `artipacked` comments — 0 actionable at every severity.**
+#   With both exceptions declared, `--min-severity low` AND `--min-severity informational` both exit 0.
+#   (It read 63/61 before the `claude.yml` hardening added the permission comments, the workflow-level
+#   `permissions` block, a `concurrency` group and a job `name:` — five pedantic findings closed as a
+#   side effect, which is the only thing that moved the totals.)
 #   The floor is set to `low` (not `informational`): `low` is what artipacked needs to be caught in BOTH
 #   modes, and it is the tightening this ledger already named as the next step. `informational` passes today
 #   too, but the informational classes have not been reviewed, so adopting them is a separate decision with
 #   a known-clean baseline.
 #
-# ⚠️ THE FLOOR IS NOT THE ONLY FILTER — `--persona` IS THE OTHER, AND IT IS ORTHOGONAL. The "61
+# ⚠️ THE FLOOR IS NOT THE ONLY FILTER — `--persona` IS THE OTHER, AND IT IS ORTHOGONAL. The "56
 #   suppressed" above are suppressed by zizmor's DEFAULT `regular` persona and are invisible at EVERY
 #   severity, including `informational`. That is a real blind spot with a measured instance: the missing
 #   `author_association` guard on `claude.yml` (a PUBLIC repo handing `CLAUDE_CODE_OAUTH_TOKEN` to a
@@ -85,13 +88,15 @@
 #   NO audit for that class at all — `dangerous-triggers` covers only `pull_request_target` and
 #   `workflow_run`, never the comment triggers — and the nearest signal, `secrets-outside-env`, fires on
 #   `claude.yml` only under `--persona auditor`. Measured on 1.29.0, offline, same tree:
-#     • default persona, --min-severity low            → exit 0   (this gate)
-#     • default persona, --min-severity informational  → exit 0
-#     • --persona auditor                              → 5 findings on claude.yml alone
-#   So do NOT read "the zizmor gate is green" as "the workflows are audited for actor trust". Adopting
-#   `--persona auditor` is a separate decision with its own baseline to review (it adds
-#   `secrets-outside-env` on every secret-bearing job, plus `concurrency-limits` and
-#   `undocumented-permissions` tree-wide). Until then the invariant is asserted in the repo's own tests:
+#     • default persona, --min-severity low            → exit 0   (this gate), 56 suppressed
+#     • default persona, --min-severity informational  → exit 0,               56 suppressed
+#     • --persona pedantic                             → 58 findings, 29 still suppressed
+#     • --persona auditor                              → 58 findings, 0 suppressed (29 medium appear)
+#   The 56 the gate cannot see include EVERY `secrets-outside-env` in the repo. So do NOT read "the zizmor
+#   gate is green" as "the workflows are audited for actor trust". Adopting `--persona auditor` is a
+#   separate decision with its own 58-finding baseline to review (it adds `secrets-outside-env` on every
+#   secret-bearing job, plus `concurrency-limits` and `undocumented-permissions` tree-wide). Until then the
+#   invariant is asserted in the repo's own tests:
 #   `packages/infra/global/__tests__/comment-trigger-guard.test.ts`.
 #
 # ⚠️ A WORKFLOW ZIZMOR CANNOT PARSE DROPS OUT OF THE AUDIT WITH ONLY A `WARN`, and the directory-level run

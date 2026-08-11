@@ -541,7 +541,7 @@ ${SECRET_STEP}`;
 describe('comment-triggered privileged jobs are gated on author_association', () => {
     const workflows = realWorkflows();
 
-    it('the real tree HAS such a job, so the guard is not vacuously passing', () => {
+    it('pins which jobs in the real tree the guard applies to', () => {
         const covered = workflows.flatMap(({ file, doc }) => {
             const events = triggerEvents(doc).filter((event) => event in UNTRUSTED_ACTOR_EVENTS);
 
@@ -552,12 +552,16 @@ describe('comment-triggered privileged jobs are gated on author_association', ()
                       .map(([name]) => `${file}::${name}`);
         });
 
-        expect(
-            covered,
-            'no workflow in .github/workflows/ has a privileged job on a comment-shaped trigger. Either ' +
-                'the tree changed shape or the analyzer stopped recognising one — this suite would then be ' +
-                'asserting nothing about the real repository.',
-        ).not.toEqual([]);
+        // NOT `expect(covered).not.toEqual([])`. That was the first version and it was wrong: it would have
+        // made DELETING `claude.yml` fail the suite, i.e. mandated the continued existence of a secret-bearing
+        // comment-triggered workflow. A repo with none of them is the SAFEST state, not a broken one.
+        //
+        // The analyzer's own correctness does not need the real tree for evidence — the fixtures below cover
+        // it, and they cover `isPrivileged` in particular: `NO_GUARD` can only be reported if `isPrivileged`
+        // returns true for it. So this assertion's job is narrower and purely informational: pin the set the
+        // tree currently has, so ADDING one is visible in a diff of this file rather than only in a passing
+        // run. Removing `claude.yml` is then a one-line edit here, with no pressure to keep it alive.
+        expect(covered).toEqual(['claude.yml::claude']);
     });
 
     it('every one of them is unreachable for an untrusted author, on every event it triggers on', () => {

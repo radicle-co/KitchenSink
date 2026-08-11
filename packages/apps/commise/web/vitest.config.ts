@@ -24,6 +24,16 @@ export default defineConfig({
         setupFiles: ['./tests/setup.ts'],
         globals: true,
 
+        // `infra/__tests__` SYNTHESIZES the sandbox router CDK stack, which is CPU-heavy: fast locally (~1s)
+        // but intermittently past the 5s default under the parallel turbo test load on a CI runner, and the
+        // first synth-backed test in a file also absorbs `aws-cdk-lib`'s one-time initialization. Same figure
+        // and same reason as `packages/services/identity` and `packages/infra/global`, which already carry
+        // this headroom, so a slow-but-correct synth never reads as a failure. This is deliberately NOT a
+        // licence for the jsdom component suites in this same run to lean on it: those must synchronize on
+        // state (`waitFor`/`findBy*`), never on elapsed time, and none of them asserts a duration.
+        testTimeout: 30_000,
+        hookTimeout: 30_000,
+
         // `src/config/env.ts` validates the app's endpoints at MODULE LOAD and has no defaults, so any
         // test that transitively imports a service client would otherwise die with a configuration error.
         //

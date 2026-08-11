@@ -7,5 +7,12 @@ export default defineConfig({
         typecheck: {
             enabled: false,
         },
+        // `infra/__tests__` SYNTHESIZES CDK stacks, which is CPU-heavy: fast locally (~1s) but intermittently
+        // past the 5s default under the parallel turbo test load on a CI runner, and the first synth-backed
+        // test in a file also absorbs `aws-cdk-lib`'s one-time initialization. Same figure and same reason as
+        // `packages/services/identity` and `packages/infra/global`, which already carry this headroom, so a
+        // slow-but-correct synth never reads as a failure. No assertion here measures a duration.
+        testTimeout: 30_000,
+        hookTimeout: 30_000,
     },
 });

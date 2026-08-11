@@ -173,6 +173,13 @@ jobs:
             # triples are recorded in scripts/boundaries-baseline.json and a NEW one fails the build.
             # Deliberately NOT `continue-on-error` — see scripts/boundariesRatchet.mjs for why a
             # green-because-ignored step is the defect class this repo is trying to eliminate.
+            #
+            # ⚠️ `npm run boundaries` SPAWNS turbo from inside the ratchet — it is deliberately NOT
+            # `turbo boundaries | node …` any more. A pipeline exits with its LAST command's status, so
+            # that form returned 0 whenever the ratchet was satisfied EVEN IF turbo crashed or the
+            # subcommand did not exist, and this step was green having checked nothing (PR #91 review).
+            # `set -o pipefail` does not fix it: npm has no `script-shell` set, so scripts run under
+            # `/bin/sh` = dash on ubuntu-latest, which rejects `-o pipefail`. Do not reintroduce the pipe.
             - name: Workspace boundaries (undeclared-dependency ratchet)
               run: npm run boundaries
 

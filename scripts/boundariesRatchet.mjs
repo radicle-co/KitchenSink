@@ -1,9 +1,9 @@
 /**
  * Workspace-boundaries ratchet.
  *
- * Reads `turbo boundaries` output on stdin and fails when a workspace package imports a package it does
- * not declare AND that (package, dependency, rule) triple is not in the recorded baseline. Existing
- * violations are tolerated; new ones are a build failure.
+ * Runs `turbo boundaries` and fails when a workspace package imports a package it does not declare AND
+ * that (package, dependency, rule) triple is not in the recorded baseline. Existing violations are
+ * tolerated; new ones are a build failure.
  *
  * WHY A RATCHET AND NOT A PLAIN GATE. `turbo boundaries` exits non-zero on any finding, and the tree
  * currently has 135 (127 undeclared-dependency + 8 type-only-import) — by dependency that is 77
@@ -14,9 +14,29 @@
  * weeks of production: a step that is green because nobody reads its result. So the baseline is explicit
  * and checked in, and growth is a failure.
  *
- * WHY IT READS STDIN. Taking the report on stdin keeps the decision logic hermetic and lets its own
- * suite drive it with fixtures, including the malformed-input cases a real run would never produce.
- * The npm script supplies the real thing: `turbo boundaries 2>&1 | node scripts/boundariesRatchet.mjs`.
+ * WHY IT SPAWNS TURBO ITSELF (changed 2026-08-10 — PR #91 review). The npm scripts used to be
+ * `turbo boundaries 2>&1 | node scripts/boundariesRatchet.mjs`, and a shell pipeline exits with the
+ * status of its LAST command. So `turbo` crashing — or `boundaries` not existing on an older turbo —
+ * yielded exit 0 whenever the ratchet itself was satisfied, and CI's `Workspace boundaries` step was
+ * green having verified nothing. That is the same silent-success class the ratchet exists to avoid,
+ * reproduced in the gate's own plumbing.
+ *
+ * `set -o pipefail` is NOT the fix: `npm config get script-shell` is unset, so npm runs scripts through
+ * `/bin/sh`, which is `dash` here and on ubuntu-latest — `set: Illegal option -o pipefail`. Owning the
+ * child process removes the pipeline entirely and, more importantly, lets the two conditions get
+ * DIFFERENT messages: a broken toolchain is not a boundaries violation and has a different fix.
+ *
+ * THE CONTRACT IT ENFORCES ON THE CHILD, measured against turbo 2.9.18 rather than assumed:
+ *   - 0 findings → exit 0, and `Checked N files in M packages, no issues found` — the WORD `no`, not `0`
+ *   - k findings → exit 1, and `… k issues found`
+ * Anything else (non-zero exit with a clean report, exit 0 with findings, or no summary at all) means
+ * turbo did not do what this gate assumes, and is a hard failure rather than a quiet pass.
+ *
+ * WHY A STDIN PATH STILL EXISTS. Under `--stdin` the report is read from fd 0, which keeps the decision
+ * logic hermetic and lets its own suite drive it with fixtures — including the malformed-input cases a
+ * real run would never produce. The flag is EXPLICIT rather than sniffed from fd 0's shape: a gate whose
+ * strength depends on whether stdin happens to be a TTY, a closed pipe or `/dev/null` under some
+ * runner is a gate decided by its environment, which is what this change is undoing.
  *
  * ⚠️ IF THIS REPORTS FINDINGS YOU DID NOT CAUSE, RUN `git clean -Xdf` FIRST — do not declare them and do
  * not baseline them. `turbo boundaries` walks the package directory including GITIGNORED BUILD OUTPUT, and
@@ -33,17 +53,28 @@
  * textual search counts mentions in comments and test strings, so it was unreliable in both directions —
  * worse than the documented workaround it replaced.
  *
- * @sideEffect Reads stdin, reads/writes the baseline file, reads the workspace manifests, exits the
- *             process with 0 (no new violations) or 1 (new violations, or an unusable report).
+ * @sideEffect Spawns `turbo boundaries` (or reads stdin under `--stdin`), reads/writes the baseline
+ *             file, reads the workspace manifests, exits the process with 0 (no new violations) or 1
+ *             (new violations, an unusable report, or a turbo that did not run correctly).
  */
-import { readFileSync, writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_BASELINE = path.join(repoRoot, 'scripts/boundaries-baseline.json');
 const DEFAULT_RULE = 'undeclared-dependency';
+
+/**
+ * turbo's own end-of-run summary. `(\d+|no)` because a clean run prints the WORD `no`, which the
+ * original digits-only pattern rejected as "no summary line" — so the gate would have started failing
+ * permanently on the day the baseline was finally burned down to zero.
+ */
+const SUMMARY = /Checked\s+(\d+)\s+files?\s+in\s+(\d+)\s+packages?,\s+(\d+|no)\s+issues?\s+found/;
+
+/** The workspace's own turbo, preferred over any globally installed copy. */
+const WORKSPACE_TURBO = path.join(repoRoot, 'node_modules/.bin/turbo');
 
 /**
  * Every workspace package's directory paired with its name, longest path first so a nested workspace
@@ -185,25 +216,119 @@ function readStdin() {
     }
 }
 
+/**
+ * How many issues turbo said it found, or `null` when its output carries no summary at all.
+ *
+ * Pure.
+ *
+ * @param {string} report
+ * @returns {number | null}
+ */
+function reportedIssueCount(report) {
+    const summary = report.match(SUMMARY);
+
+    return summary === null ? null : summary[3] === 'no' ? 0 : Number(summary[3]);
+}
+
+/**
+ * Run `turbo boundaries` and return its report, or exit the process when the child cannot be trusted.
+ *
+ * Both streams are concatenated on purpose: turbo 2.9.18 writes the diagnostics AND the summary to
+ * stderr when stdout is a pipe, and to stdout when it is a TTY, so reading either one alone works in
+ * exactly one of the two situations. `NO_COLOR` keeps ANSI escapes out of the text the parser matches.
+ *
+ * @param {string} turboBin
+ * @sideEffect Spawns a child process; exits the process on a toolchain failure.
+ * @returns {{report: string, reportedCount: number}}
+ */
+function runTurboBoundaries(turboBin) {
+    const child = spawnSync(turboBin, ['boundaries'], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        // The full report on this tree is ~700KB; node's 1MB default would truncate a slightly worse
+        // one into an unparseable prefix, which the summary check would then (correctly but
+        // confusingly) report as "turbo did not complete".
+        maxBuffer: 64 * 1024 * 1024,
+        env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
+    });
+
+    if (child.error !== undefined && child.error !== null) {
+        console.error(
+            `boundaries-ratchet: could not run \`${turboBin} boundaries\` (${child.error.message}) — the check ` +
+                'did not run. This is a TOOLCHAIN failure, not a boundaries violation: install dependencies ' +
+                '(`npm ci`) and retry.',
+        );
+        process.exit(1);
+    }
+
+    const report = `${child.stdout ?? ''}${child.stderr ?? ''}`;
+    const reportedCount = reportedIssueCount(report);
+    // `status` is null when the child was killed by a signal, which is a failure like any other.
+    const status = child.status;
+
+    // A report with no summary line is not a report. Treating a crashed or truncated run as "zero
+    // findings" is how a broken tool turns into a green build.
+    if (reportedCount === null) {
+        console.error(
+            `boundaries-ratchet: \`turbo boundaries\` exited ${status ?? `on signal ${child.signal}`} and did ` +
+                'not complete — its output carries no "Checked N files in M packages, K issues found" summary. ' +
+                'This is a TOOLCHAIN failure, not a boundaries violation. Its output was:\n' +
+                `${report.trimEnd() || '(nothing)'}`,
+        );
+        process.exit(1);
+    }
+
+    // The exit code and the reported count must agree, because that agreement is the ONLY evidence that
+    // turbo's own finding signal still works. A non-zero exit on a clean report is the defect this
+    // rewrite was opened for (it used to be masked by the pipeline); an exit 0 with findings would mean
+    // every other consumer of `turbo boundaries` had gone silently green.
+    const expected = reportedCount === 0 ? 0 : 1;
+    if ((status === 0) !== (expected === 0)) {
+        console.error(
+            `boundaries-ratchet: \`turbo boundaries\` exited ${status ?? `on signal ${child.signal}`} while ` +
+                `reporting ${reportedCount === 0 ? 'no issues' : `${reportedCount} issue(s)`} — those are ` +
+                'inconsistent, so its result cannot be trusted either way. Expected exit 0 with no issues, or ' +
+                'a non-zero exit with at least one. This is a TOOLCHAIN failure, not a boundaries violation.',
+        );
+        process.exit(1);
+    }
+
+    return { report, reportedCount };
+}
+
 const args = process.argv.slice(2);
+/** Read the report from fd 0 instead of spawning turbo. The suite's hermetic path — see the docblock. */
+const fromStdin = args.includes('--stdin');
 const baselinePath = args.includes('--baseline') ? args[args.indexOf('--baseline') + 1] : DEFAULT_BASELINE;
+/** Test seam, mirroring `--baseline`: which turbo to spawn. Defaults to the workspace's own. */
+const turboBin = args.includes('--turbo-bin')
+    ? args[args.indexOf('--turbo-bin') + 1]
+    : existsSync(WORKSPACE_TURBO)
+      ? WORKSPACE_TURBO
+      : 'turbo';
 const update = args.includes('--update');
 
-const report = readStdin();
+let report;
+let reportedCount;
 
-// A report that does not carry turbo's own summary line is not a report. Treating an empty or truncated
-// one as "zero findings" is how a crashed tool turns into a green build — refuse it loudly instead.
-const summary = report.match(/Checked\s+(\d+)\s+files?\s+in\s+(\d+)\s+packages?,\s+(\d+)\s+issues?\s+found/);
-if (summary === null) {
-    const detail = report.trim().length === 0 ? 'no output on stdin' : 'output was incomplete';
-    console.error(
-        `boundaries-ratchet: turbo boundaries produced no summary line (${detail}) — the check did not run.\n` +
-            'Expected "Checked N files in M packages, K issues found". Pipe it in:\n' +
-            '  turbo boundaries 2>&1 | node scripts/boundariesRatchet.mjs',
-    );
-    process.exit(1);
+if (fromStdin) {
+    report = readStdin();
+    const counted = reportedIssueCount(report);
+
+    if (counted === null) {
+        const detail = report.trim().length === 0 ? 'no output on stdin' : 'output was incomplete';
+        console.error(
+            `boundaries-ratchet: turbo boundaries produced no summary line (${detail}) — the check did not run.\n` +
+                'Expected "Checked N files in M packages, K issues found". Pipe it in:\n' +
+                '  turbo boundaries 2>&1 | node scripts/boundariesRatchet.mjs --stdin',
+        );
+        process.exit(1);
+    }
+
+    reportedCount = counted;
+} else {
+    ({ report, reportedCount } = runTurboBoundaries(turboBin));
 }
-const reportedCount = Number(summary[3]);
 
 const { pairs, parsed, unmapped, unrecognized } = parseReport(report, workspaceDirs());
 

@@ -56,10 +56,15 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 20
         permissions:
-            contents: read
-            pull-requests: write
-            issues: read
-            id-token: write
+            contents: read # read the checkout, so the reviewer can open the ADRs and standards
+            pull-requests: write # post the review comments
+            issues: read # read the PR's own issue thread for prior feedback
+            # NO `id-token: write` — verified against the pinned action.yml (v1.0.189): OIDC is used only
+            # for workload-identity federation (`anthropic_federation_rule_id` + `anthropic_organization_id`)
+            # and the Bedrock/Vertex/Foundry paths. This job authenticates with `claude_code_oauth_token`,
+            # so the grant was dead privilege — the same class the zizmor burn-down removed from
+            # prod-deploy / sandbox-deploy / sandbox-identity-deploy. If a federation path is ever adopted,
+            # re-add it on THIS job only.
 
         steps:
             - name: Checkout repository

@@ -76,6 +76,29 @@
 #   modes, and it is the tightening this ledger already named as the next step. `informational` passes today
 #   too, but the informational classes have not been reviewed, so adopting them is a separate decision with
 #   a known-clean baseline.
+#
+# ⚠️ THE FLOOR IS NOT THE ONLY FILTER — `--persona` IS THE OTHER, AND IT IS ORTHOGONAL. The "61
+#   suppressed" above are suppressed by zizmor's DEFAULT `regular` persona and are invisible at EVERY
+#   severity, including `informational`. That is a real blind spot with a measured instance: the missing
+#   `author_association` guard on `claude.yml` (a PUBLIC repo handing `CLAUDE_CODE_OAUTH_TOKEN` to a
+#   third-party action for any commenter on the internet) was found by human review, not here. zizmor has
+#   NO audit for that class at all — `dangerous-triggers` covers only `pull_request_target` and
+#   `workflow_run`, never the comment triggers — and the nearest signal, `secrets-outside-env`, fires on
+#   `claude.yml` only under `--persona auditor`. Measured on 1.29.0, offline, same tree:
+#     • default persona, --min-severity low            → exit 0   (this gate)
+#     • default persona, --min-severity informational  → exit 0
+#     • --persona auditor                              → 5 findings on claude.yml alone
+#   So do NOT read "the zizmor gate is green" as "the workflows are audited for actor trust". Adopting
+#   `--persona auditor` is a separate decision with its own baseline to review (it adds
+#   `secrets-outside-env` on every secret-bearing job, plus `concurrency-limits` and
+#   `undocumented-permissions` tree-wide). Until then the invariant is asserted in the repo's own tests:
+#   `packages/infra/global/__tests__/comment-trigger-guard.test.ts`.
+#
+# ⚠️ A WORKFLOW ZIZMOR CANNOT PARSE DROPS OUT OF THE AUDIT WITH ONLY A `WARN`, and the directory-level run
+#   still exits 0 — so an invalid workflow is silently unaudited rather than reported. `--strict-collection`
+#   is the flag that turns that into a failure. NOT adopted here (untested against this tree, and it is a
+#   separate decision), but it is the thing to reach for if a file ever appears to have no findings at all.
+#
 # SCOPED TO `.github/` DELIBERATELY, not the repo root. A root-scoped run also audits the vendored
 # third-party workflows under `.specify/extensions/**` (36 extra findings in code we do not own and
 # cannot fix), which is noise that would bury our own findings.

@@ -40,14 +40,10 @@ import {
 import { ErasureJobsDal } from './dal/erasure-jobs.dal.js';
 import { ERASURE_QUEUE, type ErasureQueuePort } from './erasure.queue.js';
 import { ServicePrincipalErasureMetrics } from './erasure-metrics.js';
-import {
-    ACCOUNT_ERASURE_CONFIRMATION_PHRASE,
-    type ErasureRequestDto,
-    type ErasureRequestAcceptedResponse,
-} from './dto/erasure.dto.js';
+import { matchesAccountErasureConfirmation, type ErasureRequest } from './account.schema.js';
+import type { ActiveErasureJobStatus, ErasureRequestAcceptedResponse } from './account.schema.js';
 import type { ServiceErasureAcceptedResponse } from './dto/service-erasure.dto.js';
 import type { ServicePrincipal } from '../auth/service-principal.js';
-import type { ActiveErasureJobStatus } from '../database/schema/account.js';
 
 /**
  * How many times a single request re-evaluates the C-007 outcome before giving up.
@@ -102,7 +98,7 @@ export class ErasureService {
      * @throws {ServiceUnavailableException} (→ 503) when the outcome never settles within the attempt bound.
      * @sideEffect Inserts an `account_erasure_jobs` row and sends an SQS message.
      */
-    public async requestErasure(ownerId: string, request?: ErasureRequestDto): Promise<ErasureRequestAcceptedResponse> {
+    public async requestErasure(ownerId: string, request?: ErasureRequest): Promise<ErasureRequestAcceptedResponse> {
         // The confirmation phrase is the USER path's authorization gate — enforced BEFORE anything is
         // written, and NEVER skipped. The service path skips it because its signed single-target token IS
         // the authorization; a user token can never reach that branch (separate route + separate guard).
@@ -269,15 +265,18 @@ export class ErasureService {
  * because a request sent with NO body at all bypasses the pipe entirely — the service always runs, so the
  * gate lives here too.
  *
- * Surrounding whitespace is tolerated (a paste artefact, not a different intent) but case is not: the
- * value of a confirmation ritual is that it is deliberate. The rejection deliberately does NOT echo the
- * expected phrase — a confirmation a client can learn by guessing once is not a confirmation.
+ * The MATCH RULE itself is `matchesAccountErasureConfirmation` in `./account.schema.ts` — the published
+ * contract — because the UI's confirm button gates on the identical rule and the two used to be independent
+ * implementations of it (see that file's note 1). This function is the THROWING adapter over it: whitespace
+ * tolerance and case sensitivity are the rule's, and the `400` is this layer's. The rejection deliberately
+ * does NOT echo the expected phrase — a confirmation a client can learn by guessing once is not a
+ * confirmation, which is also why the phrase is not published as a request `enum`.
  *
  * @param phrase - The client-supplied phrase, if any.
  * @throws {BadRequestException} (→ 400) when the phrase is absent, empty, or does not match. Pure otherwise.
  */
 function assertConfirmationPhrase(phrase: string | undefined): void {
-    if (phrase === undefined || phrase.trim() !== ACCOUNT_ERASURE_CONFIRMATION_PHRASE) {
+    if (phrase === undefined || !matchesAccountErasureConfirmation(phrase)) {
         throw new BadRequestException('The confirmation phrase does not match.');
     }
 }

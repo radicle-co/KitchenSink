@@ -5,10 +5,25 @@
  * (set by the fail-closed `AuthMiddleware`) and every decision is delegated to {@link ErasureService}.
  * The service's `GoneException`/`BadRequestException`/`ServiceUnavailableException` are translated to
  * HTTP by the global `ApiExceptionFilter`, which passes framework exceptions through untouched — so the
- * `410` body is exactly the contract's `{ code: 'ALREADY_ERASED', message: … }`. A controller-scoped
- * `ValidationPipe` enforces the DTO.
+ * `410` body is exactly the contract's `{ code: 'ALREADY_ERASED', message: … }`.
+ *
+ * VALIDATION IS `nestjs-zod`'s CONTROLLER-SCOPED PIPE over a DTO that IS the published contract, replacing a
+ * `class-validator` `ValidationPipe`. Two behaviours the swap preserves exactly, because on this route they
+ * are safety properties rather than conveniences:
+ *
+ *  - **A body that omits or empties `confirmationPhrase` is still a `400`**, from the pipe; and a request with
+ *    NO BODY at all — which bypasses the pipe entirely — is still a `400` from {@link ErasureService}. Belt
+ *    AND braces, unchanged.
+ *  - **An `ownerId` a client tries to smuggle in is still dropped.** The old pipe's `whitelist: true` stripped
+ *    it; zod strips unknown keys by default. It could never have redirected the erasure anyway (the owner comes
+ *    from the verified token and the body's is simply not read), but the stripping is defence in depth and it
+ *    survives.
+ *
+ * The `export` route has no body or query, so the pipe is inert on it: `nestjs-zod`'s pipe returns the value
+ * untouched for any parameter whose metatype is not a `createZodDto` class.
  */
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UsePipes } from '@nestjs/common';
+import { ZodValidationPipe } from 'nestjs-zod';
 
 import { OwnerId } from '../auth/current-principal.decorator.js';
 import { ErasureService } from './erasure.service.js';
@@ -23,7 +38,7 @@ import { SkipErasureLock } from './skip-erasure-lock.decorator.js';
 // webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
 // inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
 @Controller(['api/v1/account', 'v1/account'])
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
+@UsePipes(ZodValidationPipe)
 export class AccountController {
     public constructor(
         private readonly erasure: ErasureService,

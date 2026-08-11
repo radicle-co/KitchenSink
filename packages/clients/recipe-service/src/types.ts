@@ -132,36 +132,21 @@ export type IngredientSuggestionProvenance = IngredientSuggestion['provenance'];
 export type CollectionRecipeAddedVia = CollectionMemberRecipe['addedVia'];
 
 /**
- * Request body for `requestAccountErasure` (`POST /api/v1/account/erasure`) — mirrors the recipe service's
- * `ErasureRequestDto` EXACTLY (CR-002 / U3b). Historically this carried only an OPTIONAL `confirmationPhrase`
- * and no election, which no longer matches the shipped contract: the phrase is REQUIRED (U7 — an irreversible
- * action must never proceed without a deliberate intent gate; a missing/empty/mismatched phrase is a `400`),
- * and the per-recipe donate election travels alongside it.
+ * The ACCOUNT-ERASURE wire shapes, from the contract (CR-002 / U3b / U7). Aliases, never second declarations.
+ *
+ * These two had drifted the furthest of anything in this package before §15: `ErasureRequest` historically
+ * carried an OPTIONAL `confirmationPhrase` and no donate election, so the client's own type said an
+ * irreversible erasure could be requested with no intent gate at all — the exact opposite of the shipped
+ * contract, where the phrase is REQUIRED and a missing one is a `400`.
+ *
+ * `ACCOUNT_ERASURE_CONFIRMATION_PHRASE` and the match rule now come from the same published contract too, so
+ * `@commise/features-account` no longer keeps its own copy of the literal that gates the action.
  */
-export interface ErasureRequest {
-    /**
-     * The exact confirmation phrase gating the irreversible erasure (U7). REQUIRED. The canonical literal and
-     * the client-side match predicate live in `@commise/features-account`
-     * (`ACCOUNT_ERASURE_CONFIRMATION_PHRASE` / `confirmsErasurePhrase`) so the UI renders ONE authoritative
-     * copy; this type only carries the value the caller collected. The server re-validates it.
-     */
-    readonly confirmationPhrase: string;
-    /**
-     * The per-recipe DONATE election (CR-002 / U3b): ids of the caller's OWNER-ONLY recipes elected to be
-     * PUBLISHED (donated — flipped to `public` + `published`, surviving the erasure attributed to a pseudonym
-     * the erased owner no longer controls) instead of removed. Absent/empty ⇒ donate nothing, so every
-     * owner-only recipe is removed (the default). The server scopes the publish-flip to `owner_id = caller`,
-     * so an id the caller does not own — or one already public — is a harmless no-op, and it is bounded
-     * server-side (a payload-size guard).
-     */
-    readonly publishRecipeIds?: readonly string[];
-}
-
-/** Response from `requestAccountErasure`: the (possibly pre-existing, idempotent) erasure job. */
-export interface ErasureRequestAcceptedResponse {
-    readonly jobId: string;
-    readonly status: 'queued' | 'running';
-}
+export type {
+    ErasureRequest,
+    ErasureRequestAcceptedResponse,
+    ServiceErasureAcceptedResponse,
+} from '@kitchensink/schema-recipe';
 
 /**
  * Ordered facet buckets for a single search facet (an object-per-bucket, extensible per entry).

@@ -661,11 +661,18 @@ describe('RecipeServiceClient — search & account', () => {
         expect(jsonBody(fetchMock)).toEqual(request);
     });
 
-    it('requestAccountErasure POSTs with NO body when no request is supplied', async () => {
-        const fetchMock = stubFetch(202, makeErasureAccepted());
+    it('requestAccountErasure PARSES the 202 body, so a server that changed its shape fails here not in the UI', async () => {
+        // Replaces a test that asserted the client POSTs with NO body when no request is supplied. That call
+        // is no longer expressible — the argument is required, because `confirmationPhrase` is the intent gate
+        // on an irreversible action and a bodyless request could only ever have produced a `400`.
+        //
+        // The property worth holding instead is that this boundary is now VALIDATED: it was the last
+        // `expectUnvalidated` call site in the client, so a `202` whose shape drifted used to be cast blindly
+        // to `ErasureRequestAcceptedResponse` and surface as `undefined` somewhere in the account UI.
+        const fetchMock = stubFetch(202, { jobId: 'job_1', status: 'not-a-status' });
 
-        await makeClient(fetchMock).requestAccountErasure();
-
-        expect(requestAt(fetchMock).body).toBeUndefined();
+        await expect(
+            makeClient(fetchMock).requestAccountErasure({ confirmationPhrase: 'ERASE MY DATA' }),
+        ).rejects.toThrow();
     });
 });

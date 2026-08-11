@@ -11,31 +11,30 @@
  * integrators. It is NOT a code-generation input and NOT the type authority: nothing in this repo compiles
  * against it, and the authority is the zod exported from `@kitchensink/schema-recipe`.
  *
- * ── COVERAGE IS DELIBERATELY PARTIAL, AND THE GAPS ARE REPORTED, NOT HIDDEN ──
+ * ── COVERAGE IS COMPLETE: 41/41 OPERATIONS CARRY A RESPONSE SCHEMA ──
  *
- * Every operation the service serves is listed here, including the ones whose RESPONSE BODY has no schema
- * yet. That is the honest shape of the document today, and it is the opposite of the failure §15.2.5 names:
- * a document that silently omits the endpoints it cannot describe reads as complete, so nobody closes the
- * gap. `formatGenerationSummary` prints every `operationId statusCode` pair with no body schema on EVERY
- * generation run.
+ * It was 30/41 when the seam was built, and the gaps were listed rather than hidden — a document that silently
+ * omits the endpoints it cannot describe reads as complete, so nobody closes the gap. They are all closed now,
+ * and `formatGenerationSummary` still prints any `operationId statusCode` pair with no body schema on EVERY
+ * generation run, so a REGRESSION is loud. `contract/__tests__/openapi.test.ts` pins the undescribed set at
+ * `[]` in both directions.
  *
- * A response gets a schema here only when a zod schema that is TRUE of what the server actually sends
- * already exists. Concretely:
+ * A response earned a schema only when a zod schema TRUE of what the server actually sends existed. Two kinds
+ * of evidence backed that, and it is worth keeping the distinction because it says how much each is trusted:
  *
- *  - **Covered** — the health probes (their payload carries `contractHash`, the drift-layer-3 skew signal, so
- *    it IS wire contract and has an authored `health.schema.ts`), plus the recipes, photos, versions,
- *    ingredient, search, rating-read and COLLECTIONS bodies, because
- *    `@kitchensink/recipe-core` already owns their zod (or the vertical now authors it) AND
- *    `@kitchensink/recipe-service-client` PARSES production responses with those same schemas today. That is
- *    empirical evidence of truth, not a guess: were `recipeDetailSchema` wrong about a detail response, the
- *    shipped client would already be throwing on every read. The collections bodies additionally carry a suite
- *    that drives `CollectionsService` and parses its ACTUAL output with the published schema
- *    (`src/collections/__tests__/collections.schema.test.ts`), which is the same evidence obtained deliberately
- *    rather than by luck.
- *  - **NOT covered** — the three account bodies (`exportAccount`, `requestAccountErasure`,
- *    `requestServiceErasure`). Those are the boundaries with no shared schema on either side. They are filled
- *    in as the vertical gains an authored `*.schema.ts`; publishing a hopeful shape for them now would be a
- *    contract that lies.
+ *  - **Observed in production.** The recipes, photos, versions, ingredient, search and rating-read bodies are
+ *    described by zod `@kitchensink/recipe-core` already owned AND that
+ *    `@kitchensink/recipe-service-client` PARSES production responses with today. Were `recipeDetailSchema`
+ *    wrong about a detail response, the shipped client would already be throwing on every read. The health
+ *    probes joined them when `contractHash` was added to their payload for drift layer 3 — the moment a
+ *    consumer is expected to read a field off `/health`, that body IS wire contract.
+ *  - **Proven deliberately.** The COLLECTIONS and ACCOUNT bodies had no shared schema on either side, so the
+ *    same evidence is obtained on purpose: suites drive the real services over stubbed DALs and parse their
+ *    ACTUAL return values with the published schema
+ *    (`src/collections/__tests__/collections.schema.test.ts`, `src/account/__tests__/account.schema.test.ts`),
+ *    across the widest body, the empty body, and the all-nulls body. That is what makes these descriptions true
+ *    rather than hopeful — which matters most for the account bodies, where the export is the widest
+ *    personal-data egress surface the service has and erasure is irreversible.
  *
  * ── WHY ONLY THE `/api/v1/...` SPELLING IS PUBLISHED ──
  *
@@ -70,6 +69,12 @@ import {
     updateRecipeInputSchema,
 } from '@kitchensink/recipe-core';
 
+import {
+    accountExportSchema,
+    erasureRequestAcceptedResponseSchema,
+    erasureRequestSchema,
+    serviceErasureAcceptedResponseSchema,
+} from '../src/account/account.schema.js';
 import {
     addRecipeToCollectionRequestSchema,
     cloneCollectionRequestSchema,
@@ -152,6 +157,10 @@ const components = {
     PullDiff: pullDiffSchema,
     PullFromSourceRequest: pullFromSourceRequestSchema,
     PullFromSourceResponse: pullFromSourceResponseSchema,
+    AccountExport: accountExportSchema,
+    ErasureRequest: erasureRequestSchema,
+    ErasureRequestAcceptedResponse: erasureRequestAcceptedResponseSchema,
+    ServiceErasureAcceptedResponse: serviceErasureAcceptedResponseSchema,
 } as const;
 
 /** A component name, so a typo in a response is a `typecheck` failure rather than a missing `$ref`. */
@@ -858,8 +867,11 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             operationId: 'exportAccount',
             summary: 'Export everything the recipe service holds for the caller.',
             description:
-                'RESPONSE BODY NOT YET DESCRIBED — `AccountExport` and its seven sub-shapes have no zod anywhere, and no typed-client method either. This is the largest single coverage gap in the document.',
-            responses: { '200': { description: 'The caller’s full export.' }, ...sharedErrorResponses() },
+                'GDPR Art. 15 (access) + Art. 20 (portability). The read-only INVERSE of erasure: it returns the same owner-scoped roots erasure removes or keeps. Scoped ENTIRELY by the verified token — there is no body or query parameter that can point it at another account. Two shape decisions differ from the API’s read contracts on purpose: an absent value is an explicit `null` rather than an omitted key, and `numeric` columns (`averageRating`, `leadCaloriesPerServing`) stay STRINGS, because a portability document reports what is stored. Photo and version entries carry METADATA and resolved CDN URLs, never bytes. Rate-limited with the tightest (export) cap.',
+            responses: {
+                '200': { description: 'The caller’s full export.', schema: 'AccountExport' },
+                ...sharedErrorResponses(),
+            },
         },
     },
     '/api/v1/account/erasure': {
@@ -867,9 +879,17 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             operationId: 'requestAccountErasure',
             summary: 'Request irreversible erasure of the caller’s account data.',
             description:
-                'REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — the erasure DTO is `class-validator`-only. Idempotent: an in-flight job is returned rather than a second one started.',
+                'IRREVERSIBLE. `confirmationPhrase` is the intent gate and is REQUIRED; its VALUE is checked by the service, not by request validation, so the accepted literal is deliberately NOT published as an enum here — a `400` reports a mismatch without echoing what was expected. There is no `ownerId` field: the owner comes from the verified token, and a smuggled one is stripped. Idempotent per C-007 — an in-flight job is RETURNED rather than a second one started, and there is no `409`, because a duplicate erasure request is the same request again. `publishRecipeIds` is the optional per-recipe DONATE election (CR-002 / U3b): a listed recipe is published and KEPT under a pseudonymous handle the erased owner no longer controls, instead of being removed; absent or empty means donate nothing.',
+            requestBody: {
+                description: 'The confirmation phrase, plus the optional donate election.',
+                required: true,
+                schema: 'ErasureRequest',
+            },
             responses: {
-                '202': { description: 'The queued or already-running erasure job.' },
+                '202': {
+                    description: 'The queued or already-running erasure job.',
+                    schema: 'ErasureRequestAcceptedResponse',
+                },
                 '410': { description: 'The account was already erased.', schema: 'ErrorResponse' },
                 ...sharedErrorResponses(),
             },
@@ -880,10 +900,13 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             operationId: 'requestServiceErasure',
             summary: 'Service-principal erasure trigger, called by the identity deletion worker.',
             description:
-                'NOT a public endpoint and NOT Clerk-authenticated: it authenticates with a signed machine token and is excluded from the Clerk middleware so its own guard is the fail-closed enforcement point (ADR-0011). RESPONSE BODY NOT YET DESCRIBED.',
+                'NOT a public endpoint and NOT Clerk-authenticated: it authenticates with a signed machine token and is excluded from the Clerk middleware so its own guard is the fail-closed enforcement point (ADR-0011). It takes NO REQUEST BODY, deliberately — the target owner is the token’s bound claim, so there is nothing for a caller to supply and no confirmation phrase (the token IS the authorization). Unlike the user route, an already-erased account is an idempotent no-op SUCCESS reporting `status: completed` with no `jobId`, not a `410`: the deletion-worker caller only needs to know the erasure is handled. There is no donate election on this path (KTD-2) — every owner-only recipe is removed.',
             security: [SERVICE_TOKEN],
             responses: {
-                '202': { description: 'The queued or already-running erasure job.' },
+                '202': {
+                    description: 'The queued, already-running, or already-completed erasure job.',
+                    schema: 'ServiceErasureAcceptedResponse',
+                },
                 '401': { description: 'Missing, invalid, or expired service token.', schema: 'ErrorResponse' },
                 '500': { description: 'Unexpected server error.', schema: 'ErrorResponse' },
             },

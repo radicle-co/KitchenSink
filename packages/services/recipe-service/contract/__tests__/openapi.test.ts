@@ -14,11 +14,12 @@
  *  - a documented route the service does not serve also fails, which is the opposite rot — a path left in
  *    the spec after the handler was deleted, i.e. a document promising an endpoint that 404s.
  *
- * The second assertion class is the COVERAGE RATCHET. `RESPONSES_WITHOUT_SCHEMA` is the exact, recorded set
- * of response bodies the document does not describe. Pinning the set rather than a count means closing a gap
- * and opening a new one cannot cancel out, and every movement in either direction is a deliberate edit with
- * a diff a reviewer can see. §15.2.5 records that undocumented response bodies are most of what actually
- * breaks a client, so this number is the one worth making hard to grow.
+ * The second assertion class is the COVERAGE RATCHET. `RESPONSES_WITHOUT_SCHEMA` is the exact, recorded set of
+ * response bodies the document does not describe — and it is now EMPTY: all 41 operations carry a response
+ * schema. Pinning the set rather than a count means closing a gap and opening a new one cannot cancel out, and
+ * every movement in either direction is a deliberate edit with a diff a reviewer can see. §15.2.5 records that
+ * undocumented response bodies are most of what actually breaks a client, so with the set at zero the ratchet's
+ * job changes from measuring progress to refusing regression.
  */
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants.js';
 import { RequestMethod } from '@nestjs/common';
@@ -51,22 +52,22 @@ const CONTROLLERS: readonly NewableFunction[] = [
 ];
 
 /**
- * The response bodies the document deliberately does not describe yet, as `operationId statusCode`.
+ * The response bodies the document deliberately does not describe, as `operationId statusCode`.
  *
- * Each entry is a boundary with no authored zod on either side. Removing one is the goal; ADDING one means a
- * new endpoint shipped without a described response body, and that needs saying out loud in a PR rather than
- * slipping in behind a green check.
+ * ⚠️ IT IS NOW EMPTY, AND THAT IS THE WHOLE POINT — every one of the 41 operations carries a response schema.
+ * The ratchet therefore no longer measures progress; it PREVENTS REGRESSION. An entry appearing here means a
+ * new endpoint shipped without a described response body, which is exactly what §15.2.5 records as most of
+ * what actually breaks a client, and it now cannot happen behind a green check: the assertion below is
+ * `toEqual([])`, so the diff that adds an entry is a deliberate, reviewable edit.
  *
- * The health probes USED to be here. They came off when `contractHash` was added to their payload for drift
- * layer 3: the moment a consumer is expected to read a field off `/health`, that body IS wire contract, so it
- * got an authored `health.schema.ts` like everything else. The eight COLLECTIONS entries came off with
- * `collections.schema.ts`, which also settled the four ways the collections contract had already drifted.
+ * How it emptied, in order: the health probes came off when `contractHash` was added to their payload for
+ * drift layer 3 (the moment a consumer reads a field off `/health`, that body IS wire contract); then search,
+ * photos and ingredients; then the eight COLLECTIONS entries, with `collections.schema.ts`, which also settled
+ * the four ways that contract had drifted; then the three ACCOUNT entries with `account.schema.ts`.
+ *
+ * Keep it as a pinned SET rather than a count: closing one gap and opening another must not cancel out.
  */
-const RESPONSES_WITHOUT_SCHEMA: readonly string[] = [
-    'exportAccount 200',
-    'requestAccountErasure 202',
-    'requestServiceErasure 202',
-];
+const RESPONSES_WITHOUT_SCHEMA: readonly string[] = [];
 
 /** Nest's `RequestMethod` enum → the lower-case verb OpenAPI uses. */
 const VERB_BY_REQUEST_METHOD: Readonly<Record<number, string>> = {
@@ -205,9 +206,30 @@ describe('the coverage ratchet', () => {
         expect(built.coverage.responsesWithoutSchema).toEqual([...RESPONSES_WITHOUT_SCHEMA].sort());
     });
 
-    it('reports a coverage figure consistent with that set', () => {
+    it('reports a coverage figure consistent with that set — now EVERY operation is fully typed', () => {
         expect(built.coverage.totalOperations).toBe(servedRoutes.length);
-        expect(built.coverage.operationsFullyTyped).toBeLessThan(built.coverage.totalOperations);
+        // Was `toBeLessThan` while gaps remained. It is `toBe` now, deliberately: with the set above empty,
+        // `toBeLessThan` would have become an assertion that the document is INCOMPLETE, and would have
+        // started failing the moment the last gap closed. Equality is the property worth holding from here.
+        expect(built.coverage.operationsFullyTyped).toBe(built.coverage.totalOperations);
         expect(built.coverage.componentCount).toBe(Object.keys(document.components.schemas).length);
+    });
+
+    it('describes a response body for EVERY operation the service serves, with none left undescribed', () => {
+        // The same property as the empty set above, asserted from the document rather than the report — so a
+        // bug in the generator's own coverage accounting cannot make the ratchet look closed while it is not.
+        const undescribed = Object.entries(document.paths).flatMap(([path, methods]) =>
+            Object.entries(methods).flatMap(([verb, operation]) =>
+                Object.entries((operation as unknown as { readonly responses: Record<string, unknown> }).responses)
+                    .filter(([status, response]) => {
+                        const hasSchema = (response as { readonly content?: unknown }).content !== undefined;
+
+                        return !hasSchema && status !== '204' && status !== '304';
+                    })
+                    .map(([status]) => `${verb} ${path} ${status}`),
+            ),
+        );
+
+        expect(undescribed).toEqual([]);
     });
 });

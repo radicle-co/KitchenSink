@@ -2769,6 +2769,10 @@ paths:
       responses:
         "200":
           description: The caller’s full export.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountExport"
         "400":
           description: The request body or query failed validation.
           content:
@@ -2807,8 +2811,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: RESPONSE BODY NOT YET DESCRIBED — `AccountExport` and its seven sub-shapes have no zod anywhere, and no
-        typed-client method either. This is the largest single coverage gap in the document.
+      description: "GDPR Art. 15 (access) + Art. 20 (portability). The read-only INVERSE of erasure: it returns the same
+        owner-scoped roots erasure removes or keeps. Scoped ENTIRELY by the verified token — there is no body or query
+        parameter that can point it at another account. Two shape decisions differ from the API’s read contracts on
+        purpose: an absent value is an explicit `null` rather than an omitted key, and `numeric` columns
+        (`averageRating`, `leadCaloriesPerServing`) stay STRINGS, because a portability document reports what is stored.
+        Photo and version entries carry METADATA and resolved CDN URLs, never bytes. Rate-limited with the tightest
+        (export) cap."
   /api/v1/account/erasure:
     post:
       operationId: requestAccountErasure
@@ -2818,6 +2827,10 @@ paths:
       responses:
         "202":
           description: The queued or already-running erasure job.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErasureRequestAcceptedResponse"
         "400":
           description: The request body or query failed validation.
           content:
@@ -2862,8 +2875,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: "REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — the erasure DTO is `class-validator`-only. Idempotent: an
-        in-flight job is returned rather than a second one started."
+      description: "IRREVERSIBLE. `confirmationPhrase` is the intent gate and is REQUIRED; its VALUE is checked by the
+        service, not by request validation, so the accepted literal is deliberately NOT published as an enum here — a
+        `400` reports a mismatch without echoing what was expected. There is no `ownerId` field: the owner comes from
+        the verified token, and a smuggled one is stripped. Idempotent per C-007 — an in-flight job is RETURNED rather
+        than a second one started, and there is no `409`, because a duplicate erasure request is the same request again.
+        `publishRecipeIds` is the optional per-recipe DONATE election (CR-002 / U3b): a listed recipe is published and
+        KEPT under a pseudonymous handle the erased owner no longer controls, instead of being removed; absent or empty
+        means donate nothing."
+      requestBody:
+        description: The confirmation phrase, plus the optional donate election.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ErasureRequest"
   /api/v1/internal/account/erasure:
     post:
       operationId: requestServiceErasure
@@ -2872,7 +2898,11 @@ paths:
         - serviceErasureToken: []
       responses:
         "202":
-          description: The queued or already-running erasure job.
+          description: The queued, already-running, or already-completed erasure job.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceErasureAcceptedResponse"
         "401":
           description: Missing, invalid, or expired service token.
           content:
@@ -2886,8 +2916,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
       description: "NOT a public endpoint and NOT Clerk-authenticated: it authenticates with a signed machine token and is
-        excluded from the Clerk middleware so its own guard is the fail-closed enforcement point (ADR-0011). RESPONSE
-        BODY NOT YET DESCRIBED."
+        excluded from the Clerk middleware so its own guard is the fail-closed enforcement point (ADR-0011). It takes NO
+        REQUEST BODY, deliberately — the target owner is the token’s bound claim, so there is nothing for a caller to
+        supply and no confirmation phrase (the token IS the authorization). Unlike the user route, an already-erased
+        account is an idempotent no-op SUCCESS reporting `status: completed` with no `jobId`, not a `410`: the
+        deletion-worker caller only needs to know the erasure is handled. There is no donate election on this path
+        (KTD-2) — every owner-only recipe is removed."
 components:
   securitySchemes:
     clerkSessionToken:
@@ -4639,4 +4673,447 @@ components:
       required:
         - collection
         - addedRecipeIds
+      additionalProperties: false
+    AccountExport:
+      readOnly: true
+      type: object
+      properties:
+        exportedAt:
+          type: string
+          minLength: 1
+        ownerId:
+          type: string
+          minLength: 1
+        recipes:
+          readOnly: true
+          type: array
+          items:
+            readOnly: true
+            type: object
+            properties:
+              id:
+                type: string
+                minLength: 1
+              ownerId:
+                type: string
+                minLength: 1
+              title:
+                type: string
+              description:
+                nullable: true
+                type: string
+              prepTimeMinutes:
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              cookTimeMinutes:
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              totalTimeMinutes:
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              servings:
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              difficulty:
+                nullable: true
+                type: string
+              averageRating:
+                nullable: true
+                type: string
+              ratingCount:
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              visibility:
+                type: string
+              status:
+                type: string
+              sourceType:
+                type: string
+              sourceUrl:
+                nullable: true
+                type: string
+              sourceAttribution:
+                nullable: true
+                type: string
+              clonedFromId:
+                nullable: true
+                type: string
+                minLength: 1
+              hasSubstantiveEdit:
+                type: boolean
+              cuisine:
+                nullable: true
+                type: string
+              dietaryFlags:
+                readOnly: true
+                type: array
+                items:
+                  type: string
+              tags:
+                readOnly: true
+                type: array
+                items:
+                  type: string
+              hasPartialNutrition:
+                type: boolean
+              leadCaloriesPerServing:
+                nullable: true
+                type: string
+              authorHandle:
+                nullable: true
+                type: string
+              currentVersion:
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              deletedAt:
+                nullable: true
+                type: string
+                minLength: 1
+              createdAt:
+                type: string
+                minLength: 1
+              updatedAt:
+                type: string
+                minLength: 1
+            required:
+              - id
+              - ownerId
+              - title
+              - description
+              - prepTimeMinutes
+              - cookTimeMinutes
+              - totalTimeMinutes
+              - servings
+              - difficulty
+              - averageRating
+              - ratingCount
+              - visibility
+              - status
+              - sourceType
+              - sourceUrl
+              - sourceAttribution
+              - clonedFromId
+              - hasSubstantiveEdit
+              - cuisine
+              - dietaryFlags
+              - tags
+              - hasPartialNutrition
+              - leadCaloriesPerServing
+              - authorHandle
+              - currentVersion
+              - deletedAt
+              - createdAt
+              - updatedAt
+            additionalProperties: false
+        collections:
+          readOnly: true
+          type: array
+          items:
+            readOnly: true
+            type: object
+            properties:
+              id:
+                type: string
+                minLength: 1
+              ownerId:
+                type: string
+                minLength: 1
+              name:
+                type: string
+              description:
+                nullable: true
+                type: string
+              visibility:
+                type: string
+              sourceCollectionId:
+                nullable: true
+                type: string
+                minLength: 1
+              lastPulledAt:
+                nullable: true
+                type: string
+                minLength: 1
+              sourceOwnerHandle:
+                nullable: true
+                type: string
+              sourceCollectionName:
+                nullable: true
+                type: string
+              createdAt:
+                type: string
+                minLength: 1
+              updatedAt:
+                type: string
+                minLength: 1
+              recipes:
+                readOnly: true
+                type: array
+                items:
+                  readOnly: true
+                  type: object
+                  properties:
+                    recipeId:
+                      type: string
+                      minLength: 1
+                    addedAt:
+                      type: string
+                      minLength: 1
+                    addedVia:
+                      type: string
+                  required:
+                    - recipeId
+                    - addedAt
+                    - addedVia
+                  additionalProperties: false
+            required:
+              - id
+              - ownerId
+              - name
+              - description
+              - visibility
+              - sourceCollectionId
+              - lastPulledAt
+              - sourceOwnerHandle
+              - sourceCollectionName
+              - createdAt
+              - updatedAt
+              - recipes
+            additionalProperties: false
+        ratings:
+          readOnly: true
+          type: array
+          items:
+            readOnly: true
+            type: object
+            properties:
+              id:
+                type: string
+                minLength: 1
+              recipeId:
+                type: string
+                minLength: 1
+              userId:
+                type: string
+                minLength: 1
+              stars:
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              createdAt:
+                type: string
+                minLength: 1
+              updatedAt:
+                type: string
+                minLength: 1
+            required:
+              - id
+              - recipeId
+              - userId
+              - stars
+              - createdAt
+              - updatedAt
+            additionalProperties: false
+        photos:
+          readOnly: true
+          type: array
+          items:
+            readOnly: true
+            type: object
+            properties:
+              id:
+                type: string
+                minLength: 1
+              recipeId:
+                type: string
+                minLength: 1
+              key:
+                type: string
+                minLength: 1
+              url:
+                type: string
+                format: uri
+              thumbnailKey:
+                nullable: true
+                type: string
+                minLength: 1
+              thumbnailUrl:
+                nullable: true
+                type: string
+                format: uri
+              contentType:
+                type: string
+              sizeBytes:
+                nullable: true
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              sortOrder:
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              createdAt:
+                type: string
+                minLength: 1
+              updatedAt:
+                type: string
+                minLength: 1
+            required:
+              - id
+              - recipeId
+              - key
+              - url
+              - thumbnailKey
+              - thumbnailUrl
+              - contentType
+              - sizeBytes
+              - sortOrder
+              - createdAt
+              - updatedAt
+            additionalProperties: false
+        versions:
+          readOnly: true
+          type: array
+          items:
+            readOnly: true
+            type: object
+            properties:
+              id:
+                type: string
+                minLength: 1
+              recipeId:
+                type: string
+                minLength: 1
+              versionNumber:
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              baseVersion:
+                nullable: true
+                type: integer
+                minimum: -9007199254740991
+                maximum: 9007199254740991
+              s3Key:
+                nullable: true
+                type: string
+                minLength: 1
+              createdBy:
+                type: string
+                minLength: 1
+              changeSummary:
+                nullable: true
+                type: string
+              deviceLabel:
+                nullable: true
+                type: string
+              editorHandle:
+                nullable: true
+                type: string
+              createdAt:
+                type: string
+                minLength: 1
+            required:
+              - id
+              - recipeId
+              - versionNumber
+              - baseVersion
+              - s3Key
+              - createdBy
+              - changeSummary
+              - deviceLabel
+              - editorHandle
+              - createdAt
+            additionalProperties: false
+        authorHandles:
+          readOnly: true
+          type: array
+          items:
+            readOnly: true
+            type: object
+            properties:
+              userId:
+                type: string
+                minLength: 1
+              displayName:
+                type: string
+              sourceTimestamp:
+                type: string
+                minLength: 1
+            required:
+              - userId
+              - displayName
+              - sourceTimestamp
+            additionalProperties: false
+      required:
+        - exportedAt
+        - ownerId
+        - recipes
+        - collections
+        - ratings
+        - photos
+        - versions
+        - authorHandles
+      additionalProperties: false
+    ErasureRequest:
+      type: object
+      properties:
+        confirmationPhrase:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: The exact confirmation phrase. Required. A non-matching value is answered 400 by the service, not by
+            request validation — the accepted literal is deliberately not published as an enum.
+        publishRecipeIds:
+          readOnly: true
+          maxItems: 1000
+          type: array
+          items:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      required:
+        - confirmationPhrase
+      additionalProperties: false
+    ErasureRequestAcceptedResponse:
+      readOnly: true
+      type: object
+      properties:
+        jobId:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+      required:
+        - jobId
+        - status
+      additionalProperties: false
+    ServiceErasureAcceptedResponse:
+      readOnly: true
+      type: object
+      properties:
+        jobId:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+            - completed
+            - failed
+        triggerSource:
+          type: string
+          enum:
+            - service
+      required:
+        - status
+        - triggerSource
       additionalProperties: false

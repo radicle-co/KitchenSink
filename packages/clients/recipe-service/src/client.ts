@@ -81,6 +81,7 @@ import type {
 // boundaries are now CHECKED rather than trusted. See CODING_STANDARDS §15.2.
 import {
     collectionListResponseSchema,
+    erasureRequestAcceptedResponseSchema,
     collectionRecipeMembershipResponseSchema,
     collectionResponseSchema,
     collectionWithRecipesResponseSchema,
@@ -882,17 +883,23 @@ export class RecipeServiceClient {
     }
 
     /**
-     * `POST /api/v1/account/erasure` — request GDPR account erasure (`202`, idempotent).
+     * `POST /api/v1/account/erasure` — request IRREVERSIBLE GDPR account erasure (`202`, idempotent).
      *
-     * @param request - Optional confirmation phrase.
+     * The `request` argument is REQUIRED, and that is a deliberate tightening: `confirmationPhrase` is the
+     * intent gate on an unrecoverable action, so a call with no argument could only ever have produced a
+     * `400`. It was optional here purely as a leftover from when the phrase itself was optional. Both
+     * production call sites already pass a full body.
+     *
+     * @param request - The confirmation phrase, plus the optional per-recipe donate election.
      * @returns The (possibly pre-existing) erasure job id + status.
+     * @throws {BadRequestError} (`400`) when the phrase is absent, empty, or does not match.
      * @throws {GoneError} (`410`) when the account has already been erased; {@link UnauthorizedError} on auth.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async requestAccountErasure(request?: ErasureRequest): Promise<ErasureRequestAcceptedResponse> {
+    public async requestAccountErasure(request: ErasureRequest): Promise<ErasureRequestAcceptedResponse> {
         const res = await this.send('POST', '/api/v1/account/erasure', request);
 
-        return this.expectUnvalidated<ErasureRequestAcceptedResponse>(res, 202);
+        return this.expect(res, 202, erasureRequestAcceptedResponseSchema);
     }
 
     // ─── Transport ──────────────────────────────────────────────────────────────────────────────
@@ -1014,25 +1021,18 @@ export class RecipeServiceClient {
      * the runtime shape. Collapses the ~25 repeated `if (status) return body as T; throw toError` blocks
      * into one place (P6).
      *
+     * EVERY success boundary in this client now goes through here or {@link expectNoContent}. Its sibling
+     * `expectUnvalidated` — which returned `res.body as T` for envelopes that had no shared schema — is
+     * DELETED: the four boundaries that still used it (`getCollectionById`, `addRecipeToCollection`,
+     * `pullCollectionFromSource`, `requestAccountErasure`) are described by the generated contract now, so
+     * there is no longer a response body this client trusts without parsing.
+     *
      * @throws the typed error (via {@link toError}) on any non-`status` response, or a `ZodError` when the
      *   `status` body fails the schema.
      */
     private expect<T>(res: RawResponse, status: number, schema: z.ZodType): T {
         if (res.status === status) {
             return schema.parse(res.body) as T;
-        }
-
-        throw this.toError(res);
-    }
-
-    /**
-     * Like {@link expect}, but for a client-local wire envelope (`./types.js`) that has no
-     * `@kitchensink/recipe-core` schema yet — returns the body as `T` unparsed. (Follow-up: give the
-     * envelopes client-local zod schemas so these boundaries are parsed too — see DA1 follow-up.)
-     */
-    private expectUnvalidated<T>(res: RawResponse, status: number): T {
-        if (res.status === status) {
-            return res.body as T;
         }
 
         throw this.toError(res);

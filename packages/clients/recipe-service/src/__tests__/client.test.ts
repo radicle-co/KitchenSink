@@ -379,7 +379,9 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
             fetch: stubFetch(410, { code: 'ALREADY_ERASED', message: 'Account has already been erased' }),
         });
 
-        const error = await client.requestAccountErasure().catch((caught: unknown) => caught);
+        const error = await client
+            .requestAccountErasure({ confirmationPhrase: 'ERASE MY DATA' })
+            .catch((caught: unknown) => caught);
 
         expect(isGoneError(error)).toBe(true);
         expect((error as GoneError).status).toBe(410);

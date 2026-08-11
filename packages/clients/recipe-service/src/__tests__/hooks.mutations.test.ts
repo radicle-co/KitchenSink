@@ -28,6 +28,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, waitFor } from '@testing-library/react';
 
 import type { CreateRecipeInput, RecipeDetail } from '@kitchensink/recipe-core';
+import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE } from '@kitchensink/schema-recipe';
 
 import {
     BadRequestError,
@@ -1350,23 +1351,32 @@ describe('useRequestAccountErasure', () => {
         expect(result.current.data).toEqual(accepted);
     });
 
-    it('passes an omitted request through as undefined', async () => {
+    it('forwards the donate election alongside the phrase, unchanged', async () => {
+        // Replaces a test that asserted an OMITTED request passed through as `undefined`. That behaviour is
+        // gone on purpose: `confirmationPhrase` is the intent gate on an irreversible action, so the argument
+        // is now required and a bodyless erasure is no longer expressible. What matters instead is that the
+        // whole body reaches the client untouched — a dropped `publishRecipeIds` silently deletes recipes the
+        // owner elected to keep, which is the exact conflation U4b guards against.
         const { result, client } = renderMutation(() => useRequestAccountErasure());
         const requestAccountErasure = vi
             .spyOn(client, 'requestAccountErasure')
             .mockResolvedValue(makeErasureAccepted());
+        const request = {
+            confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE,
+            publishRecipeIds: ['00000000-0000-4000-8000-0000000000d1'],
+        };
 
-        act(() => result.current.mutate(undefined));
+        act(() => result.current.mutate(request));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(requestAccountErasure).toHaveBeenCalledWith(undefined);
+        expect(requestAccountErasure).toHaveBeenCalledWith(request);
     });
 
     it('invalidates nothing — erasure is async server-side, so no cache goes stale synchronously', async () => {
         const { result, client, probes } = renderMutation(() => useRequestAccountErasure());
         vi.spyOn(client, 'requestAccountErasure').mockResolvedValue(makeErasureAccepted());
 
-        act(() => result.current.mutate(undefined));
+        act(() => result.current.mutate({ confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
         expect(probes()).toEqual([]);
@@ -1377,7 +1387,7 @@ describe('useRequestAccountErasure', () => {
         const { result, client } = renderMutation(() => useRequestAccountErasure());
         vi.spyOn(client, 'requestAccountErasure').mockRejectedValue(error);
 
-        act(() => result.current.mutate(undefined));
+        act(() => result.current.mutate({ confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE }));
         await waitFor(() => expect(result.current.isError).toBe(true));
 
         expect(result.current.error).toBe(error);

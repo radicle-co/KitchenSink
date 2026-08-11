@@ -5,7 +5,10 @@
  * (set by the fail-closed `AuthMiddleware`) and the controller delegates every decision to
  * {@link PhotosService}. Domain failures (`MAX_PHOTOS_EXCEEDED`) and input-validation `HttpException`s
  * (415/422/413/404) thrown by the service are translated to HTTP by the global `ApiExceptionFilter`. A
- * controller-scoped `ValidationPipe` enforces the DTOs.
+ * controller-scoped `ZodValidationPipe` enforces the DTOs, which ARE the authored wire contract
+ * (`photos.schema.ts`) rather than a second set of `class-validator` rules beside it — see
+ * CODING_STANDARDS §15.2. Unknown body keys are stripped (zod's `z.object` default), and a `@Param` string
+ * passes through the pipe untouched because its metatype is not a `ZodDto`.
  */
 import {
     Body,
@@ -19,8 +22,8 @@ import {
     Patch,
     Post,
     UsePipes,
-    ValidationPipe,
 } from '@nestjs/common';
+import { ZodValidationPipe } from 'nestjs-zod';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 
 import { PhotosService, type UploadUrlResponse } from './photos.service.js';
@@ -35,7 +38,7 @@ import { PhotoRateLimit, WriteRateLimit } from '../common/throttle/throttle.deco
 // webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
 // inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
 @Controller(['api/v1/recipes/:recipeId/photos', 'v1/recipes/:recipeId/photos'])
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
+@UsePipes(ZodValidationPipe)
 export class PhotosController {
     public constructor(private readonly photosService: PhotosService) {}
 

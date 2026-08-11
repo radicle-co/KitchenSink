@@ -6,21 +6,12 @@
  * `req.principal` (set by the fail-closed `AuthMiddleware`) — here that caller is the RATER, never taken
  * from the body. Both routes are WRITES, so both carry `@WriteRateLimit()`. Domain failures thrown by the
  * service (`RECIPE_NOT_FOUND` → 404, `CANNOT_RATE_OWN_RECIPE` → 403) are mapped to HTTP by the global
- * `ApiExceptionFilter`; the controller-scoped `ValidationPipe` enforces the DTO (and, with
- * `whitelist: true`, strips any spoofed body `userId`).
+ * `ApiExceptionFilter`; the controller-scoped `ZodValidationPipe` enforces the DTO — which IS the authored
+ * wire contract (`ratings.schema.ts` → recipe-core's one rating rule), per CODING_STANDARDS §15.2 — and
+ * strips any spoofed body `userId`, because `z.object` drops unknown keys.
  */
-import {
-    Body,
-    Controller,
-    Delete,
-    HttpCode,
-    HttpStatus,
-    Param,
-    ParseUUIDPipe,
-    Put,
-    UsePipes,
-    ValidationPipe,
-} from '@nestjs/common';
+import { Body, Controller, Delete, HttpCode, HttpStatus, Param, ParseUUIDPipe, Put, UsePipes } from '@nestjs/common';
+import { ZodValidationPipe } from 'nestjs-zod';
 
 import { RatingsService } from './ratings.service.js';
 import { SetRatingDto } from './dto/set-rating.dto.js';
@@ -33,7 +24,7 @@ import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 // webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
 // inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
 @Controller(['api/v1/recipes', 'v1/recipes'])
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
+@UsePipes(ZodValidationPipe)
 export class RatingsController {
     public constructor(private readonly ratingsService: RatingsService) {}
 

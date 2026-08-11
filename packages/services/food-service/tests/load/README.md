@@ -338,7 +338,7 @@ asserts from the real `EXPLAIN` plan that the claim pulls O(1) tuples from `idx_
 nothing is promoted. `FOOD_DRAIN_CLAIM_P95_MS` exists for exploration; **raising it changes the reported
 number, not the drain rate.**
 
-### 🔴 Finding 3 (SC-007), OPEN: `narrow` and `phrase` breach the 200ms budget on CI hardware
+### 🟢 Finding 3 (SC-007), CLOSED 2026-08-11: `narrow` and `phrase` had ~10% margin; the access path was the cost
 
 Finding 1 said to "treat SC-007 as AT RISK … and as unvalidated on deployed hardware". That has now been
 measured, and two shapes are over budget on the CI runner — not the `short` shape Finding 1 was about, which
@@ -366,9 +366,53 @@ pattern, so the index intersection and the per-row `GREATEST(ts_rank, similarity
 matched row are where the time goes; the candidate that changes no semantics is to stop ranking rows that
 cannot reach the `LIMIT 20`.
 
-**Consequence while it is open:** the `Load test (food — k6)` job is RED, and it fails at the search step —
+**Consequence while it was open:** the `Load test (food — k6)` job was RED, and it failed at the search step —
 which is why both drain-claim steps now carry `if: ${{ !cancelled() }}` (see `_ci-heavy.yml`). Without that,
 a search breach silently skipped the FR-046 probe and the run reported no drain number at all.
+
+**CLOSED 2026-08-11 (T-202) — the headroom came from the ACCESS PATH, and the ticket's hypothesis was wrong.**
+Ranking is not the cost: `narrow` matches 364 rows and the top-N heapsort over them is **0.14ms of a 45.8ms
+statement**. 66% of the statement is the `name % query` branch, where `food_name_trgm_idx` (GIN) answers the
+operator with **9,758 candidate rows for 368 true matches** and the bitmap heap scan then re-runs the
+predicate — a fresh `similarity()`, measured at 2.19µs — on the 9,754 it discards. Migration `0004` adds a
+**GiST** trigram index on the same column, which answers it with 368 candidates. An index cannot change a
+result (the operator is rechecked from the heap); proved over 932 probes on two 50,000-row fixture shapes
+against a pure Seq Scan, and pinned per-PR by `tests/food-search-access-path.integration.test.ts`. Local DB
+time, on the fixture CI seeds: `narrow` 45.8 → 12.4ms, `phrase` 44.4 → 9.9ms, `broad` 17.7 → 13.2ms, with
+`brand` 11.5 → 16.9ms and `miss` 0.12 → 4.9ms deliberately traded — GiST scans its whole index whatever the
+needle, so a cost that tracked pattern length becomes a flat 4–17ms band, which is the right shape for a p95
+gate. Full evidence, the rejected alternatives (removing either branch, a UNION rewrite, a query-plan cost
+gate) and the mutation results are in `specs/003-usda-food-data/tasks.md` → "T-202 — measured evidence".
+
+### 🔴 Finding 4 (SC-007), OPEN: `similarity()` is 100× under-costed, so the planner picks a Seq Scan on a production-shaped store — and this fixture hides it
+
+Two problems that only show up together, both found while measuring T-202. **Neither is fixed**; each needs
+an owner call, and they must move together.
+
+1. **`similarity()` and the `%` operator's `similarity_op` both carry Postgres' default `procost` of 1**,
+   while a call measures **2.19µs** — roughly 100× a simple operator. So the planner does not know that
+   "Seq Scan and filter" means one `similarity()` per row, and its choice for this statement flips with table
+   size and name diversity: Seq-Scan-and-filter at 6,000 rows, trigram BitmapOr at 12,000, Seq Scan again at
+   25,000, BitmapOr at 50,000. On a **production-shaped** 50,000-food store it picks the Seq Scan and
+   `narrow` measures **145.4ms locally** — 3× the 45.8ms this fixture produces — and the new GiST index buys
+   nothing there because it is never chosen. `ALTER FUNCTION similarity(text, text) COST 100` plus the same
+   for `similarity_op` flips it and is **strictly better on every shape**: `narrow` 145.4 → 15.6ms, `phrase`
+   128.1 → 11.5ms, `broad` 118.8 → 15.0ms, `brand` 124.6 → 17.4ms, `miss` 119.8 → 6.5ms. Not shipped because
+   `ALTER FUNCTION` needs ownership of a pg_trgm-owned function (the in-VPC migration runner only needs
+   `CREATE EXTENSION IF NOT EXISTS` today, so a privilege failure there would break every migration), it
+   changes plans for every query in the database, and `ALTER EXTENSION pg_trgm UPDATE` silently resets it.
+2. **This fixture is not production-shaped, and that is what hides (1).** `perfFoodDescription` writes
+   verbose prose, justified in its docblock as keeping the trigram/FTS indexes "as large as the deployed
+   store". That justification is inverted: **production sets `description := name`** (`usda.adapter.ts`,
+   `usda-bulk.parser.ts`), so the deployed `food_description_trgm_idx` indexes the name's trigrams and
+   `search_vector` indexes the name's words twice. The prose makes `food` ~6× larger in pages, which makes a
+   Seq Scan look expensive and pushes the planner onto the BitmapOr — the fixture accidentally gets the GOOD
+   plan. Correcting it would make the reported CI numbers WORSE until (1) is fixed, which is why this is one
+   finding and not two tickets.
+
+**Consequence while it is open:** SC-007 is validated against a store shape production does not have. The
+gate is honest about the query, not about the plan production will get once the store is populated from the
+USDA pipeline.
 
 ## CI
 

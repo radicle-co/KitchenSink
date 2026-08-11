@@ -57,6 +57,41 @@
  * exist to give users boolean query SYNTAX, which is precisely the capability that must NOT reach
  * `to_tsquery` from a search box.
  *
+ * ### What the 3+ character statement COSTS, and where that cost lives (T-202, measured)
+ *
+ * The statement's price is not the ranking and not the number of rows returned — it is the ACCESS PATH the
+ * `name % query` branch gets. Measured on the 50,000-food store CI seeds (`EXPLAIN (ANALYZE, BUFFERS)`,
+ * warm, best of seven):
+ *
+ * | part of the statement                                  | cost of a `raw chicken breast` search |
+ * | ------------------------------------------------------ | ------------------------------------- |
+ * | `name % query` — index scan + rechecking 9,754 rows    | **30.5ms**                            |
+ * | `description ILIKE` — index scan + recheck             | 6.1ms                                 |
+ * | FTS + `name ILIKE` — index scans + recheck             | 2.4ms                                 |
+ * | `ORDER BY score DESC, name ASC` over all 364 matches   | **0.14ms**                            |
+ *
+ * So "stop ranking rows that cannot reach the `LIMIT 20`" — T-202's recorded candidate — would have bought
+ * 0.3% of the statement. What actually cost 66% of it: `food_name_trgm_idx` (GIN) answers `%` by admitting
+ * every row sharing `ceil(0.3 x n_query_trigrams)` trigrams, which returned **9,758 candidates for 368 true
+ * matches**, and the bitmap heap scan then re-evaluated the predicate — a fresh `similarity()` call, 2.19µs
+ * each — on the 9,754 it discarded, touching all 4,250 heap blocks of the table. The 0004 migration adds a
+ * **GiST** trigram index on the same column, which answers the same operator with 368 candidates: the
+ * `narrow` shape 45.8ms → 12.4ms, `phrase` 44.4ms → 9.9ms. **No SQL here changed**, because an index
+ * cannot change which rows match or their order (`%` is rechecked from the heap) — which is exactly why
+ * this was the fix available: per T-198, anything that moves rows or ranks is a product decision.
+ *
+ * Two things NOT done, deliberately, and both are recorded in `specs/003-usda-food-data/tasks.md` T-202:
+ *
+ *  - **`name % query` is NOT removed.** T-198's finding 4 said it "contributes nothing at ANY length"; that
+ *    was measured with single-WORD needles against long names. A multi-word needle is a large fraction of
+ *    the name, so it clears the 0.3 threshold easily — for `narrow` this branch carries **335 of the 364
+ *    matched rows on its own**. Dropping it is a product call, not an optimisation.
+ *  - **`description ILIKE` is NOT removed** even though it matched **0 rows** that `name ILIKE` did not, on
+ *    both fixture shapes. That redundancy holds only because both ingestion paths set `description := name`
+ *    — an invariant of the writers, not of the schema — so removing the branch would change results for any
+ *    row where the two differ. `name ILIKE p OR (description IS DISTINCT FROM name AND description ILIKE p)`
+ *    IS provably equivalent, but measured no faster: it does not let the planner skip the index scan.
+ *
  * ### The semantic change, stated plainly (FR-008/FR-010)
  *
  * A 1–2 character query used to match **mid-word** (`ch` matched `ranch`, `spinach`, and `Salmon` for
@@ -211,7 +246,10 @@ export class FoodSearchDao {
     }
 
     /**
-     * The pre-existing 3+ character statement, unchanged: a row matches when EITHER the ranked FTS path
+     * The pre-existing 3+ character statement, unchanged — including by T-202, whose fix was the ACCESS
+     * PATH the `name %` branch gets (`food_name_trgm_gist_idx`, 0004) and not one character of this SQL.
+     * See the class doc for the per-branch cost table and for why neither `name %` nor `description ILIKE`
+     * may be removed here. A row matches when EITHER the ranked FTS path
      * hits (`search_vector @@ plainto_tsquery('english', query)` — word-order-independent lexeme match
      * over name + description) OR the pg_trgm fuzzy fallback hits (trigram-similar name `%`, or a
      * name/description substring `ILIKE`). The score is `GREATEST(ts_rank, similarity(name))` so a strong

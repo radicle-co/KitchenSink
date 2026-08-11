@@ -115,6 +115,16 @@ export const food = pgTable(
         // pg_trgm fuzzy/substring/partial search (FR-008/FR-010); the extension is bootstrapped by the migration.
         index('food_name_trgm_idx').using('gin', sql`${table.name} gin_trgm_ops`),
         index('food_description_trgm_idx').using('gin', sql`${table.description} gin_trgm_ops`),
+        // GiST over the SAME column, for the `name % query` similarity branch only (T-202, 0004 migration).
+        // Not a duplicate of the GIN index above and not interchangeable with it: GIN answers `%` by
+        // admitting any row sharing ceil(0.3 x n_query_trigrams) trigrams — 9,758 candidates for 368 true
+        // matches on a 50,000-food store, each costing a discarded `similarity()` recheck — while GiST
+        // answers it with one candidate per match. GIN stays because it is the better answer for the
+        // `ILIKE '%q%'` branches, which GiST can only serve by scanning its whole index. The planner picks
+        // per branch. An index cannot change which rows match or their order (`%` is rechecked from the
+        // heap), which is why this is a pure access-path change; see 0004 and
+        // `tests/food-search-access-path.integration.test.ts`.
+        index('food_name_trgm_gist_idx').using('gist', sql`${table.name} gist_trgm_ops`),
         // Ranked full-text search (T-180): GIN over the generated tsvector (FR-008/FR-010).
         index('food_search_vector_idx').using('gin', table.searchVector),
     ],

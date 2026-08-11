@@ -247,6 +247,21 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
             expect(statement.text).not.toContain(`to_tsquery('simple'`);
         });
 
+        it('orders by the score ALIAS with a deterministic tiebreak, exactly as the prefix statement does', async () => {
+            const statement = await soleStatementFor('chicken');
+
+            expect(statement.text).toContain('AS score');
+            // `name ASC` is not cosmetic and this assertion is not a duplicate of the prefix statement's.
+            // Without the tiebreak, rows sharing a score come back in whatever order the ACCESS PATH
+            // happened to produce them — so the same query returns a different top 20 as the plan changes,
+            // and T-202 changed the plan (`food_name_trgm_gist_idx`). Ties are the normal case here, not an
+            // edge: every row matched only by an `ILIKE` branch scores `similarity(name, query)`, and equal
+            // similarity across similarly-shaped USDA names is common. `FoodCatalogGateway` in the recipe
+            // service then re-sorts hits by `score DESC, name ASC`, so a tie the DAO leaves unbroken is one
+            // the two sides resolve differently.
+            expect(statement.text).toContain('ORDER BY score DESC, name ASC');
+        });
+
         it('honours an explicit row cap here too', async () => {
             const statement = await soleStatementFor('chicken', 3);
 

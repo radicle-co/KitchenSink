@@ -1,0 +1,40 @@
+-- 0004: a GiST trigram index on food.name, for the `name % query` branch of search (T-202, SC-007)
+--
+-- Additive, hand-authored migration applied AFTER 0003 by the in-VPC migration runner (FU-MIGRATE) and by
+-- the test harness (tests/support/db.ts applies every *.sql in lexical order). Mirrors the hand-authored
+-- style of 0000–0003; the Drizzle definition in src/db/schema/food.ts documents the same index.
+--
+-- ## What this is for, measured — it is an ACCESS PATH, not a semantic change
+--
+-- `FoodSearchDao.relevanceQuery` ORs four predicates, one of which is `name % query` (pg_trgm similarity,
+-- the fuzzy/typo fallback). `food_name_trgm_idx` (GIN, from 0000) answers that operator by admitting any
+-- row sharing ceil(0.3 x n_query_trigrams) trigrams, which for a multi-word needle is FAR looser than the
+-- operator itself: on a 50,000-food store it returned 9,758 candidate rows for 368 true matches, and the
+-- bitmap heap scan then re-evaluated the predicate — a fresh `similarity()` call, measured at 2.19µs —
+-- on the 9,754 it discarded, touching all 4,250 heap blocks of the table. That single branch was 30.5ms of
+-- a 45.8ms statement, against SC-007's 250ms p95 (+/-15%) budget which CI measured at 209.9ms p95.
+--
+-- A GiST trigram index answers the same operator with 368 candidates for 368 matches. Measured on the
+-- 50,000-food fixture CI seeds: the `narrow` shape 45.8ms -> 12.4ms and `phrase` 44.4ms -> 9.9ms.
+--
+-- **It cannot change a search result.** `%` is rechecked from the heap (`Recheck Cond` in the plan), so a
+-- trigram index — precise or lossy — can only change how fast rows are found, never which rows or in what
+-- order. Proved rather than asserted: `tests/food-search-access-path.integration.test.ts` compares the
+-- statement's `(id, name, score)` sequence against a pure Seq Scan with every index path disabled, and the
+-- same comparison was run over 932 probes on two 50,000-row fixture shapes.
+--
+-- ## Why BOTH trigram indexes on `name` stay, and why this one is not partial
+--
+-- GIN is the better answer for the `ILIKE '%q%'` branches (a short pattern is cheap and selective there,
+-- where GiST always scans its whole index) and the worse answer for `%`. The planner picks per branch, so
+-- the two are complements, not duplicates — do not "consolidate" them. Non-partial deliberately: scoping
+-- it to `WHERE status = 'RESOLVED' AND name IS NOT NULL` measured no faster (2% fewer rows) and would
+-- couple the index's usability to the exact text of the DAO's WHERE clause, so an unrelated edit there
+-- would silently cost 4x with nothing red.
+--
+-- Cost: ~8.5MB per 50,000 foods and one more index to maintain on `food` writes. `CREATE INDEX` (not
+-- CONCURRENTLY) because the runner applies each file as one statement in a transaction, as 0001 does for
+-- `food_search_vector_idx`; on a store of this size the write lock is sub-second.
+-- Implements: FR-008 FR-010.
+
+CREATE INDEX IF NOT EXISTS "food_name_trgm_gist_idx" ON "food" USING gist ("name" gist_trgm_ops);

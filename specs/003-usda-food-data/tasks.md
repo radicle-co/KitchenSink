@@ -751,7 +751,7 @@ T-172, T-185.
       **CONFIRMED ON CI (run 31451860784)** — the arbiter, not the dev machine. Before → after, same runner class, budget p95 ≤ 60ms: depth 100 `mixed` 4.78 → 4.87ms and `adversarial` 2.64 → 2.65ms; depth 1,000 `mixed` 3.98 → 5.46ms and `adversarial` **10.76 → 3.91ms**; depth 10,000 `mixed` 16.73 → 16.59ms and `adversarial` **85.52 → 10.81ms**. The breaching series is **7.9× faster and now 5.6× inside the budget**; every series passes and DSN-11 is closed on CI evidence. Instructive detail: the local prediction was 7.20ms against CI's 10.81ms, so the ~3× hardware factor applies to the REMAINING per-claim aggregate as well — which is the whole reason the probe, not a workstation, is the contract.
       **⚠️ The `Load test (food — k6)` job is still RED, on a DIFFERENT and pre-existing failure** — SC-007's `narrow` (253.10ms) and `phrase` (206.29ms) shapes against the 200ms budget. That is T-202 below, not this task; the drain steps only produced numbers at all because they now carry `if: ${{ !cancelled() }}` (a search breach previously skipped them, so the run reported no drain measurement).
 
-- [ ] **T-202** [M] [Test-first: true] **SC-007 OPEN — the search budget is breached on CI hardware for `narrow` and `phrase`.** `packages/services/food-service/src/foods/dao/food-search.dao.ts` (SC-007, FR-008, FR-010)
+- [x] **T-202** [M] [Test-first: true] **SC-007 headroom — DONE 2026-08-11, by changing the ACCESS PATH rather than the statement.** `packages/services/food-service/src/db/migrations/0004_food_name_trgm_gist.sql` (SC-007, FR-008, FR-010)
       T-195's Finding 1 said to "treat SC-007 as AT RISK … and as unvalidated on deployed hardware". Measured, it is breached — but for different shapes than the one Finding 1 named (`short`, which T-198 fixed and which now measures 51.66ms on CI):
       | shape | workstation (3 runs) | CI 31323016643 | CI 31451273786 | CI 31451860784 |
       | `narrow` | 105.07 / 68.2 / 68.4ms | 196.73 ✓ | 258.74 ✗ | 253.10 ✗ |
@@ -760,6 +760,7 @@ T-172, T-185.
       **NOT attributable to T-197/T-201** — nothing in that work touches `FoodSearchDao`, the search indexes or the fixture, and the drain probe runs in its own process after the k6 scripts.
       **SUPERSEDED 2026-08-10 by owner ruling:** SC-007 is now 250ms p95 ±15% (gate 287.5ms), because the 200ms was validated on a workstation and CI measures 2.5-3.8x slower. The gate passes at that ceiling. This instruction originally read "Do NOT raise SEARCH_P95_MS — 200ms is SC-007 verbatim"; widening it changes the reported number, not the latency (the same rule that governs `FOOD_DRAIN_CLAIM_P95_MS`). The fix belongs in the search path. `narrow` is a 3-lexeme AND plus a long `ILIKE` pattern, so the cost is index intersection plus a per-row `GREATEST(ts_rank, similarity(…))` over every matched row before `LIMIT 20`. The candidate that changes NO semantics is to stop ranking rows that cannot reach the top 20. Per T-198, anything that changes which rows match (or their order) needs a product call, not a DAO edit.
       **Blast radius while open:** the `Load test (food — k6)` job is RED, so the whole heavy tier reports failure on a search regression rather than on anything else.
+      **CLOSED 2026-08-11.** The recorded candidate was measured and is WRONG — ranking all 364 `narrow` matches down to 20 costs **0.14ms of a 45.8ms statement**. 66% of the statement is the `name % query` branch's ACCESS PATH, fixed by a GiST trigram index (migration `0004`); no SQL in the DAO changed, because an index cannot move a row or a rank. Local DB time on the fixture CI seeds: `narrow` 45.8 → 12.4ms, `phrase` 44.4 → 9.9ms. Evidence, the rejected alternatives, the mutation results and two ESCALATED findings are in "T-202 — measured evidence" below.
 
 - [x] **T-198** [S] [Test-first: true] **SC-007 short-query index bypass** — a 2-char query yields no complete trigram, so the `ILIKE` branches Seq Scan 51,000 rows at ~158ms. Gate them behind `length(query) >= 3` (or enforce a minimum at the boundary) — `packages/services/food-service/src/foods/dao/food-search.dao.ts:48` (SC-007, FR-008, FR-010)
       This CHANGES SEARCH SEMANTICS (a 2-char query stops matching mid-word), so it needs a product call, not just a DAO edit.
@@ -770,6 +771,120 @@ T-172, T-185.
       (b) `FOOD_METRIC.localStoreServeRate` was not one missing call site — `FoodMetrics` was wired ONLY into the Fargate worker, so **the API emitted no EMF at all**. Now emitted from the golden-record read (`FoodsService.getFood`), before the status branch, so 200/202/404 each contribute exactly one observation. Unit `Percent` 100/0, one observation per read: CloudWatch's `Average` IS SC-004's serve-rate with no conversion, `SampleCount` is total reads, `Sum / 100` is the served-read count SC-005 is written in. A service-computed ratio is not even expressible — SC-004 spans a rolling 24h window no single task can see. Also charted on the T-182 dashboard (emitted makes it queryable; charted makes it observable). **No alarm, deliberately:** SC-004's ">80%" only holds once the store holds 5,000+ unique RESOLVED foods, so a cold prod store or any per-PR preview sits legitimately below it.
       **Still unemitted for the same root cause, NOT fixed here:** `FOOD_METRIC.sourceApiSuccessRate` and `FOOD_METRIC.auth401Rate`.
       (c) The unlinted tree was **51 errors across 16 files**, not two. The old glob (`src/**/*.ts` minus `*.test.ts`) excluded the whole `tests/` tree AND every co-located `src/**/__tests__/**` spec. Now `'src/**/*.ts' 'tests/**/*.ts'`; no rule loosened, no override added, no inline disable. `tests/load/*.load.js` stays unlinted — those run under k6's runtime, are outside the tsconfig `include`, and the typed parser rejects them; linting them needs a separate untyped config block plus k6 globals (follow-up, and they were equally unlinted before).
+
+### T-202 — measured evidence (2026-08-11)
+
+Implemented as a **new ACCESS PATH** — `food_name_trgm_gist_idx`, migration `0004` — and **not one character
+of `FoodSearchDao` SQL changed**. Postgres 16 (Docker, local, a throwaway container on port 55433), 50,000
+`RESOLVED` foods, warm cache, `EXPLAIN (ANALYZE, BUFFERS)`, best of seven. Measured on TWO fixture shapes: the
+one CI seeds (`prepare-perf-fixture.ts`, verbose descriptions) and a production-shaped copy of it
+(`description = name`, which is what both USDA ingestion paths write — `usda.adapter.ts:290`,
+`usda-bulk.parser.ts:165`).
+
+**The recorded candidate was wrong, and measuring it is what found the real cost.** `narrow` matches 364 rows,
+and ranking them down to 20 is a top-N heapsort costing **0.14ms of a 45.8ms statement**. It is also not
+implementable: a `name %` match scores ≥ 0.3 while an FTS-only match scores ~0.06, so the expensive branch
+supplies most of the top 20 — you cannot know which rows reach the limit without scoring all of them.
+
+| part of the statement (`raw chicken breast`)        | cost       | share |
+| --------------------------------------------------- | ---------- | ----- |
+| `name % query` — index scan + recheck of 9,754 rows | **30.5ms** | 66%   |
+| `description ILIKE` — index scan + recheck          | 6.1ms      | 13%   |
+| FTS + `name ILIKE` — index scans + recheck          | 2.4ms      | 5%    |
+| ranking all 364 matches down to 20                  | **0.14ms** | 0.3%  |
+
+`food_name_trgm_idx` (GIN) answers `name % 'raw chicken breast'` by admitting every row sharing
+`ceil(0.3 × n_query_trigrams)` trigrams — **9,758 candidates for 368 true matches** — and the bitmap heap scan
+then re-evaluates the predicate (a fresh `similarity()`, measured at **2.19µs**) on the 9,754 it discards,
+touching all 4,250 heap blocks of the table. A **GiST** trigram index over the same column answers the same
+operator with 368 candidates: that branch drops 30.5ms → 8.0ms.
+
+| shape (local DB time, the fixture CI seeds) | before  | after   |
+| ------------------------------------------- | ------- | ------- |
+| `narrow` (`raw chicken breast`)             | 45.76ms | 12.35ms |
+| `phrase` (`raw chicken`)                    | 44.43ms | 9.85ms  |
+| `broad` (`chicken`)                         | 17.65ms | 13.20ms |
+| `brand` (`northvale`)                       | 11.48ms | 16.94ms |
+| `miss` (`zqxjkvwf0`)                        | 0.12ms  | 4.93ms  |
+| `barcode`                                   | 1.14ms  | 4.04ms  |
+
+**`brand`/`miss`/`barcode` regress in relative terms, deliberately.** GiST scans its whole index whatever the
+needle, so this trades a cost that tracked pattern length (0.12–45.8ms) for a flat 4–17ms band. For a **p95**
+gate that is the better property — it caps the tail — and the worst shape drops from 45.8ms to 16.9ms while
+every regressed shape stays 17–58× inside the 287.5ms ceiling. The GIN index is KEPT: it is the better answer
+for the `ILIKE '%q%'` branches, which GiST can only serve by scanning its whole index. The planner picks per
+branch, so the two are complements — do not "consolidate" them.
+
+**Why this cannot change a result, proved rather than asserted.** `%` is rechecked from the heap (`Recheck
+Cond` appears in every plan), so no index — precise or lossy — can change which rows match or their order. The
+`(id, name, score)` sequence of the statement the DAO **actually sends** (captured from a Drizzle logger, never
+restated) was compared against a pure Seq Scan with `enable_indexscan`, `enable_bitmapscan` and
+`enable_indexonlyscan` all off, over **932 probes** — every k6 shape's full vocabulary cross-product plus
+typos, mid-word substrings, stopwords, LIKE metacharacters, case variants, reversed word order, a 300-character
+needle — on both fixtures. **932/932 identical, both shapes.** 19 of those probes are pinned per-PR by
+`tests/food-search-access-path.integration.test.ts` in the `integration-food` tier.
+
+**Two removals rejected, both measured:**
+
+- **`name % query` is NOT dead work.** T-198's finding 4 ("contributes nothing at ANY length") was measured
+  with single-WORD needles against long names; a multi-word needle IS a large fraction of the name, so its
+  similarity clears the 0.3 threshold easily. For `narrow` this branch carries **335 of the 364 matched rows
+  on its own**. Removing it changes which rows match — a product decision (T-198), not a DAO edit.
+- **`description ILIKE` matched 0 rows that `name ILIKE` did not** on either fixture, and is worth 6.1ms — but
+  that redundancy holds only because both ingestion paths set `description := name`, an invariant of the
+  WRITERS and not of the schema. `name ILIKE p OR (description IS DISTINCT FROM name AND description ILIKE p)`
+  is provably equivalent for all data and was built and measured: **no faster**, because it does not let the
+  planner skip the index scan.
+
+**A UNION rewrite was built and rejected on measurement.** Replacing the four-way `OR` with a `UNION` of four
+single-predicate branches joined back by id is provably set-equivalent (verified row-for-row) and does force
+per-branch index use, but it loses the BitmapOr's shared heap access: `narrow` 32.3ms (vs 12.4ms), `broad`
+25.9ms (vs 13.2ms), `brand` 26.4ms (vs 16.9ms).
+
+**A query-plan cost gate was written, measured and REMOVED** — the reasoning lives in the new suite's docblock
+so nobody re-adds it. This statement's natural plan genuinely flips with table size and name diversity
+(Seq-Scan-and-filter at 6,000 rows, trigram BitmapOr at 12,000, Seq Scan again at 25,000, BitmapOr at 50,000),
+and forcing the planner does not restore discrimination: `enable_seqscan = off` buys a full `Index Scan` with
+the whole `OR` in `Filter`, so the wasted-recheck metric reads **25.20× at 6,000 rows and 25.24× at 18,000 —
+identical with and without the new index**; adding `enable_indexscan = off` buys a bitmap scan over
+`food_status_idx`, which matches every `RESOLVED` row, and the `%` predicate lands in `Filter` again. A gate
+that must disable four access paths to see the one it cares about is asserting the planner's arithmetic.
+`drain-claim-scaling.integration.test.ts` can assert a plan because its statement has ONE sane plan at every
+depth; this one does not. The latency contract stays with `search.load.js`.
+
+**Mutation-verified — every guard broken on purpose and the failure observed.** Migration switched to GIN: 1
+integration failure. GiST made to REPLACE the GIN index: 1. Migration `0004` deleted: 1. `name % query`
+dropped from the DAO: **20** integration failures, the statement-identification guard firing first and loudly
+rather than silently proving the prefix statement equivalent to itself. `description ILIKE` dropped: 3 **unit**
+failures (the T-198a statement-shape tier — the integration equivalence gate correctly does NOT catch it,
+since it compares ONE statement under two access paths). Probe set reduced to `ILIKE`-only needles: 1. The
+pass also found a REAL GAP and closed it: `ORDER BY score DESC, name ASC` was pinned only for the short/prefix
+statement, so dropping `name ASC` from the **relevance** statement was green in every tier — an
+access-path-dependent row order, on the exact statement whose access path this task changed, while
+`FoodCatalogGateway` re-sorts hits on precisely `score DESC, name ASC`. Now pinned in the unit tier; the
+mutation reds it.
+
+**ESCALATED, not fixed here — two findings bigger than T-202, each needing an owner call.** Both are also
+recorded as Finding 4 in `tests/load/README.md`.
+
+1. **`similarity()` and the `%` operator's `similarity_op` both carry Postgres' DEFAULT `procost` of 1**, while
+   a call measures **2.19µs** — about 100× a simple operator. The planner therefore does not know that "Seq
+   Scan and filter" means one `similarity()` per row, and on a **production-shaped** 50,000-food store it picks
+   exactly that: `narrow` measures **145.4ms** locally, 3× what this fixture produces, and the new GiST index
+   buys nothing there because it is never chosen. `ALTER FUNCTION similarity(text, text) COST 100` plus the
+   same for `similarity_op` flips it to the GiST bitmap plan and is **strictly better on every shape**:
+   `narrow` 145.4 → 15.6ms, `phrase` 128.1 → 11.5ms, `broad` 118.8 → 15.0ms, `brand` 124.6 → 17.4ms, `miss`
+   119.8 → 6.5ms. Not shipped because `ALTER FUNCTION` needs ownership of a pg_trgm-owned function (the in-VPC
+   migration runner only needs `CREATE EXTENSION IF NOT EXISTS` today, so a privilege failure there breaks
+   EVERY migration), because it changes plans for every query in the database, and because
+   `ALTER EXTENSION pg_trgm UPDATE` silently resets it. This is an ADR-shaped decision.
+2. **The k6 perf fixture is not production-shaped, and that is what hides (1).** `perfFoodDescription` writes
+   verbose prose, justified in its docblock as keeping the indexes "as large as the deployed store". The
+   justification is inverted: production sets `description := name`, so the deployed
+   `food_description_trgm_idx` indexes the name's trigrams and `search_vector` indexes the name's words twice.
+   The prose makes `food` ~6× larger in pages, which makes a Seq Scan look expensive and pushes the planner
+   onto the BitmapOr — the fixture accidentally gets the GOOD plan. Correcting it would make the reported CI
+   numbers WORSE until (1) is fixed, which is why this is one finding and not two tickets.
 
 ### T-198 — measured evidence (2026-08-09)
 

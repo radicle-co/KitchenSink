@@ -63,6 +63,19 @@ export interface RunKeyEnv {
     readonly GITHUB_RUN_ID?: string | undefined;
     readonly GITHUB_RUN_ATTEMPT?: string | undefined;
     readonly GITHUB_JOB?: string | undefined;
+    /**
+     * This shard's index, when the job runs as a Playwright `--shard` matrix (`e2e-web` does, 4-way).
+     *
+     * `GITHUB_JOB` is the job's ID, NOT its matrix leg, so every shard of `e2e-web` sees the identical
+     * `GITHUB_JOB` — and each shard is a separate Playwright process that runs `globalSetup` **and**
+     * `globalTeardown`. Without this segment all four shards derive one key, and the first shard to finish
+     * deletes the sign-in fixture the other three are still authenticating as (`planE2EUserCleanup`'s `own`
+     * rule matches it). That is exactly bbf7ea7c's cross-workflow failure, reproduced inside a single run.
+     *
+     * Absent or blank leaves the key byte-identical to the unsharded derivation, so every other job and
+     * every local run is untouched.
+     */
+    readonly COMMISE_E2E_SHARD?: string | undefined;
 }
 
 /** Lowercase, collapse everything outside `[a-z0-9]` to a single `-`, and trim the separators. */
@@ -103,8 +116,9 @@ function clamp(key: string): string {
  *   1. `COMMISE_E2E_RUN_KEY` — the propagation channel (`globalSetup` writes the resolved key back into
  *      the environment so Playwright's worker processes derive the identical identity) and the knob the
  *      concurrency proof uses to simulate two overlapping runs.
- *   2. `GITHUB_RUN_ID` + `GITHUB_RUN_ATTEMPT` + `GITHUB_JOB` — unique per workflow run, per re-run
- *      attempt, AND per job, so `e2e-web` and `e2e-mobile-maestro` in ONE run never share a fixture.
+ *   2. `GITHUB_RUN_ID` + `GITHUB_RUN_ATTEMPT` + `GITHUB_JOB` (+ `COMMISE_E2E_SHARD`) — unique per workflow
+ *      run, per re-run attempt, per job, AND per shard, so `e2e-web` and `e2e-mobile-maestro` in ONE run
+ *      never share a fixture, and neither do two shards of `e2e-web`.
  *   3. `localSeed` — the caller's process-local, non-deterministic seed (pid + clock), for developer
  *      machines where none of the above exist.
  *
@@ -122,8 +136,12 @@ export function deriveRunKey(env: RunKeyEnv, localSeed: string): string {
     if (runId.length > 0) {
         const attempt = compact(slug(env.GITHUB_RUN_ATTEMPT ?? '')) || '1';
         const job = slug(env.GITHUB_JOB ?? '') || 'job';
+        // Appended only when present, so an UNSHARDED job's key is byte-identical to what it derived
+        // before sharding existed — a shard segment must never renumber the mobile/k6/local fixtures.
+        const shard = slug(env.COMMISE_E2E_SHARD ?? '');
+        const suffix = shard.length > 0 ? `-s${shard}` : '';
 
-        return clamp(`gh${compact(runId)}-${attempt}-${job}`);
+        return clamp(`gh${compact(runId)}-${attempt}-${job}${suffix}`);
     }
 
     return clamp(slug(localSeed) || 'local');
@@ -236,6 +254,7 @@ export function resolveRunKey(): string {
             GITHUB_RUN_ID: process.env['GITHUB_RUN_ID'],
             GITHUB_RUN_ATTEMPT: process.env['GITHUB_RUN_ATTEMPT'],
             GITHUB_JOB: process.env['GITHUB_JOB'],
+            COMMISE_E2E_SHARD: process.env['COMMISE_E2E_SHARD'],
         },
         `local-${process.pid}-${Date.now().toString(36)}`,
     );

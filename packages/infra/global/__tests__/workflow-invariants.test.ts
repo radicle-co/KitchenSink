@@ -573,6 +573,14 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     'continue-on-error _ci.yml::e2e-backend::Load ${{ inputs.stage }} secrets ×1',
     'continue-on-error _ci.yml::e2e-mobile::Load ${{ inputs.stage }} secrets ×1',
     'continue-on-error _ci.yml::e2e-web::Load sandbox (dev-instance) Clerk secrets for localhost web E2E ×1',
+    // Same fork-PR degradation, one job downstream: `e2e-web` is a 4-way shard matrix whose Playwright steps
+    // skip when the Clerk secrets are withheld, so it uploads no blob. `download-artifact` FAILS on a pattern
+    // that matches nothing, which would turn that designed skip into an unfixable red on exactly the PRs that
+    // cannot supply secrets. Not silent: the merge step tests the directory and reports "no blob reports
+    // found", and the job's final step still re-asserts `needs.e2e-web.result`, so a genuinely failing suite
+    // is red regardless of what these two downloads did.
+    'continue-on-error _ci.yml::e2e-web-report::Download shard blob reports ×1',
+    'continue-on-error _ci.yml::e2e-web-report::Download shard visual + fidelity output ×1',
     // Source maps are an observability nicety: a Sentry upload outage must not block a production deploy.
     'continue-on-error prod-deploy.yml::deploy::Upload webhooks Lambda source maps to Sentry ×1',
     // Best-effort disk reclamation before the Android system image — the paths may not exist on every runner
@@ -975,15 +983,26 @@ describe('invariant 2 — every artifact download has an upload before it', () =
         ).toEqual([]);
     });
 
-    it('is not vacuous by accident: the tree uploads artifacts and (today) downloads none', () => {
-        // Measured, so the vacuity above is a recorded fact rather than a silent one: 4 uploads
-        // (playwright-report, maestro-report, two k6 summary sets) and zero downloads. The moment a
-        // download appears the assertion above stops being vacuous — this pins the day that happens.
+    it('is NOT vacuous: the tree both uploads AND downloads artifacts, so the check above has teeth', () => {
+        // This test used to assert `downloaded === []` and explicitly said "the moment a download appears the
+        // assertion above stops being vacuous — this pins the day that happens". That day is the `e2e-web`
+        // shard split: the 4-way Playwright matrix writes one BLOB report per shard and `e2e-web-report`
+        // downloads all four to `merge-reports` them into the single HTML report a human reads.
+        //
+        // So the invariant above is now load-bearing rather than trivially true, and this test flips to
+        // guarding that fact: if the download side ever disappears, the reachability assertion silently goes
+        // back to proving nothing, and the next person to add a download inherits an untested guard.
         const uploads = realWorkflows().flatMap(({ doc }) => Object.values(doc.jobs ?? {}).flatMap(uploadedNames));
         const downloaded = realWorkflows().flatMap(({ doc }) => Object.values(doc.jobs ?? {}).flatMap(downloads));
 
         expect(uploads.length).toBeGreaterThan(0);
-        expect(downloaded).toEqual([]);
+        expect(downloaded.length).toBeGreaterThan(0);
+
+        // And every download is a PATTERN over the sharded blob/visual artifacts — the shape `merge-multiple`
+        // needs. Naming one artifact exactly would silently pick up only shard 1's results.
+        for (const download of downloaded) {
+            expect(download.pattern).toContain('*');
+        }
     });
 });
 

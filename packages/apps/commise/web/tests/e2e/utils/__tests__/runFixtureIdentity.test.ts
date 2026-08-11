@@ -91,6 +91,84 @@ describe('deriveRunKey', () => {
     });
 });
 
+/**
+ * The SHARD segment. `e2e-web` runs as a 4-way `--shard` matrix, and every shard is a separate Playwright
+ * process that runs `globalSetup` AND `globalTeardown` — so without a per-shard segment all four derive the
+ * same key, and the first shard to finish deletes (via `planE2EUserCleanup`'s `own` rule) the sign-in fixture
+ * the other three are still authenticating as. That is bbf7ea7c's failure reproduced inside ONE run.
+ */
+describe('deriveRunKey — per-shard isolation', () => {
+    const shardEnv = { GITHUB_RUN_ID: '31514368684', GITHUB_RUN_ATTEMPT: '1', GITHUB_JOB: 'e2e-web' };
+
+    it('gives every shard of ONE job a DISTINCT key (else shard 1 deletes shard 2-4’s fixture)', () => {
+        const keys = ['1', '2', '3', '4'].map((shard) =>
+            deriveRunKey({ ...shardEnv, COMMISE_E2E_SHARD: shard }, 'seed'),
+        );
+
+        expect(new Set(keys).size).toBe(4);
+    });
+
+    it('leaves the key BYTE-IDENTICAL when no shard is set — every other job is unaffected', () => {
+        // The regression guard for the unsharded callers (e2e-mobile-maestro, the k6 jobs, local runs):
+        // adding the segment must not renumber their fixtures.
+        expect(deriveRunKey(shardEnv, 'seed')).toBe(`gh${(31514368684).toString(36)}-1-e2e-web`);
+        expect(deriveRunKey({ ...shardEnv, COMMISE_E2E_SHARD: '' }, 'seed')).toBe(deriveRunKey(shardEnv, 'seed'));
+    });
+
+    it('never lets a shard key alias the UNSHARDED key of the same job', () => {
+        const bare = deriveRunKey(shardEnv, 'seed');
+
+        for (const shard of ['1', '2', '3', '4']) {
+            expect(deriveRunKey({ ...shardEnv, COMMISE_E2E_SHARD: shard }, 'seed')).not.toBe(bare);
+        }
+    });
+
+    it('sanitizes a shard value rather than trusting the matrix verbatim', () => {
+        expect(deriveRunKey({ ...shardEnv, COMMISE_E2E_SHARD: ' 2/4 ' }, 'seed')).toBe(
+            deriveRunKey({ ...shardEnv, COMMISE_E2E_SHARD: '2-4' }, 'seed'),
+        );
+    });
+
+    it('still lets the explicit override win — globalSetup pins the resolved key for the workers', () => {
+        expect(deriveRunKey({ ...shardEnv, COMMISE_E2E_SHARD: '3', COMMISE_E2E_RUN_KEY: 'pinned' }, 's')).toBe(
+            'pinned',
+        );
+    });
+
+    it('keeps a clamped shard key distinct AND inside every downstream length budget', () => {
+        const worst = (shard: string): string =>
+            deriveRunKey(
+                {
+                    GITHUB_RUN_ID: '99999999999',
+                    GITHUB_RUN_ATTEMPT: '10',
+                    GITHUB_JOB: 'e2e-web',
+                    COMMISE_E2E_SHARD: shard,
+                },
+                's',
+            );
+        const keys = ['1', '2', '3', '4'].map(worst);
+
+        expect(new Set(keys).size).toBe(4);
+
+        for (const key of keys) {
+            expect(key.length).toBeLessThanOrEqual(20);
+            expect(localPart(signInFixtureEmail(key)).length).toBeLessThanOrEqual(MAX_LOCAL_PART);
+            expect(localPart(signUpEmail(key, 'mkq3z9xyz')).length).toBeLessThanOrEqual(MAX_LOCAL_PART);
+            expect(signInFixtureUsername(key).length).toBeLessThanOrEqual(64);
+        }
+    });
+
+    it('keeps each shard’s teardown scoped to its OWN users', () => {
+        const shardOne = deriveRunKey({ ...shardEnv, COMMISE_E2E_SHARD: '1' }, 'seed');
+        const shardTwo = deriveRunKey({ ...shardEnv, COMMISE_E2E_SHARD: '2' }, 'seed');
+
+        // Shard 1's teardown must not claim shard 2's live fixture, in either direction.
+        expect(isThisRunE2EEmail(signInFixtureEmail(shardTwo), shardOne)).toBe(false);
+        expect(isThisRunE2EEmail(signInFixtureEmail(shardOne), shardTwo)).toBe(false);
+        expect(isThisRunE2EEmail(signInFixtureEmail(shardOne), shardOne)).toBe(true);
+    });
+});
+
 describe('derived identities', () => {
     const runKey = deriveRunKey({ GITHUB_RUN_ID: '16345678901', GITHUB_RUN_ATTEMPT: '2', GITHUB_JOB: 'e2e-web' }, 's');
 

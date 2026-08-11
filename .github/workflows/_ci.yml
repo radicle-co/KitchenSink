@@ -880,9 +880,34 @@ jobs:
                   npm run test:e2e --workspace=@kitchensink/identity-webhooks
 
     e2e-web:
-        name: E2E (web — Playwright)
+        name: E2E (web — Playwright) ${{ matrix.shard }}/${{ strategy.job-total }}
         runs-on: ubuntu-latest
         needs: build
+        # SHARDED, 4 ways. This job WAS the entire critical path of a PR run: measured on the green run
+        # 31514368684 it started at +4.0m and ran 15.5m, ending at 19.5m, while every other job in the
+        # pipeline finished by ~+6m (next slowest: `Test`, 4.8m). Wall clock was 19.4m for 42.1m of summed
+        # job time — i.e. already ~2.2x compressed, with nothing left to win anywhere but here.
+        #
+        # WHY FOUR. The suite's cost is FLAT per test, not concentrated in one slow spec — measured from the
+        # dot-reporter timeline of that same run: 8.29 s/test over tests 1–80, then 8.12 s/test over the
+        # remaining 22 (102 tests, 14.5m). So there is no dominant serial spec to isolate, and sharding by
+        # test count tracks sharding by time. Playwright balances whole FILES (it never splits one), and the
+        # largest file here holds 9 tests against ~25.5 per shard, so 4 shards balance cleanly. Above ~4 the
+        # win collapses into fixed cost — ~1.4m of checkout/deps/browser install plus a Next dev-server boot,
+        # paid per shard — while the Clerk fixture count, the runner minutes, and the exposure to the
+        # `waitForTestUserExternalId` setup flake all keep scaling linearly. 4 buys ~5.2m per shard
+        # (≈ +6.5m runner minutes total) for roughly a 9m cut in wall clock; 8 would roughly double the added
+        # cost to shave ~1.5m more, against the repo's cost posture (ADR-0007/ADR-0008).
+        #
+        # ⚠️ `COMMISE_E2E_SHARD` below is LOAD-BEARING, not decoration — see the env block.
+        strategy:
+            # Never fail-fast. Two reasons, both concrete: a cancelled shard is killed before Playwright's
+            # `globalTeardown` runs, which LEAKS its Clerk fixture user (reclaimed only by the 12h age-gated
+            # sweep); and one shard's failure would otherwise destroy the other three shards' results, so the
+            # merged report — the whole point of the blob/merge split below — would be missing most of the run.
+            fail-fast: false
+            matrix:
+                shard: [1, 2, 3, 4]
         # `id-token: write` is what makes the Argos upload SECRETLESS (U10a): the CLI exchanges a short-lived
         # GitHub OIDC token for a build-scoped Argos credential, so no `ARGOS_TOKEN` secret exists to leak — and
         # a FORK pull request, which cannot read repository secrets at all, still uploads (Argos falls back to
@@ -911,6 +936,29 @@ jobs:
         env:
             NEXT_PUBLIC_RECIPE_API_URL: http://localhost:3000
             NEXT_PUBLIC_IDENTITY_API_URL: http://localhost:4000
+            # ⚠️ THE CLERK SAFETY INTERLOCK FOR SHARDING. Read before touching the matrix.
+            #
+            # Each shard is a SEPARATE Playwright process, so each runs `globalSetup` AND `globalTeardown`.
+            # `deriveRunKey` (tests/e2e/utils/runFixtureIdentity.ts) keys the run-scoped Clerk fixture on
+            # GITHUB_RUN_ID + GITHUB_RUN_ATTEMPT + GITHUB_JOB — and `GITHUB_JOB` is the job's ID, identical
+            # for every leg of a matrix. Without this variable all four shards would derive the SAME key, so
+            # (a) four concurrent `createUser` calls would race one unique username, and (b) the first shard
+            # to finish would DELETE the shared sign-in fixture the other three are still authenticating as,
+            # since teardown's `own` rule matches it. That is bbf7ea7c's cross-workflow failure — "test
+            # sign-in user is missing — globalSetup should have created it" — reproduced INSIDE one run.
+            #
+            # With it, each shard provisions, uses and deletes its OWN user, so teardown can never reach a
+            # sibling's live fixture. That is also what keeps the SERIALIZATION guarantee intact: the suite is
+            # serial (`workers: 1`, `fullyParallel: false`) because concurrent sign-ins AS ONE USER flake, and
+            # Clerk's Frontend-API sign-in limits are scoped per USER and per IP. Four shards means four
+            # distinct users on four distinct runner IPs, each still driving its sign-ins strictly one at a
+            # time — so the per-user/per-IP budget each shard sees is unchanged from today's single stream,
+            # rather than four streams contending for one. The per-INSTANCE limit that IS shared is the
+            # Backend API (100 req/10s on a dev instance); this suite spends ~1 BAPI call per test, so four
+            # shards ask for ~5 per 10s against that 100 — a ~20x margin.
+            #
+            # Do NOT delete this, do NOT raise `workers` above 1, and do NOT let two shards share a key.
+            COMMISE_E2E_SHARD: ${{ matrix.shard }}
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -972,9 +1020,130 @@ jobs:
             - name: Install Playwright system deps (cache hit)
               if: steps.secrets.outcome == 'success' && steps.playwright-cache.outputs.cache-hit == 'true'
               run: npx playwright install-deps chromium
-            - name: Run web e2e tests
+            # `--shard` is Playwright's own splitter (it distributes whole FILES to balance test count, and
+            # never splits a file). `--reporter=blob` overrides the config's `html` for CI only: a blob report
+            # is the machine-readable intermediate that `merge-reports` recombines in the report job below, so
+            # a failure stays diagnosable from ONE artifact instead of four partial HTML reports. The config
+            # keeps `html` as its default so a local `npx playwright test` is unchanged.
+            - name: Run web e2e tests (shard ${{ matrix.shard }}/${{ strategy.job-total }})
               if: steps.secrets.outcome == 'success'
-              run: npm run test:e2e --workspace=@commise/web
+              run: |
+                  npm run test:e2e --workspace=@commise/web -- \
+                      --shard=${{ matrix.shard }}/${{ strategy.job-total }} \
+                      --reporter=blob
+            # One blob per shard, consumed ONLY by the report job. `!cancelled()` rather than `failure()`: the
+            # merged report must describe the whole run, so a PASSING shard's blob is required too.
+            - name: Upload blob report (shard ${{ matrix.shard }})
+              if: ${{ !cancelled() && steps.secrets.outcome == 'success' }}
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: e2e-web-blob-${{ inputs.stage }}-${{ matrix.shard }}
+                  path: packages/apps/commise/web/blob-report
+                  retention-days: 1
+                  if-no-files-found: ignore
+            # The visual-regression PNGs and the mockup-fidelity pairs are produced by whichever SHARD happens
+            # to hold `visualRegression.spec.ts` / `mockupFidelity.spec.ts`. They are staged per shard here and
+            # consolidated in the report job, so Argos still receives ONE build for the commit rather than four
+            # competing partial uploads.
+            - name: Upload visual + fidelity output (shard ${{ matrix.shard }})
+              if: ${{ !cancelled() && steps.secrets.outcome == 'success' }}
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: e2e-web-visual-${{ inputs.stage }}-${{ matrix.shard }}
+                  path: |
+                      packages/apps/commise/web/screenshots
+                      packages/apps/commise/web/mockup-fidelity
+                  retention-days: 1
+                  if-no-files-found: ignore
+            # Failure-only: the raw traces for THIS shard. The human-readable report is the MERGED one built
+            # by `e2e-web-report`; this is the trace payload the blob report does not carry.
+            - name: Upload Playwright traces (shard ${{ matrix.shard }})
+              if: failure() && steps.secrets.outcome == 'success'
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: playwright-traces-${{ inputs.stage }}-${{ matrix.shard }}
+                  path: packages/apps/commise/web/test-results
+                  retention-days: 7
+                  if-no-files-found: ignore
+
+    # THE SINGLE SIGNAL for the web E2E tier, and the reason sharding does not cost the owner four checks to
+    # reconcile. It recombines the four blob reports into ONE Playwright HTML report, does the ONE Argos upload
+    # for the commit, and then RE-ASSERTS the shards' verdict as its own status.
+    #
+    # `!cancelled()` (not `success()`) is what makes it run when a shard FAILED — which is exactly when the
+    # merged report matters most. Because the job then runs on failure, its own green would otherwise mask a
+    # red shard, so the final step compares `needs.e2e-web.result` and exits non-zero. That comparison IS the
+    # gate: without it this job would report success over a broken suite.
+    e2e-web-report:
+        name: E2E (web — Playwright) · merged report
+        runs-on: ubuntu-latest
+        needs: e2e-web
+        if: ${{ !cancelled() }}
+        permissions:
+            contents: read
+            # Same secretless Argos OIDC exchange as the shard job — the upload moved here, so the permission
+            # must move with it (a job-level `permissions:` REPLACES the workflow default rather than adding).
+            id-token: write
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  cache: npm
+            # `merge-reports` is part of the installed @playwright/test, so the same restored node_modules the
+            # shards used is all this needs — no browser download (it renders a report, it runs no tests).
+            - name: Restore dependencies
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            # `merge-multiple` flattens all four shards' blobs into one directory, which is the input shape
+            # `merge-reports` expects. Absent blobs are tolerated: on a fork PR the shards skip their run
+            # entirely (no secrets), and this job must not invent a red for that designed skip.
+            - name: Download shard blob reports
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              with:
+                  pattern: e2e-web-blob-${{ inputs.stage }}-*
+                  path: packages/apps/commise/web/blob-report
+                  merge-multiple: true
+              continue-on-error: true
+            - name: Download shard visual + fidelity output
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+              with:
+                  pattern: e2e-web-visual-${{ inputs.stage }}-*
+                  path: packages/apps/commise/web
+                  merge-multiple: true
+              continue-on-error: true
+            # ONE HTML report for the whole suite. Guarded on the blobs actually being present so a fork PR (or
+            # a run whose shards never started) produces a clear "no blobs" note instead of a merge crash.
+            - name: Merge shard reports into one Playwright HTML report
+              id: merge
+              run: |
+                  if [ -z "$(ls -A packages/apps/commise/web/blob-report 2>/dev/null)" ]; then
+                      echo "no blob reports found — the shards did not run (fork PR / missing secrets)"
+                      echo "merged=false" >> "$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  npx playwright merge-reports --reporter html packages/apps/commise/web/blob-report
+                  echo "merged=true" >> "$GITHUB_OUTPUT"
+              env:
+                  PLAYWRIGHT_HTML_OPEN: never
+                  PLAYWRIGHT_HTML_OUTPUT_DIR: packages/apps/commise/web/playwright-report
+            - name: Upload merged Playwright report
+              if: steps.merge.outputs.merged == 'true'
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: playwright-report-${{ inputs.stage }}
+                  path: packages/apps/commise/web/playwright-report
+                  retention-days: 7
+                  if-no-files-found: ignore
             # U10a half 1 — hand the visual-regression PNGs to Argos for comparison. `npx --yes` rather than a
             # devDependency ON PURPOSE: adding one without regenerating package-lock.json would break every
             # `npm ci` in the pipeline, and this is the only place the CLI is ever invoked.
@@ -984,33 +1153,37 @@ jobs:
             # cannot succeed, and a step that always fails is worse than one that is explicitly switched off.
             # Flip the variable to `true` once the project is linked; no code change needed.
             #
+            # It lives HERE rather than in the shard job so the commit gets ONE Argos build assembled from all
+            # four shards' PNGs, instead of four racing partial uploads of the same build name.
+            #
             # Not `continue-on-error`: once enabled, a failed upload means the visual gate did not run, and that
             # must be visible rather than green.
             - name: Upload visual-regression screenshots to Argos
-              if: ${{ !cancelled() && steps.secrets.outcome == 'success' && vars.ARGOS_ENABLED == 'true' }}
+              if: ${{ steps.merge.outputs.merged == 'true' && vars.ARGOS_ENABLED == 'true' }}
               run: npx --yes @argos-ci/cli@6 upload packages/apps/commise/web/screenshots --build-name web
             # U10a half 2 — the mockup-fidelity artifact (wireframe/implementation image pairs, report.json and
             # a side-by-side index.html). Uploaded on PASS as well as failure: it is a REVIEW artifact, not a
             # failure diagnostic, and its whole purpose is to be read on a green run.
             - name: Upload mockup-fidelity report
-              if: ${{ !cancelled() && steps.secrets.outcome == 'success' }}
+              if: steps.merge.outputs.merged == 'true'
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                   name: mockup-fidelity-${{ inputs.stage }}
                   path: packages/apps/commise/web/mockup-fidelity
                   retention-days: 14
                   if-no-files-found: warn
-            # Failure-only: upload the Playwright HTML report + traces so a red run is debuggable.
-            - name: Upload Playwright report + traces
-              if: failure() && steps.secrets.outcome == 'success'
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-              with:
-                  name: playwright-report-${{ inputs.stage }}
-                  path: |
-                      packages/apps/commise/web/playwright-report
-                      packages/apps/commise/web/test-results
-                  retention-days: 7
-                  if-no-files-found: ignore
+            # THE GATE. This job runs on `!cancelled()`, so without this step a failed shard would sit behind a
+            # GREEN merged-report check — precisely the "four signals the owner has to reconcile" problem in its
+            # worst form, a single signal that lies. `needs.e2e-web.result` aggregates the whole matrix:
+            # `success` only if every shard succeeded, otherwise `failure`/`cancelled`/`skipped`.
+            - name: Re-assert the shards' verdict
+              run: |
+                  result='${{ needs.e2e-web.result }}'
+                  echo "e2e-web matrix result: $result"
+                  case "$result" in
+                      success|skipped) exit 0 ;;
+                      *) echo "::error::the web Playwright matrix did not pass ($result) — see the merged report artifact"; exit 1 ;;
+                  esac
 
     e2e-mobile:
         name: E2E (mobile — Vitest)

@@ -13,7 +13,7 @@
  * `useIngredientStatus` via the shared `useIngredientResolver`) over a real, network-guarded
  * `RecipeServiceClient`, stubbed per test with type-checked `vi.spyOn(client, '<method>')`.
  */
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { CreateRecipeInput } from '@kitchensink/recipe-core';
@@ -182,9 +182,17 @@ describe('RecipeCreateContainer', () => {
         await user.click(await screen.findByRole('button', { name: 'Find nutrition for “Quinoa”' }));
 
         // Mutation lens: the poll wired the RESOLVED status onto the line's badge. Had the poller not updated
-        // the line (regression), the badge would still read the PENDING label 'Resolving…'.
+        // the line (regression), the badge would still read the PENDING label 'Resolving…' — so the waitFor
+        // below times out and fails rather than passing vacuously.
+        //
+        // The text is awaited, not asserted synchronously after the `findBy`. `findByLabelText` resolves as
+        // soon as the badge EXISTS, and it exists immediately — reading 'Resolving…', since the line is added
+        // PENDING and only the poll's later response flips it. Synchronously asserting the content on the
+        // element that `findBy` returned therefore raced the poll, and lost under CI load (observed on this
+        // branch at a2d0231a: "Expected 'Resolved', received 'Resolving…'"). The element's existence is the
+        // wrong synchronisation point for a claim about its text; the text is.
         const badge = await screen.findByLabelText('Ingredient 1 status');
-        expect(badge).toHaveTextContent('Resolved');
+        await waitFor(() => expect(badge).toHaveTextContent('Resolved'));
         // The poll drove the line to a non-PENDING state and stopped there.
         expect(screen.queryByText('Resolving…')).not.toBeInTheDocument();
     });

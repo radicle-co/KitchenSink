@@ -69,8 +69,16 @@ cdk.out/
 # serverless framework cache
 .serverless/
 
-# playwright e2e auth state
-e2e/web/.auth/
+# playwright e2e auth state — the web suite's saved `storageState`
+# (`packages/apps/commise/web/.auth/<run-key>.json`, written by `tests/e2e/auth.setup.ts`).
+#
+# ⛔ NEVER COMMIT ONE. The file is not a cache: it holds a LIVE Clerk session — the session cookie plus the
+# dev-browser token — so committing it publishes working credentials for a signed-in user of the shared
+# sandbox Clerk instance. Matched as a bare directory name so it holds wherever a suite writes one.
+#
+# (`e2e/web/.auth/` used to be listed here; no such path has ever existed in this repo — it came in with the
+# V-Model scaffolding. Replaced rather than kept, so the rule matches the directory that is actually written.)
+.auth/
 
 # playwright test artifacts
 playwright-report/

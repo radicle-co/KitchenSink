@@ -957,6 +957,20 @@ jobs:
             # Backend API (100 req/10s on a dev instance); this suite spends ~1 BAPI call per test, so four
             # shards ask for ~5 per 10s against that 100 — a ~20x margin.
             #
+            # ── HOW THE `setup` PROJECT INTERACTS WITH THIS (verified against Playwright's own source) ──
+            #
+            # The suite now authenticates ONCE per run in a `setup` project and persists `storageState`
+            # (tests/e2e/auth.setup.ts), which took the run from ~90 ticket sign-ins to ~7. A setup project
+            # reached through `dependencies:` is classified `"dependency"`, not `"top-level"`
+            # (`buildProjectsClosure` in playwright/lib/runner/index.js), and only top-level project suites are
+            # handed to `filterForShard`. So `setup` is NOT sharded: it runs IN FULL in every shard.
+            #
+            # That is the correct behaviour here, and it is this variable that makes it correct. Each shard
+            # derives its own run key, provisions its own Clerk user, and therefore must authenticate as ITS
+            # user — and `authStatePath` keys the state FILE on the same run key, so no shard can restore a
+            # session belonging to a user another shard's teardown deletes. Sharing one key or one state file
+            # would recreate bbf7ea7c inside the run, one layer lower down.
+            #
             # Do NOT delete this, do NOT raise `workers` above 1, and do NOT let two shards share a key.
             COMMISE_E2E_SHARD: ${{ matrix.shard }}
         steps:

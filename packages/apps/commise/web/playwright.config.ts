@@ -1,6 +1,8 @@
 import nextEnv from '@next/env';
 import { defineConfig, devices } from '@playwright/test';
 
+import { AUTH_STATE_PATH, SESSION_OWNING_SPEC_GLOBS } from './tests/e2e/utils/authState';
+
 // @next/env is CommonJS — destructure off the default import (named ESM imports fail).
 const { loadEnvConfig } = nextEnv;
 
@@ -54,9 +56,41 @@ export default defineConfig({
         baseURL: ORIGIN,
         trace: 'on-first-retry',
     },
+    // ── THREE projects, because ONE shared Clerk session is not safe for every spec ────────────────────
+    //
+    // `setup` signs in once and saves `storageState`; `chromium` restores it; `own-session` deliberately does
+    // not. The split is defined ONCE, by `SESSION_OWNING_SPECS` — used here as one project's `testMatch` and
+    // the other's `testIgnore`, so a spec cannot land in both projects or in neither. See
+    // `tests/e2e/utils/authState.ts` for the reasoning and `tests/e2e/utils/__tests__/authState.test.ts` for
+    // the guard that re-derives this partition from the files on disk.
+    //
+    // ⚠️ THE MAIN PROJECT MUST STAY NAMED `chromium`. Playwright bakes the project name into screenshot
+    // baselines (`recipe-detail-desktop-chromium-linux.png`), so renaming it — or moving a spec that owns a
+    // `-snapshots/` directory into `own-session` — silently invalidates those baselines.
+    //
+    // ⚠️ `dependencies` RE-RUNS `setup` in every shard. That is correct here rather than wasteful: each shard
+    // derives its own run key (`COMMISE_E2E_SHARD` → `deriveRunKey`) and provisions its own Clerk user, so a
+    // shard must authenticate as ITS user and write ITS own state file (`authStatePath` is run-key scoped). One
+    // shared file would hand shard 2 a session belonging to a user shard 1's teardown then deletes.
     projects: [
         {
+            name: 'setup',
+            testMatch: /auth\.setup\.ts$/,
+            use: { ...devices['Desktop Chrome'] },
+        },
+        {
+            // Every signed-in spec. Restores the shared session; `signInWithTicket` becomes a navigation.
             name: 'chromium',
+            testIgnore: SESSION_OWNING_SPEC_GLOBS,
+            use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE_PATH },
+            dependencies: ['setup'],
+        },
+        {
+            // Specs that revoke their session or assert the signed-OUT surface. No `storageState`, and no
+            // dependency on `setup` — they mint their own session exactly as the whole suite used to, so a
+            // failure here is never a symptom of the shared one.
+            name: 'own-session',
+            testMatch: SESSION_OWNING_SPEC_GLOBS,
             use: { ...devices['Desktop Chrome'] },
         },
     ],

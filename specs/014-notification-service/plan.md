@@ -120,6 +120,12 @@ the sizing case: up to 100 ingredient resolutions (004 FR-020 × 003 FR-045) mus
 
 ## Cross-Feature Notification Trigger Inventory (`001`–`013`)
 
+> **Non-normative.** This table is coordination information about features that intend to publish here. It
+> creates **no obligation inside this feature** and this service's code must not encode any of it: a producer's
+> event names, fan-out bounds, recipient-resolution rules and correlation logic are that producer's own
+> concern (FR-025, FR-031, FR-033). Nothing in this inventory may become a requirement, a task, or a success
+> criterion of 014 — if it needs to be true, it belongs in the producer's spec.
+
 Legend:
 
 - **Firm**: explicitly defined in current artifacts.

@@ -150,10 +150,11 @@ T-020 ◄── T-019
 
 ## Integration & Cross-Feature
 
-- [ ] **T-017** [P] [US-001..US-006] Integrate 003 producer contract. **The integration lives on the PRODUCER side, not here** (FR-031): 003 already emits `FoodFetchCompleted` to EventBridge (note: that is the real `detailType` — the earlier `food.backfill.completed` / `food.fetch.failed` names in this file and in `plan.md`'s inventory do not exist in 003), and a feature-owned translator resolves recipients and publishes one envelope. 014 owns no per-producer adapter. — `packages/services/notification-service/tests/integration/producer-003.integration.test.ts`
-    - **Depends on**: T-003, T-005, T-007, T-021, T-024
-    - **Implements**: FR-001, FR-025, FR-031, cross-feature contract (003)
-    - **Acceptance**: a food resolution reaches a subscribed user's client as one delivery; 014 contains no code that knows what a "food" is.
+- [ ] **T-017** [P] [US-001..US-006] Publish a **producer integration guide** in this feature's docs: the envelope contract, the two ingress paths, the registration steps (messageType keywords, `source` allowlisting, declared quota), and the correlation obligation of FR-031. — `specs/014-notification-service/README.md`
+    - **Depends on**: T-021, T-022, T-024, T-026
+    - **Implements**: FR-024..FR-033
+    - **Acceptance**: a producer feature can integrate from this document alone, without reading this service's source. This service ships NO per-producer adapter and NO code that names another feature's domain — that is the property the guide exists to preserve.
+    - **Note**: per-feature integration work (translators, event names, recipient resolution) belongs to each producer's own task list, not here.
 
 ## Dual ingress, event-path trust, and fan-in (added 2026-08-10)
 
@@ -192,15 +193,16 @@ T-020 ◄── T-019
     - **Implements**: FR-033
     - **Acceptance**: a burst at 003's documented bound (100 names/request, FR-045) is accepted in full; a quota rejection alarms rather than silently dropping a user's notification.
 
-- [ ] **T-028** [P] [US-001] 004 recipe-import translator — the fan-in reference implementation, owned by 004: correlate up to 100 ingredient resolutions into **one** envelope per import. — `packages/services/recipe-service/src/notifications/import-translator.ts`
+- [ ] **T-028** [P] [US-001] **Synthetic reference producer** — a test-only publisher owned by this feature, exercising both ingress paths and the full envelope, so 014 is provable end-to-end without any consumer feature existing. — `packages/services/notification-service/tests/support/reference-producer.ts`
     - **Depends on**: T-021, T-024
-    - **Implements**: FR-031
-    - **Acceptance**: an import of 30 unknown ingredient names produces exactly ONE delivered notification (SC-010), and a redelivered underlying event does not produce a second (SC-011). This is the pattern every fan-out producer copies; 014 must remain unaware of it.
+    - **Implements**: FR-024, FR-026, SC-001
+    - **Acceptance**: satisfies SC-001 over HTTP **and** EventBridge with no dependency on 003, 004 or any other feature. It also publishes N envelopes for one recipient to prove this service never merges them (SC-010).
+    - **Note**: a real producer's fan-in translator is NOT a task here — correlation is publisher-owned (FR-031), so it belongs in that feature's task list. 004's is tracked as `specs/004-recipe-importing/tasks.md` T-032.
 
-- [ ] **T-018** [P] [US-001..US-006] Integrate 005, 008, 009 producer contracts: publish AI disclosure, timer alert, compliance-gap events through 014. — `packages/services/notification-service/src/integration/feature-005-008-009.adapter.ts`
-    - **Depends on**: T-007, T-009, T-011
-    - **Implements**: FR-001, cross-feature contracts (005/008/009)
-    - **Acceptance**: End-to-end trace: each producer feature emits event → 014 publishes → client receives.
+- [ ] **T-018** [P] [US-001..US-006] Register the launch `messageType` keyword namespaces and `source` allowlist entries as **configuration**, one entry per producer that has declared itself. — `packages/services/notification-service/src/registry/message-type.registry.ts`
+    - **Depends on**: T-014, T-022, T-027
+    - **Implements**: FR-016, FR-027, FR-033
+    - **Acceptance**: adding a producer is a config change plus that producer's own declaration — no code change here. Registry entries are DATA; this service still contains no per-producer adapter and no code naming another feature's domain.
 
 ## Verification & Exit
 

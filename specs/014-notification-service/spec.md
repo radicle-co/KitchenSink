@@ -267,8 +267,8 @@ only in how a request arrives.
   the other. The ingress mechanism MUST be an adapter over a single core; a rule enforced in only one adapter is a
   defect.
 - **FR-025** _(envelopes, never domain events)_: The EventBridge path MUST ingest **notification envelopes only**,
-  carried on a dedicated `detailType` reserved by this service. It MUST NOT subscribe to producers' domain events
-  (e.g. 003's `FoodFetchCompleted`). A domain event describes what happened in a domain and carries no recipient;
+  carried on a dedicated `detailType` reserved by this service. It MUST NOT subscribe to producers' domain events.
+  A domain event describes what happened in a domain and carries no recipient;
   resolving one into a recipient would require this service to inspect `payload` (forbidden by FR-023) or to call
   back into the producer, reintroducing the coupling the event path exists to remove.
 - **FR-026** _(minimum envelope — normative wire contract)_: Every envelope, on either path, MUST carry:
@@ -305,25 +305,23 @@ only in how a request arrives.
 
 **Fan-in ownership (added 2026-08-10)**
 
-- **FR-031** _(producers own correlation; this service does not aggregate)_: A single user action may fan out into
-  many independent completions — 004's recipe import submits every parsed ingredient name to 003 for asynchronous
-  resolution, bounded at 100 names per request by 003's FR-045. This service MUST NOT aggregate, batch, correlate
-  or collapse envelopes; FR-023 forbids the payload inspection that would require. Producers MUST correlate their
-  own fan-out and publish **one** envelope per user-meaningful outcome. A producer that publishes one envelope per
-  underlying completion is misusing this service, and the resulting notification storm is a producer defect.
-  Producer features SHOULD implement this as a **translator**: a feature-owned consumer that subscribes to its own
-  domain events, resolves recipients, correlates the job, and then publishes a single envelope here.
+- **FR-031** _(publishers own correlation; this service does not aggregate)_: This service MUST NOT aggregate,
+  batch, correlate or collapse envelopes — FR-023 forbids the payload inspection that would require, and
+  "user-meaningful outcome" is knowledge only the publisher has. A publisher whose work fans out into many
+  independent completions MUST correlate its own fan-out and publish **one** envelope per outcome. One envelope
+  per underlying completion is a **publisher** defect, not a gap in this service.
 
 **Producer authentication, named (added 2026-08-10)**
 
 - **FR-032** _(concrete mechanism)_: FR-002's "mechanism aligned with feature 002" MUST resolve to the platform's
   **Ed25519 service-principal token** verified **networklessly** against a public key (the scheme already deployed
-  as `FOOD_SERVICE_PRINCIPAL_JWT_KEY`). It MUST NOT resolve to Clerk machine tokens: 003's FR-042 records that
-  verifying those requires a networked Clerk Backend API call with the secret key, which at the FR-031 fan-out
-  bound would put up to 100 outbound third-party round trips behind one user action.
-- **FR-033** _(quota floor)_: The per-producer quota of FR-019 MUST be sized at or above the documented fan-out
-  bound of its registered producers, and a quota rejection MUST be alarmed rather than silent. A quota sized for
-  steady-state traffic turns a legitimate burst into dropped notifications.
+  as `FOOD_SERVICE_PRINCIPAL_JWT_KEY`). Verification MUST perform no outbound network call, so a mechanism
+  requiring a third-party API round trip per publish is disqualified — at a publisher's burst rate that puts a
+  remote dependency behind every notification.
+- **FR-033** _(quota is declared, not inferred)_: The per-producer quota of FR-019 MUST be **configurable per
+  registered producer**, and the value MUST be declared by that producer as part of registration. This service
+  MUST NOT infer a bound from a producer's internals. A quota rejection MUST be alarmed rather than silent,
+  because a quota sized below a legitimate burst turns rate-limiting into dropped notifications.
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -349,7 +347,7 @@ only in how a request arrives.
 
 ### Measurable Outcomes
 
-- **SC-001**: At launch, **at least one** producer feature (003) publishes through this service end-to-end, with the corresponding client surface dispatching by `messageType`. Verified by an end-to-end happy-path test in CI.
+- **SC-001**: A publish reaches a subscribed client end-to-end, over BOTH ingress paths, with the client dispatching by `messageType`. Verified in CI against a **synthetic reference producer** owned by this feature — not against another feature's pipeline, so this service is independently verifiable and shippable without waiting on a consumer. (Amended 2026-08-10: previously required feature 003 specifically, which both coupled this service's launch to another feature's schedule and cited requirements that do not exist in 003 — see the Dependencies note.)
 - **SC-002**: Per-recipient FIFO is observed in tests: 100 messages addressed to one user are delivered in publish order to a connected client (zero out-of-order deliveries across 10 test runs).
 - **SC-003**: Catch-up window works: a client offline for ≤ retention window receives 100% of messages addressed to it during the offline interval; 0% redelivery beyond the window.
 - **SC-004**: Operational counters reflect ground truth: synthetic load of K publishes results in counters reading ≥ K within 1 minute (NFR-005).
@@ -358,7 +356,7 @@ only in how a request arrives.
 - **SC-007**: WA-004 in `specs/cross-feature-consistency-report.md` is closed, with a citation to this feature as the owner of cross-feature notification delivery.
 - **SC-008**: Both ingress paths are proven equivalent: the same envelope published over HTTP and over EventBridge produces an identical delivered message, and a rule violated on one path (malformed, unregistered, quota-exceeded) is rejected identically on the other. Verified by a paired test per rule, not by inspection (FR-024).
 - **SC-009**: The event path rejects spoofing: 100% of envelopes whose `source` is not an allowlisted producer are rejected and dead-lettered, and no such envelope is ever delivered to a subscriber (FR-027, FR-028).
-- **SC-010**: A recipe import of 30 unknown ingredient names results in **one** delivered notification, not 30. Verified end-to-end against 003's resolution lifecycle (FR-031).
+- **SC-010**: The no-aggregation contract is observable: N envelopes published for one recipient arrive as N deliveries, and this service never merges them. Whether a publisher _should_ have sent one instead of N is that publisher's success criterion, not this one's (FR-031).
 - **SC-011**: An EventBridge envelope redelivered by the transport is delivered to the client exactly once, proven by replaying the same event with an unchanged `idempotencyKey` (FR-026, FR-030).
 
 ## Assumptions

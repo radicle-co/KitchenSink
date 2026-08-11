@@ -249,7 +249,7 @@ A producer feature can be rate-limited independently to protect the shared infra
 - **FR-016**: The system MUST maintain a version-controlled registry of `messageType` keywords. Registered keywords succeed without flag; unregistered keywords increment a separate "unregistered messageType" counter.
 - **FR-017**: The system MUST support an enforcement mode in which unregistered `messageType` publishes are rejected with a structured error. Enforcement state MUST be configurable per environment.
 - **FR-018**: The system MUST support an optional `idempotencyKey` on the publish envelope. Duplicate publishes from the same producer with the same key inside a configured dedup window MUST collapse to one delivery per recipient.
-- **FR-019**: The system MUST support per-producer publish quotas. Publishes exceeding the configured quota MUST be rejected with a structured rate-limit error and counted in a per-producer throttled-publish counter. 🟠 **OPEN-014-C — the quota has no unit.** See [Open Questions](#open-questions-owner-resolution-required-2026-08-11).
+- **FR-019**: The system MUST support per-producer publish quotas. Publishes exceeding the configured quota MUST be rejected with a structured rate-limit error and counted in a per-producer throttled-publish counter. 🟠 **OPEN-014-C — the quota has no unit.** See [Open Questions](#open-questions-owner-resolution-required).
 - **FR-020**: The system MUST NOT deliver any message to an unauthenticated client.
 - **FR-021**: The system MUST NOT permit a subscriber to receive messages addressed to a user identity other than the subscriber's authenticated identity.
 - **FR-022**: The system MUST resolve group membership at delivery time, not at publish time.
@@ -277,7 +277,7 @@ The paths differ only in how a request arrives.
   user-visible notification; and `producer`, because that path has no bearer token to derive identity from
   (FR-027). An envelope missing any required field MUST be rejected — never partially routed, never defaulted.
   🟠 **OPEN-014-A — this contradicts FR-027 on producer identity.** See
-  [Open Questions](#open-questions-owner-resolution-required-2026-08-11).
+  [Open Questions](#open-questions-owner-resolution-required).
 - **FR-027** _(event-path authorization — the trust boundary)_: The HTTP path derives producer identity from
   an authenticated credential (FR-002). The EventBridge path has **no credential**, so its trust boundary MUST
   be (a) an EventBridge resource policy restricting which principals may put events on the notification bus,
@@ -285,7 +285,7 @@ The paths differ only in how a request arrives.
   without them the event path is an unauthenticated publish channel through which any principal with bus
   access could address a notification to any user, defeating FR-005, FR-020 and FR-021.
   🟠 **OPEN-014-A — this contradicts FR-026 on producer identity.** See
-  [Open Questions](#open-questions-owner-resolution-required-2026-08-11).
+  [Open Questions](#open-questions-owner-resolution-required).
 - **FR-028** _(event-path failure handling)_: An envelope rejected on the EventBridge path — malformed
   (FR-015), unregistered under enforcement (FR-017), quota-exceeded (FR-019), or failing FR-027 — MUST be
   dead-lettered and counted. There is no caller to receive a structured error, so a rejection that is merely
@@ -319,7 +319,7 @@ The paths differ only in how a request arrives.
   registered producer**, and the value MUST be declared by that producer at registration. This service MUST
   NOT infer a bound from a producer's internals. A quota rejection MUST be alarmed rather than silent.
   🟠 **OPEN-014-C — "the value" has no unit, so a producer cannot declare one.** See
-  [Open Questions](#open-questions-owner-resolution-required-2026-08-11).
+  [Open Questions](#open-questions-owner-resolution-required).
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -466,9 +466,9 @@ which?** Neither §15 nor an existing ADR decides it, and the answer changes how
 - **SC-008**: Both ingress paths are proven equivalent: the same envelope published over HTTP and over EventBridge produces an identical delivered message, and a rule violated on one path is rejected identically on the other. Verified by a paired test per rule (FR-024).
 - **SC-009**: The event path rejects spoofing: 100% of envelopes whose `source` is not an allowlisted producer are rejected and dead-lettered, and none is ever delivered (FR-027, FR-028).
 - **SC-010**: The no-aggregation contract is observable: N envelopes published for one recipient arrive as N deliveries, and this service never merges them (FR-031).
-- **SC-011**: An EventBridge envelope redelivered by the transport is delivered exactly once, proven by replaying the same event with an unchanged `idempotencyKey` (FR-026, FR-030). 🟠 **OPEN-014-B — "exactly once" is a stronger claim than this feature's own transport and US-010 allow.** See [Open Questions](#open-questions-owner-resolution-required-2026-08-11).
+- **SC-011**: An EventBridge envelope redelivered by the transport is delivered exactly once, proven by replaying the same event with an unchanged `idempotencyKey` (FR-026, FR-030). 🟠 **OPEN-014-B — "exactly once" is a stronger claim than this feature's own transport and US-010 allow.** See [Open Questions](#open-questions-owner-resolution-required).
 
-## Open Questions (OPEN — owner resolution required, 2026-08-11)
+## Open Questions (owner resolution required)
 
 These three are **genuinely open**: each is an internal contradiction or a missing value in this spec, and
 **none is derivable** from `docs/CODING_STANDARDS.md` §15, GR-015, or any existing ADR. They are recorded here

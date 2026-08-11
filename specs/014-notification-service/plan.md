@@ -335,7 +335,7 @@ one schema.
 (FR-026 vs FR-027 — which producer identity is authoritative), **OPEN-014-B** (SC-011's "exactly once" vs
 at-least-once + a bounded dedup window), and **OPEN-014-C** (FR-019/FR-033 quota unit). The envelope's zod
 cannot express a field whose authority or unit is undecided. See
-[`spec.md` → _Open Questions_](./spec.md#open-questions-owner-resolution-required-2026-08-11).
+[`spec.md` → _Open Questions_](./spec.md#open-questions-owner-resolution-required).
 
 ### Event-path trust boundary (FR-027)
 

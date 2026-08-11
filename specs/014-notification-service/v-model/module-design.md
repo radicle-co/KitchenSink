@@ -3608,9 +3608,15 @@ stateDiagram-v2
 
 ```pseudocode
 REASON_CODES = [ "source_not_allowlisted",      # FR-027
-                 "missing_required_field",      # FR-015 / FR-026
+                 "missing_required_field",      # FR-015 / FR-026 — absent field
+                 "invalid_input",               # FR-015 / FR-026 — present but mistyped, by-kind
+                                                #   `id` violation, or payload over the size limit
                  "unregistered_message_type",   # FR-017 under enforcement
                  "quota_exceeded" ]             # FR-019
+
+# `invalid_input` is a member because MOD-068 emits it and FR-028 requires EVERY malformed
+# (FR-015) event-path rejection to dead-letter. Omitting it would make an oversize payload a
+# rejection this entry point refuses to record — the silent drop FR-028 exists to prevent.
 
 FUNCTION deadLetter(envelopeAsReceived, reasonCode, ingressKind, receivedAt):
   ASSERT ingressKind == "event"          # http returns the rejection to its caller instead
@@ -3649,10 +3655,10 @@ stateDiagram-v2
 
 #### Error Handling View
 
-| Error Code        | Trigger                                          | Handling                                                                                     | Observability                    |
-| ----------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------- | -------------------------------- |
-| `invalid_input`   | A reason code outside `REASON_CODES` is supplied | Reject the call in development and fail the build's type check; the vocabulary is closed.    | Error log.                       |
-| `runtime_failure` | The DLQ write fails                              | Do not acknowledge the source event, so the transport redelivers and the rejection persists. | Error log + write-failure alarm. |
+| Error Code            | Trigger                                          | Handling                                                                                                                                                                                                                                                                         | Observability                    |
+| --------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `unknown_reason_code` | A reason code outside `REASON_CODES` is supplied | Reject the call in development and fail the build's type check; the vocabulary is closed. Named distinctly from `invalid_input`, which is now a MEMBER of the vocabulary — one identifier must not mean both "this envelope is malformed" and "this reason code does not exist". | Error log.                       |
+| `runtime_failure`     | The DLQ write fails                              | Do not acknowledge the source event, so the transport redelivers and the rejection persists.                                                                                                                                                                                     | Error log + write-failure alarm. |
 
 ### Module: MOD-072 (SYS-036 Runtime/Execution Module Module Design)
 

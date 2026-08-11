@@ -328,7 +328,7 @@ The paths differ only in how a request arrives.
 
 ### Key Entities
 
-- **PublishEnvelope**: Producer-supplied input. Fields: `recipient`, `messageType`, `payload`, `occurredAt`, optional `idempotencyKey`. `payload` is opaque.
+- **PublishEnvelope**: Producer-supplied input. Fields: `schemaVersion`, `recipient`, `messageType`, `payload`, `occurredAt`, plus `idempotencyKey` and `producer` — both REQUIRED on the EventBridge path, optional on HTTP. `payload` is opaque. **FR-026 is the normative field set**; this entry previously listed the pre-amendment fields and omitted `schemaVersion` and `producer` entirely. FR-001's inline shape carries the same omission and is superseded by FR-026 on both paths.
 - **RecipientDescriptor**: `{ kind: "user" | "group" | "global", id?: string }`. `id` required for `user` / `group`; absent for `global`.
 - **DeliveryEnvelope**: Service-output to clients. Fields: service-assigned `id`, `messageType`, `payload`, `occurredAt`, `publishedAt`. The service-assigned `id` MUST be unique and MAY encode per-recipient ordering (e.g., monotonically increasing per recipient).
 - **MessageTypeRegistryEntry**: `{ messageType: string, ownerFeature: string, description: string, registeredAt: ISO-8601 }`. Lives in version control.

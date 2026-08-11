@@ -680,7 +680,7 @@ The only difference from the HTTP diagram is where identity comes from — the v
 ### ARCH-071: SYS-036 Contract/Policy Module
 
 - **Parent SYS**: SYS-036
-- **Inbound Contract**: `(envelopeAsReceived, reasonCode, ingressKind, receivedAt)` where `reasonCode ∈ { source_not_allowlisted, missing_required_field, unregistered_message_type, quota_exceeded }`.
+- **Inbound Contract**: `(envelopeAsReceived, reasonCode, ingressKind, receivedAt)` where `reasonCode ∈ { source_not_allowlisted, missing_required_field, invalid_input, unregistered_message_type, quota_exceeded }` — `invalid_input` is a member because MOD-068 emits it and FR-028 requires every malformed rejection to dead-letter.
 - **Outbound Contract**: One DLQ record per rejection plus one increment of the counter labelled by that reason; DLQ depth is exposed as an alarmed metric (ARCH-025).
 - **Failure Contract**: The rejection dead-letters with a reason code because there is no caller to receive a structured error — a rejection that is merely dropped is indistinguishable from a successful delivery (FR-028).
 

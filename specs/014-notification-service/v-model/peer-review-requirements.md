@@ -51,13 +51,15 @@ on a credential-less ingress.
 | PRF-REQ-005 | Observation | **REQ-037 contains a conditional escape** — REQ-008 may be narrowed if cross-path FIFO proves unachievable. That is deliberate and is tracked as a conditional entry in `hazard-analysis.md` → Frozen-Pending-Resolution, not as a waiver.                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | PRF-REQ-006 | Major       | **REQ-034 and REQ-035 both name the producer on the event path, and neither says which wins.** REQ-034 requires a `producer` field "because that path has no bearer token"; REQ-035 makes the validated `source` the trust boundary. `system-design.md` resolves it — the registry `producer` mapped from the allowlisted `source` is the identity, the envelope field is record-only — because trusting the field lets an allowlisted principal attribute a publish to another producer and inherit its quota. **An owner ruling on `spec.md` FR-026 is owed**; a design-layer resolution of an ambiguity in a security requirement is not where it should live. |
 | PRF-REQ-007 | Minor       | **SC-011 promises more than the transport provides.** "Delivered exactly once" is not available over an at-least-once transport, which `plan.md` states and US-010 relies on. REQ-034 and REQ-038 are verifiable as the publish-side collapse — one replayed event, one notification, one delivery attempt per client — and that is how the acceptance tests read them. The SC wording should be narrowed to match.                                                                                                                                                                                                                                               |
+| PRF-REQ-008 | Major       | **`spec.md` contradicts itself on the envelope's own fields.** FR-026 makes `schemaVersion` REQUIRED on both paths, but FR-001's inline shape and the _Key Entities_ `PublishEnvelope` entry both still list only `recipient`, `messageType`, `payload`, `occurredAt` and an optional `idempotencyKey`. REQ-001 and SYS-001 mirror FR-001 faithfully, so the SYS-001 system test advertises a contract FR-026 superseded. The descriptive entry was corrected in place; FR-001 is normative and needs an owner ruling.                                                                                                                                            |
+| PRF-REQ-009 | Minor       | **Neither REQ-019 nor REQ-041 states the quota's unit.** US-011's acceptance scenario says `K/sec` and the design layer uses `publishQuotaPerSecond` on that basis, so the unit exists only in a user story and a module design. A normative bound with no stated unit is not verifiable.                                                                                                                                                                                                                                                                                                                                                                         |
 
 ### Supplement summary
 
 | Severity           | Count |
 | ------------------ | ----- |
 | Critical           | 0     |
-| Major              | 2     |
-| Minor              | 3     |
+| Major              | 3     |
+| Minor              | 4     |
 | Observation        | 2     |
-| **Total Findings** | **7** |
+| **Total Findings** | **9** |

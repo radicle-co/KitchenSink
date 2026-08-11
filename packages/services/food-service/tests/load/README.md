@@ -358,7 +358,7 @@ crossed as well. This is a MARGINAL BUDGET, not a flake — the distributions ba
 **Not attributable to the T-197/T-201 drain work**: nothing in those changes touches `FoodSearchDao`, the
 search indexes, or the fixture, and the drain claim runs in a separate process after the k6 scripts.
 
-**What must NOT be done about it:** raise `SEARCH_P95_MS`. The 200ms comes from SC-007 verbatim, and
+**RESOLVED 2026-08-10 by owner ruling** — SC-007 became 250ms p95 ±15% (ceiling 287.5ms), which every observed run clears. The reasoning below stood while 200ms was the criterion and is kept because it still governs any FUTURE widening: what must NOT be done is raise the budget without an owner ruling and a measurement. The 200ms came from SC-007 verbatim, and
 widening it changes the reported number rather than the latency — the same rule that governs
 `FOOD_DRAIN_CLAIM_P95_MS`. The fix belongs in the search path, and per T-198 any change to which rows match
 (or their order) needs a product call rather than a DAO edit. `narrow` is a 3-lexeme AND plus a long `ILIKE`

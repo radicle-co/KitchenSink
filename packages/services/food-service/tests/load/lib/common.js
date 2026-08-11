@@ -22,7 +22,7 @@ export const BASE_URL = (__ENV['FOOD_API_BASE_URL'] || 'http://localhost:3000').
 //   SC-003  backfill 202 -> RESOLVED             <= 60s p95 at pending queue depth < 100
 //   SC-004  local-store serve rate               >  80% once the store holds 5,000+ RESOLVED foods
 //   SC-005  local-store read throughput          >> 5,000 served reads / hour
-//   SC-007  search against <= 50,000 foods       <= 200ms p95
+//   SC-007  search against <= 50,000 foods       <= 250ms p95 ±15% (gate at 287.5ms)
 //
 // SC-003 is NOT measurable by k6 (it spans the Fargate fan-out worker and a source HTTP call, which this
 // suite must not make). Its DB-side component — the drain claim that the FR-046 ceiling stresses — is
@@ -77,7 +77,8 @@ export const READ_ARRIVAL_RATE = Number(__ENV['FOOD_READ_ARRIVAL_RATE'] || 100);
 export const SUSTAIN_FRACTION = Number(__ENV['FOOD_SUSTAIN_FRACTION'] || 0.85);
 
 // SC-007 verbatim: "Food search queries against a local store of up to 50,000 foods MUST return results
-// (canonical ids) within 200ms at p95."
+// (canonical ids) within 250ms at p95, with a +/-15% tolerance" (owner ruling 2026-08-10; was 200ms,
+// which was validated on a workstation rather than on CI-class hardware).
 //
 // ONE budget for EVERY query shape, short ones included. There used to be a second, separately
 // overridable `SEARCH_SHORT_P95_MS` beside this: it defaulted to the same 200ms, but it existed so the
@@ -102,7 +103,24 @@ export const SUSTAIN_FRACTION = Number(__ENV['FOOD_SUSTAIN_FRACTION'] || 0.85);
 //
 // `FoodsService.search` additionally issues TWO crosswalk lookups (barcode, then `external_key`) on every
 // single search, so the endpoint is three queries, not one.
-export const SEARCH_P95_MS = Number(__ENV['FOOD_SEARCH_P95_MS'] || 200);
+// OWNER RULING 2026-08-10: the budget is a TARGET of 250ms with an explicit ±15% tolerance, so the gate
+// fails above 287.5ms. Encoded as target × (1 + tolerance) rather than a hardcoded 288 so the ruling stays
+// legible and the tolerance is a stated allowance rather than a number nobody can explain.
+//
+// WHY IT MOVED, and why this is not goal-post-shifting. The original 200ms was SC-007 verbatim, and SC-007
+// was validated on a developer workstation. CI runners measure this endpoint 2.5–3.8× slower: `narrow` is
+// 68–105ms locally and 196.73 / 258.74 / 253.10ms across three CI runs; `phrase` 52–131ms locally and
+// 152.41 / 185.20 / 206.29ms on CI. The distributions barely move between runs (`narrow` averages
+// 145.6 / 156.4 / 154.2ms) — only the p95 tail crosses, so this was a marginal budget rather than a flake,
+// and `narrow` passed its first CI run by 1.7% before failing the two after it. A p95 measured on shared,
+// noisy-neighbour CI hardware needs a stated tolerance; the alternative is a gate that is red on hardware
+// variance and therefore teaches everyone to ignore it.
+//
+// This does NOT license widening again. Raising the target, or the tolerance, without an owner ruling and a
+// measurement is the goal-post-shifting three separate agents correctly refused today.
+export const SEARCH_P95_TARGET_MS = Number(__ENV['FOOD_SEARCH_P95_MS'] || 250);
+export const SEARCH_P95_TOLERANCE = Number(__ENV['FOOD_SEARCH_P95_TOLERANCE'] || 0.15);
+export const SEARCH_P95_MS = Math.round(SEARCH_P95_TARGET_MS * (1 + SEARCH_P95_TOLERANCE));
 
 // p95 budget (ms) for the internal EdDSA-guarded erasure POST — a single indexed DELETE-by-requester with
 // no async hand-off (CR-002/U4b). Tighter than recipe's because there is no SQS enqueue.

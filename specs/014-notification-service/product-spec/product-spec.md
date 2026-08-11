@@ -16,7 +16,7 @@ The Notification Service is the single owner of message delivery from backend se
 
 **Core principles**:
 
-- **Producers don't know transports.** A service publishes a message. It does not care whether the recipient is connected, polling, or absent.
+- **Producers don't know transports.** A service publishes a message. It does not care whether the recipient is connected, polling, or absent. It does choose an **ingress**: a synchronous HTTP call, or an event on the notification bus. Both land on the same contract and the same rules (`../spec.md` FR-024).
 - **Recipient descriptor is first-class.** Single user, group, and global are equally supported and modeled the same way.
 - **Type-driven client dispatch.** Every message carries a `messageType` keyword; the client (web or mobile) decides how to render and react.
 - **Transport is an implementation detail.** Push (e.g., WebSocket), pull (client polling/retrieval), webhook callback, or a hybrid are all valid implementations of the subscriber side. The product contract does not pin one mechanism.
@@ -31,7 +31,7 @@ The Notification Service is the single owner of message delivery from backend se
 
 Notifications surface inside flows owned by other features. The relevant launch-time consumers are:
 
-- **P4 Sam (Nutrition & Diet Planner)** — receives `food.backfill.completed` from feature 003 when a pending ingredient resolves.
+- **P4 Sam (Nutrition & Diet Planner)** — receives `food.resolution.completed` when a pending ingredient resolves. The envelope is published by the recipe service on 003's behalf, because the food service deletes its requester rows in the transaction that completes the food.
 - **P1..P9 generally** — receive recipe lifecycle, AI disclosure, timer, and compliance-gap events from features 001 / 005 / 008 / 009 as those producers come online.
 
 ### Secondary — Operations Engineer (canonical persona, internal)
@@ -47,13 +47,13 @@ External webhook consumers are **not** modeled as personas in this revision. Web
 
 ## Producers (launch-relevant)
 
-| Producer feature         | Example `messageType` keywords                      | Notes                                                            |
-| ------------------------ | --------------------------------------------------- | ---------------------------------------------------------------- |
-| 003 — USDA Food Data     | `food.backfill.completed`, `food.fetch.failed`      | First confirmed consumer (US-005).                               |
-| 001 — Commise          | recipe lifecycle events owned by 001                | Listed in 001 product-spec; specific events still to be specced. |
-| 005 — AI Integration     | AI-generated content disclosure events owned by 005 | Per cross-feature report.                                        |
-| 008 — Cooking Mode       | timer alert events owned by 008                     | Per cross-feature report.                                        |
-| 009 — Nutrition Planning | compliance-gap events owned by 009                  | Per cross-feature report.                                        |
+| Producer feature         | Example `messageType` keywords                      | Notes                                                                            |
+| ------------------------ | --------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 003 — USDA Food Data     | `food.resolution.completed` (003 decision register) | First confirmed consumer. Published by the recipe service (`../tasks.md` T-044). |
+| 001 — Commise            | recipe lifecycle events owned by 001                | Listed in 001 product-spec; specific events still to be specced.                 |
+| 005 — AI Integration     | AI-generated content disclosure events owned by 005 | Per cross-feature report.                                                        |
+| 008 — Cooking Mode       | timer alert events owned by 008                     | Per cross-feature report.                                                        |
+| 009 — Nutrition Planning | compliance-gap events owned by 009                  | Per cross-feature report.                                                        |
 
 Each producer owns its own `messageType` namespace. The notification service does not validate semantic content beyond schema-level checks on the envelope.
 
@@ -61,7 +61,7 @@ Each producer owns its own `messageType` namespace. The notification service doe
 
 ## Epics
 
-1. **Publish API** — Generic, authenticated publish endpoint usable by any backend service.
+1. **Publish contract** — Usable by any backend service over either of two ingresses: an authenticated HTTP endpoint, or an event on the notification bus. The event ingress exists because the platform's async producers already emit domain events, and forcing them into a synchronous publish inside a database transaction would make this service a runtime dependency of their hot paths. Both are adapters over one core (`../spec.md` FR-024).
 2. **Recipient model** — Descriptor that resolves a publish to one user, a group, or global.
 3. **Subscription / delivery** — Mechanism for a client to declare interest and receive matching messages. Specific mechanism deferred to implementation.
 4. **In-app surface** — Client-side primitive for rendering received messages, dispatched by `messageType`.
@@ -75,6 +75,7 @@ Each producer owns its own `messageType` namespace. The notification service doe
     This feature is what that control is waiting for. Launch scope for this epic is
     therefore: an unread count on the existing bell, and a feed surface it opens.
     Per the repo's cross-platform rule, web and mobile ship in the same release.
+
 5. **Operational visibility** — Minimum publish/delivery counters needed to confirm the system is alive in production.
 
 ---
@@ -84,7 +85,7 @@ Each producer owns its own `messageType` namespace. The notification service doe
 > **Numbering authority.** These ids match [`../spec.md`](../spec.md) exactly. They
 > were **renumbered on 2026-08-05** to close a collision in which the same `US-NNN`
 > denoted different stories here and in `spec.md` (sync-report DRIFT-001). `spec.md`
-> is the anchor because `tasks.md` and all 31 `REQ-NNN` rows in `v-model/` already
+> is the anchor because `tasks.md` and all 41 `REQ-NNN` rows in `v-model/` already
 > key off it. The original numbering is preserved in the mapping table below — cite
 > ids from this table when reading any artifact written before 2026-08-05.
 
@@ -170,21 +171,29 @@ below as the deliberate Should Have it always was.
 
 ---
 
-## Contract sketch (informational, not prescriptive)
+## Contract sketch
 
-> The shape below is illustrative. Concrete field names, transport, and persistence choices are implementation-time decisions.
+> **No longer merely illustrative.** `../spec.md` FR-026 makes the envelope a **normative wire contract** on
+> both ingress paths, because two doors mean it is versioned and cannot be adjusted per caller. The shape
+> below is the required minimum; `../spec.md` is authoritative and `payload-reference.md` (`../tasks.md`
+> T-046) is where each `messageType`'s payload is documented. Persistence choices remain implementation-time.
 
 **Publish envelope** (producer → service):
 
 ```text
 {
+  schemaVersion: <integer>,           // REQUIRED
   recipient: { kind: "user" | "group" | "global", id?: string },
-  messageType: string,                // producer-owned keyword namespace
+  messageType: string,                // producer-owned keyword namespace, registry-checked
   payload:     <opaque, producer-defined>,
-  occurredAt:  ISO-8601 timestamp,
-  idempotencyKey?: string             // optional (US-010)
+  occurredAt:  ISO-8601 timestamp,    // producer-assigned; the ordering key
+  idempotencyKey: string,             // REQUIRED on the event path, optional on HTTP
+  producer:    string                 // REQUIRED on the event path (no token to derive it from)
 }
 ```
+
+A missing required field is rejected, never defaulted. On HTTP the producer receives a structured error; on
+the event path there is no caller, so the envelope dead-letters with a reason code and the DLQ is alarmed.
 
 **Delivery envelope** (service → client):
 
@@ -238,11 +247,29 @@ below as the deliberate Should Have it always was.
   `tasks.md` T-009 implements; it is recorded here so the two stop being an
   unreconciled default. Revisit only with production evidence of missed catch-up.
 
-- **Q-004 — Authentication strategy for producers**: Are publishes authenticated via service-to-service tokens (e.g., signed JWTs from a service registry), per-feature API keys, or AWS IAM? Should align with feature 002's auth approach.
+- **Q-004 — Authentication strategy for producers** _(resolved 2026-08-10)_: **Two answers, one per
+  ingress.** On HTTP, the platform's **Ed25519 service-principal token**, verified **networklessly** against
+  a public key — the scheme already deployed as `FOOD_SERVICE_PRINCIPAL_JWT_KEY` and implemented in
+  `packages/shared/recipe-core`. No per-publish third-party round trip is permitted (`../spec.md` FR-032).
+  On the event path there is **no credential at all**, so authorization is two controls that must both be
+  present: an EventBridge resource policy restricting which principals may put events on the bus, **and**
+  validation of the event's `source` against an allowlist of registered producers (FR-027). Neither
+  substitutes for the other — with either missing, the event path is an open channel through which any
+  principal with bus access could address a notification to any user.
+
+    Rejected: per-feature API keys (a second secret-distribution problem for no gain over a keypair the
+    platform already mints) and AWS IAM/SigV4 on the HTTP path (it does not cover the event path, so the two
+    ingresses would authorize on different principals and Q-006's privileged-broadcast check would have two
+    places to live).
 
 - **Q-005 — `messageType` namespace governance** _(resolved 2026-05-10)_: A **central registry** of allowed `messageType` keywords is required. Each producer feature must register its keywords (and a short human description) in a shared, version-controlled registry before publishing. Unknown `messageType` values are still tolerated by clients (logged + ignored, per US-005), but publishes of unregistered types will be flagged by operational counters and may be rejected once the registry is enforced. This trades a small amount of producer agility for client-developer discoverability and avoids silent keyword collisions across features.
 
-- **Q-006 — Global broadcast safety**: `recipient = global` is powerful and dangerous. Should it require an additional capability/role check beyond the standard publish auth? At minimum it should be observable in operational counters.
+- **Q-006 — Global broadcast safety**: `recipient = global` is powerful and dangerous. Should it require an
+  additional capability/role check beyond the standard publish auth? At minimum it should be observable in
+  operational counters. **Raised in urgency 2026-08-10:** the event path has no credential, so a
+  `kind: "global"` envelope arriving there is authorized only by the bus resource policy plus the `source`
+  allowlist (FR-027). Any capability check for global broadcast must therefore live in the shared core, not
+  in the HTTP adapter, or the event path bypasses it — which is exactly the defect FR-024 names.
 
 - **Q-007 — Failure semantics on unknown recipient** _(resolved — decision already
   recorded in `spec.md`, restated here 2026-08-05)_: **Counter increment, never an
@@ -263,11 +290,20 @@ below as the deliberate Should Have it always was.
   Journey C — an operational maintenance broadcast that silently misses every offline
   client is a defensible product choice, but it must be a stated one.
 
-- **Q-008 — Ordering guarantees** _(resolved 2026-05-10, research-backed)_: **Per-recipient FIFO** for `recipient.kind ∈ { user, group }`. Messages addressed to the same recipient are delivered in publish order; no cross-recipient and no cross-producer ordering is guaranteed. **Global broadcasts (`recipient.kind = "global"`) are best-effort ordered only**, matching industry practice (Ably multi-consumer queues, AWS SNS FIFO carve-outs, Knock broadcast vs. per-user feed). Implementation implication: the transport must support a partition-key-per-recipient model (e.g., SQS FIFO `MessageGroupId = recipient.id`, Kafka partition by recipient, or per-recipient WebSocket channel with monotonic sequence). Producers MAY still send `idempotencyKey` (US-010); consumers MUST treat handlers as idempotent regardless.
+- **Q-008 — Ordering guarantees** _(resolved 2026-05-10, research-backed; qualified 2026-08-10)_: **Per-recipient FIFO** for `recipient.kind ∈ { user, group }`. Messages addressed to the same recipient are delivered in publish order; no cross-recipient and no cross-producer ordering is guaranteed. **Global broadcasts (`recipient.kind = "global"`) are best-effort ordered only**, matching industry practice (Ably multi-consumer queues, AWS SNS FIFO carve-outs, Knock broadcast vs. per-user feed). Implementation implication: the transport must support a partition-key-per-recipient model (e.g., SQS FIFO `MessageGroupId = recipient.id`, Kafka partition by recipient, or per-recipient WebSocket channel with monotonic sequence). Producers MAY still send `idempotencyKey` (US-010); consumers MUST treat handlers as idempotent regardless.
+
+    **Qualification the second ingress forces.** The FIFO queue preserves the order envelopes are
+    **enqueued** in, which equals publish order only on the HTTP path. EventBridge does not preserve
+    ordering, so event-path arrivals must be ordered by the producer-assigned `occurredAt` before enqueue
+    (`../spec.md` FR-029). That is why FR-026 makes `occurredAt` required and producer-assigned rather than
+    stamped on receipt. If cross-path FIFO for one recipient proves unachievable, FR-008 is narrowed
+    explicitly — a guarantee the transport does not provide must not be left implied.
 
 ---
 
 ## Traceability (incoming)
 
 - Resolves `specs/cross-feature-consistency-report.md` §5.3 and warning **WA-004**.
-- Unblocks feature 003 US-005 dependency on a notification consumer for `food.backfill.completed`.
+- Satisfies 003's per-recipient delivery requirement (003 FR-041, withdrawn as specified 2026-08-10) by
+  publishing `food.resolution.completed` through this service instead of a food-service WebSocket. There is
+  no `003 US-005`; the earlier citation to one was void.

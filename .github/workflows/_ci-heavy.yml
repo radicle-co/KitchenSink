@@ -786,10 +786,21 @@ jobs:
             # directly (k6 cannot speak SQL). Split into TWO steps because they answer two different questions
             # and must be attributable separately in the run log.
             #
+            # ⚠️ BOTH CARRY `if: !cancelled()`, and that is NOT a softening — each still fails the job on a
+            # breach (no `continue-on-error`, no `|| true`). It exists because the default implicit `success()`
+            # made these steps hostage to the k6 steps ABOVE them, which measure a completely different thing.
+            # Observed on run 31451273786: the SC-007 `narrow` search shape crossed its budget (258.74ms vs
+            # 200ms) and BOTH drain steps were `skipped` — so the FR-046 ceiling probe, the one measurement
+            # this branch exists to confirm, produced no number at all and the run reported only the search
+            # failure. A pipeline that silently stops measuring the thing under investigation because
+            # something unrelated failed first is the same "absence of work behind a status" class this repo
+            # keeps paying for. `!cancelled()` (not `always()`) so a cancelled run still stops promptly.
+            #
             # (1) The CONTRACT gate. SC-003 promises 202 -> RESOLVED within 60s p95 "when the fetch_queue
             #     pending-row depth is under 100 rows", so depth 100 is where the promise actually binds. This
             #     step is the regression bar for SC-003 and passes today (measured ~7ms p95 vs a 60ms budget).
             - name: Drain-claim SC-003 contract gate (depth 100, DSN-11)
+              if: ${{ !cancelled() }}
               working-directory: packages/services/food-service
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_load
@@ -837,6 +848,7 @@ jobs:
             #     If it ever breaches again, the fix is the query — NOT raising FOOD_DRAIN_CLAIM_P95_MS, NOT
             #     adding `continue-on-error`, and NOT deleting this step. Owner decision in tasks.md T-197.
             - name: Drain-claim FR-046 ceiling probe (depths 1000+10000, DSN-11)
+              if: ${{ !cancelled() }}
               working-directory: packages/services/food-service
               env:
                   DATABASE_URL: postgres://postgres:postgres@localhost:5432/food_load

@@ -67,23 +67,47 @@ Source of truth: [`../governance-rules.md`](../governance-rules.md).
 
 ## Notification Ownership Contract (GR-011)
 
-### Producer API
+### Producer ingress — two adapters, one core (FR-024)
 
-| Method | Path                            | Purpose                                         | Requirement trace      |
-| ------ | ------------------------------- | ----------------------------------------------- | ---------------------- |
-| `POST` | `/api/v1/notifications/publish` | Validate + durably accept notification envelope | FR-001..FR-004, FR-015 |
+| Ingress         | Surface                                       | Producer identity from                                | Requirement trace              |
+| --------------- | --------------------------------------------- | ----------------------------------------------------- | ------------------------------ |
+| HTTP            | `POST /api/v1/notifications/publish`          | Ed25519 service-principal token, verified networkless | FR-001..FR-004, FR-015, FR-032 |
+| **EventBridge** | reserved `detailType` on the notification bus | validated event `source` + bus resource policy        | FR-024..FR-030                 |
 
-Envelope shape (contract source: `spec.md`):
+Both adapters delegate to the **same** core: validate → registry check → producer authorization →
+idempotency dedupe → durable accept → enqueue routing. A rule enforced in only one adapter is a defect
+(FR-024), so the adapters own transport concerns only and hold no business logic.
+
+The EventBridge path exists because the platform's async producers already emit domain events; forcing them
+into a synchronous publish inside a database transaction would make this service a runtime dependency of
+their hot paths and hard-code a dual write. It ingests **notification envelopes, never domain events**
+(FR-025) — a domain event carries no recipient, and deriving one would require inspecting `payload`
+(forbidden, FR-023) or calling back into the producer.
+
+Envelope shape (contract source: `spec.md` FR-026 — normative, both paths):
 
 ```text
 {
-  recipient: { kind: "user" | "group" | "global", id?: string },
-  messageType: string,
-  payload: <opaque producer-defined>,
-  occurredAt: ISO-8601,
-  idempotencyKey?: string
+  schemaVersion:  <integer>,             // REQUIRED — two doors make this a versioned wire contract
+  recipient:      { kind: "user" | "group" | "global", id?: string },
+  messageType:    string,                // REQUIRED — registry-checked
+  payload:        <opaque producer-defined>,
+  occurredAt:     ISO-8601,              // REQUIRED, producer-assigned — the FIFO ordering key (FR-029)
+  idempotencyKey: string,                // REQUIRED on EventBridge (at-least-once); optional on HTTP
+  producer:       string                 // REQUIRED on EventBridge (no bearer token to derive it from)
 }
 ```
+
+An envelope missing a required field is rejected outright — never partially routed, never defaulted. On the
+EventBridge path a rejection has no caller to receive a structured error, so it dead-letters and alarms
+(FR-028).
+
+### Producer-side correlation (FR-031)
+
+This service does not aggregate. A producer whose work fans out publishes **one** envelope per
+user-meaningful outcome, correlating its own fan-out first — typically via a feature-owned **translator**
+that subscribes to its own domain events, resolves recipients, and publishes once. 004's recipe import is
+the sizing case: up to 100 ingredient resolutions (004 FR-020 × 003 FR-045) must become one notification.
 
 ### Subscriber API
 

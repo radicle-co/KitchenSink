@@ -231,6 +231,50 @@ jobs:
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
             - run: npx turbo run typecheck
 
+    # DRIFT LAYER 2 (Correctness) — CODING_STANDARDS §15.2.5. `packages/schemas/*` publishes each service's
+    # wire contract as CHECKED-IN GENERATED artifacts, and nothing else in this pipeline can see them go stale:
+    # lint, typecheck and test all pass against a stale contract, because a stale contract is still valid
+    # TypeScript. What ships is a published document describing a service that no longer exists, plus two
+    # `contract-hash` stamps asserting they agree when they do not.
+    #
+    # Same shape as the `format` job: re-run the tool that OWNS the file, then require the tree to be unchanged.
+    # The whole decision lives in `scripts/contractDriftGate.mjs` — runnable locally as `npm run contract:verify`
+    # and regression-tested against REAL temp git repositories by
+    # `packages/infra/global/__tests__/contract-drift-gate.test.ts`, including the two states a plausible
+    # implementation gets wrong (a DELETED artifact, and one a `.gitignore` entry has made invisible).
+    #
+    # It lives here, in the base tier, rather than in a workflow of its own: `_ci.yml` already owns the
+    # `install` job whose cache every gate restores, and its three callers hand this job full event coverage for
+    # free — `pull_request` (ci-pr.yml), `push` to main (ci-main.yml) and `workflow_dispatch` (ci-full.yml) —
+    # with NO `if:` of its own. A new top-level workflow would be one more check nobody has wired into branch
+    # protection, i.e. a gate that reports without blocking. Deliberately NOT gated on changed paths either:
+    # the artifacts are a function of the generator, of `@kitchensink/recipe-core`, and of every schema they
+    # read, so any path filter narrow enough to be worth having is the filter that misses the drift.
+    contract-drift:
+        name: Contract drift (generated artifacts are current)
+        runs-on: ubuntu-latest
+        needs: [install]
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  cache: npm
+            - name: Restore dependencies
+              uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            - name: Verify the committed contract artifacts match the generator output
+              run: npm run contract:verify
+
     test:
         name: Test
         runs-on: ubuntu-latest

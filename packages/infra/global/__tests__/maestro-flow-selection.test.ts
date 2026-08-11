@@ -356,6 +356,12 @@ const VERTICAL_PROBES: Readonly<Record<string, readonly string[]>> = {
  * providers, theme) underpins every screen, `auth/signin*.yaml` is composed by every story, and the harness
  * is what runs them. Attributing any of these to one vertical would silently drop coverage from the only
  * tier that drives the real app.
+ *
+ * The last two are the finding that forced `features/core` to be attributed per MODULE instead of as
+ * `src/**`: `appShell.ts` is imported by `AppRoot` (so it can break every screen) and `queryStatus.ts` by
+ * `RecipeVersionsScreen` (so it can break a flow in the `recipes` vertical). A package-level mapping would
+ * have run two flows for a change that reaches the versions screen — an under-selection nothing would have
+ * reported.
  */
 const CROSS_CUTTING_PROBES: readonly string[] = [
     'packages/apps/commise/mobile/src/screens/AppRoot.tsx',
@@ -366,6 +372,8 @@ const CROSS_CUTTING_PROBES: readonly string[] = [
     'packages/apps/commise/ui/src/tokens/colors.ts',
     'packages/apps/commise/i18n/src/index.ts',
     'packages/clients/recipe-service/src/queries.ts',
+    'packages/apps/commise/features/core/src/appShell.ts',
+    'packages/apps/commise/features/core/src/queryStatus.ts',
 ];
 
 // ---------------------------------------------------------------------------------------------------------
@@ -739,6 +747,28 @@ describe('the path mapping — narrow where it is provable, widen everywhere els
         for (const path of Object.values(VERTICAL_PROBES).flat()) {
             expect(filterMatches(TIER_FILTER_KEY, path), `${path} does not enter the Maestro tier at all`).toBe(true);
         }
+    });
+
+    it('attributes a path to TWO verticals where it genuinely backs both', () => {
+        // How "this change could break two things" is expressed: the key lists it twice and the script unions
+        // the flows. `search/**` backs Discover AND the my-recipes search; the recipe CARD leaf renders in the
+        // list AND in Home's recent-recipes widget. Attributing either to one vertical alone would skip the
+        // other's flows — invisibly, because the run would still be green.
+        const dual: Readonly<Record<string, readonly string[]>> = {
+            'packages/services/recipe-service/src/search/search.service.ts': ['discovery', 'recipes'],
+            'packages/apps/commise/features/recipes/src/card/RecipeCard.tsx': ['home', 'recipes'],
+        };
+
+        for (const [path, verticals] of Object.entries(dual)) {
+            for (const vertical of verticals) {
+                expect(filterMatches(filterKeyFor(vertical), path), `${path} should imply ${vertical}`).toBe(true);
+            }
+        }
+
+        // Both are inside the tier filter, and the union really is wider than either half.
+        const both = select('full=false', 'home=true', 'recipes=true').flows;
+
+        expect(both.length).toBeGreaterThan(select('full=false', 'recipes=true').flows.length);
     });
 
     it('attributes NO cross-cutting path to a vertical, so each one widens to the full set', () => {

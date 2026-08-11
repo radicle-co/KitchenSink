@@ -293,9 +293,25 @@ jobs:
                           - 'packages/apps/commise/mobile/.maestro/auth/login-flow.yaml'
                           - 'packages/apps/commise/mobile/.maestro/account-danger-zone.yaml'
                           - 'packages/services/recipe-service/src/account/**'
+                      # `features/core` is NOT uniformly Home-scoped, so it is attributed PER MODULE rather
+                      # than as `src/**` — measured by its importers, not assumed from its name. The four
+                      # below are Home's own (widget curation, the roadmap placeholders `home.yaml` asserts,
+                      # Home navigation, the time-of-day greeting). The rest of the package is deliberately
+                      # left unlisted and therefore widens: `appShell.ts` is imported by `AppRoot` (the whole
+                      # shell), `queryStatus.ts` by `RecipeVersionsScreen`, and `utils/formatDate|initials|
+                      # weekdays` by the detail and profile surfaces — mapping those to `home` would have run
+                      # two flows for a change that can break the versions screen.
+                      #
+                      # `features/recipes/src/card/**` appears here AND under `flows_recipes` because the Home
+                      # recipe widget renders the same card leaf; a card change can break the Home surface as
+                      # well as the list.
                       flows_home:
-                          - 'packages/apps/commise/features/core/src/**'
+                          - 'packages/apps/commise/features/core/src/curateHomeWidgets.ts'
+                          - 'packages/apps/commise/features/core/src/roadmapWidgets.ts'
+                          - 'packages/apps/commise/features/core/src/homeNavigation.ts'
+                          - 'packages/apps/commise/features/core/src/utils/timeOfDay.ts'
                           - 'packages/apps/commise/features/recipes/src/widget/**'
+                          - 'packages/apps/commise/features/recipes/src/card/**'
                           - 'packages/apps/commise/mobile/src/screens/HomeScreen.tsx'
                           - 'packages/apps/commise/mobile/.maestro/home.yaml'
                       flows_collections:

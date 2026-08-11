@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
-import type { UserUpdateInput, UserProfile } from '@kitchensink/identity-service';
+import type { UserUpdateInput, UserProfile } from '@kitchensink/schema-identity';
 
 import { createProfileServiceClient } from '@/lib/identityServiceClient';
 import { authMessages } from '@/components/auth/messages';

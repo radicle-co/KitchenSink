@@ -1,6 +1,6 @@
 import { resolveMessages } from '@commise/i18n';
 import { buildApiClient } from '@/lib/apiClient';
-import type { UserProfile } from '@kitchensink/identity-service';
+import type { UserProfile } from '@kitchensink/schema-identity';
 import { AppShell } from '@/components/app/AppShell';
 import { AccountStateGate } from '@/components/auth/AccountStateGate';
 import { AccountEditForm } from '@/components/auth/AccountEditForm';

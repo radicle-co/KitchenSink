@@ -18,7 +18,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth as useIdpAuth } from '@clerk/expo';
 import { ProfileServiceClient, profileQueries, profileServiceKeys, UnauthorizedError } from '@commise/features-account';
-import type { UserUpdateInput } from '@kitchensink/identity-service';
+import type { UserUpdateInput } from '@kitchensink/schema-identity';
 import { useMemo } from 'react';
 
 import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';

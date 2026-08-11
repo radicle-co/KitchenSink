@@ -9,7 +9,7 @@
  * UNLIKE the food service, identity ACTUALLY EMITS ONLY THIS SHAPE: `ApiExceptionFilter` is `@Catch()`-all and
  * rewrites every failure — a Nest `HttpException`, a validation rejection, or an unexpected throwable — into the
  * envelope before it reaches the wire. That property is what makes a single component honest here, and it is
- * asserted by `src/common/filters/__tests__/api-exception.filter.test.ts` rather than assumed.
+ * asserted by `tests/api-exception.filter.test.ts` rather than assumed.
  *
  * `code` is a plain `string`, not an enum of the codes emitted today, and that is deliberate: a client MUST
  * tolerate a code it has not been taught, because a deployed service adds codes ahead of a released mobile
@@ -34,6 +34,10 @@ export const apiErrorSchema = z
         /**
          * Per-failure diagnostic detail. A validation rejection carries `fields`: the individual constraint
          * messages, preserved as an array so a client can surface them per-input rather than as one blob.
+         * Each entry is `"<field path>: <constraint>"` (e.g. `"avatarUrl: Invalid URL"`), or the bare
+         * constraint when the failure is about the object rather than one of its properties (an unknown key).
+         * `message` is those same entries joined with `, ` — a client that shows only `message` still tells
+         * the user WHICH field is wrong.
          */
         details: z.record(z.string(), z.unknown()).optional(),
     })

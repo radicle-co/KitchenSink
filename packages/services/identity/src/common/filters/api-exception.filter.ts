@@ -41,10 +41,69 @@ function codeForStatus(status: number): string {
 }
 
 /**
- * Derive the envelope `message` (and any `details`) from an `HttpException`'s response body. Nest's body
- * is either a bare string or an object `{ statusCode, message, error }`; class-validator produces a
- * `message` *array* of constraint strings — those are preserved under `details.fields` and joined for the
- * human-readable `message`.
+ * Render ONE validation issue as a single human-readable constraint message, prefixed with the field it
+ * failed on. Pure.
+ *
+ * Accepts `unknown` and returns `undefined` for anything it cannot render, so a body carrying a shape this
+ * function does not recognise degrades to the envelope's own `message` instead of emitting `undefined` or
+ * `[object Object]` onto the wire.
+ *
+ * The path prefix is what makes the message usable: a zod issue's `message` is the CONSTRAINT alone
+ * (`Invalid URL`), unlike a class-validator constraint string, which embedded the property name. An issue
+ * whose `path` is empty describes the object itself — `z.strictObject`'s `unrecognized_keys` is exactly
+ * that — so it is rendered bare rather than with an empty `': '` prefix. A `path` segment may be a symbol
+ * in zod v4, hence the string/number filter.
+ *
+ * @param issue - One entry of a validation exception's `errors` array.
+ * @returns `"<field path>: <message>"`, the bare message for a path-less issue, or `undefined`.
+ */
+function describeIssue(issue: unknown): string | undefined {
+    if (issue === null || typeof issue !== 'object') {
+        return undefined;
+    }
+
+    const message = (issue as Record<string, unknown>)['message'];
+
+    if (typeof message !== 'string' || message.length === 0) {
+        return undefined;
+    }
+
+    const rawPath = (issue as Record<string, unknown>)['path'];
+    const field = Array.isArray(rawPath)
+        ? rawPath
+              .filter(
+                  (segment): segment is string | number => typeof segment === 'string' || typeof segment === 'number',
+              )
+              .join('.')
+        : '';
+
+    return field.length === 0 ? message : `${field}: ${message}`;
+}
+
+/**
+ * Derive the envelope `message` (and any `details`) from an `HttpException`'s response body. Nest's body is
+ * either a bare string or an object `{ statusCode, message, error }`, and a VALIDATION rejection carries its
+ * per-field diagnostics in one of two places — both of which are lifted into `details.fields` and joined for
+ * the human-readable `message`, because `details.fields` is what the published contract promises
+ * (`contract/openapi.ts`, `../api-error.schema.ts`) and `message` is all a client is guaranteed to show.
+ *
+ * 1. `errors` — an array of zod issues. This is what `nestjs-zod`'s `ZodValidationException` builds
+ *    (`{ statusCode, message: 'Validation failed', errors: [...issues] }`), i.e. what the globally-bound
+ *    `ZodValidationPipe` throws for every request DTO in this service. Its `message` is the FIXED string
+ *    `'Validation failed'`, so reading `message` alone discards the field names AND the issues — which is
+ *    precisely the regression that shipped when the DTOs moved off `class-validator`: the only validated
+ *    write route in the service answered `{"code":"BAD_REQUEST","message":"Validation failed"}` while three
+ *    artifacts promised `details.fields`, and the profile form had nothing to show but that bare string.
+ *    Checked FIRST for that reason: the string `message` is present too, and would otherwise win.
+ * 2. `message` as an ARRAY — Nest's own body shape for `new HttpException([...])`. No identity route
+ *    produces it today (there is no `class-validator` left in the service), but it is a supported framework
+ *    shape and dropping the branch would collapse such a body to `exception.message`, i.e. `'Bad Request'`.
+ *
+ * The `errors` key is matched STRUCTURALLY rather than by `instanceof ZodValidationException` on purpose:
+ * this function's input is the serialized response body, and a duck-typed match cannot be defeated by a
+ * duplicated `nestjs-zod` install. The coupling that matters — that the pipe really does put its issues
+ * there — is pinned by `tests/api-exception.filter.test.ts`, which drives the REAL pipe rather than a
+ * hand-shaped body, so a `nestjs-zod` change fails a test instead of quietly degrading the wire.
  */
 function shapeHttpException(exception: HttpException): { message: string; details?: Record<string, unknown> } {
     const body = exception.getResponse();
@@ -55,6 +114,18 @@ function shapeHttpException(exception: HttpException): { message: string; detail
 
     if (body !== null && typeof body === 'object') {
         const record = body as Record<string, unknown>;
+        const rawErrors = record['errors'];
+
+        if (Array.isArray(rawErrors)) {
+            const fields = rawErrors.map(describeIssue).filter((field): field is string => field !== undefined);
+
+            // An `errors` array with nothing renderable in it must not manufacture an empty `details.fields`
+            // or a blank `message` — fall through to whatever the body's own `message` says.
+            if (fields.length > 0) {
+                return { message: fields.join(', '), details: { fields } };
+            }
+        }
+
         const rawMessage = record['message'];
 
         if (Array.isArray(rawMessage)) {

@@ -16,7 +16,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { palette } from '@commise/ui';
 import { nativeTokens } from '@commise/ui/native';
-import type { UserStatus } from '@kitchensink/identity-service';
+import type { UserStatus } from '@kitchensink/schema-identity';
 import type { FC, JSX } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 

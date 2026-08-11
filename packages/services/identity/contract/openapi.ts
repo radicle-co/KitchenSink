@@ -156,14 +156,16 @@ export const identityOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument(
                     'Partial update of `displayName` and/or `avatarUrl`. An UNKNOWN FIELD IS A `400` — the body ' +
                     'schema is strict. A `displayName` change also publishes a handle-sync event so the recipe ' +
                     'service corrects its denormalized author handles; a failed publish does not fail the rename ' +
-                    '(reconciliation backstops it).',
+                    '(reconciliation backstops it). An empty object `{}` is an accepted no-op, but a request ' +
+                    'with NO BODY AT ALL is a `400` — a write that carries nothing is malformed, not a success.',
                 requestBody: { description: 'The fields to change.', schema: 'PatchUserMeRequest' },
                 responses: {
                     '200': { description: 'The updated profile.', schema: 'UserProfile' },
                     '400': {
                         description:
-                            'Validation failure — over-long `displayName`, non-URL `avatarUrl`, or an unknown ' +
-                            'field. `details.fields` carries the individual messages.',
+                            'Validation failure — over-long `displayName`, non-URL `avatarUrl`, an unknown ' +
+                            'field, or an absent body. `details.fields` carries the individual messages, each ' +
+                            'prefixed with the field it names; `message` is those same messages joined.',
                         schema: 'ApiError',
                     },
                     '401': unauthorized,

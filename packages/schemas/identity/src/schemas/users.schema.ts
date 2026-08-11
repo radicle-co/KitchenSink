@@ -22,12 +22,24 @@
  * mobile bundle to a server package is what was wrong, and it is exactly the inversion §15.2's leaf package
  * exists to remove.
  *
+ * ⚠️ CORRECTION (this text, and commit `9507e4ed`, previously described that removal as COMPLETE while it was
+ * only half done). When the seam was introduced, only `@commise/features-account` was repointed. Both apps kept
+ * declaring `@kitchensink/identity-service` and kept importing types from it in nine source files — mobile even
+ * pulling the deliberately-unpublished, branded `UserReadDto`. All three consumers now import the published leaf,
+ * and the boundary is no longer a claim in a comment: `packages/infra/global/__tests__/app-service-dependency.test.ts`
+ * fails the build if any `packages/apps/**` manifest or source names ANY `packages/services/*` package, type-only
+ * imports included. That gate exists because nothing else could see this: the ratchet
+ * (`scripts/boundariesRatchet.mjs`) reports UNDECLARED dependencies, and these were declared.
+ *
  * IDS ARE PLAIN STRINGS ON THE WIRE, and that is a decision rather than an omission. The service brands them
  * internally (`UserId = string & { __brand: 'UserId' }`, minted and checked by `@kitchensink/identity-db`), and
  * the brand is a SERVER-SIDE invariant: it exists so service code cannot pass an account id where a user id
  * belongs. A client receives an opaque identifier it echoes back; publishing the brand into a leaf package would
  * force every consumer to cast at the boundary — ceremony that asserts an invariant the client cannot actually
  * establish. `UserId` remains assignable to `string`, so the service's own handlers still satisfy these shapes.
+ * Measured, not asserted: the ONE app-side `as UserId` cast (in web's `AccountEditForm` test) DISAPPEARED when
+ * that file moved onto the published `UserProfile` — the brand's reach into a client was pure ceremony, exactly
+ * as claimed here.
  *
  * IMPORT RESTRICTION (enforced by `@kitchensink/contract-gen`): this file may import ONLY `zod` and flat sibling
  * `*.schema.js` modules — no `types/`, no drizzle schema, no Nest symbol.

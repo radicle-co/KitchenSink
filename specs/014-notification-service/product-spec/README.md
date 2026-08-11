@@ -1,7 +1,7 @@
 # Product Spec — Notification Service
 
 **Branch**: `014-notification-service`
-**Status**: Bootstrapped / pending revalidation
+**Status**: Reconciled 2026-08-05 / **pending revalidation**
 
 ---
 
@@ -9,9 +9,9 @@
 
 | Artifact      | File                                 | Status                                                                                                                            |
 | ------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| Product Spec  | [product-spec.md](./product-spec.md) | Bootstrap draft (vision, personas, story map, open questions).                                                                    |
-| User Journeys | [user-journey.md](./user-journey.md) | Producer publish, recipient delivery, and operations broadcast journeys.                                                          |
-| Wireframes    | _intentionally deferred_             | In-app rendering belongs to consumer features; 014 owns publish/receive contracts and shared delivery state.                      |
+| Product Spec  | [product-spec.md](./product-spec.md) | Story map renumbered onto `spec.md` ids; Q-001/Q-002/Q-003/Q-007 resolved, Q-009 opened (2026-08-05).                             |
+| User Journeys | [user-journey.md](./user-journey.md) | Producer publish, recipient delivery, and operations broadcast journeys. **Journey C step 4 contradicts `spec.md` on global retention — see Q-009.** |
+| Wireframes    | **needed — no longer deferred**      | 014 owns the in-app bell + feed surface. The previous note ("in-app rendering belongs to consumer features") predates the discovery that both apps already ship an inert notifications control awaiting this service. Tasks T-028 – T-030. |
 | Metrics       | [metrics.md](./metrics.md)           | Product execution metrics for publish API reliability, live/replay delivery, operations auditability, and producer compatibility. |
 
 ---

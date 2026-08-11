@@ -54,6 +54,7 @@
         "zod": "^4.4.3"
     },
     "devDependencies": {
+        "@kitchensink/contract-gen": "*",
         "@kitchensink/eslint": "*",
         "@kitchensink/infra-security": "*",
         "@kitchensink/prettier": "*",

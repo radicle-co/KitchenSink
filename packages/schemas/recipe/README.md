@@ -19,8 +19,8 @@ packages/clients/recipe-service  →  @commise/web, @commise/mobile
 A re-export would make this package depend on `@kitchensink/recipe-service`, dragging NestJS, drizzle, `pg`
 and the AWS SDK into the web and mobile bundles. Copying keeps this package a leaf, which is why authored
 `*.schema.ts` files may import only `zod`, `@kitchensink/recipe-core` (itself a zod-only leaf), and flat
-sibling `*.schema.js` modules. That restriction is enforced in code — see
-`packages/services/recipe-service/contract/schema-imports.ts` — not by convention.
+sibling `*.schema.js` modules. That restriction is enforced in code — by `@kitchensink/contract-gen`, whose
+allowlist the recipe service configures in `contract/generate.ts` — not by convention.
 
 ## Why it has no `test`, `lint`, or `format` script
 
@@ -42,3 +42,20 @@ is a generation bug worth failing on.
 A **derived** artifact for external consumption — API diffing, published docs, third-party integrators. It is
 **not** a code-generation input and **not** the type authority. Nothing in this repo compiles against it; the
 authority is the zod exported from `./src/index.ts`, with its types via `z.infer`.
+
+Its route table is authored in `packages/services/recipe-service/contract/openapi.ts`; the derivation itself
+(zod → JSON Schema, the component registry, the coverage accounting) lives once in
+`@kitchensink/contract-gen`.
+
+### Its coverage is PARTIAL, and deliberately so
+
+All 41 operations the service serves are documented. **26 of 41 have a response schema for every response
+they declare**; the other 15 carry a described operation with an _undescribed body_, because that body has no
+authored zod on either side yet. `contract:generate` prints the exact `operationId statusCode` list on every
+run, and `contract/__tests__/openapi.test.ts` pins it as a ratchet, so the set cannot grow silently.
+
+The gaps are: the whole **collections** vertical, **account** export/erasure, the two blended **ingredient**
+endpoints (`suggest`, `candidates`), and the two health probes. Those are precisely the boundaries the typed
+client validates with `expectUnvalidated` — no shared schema on either side — and they close as each vertical
+gains an authored `*.schema.ts`. A hopeful shape published for them now would be a contract that lies, which
+is worse than an obviously incomplete one.

@@ -2,7 +2,8 @@
  * AUTHORED WIRE CONTRACT for the photos vertical (`POST …/photos/upload-url`, `POST …/photos/confirm`).
  *
  * SOURCE OF TRUTH for these shapes. Copied verbatim into `@kitchensink/schema-recipe`, so it may import ONLY
- * `zod`, `@kitchensink/recipe-core`, and flat sibling `*.schema.js` modules — see `contract/schema-imports.ts`.
+ * `zod`, `@kitchensink/recipe-core`, and flat sibling `*.schema.js` modules — enforced by
+ * `@kitchensink/contract-gen`'s import restriction (configured in `contract/generate.ts`).
  *
  * DESIGN PATTERN: single-source schema + inferred type, composed with Value Objects from `recipe-core`.
  *

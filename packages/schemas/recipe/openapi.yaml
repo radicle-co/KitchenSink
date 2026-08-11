@@ -1,0 +1,3938 @@
+# ⚠️ GENERATED FILE — DO NOT EDIT.
+#
+# DERIVED from the recipe service's authored zod. Regenerate with:
+#   npm run contract:generate --workspace=@kitchensink/recipe-service
+#
+# This document is for EXTERNAL consumption (oasdiff, docs, integrators). It is NOT a codegen input
+# and NOT the type authority — that is the zod exported from ./src/index.ts.
+
+openapi: 3.0.3
+info:
+  title: Commise Recipe API
+  version: 1.0.0
+  description: |-
+    The recipe service owns this contract. It is DERIVED from the service’s authored zod
+    (`src/**/*.schema.ts` plus the `@kitchensink/recipe-core` schemas those compose), never
+    hand-written, and it is not a code-generation input.
+
+    Every path is also served under a deprecated bare `/v1/...` alias for consumers configured
+    outside this repo and for already-shipped mobile binaries (ADR-0011). New integrators must use
+    the `/api/v1/...` spelling published here.
+
+    Coverage is partial and the gaps are enumerated by the generator on every run: an operation with
+    no response schema is one whose body has no authored zod yet, not one whose body is empty.
+servers:
+  - url: https://recipe.commise.app
+    description: Production
+  - url: https://recipe.sandbox.commise.app
+    description: Sandbox
+security:
+  - clerkSessionToken: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness probe.
+      security: []
+      responses:
+        "200":
+          description: The service is running.
+      description: Deliberately PUBLIC — the ALB target group calls it with no credential.
+  /health/ready:
+    get:
+      operationId: getReadiness
+      summary: Readiness probe (checks the database connection).
+      security: []
+      responses:
+        "200":
+          description: The service is ready to serve traffic.
+        "503":
+          description: A dependency is unavailable.
+      description: Deliberately PUBLIC.
+  /api/v1/recipes:
+    post:
+      operationId: createRecipe
+      summary: Create a recipe owned by the caller.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "201":
+          description: The created recipe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeDetail"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      requestBody:
+        description: The recipe to create.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRecipeRequest"
+    get:
+      operationId: listRecipes
+      summary: List the caller's recipes, newest-updated first by default.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: A page of the caller’s recipes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedRecipes"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 9007199254740991
+        - name: pageSize
+          in: query
+          required: false
+          description: Page size, 1..100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: sortBy
+          in: query
+          required: false
+          description: Sort key.
+          schema:
+            type: string
+            enum:
+              - updatedAt
+              - createdAt
+              - title
+  /api/v1/recipes/{id}:
+    get:
+      operationId: getRecipeById
+      summary: Read one recipe (the owner’s, or any public recipe).
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The recipe, with photos and nutrition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeDetail"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "410":
+          description: The recipe was erased (tombstoned).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+    patch:
+      operationId: updateRecipe
+      summary: Update the caller’s recipe (optimistic concurrency on `currentVersion`).
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The updated recipe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeDetail"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Version conflict — the recipe changed since the caller read it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      requestBody:
+        description: The fields to change.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRecipeRequest"
+    delete:
+      operationId: deleteRecipe
+      summary: Soft-delete the caller’s recipe.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/recipes/{id}/clone:
+    post:
+      operationId: cloneRecipe
+      summary: Clone a visible recipe into the caller’s collection.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "201":
+          description: The caller’s new clone.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeDetail"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The recipe to clone.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/recipes/{id}/visibility:
+    patch:
+      operationId: setRecipeVisibility
+      summary: Set the caller’s recipe visibility (`public` | `private`).
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The updated recipe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeDetail"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: "The request body is NOT described yet: the visibility body has no authored `*.schema.ts`, and inventing
+        one here would be a third authority for it."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/recipes/{id}/rating:
+    put:
+      operationId: setRecipeRating
+      summary: Set the caller’s rating on someone else’s recipe (idempotent upsert).
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The recipe with refreshed rating aggregates.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeDetail"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: A caller may not rate their own recipe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: The rater is always the bearer token’s subject; a body `userId` is stripped.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      requestBody:
+        description: Whole stars, 1..5.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetRatingRequest"
+    delete:
+      operationId: deleteRecipeRating
+      summary: Remove the caller’s rating (idempotent).
+      security:
+        - clerkSessionToken: []
+      responses:
+        "204":
+          description: Removed.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/recipes/{recipeId}/photos:
+    get:
+      operationId: listRecipePhotos
+      summary: List a recipe’s photos in display order.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The recipe’s photos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipePhotoList"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: recipeId
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/recipes/{recipeId}/photos/upload-url:
+    post:
+      operationId: createPhotoUploadUrl
+      summary: Presign a direct-to-S3 upload for a new photo.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: A presigned upload target.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhotoUploadUrlResponse"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: The declared size exceeds the 5 MB cap.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "415":
+          description: The content type is not jpeg, png, or webp.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: "Returns `200`, not `201`: nothing is created here — the row is created at `confirm`. A content type
+        outside the jpeg/png/webp allowlist is a `415`, and a declared size above 5 MB a `413`; neither is a `400`."
+      parameters:
+        - name: recipeId
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      requestBody:
+        description: The file the client intends to upload.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePhotoUploadRequest"
+  /api/v1/recipes/{recipeId}/photos/confirm:
+    post:
+      operationId: confirmPhotoUpload
+      summary: Validate the uploaded object by magic bytes and persist the photo.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "201":
+          description: The persisted photo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipePhoto"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The recipe already has the maximum of 10 photos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: The stored object exceeds the 5 MB cap.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The stored bytes are not a servable jpeg, png, or webp.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: recipeId
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      requestBody:
+        description: The object key to confirm.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmPhotoRequest"
+  /api/v1/recipes/{recipeId}/photos/reorder:
+    patch:
+      operationId: reorderRecipePhotos
+      summary: Set the recipe’s photo display order.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The photos in their new order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipePhotoList"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: recipeId
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      requestBody:
+        description: Photo ids in the desired order.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderPhotosRequest"
+  /api/v1/recipes/{recipeId}/photos/{photoId}:
+    delete:
+      operationId: deleteRecipePhoto
+      summary: Remove a photo from the recipe (and invalidate its CDN paths).
+      security:
+        - clerkSessionToken: []
+      responses:
+        "204":
+          description: Removed.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: recipeId
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        - name: photoId
+          in: path
+          required: true
+          description: The photo id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/recipes/{recipeId}/versions:
+    get:
+      operationId: listRecipeVersions
+      summary: List a recipe’s version history, newest first.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The version history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeVersionList"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: recipeId
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/recipes/{recipeId}/versions/{versionNumber}:
+    get:
+      operationId: getRecipeVersion
+      summary: Read one archived version.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The archived version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeVersion"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe or version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: recipeId
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        - name: versionNumber
+          in: path
+          required: true
+          description: The 1-based version number.
+          schema:
+            type: integer
+            minimum: 0
+            exclusiveMinimum: true
+            maximum: 9007199254740991
+  /api/v1/recipes/{recipeId}/versions/{versionNumber}/restore:
+    post:
+      operationId: restoreRecipeVersion
+      summary: Restore an archived version onto the live recipe.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The restored recipe and the version it created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreVersionResponse"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe or version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The version archive is still pending.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: recipeId
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        - name: versionNumber
+          in: path
+          required: true
+          description: The version to restore.
+          schema:
+            type: integer
+            minimum: 0
+            exclusiveMinimum: true
+            maximum: 9007199254740991
+  /api/v1/search/recipes:
+    get:
+      operationId: searchRecipes
+      summary: Full-text and facet search over visible recipes.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: A ranked page of hits plus facet counts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeSearchResponse"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: Array filters accept either repeated params (`?tags=a&tags=b`) or one comma-separated value (`?tags=a,b`).
+      parameters:
+        - name: query
+          in: query
+          required: false
+          description: Free-text query.
+          schema:
+            type: string
+        - name: cuisine
+          in: query
+          required: false
+          description: Exact cuisine filter.
+          schema:
+            type: string
+        - name: dietaryFlags
+          in: query
+          required: false
+          description: Dietary-flag filter.
+          schema:
+            type: array
+            items:
+              type: string
+        - name: tags
+          in: query
+          required: false
+          description: Tag filter.
+          schema:
+            type: array
+            items:
+              type: string
+        - name: ingredientIds
+          in: query
+          required: false
+          description: Ingredient filter.
+          schema:
+            type: array
+            items:
+              type: string
+        - name: maxPrepTime
+          in: query
+          required: false
+          description: Maximum prep minutes.
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9007199254740991
+        - name: maxCookTime
+          in: query
+          required: false
+          description: Maximum cook minutes.
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9007199254740991
+        - name: maxTotalTime
+          in: query
+          required: false
+          description: Maximum total minutes.
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9007199254740991
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 9007199254740991
+        - name: pageSize
+          in: query
+          required: false
+          description: Page size.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 9007199254740991
+        - name: sortBy
+          in: query
+          required: false
+          description: Sort key.
+          schema:
+            type: string
+            enum:
+              - relevance
+              - newest
+              - rating
+              - most-cloned
+              - quickest
+  /api/v1/ingredients/search:
+    get:
+      operationId: searchIngredients
+      summary: Search the local ingredient catalog.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: Matching catalog rows.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngredientList"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: The search term.
+          schema:
+            type: string
+            minLength: 1
+        - name: limit
+          in: query
+          required: false
+          description: Maximum results.
+          schema:
+            type: integer
+            minimum: 0
+            exclusiveMinimum: true
+            maximum: 9007199254740991
+  /api/v1/ingredients/suggest:
+    get:
+      operationId: suggestIngredients
+      summary: Blended typeahead over the local catalog and the food (ingredient) service.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: Blended suggestions, local section first.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: RESPONSE BODY NOT YET DESCRIBED. `IngredientSuggestions` is a discriminated union with no authored
+        `*.schema.ts` on either side — it is one of the boundaries the typed client validates with `expectUnvalidated`.
+        See §15.2.5.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: The search term.
+          schema:
+            type: string
+            minLength: 1
+        - name: limit
+          in: query
+          required: false
+          description: Maximum results.
+          schema:
+            type: integer
+            minimum: 0
+            exclusiveMinimum: true
+            maximum: 9007199254740991
+  /api/v1/ingredients:
+    post:
+      operationId: createIngredient
+      summary: Create a user-entered ingredient.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "201":
+          description: The created ingredient.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ingredient"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: REQUEST BODY NOT YET DESCRIBED — no authored schema for `{ name }` exists.
+  /api/v1/ingredients/by-name:
+    post:
+      operationId: addIngredientByName
+      summary: Admit an ingredient by name, resolving it against the food catalog asynchronously.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "202":
+          description: Accepted; resolution continues in the background.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ingredient"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: REQUEST BODY NOT YET DESCRIBED — no authored schema for `{ name }` exists.
+  /api/v1/ingredients/by-food:
+    post:
+      operationId: addIngredientByFood
+      summary: Admit a food-catalog golden record as a local ingredient row.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The admitted ingredient.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ingredient"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: REQUEST BODY NOT YET DESCRIBED — no authored schema for `{ foodId }` exists.
+  /api/v1/ingredients/{id}/status:
+    get:
+      operationId: getIngredientStatus
+      summary: Read an ingredient’s food-resolution status.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The ingredient.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ingredient"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such ingredient.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ingredient id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/ingredients/{id}/candidates:
+    get:
+      operationId: getIngredientCandidates
+      summary: List cross-source disambiguation candidates for an unresolved ingredient.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The candidates, or an empty array when the ingredient has no food id.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such ingredient.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: "RESPONSE BODY NOT YET DESCRIBED, and the reason is an OWNERSHIP question, not an oversight: the body is
+        the food service’s `CandidateView`. Whose contract owns it is recorded as an open decision — see the note in
+        `contract/generate.ts`."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ingredient id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/ingredients/{id}/resolve:
+    post:
+      operationId: resolveIngredient
+      summary: Resolve an unresolved ingredient by picking one or more candidates.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The resolved ingredient.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ingredient"
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such ingredient.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: REQUEST BODY NOT YET DESCRIBED — no authored schema for `{ candidateIds }` exists.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ingredient id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/collections:
+    post:
+      operationId: createCollection
+      summary: Create a collection owned by the caller.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "201":
+          description: The created collection.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The caller is at the 50-collection cap.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — the collections vertical has no authored `*.schema.ts`; its
+        zod lives in `collections.schemas.ts`, which imports a drizzle type and so cannot cross into the schema package.
+    get:
+      operationId: listCollections
+      summary: List the caller’s collections.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: A page of collections.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: RESPONSE BODY NOT YET DESCRIBED — see `createCollection`.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 9007199254740991
+        - name: pageSize
+          in: query
+          required: false
+          description: Page size, 1..100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+  /api/v1/collections/{id}:
+    get:
+      operationId: getCollectionById
+      summary: Read a collection with its member recipes.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The collection and its members.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such collection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: RESPONSE BODY NOT YET DESCRIBED — see `createCollection`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The collection id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+    patch:
+      operationId: updateCollection
+      summary: Update a collection (at least one field required).
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The updated collection.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such collection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — see `createCollection`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The collection id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+    delete:
+      operationId: deleteCollection
+      summary: Delete a collection (its recipes are untouched).
+      security:
+        - clerkSessionToken: []
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such collection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The collection id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/collections/{id}/recipes:
+    post:
+      operationId: addRecipeToCollection
+      summary: Add a recipe to a collection.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "201":
+          description: The created membership.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such collection or recipe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — see `createCollection`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The collection id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/collections/{id}/recipes/{recipeId}:
+    delete:
+      operationId: removeRecipeFromCollection
+      summary: Remove a recipe from a collection.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "204":
+          description: Removed.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such collection or membership.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The collection id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        - name: recipeId
+          in: path
+          required: true
+          description: The recipe to remove.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/collections/{id}/clone:
+    post:
+      operationId: cloneCollection
+      summary: Clone a visible collection, seeding it with the source’s recipes.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "201":
+          description: The caller’s new clone.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such collection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The caller is at the 50-collection cap.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — see `createCollection`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The collection to clone.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/collections/{id}/pull-from-source/preview:
+    post:
+      operationId: previewPullFromSource
+      summary: Preview what a pull from the source collection would add.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The three-way diff of source against clone.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such collection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: RESPONSE BODY NOT YET DESCRIBED — `PullDiff` has four independent declarations today; converging them is
+        the collections step.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cloned collection id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/collections/{id}/pull-from-source:
+    post:
+      operationId: pullCollectionFromSource
+      summary: Pull new recipes from the source collection into the clone.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The refreshed collection and the recipe ids the pull added.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The caller does not own the resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such collection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The previewed diff no longer matches the source.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — see `previewPullFromSource`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cloned collection id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/account/export:
+    get:
+      operationId: exportAccount
+      summary: Export everything the recipe service holds for the caller.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The caller’s full export.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: RESPONSE BODY NOT YET DESCRIBED — `AccountExport` and its seven sub-shapes have no zod anywhere, and no
+        typed-client method either. This is the largest single coverage gap in the document.
+  /api/v1/account/erasure:
+    post:
+      operationId: requestAccountErasure
+      summary: Request irreversible erasure of the caller’s account data.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "202":
+          description: The queued or already-running erasure job.
+        "400":
+          description: The request body or query failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "410":
+          description: The account was already erased.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-user rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: "REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — the erasure DTO is `class-validator`-only. Idempotent: an
+        in-flight job is returned rather than a second one started."
+  /api/v1/internal/account/erasure:
+    post:
+      operationId: requestServiceErasure
+      summary: Service-principal erasure trigger, called by the identity deletion worker.
+      security:
+        - serviceErasureToken: []
+      responses:
+        "202":
+          description: The queued or already-running erasure job.
+        "401":
+          description: Missing, invalid, or expired service token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: "NOT a public endpoint and NOT Clerk-authenticated: it authenticates with a signed machine token and is
+        excluded from the Clerk middleware so its own guard is the fail-closed enforcement point (ADR-0011). RESPONSE
+        BODY NOT YET DESCRIBED."
+components:
+  securitySchemes:
+    clerkSessionToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: A Clerk session token. Verified networklessly against the instance JWT key, with the signed `azp` checked
+        against the service’s authorized-party pattern.
+    serviceErasureToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: A signed service-principal token, used only by the internal erasure route.
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - RECIPE_NOT_FOUND
+            - RECIPE_TOMBSTONED
+            - NOT_OWNER
+            - VERSION_CONFLICT
+            - MAX_PHOTOS_EXCEEDED
+            - INVALID_VISIBILITY
+            - PHOTO_PROCESSING_FAILED
+            - ARCHIVE_PENDING
+            - ARCHIVE_DLQ
+            - COLLECTION_NOT_CLONED
+            - PULL_DRIFT
+            - COLLECTION_LIMIT_REACHED
+            - ERASURE_IN_PROGRESS
+            - UNKNOWN_INGREDIENT
+            - CANNOT_RATE_OWN_RECIPE
+        message:
+          type: string
+          minLength: 1
+        details:
+          type: object
+          additionalProperties: {}
+      required:
+        - code
+        - message
+      additionalProperties: false
+    Recipe:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        ownerId:
+          type: string
+          minLength: 1
+        title:
+          type: string
+          minLength: 1
+        description:
+          default: ""
+          type: string
+        prepTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        cookTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        totalTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        servings:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        difficulty:
+          type: string
+          enum:
+            - easy
+            - medium
+            - hard
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        status:
+          type: string
+          enum:
+            - draft
+            - published
+        sourceType:
+          type: string
+          enum:
+            - user_created
+            - imported_public
+            - imported_physical
+            - imported_paid
+        sourceUrl:
+          type: string
+          format: uri
+        sourceAttribution:
+          type: string
+          minLength: 1
+        clonedFromId:
+          type: string
+          minLength: 1
+        hasSubstantiveEdit:
+          type: boolean
+        cuisine:
+          type: string
+          minLength: 1
+        dietaryFlags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        tags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        hasPartialNutrition:
+          type: boolean
+        leadCaloriesPerServing:
+          type: number
+          minimum: 0
+        authorHandle:
+          type: string
+          minLength: 1
+        currentVersion:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        averageRating:
+          type: number
+          minimum: 1
+          maximum: 5
+        ratingCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        usesPremiumCapability:
+          type: boolean
+        coverPhotoUrl:
+          type: string
+          format: uri
+        deletedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+      required:
+        - id
+        - ownerId
+        - title
+        - description
+        - prepTimeMinutes
+        - cookTimeMinutes
+        - totalTimeMinutes
+        - servings
+        - visibility
+        - status
+        - sourceType
+        - hasSubstantiveEdit
+        - dietaryFlags
+        - tags
+        - hasPartialNutrition
+        - currentVersion
+        - ratingCount
+        - usesPremiumCapability
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+    RecipeDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        ownerId:
+          type: string
+          minLength: 1
+        title:
+          type: string
+          minLength: 1
+        description:
+          default: ""
+          type: string
+        prepTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        cookTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        totalTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        servings:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        difficulty:
+          type: string
+          enum:
+            - easy
+            - medium
+            - hard
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        status:
+          type: string
+          enum:
+            - draft
+            - published
+        sourceType:
+          type: string
+          enum:
+            - user_created
+            - imported_public
+            - imported_physical
+            - imported_paid
+        sourceUrl:
+          type: string
+          format: uri
+        sourceAttribution:
+          type: string
+          minLength: 1
+        clonedFromId:
+          type: string
+          minLength: 1
+        hasSubstantiveEdit:
+          type: boolean
+        cuisine:
+          type: string
+          minLength: 1
+        dietaryFlags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        tags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        hasPartialNutrition:
+          type: boolean
+        leadCaloriesPerServing:
+          type: number
+          minimum: 0
+        authorHandle:
+          type: string
+          minLength: 1
+        currentVersion:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        averageRating:
+          type: number
+          minimum: 1
+          maximum: 5
+        ratingCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        usesPremiumCapability:
+          type: boolean
+        coverPhotoUrl:
+          type: string
+          format: uri
+        deletedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        ingredients:
+          type: array
+          items:
+            type: object
+            properties:
+              ingredientId:
+                type: string
+                minLength: 1
+              name:
+                type: string
+                minLength: 1
+              quantity:
+                type: number
+                minimum: 0
+                exclusiveMinimum: true
+              unit:
+                type: string
+                minLength: 1
+              notes:
+                type: string
+                minLength: 1
+              isUserEntered:
+                type: boolean
+            required:
+              - ingredientId
+              - name
+              - quantity
+              - isUserEntered
+            additionalProperties: false
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              stepNumber:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+                maximum: 9007199254740991
+              instruction:
+                type: string
+                minLength: 1
+              timerSeconds:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+            required:
+              - stepNumber
+              - instruction
+            additionalProperties: false
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecipePhoto"
+        nutrition:
+          type: object
+          properties:
+            calories:
+              type: number
+              minimum: 0
+            proteinG:
+              type: number
+              minimum: 0
+            carbsG:
+              type: number
+              minimum: 0
+            fatG:
+              type: number
+              minimum: 0
+            isComplete:
+              type: boolean
+          required:
+            - calories
+            - proteinG
+            - carbsG
+            - fatG
+            - isComplete
+          additionalProperties: false
+        viewerRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+      required:
+        - id
+        - ownerId
+        - title
+        - description
+        - prepTimeMinutes
+        - cookTimeMinutes
+        - totalTimeMinutes
+        - servings
+        - visibility
+        - status
+        - sourceType
+        - hasSubstantiveEdit
+        - dietaryFlags
+        - tags
+        - hasPartialNutrition
+        - currentVersion
+        - ratingCount
+        - usesPremiumCapability
+        - createdAt
+        - updatedAt
+        - ingredients
+        - steps
+        - photos
+        - nutrition
+      additionalProperties: false
+    PaginatedRecipes:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Recipe"
+        total:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        page:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        pageSize:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        hasMore:
+          type: boolean
+      required:
+        - data
+        - total
+        - page
+        - pageSize
+        - hasMore
+      additionalProperties: false
+    CreateRecipeRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        ingredients:
+          type: array
+          items:
+            type: object
+            properties:
+              ingredientId:
+                type: string
+                minLength: 1
+              name:
+                type: string
+                minLength: 1
+              quantity:
+                type: number
+                minimum: 0
+                exclusiveMinimum: true
+              unit:
+                type: string
+                minLength: 1
+              notes:
+                type: string
+                minLength: 1
+              userCalories:
+                type: number
+                minimum: 0
+              userProteinG:
+                type: number
+                minimum: 0
+              userCarbsG:
+                type: number
+                minimum: 0
+              userFatG:
+                type: number
+                minimum: 0
+            required:
+              - ingredientId
+              - name
+              - quantity
+            additionalProperties: false
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              instruction:
+                type: string
+                minLength: 1
+              timerSeconds:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+            required:
+              - instruction
+            additionalProperties: false
+        servings:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        prepTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        cookTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        totalTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        difficulty:
+          type: string
+          enum:
+            - easy
+            - medium
+            - hard
+        cuisine:
+          type: string
+          minLength: 1
+        dietaryFlags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        tags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        status:
+          type: string
+          enum:
+            - draft
+            - published
+      required:
+        - title
+        - ingredients
+        - steps
+        - servings
+        - prepTimeMinutes
+        - cookTimeMinutes
+        - totalTimeMinutes
+      additionalProperties: false
+    UpdateRecipeRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        ingredients:
+          type: array
+          items:
+            type: object
+            properties:
+              ingredientId:
+                type: string
+                minLength: 1
+              name:
+                type: string
+                minLength: 1
+              quantity:
+                type: number
+                minimum: 0
+                exclusiveMinimum: true
+              unit:
+                type: string
+                minLength: 1
+              notes:
+                type: string
+                minLength: 1
+              userCalories:
+                type: number
+                minimum: 0
+              userProteinG:
+                type: number
+                minimum: 0
+              userCarbsG:
+                type: number
+                minimum: 0
+              userFatG:
+                type: number
+                minimum: 0
+            required:
+              - ingredientId
+              - name
+              - quantity
+            additionalProperties: false
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              instruction:
+                type: string
+                minLength: 1
+              timerSeconds:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+            required:
+              - instruction
+            additionalProperties: false
+        servings:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        prepTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        cookTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        totalTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        difficulty:
+          nullable: true
+          type: string
+          enum:
+            - easy
+            - medium
+            - hard
+        cuisine:
+          type: string
+          minLength: 1
+        dietaryFlags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        tags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        status:
+          type: string
+          enum:
+            - draft
+            - published
+        expectedVersion:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+      required:
+        - expectedVersion
+      additionalProperties: false
+    SetRatingRequest:
+      type: object
+      properties:
+        stars:
+          type: integer
+          minimum: 1
+          maximum: 5
+      required:
+        - stars
+      additionalProperties: false
+    RecipePhoto:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        recipeId:
+          type: string
+          minLength: 1
+        key:
+          type: string
+          minLength: 1
+        url:
+          type: string
+          format: uri
+        contentType:
+          type: string
+          minLength: 1
+        order:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+      required:
+        - id
+        - recipeId
+        - key
+        - url
+        - contentType
+        - order
+        - createdAt
+      additionalProperties: false
+    RecipePhotoList:
+      type: array
+      items:
+        $ref: "#/components/schemas/RecipePhoto"
+    CreatePhotoUploadRequest:
+      type: object
+      properties:
+        fileName:
+          type: string
+          minLength: 1
+          maxLength: 255
+        contentType:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: "Intended object content type. Accepted values: image/jpeg, image/png, image/webp. Anything else is
+            answered 415 by the service, not 400."
+        fileSize:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+          description: Declared object size in bytes. Must not exceed 5242880 (5 MB); a larger value is answered 413 by the
+            service, not 400.
+      required:
+        - fileName
+        - contentType
+        - fileSize
+      additionalProperties: false
+    PhotoUploadUrlResponse:
+      type: object
+      properties:
+        uploadUrl:
+          type: string
+          format: uri
+        key:
+          type: string
+          minLength: 1
+        expiresIn:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        maxBytes:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+      required:
+        - uploadUrl
+        - key
+        - expiresIn
+        - maxBytes
+      additionalProperties: false
+    ConfirmPhotoRequest:
+      type: object
+      properties:
+        key:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        contentType:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: "Declared content type of the uploaded object. Accepted but NOT trusted: the stored type is detected from
+            the object bytes."
+      required:
+        - key
+        - contentType
+      additionalProperties: false
+    ReorderPhotosRequest:
+      type: object
+      properties:
+        photoIds:
+          minItems: 1
+          type: array
+          items:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$
+      required:
+        - photoIds
+      additionalProperties: false
+    Ingredient:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        foodId:
+          type: string
+          minLength: 1
+        foodResolutionStatus:
+          type: string
+          enum:
+            - PENDING
+            - UNRESOLVED
+            - RESOLVED
+            - NOT_FOUND
+            - FAILED
+        isUserEntered:
+          type: boolean
+        caloriesPer100g:
+          type: number
+          minimum: 0
+        proteinGPer100g:
+          type: number
+          minimum: 0
+        carbsGPer100g:
+          type: number
+          minimum: 0
+        fatGPer100g:
+          type: number
+          minimum: 0
+        portions:
+          type: array
+          items:
+            type: object
+            properties:
+              unit:
+                type: string
+                minLength: 1
+              gramsPerUnit:
+                type: number
+                minimum: 0
+                exclusiveMinimum: true
+            required:
+              - unit
+              - gramsPerUnit
+            additionalProperties: false
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+      required:
+        - id
+        - name
+        - isUserEntered
+        - createdAt
+      additionalProperties: false
+    IngredientList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Ingredient"
+    RecipeVersion:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        recipeId:
+          type: string
+          minLength: 1
+        versionNumber:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        snapshot:
+          type: object
+          properties:
+            version:
+              type: integer
+              minimum: 0
+              exclusiveMinimum: true
+              maximum: 9007199254740991
+            title:
+              type: string
+              minLength: 1
+            description:
+              default: ""
+              type: string
+            steps:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                  recipeId:
+                    type: string
+                    minLength: 1
+                  stepNumber:
+                    type: integer
+                    minimum: 0
+                    exclusiveMinimum: true
+                    maximum: 9007199254740991
+                  instruction:
+                    type: string
+                    minLength: 1
+                  timerSeconds:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                required:
+                  - id
+                  - recipeId
+                  - stepNumber
+                  - instruction
+                additionalProperties: false
+            ingredients:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                  recipeId:
+                    type: string
+                    minLength: 1
+                  ingredientId:
+                    type: string
+                    minLength: 1
+                  quantity:
+                    type: number
+                    minimum: 0
+                    exclusiveMinimum: true
+                  unit:
+                    type: string
+                  displayText:
+                    type: string
+                    minLength: 1
+                  sortOrder:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  ingredientName:
+                    type: string
+                    minLength: 1
+                  isUserEntered:
+                    type: boolean
+                  userCalories:
+                    type: number
+                    minimum: 0
+                  userProteinG:
+                    type: number
+                    minimum: 0
+                  userCarbsG:
+                    type: number
+                    minimum: 0
+                  userFatG:
+                    type: number
+                    minimum: 0
+                required:
+                  - id
+                  - recipeId
+                  - ingredientId
+                  - quantity
+                  - unit
+                  - sortOrder
+                  - ingredientName
+                  - isUserEntered
+                additionalProperties: false
+            servings:
+              type: integer
+              minimum: 0
+              exclusiveMinimum: true
+              maximum: 9007199254740991
+            prepTimeMinutes:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            cookTimeMinutes:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+          required:
+            - version
+            - title
+            - description
+            - steps
+            - ingredients
+            - servings
+            - prepTimeMinutes
+            - cookTimeMinutes
+          additionalProperties: false
+        baseVersion:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        s3Key:
+          type: string
+          minLength: 1
+        createdBy:
+          type: string
+          minLength: 1
+        changeSummary:
+          type: string
+          minLength: 1
+        deviceLabel:
+          type: string
+          minLength: 1
+          maxLength: 80
+        editorHandle:
+          type: string
+          minLength: 1
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+      required:
+        - id
+        - recipeId
+        - versionNumber
+        - snapshot
+        - createdBy
+        - createdAt
+      additionalProperties: false
+    RecipeVersionList:
+      type: array
+      items:
+        $ref: "#/components/schemas/RecipeVersion"
+    RestoreVersionResponse:
+      type: object
+      properties:
+        recipe:
+          $ref: "#/components/schemas/RecipeDetail"
+        restoredFromVersion:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        currentVersion:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+      required:
+        - recipe
+        - restoredFromVersion
+        - currentVersion
+      additionalProperties: false
+    RecipeSearchResponse:
+      readOnly: true
+      type: object
+      properties:
+        results:
+          readOnly: true
+          type: array
+          items:
+            type: object
+            properties:
+              recipe:
+                $ref: "#/components/schemas/Recipe"
+              rank:
+                type: number
+            required:
+              - recipe
+            additionalProperties: false
+        facets:
+          readOnly: true
+          type: object
+          properties:
+            dietaryFlags:
+              readOnly: true
+              type: array
+              items:
+                type: object
+                properties:
+                  value:
+                    type: string
+                    minLength: 1
+                  count:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                required:
+                  - value
+                  - count
+                additionalProperties: false
+            tags:
+              readOnly: true
+              type: array
+              items:
+                type: object
+                properties:
+                  value:
+                    type: string
+                    minLength: 1
+                  count:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                required:
+                  - value
+                  - count
+                additionalProperties: false
+            cuisine:
+              readOnly: true
+              type: array
+              items:
+                type: object
+                properties:
+                  value:
+                    type: string
+                    minLength: 1
+                  count:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                required:
+                  - value
+                  - count
+                additionalProperties: false
+            totalTime:
+              readOnly: true
+              type: array
+              items:
+                type: object
+                properties:
+                  value:
+                    type: string
+                    minLength: 1
+                  count:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                required:
+                  - value
+                  - count
+                additionalProperties: false
+          required:
+            - dietaryFlags
+            - tags
+            - cuisine
+            - totalTime
+          additionalProperties: false
+        total:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        page:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        pageSize:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        hasMore:
+          type: boolean
+      required:
+        - results
+        - facets
+        - total
+        - page
+        - pageSize
+        - hasMore
+      additionalProperties: false

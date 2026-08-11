@@ -2,3 +2,6 @@
 # package's `format:check` with CWD = the package — so the ROOT .prettierignore does not apply here.
 # Without this file, `npm run lint` fails on emitted dist/ the moment a build has run.
 dist
+
+# Generated, and guarded by CI's regenerate-and-diff — reformatting it reads as contract drift.
+openapi.yaml

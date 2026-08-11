@@ -2,8 +2,8 @@
  * AUTHORED WIRE CONTRACT for recipe search (`GET /api/v1/search/recipes`).
  *
  * SOURCE OF TRUTH for the search response body. Copied verbatim into `@kitchensink/schema-recipe`, so it may
- * import ONLY `zod`, `@kitchensink/recipe-core`, and flat sibling `*.schema.js` modules — see
- * `contract/schema-imports.ts`.
+ * import ONLY `zod`, `@kitchensink/recipe-core`, and flat sibling `*.schema.js` modules — enforced by
+ * `@kitchensink/contract-gen`'s import restriction (configured in `contract/generate.ts`).
  *
  * DESIGN PATTERN: single-source schema + inferred type, composed from `recipe-core` Value Objects.
  *

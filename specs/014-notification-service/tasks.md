@@ -324,3 +324,46 @@ off this path.
     - **Implements**: FR-024, FR-026, SC-001, SC-010
     - **Acceptance**: satisfies SC-001 over HTTP and EventBridge with no dependency on any consumer feature, and publishes N envelopes for one recipient to prove this service never merges them. A producer can integrate from the guide alone without reading this service's source.
     - **Note**: a real producer's fan-in translator is NOT a task here — correlation is publisher-owned (FR-031). 004's is tracked as `specs/004-recipe-importing/tasks.md` T-032.
+
+## Producer legs — the work that makes this service load-bearing (added 2026-08-10)
+
+These land code in `packages/services/recipe-service` and the two apps, not in the notification service. That
+is the same shape as T-023..T-025, which put the groups model in `packages/services/identity`: this feature's
+REQUIREMENTS stay producer-agnostic (FR-025, FR-031, FR-033), while its TASK LIST carries whatever wiring is
+needed to actually ship it. A notification service with a synthetic producer and no real one is not delivered.
+
+- [ ] **T-042** [P] [US-001] Consume `FoodFetchCompleted` (EventBridge) in the recipe service and update the ingredient's stored `foodResolutionStatus` — no client poll required to trigger it. — `packages/services/recipe-service/src/notifications/food-completion.consumer.ts`
+    - **Depends on**: —
+    - **Implements**: cross-feature (003 → 001/004), prerequisite for T-044
+    - **Acceptance**: `IngredientsService.refreshStatus` no longer calls the food service on every poll. **Independently valuable and independently landable:** today the client polls every 2.5s and each poll makes a fresh authenticated cross-service call forwarding the end user's own bearer, so this removes a synchronous two-hop dependency from a timer loop whether or not any notification is ever published. The food event is already published and has zero consumers.
+
+- [ ] **T-043** [P] [US-010] Idempotency and precedence for applied completions. — `packages/services/recipe-service/src/notifications/food-completion.consumer.ts`
+    - **Depends on**: T-042
+    - **Implements**: FR-030, and the 001/003 disambiguation contract
+    - **Acceptance**: applying the same completion twice is indistinguishable from once (EventBridge is at-least-once). A **late** completion MUST NOT overwrite a value the user resolved manually through the US-2a disambiguation flow — the user's manual choice wins. Both cases have tests; the second is a correctness rule, not a nicety, and it is the one a naive "last write wins" consumer gets wrong.
+
+- [ ] **T-044** [P] [US-001] The 003 leg — resolve the requesting user(s) for a resolved food and publish **one** envelope per outcome, keyed on the identifier the clients hold (the ingredient), not the food id. — `packages/services/recipe-service/src/notifications/food-resolution.publisher.ts`
+    - **Depends on**: T-034, T-037, T-042
+    - **Implements**: FR-026, FR-031
+    - **Acceptance**: a resolution reaches the requesting user's client as one delivery. Note the food service **cannot** be the recipient source: `FetchQueueDao.resolve` deletes every `fetch_requesters` row for a food in the same transaction that completes it, so reading recipients from there is a race by construction — the recipe service owns its own subscription set.
+
+- [ ] **T-045** [P] [US-001] The 004 leg — the import-completion translator: correlate the ingredient resolutions belonging to one import against that import's own job identity and publish **exactly one** envelope per user-meaningful outcome. — `packages/services/recipe-service/src/notifications/import-translator.ts`
+    - **Depends on**: T-034, T-037, T-042, T-043
+    - **Implements**: FR-031
+    - **Acceptance**: an import of 30 unknown ingredient names yields exactly ONE delivered notification, not 30 (004 FR-020 submits every parsed name to 003, bounded at 100/request by 003 FR-045). A redelivered underlying completion does not yield a second. `idempotencyKey` derived from the import's durable job identity plus terminal status — never a transport id or a clock (FR-030). **This is the fan-in reference implementation every other fan-out producer copies.**
+    - **Note**: this is the task previously drafted as 004 T-032 and reverted from PR 91; it lands here because 014 is the delivery vehicle. 004's V-Model trace (a REQ + ATP for "the user is told once when an import completes") is still owed on the 004 branch — the obligation is new and no existing 004 requirement covers it.
+
+- [ ] **T-046** [P] [US-009] Register both producers' `messageType` keywords AND their **documented payload schemas**, as configuration plus reference documentation. — `packages/services/notification-service/src/registry/message-type.registry.ts`
+    - **Depends on**: T-014, T-018, T-035
+    - **Implements**: FR-016, FR-023, FR-027
+    - **Acceptance**: a client author can determine, from documentation alone, what is inside the `payload` for every registered `messageType` — without reading a producer's source. **This closes a real gap:** FR-023 makes `payload` opaque to this service and producers own their own keyword namespaces, but nothing currently requires a producer to publish a payload schema anywhere discoverable. A consumer dispatching on `messageType` would otherwise have to guess at the contents.
+
+- [ ] **T-047** [P] [US-004] Client subscription and dispatch on **both** platforms, with polling retained as the documented fallback. — `packages/apps/commise/web` + `packages/apps/commise/mobile` (+ the shared client seam)
+    - **Depends on**: T-012, T-046
+    - **Implements**: FR-010, FR-011, FR-021, US-004
+    - **Acceptance**: web and mobile both subscribe, dispatch by `messageType`, tolerate unknown types (log and ignore, never crash), and reconcile on reconnect rather than trusting that no message was missed. Ships to both platforms in the same release (`docs/CODING_STANDARDS.md` §14). The existing self-limiting poll stays: push is a latency optimisation and MUST NOT become load-bearing for correctness, so a lost notification degrades to the poll rather than stranding the user.
+
+- [ ] **T-048** [P] [ALL] Retire 003's own transport design, which contradicts GR-011. — `specs/003-usda-food-data/{spec,tasks}.md`
+    - **Depends on**: T-044
+    - **Implements**: GR-011, and closes the 014↔003 contradiction
+    - **Acceptance**: 003's US-9, T-185 and T-186 plus the WebSocket halves of its FR-041/FR-049/FR-050 are dispositioned — the requirements are satisfied by publishing through this service, so the spec text specifying an API Gateway WebSocket on the food service is wrong and must not stand. Also fixes 014's own dependency row, which cites a `003 US-005 / FR-NOTIF` that does not exist. **Cross-spec: amends another feature's requirement set, so it needs an explicit owner ruling before it lands.**

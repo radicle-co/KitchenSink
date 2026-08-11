@@ -249,7 +249,7 @@ A producer feature can be rate-limited independently to protect the shared infra
 - **FR-016**: The system MUST maintain a version-controlled registry of `messageType` keywords. Registered keywords succeed without flag; unregistered keywords increment a separate "unregistered messageType" counter.
 - **FR-017**: The system MUST support an enforcement mode in which unregistered `messageType` publishes are rejected with a structured error. Enforcement state MUST be configurable per environment.
 - **FR-018**: The system MUST support an optional `idempotencyKey` on the publish envelope. Duplicate publishes from the same producer with the same key inside a configured dedup window MUST collapse to one delivery per recipient.
-- **FR-019**: The system MUST support per-producer publish quotas. Publishes exceeding the configured quota MUST be rejected with a structured rate-limit error and counted in a per-producer throttled-publish counter.
+- **FR-019**: The system MUST support per-producer publish quotas. Publishes exceeding the configured quota MUST be rejected with a structured rate-limit error and counted in a per-producer throttled-publish counter. 🟠 **OPEN-014-C — the quota has no unit.** See [Open Questions](#open-questions-owner-resolution-required-2026-08-11).
 - **FR-020**: The system MUST NOT deliver any message to an unauthenticated client.
 - **FR-021**: The system MUST NOT permit a subscriber to receive messages addressed to a user identity other than the subscriber's authenticated identity.
 - **FR-022**: The system MUST resolve group membership at delivery time, not at publish time.
@@ -276,12 +276,16 @@ The paths differ only in how a request arrives.
   `idempotencyKey`, because EventBridge delivery is at-least-once and redelivery would otherwise duplicate a
   user-visible notification; and `producer`, because that path has no bearer token to derive identity from
   (FR-027). An envelope missing any required field MUST be rejected — never partially routed, never defaulted.
+  🟠 **OPEN-014-A — this contradicts FR-027 on producer identity.** See
+  [Open Questions](#open-questions-owner-resolution-required-2026-08-11).
 - **FR-027** _(event-path authorization — the trust boundary)_: The HTTP path derives producer identity from
   an authenticated credential (FR-002). The EventBridge path has **no credential**, so its trust boundary MUST
   be (a) an EventBridge resource policy restricting which principals may put events on the notification bus,
   AND (b) validation of the event's `source` against an allowlist of registered producers. Both are required:
   without them the event path is an unauthenticated publish channel through which any principal with bus
   access could address a notification to any user, defeating FR-005, FR-020 and FR-021.
+  🟠 **OPEN-014-A — this contradicts FR-026 on producer identity.** See
+  [Open Questions](#open-questions-owner-resolution-required-2026-08-11).
 - **FR-028** _(event-path failure handling)_: An envelope rejected on the EventBridge path — malformed
   (FR-015), unregistered under enforcement (FR-017), quota-exceeded (FR-019), or failing FR-027 — MUST be
   dead-lettered and counted. There is no caller to receive a structured error, so a rejection that is merely
@@ -314,6 +318,8 @@ The paths differ only in how a request arrives.
 - **FR-033** _(quota is declared, not inferred)_: The per-producer quota of FR-019 MUST be **configurable per
   registered producer**, and the value MUST be declared by that producer at registration. This service MUST
   NOT infer a bound from a producer's internals. A quota rejection MUST be alarmed rather than silent.
+  🟠 **OPEN-014-C — "the value" has no unit, so a producer cannot declare one.** See
+  [Open Questions](#open-questions-owner-resolution-required-2026-08-11).
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -335,6 +341,117 @@ The paths differ only in how a request arrives.
 - **Subscriber**: An authenticated session for a single user identity. A user MAY have multiple concurrent Subscribers (multi-device, multi-tab).
 - **GroupMembership**: Resolution-time mapping from `groupId` → set of user identities. Source-of-truth ownership of group membership is **out of scope** for this feature (Q-002).
 
+## Wire Contract Ownership (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). This section applies an
+existing portfolio rule to 014's contracts; it introduces **no new requirement** and mints no FR (GR-003).
+
+**014 is the highest-stakes contract in the portfolio, because its envelope is universal.** Every producer
+feature (001, 003, 004, 005, 008, 009, 013) and every client (`@commise/web`, `@commise/mobile`) touches the
+same `PublishEnvelope` and `DeliveryEnvelope`. If those shapes have more than one author, they will drift in
+more than one direction at once, and every consumer's `typecheck` will report agreement between
+representations that were never compared. That is the failure GR-015 exists to make structurally impossible.
+
+| Role                                    | Binding for 014                                                                                                                         |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)    | the notification service — `src/**/*.schema.ts`, beside the controller / ingress adapter it serves                                      |
+| Schema package (generated, committed)   | `@kitchensink/schema-notifications` — `packages/schemas/notifications`                                                                  |
+| Consuming client                        | `packages/clients/notifications`                                                                                                        |
+| Consuming apps                          | `@commise/web`, `@commise/mobile` (subscribe + dispatch by `messageType`)                                                               |
+| Consuming **producers**                 | every producer feature, on **both** ingress paths — they import the envelope, they do not re-declare it                                 |
+| Also in scope (groups, added under 014) | `/api/v1/groups/*` lands in `@kitchensink/identity-service` (A-002), so those shapes belong to **identity's** schema package, not 014's |
+
+### The service's obligation
+
+- **The envelope is authored ONCE, as zod, in the notification service** at `src/**/*.schema.ts` — the
+  `PublishEnvelope` (FR-026's normative field set), the `RecipientDescriptor` (FR-004), the `DeliveryEnvelope`,
+  and the `MessageTypeRegistryEntry`.
+- **That same zod is what performs FR-015's pre-durability validation**, via `nestjs-zod`'s `createZodDto` on
+  the HTTP path. There is no second DTO that "agrees with" the schema by convention — FR-015 and the published
+  contract are the same artifact, so a producer cannot be surprised by a rule it could not see.
+- **FR-024's "one core, two adapters" makes this stricter, not looser: ONE zod validates BOTH paths.** The
+  HTTP adapter and the EventBridge adapter both call the same schema. A separate schema per adapter is the
+  literal mechanism by which "a rule enforced in only one adapter" (an FR-024 defect) happens, so the shared
+  zod is how FR-024 is _made true_ rather than merely asserted.
+- **`payload` stays opaque in the schema, and that is a requirement of the schema, not an omission.** FR-023
+  forbids inspecting, validating or transforming it beyond size limits, so the envelope's zod models `payload`
+  as unknown/opaque with a size bound only. A schema that grew per-`messageType` payload validation would put
+  014 in violation of its own FR-023 — do not "improve" it that way.
+- `@kitchensink/schema-notifications` is **generated and committed** — the zod, `z.infer` types,
+  `contract-hash.ts`, a barrel, and a **derived** `openapi.yaml` (for `oasdiff`, docs and integrators;
+  **never a codegen input**). Nothing in it is hand-edited.
+- Every `*.schema.ts` imports **only `zod` and other `*.schema.ts` files** — no SQS/EventBridge SDK type, no
+  Drizzle schema, no Nest symbol. This matters more here than anywhere else: the envelope schema is imported by
+  **web and mobile**, so one AWS-SDK import in it would drag the server graph into both apps.
+
+### The CLIENT's obligation — separately mandatory, and here "client" means producers too
+
+Mandating only the service half is exactly how the client half got skipped portfolio-wide (276 + 144 lines of
+redeclared wire types survived behind green builds). For 014 there are **two** classes of consumer:
+
+- **Subscribers** (`@commise/web`, `@commise/mobile`, `packages/clients/notifications`) import the
+  `DeliveryEnvelope` **type and zod** from `@kitchensink/schema-notifications` and **declare no envelope shape
+  of their own** — including in feature packages (GR-015 §15-b.4). US-004's dispatch-by-`messageType` handler
+  map is keyed off the imported type; a hand-written "notification" interface in the web app and another in the
+  mobile app is two independent beliefs about one contract on two platforms that ship on different schedules.
+- **Producers** are clients of this service and are bound identically. A producer feature **imports the
+  `PublishEnvelope` and its zod** and **does not declare its own publish body** — on **either** ingress path.
+  A producer that hand-writes the envelope to put an event on the bus is the same violation as a client that
+  hand-writes a response type; it is worse only in that the failure surfaces as a dead-lettered envelope
+  (FR-028) rather than a type error.
+- **A producer's `payload` is the producer's own contract, not 014's.** Per the 2026-05-10 clarification, this
+  service does not own the meaning of any `messageType`. So a producer's payload type lives in **that
+  producer's** schema package and is referenced by the producer's own docs — never added to
+  `@kitchensink/schema-notifications`, which would make 014 the author of knowledge it explicitly disclaims.
+- Any divergent consumer shape (an in-app notification-list row model, a toast view model) is **DERIVED** from
+  the `DeliveryEnvelope` with `Pick` / `Omit` / `Partial` — never independently declared. Reference:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **A new endpoint or a new envelope field is not complete until it is reachable from
+  `@kitchensink/schema-notifications`.** "The mobile client will add the field" is a contract fork, not a task.
+
+### Drift gates — inherited from GR-015 §15-c, all three required
+
+Turbo `inputs`-driven rebuild; a **regenerate-and-diff CI gate**; and a `CONTRACT_HASH` **boot assertion**.
+
+⚠️ **The `CONTRACT_HASH` gate and `schemaVersion` (FR-026) are different mechanisms and neither replaces the
+other.** `CONTRACT_HASH` is a **build-time fingerprint** that fails a _service boot_ when a deployed service
+and a pinned schema package disagree. `schemaVersion` is a **runtime field on the wire** that lets a _receiver_
+handle an envelope minted by a different version. 014 needs both, precisely because a released **mobile
+binary** cannot be updated in step with a backend deploy — which is the exact case §15-c cites as invisible to
+the turbo and CI layers.
+
+⚠️ **`oasdiff` sees only the HTTP path.** The EventBridge ingress exposes no URL (as _Governance Alignment_ in
+`plan.md` already notes for GR-002), so a breaking change to the envelope on the bus is invisible to an
+OpenAPI-diff gate. The regenerate-and-diff gate over the authored zod is what covers it — which is another
+reason the two adapters must share one schema.
+
+### ⚠️ Third-party APIs — the opposite case, do NOT converge them (GR-015 §15-d)
+
+- **AWS EventBridge and SQS are transport, not a contract we author.** The **envelope inside** a bus event is
+  ours (above). The **EventBridge event wrapper** — `source`, `detail-type`, `detail`, `account`, `resources` —
+  is **AWS's** shape and MUST be **validated at the boundary** in the ingress adapter before `detail` is treated
+  as an envelope. It is not put in our schema package as though we owned it. This boundary parse is
+  security-relevant, not cosmetic: FR-027 makes the validated `source` a **trust decision**, so the code that
+  reads `source` must first prove the wrapper is the shape it claims to be.
+- **A-005's future email / mobile-push transports** (SES, APNs, FCM, Expo push) are out of scope for this
+  release. When they arrive they are **third-party**: their clients **validate the raw upstream shape at the
+  boundary with zod**, **may declare their own types**, and **get no OpenAPI document**. Their response shapes
+  do not enter `@kitchensink/schema-notifications`.
+- **Clerk** remains third-party for subscriber authentication (see 002).
+- `packages/clients/usda` is the reference implementation and its `schemas.ts` must never be "converged".
+  Deleting a boundary schema in the name of §15-b replaces a checked parse with unchecked trust in a remote
+  party's JSON — a security regression, not a cleanup.
+
+🟠 **OPEN — where does the `messageType` registry (FR-016) live?** It must be version-controlled (FR-016) and is
+read by the service for the registry check, by producers to register a keyword, and arguably by clients for
+dispatch. `@kitchensink/schema-notifications` is the obvious candidate, but that package is **generated and
+never hand-edited**, while a registry entry is **authored by a producer feature** — so putting it there
+requires deciding whether registry entries are authored in the notification service (like the zod, and copied
+out) or in a separate hand-maintained artifact that the schema package re-exports. **Question for the owner:
+which?** Neither §15 nor an existing ADR decides it, and the answer changes how a producer onboards.
+
 ## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
@@ -349,7 +466,88 @@ The paths differ only in how a request arrives.
 - **SC-008**: Both ingress paths are proven equivalent: the same envelope published over HTTP and over EventBridge produces an identical delivered message, and a rule violated on one path is rejected identically on the other. Verified by a paired test per rule (FR-024).
 - **SC-009**: The event path rejects spoofing: 100% of envelopes whose `source` is not an allowlisted producer are rejected and dead-lettered, and none is ever delivered (FR-027, FR-028).
 - **SC-010**: The no-aggregation contract is observable: N envelopes published for one recipient arrive as N deliveries, and this service never merges them (FR-031).
-- **SC-011**: An EventBridge envelope redelivered by the transport is delivered exactly once, proven by replaying the same event with an unchanged `idempotencyKey` (FR-026, FR-030).
+- **SC-011**: An EventBridge envelope redelivered by the transport is delivered exactly once, proven by replaying the same event with an unchanged `idempotencyKey` (FR-026, FR-030). 🟠 **OPEN-014-B — "exactly once" is a stronger claim than this feature's own transport and US-010 allow.** See [Open Questions](#open-questions-owner-resolution-required-2026-08-11).
+
+## Open Questions (OPEN — owner resolution required, 2026-08-11)
+
+These three are **genuinely open**: each is an internal contradiction or a missing value in this spec, and
+**none is derivable** from `docs/CODING_STANDARDS.md` §15, GR-015, or any existing ADR. They are recorded here
+rather than resolved, because resolving them would be inventing a requirement. **No ruling has been made on any
+of them.** All three bear directly on the wire contract, so they should be settled before
+`@kitchensink/schema-notifications` is generated — the envelope's zod cannot express a field whose authority or
+unit is undecided.
+
+### OPEN-014-A — FR-026 and FR-027 contradict each other on producer identity
+
+**The conflict.** FR-026 makes `producer` a **REQUIRED envelope field** on the EventBridge path, justified as
+"that path has no bearer token to derive identity from (FR-027)". FR-027 says the event path's trust boundary
+**is** (a) the bus resource policy and (b) **validation of the event's `source` against an allowlist of
+registered producers**. So the same request carries **two** producer identities: one **self-asserted inside the
+envelope** (`producer`) and one **transport-asserted outside it** (`source`) — and FR-026's stated rationale is
+contradicted by FR-027, which does derive identity without a bearer token.
+
+**Why it cannot be deferred to implementation.** `plan.md`'s _Producer ingress_ table says event-path producer
+identity comes from "validated event `source` + bus resource policy", while its envelope block keeps `producer`
+REQUIRED. Downstream behaviour hangs on which one wins: the FR-016/FR-017 registry lookup, the FR-019/FR-033
+quota accounting, and the FR-013 per-producer publish counter each need exactly one authoritative producer id.
+If `producer` is authoritative, a principal with bus access can attribute its publishes to another producer and
+spend that producer's quota. If `source` is authoritative, `producer` is redundant self-assertion.
+
+**Questions for the owner:**
+
+1. Which field is **authoritative** for the registry check, quota accounting, and the per-producer counter —
+   `source`, or the envelope's `producer`?
+2. What happens when they **disagree**? Reject and dead-letter (FR-028), or accept and ignore the envelope
+   field?
+3. If `source` is authoritative, should `producer` be **dropped** from the required set on the EventBridge path
+   (which would amend FR-026), or retained as advisory metadata that MUST NOT be trusted?
+
+### OPEN-014-B — SC-011 claims "delivered exactly once", which is stronger than the transport allows
+
+**The conflict.** SC-011 says a redelivered EventBridge envelope is "delivered **exactly once**". This
+feature's own artifacts say otherwise, in three places:
+
+- **US-010** states plainly: _"Strong 'exactly-once' semantics are **not** promised by the chosen ordering
+  model"_, and _"Consumers MUST still treat handlers as idempotent (handlers may run more than once across
+  reconnects in degenerate cases)"_ — and calls `idempotencyKey` "a producer-side affordance to deduplicate
+  retries, **not** an 'exactly-once' guarantee".
+- **FR-018** is scoped to a **window**: duplicates collapse to one delivery "inside a configured dedup window",
+  and US-010's own acceptance scenario 2 says the same key **after** the window **delivers twice**.
+- **FR-026** justifies requiring `idempotencyKey` precisely because "EventBridge delivery is **at-least-once**".
+
+An at-least-once transport plus a bounded dedup window yields **effectively-once within the window**, not
+exactly-once. As written, SC-011 is a success criterion that the design cannot satisfy in general — and it is
+the kind of claim a consumer will build on.
+
+**Questions for the owner:**
+
+1. Should SC-011 be **narrowed** to what FR-018 actually provides — e.g. "at most one delivery per
+   `(producer, idempotencyKey)` **within the configured dedup window**, and never zero" — leaving US-010's
+   at-least-once/idempotent-handler contract intact?
+2. Or is exactly-once genuinely being promised, and if so **on what mechanism**, and what does that make of
+   US-010 and of FR-018's window?
+3. Either way: what does the **client-facing** contract say? US-010 currently obliges consumers to write
+   idempotent handlers, which is incompatible with advertising exactly-once.
+
+### OPEN-014-C — FR-019 / FR-033 specify a quota with no unit
+
+**The gap.** FR-019 requires "per-producer publish quotas" and FR-033 requires the value to be "declared by
+that producer at registration" — but **neither states a unit or a window**. The only unit anywhere in the spec
+is in **US-011**'s narrative ("a publish quota of K/sec"), and a user story is not the normative requirement.
+FR-033 therefore asks a producer to declare a value it has no defined dimension for, and the envelope/registry
+contract cannot type it.
+
+**Questions for the owner:**
+
+1. What is the **unit and window** — publishes per second, per minute, per hour? A **token bucket** with a
+   sustained rate plus a burst allowance (which is what NFR-006's "must not degrade unrelated producers by more
+   than 10%" implies) or a fixed window?
+2. Is the quota **global per producer**, or per producer **per `recipient.kind`** (a `global` broadcast fans out
+   far wider than a `user`-addressed publish, so one unit may not bound both meaningfully)?
+3. Does the **registration** value carry its own unit, or is the unit **fixed by the service** and the producer
+   declares only a magnitude?
+4. Does the quota apply **per ingress path or across both**? FR-024 says both adapters run the same rules, which
+   implies one shared budget — worth confirming, since a producer using both paths could otherwise get double.
 
 ## Assumptions
 

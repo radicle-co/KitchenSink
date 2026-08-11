@@ -47,6 +47,13 @@ Source of truth: [`../governance-rules.md`](../governance-rules.md).
 - **GR-011 (WARNING)**: 014 is owner of notification transport/delivery; producer features publish through 014.
 - **GR-008 (WARNING)**: Node runtime remains Node 24.x.
 - **GR-009 (WARNING)**: New package naming follows `@kitchensink/{group}-{name}`.
+- **GR-015 (CRITICAL)**: the notification service **authors** its wire contract as zod at `src/**/*.schema.ts`
+  and publishes it as the generated, committed `@kitchensink/schema-notifications`
+  (`packages/schemas/notifications`); **every consumer — subscribers AND producers — imports the envelope and
+  declares no wire shape of its own**. `openapi.yaml` is derived and outbound-only, never a codegen input. Full
+  bindings: [`spec.md` → _Wire Contract Ownership (GR-015)_](./spec.md#wire-contract-ownership-gr-015).
+  Normative source: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md); reasoning and rejected
+  alternatives: [ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
 
 ---
 
@@ -281,6 +288,54 @@ An envelope missing a required field is rejected outright — never partially ro
 EventBridge path a rejection has no caller to receive a structured error, so it dead-letters and alarms
 (FR-028), with a counter per rejection reason: malformed (FR-015), unregistered under enforcement (FR-017),
 quota-exceeded (FR-019), or `source` not allowlisted (FR-027).
+
+### Where that envelope shape LIVES (GR-015) — one authored zod, both adapters
+
+The block above is a **description**; the **artifact** is zod authored in the notification service at
+`src/**/*.schema.ts`, copied into the committed `@kitchensink/schema-notifications`
+(`packages/schemas/notifications`) alongside `z.infer` types, a `contract-hash.ts`, a barrel, and a **derived**
+`openapi.yaml`. Full bindings and the client obligation:
+[`spec.md` → _Wire Contract Ownership (GR-015)_](./spec.md#wire-contract-ownership-gr-015).
+
+Four points bear on this plan's design specifically:
+
+1. **FR-024's "one core, two adapters" is delivered by ONE zod validating BOTH paths.** A schema per adapter is
+   the literal mechanism by which "a rule enforced in only one adapter" becomes a defect. The shared schema is
+   how FR-024 is _made_ true rather than merely asserted, and it is what SC-008's paired per-rule tests assert
+   against.
+2. **That same zod is FR-015's pre-durability validation** (`nestjs-zod` `createZodDto` on the HTTP path), so
+   the published contract and the enforced contract are the same artifact.
+3. **`payload` stays opaque in the schema** — unknown, with a size bound only. Adding per-`messageType` payload
+   validation would put this service in violation of its own FR-023, and would make it the author of knowledge
+   the 2026-05-10 clarification says producers own. A producer's payload type belongs to **that producer's**
+   schema package.
+4. **Producers are clients.** A producer that hand-writes the envelope to `PutEvents` onto the bus is committing
+   the same violation as a client that hand-writes a response type — it just fails as a dead-lettered envelope
+   (FR-028) instead of a type error. Producers import `@kitchensink/schema-notifications`.
+
+⚠️ **The EventBridge event WRAPPER is AWS's shape, not ours (GR-015 §15-d).** `source`, `detail-type`, `detail`
+and friends are validated at the boundary in the ingress adapter **before** `detail` is treated as an envelope,
+and they are **not** put in our schema package. This is security-relevant rather than cosmetic: FR-027 makes the
+validated `source` a **trust decision**, so the code that reads `source` must first prove the wrapper is the
+shape it claims to be. `packages/clients/usda` is the reference implementation for this pattern; never
+"converge" a boundary schema away.
+
+⚠️ **`CONTRACT_HASH` and `schemaVersion` are different mechanisms; 014 needs both.** `CONTRACT_HASH` is a
+build-time fingerprint asserted at **service boot** when a deployed service and a pinned schema package
+disagree. `schemaVersion` is a runtime wire field letting a **receiver** handle an envelope minted by another
+version. A released mobile binary cannot be redeployed in step with this service — the case GR-015 §15-c cites
+as invisible to the turbo and CI layers.
+
+⚠️ **`oasdiff` covers only the HTTP path.** The EventBridge ingress exposes no URL (as _Governance Alignment_
+notes for GR-002), so an envelope change on the bus is invisible to an OpenAPI-diff gate. The
+regenerate-and-diff gate over the authored zod is what covers it — a second reason the two adapters must share
+one schema.
+
+🟠 **Three OPEN items block generating this schema package**, and none of them is resolved here: **OPEN-014-A**
+(FR-026 vs FR-027 — which producer identity is authoritative), **OPEN-014-B** (SC-011's "exactly once" vs
+at-least-once + a bounded dedup window), and **OPEN-014-C** (FR-019/FR-033 quota unit). The envelope's zod
+cannot express a field whose authority or unit is undecided. See
+[`spec.md` → _Open Questions_](./spec.md#open-questions-owner-resolution-required-2026-08-11).
 
 ### Event-path trust boundary (FR-027)
 

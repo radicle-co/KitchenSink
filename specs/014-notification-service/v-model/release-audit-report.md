@@ -1,5 +1,22 @@
 # Release Audit Report
 
+> ## ⚠️ SUPERSEDED SCOPE — read before quoting any number below (noted 2026-08-10)
+>
+> This report audits the **31-requirement baseline of 2026-05-13**. `spec.md` now carries 33 functional
+> requirements and 11 success criteria, and the V-Model chain carries **41** requirements, **41** hazards,
+> **82** architecture modules and **82** module designs. Nothing in sections 1, 3, 4 or 5 has been
+> renumbered, so every count and every "100%" in this file describes a scope that is ten requirements
+> short. In particular it contains **no** row for the EventBridge ingress path or for HAZ-035, the
+> feature's only Catastrophic-severity hazard.
+>
+> The report is not hand-patched, deliberately. It is generated output, and it is regenerated with real
+> execution evidence by `tasks.md` **T-020**, whose prerequisite is that the `v-model/` chain first cover
+> current scope. Hand-editing generated output is what produced the 2026-08-07 divergence.
+>
+> The overall verdict below is unaffected: it was already `❌ BLOCKED`, and it remains blocked for the same
+> reason plus this one. Current authority for traceability is
+> [`traceability-matrix.md`](./traceability-matrix.md); for hazards, [`hazard-analysis.md`](./hazard-analysis.md).
+
 ## 1. Executive Summary
 
 **System**: 014-notification-service
@@ -285,6 +302,11 @@
 | Matrix D | 62/62 (100%)     | 62/62 (100%)      | 0    | 0       |
 | Matrix H | 31/31 (100%)     | 31/31 (100%)      | 0    | 0       |
 
+**These figures are stale as of 2026-08-10 and the "0 gaps" claim is false.** Measured against the current
+chain the gap is ten requirements wide: Matrix A and B are 31/41, Matrix C and D are 62/82, Matrix H is
+31/41. The 100% figures are correct for the scope this report was generated against and correct for no
+other scope. See the banner at the top of this file.
+
 ## 5. Hazard Management Summary
 
 | HAZ     | Details |
@@ -323,14 +345,25 @@
 
 All 31 hazards mitigated.
 
+**Ten hazards are missing from this section as of 2026-08-10**: HAZ-032…HAZ-041, covering the dual-ingress
+decomposition. HAZ-035 — envelope spoofing on the credential-less event path — is Catastrophic severity and
+is the only hazard in the register whose residual risk is conditional on two controls both being present.
+A reader taking this section as the hazard register would conclude the feature has no Catastrophic hazard.
+Authoritative register: [`hazard-analysis.md`](./hazard-analysis.md).
+
 ## 6. Known Anomalies
 
-No anomalies detected.
+No anomalies detected **within the audited 31-requirement scope**. Two anomalies were found on 2026-08-10
+outside it and are not release-gate findings against this report; both are recorded in `review.md` →
+Outstanding: Matrix C and Matrix D carry a one-technique ID stagger against `integration-test.md` and
+`unit-test.md`, and Matrix H's header declared four columns against twelve-cell rows so it did not render
+as a table. The Matrix H header has been repaired in `traceability-matrix.md`; the stagger has not, because
+renumbering issued IDs is regeneration work.
 
 ## 7. Signature Block
 
-| Role          | Name               | Signature          | Date         |
-| ------------- | ------------------ | ------------------ | ------------ |
-| QA Manager    | ********\_******** | ********\_******** | ****\_\_**** |
-| Lead Engineer | ********\_******** | ********\_******** | ****\_\_**** |
-| Release Tag   | (not specified)    | Git SHA: 3f6fd97   | 2026-05-13   |
+| Role          | Name                       | Signature                  | Date             |
+| ------------- | -------------------------- | -------------------------- | ---------------- |
+| QA Manager    | **\*\*\*\***\_**\*\*\*\*** | **\*\*\*\***\_**\*\*\*\*** | \***\*\_\_\*\*** |
+| Lead Engineer | **\*\*\*\***\_**\*\*\*\*** | **\*\*\*\***\_**\*\*\*\*** | \***\*\_\_\*\*** |
+| Release Tag   | (not specified)            | Git SHA: 3f6fd97           | 2026-05-13       |

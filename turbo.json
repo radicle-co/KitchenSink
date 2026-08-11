@@ -6,6 +6,46 @@
             "dependsOn": ["^build"],
             "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
         },
+        "@kitchensink/schema-recipe#build": {
+            // DRIFT LAYER 1 (Rebuild). This package is GENERATED OUTPUT: its zod, its `z.infer` types and its
+            // derived `openapi.yaml` are copied from the recipe service's authored `src/**/*.schema.ts`.
+            // Declaring the SERVICE's build as a dependency — rather than relying on the default `^build`,
+            // which only walks this package's own package.json dependencies — is what puts the service's
+            // sources inside turbo's hash for this task, so touching an authored schema invalidates the
+            // generated package instead of serving a stale cache hit.
+            //
+            // NOTE THE DIRECTION: the service is the SOURCE and never imports this package.
+            //
+            // There is deliberately NO `dependsOn: ["@kitchensink/recipe-service#build"]` here, though that
+            // is the obvious spelling. It is UNAVAILABLE: `recipe-service` devDepends on
+            // `recipe-service-client` (its `__tests__/integration/contract/*` tier drives the real client
+            // against the booted app), and the client now depends on this package — so that edge closes
+            // client -> schema-recipe -> service -> client, which turbo rejects with "Cyclic dependency
+            // detected". Removing the service's devDependency would delete a genuine contract-test tier, so
+            // the edge is the thing that gives way, not the tier.
+            //
+            // Losing it costs nothing here, because ORDERING was never what layer 1 needed. The generated
+            // files are COMMITTED, so this package's `build` only compiles files already on disk — it does
+            // not run generation and therefore does not need the service built first. What layer 1 actually
+            // needs is CACHE INVALIDATION when an authored schema changes, and the `$TURBO_ROOT$` input
+            // below delivers exactly that (verified: editing an authored schema turns this task into a cache
+            // miss). Generation itself is the `contract:generate` task plus CI's regenerate-and-diff gate.
+            "inputs": [
+                "src/**",
+                "openapi.yaml",
+                "package.json",
+                "tsconfig*.json",
+                // The authored sources this package is generated FROM. Turbo resolves `$TURBO_ROOT$` to the
+                // repo root, which is what lets a task depend on files outside its own package — without it
+                // a relative `../../services/...` glob is silently ignored and the cache goes stale.
+                "$TURBO_ROOT$/packages/services/recipe-service/src/**/*.schema.ts"
+            ],
+            "outputs": ["dist/**"]
+        },
+        "contract:generate": {
+            "cache": false,
+            "outputs": []
+        },
         "build-ui": {
             "dependsOn": ["^build"],
             "outputs": ["dist/**"]

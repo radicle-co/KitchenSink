@@ -178,6 +178,65 @@ export class FetchQueueDao {
      *    predicate and the ordering are spelled out twice on purpose: a shared CTE cannot carry
      *    `FOR UPDATE`, and pushing either through one would cost the index-ordered access path.)
      *
+     * ## Why `promoted_ready` gates branch 1 (T-201/DSN-11 re-opened — this is the O(depth) fix)
+     *
+     * T-197 left ONE case linear in queue depth, and CI measured it breaching: when NOTHING is promoted,
+     * branch 1's index-ordered scan has to examine EVERY eligible row before it can conclude the promoted
+     * tier is empty and fall through. Early termination is worth nothing when there is nothing to
+     * terminate on. The FR-046 ceiling probe measured **85.52ms p95 at depth 10,000 (`adversarial`) against
+     * a 60ms budget** on CI, while `mixed` — where the very first row qualifies — passed everywhere. So the
+     * cost was never the fairness computation; it was proving a NEGATIVE by enumeration.
+     *
+     * The fix determines that negative from the AGGREGATE instead of from the queue:
+     *
+     * 5. **`over_demand` is now DERIVED from a `demand` CTE** that keeps every requester with the boolean
+     *    `count(*) > threshold` instead of filtering with `HAVING`. Same one aggregate over the same one
+     *    scan, and the set `over_demand` yields is unchanged — but the tier boundary is now readable by a
+     *    second consumer without restating it. That matters: the threshold comparison still appears EXACTLY
+     *    ONCE in the statement, and `FOOD_DEMOTE_THRESHOLD` has already been through one split-brain
+     *    (T-199a, `8f6e1e7f`, where the API's flood-shed and this DAO disagreed about the same number behind
+     *    green tests). A `count(*) <= threshold` spelled out a second time for the probe below would be that
+     *    defect re-introduced inside a single statement.
+     * 6. **`promoted_ready` asks the question from the REQUESTER side, and stops at the first hit.** A
+     *    promoted row exists iff some requester is under-threshold AND has at least one eligible pending
+     *    row. `demand` is bounded by the count of DISTINCT requesters — not by depth — and is already
+     *    materialized, so the probe walks it rather than the queue, and `LIMIT 1` ends it at the first
+     *    requester with eligible work. In the adversarial shape `demand` holds no under-threshold requester
+     *    at all, so the probe finishes without touching `fetch_queue` once.
+     * 7. **`CASE WHEN EXISTS (promoted_ready)` gates branch 1**, which is what turns the probe into saved
+     *    work: `CASE` does not evaluate a branch it does not need, so an empty promoted tier leaves branch
+     *    1's SubPlan `never executed` — verified in `EXPLAIN ANALYZE`, and asserted from the real plan by
+     *    `drain-claim-scaling.integration.test.ts`. Gating inside branch 1's own `WHERE` would NOT work: a
+     *    qual is evaluated per row, so the index scan would still walk the queue to reject every one.
+     *
+     * **The ranking is UNCHANGED, and provably so rather than merely intended.** Branch 1 and branch 2 are
+     * byte-identical to before — same eligibility predicate, same `NOT IN over_demand` fairness filter over
+     * the same set, same `ORDER BY`, same `LIMIT 1 FOR UPDATE SKIP LOCKED`. The only new behaviour is that
+     * branch 1 can be SKIPPED, and it can only be skipped when it would have returned nothing: if branch 1
+     * would return row `q`, then `q` is an eligible pending row with some requester `r` not in
+     * `over_demand`; `r` is attached to a `pending` row so `r` appears in `demand` with
+     * `NOT over_threshold`; and `q` is itself an eligible pending row of `r` — so `promoted_ready` holds.
+     * Contrapositive: gate false ⇒ branch 1 empty. Hence the claim is identical in every case, `SKIP LOCKED`
+     * contention included (a promoted row another worker holds still falls through to the demoted branch,
+     * exactly as before). `drain-claim-ranking-differential.integration.test.ts` re-proves the whole chain
+     * against FR-043's spec-literal ranking over randomised queues, drain order for drain order.
+     *
+     * **Measured** (this workstation, the depth-10,000 fixture from `drain-demotion.perf.ts`, through the
+     * real DAO, 30 samples, before → after): `adversarial` p95 **41.70ms → 7.20ms** at depth 10,000 (5.8×)
+     * and 6.97ms → 4.03ms at 1,000, with `mixed` unchanged (8.86ms → 9.04ms at 10,000, inside run-to-run
+     * spread). In-database timing without the client round trip isolates the statement itself: 33.21ms →
+     * 3.56ms adversarial, and 40,457 → 1,439 shared buffer hits. An earlier revision that also replaced
+     * `NOT IN over_demand` with `IN under_demand` cost `mixed` ~30% (a 10,000-entry hashed SubPlan instead of
+     * 50) for no semantic gain, which is why branch 1 keeps the small over-threshold set. CI hardware is ~3×
+     * slower than this machine, so **the CI probe is the only arbiter of the absolute numbers**; what is
+     * hardware-independent is the buffer count and the `never executed` branch, and both are asserted.
+     *
+     * **Residual, stated rather than hidden:** the claim is still linear in `fetch_requesters` ROWS, because
+     * one aggregate must read them to know each requester's outstanding count. It is no longer linear in
+     * QUEUE DEPTH, which is what FR-046 bounds and what DSN-11 escalated. Removing the remaining term needs
+     * a maintained per-requester counter — a second representation of the same number, i.e. the T-199a
+     * split-brain by construction — and it is not justified at the measured cost.
+     *
      * @param leaseSeconds - Lease window in seconds (default 30).
      * @returns The leased row, or `undefined` when nothing is eligible.
      * @sideEffect Updates `fetch_queue` (status/leased_at) — including reverting lapsed leases.
@@ -192,18 +251,32 @@ export class FetchQueueDao {
         await this.reapExpiredLeases(leaseSeconds);
 
         const result = await this.db.execute<{ food_id: string }>(sql`
-            WITH over_demand AS MATERIALIZED (
-                SELECT fr.requester_id
+            WITH demand AS MATERIALIZED (
+                SELECT fr.requester_id, count(*) > ${this.demoteThreshold} AS over_threshold
                   FROM fetch_requesters fr
                   JOIN fetch_queue fq USING (food_id)
                  WHERE fq.status IN ('pending', 'in_flight')
                  GROUP BY fr.requester_id
-                HAVING count(*) > ${this.demoteThreshold}
+            ),
+            over_demand AS MATERIALIZED (
+                SELECT d.requester_id FROM demand d WHERE d.over_threshold
+            ),
+            promoted_ready AS MATERIALIZED (
+                SELECT 1 AS present
+                  FROM demand d
+                 WHERE NOT d.over_threshold
+                   AND EXISTS (
+                       SELECT 1 FROM fetch_requesters r
+                        JOIN fetch_queue q ON q.food_id = r.food_id
+                        WHERE r.requester_id = d.requester_id
+                          AND q.status = 'pending' AND q.last_requested <= now()
+                   )
+                 LIMIT 1
             )
             UPDATE fetch_queue
             SET status = 'in_flight', leased_at = now()
             WHERE food_id = COALESCE(
-                (
+                CASE WHEN EXISTS (SELECT 1 FROM promoted_ready) THEN (
                     SELECT q.food_id FROM fetch_queue q
                      WHERE q.status = 'pending' AND q.last_requested <= now()
                        AND EXISTS (
@@ -213,7 +286,7 @@ export class FetchQueueDao {
                        )
                      ORDER BY q.request_count DESC, q.first_requested ASC
                      LIMIT 1 FOR UPDATE SKIP LOCKED
-                ),
+                ) END,
                 (
                     SELECT q.food_id FROM fetch_queue q
                      WHERE q.status = 'pending' AND q.last_requested <= now()

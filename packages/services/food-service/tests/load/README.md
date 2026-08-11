@@ -37,7 +37,7 @@ that can cross it** — a budget nothing can breach is theatre. Summarised:
 | **> 1.389 served reads/sec** (`SERVED_READS_…`)  | **SC-005**: "comfortably exceeding 5,000 served reads per hour" ⇒ 5,000 / 3,600.                                  | Total collapse of the read path (unresponsive service, every pooled connection blocked, container OOM-restart). A liveness floor, not a tight fit.                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | **> 85% of the offered arrival rate**            | Derived: the regression bar SC-005's absolute floor is too loose to provide.                                      | k6 dropping iterations because the bounded VU pool cannot keep up — i.e. the service failing to absorb the offered rate. 0.85 (not 1.0) because k6 divides a metric's count by the WHOLE test duration including `gracefulStop`, so a perfectly-keeping-up service still measures slightly under.                                                                                                                                                                                                                                                                             |
 | **search p95 ≤ 200ms** (`SEARCH_P95_MS`)         | **SC-007** verbatim: "within 200ms at p95" against "up to 50,000 foods". Applies to ALL seven shapes.             | At 3+ characters `FoodSearchDao.search` ORs four predicates (ranked FTS, `name % query`, two `ILIKE '%q%'`) and ranks **every** match by `GREATEST(ts_rank, similarity(name, …))` before `LIMIT 20`, so cost tracks matched rows, not returned rows. At 1–2 characters (T-198) it is instead a prefix `to_tsquery('simple', '<token>:*')` over `food_search_vector_idx`, so what breaches the `short` shape is losing that index or reverting the routing. `FoodsService.search` additionally issues two crosswalk lookups on every search, so the endpoint is three queries. |
-| **claim p95 ≤ 60ms** (`FOOD_DRAIN_CLAIM_P95_MS`) | Derived from **SC-003** (60s p95 at depth < 100) — the full arithmetic is in `drain-demotion.perf.ts`'s docblock. | The FR-043 demotion clause: a per-`sub` correlated `COUNT(*)` inside the `ORDER BY` of a `… FOR UPDATE SKIP LOCKED LIMIT 1`, with no supporting index, evaluated for every candidate row because it is a sort key (DSN-11).                                                                                                                                                                                                                                                                                                                                                   |
+| **claim p95 ≤ 60ms** (`FOOD_DRAIN_CLAIM_P95_MS`) | Derived from **SC-003** (60s p95 at depth < 100) — the full arithmetic is in `drain-demotion.perf.ts`'s docblock. | Anything that puts FR-043's fairness term back on a per-row footing in `leaseNext`: making the demotion a sort key again (pre-T-197, a correlated `COUNT(*)` as the LEADING `ORDER BY` key, which `LIMIT 1` cannot avoid and `idx_fetch_queue_priority` cannot serve), inlining the `demand` CTE so it re-runs per candidate row, or removing the `promoted_ready` gate so an empty promoted tier is proven by examining every eligible row (post-T-197, T-201). Also a lost `idx_fetch_queue_priority` or `idx_fetch_requesters_requester_id`.                               |
 | **erasure p95 ≤ 500ms** (`ERASURE_P95_MS`)       | The cross-service reference point (SC-009's single-row-write budget); no SQS hand-off, so tighter than recipe's.  | `fetch_requesters` losing `idx_fetch_requesters_requester_id`, turning the delete's row location into a scan of every queued food's requester rows.                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ### How SC-004's "serve rate" is operationalized (read this before changing the mix)
@@ -263,41 +263,66 @@ Two consequences for this suite:
    regression whose symptom is **time rather than statement shape** — principally a dropped
    `food_search_vector_idx` or growth past the 50,000-food ceiling.
 
-### 🔴 Finding 2 (DSN-11): the drain demotion `COUNT(*)` does NOT stay within the SC-003 budget
+### ✅ Finding 2 (DSN-11), CLOSED IN TWO STAGES: the drain claim now stays within the SC-003 budget
 
-Measured with `FetchQueueDao.leaseNext()` called directly (the shipped SQL, not a copy):
+Measured with `FetchQueueDao.leaseNext()` called directly (the shipped SQL, never a copy). Kept as a record
+rather than deleted, because the two stages failed in different ways and the second one hid behind a stale
+description of the first.
 
-| Profile       | Depth  | requester rows | demoted | p50      | p95      |
-| ------------- | ------ | -------------- | ------- | -------- | -------- |
-| `mixed`       | 100    | 200            | 0       | 6.28ms   | 7.00ms   |
-| `mixed`       | 1,000  | 2,800          | 0       | 524.25ms | 540.83ms |
-| `mixed`       | 10,000 | 30,000         | 0       | 7,483ms  | 7,562ms  |
-| `adversarial` | 100    | 100            | 100     | 5.92ms   | 6.69ms   |
-| `adversarial` | 1,000  | 1,800          | 1,000   | 416.88ms | 458.74ms |
-| `adversarial` | 10,000 | 20,000         | 10,000  | 10,879ms | 10,991ms |
+**Stage 0 — as originally shipped (T-195's finding).** FR-043's demotion was a per-requester correlated
+`COUNT(*)` in the LEADING position of the `ORDER BY`. A computed leading sort key must be evaluated for every
+eligible row before the first row is known, so `LIMIT 1` could not avoid it and `idx_fetch_queue_priority`
+was unusable:
 
-Read as drain capacity: at depth 1,000 a 100-item backlog spends **~46–54s of the 60s SC-003 budget in
-claim overhead alone**, before a single source call. At the FR-046 ceiling of 10,000 it spends **~13–20
-minutes**. One claim at the ceiling costs more than a sixth of the entire 60s promise.
+| Profile       | Depth  | requester rows | demoted | p95      |
+| ------------- | ------ | -------------- | ------- | -------- |
+| `mixed`       | 100    | 200            | 0       | 7.00ms   |
+| `mixed`       | 1,000  | 2,800          | 0       | 540.83ms |
+| `mixed`       | 10,000 | 30,000         | 0       | 7,562ms  |
+| `adversarial` | 100    | 100            | 100     | 6.69ms   |
+| `adversarial` | 1,000  | 1,800          | 1,000   | 458.74ms |
+| `adversarial` | 10,000 | 20,000         | 10,000  | 10,991ms |
 
-Two things this measurement settles that a single-profile test could not:
+Two things this settled that a single-profile test could not: the blow-up was **not** driven by demotion
+firing (`mixed`, with nothing demoted, was as slow or slower — it carries 50% more requester rows), and the
+cost tracked `depth × requesters-per-food × pending-rows-per-requester`, i.e. exactly the fan-out FR-043
+exists to manage.
 
-- The blow-up is **not** driven by demotion firing. `mixed` (nothing demoted, the `EXISTS` short-circuits on
-  a light requester) is as slow as `adversarial` — slower at the ceiling, because it carries 50% more
-  requester rows. So the cost is the correlated `COUNT(*)` being evaluated at all, not the demoted branch.
-- The cost tracks `depth × requesters-per-food × pending-rows-per-requester`, i.e. the per-`sub` fan-out
-  that FR-043 exists to manage. A queue containing heavy requesters — the exact condition demotion is for —
-  is what makes it expensive.
+**Stage 1 — T-197.** The fairness term became a `WHERE` filter over an `over_demand AS MATERIALIZED` CTE
+computed once per claim, which restored the index and the early termination. Ceiling cost fell from seconds
+to tens of milliseconds. One case stayed linear in depth, though, and **CI caught what a local run did not**:
+with NOTHING promoted the promoted branch still had to examine every eligible row before it could conclude
+its tier was empty. CI measured `adversarial` @10,000 at **85.52ms p95 against the 60ms budget** where the
+dev machine measured 28.66ms — a ~3× hardware gap, and the reason T-197's "5–9ms locally, no materialization
+needed" reasoning did not survive.
 
-**SC-003 itself is not breached as specified**: its promise is conditioned on "pending-row depth under 100
-rows", and at depth 100 the claim is 7ms (1.2% of the budget). What the measurement shows is that **FR-046
-permits a depth (10,000) at which SC-003 becomes unachievable**, and that the boundary is somewhere between
-100 and 1,000 rows — well below "acceptable at launch scale (< 10,000 rows)" as DSN-11 assumed.
+**Stage 2 — T-201.** `over_demand` is now derived from a `demand` CTE that keeps each requester's
+over-threshold boolean (so `FOOD_DEMOTE_THRESHOLD` is still stated exactly once in the statement), and the
+promoted branch is gated on a `promoted_ready` probe that answers "is any requester under the threshold AND
+holding eligible work" from that aggregate — bounded by the DISTINCT-REQUESTER count, not by queue depth. An
+empty promoted tier therefore leaves the branch `never executed` instead of walking the queue. Locally,
+through the real DAO, before → after:
 
-Per T-195's acceptance this is **flagged, not absorbed**: the escalation is DSN-11 — materialize the
-per-`sub` pending count (a maintained counter or a summary table keyed by `requester_id`) so the drain
-`ORDER BY` reads a scalar instead of running a correlated aggregate per candidate row. `FOOD_DRAIN_CLAIM_P95_MS`
-exists for exploration; **raising it changes the reported number, not the drain rate.**
+| Profile       | Depth  | p95 before | p95 after |
+| ------------- | ------ | ---------- | --------- |
+| `mixed`       | 10,000 | 8.86ms     | 9.04ms    |
+| `adversarial` | 1,000  | 6.97ms     | 4.03ms    |
+| `adversarial` | 10,000 | 41.70ms    | 7.20ms    |
+
+**What is still true.** SC-003 itself was never breached: its promise is conditioned on "pending-row depth
+under 100 rows", and the depth-100 gate has passed with >8× headroom at every stage. What Stage 0 exposed —
+that FR-046 permits a depth at which SC-003 would become unachievable — is what Stages 1 and 2 closed. The
+claim remains linear in `fetch_requesters` ROWS (one aggregate has to read them to know each requester's
+outstanding count); it is no longer linear in QUEUE DEPTH, which is the quantity FR-046 bounds. Removing the
+remaining term would need a maintained per-requester counter, i.e. a second representation of the same
+number — the T-199a split-brain by construction — and it is not justified at the measured cost.
+
+**Local numbers are not evidence about CI** (~3× slower), which is why the invariants that hold regardless of
+hardware are asserted separately: `tests/drain-claim-ranking-differential.integration.test.ts` proves the
+ranking is unchanged against FR-043 stated literally, and `tests/drain-claim-scaling.integration.test.ts`
+asserts from the real `EXPLAIN` plan that the claim pulls O(1) tuples from `idx_fetch_queue_priority` when
+nothing is promoted. `FOOD_DRAIN_CLAIM_P95_MS` exists for exploration; **raising it changes the reported
+number, not the drain rate.**
 
 ## CI
 

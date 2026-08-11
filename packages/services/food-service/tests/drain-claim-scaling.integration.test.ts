@@ -10,7 +10,9 @@
  * over the pending set) could not be used at all. Cost therefore grew SUPERLINEARLY with depth, which is
  * the collapse mode: drain throughput falls exactly when the queue is deepest.
  *
- * This suite is that defect's regression gate, in two halves, because either half alone is worthless:
+ * This suite is that defect's regression gate in three parts, because no one of them alone is worth
+ * anything: a timing assertion would pass a query that ranked rows at random, a semantic assertion would
+ * pass the 20-second query T-195 measured, and a plan assertion would pass a plan that is cheap and wrong.
  *
  * 1. **Cost** — a 10× deeper queue must not cost ~10×+ more per claim. Asserted as a RATIO against a
  *    shallower series measured on the same machine in the same run, so the gate does not encode this
@@ -22,6 +24,23 @@
  *    `SKIP LOCKED` under genuinely concurrent claims. `fairness-demotion.integration.test.ts` (T-049/
  *    T-151) owns the headline FR-043 rule; these are the edges that a rewrite of the ranking can silently
  *    move, and every one of them is asserted through the claim `leaseNext` actually returns.
+ * 3. **Plan shape** (T-201) — the wall clock could not own what CI then caught. T-197 left the
+ *    nothing-promoted case linear in depth: the promoted branch had to examine every eligible row to
+ *    conclude its tier was empty, which CI measured at **85.52ms p95 at the FR-046 ceiling against a 60ms
+ *    budget** while this laptop measured 28ms for the same query — a 3× hardware gap that makes any local
+ *    timing assertion worthless as a gate, and the ratio in (1) is diluted further by the ~3ms client round
+ *    trip. So the mechanism is asserted from the REAL plan instead: `EXPLAIN (ANALYZE, FORMAT JSON)` of the
+ *    statement `leaseNext` actually sent (captured from a Drizzle logger, never restated here), counting
+ *    tuples pulled from `idx_fetch_queue_priority`. That number is deterministic and
+ *    hardware-independent, and it is exactly the quantity that used to grow with depth.
+ *
+ * ## Mutation evidence for (3)
+ *
+ * Weakening the gate to `CASE WHEN true OR EXISTS (promoted_ready)` reds it with **201 tuples at depth 200
+ * and 2,001 at depth 2,000** — the O(depth) walk, visible directly. Reverting `leaseNext` to its pre-T-201
+ * form reds the capture step instead ("no statement containing the `promoted_ready` CTE"), which is the
+ * intended behaviour: a plan gate that cannot identify its statement must fail loudly rather than assert
+ * on the reaper `UPDATE` and report a healthy plan for a query nobody runs.
  *
  * @implements FR-015 FR-018 FR-043 FR-046
  */
@@ -32,6 +51,17 @@ import { FetchQueueDao } from '../src/foods/dao/fetch-queue.dao.js';
 import { FetchRequestersDao } from '../src/foods/dao/fetch-requesters.dao.js';
 import { FoodDao } from '../src/foods/dao/food.dao.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema, type TestDb } from './support/db.js';
+
+/**
+ * Ceiling on `idx_fetch_queue_priority` tuples the claim may examine when NOTHING is promoted.
+ *
+ * The honest count is 1 — the demoted fallback's `LIMIT 1`, since the promoted branch is skipped entirely.
+ * 10 leaves room for a plan that peeks slightly further without leaving room for a per-row walk: the
+ * pre-T-201 statement examined `depth + 1` here (10,001 at the FR-046 ceiling), which is the regression
+ * this number exists to make impossible. Asserted at TWO depths, so "does not scale with depth" is a
+ * measured property rather than one number that happens to pass.
+ */
+const MAX_PRIORITY_INDEX_TUPLES = 10;
 
 /** Shallow series depth — the SC-003 condition ("pending depth under 100 rows") plus headroom. */
 const SHALLOW_DEPTH = 200;
@@ -190,6 +220,105 @@ describe.skipIf(!DATABASE_URL)('drain-claim cost + ranking equivalence (T-197, D
         );
     }
 
+    /**
+     * The EXACT claim statement `leaseNext` sends, captured from a Drizzle query logger.
+     *
+     * Captured rather than restated. A copy of the SQL in this file would be a second representation of the
+     * statement under test, and the copy is the one that silently stops matching production — which for a
+     * PLAN assertion is worse than no assertion, because it would keep reporting a healthy plan for a query
+     * nobody runs. The claim is identified by its `promoted_ready` CTE, and the identification is asserted,
+     * so renaming that CTE fails loudly instead of quietly selecting the reaper statement instead.
+     *
+     * @returns The claim's SQL text and bound parameters.
+     * @sideEffect Performs one real claim (and releases it again).
+     */
+    async function captureClaimStatement(): Promise<{ text: string; values: readonly unknown[] }> {
+        const seen: { text: string; values: readonly unknown[] }[] = [];
+        const logged = makeDb(pool, {
+            logQuery: (query, params) => {
+                seen.push({ text: query, values: params });
+            },
+        });
+
+        await new FetchQueueDao(logged).leaseNext(30);
+        await queue.releaseInFlight();
+
+        const claims = seen.filter((statement) => statement.text.includes('promoted_ready'));
+
+        expect(
+            claims,
+            'no statement containing the `promoted_ready` CTE was captured from leaseNext. Either the ' +
+                'claim no longer builds that CTE (in which case this plan gate is asserting nothing and ' +
+                'must be re-pointed) or the Drizzle logger stopped firing.',
+        ).toHaveLength(1);
+
+        return claims[0] as { text: string; values: readonly unknown[] };
+    }
+
+    /**
+     * `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` the given statement and return the plan tree, rolled back.
+     *
+     * `EXPLAIN ANALYZE` on an `UPDATE` really performs it, so it runs inside a transaction on a single
+     * dedicated connection that is always rolled back — the surrounding series must keep seeing the same
+     * queue depth.
+     *
+     * @param statement - SQL text plus bound parameters.
+     * @returns Every node of the executed plan, flattened.
+     * @sideEffect Opens a connection and executes-then-rolls-back the statement.
+     */
+    async function explainNodes(statement: {
+        text: string;
+        values: readonly unknown[];
+    }): Promise<readonly Record<string, unknown>[]> {
+        const client = await pool.connect();
+
+        try {
+            await client.query('BEGIN');
+
+            const explained = await client.query<{ 'QUERY PLAN': { Plan: Record<string, unknown> }[] }>({
+                text: `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${statement.text}`,
+                values: [...statement.values],
+            });
+
+            await client.query('ROLLBACK');
+
+            const root = explained.rows[0]?.['QUERY PLAN']?.[0]?.Plan;
+            const flat: Record<string, unknown>[] = [];
+
+            const walk = (node: Record<string, unknown> | undefined): void => {
+                if (node === undefined) {
+                    return;
+                }
+
+                flat.push(node);
+
+                for (const child of (node['Plans'] as Record<string, unknown>[] | undefined) ?? []) {
+                    walk(child);
+                }
+            };
+
+            walk(root);
+
+            return flat;
+        } finally {
+            client.release();
+        }
+    }
+
+    /**
+     * Tuples the plan actually pulled from `idx_fetch_queue_priority` (rows × loops, so a `never executed`
+     * node contributes zero). Pure.
+     */
+    function priorityIndexTuples(nodes: readonly Record<string, unknown>[]): { nodes: number; tuples: number } {
+        const scans = nodes.filter((node) => node['Index Name'] === 'idx_fetch_queue_priority');
+        const tuples = scans.reduce(
+            (total, node) => total + Number(node['Actual Rows'] ?? 0) * Number(node['Actual Loops'] ?? 0),
+            0,
+        );
+
+        return { nodes: scans.length, tuples };
+    }
+
     describe('cost (SC-003, FR-046)', () => {
         it('a 10x deeper queue does not cost ~10x+ more per claim', async () => {
             await seedDeepQueue(SHALLOW_DEPTH);
@@ -206,6 +335,71 @@ describe.skipIf(!DATABASE_URL)('drain-claim cost + ranking equivalence (T-197, D
 
             expect(deepMs, report).toBeLessThan(DEEP_MEDIAN_CEILING_MS);
             expect(ratio, report).toBeLessThan(MAX_DEPTH_COST_RATIO);
+        });
+
+        it('examines O(1) queue rows to conclude the promoted tier is empty, at any depth (T-201)', async () => {
+            // THE MECHANISM, asserted from the real plan rather than from a stopwatch. T-197 left one case
+            // linear in depth: with nothing promoted, the promoted branch's index-ordered scan had to examine
+            // EVERY eligible row before it could conclude the tier was empty — CI measured 85.52ms p95 at the
+            // FR-046 ceiling against a 60ms budget, where this laptop measured 28ms. A wall-clock assertion
+            // therefore cannot own this: it encodes the runner's clock speed and it is diluted by the client
+            // round trip (~3ms here, which at DEEP_DEPTH is most of the measurement). Tuples pulled from
+            // `idx_fetch_queue_priority` are hardware-independent, deterministic, and are precisely the
+            // quantity that used to grow with depth.
+            //
+            // The fixture demotes EVERYTHING, so the promoted branch must be skipped by `promoted_ready` and
+            // its subplan must be `never executed`.
+            const measured: { depth: number; nodes: number; tuples: number }[] = [];
+
+            for (const depth of [SHALLOW_DEPTH, DEEP_DEPTH]) {
+                await resetSchema(pool);
+                await seedDeepQueue(depth);
+
+                const nodes = await explainNodes(await captureClaimStatement());
+
+                measured.push({ depth, ...priorityIndexTuples(nodes) });
+            }
+
+            const report = measured
+                .map((entry) => `depth ${entry.depth}: ${entry.tuples} tuple(s) over ${entry.nodes} scan(s)`)
+                .join('; ');
+
+            // Anti-vacuity: if the planner stopped using the partial index altogether, zero tuples would
+            // pass this gate while the claim had in fact regressed to a Seq Scan + Sort.
+            expect(
+                measured.every((entry) => entry.nodes > 0),
+                `the claim's plan contains no idx_fetch_queue_priority scan at all (${report}). That index ` +
+                    `IS the ordered access path (T-197); without it the claim is a Seq Scan + Sort and this ` +
+                    `assertion would pass vacuously.`,
+            ).toBe(true);
+
+            for (const entry of measured) {
+                expect(
+                    entry.tuples,
+                    `at depth ${entry.depth} with EVERY row demoted, the claim pulled ${entry.tuples} tuples ` +
+                        `from idx_fetch_queue_priority (${report}). It must not scale with depth: the ` +
+                        `promoted branch has to be skipped via the promoted_ready gate, not walked to ` +
+                        `exhaustion. A count near the depth means the CASE gate is gone or is always true, ` +
+                        `which is the DSN-11 breach at the FR-046 ceiling.`,
+                ).toBeLessThanOrEqual(MAX_PRIORITY_INDEX_TUPLES);
+            }
+        });
+
+        it('breaks a demand tie on first_requested ASC inside the demoted tier', async () => {
+            // Owned here because the differential harness cannot see it: `idx_fetch_queue_priority` is
+            // `(request_count DESC, first_requested ASC)`, so an index-ordered scan returns the right row even
+            // if the key were dropped from the ORDER BY. Asserted directly so the CONTRACT is pinned
+            // independently of whichever plan the optimiser picks.
+            const newer = await seedPending('tie newer', ['flood']);
+            const older = await seedPending('tie older', ['flood']);
+
+            await setDemand(newer, 4, 30);
+            await setDemand(older, 4, 3_600);
+
+            const dao = new FetchQueueDao(db, { demoteThreshold: 1 });
+
+            expect((await dao.leaseNext(30))?.foodId).toBe(older);
+            expect((await dao.leaseNext(30))?.foodId).toBe(newer);
         });
     });
 

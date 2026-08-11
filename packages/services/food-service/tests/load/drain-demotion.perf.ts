@@ -22,13 +22,15 @@
  * "acceptable at launch scale (< 10,000 rows), revisit/materialize a per-`sub` pending count at scale —
  * cost is covered by the drain/demotion perf test in T-195". This script IS that test.
  *
- * ⚠️ The query it measures has CHANGED since this file was written, and the numbers moved with it. As
- * written, `leaseNext`'s demotion was the LEADING key of the `ORDER BY`, expressed as a per-row,
- * per-requester correlated `COUNT(*)`; because a computed leading sort key must be evaluated for every
- * eligible row, `LIMIT 1` could not avoid it and the run measured ~20s per claim at the ceiling. **T-197
- * rewrote it**: the fairness term is now a `WHERE` filter over an `over_demand AS MATERIALIZED` CTE
- * (computed ONCE per claim), which restored `idx_fetch_queue_priority` and cut the ceiling to tens of
- * milliseconds. Read the current shape in `fetch-queue.dao.ts`'s `leaseNext` JSDoc — do not read the
+ * ⚠️ The query it measures has been rewritten TWICE since this file was written, and the numbers moved each
+ * time. As originally written, `leaseNext`'s demotion was the LEADING key of the `ORDER BY`, a per-row
+ * per-requester correlated `COUNT(*)`; a computed leading sort key must be evaluated for every eligible row,
+ * so `LIMIT 1` could not avoid it and the run measured ~20s per claim at the ceiling. **T-197** made the
+ * fairness term a `WHERE` filter over an `over_demand AS MATERIALIZED` CTE computed ONCE per claim, restoring
+ * `idx_fetch_queue_priority` and cutting the ceiling to tens of milliseconds. **T-201** then removed the one
+ * case T-197 left linear in depth — the run below is what caught it — by gating the promoted branch on a
+ * `promoted_ready` probe answered from the aggregate, so an empty promoted tier is no longer proven by
+ * examining every row. Read the current shape in `fetch-queue.dao.ts`'s `leaseNext` JSDoc; do not read the
  * profiles below as descriptions of a correlated subquery that no longer exists.
  *
  * ## The two requester profiles, and why both are needed
@@ -40,12 +42,14 @@
  *     immediately and the index scan early-terminates (`rows=1 loops=1`). This is the realistic steady
  *     state.
  *   - `adversarial` — every requester of every food is over the threshold, so NOTHING qualifies for the
- *     promoted tier and the branch must examine EVERY eligible row before it can conclude the tier is
- *     empty and fall through to the demoted fallback. This is FR-043's own worst case (a queue dominated
- *     by heavy requesters is exactly when demotion is supposed to engage), it is the series that still
- *     breaches at depth 10,000 on CI hardware (85.52ms p95 vs the 60ms budget), and it is the shape the
- *     re-opened DSN-11 escalation is about. Post-T-197 the cost is the full-scan-to-prove-empty, not the
- *     aggregate: `mixed` is now much FASTER than `adversarial`, the reverse of the pre-T-197 finding.
+ *     promoted tier. This is FR-043's own worst case (a queue dominated by heavy requesters is exactly when
+ *     demotion is supposed to engage) and it is the series that has caught every regression this probe has
+ *     ever caught. Post-T-197 it was the full-scan-to-prove-empty — the branch had to examine EVERY eligible
+ *     row to conclude its tier was empty — which is what breached at depth 10,000 on CI (85.52ms p95 vs the
+ *     60ms budget) while passing on a ~3x faster dev machine at 28.66ms. T-201's `promoted_ready` gate
+ *     answers that question from the aggregate instead, so the branch is skipped entirely; what remains
+ *     measured here is the one per-claim aggregate over `fetch_requesters`. THIS RUN, ON THIS RUNNER, IS THE
+ *     ONLY ARBITER — a local number says nothing about CI, in either direction.
  *
  * Both are measured at every depth, so the report distinguishes "the query is fine" from "the query is fine
  * until fairness actually has work to do".
@@ -515,19 +519,26 @@ try {
         }
 
         fail(
-            "the per-`sub` correlated COUNT(*) demotion in leaseNext()'s ORDER BY does NOT stay within the " +
-                'SC-003 backfill budget.\n' +
-                'ESCALATION (DSN-11, specs/003-usda-food-data/tasks.md T-151 / T-195): materialize the ' +
-                'per-`sub` pending count — a maintained counter or a summary table keyed by `requester_id` — ' +
-                'so the drain ORDER BY reads a scalar instead of running a correlated aggregate per candidate ' +
-                'row. Do NOT raise FOOD_DRAIN_CLAIM_P95_MS to make this pass: the budget is derived from ' +
-                "SC-003's own 60s promise, and widening it changes the reported number, not the drain rate.",
+            'the FR-043 fairness demotion in leaseNext() does NOT stay within the SC-003 backfill budget ' +
+                'on this runner.\n' +
+                'DIAGNOSE BEFORE CHANGING ANYTHING — two mechanisms have breached this budget before, and ' +
+                'they need opposite fixes (both recorded in tests/load/README.md "Finding 2"):\n' +
+                '  • if `mixed` and `adversarial` breach TOGETHER and scale with requester rows, the ' +
+                'per-claim `demand` aggregate is the cost — the escalation is a MAINTAINED per-requester ' +
+                'outstanding count, accepting that it is a second representation of one number and needs a ' +
+                'reconciliation test (see T-199a for why that matters).\n' +
+                '  • if only `adversarial` breaches, the promoted branch is being WALKED instead of skipped: ' +
+                "`promoted_ready`'s gate has regressed. `drain-claim-scaling.integration.test.ts` asserts " +
+                'that from the real EXPLAIN plan and will say so precisely.\n' +
+                'Do NOT raise FOOD_DRAIN_CLAIM_P95_MS to make this pass, do NOT add continue-on-error, and ' +
+                "do NOT narrow the fixture: the budget is derived from SC-003's own 60s promise, and " +
+                'widening it changes the reported number, not the drain rate.',
         );
     }
 
     console.log(
-        `\ndrain-demotion: PASS — every series stayed within ${CLAIM_P95_BUDGET_MS}ms p95, so the DSN-11 ` +
-            `correlated COUNT(*) is within the SC-003 backfill budget at the measured depths.`,
+        `\ndrain-demotion: PASS — every series stayed within ${CLAIM_P95_BUDGET_MS}ms p95, so FR-043's ` +
+            `fairness demotion is within the SC-003 backfill budget at the measured depths (DSN-11 closed).`,
     );
 } finally {
     await pool.end();

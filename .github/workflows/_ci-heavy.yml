@@ -800,30 +800,42 @@ jobs:
             #     step that reported success for an over-budget drain claim is exactly the class of silent-green
             #     failure this repo has already paid for.
             #
-            #     ⚠️ STATUS as of 2026-08-10 — RED on CI, and NOT for the reason this comment used to give.
-            #     T-197's rewrite (`over_demand AS MATERIALIZED` + the fairness term moved from the ORDER BY
-            #     into a WHERE filter) LANDED, and it took the ceiling from ~11-20s per claim to tens of
-            #     milliseconds. The old text here — "~0.5s at depth 1,000 and ~7.5-11s at the ceiling" —
-            #     described the PRE-T-197 query and is wrong by ~100x; it was never updated when T-197 landed.
+            #     HISTORY — this step has been red twice, for two different reasons, and both are recorded
+            #     because the second was hidden by a stale note about the first.
             #
-            #     What CI actually measures now (run 31323016643, budget p95 <= 60ms):
-            #       depth  1,000 mixed        3.98ms  PASS      depth  1,000 adversarial  10.76ms  PASS
-            #       depth 10,000 mixed       16.73ms  PASS      depth 10,000 adversarial  85.52ms  BREACH
-            #     One series breaches, by 1.43x. The SC-003 contract gate above (depth 100) passes with ~12x
-            #     headroom, so SC-003 itself is NOT breached — this is FR-046 ceiling headroom.
+            #     (a) Pre-T-197: FR-043's demotion was a correlated `COUNT(*)` in the LEADING position of the
+            #         ORDER BY, so `LIMIT 1` could not avoid it and `idx_fetch_queue_priority` was unusable.
+            #         ~0.5s per claim at depth 1,000, ~7.5-11s at the ceiling. T-197's rewrite
+            #         (`over_demand AS MATERIALIZED`, fairness moved into a WHERE filter) fixed that and took
+            #         the ceiling to tens of milliseconds — but this comment was not updated, so it kept
+            #         describing a query that no longer existed and was wrong by ~100x.
             #
-            #     Why that ONE series: in `adversarial` every row is demoted, so the promoted-tier branch must
-            #     examine all 10,000 eligible rows before it can conclude the tier is empty and fall through
-            #     (the DAO's own note measures that case at 35.6ms locally vs 9.3ms with nothing demoted). It is
-            #     a QUERY-SHAPE cost, not a missing index — `idx_fetch_queue_priority` is being used.
-            #     T-197 recorded this probe as PASSING on the strength of a LOCAL 28.66ms, and explicitly chose
-            #     NOT to materialize a per-requester count because "the per-claim CTE pass costs 5-9ms at the
-            #     ceiling". CI hardware measures ~2.4-3x slower than that dev machine, which is what turns
-            #     28.66ms into 85.52ms. So the open question is T-197's declined escalation, re-opened by CI
-            #     numbers: make "the promoted tier is empty" a set-based/maintained determination so the
-            #     fallback is reached without the full 10,000-row examination.
-            #     Resolving it is that query change — NOT raising FOOD_DRAIN_CLAIM_P95_MS, NOT adding
-            #     `continue-on-error`, and NOT deleting this step. Owner decision recorded in tasks.md T-197.
+            #     (b) T-197 left ONE case still linear in depth, and CI caught it (run 31323016643, budget
+            #         p95 <= 60ms):
+            #           depth  1,000 mixed        3.98ms  PASS      depth  1,000 adversarial  10.76ms  PASS
+            #           depth 10,000 mixed       16.73ms  PASS      depth 10,000 adversarial  85.52ms  BREACH
+            #         One series, breaching by 1.43x. In `adversarial` every row is demoted, so the promoted
+            #         branch had to examine all 10,000 eligible rows before it could conclude the tier was
+            #         empty — a QUERY-SHAPE cost, not a missing index. T-197 had recorded the probe as PASSING
+            #         on a LOCAL 28.66ms and explicitly declined to materialize a per-requester count; CI
+            #         hardware is ~2.4-3x slower, which is the whole gap between 28.66ms and 85.52ms. The
+            #         depth-100 contract gate above kept ~12x headroom throughout, so SC-003 itself was never
+            #         breached — this was FR-046 ceiling headroom.
+            #
+            #     T-201 RESOLVED (b) BY THE QUERY CHANGE, not by widening anything. `leaseNext` now derives
+            #     `over_demand` from a `demand` CTE (so the threshold is still stated exactly once) and gates
+            #     the promoted branch on a `promoted_ready` probe that answers "is any requester under the
+            #     threshold AND holding eligible work" from the AGGREGATE — bounded by the distinct-requester
+            #     count, not by queue depth — so an empty promoted tier leaves the branch `never executed`.
+            #     Locally, through the real DAO: adversarial @10,000 41.70ms -> 7.20ms, @1,000 6.97ms ->
+            #     4.03ms, mixed unchanged. Equivalence is proven by
+            #     `drain-claim-ranking-differential.integration.test.ts` (drain order vs FR-043's literal
+            #     ranking over 12 randomised queues) and the plan shape is asserted by
+            #     `drain-claim-scaling.integration.test.ts`. THIS STEP is still the only arbiter of the CI
+            #     numbers — local timings say nothing about this runner.
+            #
+            #     If it ever breaches again, the fix is the query — NOT raising FOOD_DRAIN_CLAIM_P95_MS, NOT
+            #     adding `continue-on-error`, and NOT deleting this step. Owner decision in tasks.md T-197.
             - name: Drain-claim FR-046 ceiling probe (depths 1000+10000, DSN-11)
               working-directory: packages/services/food-service
               env:

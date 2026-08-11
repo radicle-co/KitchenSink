@@ -46,10 +46,19 @@ export async function resetSchema(pool: pg.Pool): Promise<void> {
  * Build a Drizzle client over the given pool, bound to the food schema.
  *
  * @param pool - The connected pg pool.
+ * @param logger - Optional Drizzle query logger. The ONE use for it is capturing the exact statement a
+ *                 DAO sent so a suite can `EXPLAIN` it — asserting on a plan otherwise means restating the
+ *                 SQL in the test, and a restated statement is a second representation that drifts from
+ *                 the one production runs (see `drain-claim-scaling.integration.test.ts`).
  * @returns A Drizzle client compatible with the DAO constructors.
  */
-export function makeDb(pool: pg.Pool): TestDb {
-    return drizzle(pool, { schema });
+export function makeDb(pool: pg.Pool, logger?: DrizzleQueryLogger): TestDb {
+    return logger === undefined ? drizzle(pool, { schema }) : drizzle(pool, { schema, logger });
+}
+
+/** The shape Drizzle's `logger` option accepts. */
+export interface DrizzleQueryLogger {
+    logQuery(query: string, params: unknown[]): void;
 }
 
 /**

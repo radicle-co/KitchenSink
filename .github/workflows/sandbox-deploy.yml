@@ -61,27 +61,29 @@ jobs:
 
         # ── THE `Sandbox` BINDING — read this once; the other jobs here just point back at it ──────────
         #
-        # Every job in this workflow that reads `secrets.*` is bound to the `Sandbox` GitHub Environment, so
-        # the credential it uses is attached to a named environment instead of being ambiently available to
-        # the whole file. This is the seam zizmor's `secrets-outside-env` audit asks for.
+        # ⛔ THIS JOB IS DELIBERATELY **NOT** BOUND to the `Sandbox` Environment, and neither is
+        # `reap-abandoned`. Both are RECLAMATION jobs: they delete per-PR infrastructure. An Environment
+        # binding is a place a run can be made to WAIT, and the failure modes are not symmetric — a stalled
+        # deploy is loud and costs nothing, while a stalled cleanup silently leaks AWS spend, which is the
+        # exact failure this script exists to prevent. So reclamation is never gated, and the guard is code,
+        # not convention: `__tests__/reclamation-never-gated.test.ts` fails if either job gains an
+        # `environment:` key. The deploying jobs below (`preview-domain`, `deploy-food`, `deploy-recipe`) ARE
+        # bound, because stalling them is merely visible.
         #
-        # ⚠️ BE HONEST ABOUT WHAT IT DOES AND DOES NOT BUY TODAY. `AWS_ACCESS_KEY_ID` /
+        # ⚠️ BE HONEST ABOUT WHAT THOSE BINDINGS DO AND DO NOT BUY TODAY. `AWS_ACCESS_KEY_ID` /
         # `AWS_SECRET_ACCESS_KEY` are ORGANIZATION secrets (verified via
         # `gh api repos/:owner/:repo/actions/organization-secrets`), and an org secret CANNOT be scoped to an
-        # Environment — environment secrets are repo-level only. So this binding does not yet narrow which
-        # jobs can reach those keys; it makes the deploy target explicit, gives sandbox deploys their own
-        # deployment history, and pre-wires the seam so that moving to stage-scoped credentials becomes a
-        # secrets change with no workflow edit. The boundary actually moves when the sandbox key becomes a
-        # `Sandbox` environment secret (or an OIDC role) and stops being an org secret — the hardening path
-        # `_ci.yml`'s header and docs/CI_ARCHITECTURE.md already record as undone.
+        # Environment — environment secrets are repo-level only. So a binding does not yet narrow which jobs
+        # can reach those keys; it makes the deploy target explicit, gives sandbox deploys their own
+        # deployment history, and pre-wires the seam. The boundary actually moves when a per-stage credential
+        # is stored AS a `Sandbox`/`Production` environment secret, which SHADOWS the org secret of the same
+        # name (GitHub precedence: environment > repository > organization) — or when both become OIDC roles.
+        # Until then, treat these bindings as plumbing, not as hardening.
         #
-        # ⛔ `Sandbox` MUST KEEP ZERO PROTECTION RULES. It is not laxity, it is a constraint: these jobs run
-        # unattended on every non-closed `pull_request` event and on a `schedule`, so a required reviewer or
-        # a branch policy would stall every preview — and, worse, would stall THIS job and `reap-abandoned`,
-        # which are what reclaim per-PR infrastructure on close. A protection rule here converts a PR close
-        # into a resource leak. Approval gating belongs on `Production` (see prod-deploy.yml), which is bound
+        # ⛔ `Sandbox` MUST ALSO KEEP ZERO PROTECTION RULES. Not laxity, a constraint: the bound jobs run
+        # unattended on every non-closed `pull_request` event, so a required reviewer or branch policy would
+        # stall every preview. Approval gating belongs on `Production` (see prod-deploy.yml), which is bound
         # to exactly one job and has no unattended trigger.
-        environment: Sandbox
 
         env:
             PR: pr-${{ github.event.pull_request.number }}
@@ -254,10 +256,9 @@ jobs:
         name: Reap abandoned sandbox previews
         runs-on: ubuntu-latest
         if: github.event_name == 'schedule'
-        # Reads AWS + Vercel credentials — see the `Sandbox` binding note on `cleanup` above. A protection
-        # rule on `Sandbox` would stall this scheduled sweep, which is the ONLY retry a stack that failed to
-        # delete on close ever gets.
-        environment: Sandbox
+        # ⛔ DELIBERATELY UNBOUND — reclamation is never gated. See the note on `cleanup` above. This
+        # scheduled sweep is the ONLY retry a stack that failed to delete on close ever gets, so putting it
+        # behind anything that can WAIT is how per-PR infrastructure becomes a permanent bill.
         permissions:
             contents: read
             pull-requests: read # read each candidate's PR state, so only a CONFIRMED-closed PR is reaped

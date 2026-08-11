@@ -120,18 +120,25 @@ close that:
 
 2. **GitHub Environments — DONE for the deploy surface (2026-08-11, PR #91).** `Production` exists with a
    required reviewer (`gooftroop`) and a `main`-only branch policy, bound to `prod-deploy.yml`'s `deploy`
-   job; `Sandbox` exists with **zero** protection rules, bound to all 8 sandbox deploy/teardown jobs
-   across `sandbox-deploy.yml`, `sandbox-identity-deploy.yml`, `sandbox-router-deploy.yml` and
+   job; `Sandbox` exists with **zero** protection rules, bound to the 6 sandbox **deploying** jobs across
+   `sandbox-deploy.yml`, `sandbox-identity-deploy.yml`, `sandbox-router-deploy.yml` and
    `sandbox-web-preview.yml`. `Sandbox` must STAY unprotected: those jobs run unattended on every
-   non-closed `pull_request` and on a `schedule`, and any rule would stall previews — including the
-   `cleanup` and `reap-abandoned` jobs that reclaim per-PR infrastructure, turning a PR close into a
-   resource leak.
+   non-closed `pull_request`, so any rule would stall previews.
+
+    ⛔ **Reclamation is never gated.** `sandbox-deploy.yml`'s `cleanup` and `reap-abandoned` are
+    deliberately **unbound**. They were briefly bound while wiring this, which was a mistake: an
+    Environment binding is a place a run can be made to WAIT, and the failure modes are not symmetric — a
+    stalled deploy is loud and free, while a stalled cleanup silently leaks AWS spend, which is the exact
+    leak `teardown-sandbox-pr.sh` exists to prevent. Documenting "never protect `Sandbox`" was not
+    sufficient, because that setting lives in repo configuration where no test can see it and any admin can
+    change it from a UI that gives no hint a scheduled reaper depends on it. The invariant is enforced in
+    code by `packages/infra/global/__tests__/reclamation-never-gated.test.ts`.
 
     The **CI** workflows (`_ci`, `ci-pr`, `ci-main`, `ci-full`, `heavy-e2e`, the loadtests, `claude*`) are
-    deliberately left **unbound**: none is a deployment, binding them to a zero-protection environment
+    deliberately left **unbound** too: none is a deployment, binding them to a zero-protection environment
     would silence zizmor's `secrets-outside-env` without moving any boundary, and binding them to a
-    protected one would make every PR wait on a human. That residual (4 findings) is recorded as residual
-    in `zizmor.yml`'s ledger. Note for whoever does step 1: environment secrets cannot be forwarded via
+    protected one would make every PR wait on a human. The residual — **12** findings, 8 reclamation and 4
+    CI/automation — is recorded as residual in `zizmor.yml`'s ledger rather than annotated away. Note for whoever does step 1: environment secrets cannot be forwarded via
     `workflow_call`, so an `environment:` key intended to scope a secret must live in `_ci.yml` itself,
     not in its callers.
 

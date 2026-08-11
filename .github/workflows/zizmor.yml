@@ -115,7 +115,7 @@
 #   `low` no longer applies. zizmor is EXACTLY version-pinned, so no upstream change can add a class here
 #   without a repo change to point at.
 #
-# ENVIRONMENTS BURN-DOWN (2026-08-11, PR #91) — `secrets-outside-env` 29 → 27 → **4**, by adopting GitHub
+# ENVIRONMENTS BURN-DOWN (2026-08-11, PR #91) — `secrets-outside-env` 29 → 27 → **12**, by adopting GitHub
 #   Environments rather than by annotating the findings away. Read the audit's annotation literally: "secret is
 #   accessed outside of a dedicated **environment**" — it is NOT about `env:` blocks. It fires on every job
 #   that reads a `secrets.*` value without binding itself to a GitHub Environment. What was done:
@@ -123,12 +123,21 @@
 #       prod-deploy's `deploy` job bound to it (2 → 0). This one is a real operational gate, not a label:
 #       prod now waits for a human. `web-surface` is left UNBOUND on purpose — it is a read-only post-deploy
 #       smoke, and gating it would demand a second approval to verify what was just approved.
-#     • `Sandbox` created with ZERO protection rules, and all 8 sandbox deploy/teardown jobs bound to it:
-#       sandbox-deploy 14 → 0 (cleanup, preview-domain, reap-abandoned, deploy-food, deploy-recipe),
-#       sandbox-web-preview 4 → 0 (route), sandbox-router-deploy 3 → 0, sandbox-identity-deploy 2 → 0.
+#     • `Sandbox` created with ZERO protection rules, and the 6 sandbox DEPLOYING jobs bound to it:
+#       sandbox-deploy 14 → 8 (preview-domain, deploy-food, deploy-recipe), sandbox-web-preview 4 → 0
+#       (route), sandbox-router-deploy 3 → 0, sandbox-identity-deploy 2 → 0.
 #       Zero rules is a CONSTRAINT, not laxity: those jobs run unattended on every non-closed
-#       `pull_request` and on a `schedule`, and a reviewer or branch policy would stall every preview —
-#       including the two jobs that RECLAIM per-PR infrastructure, turning a PR close into a resource leak.
+#       `pull_request`, and a reviewer or branch policy would stall every preview.
+#     • ⛔ The two RECLAMATION jobs — sandbox-deploy's `cleanup` and `reap-abandoned` — are deliberately
+#       left UNBOUND, which is why sandbox-deploy lands at 8 and not 0. They were briefly bound, and that
+#       was a mistake: an Environment binding is a place a run can be made to WAIT, and the failure modes
+#       are not symmetric. A stalled deploy is loud and free; a stalled cleanup silently leaks AWS spend,
+#       i.e. the exact leak the teardown script exists to prevent, reintroduced through the front door.
+#       Documenting "never protect `Sandbox`" was not enough, because that lives in repo settings where no
+#       test can see it and any admin can flip it from a UI that gives no hint a reaper depends on it. The
+#       invariant is now enforced in code by `packages/infra/global/__tests__/reclamation-never-gated.test.ts`,
+#       which fails if either job gains an `environment:` key. Those 8 findings are the honest cost of
+#       removing a real stall hazard — and per the note below, binding them was buying nothing anyway.
 #     • Workflow-level `SENTRY_AUTH_TOKEN` reads moved into the single consuming job in prod-deploy and
 #       sandbox-identity-deploy. A workflow-level secret is in scope for EVERY job in the file and no per-job
 #       Environment binding can narrow it back down. Note this audit does NOT see workflow-level reads at
@@ -150,9 +159,11 @@
 #   the finding without moving any boundary — the exact "accepting it by comment" failure this ledger refuses
 #   elsewhere — and binding it to a protected environment would make every PR wait on a human reviewer. The
 #   CI workflows (`_ci`, `ci-pr`, `ci-main`, `ci-full`, `heavy-e2e`, the two loadtests, `claude*`) are
-#   therefore left unbound BY DECISION, and this 4 is reported as residual rather than driven to zero. Note
-#   the residual is what the org-secret caveat above makes unavoidable anyway: while the AWS keys are
-#   org-scoped, a bound CI job would be no less able to read them than an unbound one.
+#   therefore left unbound BY DECISION, and the residual is reported rather than driven to zero. The 12
+#   breaks down as 8 reclamation (sandbox-deploy's `cleanup` + `reap-abandoned`, unbound so nothing can ever
+#   stall a teardown) and 4 CI/automation (food-loadtest 2, claude 1, claude-code-review 1). Note the whole
+#   residual is what the org-secret caveat above makes unavoidable anyway: while the AWS keys are org-scoped,
+#   a bound job is no less able to read them than an unbound one.
 #
 #   ⚠️ AND ZIZMOR STILL HAS NO AUDIT FOR THE ACTOR-TRUST CLASS AT ALL, at any persona. The missing
 #   `author_association` guard on `claude.yml` (a PUBLIC repo handing `CLAUDE_CODE_OAUTH_TOKEN` to a
@@ -262,9 +273,10 @@ jobs:
             #    workflow-level `excessive-permissions`, `concurrency-limits` or `anonymous-definition` AT ANY
             #    SEVERITY. Moving here was a burn-down, not a flag flip — see the ledger's per-audit account.
             #    `auditor` is deliberately NOT adopted, but its one extra audit has now been BURNED DOWN
-            #    rather than left escalated: `secrets-outside-env` went 29 → 4 by creating the `Production`
-            #    and `Sandbox` environments and binding all 9 deploy jobs to them (see the ledger). The 4 that
-            #    remain are CI/automation jobs that are not deployments, left unbound by decision — which is
+            #    rather than left escalated: `secrets-outside-env` went 29 → 12 by creating the `Production`
+            #    and `Sandbox` environments and binding the 7 DEPLOYING jobs to them (see the ledger). The 12
+            #    that remain are reclamation jobs (never gated, so a teardown cannot stall) and CI/automation
+            #    jobs that are not deployments, left unbound by decision — which is
             #    also why the persona stays `pedantic`: adopting `auditor` would gate on findings whose only
             #    resolutions are to bind a CI job to a zero-protection environment (silencing without
             #    hardening) or to a protected one (blocking every PR).

@@ -161,9 +161,14 @@ This is mandatory for REQ-049 (LocalStack-backed local testing) and supports REQ
 ### `packages/services/identity/src/types`
 
 - **Types-only** boundary (no database dependencies, no Drizzle schemas, no DAOs)
-- Owned by the identity service; canonical TypeScript types consumed by service, lambdas, and clients
-- JWT claims, authorizer context, user/account/profile DTOs, admin actions, webhook payloads
-- Exports: `@kitchensink/identity-service` (root), `@kitchensink/identity-service/types`
+- Owned by the identity service; **service-internal** TypeScript types consumed by the service and its lambdas
+- JWT claims, authorizer context, admin actions
+- ⚠️ **Amended 2026-08-11 (GR-015):** this entry previously read "consumed by service, lambdas, and
+  **clients**", exported as `@kitchensink/identity-service/types`. **Consumers no longer import from here** —
+  they import `@kitchensink/schema-identity`. A consumer dependency on the service package is rejected by
+  ADR-0014 (it drags NestJS/Drizzle/aws-sdk into web and mobile). User/account/profile wire DTOs move to the
+  schema package; the inbound Clerk webhook payload is a **third-party** shape validated at the boundary, not
+  a contract we own. See _API Contracts — ownership and drift (GR-015)_ below.
 - Traceability: REQ-001..REQ-012, REQ-039..REQ-044, NFR-001, NFR-010
 
 ### `packages/services/identity/infra`
@@ -186,6 +191,96 @@ This is mandatory for REQ-049 (LocalStack-backed local testing) and supports REQ
 - REST endpoints for profile/account/admin lifecycle
 - Produces deletion jobs to SQS; consumes authorizer-injected identity context
 - Traceability: REQ-018..REQ-038, FR-018..FR-037
+
+---
+
+## API Contracts — ownership and drift (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). This section states only
+the **bindings for this feature**; the rule lives there and wins on any detail.
+
+| Role                                  | Binding for 002                                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)  | `@kitchensink/identity-service` — `packages/services/identity/src/**/*.schema.ts`, beside its controller            |
+| Also in scope                         | `@kitchensink/identity-webhooks` — the `POST /api/v1/webhooks/users` **inbound Clerk** shape is third-party (below) |
+| Schema package (generated, committed) | `@kitchensink/schema-identity` — `packages/schemas/identity` — **does not exist yet; being converged now**          |
+| Consuming app / feature packages      | `@commise/features-account` (`ProfileServiceClient`), consumed by `@commise/web` and `@commise/mobile`              |
+| Domain types (a **different** axis)   | `@kitchensink/identity-core` — reused `import type`, never re-declared in the schema package (GR-007)               |
+
+### The service's obligation
+
+- Every request/response shape of `/api/v1/users/*`, `/api/v1/profile/*`, `/api/v1/accounts/*`,
+  `/api/v1/admin/*` and `/api/v1/groups/*` (the group model added under 014) is authored as **zod in the
+  identity service** at `src/**/*.schema.ts`, next to its controller.
+- The service **validates its own requests with that same zod** via `nestjs-zod`'s `createZodDto`.
+- `packages/schemas/identity` is **generated and committed** from those sources — `schemas.ts`, `types.ts`,
+  `contract-hash.ts`, barrel, plus a **derived** `openapi.yaml`. Nothing in it is hand-edited.
+- A `*.schema.ts` imports **only `zod` and other `*.schema.ts` files** — no Drizzle schema, no DAO type, no
+  Nest symbol.
+
+⚠️ **`packages/services/identity/src/types` is NOT the contract package and must not become one.** This plan
+previously described it as the "canonical TypeScript types consumed by service, lambdas, and **clients**",
+exported as `@kitchensink/identity-service/types`. That arrangement is **rejected** by ADR-0014
+(alternative 2): a consumer reaching into the service package drags NestJS, Drizzle and the AWS SDK into web
+and mobile, inverts the build order, and gives a client a legitimate-looking path to a DAO type. Consumers
+import `@kitchensink/schema-identity`. The service's `src/types` keeps only service-internal types.
+
+### The CLIENT's obligation — separately mandatory
+
+002 has **no `packages/clients/identity` package**. Its consumer today is `ProfileServiceClient` in
+`@commise/features-account`, which means the wire shapes land in an **app-feature** package. GR-015 §15-b.4
+binds that identically — the rule is about who authors a wire shape, not which directory it sits in:
+
+- The consumer imports its wire **types and zod** from `@kitchensink/schema-identity`.
+- It **declares no request or response body type of the identity service.** Anything left in its own
+  `types.ts` is genuinely client-side: base URL and fetch config, `TokenSource`, request options, its own
+  error shapes. `DeleteAccountResult` and any profile/account response shape are **wire** shapes and belong
+  to the schema package.
+- A divergent consumer shape (a settings form model, a redacted profile view) is **DERIVED** with
+  `Pick` / `Omit` / `Partial` over the wire type — never independently declared. Reference:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **A new identity endpoint is not complete until its types are reachable from the schema package.**
+
+🟠 **OPEN — where does the identity consumer live?** GR-015 assumes a `packages/clients/<service>` leaf, and
+002 does not have one. Two shapes satisfy 15-b: (a) introduce `packages/clients/identity` and have
+`@commise/features-account` wrap it, or (b) have `@commise/features-account` import
+`@kitchensink/schema-identity` directly and remain the only consumer. **Question for the owner: (a) or (b)?**
+Neither §15 nor an existing ADR decides it, and it is not derivable — so it is not decided here.
+
+### Drift gates — inherited from GR-015 §15-c
+
+All three required: turbo `inputs`-driven rebuild of `schema-identity` from the service's `*.schema.ts`; a
+**regenerate-and-diff CI gate**; and a `CONTRACT_HASH` **boot assertion**. The boot assertion matters most
+here: identity is the one service every already-shipped mobile binary must keep talking to.
+
+### ⚠️ Clerk is a THIRD-PARTY API — the opposite case, do NOT converge it (GR-015 §15-d)
+
+**Clerk is not one of our services.** We do not serve its API, we cannot author its types, and its contract
+can change without telling us. So everything on the Clerk boundary is governed by §15-d, not §15-b:
+
+- **Session-token claims** verified in `packages/shared/clerk-verify` / `ClerkAuthService`, the `azp` guard,
+  and `public_metadata` scope/permission extraction: validate the **raw upstream shape at the boundary** and
+  MAY declare their own types.
+- **The inbound Clerk webhook payload** at `POST /api/v1/webhooks/users` (`user.created` / `user.updated` /
+  `user.deleted`, `svix`-verified) is **Clerk's** shape, not ours. It is validated at the boundary and is
+  **not** put in `@kitchensink/schema-identity` as though we owned it. The webhook's own _response_ is ours.
+- **No OpenAPI document is written for Clerk's API.**
+- Deleting or "converging" a Clerk boundary schema under §15-b replaces a checked parse of an unauthenticated
+  external body with unchecked trust. That is a **security regression** on this feature's most exposed
+  surface. See `packages/clients/usda` for the reference pattern.
+
+### Status — IN PROGRESS
+
+- 🔄 **Identity is being converged now.** `packages/schemas/identity` does not exist yet, and no
+  `openapi.yaml` exists for any service in this repo.
+- ⚠️ [`contracts/identity-api.openapi.json`](./contracts/identity-api.openapi.json) and the hand-written TS
+  contract files in [`contracts/`](./contracts/) (`user.ts`, `auth-session.ts`, `authorizer.ts`,
+  `deletion.ts`, `errors.ts`, `post-reg.ts`, `reconciliation.ts`) are **hand-maintained and verified by
+  nothing**. Per §15.2(6) they are **superseded in principle** by the generated document, but the generated
+  document does not exist yet, so they are retained as the only record. Where they disagree with the
+  service's `*.schema.ts`, **the service's zod wins.** Do not extend them with new surface.
 
 ---
 

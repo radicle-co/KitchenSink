@@ -517,6 +517,93 @@ demotion) and `source_call_log` (per-source rolling-60-min window). No quota tab
 
 ## 3. API Contracts
 
+### 3.0 Contract ownership and drift (GR-015) — and the third-party exception this feature OWNS
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). This section states only
+the **bindings for this feature**; the rule lives there and wins on any detail.
+
+**003 sits on both sides of the rule at once, and confusing them is the failure mode to avoid.** Our food
+service's own API is governed by §15-b (converge it). USDA FoodData Central's API is governed by §15-d (never
+converge it). One feature, two opposite obligations.
+
+| Role                                      | Binding for 003                                                                                              |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Owning service (**authors** the zod)      | `@kitchensink/food-service` — `packages/services/food-service/src/**/*.schema.ts`, beside its controller     |
+| Schema package (generated, committed)     | `@kitchensink/schema-food` — `packages/schemas/food` — **does not exist yet; being converged now**           |
+| Consuming client                          | `@kitchensink/food-service-client` — `packages/clients/food-service`                                         |
+| Consuming services / apps                 | `@kitchensink/recipe-service` (ingredient resolution), `@commise/web`, `@commise/mobile`                     |
+| **Third-party boundary (§15-d — EXEMPT)** | `@kitchensink/usda-client` — `packages/clients/usda`, whose `schemas.ts` is the **reference implementation** |
+
+\_(Read every `food__`identifier here as`ingredient\__`— the service holds ingredients, not dishes. The name
+is a deliberate non-rename; see`CLAUDE.md`.)\_
+
+#### The service's obligation
+
+- Every request/response shape of `/api/v1/foods/*` — add-by-name, read, status, candidates, resolve,
+  search, batch, refetch — is authored as **zod in the food service** at `src/**/*.schema.ts`, next to its
+  controller.
+- The service **validates its own requests with that same zod** via `nestjs-zod`'s `createZodDto`. The
+  batch endpoint's ≤100-name bound (FR-045) and the candidate-set membership check (FR-RES-2) belong in that
+  schema, so the client sees the same constraint the server enforces.
+- `packages/schemas/food` is **generated and committed** from those sources — `schemas.ts`, `types.ts`,
+  `contract-hash.ts`, barrel, plus a **derived** `openapi.yaml`. Nothing in it is hand-edited.
+- A `*.schema.ts` imports **only `zod` and other `*.schema.ts` files** — no Drizzle schema, no DAO type, no
+  Nest symbol, and **nothing from `@kitchensink/usda-client`**. The upstream USDA shape and our wire shape are
+  different contracts and must not be joined by an import.
+
+#### The CLIENT's obligation — separately mandatory, and the half that got skipped
+
+`@kitchensink/food-service-client` shipped **144 lines** of independently declared wire types and imported
+nothing from the food service. So this is stated as its own obligation, not as a consequence:
+
+- The client imports its wire **types and zod** from `@kitchensink/schema-food`.
+- The client **declares no request or response body type of the food service.** Its own `types.ts` keeps
+  base URL/fetch config, retry and polling options, and its own error shapes — nothing that crosses the wire.
+- **`@kitchensink/recipe-service` is a client here too.** A service consuming another service is bound by
+  §15-b identically: recipe imports `@kitchensink/schema-food` and declares no food wire shapes.
+- A divergent consumer shape (an ingredient-picker view model, a resolution-status badge model) is **DERIVED**
+  with `Pick` / `Omit` / `Partial` over the wire type — never independently declared. Reference:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **A new food endpoint is not complete until its types are reachable from `@kitchensink/schema-food`.**
+
+#### Drift gates — inherited from GR-015 §15-c
+
+All three required: turbo `inputs`-driven rebuild of `schema-food` from the service's `*.schema.ts`; a
+**regenerate-and-diff CI gate**; and a `CONTRACT_HASH` **boot assertion**. The boot assertion is load-bearing
+for 003 specifically because the food service is consumed by a **separately deployed** recipe service — the
+one skew case neither the turbo layer nor CI can see.
+
+#### ⛔ THE EXCEPTION — USDA FoodData Central is a third-party API. NEVER converge it. (GR-015 §15-d)
+
+**`packages/clients/usda` is the reference implementation of the exception for the whole portfolio, and
+`packages/clients/usda/src/schemas.ts` must never be "converged".**
+
+- We do **not** serve USDA's API. There is no service of ours to own its type, and its contract can change
+  without telling us.
+- Therefore `@kitchensink/usda-client` **validates the raw upstream wire shape at the boundary with zod**,
+  the moment a body arrives, and **legitimately declares its own types**. The normalized public type it
+  returns **deliberately differs** from the raw upstream shape — that difference is the normalization, not
+  drift.
+- The same applies to **every other source adapter** this feature adds (§5 Workers & Source Adapters). Each
+  new upstream source gets its own boundary schema; none of them gets folded into `@kitchensink/schema-food`.
+- **No OpenAPI document is written for USDA or any other upstream source.**
+
+**Why deleting these schemas would be a security regression, not a cleanup:** the parse at the USDA boundary
+is what stands between an external party's JSON and our golden-record write path, provenance fields, and
+nutrient values. §15-b's reasoning does not reach here at all — duplication is only wrong when one side could
+have been derived from the other, and this side belongs to someone else. A contributor applying §15-b
+mechanically to this client replaces a checked parse with unchecked trust; that is the specific damage this
+paragraph exists to prevent.
+
+#### Status — IN PROGRESS
+
+- 🔄 **Food is being converged now.** `packages/schemas/food` does not exist yet.
+- ❌ No `openapi.yaml` exists for any service in this repo yet.
+- ✅ `packages/clients/usda`'s boundary schemas already exist and are **correct as-is** — they need no change
+  under GR-015 and must not be touched by the convergence work.
+
 ### Endpoints
 
 Auth column: **U** = user session token, **M** = M2M/service token, **scope** = additionally requires a

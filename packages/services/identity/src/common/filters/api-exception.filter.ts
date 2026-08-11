@@ -4,15 +4,13 @@ import type { Response } from 'express';
 
 import { shouldCaptureException } from '../../observability/sentry.filter.js';
 
-/**
- * Structured error envelope returned to API clients: `{ code, message, details? }`. Shared verbatim with
- * the food and recipe services so one client-side error handler covers all three (ARCH-PS-2).
- */
-export interface ApiErrorBody {
-    code: string;
-    message: string;
-    details?: Record<string, unknown>;
-}
+// The envelope is AUTHORED as zod in `../api-error.schema.ts` and published via `@kitchensink/schema-identity`
+// (CODING_STANDARDS §15.2), so the shape this filter writes and the shape clients parse are ONE definition rather
+// than two hand-written interfaces on either side of the wire. Re-exported here because this module is where every
+// existing import site expects to find it.
+export type { ApiErrorBody } from '../api-error.schema.js';
+
+import type { ApiErrorBody } from '../api-error.schema.js';
 
 /**
  * Stable, machine-readable `code` for each HTTP status the identity service surfaces. Identity expresses

@@ -20,8 +20,8 @@
     "dependencies": {
         "@commise/i18n": "*",
         "@commise/ui": "*",
-        "@kitchensink/identity-service": "*",
         "@kitchensink/recipe-core": "*",
+        "@kitchensink/schema-identity": "*",
         "@radix-ui/react-dialog": "^1.1.20",
         "@tanstack/react-query": "^5.62.0"
     },

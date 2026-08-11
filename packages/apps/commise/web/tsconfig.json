@@ -17,8 +17,7 @@
         "types": ["vitest/globals", "@testing-library/jest-dom"],
         "paths": {
             "@/*": ["./src/*"],
-            "@kitchensink/identity-service": ["../../../../packages/services/identity/src/index.ts"],
-            "@kitchensink/identity-service/*": ["../../../../packages/services/identity/src/*"],
+            "@kitchensink/schema-identity": ["../../../../packages/schemas/identity/src/index.ts"],
             "@commise/features-account": ["../../../../packages/apps/commise/features/account/src/index.ts"]
         }
     },

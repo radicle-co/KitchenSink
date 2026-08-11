@@ -1,0 +1,720 @@
+# ⚠️ GENERATED FILE — DO NOT EDIT.
+#
+# DERIVED from the identity service's authored zod. Regenerate with:
+#   npm run contract:generate --workspace=@kitchensink/identity-service
+#
+# This document is for EXTERNAL consumption (oasdiff, docs, integrators). It is NOT a codegen input
+# and NOT the type authority — that is the zod exported from ./src/index.ts.
+
+openapi: 3.0.3
+info:
+  title: Commise Identity API
+  version: 1.0.0
+  description: "The viewer's own profile and the admin user-management surface. Authentication is a Clerk SESSION token
+    verified IN THIS SERVICE by `AuthMiddleware` → `ClerkAuthService` (networkless, via the public `CLERK_JWT_KEY`, with
+    `azp` enforced against an anchored pattern). There is deliberately NO trusted-header path: the service is fronted by
+    a public ALB, so a client-suppliable `x-authorizer-context` would be forgeable (PR #39). On a first request the
+    middleware read-through-CREATES the user, account and profile from the token claims, so a freshly signed-up viewer
+    never sees a 404. Admin scopes come from the signed token's `public_metadata`. Every path is also served under the
+    DEPRECATED `/v1/*` alias held by consumers configured outside this repo — the Clerk dashboard webhook URL and
+    already-shipped mobile builds (ADR-0011); only the canonical `/api/v1/*` form is documented. Error bodies are ALWAYS
+    the shared `{ code, message, details? }` envelope: the `@Catch()`-all filter rewrites every failure into it
+    (ARCH-PS-2)."
+servers:
+  - url: https://identity.commise.app
+    description: production
+  - url: https://identity.sandbox.commise.app
+    description: sandbox — the SINGLE shared identity service every PR preview signs in against (ADR-0001)
+security:
+  - clerkSession: []
+paths:
+  /api/v1/users/me:
+    get:
+      operationId: getUserMe
+      summary: Read the signed-in viewer's profile
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The viewer's profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "Read-through: on a first request the auth middleware has already created the user, account and profile
+        rows from the verified token claims, so this does not 404 for a new signup."
+    patch:
+      operationId: patchUserMe
+      summary: Update the signed-in viewer's profile
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          description: Validation failure — over-long `displayName`, non-URL `avatarUrl`, or an unknown field. `details.fields`
+            carries the individual messages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Partial update of `displayName` and/or `avatarUrl`. An UNKNOWN FIELD IS A `400` — the body schema is
+        strict. A `displayName` change also publishes a handle-sync event so the recipe service corrects its
+        denormalized author handles; a failed publish does not fail the rename (reconciliation backstops it).
+      requestBody:
+        description: The fields to change.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchUserMeRequest"
+    delete:
+      operationId: deleteUserMe
+      summary: Close the signed-in viewer’s account
+      security:
+        - clerkSession: []
+      responses:
+        "202":
+          description: Closure initiated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteUserMeResponse"
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "`202`, not `204`: closure is asynchronous. It tombstones the user, scrubs the avatar, writes an
+        append-only audit row in the SAME transaction as the state change, and hands the durable, reversible Clerk ban
+        to the deletion-worker (the only holder of the Clerk secret). RECOVERABLE by an admin via the reactivate route —
+        this is closure, not GDPR erasure."
+  /api/v1/users/me/avatar/presign:
+    post:
+      operationId: presignAvatarUpload
+      summary: Get a presigned S3 PUT URL for an avatar
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The presigned PUT URL and the resulting public URL.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvatarPresignResponse"
+        "400":
+          description: Unadmitted `type`, or a `size` outside the permitted range.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Image bytes NEVER traverse this service. `type` and `size` are baked into the signature as
+        `ContentType`/`ContentLength`, so S3 itself rejects an upload that does not match what was presigned. The URL
+        expires in 5 minutes. The admitted MIME types and the size cap are enforced by the service and reported in the
+        `400`, deliberately NOT restated in this document — a copy of a security rule that can disagree with the
+        enforcer is worse than none.
+      parameters:
+        - name: type
+          in: query
+          required: true
+          description: The image's MIME type. Must be one of the admitted image types.
+          schema:
+            type: string
+        - name: size
+          in: query
+          required: true
+          description: The image's exact byte length, as a decimal string.
+          schema:
+            type: string
+  /api/v1/admin/users:
+    get:
+      operationId: adminListUsers
+      summary: Search users (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The matching users.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminListUsersResponse"
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Substring match on email/name, exact match on `sub`. Echoes the EFFECTIVE `limit`/`offset` including the
+        server-applied defaults, so a caller paginating need not reimplement them.
+      parameters:
+        - name: email
+          in: query
+          required: false
+          description: Substring match on email.
+          schema:
+            type: string
+        - name: name
+          in: query
+          required: false
+          description: Substring match on the synced name.
+          schema:
+            type: string
+        - name: sub
+          in: query
+          required: false
+          description: Exact match on the app-user ULID.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Page size, decimal string.
+          schema:
+            type: string
+        - name: offset
+          in: query
+          required: false
+          description: Page offset, decimal string.
+          schema:
+            type: string
+  /api/v1/admin/users/{userId}/suspend:
+    post:
+      operationId: adminSuspendUser
+      summary: Suspend a user (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: Done.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSuspendUserResponse"
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Blocks the account. Recoverable via the unsuspend route.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: The target user's app ULID (NOT the Clerk `sub`).
+          schema:
+            type: string
+  /api/v1/admin/users/{userId}/unsuspend:
+    post:
+      operationId: adminUnsuspendUser
+      summary: Lift a suspension (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: Done.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUnsuspendUserResponse"
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Returns a suspended account to `active`.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: The target user's app ULID (NOT the Clerk `sub`).
+          schema:
+            type: string
+  /api/v1/admin/users/{userId}/reactivate:
+    post:
+      operationId: adminReactivateUser
+      summary: Recover a CLOSED account (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: Done.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReactivateUserResponse"
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Admin-mediated recovery of a tombstoned account (CR-002 U2). Self-service recovery is not buildable —
+        `@clerk/backend` has no server-side sign-in-attempt verification and a banned user cannot sign in to be verified
+        — so a support agent verifies the owner out-of-band and calls this. Clears the tombstone and writes the audit
+        row in ONE transaction.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: The target user's app ULID (NOT the Clerk `sub`).
+          schema:
+            type: string
+  /api/v1/admin/users/{userId}/impersonation/start:
+    post:
+      operationId: adminStartImpersonation
+      summary: Begin an impersonation session (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: Done.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImpersonationStartResponse"
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Audited. The returned `sessionId` correlates the audit trail; the impersonated session is itself BLOCKED
+        from privileged surfaces on the client.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: The target user's app ULID (NOT the Clerk `sub`).
+          schema:
+            type: string
+  /api/v1/admin/users/{userId}/impersonation/stop:
+    post:
+      operationId: adminStopImpersonation
+      summary: End an impersonation session (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: Done.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImpersonationStopResponse"
+        "401":
+          description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Audited counterpart to the start route.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: The target user's app ULID (NOT the Clerk `sub`).
+          schema:
+            type: string
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness probe
+      security: []
+      responses:
+        "200":
+          description: The process is up.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+      description: Static. Deliberately does NOT touch the database — a transient RDS blip must not make ECS kill an
+        otherwise-healthy container.
+  /health/ready:
+    get:
+      operationId: getReadiness
+      summary: Readiness probe
+      security: []
+      responses:
+        "200":
+          description: Ready to serve traffic.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: Database not reachable (`NOT_READY`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "Probes the database so the ALB can drain an instance whose database is unreachable (ARCH-PS-3). The cause
+        is deliberately swallowed: it can embed connection strings."
+components:
+  securitySchemes:
+    clerkSession:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: A Clerk session token, verified in-process. Admin routes additionally require the `admin:users` scope from
+        the token's `public_metadata`.
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: {}
+      required:
+        - code
+        - message
+      additionalProperties: {}
+    UserProfileUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          nullable: true
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+            - tombstoned
+            - erased
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - email
+        - displayName
+        - avatarUrl
+        - status
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+    UserProfileAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        subscriptionTier:
+          type: string
+          enum:
+            - free
+            - premium
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - userId
+        - subscriptionTier
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+    UserProfile:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/UserProfileUser"
+        account:
+          $ref: "#/components/schemas/UserProfileAccount"
+      required:
+        - user
+        - account
+      additionalProperties: false
+    PatchUserMeRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          maxLength: 100
+        avatarUrl:
+          anyOf:
+            - type: string
+              format: uri
+            - type: string
+              nullable: true
+              enum:
+                - null
+      additionalProperties: false
+    DeleteUserMeResponse:
+      type: object
+      properties:
+        sub:
+          type: string
+        deletedAt:
+          type: string
+        message:
+          type: string
+      required:
+        - sub
+        - deletedAt
+        - message
+      additionalProperties: false
+    AvatarPresignResponse:
+      type: object
+      properties:
+        uploadUrl:
+          type: string
+        publicUrl:
+          type: string
+      required:
+        - uploadUrl
+        - publicUrl
+      additionalProperties: false
+    AdminUserListItem:
+      type: object
+      properties:
+        sub:
+          type: string
+        email:
+          type: string
+        name:
+          nullable: true
+          type: string
+        picture:
+          nullable: true
+          type: string
+        status:
+          type: string
+      required:
+        - sub
+        - email
+        - name
+        - picture
+        - status
+      additionalProperties: false
+    AdminListUsersResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUserListItem"
+        limit:
+          type: number
+        offset:
+          type: number
+      required:
+        - users
+        - limit
+        - offset
+      additionalProperties: false
+    AdminSuspendUserResponse:
+      type: object
+      properties:
+        sub:
+          type: string
+        status:
+          type: string
+          enum:
+            - suspended
+        suspendedAt:
+          type: string
+      required:
+        - sub
+        - status
+        - suspendedAt
+      additionalProperties: false
+    AdminUnsuspendUserResponse:
+      type: object
+      properties:
+        sub:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+        unsuspendedAt:
+          type: string
+      required:
+        - sub
+        - status
+        - unsuspendedAt
+      additionalProperties: false
+    AdminReactivateUserResponse:
+      type: object
+      properties:
+        sub:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+        reactivatedAt:
+          type: string
+      required:
+        - sub
+        - status
+        - reactivatedAt
+      additionalProperties: false
+    ImpersonationStartResponse:
+      type: object
+      properties:
+        impersonatorSub:
+          type: string
+        impersonatedSub:
+          type: string
+        sessionId:
+          type: string
+        startedAt:
+          type: string
+      required:
+        - impersonatorSub
+        - impersonatedSub
+        - sessionId
+        - startedAt
+      additionalProperties: false
+    ImpersonationStopResponse:
+      type: object
+      properties:
+        impersonatorSub:
+          type: string
+        impersonatedSub:
+          type: string
+        stoppedAt:
+          type: string
+        message:
+          type: string
+      required:
+        - impersonatorSub
+        - impersonatedSub
+        - stoppedAt
+        - message
+      additionalProperties: false
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+      required:
+        - status
+        - service
+      additionalProperties: false

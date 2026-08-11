@@ -2,12 +2,10 @@ import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/co
 
 import { DrizzleProvider } from '../database/database.module.js';
 import { probeDatabase, type ReadinessExecutor } from './readiness.js';
-
-/** The shape of the identity health/readiness payloads. */
-interface HealthStatus {
-    status: string;
-    service: string;
-}
+// AUTHORED wire contract, published via `@kitchensink/schema-identity` (CODING_STANDARDS §15.2). The probe
+// payload is part of the contract: its `service` discriminator is what lets a probe tell this service's
+// answer from the shared ALB's default 404 (ADR-0003).
+import type { HealthStatus } from './health.schema.js';
 
 /**
  * Health probes for the identity service. Liveness (`GET /health`) is static — it answers "is the

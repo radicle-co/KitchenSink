@@ -11,8 +11,7 @@
         "noEmit": true,
         "incremental": true,
         "paths": {
-            "@kitchensink/identity-service": ["../../services/identity/src/index.ts"],
-            "@kitchensink/identity-service/*": ["../../services/identity/src/*"],
+            "@kitchensink/schema-identity": ["../../schemas/identity/src/index.ts"],
             "@commise/features-account": ["../features/account/src/index.ts"]
         }
     },

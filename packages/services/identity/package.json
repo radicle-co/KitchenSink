@@ -22,13 +22,14 @@
         "test:load:tokens": "tsx tests/load/prepare-clerk-tokens.ts",
         "test:load:db": "tsx tests/load/prepare-db.ts",
         "test:load": "k6 run tests/load/session-hot-path.load.js && k6 run tests/load/auth-rejection.load.js && k6 run tests/load/admin-user-search.load.js && k6 run tests/load/provisioning-and-rename.load.js",
-        "lint": "eslint 'src/**/*.ts' --ignore-pattern '**/*.test.ts'",
+        "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts' 'contract/**/*.ts'",
         "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "docker:prepare": "node docker-prepare.js",
         "docker:build": "docker build -t kitchensink-identity .",
-        "docker:push": "aws ecr get-login-password | docker login --username AWS --password-stdin ${ECR_REGISTRY} && docker push ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG}"
+        "docker:push": "aws ecr get-login-password | docker login --username AWS --password-stdin ${ECR_REGISTRY} && docker push ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG}",
+        "contract:generate": "tsx contract/generate.ts"
     },
     "dependencies": {
         "@aws-lambda-powertools/logger": "^2.33.1",
@@ -47,17 +48,17 @@
         "@nestjs/platform-express": "^11.1.28",
         "@sentry/nestjs": "^10.57.0",
         "aws-cdk-lib": "*",
-        "class-transformer": "^0.5.1",
-        "class-validator": "^0.15.1",
         "constructs": "*",
         "debug": "^4.3.7",
         "drizzle-orm": "^0.45.2",
+        "nestjs-zod": "^5.5.0",
         "pg": "^8.13.0",
         "reflect-metadata": "^0.2.2",
         "rxjs": "^7.8.1",
         "zod": "^4.4.3"
     },
     "devDependencies": {
+        "@kitchensink/contract-gen": "*",
         "@kitchensink/eslint": "*",
         "@kitchensink/infra-security": "*",
         "@kitchensink/prettier": "*",
@@ -76,7 +77,8 @@
         "prettier": "^3.0.0",
         "tsx": "*",
         "typescript": "^5.9.3",
-        "vitest": "^4.0.0"
+        "vitest": "^4.0.0",
+        "yaml": "^2.8.1"
     },
     "engines": {
         "node": "24.x"

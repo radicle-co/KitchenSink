@@ -28,8 +28,7 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            '@kitchensink/identity-service': '../../services/identity/src/index.ts',
-            '@kitchensink/identity-service/*': '../../services/identity/src/*',
+            '@kitchensink/schema-identity': '../../schemas/identity/src/index.ts',
             '@commise/features-account': '../features/account/src/index.ts',
             // Resolve the shared numeric design scale to its source so the token drift guard runs without a
             // built `@commise/ui/dist` (mirrors the workspace-src aliasing used for the other packages above).

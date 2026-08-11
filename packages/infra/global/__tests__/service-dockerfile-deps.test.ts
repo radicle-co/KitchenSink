@@ -45,9 +45,15 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 /** Map every `@kitchensink/*` workspace package NAME → its repo-relative directory (by scanning names). */
 function workspacePackagesByName(): Map<string, string> {
     const map = new Map<string, string>();
+    // Must list EVERY `packages/*` area the root `workspaces` globs cover. An omitted area does not make this
+    // check lenient — it makes it MISLEADING: the dependency is still reported missing, but as "no workspace
+    // package found for this name", which sends the reader hunting a package that exists and is right there.
+    // `packages/schemas` was the omission that proved it (the generated wire-contract packages,
+    // CODING_STANDARDS §15.2).
     const bases = [
         'packages/shared',
         'packages/utils',
+        'packages/schemas',
         'packages/services',
         'packages/clients',
         'packages/tools',

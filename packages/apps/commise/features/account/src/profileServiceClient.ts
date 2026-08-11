@@ -8,17 +8,24 @@
  * `ProfileTransport` — this class OWNS the endpoint contract (`PROFILE_ME_PATH`) instead of a caller having
  * to independently mint a token and adapt its own transport to a bare `.patch()` shape.
  *
- * Deliberately plain `fetch` (no `ky`, no `zod`) — unlike the recipe client, `features/account` is a
- * dependency-free pure-TS package shared with the mobile bundle, this surface is 3 simple endpoints with no
- * pagination/schema-drift risk, and the identity-service DTOs (`UserProfile`/`UserUpdateInput`) are already
- * typed at the source. Adding `ky`/`zod` here would be scope the endpoint doesn't need (YAGNI).
+ * Deliberately plain `fetch` (no `ky`) — unlike the recipe client, this surface is 3 simple endpoints with no
+ * pagination risk. Adding `ky` here would be scope the endpoint doesn't need (YAGNI).
+ *
+ * ⚠️ ITS TYPES COME FROM `@kitchensink/schema-identity`, NOT FROM THE SERVICE PACKAGE. This module used to
+ * `import type { UserProfile, UserUpdateInput } from '@kitchensink/identity-service'` — the whole NestJS
+ * service, with drizzle, `pg`, the AWS SDK and `@sentry/nestjs` in its graph — declared as a RUNTIME
+ * dependency of a package the mobile bundle ships. The types erase at compile time, so nothing broke; the
+ * dependency EDGE from a mobile-bound package to a server package is what was wrong, and
+ * `@kitchensink/schema-identity` (a generated leaf whose only dependency is zod) exists to remove it. The
+ * same package also exports the RUNTIME zod for these shapes, so a caller that wants to validate this
+ * boundary can do so against the same definition rather than a second one.
  *
  * Platform-specific side effects (e.g. the web app's redirect-to-sign-in on a `401`, or a `credentials`
  * policy) are NOT baked in here — they are injected via {@link ProfileServiceClientOptions.onUnauthorized}
  * / `.credentials`, so this class stays platform-agnostic and is usable, unmodified, from both the web
  * server/client boundary and the mobile app.
  */
-import type { UserProfile, UserUpdateInput } from '@kitchensink/identity-service';
+import type { DeleteUserMeResponse, UserProfile, UserUpdateInput } from '@kitchensink/schema-identity';
 
 import {
     BadRequestError,
@@ -47,12 +54,14 @@ export const PROFILE_ME_PATH = '/api/v1/users/me';
  */
 export type TokenSource = string | ((options?: { readonly forceRefresh?: boolean }) => string | Promise<string>);
 
-/** The identity service's `DELETE /api/v1/users/me` response body (`DeleteUserMeResponseDto`). */
-export interface DeleteAccountResult {
-    readonly sub: string;
-    readonly deletedAt: string;
-    readonly message: string;
-}
+/**
+ * The identity service's `DELETE /api/v1/users/me` response body.
+ *
+ * A one-line ALIAS over the service's own `DeleteUserMeResponse`, not a re-declaration: this file previously
+ * hand-wrote the three fields, which is exactly the second representation of one wire shape CODING_STANDARDS §15
+ * forbids. The name is kept because it is this package's published surface.
+ */
+export type DeleteAccountResult = DeleteUserMeResponse;
 
 /** Per-call options accepted by every {@link ProfileServiceClient} method. */
 export interface ProfileRequestOptions {

@@ -9,6 +9,10 @@
 
 Feature 014 is the platform-owned notification delivery interface for KitchenSink. It provides a single publish contract and authenticated subscriber delivery for `user`, `group`, and `global` recipients, with client-side behavior keyed by `messageType`.
 
+Producers reach it over **two ingress paths** — an authenticated HTTP endpoint and an EventBridge
+subscription — which are adapters over **one** core (FR-024). See _Producer ingress_ below; a rule enforced
+in only one of them is a defect, not a variation.
+
 This plan is milestone-aware for `M8` and explicitly inventories cross-feature trigger ownership (`001`–`013`) so integration can be coordinated as the final v1 deliverable.
 
 **Must Have stories addressed**: US-001 – US-006 (`spec.md` numbering: publish +
@@ -36,7 +40,9 @@ Source of truth: [`../v1-launch-plan.md`](../v1-launch-plan.md) (§3.9).
 
 Source of truth: [`../governance-rules.md`](../governance-rules.md).
 
-- **GR-002 (CRITICAL)**: All APIs constrained to `/api/v1/notifications/*`.
+- **GR-002 (CRITICAL)**: All APIs constrained to `/api/v1/notifications/*`. The EventBridge ingress
+  (FR-024) exposes no URL, so GR-002 does not reach it; its equivalent constraint is the reserved
+  `detailType` plus the `source` allowlist (FR-025, FR-027).
 - **GR-007 (CRITICAL)**: Shared core entities must come from `@kitchensink/recipe-core`; no local duplicate shared domain types.
 - **GR-011 (WARNING)**: 014 is owner of notification transport/delivery; producer features publish through 014.
 - **GR-008 (WARNING)**: Node runtime remains Node 24.x.
@@ -93,6 +99,18 @@ authority for "what order did messages for recipient R occur in".
 which is exactly per-recipient FIFO, and no ordering across groups — precisely what
 FR-008 promises and FR-008's second sentence disclaims.
 
+**The queue preserves ENQUEUE order, which equals publish order on the HTTP path only
+(FR-029).** EventBridge does not preserve ordering, so two envelopes for one recipient
+can arrive at the adapter in either order regardless of when their producers published
+them. Envelopes arriving that way MUST therefore be ordered by the producer-assigned
+`occurredAt`, with a deterministic tiebreaker (`producer`, then `idempotencyKey`), before
+or as they are enqueued — otherwise the FIFO queue faithfully preserves an arrival order
+that is not publish order, and FR-008 becomes silently untrue for every event-path
+producer. `occurredAt` is why FR-026 makes it required and producer-assigned rather than
+stamped on receipt. If cross-path FIFO for a single recipient proves unachievable in
+implementation, FR-008 is narrowed explicitly rather than left to imply a guarantee the
+transport does not provide.
+
 **Sequence assignment happens once, at consume time.** The routing consumer, on
 dequeue, assigns a monotonically increasing `sequence` per `recipient.id` and
 persists the message with it in the same transaction as the delivery record. The
@@ -100,11 +118,11 @@ store therefore **records** the order SQS produced; it never computes its own.
 
 **Both delivery paths read the same `sequence`:**
 
-| Path            | Order source                                                    |
-| --------------- | --------------------------------------------------------------- |
-| Live push       | consumer emits in dequeue order — the order it just persisted    |
-| Replay / pull   | `ORDER BY sequence ASC` over the store                           |
-| Client          | dedupes and orders by `(recipient, sequence)`; ignores duplicates |
+| Path          | Order source                                                      |
+| ------------- | ----------------------------------------------------------------- |
+| Live push     | consumer emits in dequeue order — the order it just persisted     |
+| Replay / pull | `ORDER BY sequence ASC` over the store                            |
+| Client        | dedupes and orders by `(recipient, sequence)`; ignores duplicates |
 
 Because a single writer assigns `sequence` in dequeue order, live and replay cannot
 disagree. A client that reconnects mid-stream sees a contiguous, gap-free sequence
@@ -122,7 +140,7 @@ standard queue and are best-effort ordered (FR-009), live-only (Q-009), and carr
    the ingest queue — publish once addressed to the **group**, and expand membership
    in the consumer, so group size costs consumer work, not queue throughput.
 2. **SQS's own dedup window is 5 minutes, and that is NOT FR-018.** FR-018 requires a
-   *configurable* `idempotencyKey` window. Content-based dedup on the queue cannot
+   _configurable_ `idempotencyKey` window. Content-based dedup on the queue cannot
    implement it. FR-018 needs its own dedup record keyed on
    `(producerFeature, idempotencyKey)` with its own TTL — the queue's 5-minute window
    is at best a coincidental first line of defence. See T-015.
@@ -151,12 +169,12 @@ semantics.
 Feature 002 is shipped, so this lands as an **extension to
 `packages/services/identity`** delivered under 014:
 
-| Element         | Detail                                                                      |
-| --------------- | --------------------------------------------------------------------------- |
-| Tables          | `group` (id ULID, name, created_at), `group_membership` (group_id, user_id, joined_at) — Drizzle, in the identity DB alongside users/accounts/profiles |
-| Ownership       | identity service — the single source of truth for "who is in group X"        |
-| API             | `/api/v1/groups/*` (GR-002 prefix), Clerk-authenticated per the existing `AuthMiddleware` |
-| 014's use       | membership resolved at **delivery time** in the routing consumer (FR-022), never at publish time |
+| Element         | Detail                                                                                                                                                                                 |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tables          | `group` (id ULID, name, created_at), `group_membership` (group_id, user_id, joined_at) — Drizzle, in the identity DB alongside users/accounts/profiles                                 |
+| Ownership       | identity service — the single source of truth for "who is in group X"                                                                                                                  |
+| API             | `/api/v1/groups/*` (GR-002 prefix), Clerk-authenticated per the existing `AuthMiddleware`                                                                                              |
+| 014's use       | membership resolved at **delivery time** in the routing consumer (FR-022), never at publish time                                                                                       |
 | Failure posture | identity unavailable at delivery → the message stays on the queue and retries; it is **not** dropped and **not** failed back to the producer (whose publish already succeeded, FR-003) |
 
 **Cross-feature note:** groups are useful well beyond notifications (001 shared
@@ -176,12 +194,12 @@ service and must be specced there, not left implicit in 014 — see the open ite
 
 Owned by the notification service (its own schema; **not** the identity DB):
 
-| Table                 | Key columns                                                                                  | Purpose                                    |
-| --------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `notification`        | `id` ULID, `recipient_kind`, `recipient_id`, `sequence` (per-recipient monotonic), `message_type`, `payload` jsonb, `occurred_at`, `published_at`, `expires_at` | durable record + replay source             |
-| `delivery`            | `notification_id`, `subscriber_id`, `delivered_at`                                            | per-client delivery record; drives counters |
-| `publish_idempotency` | `producer_feature`, `idempotency_key`, `notification_id`, `expires_at`                        | FR-018 dedup, TTL independent of SQS's 5 min |
-| `message_type_registry` | version-controlled file, **not** a table                                                    | FR-016 — reviewable in git                  |
+| Table                   | Key columns                                                                                                                                                                                   | Purpose                                      |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `notification`          | `id` ULID, `schema_version`, `producer`, `recipient_kind`, `recipient_id`, `sequence` (per-recipient monotonic), `message_type`, `payload` jsonb, `occurred_at`, `published_at`, `expires_at` | durable record + replay source               |
+| `delivery`              | `notification_id`, `subscriber_id`, `delivered_at`                                                                                                                                            | per-client delivery record; drives counters  |
+| `publish_idempotency`   | `producer_feature`, `idempotency_key`, `notification_id`, `expires_at`                                                                                                                        | FR-018 dedup, TTL independent of SQS's 5 min |
+| `message_type_registry` | version-controlled file, **not** a table                                                                                                                                                      | FR-016 — reviewable in git                   |
 
 - **Replay index**: `(recipient_kind, recipient_id, sequence)` — serves the
   `ORDER BY sequence` replay query directly.
@@ -189,8 +207,15 @@ Owned by the notification service (its own schema; **not** the identity DB):
   sweep; a row past `expires_at` that was never delivered increments the
   undelivered-after-retention counter **before** deletion, or the counter can never
   be emitted (FR-013).
+- **`schema_version`** and **`producer`** are persisted, not just validated: the first
+  makes a stored envelope interpretable when the wire contract moves (FR-026), the second
+  is the only record of who published on the event path, where there is no token to
+  attribute after the fact (FR-027).
 - **`payload`** is stored opaque and never indexed or inspected (FR-023). Size limit
   enforced at validation, before storage.
+- **Event-path rejections are not rows.** A rejected envelope never reaches these tables;
+  it lands on the ingress DLQ with a reason code (FR-028). The DLQ is the record, so its
+  depth is alarmed rather than swept.
 - Migrations follow the identity service's existing Drizzle migration convention.
   The group tables above are a **separate** migration against the identity DB.
 
@@ -202,34 +227,83 @@ Owned by the notification service (its own schema; **not** the identity DB):
 > (sync-report DRIFT-010); "low-latency" was asserted without a number, leaving
 > SC-004 and the k6 tier nothing to assert against.
 
-| NFR     | Budget                              | Measurement point                                                                 |
-| ------- | ----------------------------------- | --------------------------------------------------------------------------------- |
-| NFR-001 | ≥ 99.9 % availability, publish API  | ALB 5xx rate on `/api/v1/notifications/publish`, 30-day window                     |
-| NFR-003 | p95 ≤ 2 s, publish-accept → client-receive | timestamp at publish acceptance vs client receipt ack; "nominal load" = 50 publishes/s sustained with 500 concurrent subscribers |
-| NFR-006 | ≤ 10 % latency degradation for unrelated producers | same p95 measured per producer while one producer is driven to its quota ceiling (FR-019) |
+| NFR     | Budget                                             | Measurement point                                                                                                                |
+| ------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| NFR-001 | ≥ 99.9 % availability, publish API                 | ALB 5xx rate on `/api/v1/notifications/publish`, 30-day window                                                                   |
+| NFR-003 | p95 ≤ 2 s, publish-accept → client-receive         | timestamp at publish acceptance vs client receipt ack; "nominal load" = 50 publishes/s sustained with 500 concurrent subscribers |
+| NFR-006 | ≤ 10 % latency degradation for unrelated producers | same p95 measured per producer while one producer is driven to its quota ceiling (FR-019)                                        |
 
 Alarms: publish 5xx rate, consumer age on the FIFO queue (the ordering path's
-liveness signal), in-flight cap approach, and undelivered-after-retention rate.
+liveness signal), in-flight cap approach, undelivered-after-retention rate, **event-path
+DLQ depth** (FR-028 — the only signal a rejection on the credential-less path produces),
+and quota rejections per producer (FR-033 — a silent rejection is a lost notification).
 
 ## Notification Ownership Contract (GR-011)
 
-### Producer API
+### Producer ingress — two adapters, one core (FR-024)
 
-| Method | Path                            | Purpose                                         | Requirement trace      |
-| ------ | ------------------------------- | ----------------------------------------------- | ---------------------- |
-| `POST` | `/api/v1/notifications/publish` | Validate + durably accept notification envelope | FR-001..FR-004, FR-015 |
+| Ingress         | Surface                                       | Producer identity from                                | Requirement trace              |
+| --------------- | --------------------------------------------- | ----------------------------------------------------- | ------------------------------ |
+| HTTP            | `POST /api/v1/notifications/publish`          | Ed25519 service-principal token, verified networkless | FR-001..FR-004, FR-015, FR-032 |
+| **EventBridge** | reserved `detailType` on the notification bus | validated event `source` + bus resource policy        | FR-024..FR-030                 |
 
-Envelope shape (contract source: `spec.md`):
+Both adapters delegate to the **same** core: validate → registry check → producer authorization →
+idempotency dedupe → durable accept → enqueue routing. A rule enforced in only one adapter is a defect
+(FR-024), so the adapters own transport concerns only and hold no business logic.
+
+The EventBridge path exists because the platform's async producers already emit domain events; forcing them
+into a synchronous publish inside a database transaction would make this service a runtime dependency of
+their hot paths and hard-code a dual write. It ingests **notification envelopes, never domain events**
+(FR-025) — a domain event carries no recipient, and deriving one would require inspecting `payload`
+(forbidden, FR-023) or calling back into the producer.
+
+The HTTP path's `FR-002` mechanism is now decided: the platform's **Ed25519 service-principal token**,
+verified networklessly against a public key (the scheme already deployed as `FOOD_SERVICE_PRINCIPAL_JWT_KEY`,
+minted and verified by `packages/shared/recipe-core/src/serviceErasureToken.ts`). Verification performs no
+outbound call, so no third-party round trip sits on the publish path (FR-032). Per-producer quotas are read
+from that producer's registry entry, declared at registration, never inferred (FR-033).
+
+Envelope shape (contract source: `spec.md` FR-026 — normative, both paths):
 
 ```text
 {
-  recipient: { kind: "user" | "group" | "global", id?: string },
-  messageType: string,
-  payload: <opaque producer-defined>,
-  occurredAt: ISO-8601,
-  idempotencyKey?: string
+  schemaVersion:  <integer>,             // REQUIRED — two doors make this a versioned wire contract
+  recipient:      { kind: "user" | "group" | "global", id?: string },
+  messageType:    string,                // REQUIRED — registry-checked
+  payload:        <opaque producer-defined>,
+  occurredAt:     ISO-8601,              // REQUIRED, producer-assigned — the FIFO ordering key (FR-029)
+  idempotencyKey: string,                // REQUIRED on EventBridge (at-least-once); optional on HTTP
+  producer:       string                 // REQUIRED on EventBridge (no bearer token to derive it from)
 }
 ```
+
+An envelope missing a required field is rejected outright — never partially routed, never defaulted. On the
+EventBridge path a rejection has no caller to receive a structured error, so it dead-letters and alarms
+(FR-028), with a counter per rejection reason: malformed (FR-015), unregistered under enforcement (FR-017),
+quota-exceeded (FR-019), or `source` not allowlisted (FR-027).
+
+### Event-path trust boundary (FR-027)
+
+The event path carries **no credential**. Its trust boundary is therefore two controls, both required:
+
+| Control                     | Enforced at                                            | Fails to                                                        |
+| --------------------------- | ------------------------------------------------------ | --------------------------------------------------------------- |
+| EventBridge resource policy | the bus — which principals may `PutEvents`             | reject at the AWS API before the envelope is ever seen          |
+| `source` allowlist          | the adapter — the event's `source` vs registry entries | dead-letter with reason `source_not_allowlisted`, never deliver |
+
+Neither substitutes for the other. Without both, this path is an unauthenticated publish channel through
+which any principal with bus access can address a notification to any user, defeating FR-005, FR-020 and
+FR-021. `idempotencyKey` must be derived from durable domain state — a job identity plus terminal status —
+so it is stable across producer retries (FR-030); a key derived from a transport id or a clock changes on
+retry and deduplicates nothing.
+
+### Producer-side correlation (FR-031)
+
+This service does not aggregate. A producer whose work fans out publishes **one** envelope per
+user-meaningful outcome, correlating its own fan-out first — typically via a feature-owned **translator**
+that subscribes to its own domain events, resolves recipients, and publishes once. 004's recipe import is
+the sizing case: up to 100 ingredient resolutions (004 FR-020 × 003 FR-045) must become one notification.
+One envelope per underlying completion is a publisher defect, not a gap here.
 
 ### Subscriber API
 
@@ -252,7 +326,7 @@ Legend:
 | ------------------------- | ------------------------------------------------------------------------------- | ----------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `001` Commise Recipe App  | Recipe lifecycle notifications (create/update/share-style lifecycle references) | user, group                         | Medium                     | **Implied** — requires 001 contract finalization (**coordination required**)                            |
 | `002` Clerk User Auth     | Security/session/admin notices (optional for v1)                                | user, global                        | Low                        | Not explicitly required by 014 launch contract                                                          |
-| `003` USDA Food Data      | `food.backfill.completed`, `food.fetch.failed`                                  | user (fan-out list), optional group | **High**                   | **Firm** in 003/014 artifacts                                                                           |
+| `003` USDA Food Data      | `food.resolution.completed` (003 decision register); failure notice unnamed     | user (fan-out list), optional group | **High**                   | **Firm** — published by the recipe service, not the food service (T-044)                                |
 | `004` Recipe Importing    | Import completion/failure notices (optional)                                    | user                                | Low                        | Not currently required by 014 launch goals                                                              |
 | `005` AI Integration      | AI-generation disclosure/compliance events                                      | user                                | High                       | **Implied/Firm-in-principle** — disclosure required; event taxonomy pending (**coordination required**) |
 | `006` Meal Planning       | Plan-change reminders / schedule nudges                                         | user, group                         | Medium                     | Implied via M8 launch integration requirement (**coordination required**)                               |
@@ -275,22 +349,28 @@ Minimum must-wire in M8 execution backlog:
 The owner confirmed on 2026-08-05 that full M8 scope stands. Recording the standing
 constraint that comes with it:
 
-| Producer | Exists in code?                                    | Integration task |
-| -------- | -------------------------------------------------- | ---------------- |
-| `003`    | ✅ `packages/services/food-service`                | T-017            |
-| `005`    | ❌ specification only                              | T-018            |
-| `008`    | ❌ specification only                              | T-018            |
-| `009`    | ❌ specification only                              | T-018            |
-| `012`    | ❌ specification only                              | T-021 (added 2026-08-05) |
-| `013`    | ❌ specification only                              | T-022 (added 2026-08-05) |
+| Producer | Exists in code?                     | Integration task                                      |
+| -------- | ----------------------------------- | ----------------------------------------------------- |
+| `003`    | ✅ `packages/services/food-service` | T-042 – T-044 (publisher lands in the recipe service) |
+| `005`    | ❌ specification only               | T-018                                                 |
+| `008`    | ❌ specification only               | T-018                                                 |
+| `009`    | ❌ specification only               | T-018                                                 |
+| `012`    | ❌ specification only               | T-021 (added 2026-08-05)                              |
+| `013`    | ❌ specification only               | T-022 (added 2026-08-05)                              |
 
-Only **003** can be integrated end-to-end today. The other five integration tasks are
-blocked on those features shipping, independently of any work on 014 — 014 cannot
-reach M8 exit before they do. `SC-001` is deliberately written to need only **one**
-producer end-to-end, so 014's own launch criterion is satisfiable with 003 alone;
-it is the M8 *milestone* gate, not this feature's success criterion, that needs all
-six. Previously 012 and 013 were named mandatory here with no task at all in
+Only **003** can be integrated end-to-end today, and its notification is published by the
+**recipe service**, not the food service: `FetchQueueDao.resolve` deletes every
+`fetch_requesters` row in the same transaction that completes a food, so the food service
+cannot name the recipients after the fact (T-044). The five remaining integration tasks are
+blocked on those features shipping, independently of any work on 014 — 014 cannot reach M8
+exit before they do. Previously 012 and 013 were named mandatory here with no task at all in
 `tasks.md` (sync-report DRIFT-004).
+
+**`SC-001` no longer depends on any consumer** (amended 2026-08-10). It is proven against a
+**synthetic reference producer owned by this feature** (T-041) exercising both ingress paths,
+so this feature's own launch criterion never waits on a producer's schedule. The remaining
+upstream dependency is one 014 builds itself — the identity groups model, T-023 – T-025. It
+is the M8 _milestone_ gate, not `SC-001`, that needs all six producers.
 
 ---
 
@@ -351,6 +431,12 @@ relevant context"), which had no implementing surface.
 ### Hard dependencies
 
 - **002** for identity/authenticated subscription boundary.
+- The platform Ed25519 service-principal token scheme for producer authentication on the
+  HTTP path (FR-032).
+- An EventBridge bus owned by this service, with a resource policy and a reserved
+  `detailType`, for the event ingress (FR-024, FR-027). This is the first shared bus in the
+  repo; 003 already publishes `FoodFetchCompleted` to EventBridge, so the substrate is in
+  use but no cross-feature bus convention exists yet.
 - Shared package conventions/governance across monorepo.
 
 ### Cross-team contracts required in M8
@@ -372,9 +458,11 @@ These are explicitly tracked as coordination tasks in [`tasks.md`](./tasks.md).
 ### Rollout phases
 
 1. **Phase A — Contract hardening**
-    - Finalize shared envelope types + registry + validation.
+    - Finalize shared envelope types + registry + validation, including the FR-026 minimum
+      on both ingress paths.
 2. **Phase B — Core delivery path**
-    - Publish, route, subscribe, replay, counters.
+    - Publish, route, subscribe, replay, counters. Both adapters land against one core, and
+      the paired per-rule equivalence tests (SC-008) are what prove it.
 3. **Phase C — Producer integrations**
     - Progressive enablement by feature behind environment flags.
 4. **Phase D — Verification closeout**
@@ -383,8 +471,12 @@ These are explicitly tracked as coordination tasks in [`tasks.md`](./tasks.md).
 ### Rollout controls
 
 - Environment-level enforcement toggles for unregistered `messageType` rejection.
-- Per-producer quotas and idempotency windows to limit storm/retry amplification.
+- Per-producer quotas and idempotency windows to limit storm/retry amplification. Quota
+  values come from the producer's registry entry (FR-033).
 - Counter-based canary checks: publish volume, delivery success, undelivered-after-retention, active subscribers.
+- The event ingress is enabled per producer by adding that producer's `source` to the
+  allowlist and to the bus resource policy. Removing a producer from the allowlist is the
+  kill switch for its event path; the HTTP path is gated separately by its token.
 
 ---
 
@@ -395,4 +487,6 @@ Aligned to [`../v1-launch-plan.md`](../v1-launch-plan.md) and [`../governance-ru
 - `verify-report.md` at `0 CRITICAL, 0 WARNING`.
 - `v-model/release-audit-report.md` unblocked with ingested execution results.
 - Demonstrable integrated notification flow across required producer set.
+- Ingress parity proven: a paired test per rule showing identical acceptance and identical rejection over
+  HTTP and EventBridge (SC-008), and 100% of non-allowlisted `source` values dead-lettered (SC-009).
 - GR-011 ownership proven by removal of producer-local delivery implementations in integrated features.

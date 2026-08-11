@@ -9,7 +9,7 @@
 
 | Spec                                                            | Relationship                                                                                                                               |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| [002-user-auth](../002-user-auth/spec.md)           | **Required** — Subscriber authentication and authenticated identity for recipient resolution use the shared auth mechanism owned by 002.   |
+| [002-user-auth](../002-user-auth/spec.md)           | **Required + extended** — Subscriber authentication and authenticated identity for recipient resolution use the shared auth mechanism owned by 002. 002 is shipped; this feature additionally **adds a group model to the identity service** (see A-002), so the groups API is new surface delivered under 014, not a dependency to wait on. |
 | [003-usda-food-data](../003-usda-food-data/spec.md)             | **Downstream (launch consumer)** — 003 US-005 / FR-NOTIF publishes `food.backfill.completed` and `food.fetch.failed` through this service. |
 | [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Downstream** — recipe lifecycle notifications owned by 001 contract updates will be published through this service.                      |
 | [005-ai-integration](../005-ai-integration/spec.md)             | **Downstream** — AI-generated content disclosure events owned by 005 contract updates will use this service.                               |
@@ -290,7 +290,18 @@ A producer feature can be rate-limited independently to protect the shared infra
 ## Assumptions
 
 - **A-001**: Subscriber transport choice (WebSocket push, client-pull, webhook, or hybrid) is deferred to `plan.md`. The product contract is mechanism-agnostic.
-- **A-002**: Group membership source-of-truth is **not** owned by this feature. A separate identity/groups feature (or feature 002 extension) will provide the membership lookup; until then, group routing relies on a placeholder lookup defined in `plan.md`.
+- **A-002** _(resolved 2026-08-05 — supersedes the original assumption)_: Group
+  membership source-of-truth is the **identity service**, and this feature builds it
+  there. A `group` / `group_membership` model plus `/api/v1/groups/*` is added to
+  `packages/services/identity` under 014; the notification service resolves membership
+  against that API at delivery time (FR-022). Groups are deliberately **not** mapped
+  onto Clerk Organizations. Design in `plan.md` → _Group Model (identity service)_;
+  tasks T-023 – T-025.
+
+    The original assumption read: _"not owned by this feature … until then, group
+    routing relies on a placeholder lookup defined in `plan.md`."_ No such placeholder
+    was ever defined, and the task graph silently assumed a "002 group membership API"
+    that does not exist (sync-report DRIFT-003).
 - **A-003**: Producer authentication mechanism is aligned with feature 002 service-to-service auth. Concrete mechanism (signed JWT, IAM, or per-feature key) is decided in `plan.md`.
 - **A-004**: At launch the registry of `messageType` keywords is **non-enforcing**; enforcement is enabled per-environment after the first ~quarter of production data exposes any unintended unregistered traffic.
 - **A-005**: Email and mobile-push transports are out of scope for this release. A future feature may extend the service to fan out to those transports without changing the publish contract.

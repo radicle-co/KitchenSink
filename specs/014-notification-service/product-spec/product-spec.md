@@ -65,42 +65,83 @@ Each producer owns its own `messageType` namespace. The notification service doe
 2. **Recipient model** — Descriptor that resolves a publish to one user, a group, or global.
 3. **Subscription / delivery** — Mechanism for a client to declare interest and receive matching messages. Specific mechanism deferred to implementation.
 4. **In-app surface** — Client-side primitive for rendering received messages, dispatched by `messageType`.
+
+    **The attachment point already exists and is waiting.** Both clients ship a
+    notifications control in the home chrome today — `HomeTopBar.tsx` in
+    `packages/apps/commise/web` and its mobile counterpart, labelled from
+    `i18n/messages.ts` (`chrome.notifications`). It is deliberately inert, and the
+    source comment states why: _"No count badge — there is no notifications service
+    in v1, and a fabricated number is exactly what this surface refuses to show."_
+    This feature is what that control is waiting for. Launch scope for this epic is
+    therefore: an unread count on the existing bell, and a feed surface it opens.
+    Per the repo's cross-platform rule, web and mobile ship in the same release.
 5. **Operational visibility** — Minimum publish/delivery counters needed to confirm the system is alive in production.
 
 ---
 
 ## MoSCoW Story Map
 
+> **Numbering authority.** These ids match [`../spec.md`](../spec.md) exactly. They
+> were **renumbered on 2026-08-05** to close a collision in which the same `US-NNN`
+> denoted different stories here and in `spec.md` (sync-report DRIFT-001). `spec.md`
+> is the anchor because `tasks.md` and all 31 `REQ-NNN` rows in `v-model/` already
+> key off it. The original numbering is preserved in the mapping table below — cite
+> ids from this table when reading any artifact written before 2026-08-05.
+
+<details>
+<summary>Pre-2026-08-05 → current id mapping</summary>
+
+| Original (this file) | Current (all artifacts) | Story                              |
+| -------------------- | ----------------------- | ---------------------------------- |
+| US-001 + US-002      | **US-001** (merged)     | Publish + single-user routing      |
+| US-003               | **US-002**              | Group recipient routing            |
+| US-004               | **US-003**              | Global broadcast                   |
+| US-005               | **US-004**              | Client dispatch by `messageType`   |
+| US-006               | **US-005**              | Catch-up after disconnect          |
+| US-007               | **US-006**              | Operational counters               |
+| US-008               | **US-007**              | Authenticated subscription         |
+| US-009               | **US-008**              | Envelope schema validation         |
+| _(none — see below)_ | **US-009**              | `messageType` registry enforcement |
+| US-010               | US-010                  | Producer-defined idempotency key   |
+| US-011               | US-011                  | Per-feature publish quotas         |
+
+`US-009` had no story in this map before 2026-08-05: the capability entered via the
+Q-005 resolution and was implemented downstream (`tasks.md` T-014, `v-model` REQ-016 /
+REQ-017) without ever being promoted into the story map (DRIFT-006). It is now stated
+below as the deliberate Should Have it always was.
+
+</details>
+
 ### Must Have (launch)
 
-1. **US-001 — Service publishes a notification**
-   A backend service authenticates and publishes a message containing `{ recipient, messageType, payload, occurredAt }`. The publish call returns success when the message is durably accepted, regardless of whether any subscriber is currently connected.
+1. **US-001 — Service publishes a user-addressed notification**
+   A backend service authenticates and publishes a message containing `{ recipient, messageType, payload, occurredAt }`. The publish call returns success when the message is durably accepted, regardless of whether any subscriber is currently connected. When `recipient = { kind: "user", id: <userId> }`, the message is delivered to (or made retrievable by) every active client of that user, and only that user.
 
-2. **US-002 — Single-user recipient routing**
-   When `recipient = { kind: "user", id: <userId> }`, the message is delivered to (or made retrievable by) every active client of that user, and only that user.
+2. **US-002 — Group recipient routing**
+   When `recipient = { kind: "group", id: <groupId> }`, the message is delivered to every user that is a member of the group at delivery time. Membership is resolved against the identity service's group model (Q-002).
 
-3. **US-003 — Group recipient routing**
-   When `recipient = { kind: "group", id: <groupId> }`, the message is delivered to every user that is a member of the group at delivery time.
+3. **US-003 — Global broadcast**
+   When `recipient = { kind: "global" }`, the message is delivered to every authenticated client, scoped to the application. Global broadcasts are **live-only** — they are not retained for offline catch-up (see Q-009).
 
-4. **US-004 — Global recipient routing**
-   When `recipient = { kind: "global" }`, the message is delivered to every authenticated client, scoped to the application.
-
-5. **US-005 — Client receives and dispatches by `messageType`**
+4. **US-004 — Client receives and dispatches by `messageType`**
    A connected client receives matching messages and invokes a handler keyed off `messageType`. Unknown `messageType` values do not crash the client; they are logged and ignored.
 
-6. **US-006 — Catch-up after disconnect**
-   A client that was offline when a message was published can still receive (or pull) messages addressed to it within a defined retention window once it reconnects. The exact mechanism (pull, replay-on-resubscribe, both) is an implementation decision.
+5. **US-005 — Catch-up after disconnect**
+   A client that was offline when a message was published can still receive (or pull) messages addressed to it within a defined retention window once it reconnects. Applies to `user` and `group` recipients only.
 
-7. **US-007 — Operational counters**
+6. **US-006 — Operational counters**
    Operations Engineer can observe at minimum: publish rate per producer, delivered count, undelivered count after retention window, current active subscriber count.
 
 ### Should Have
 
-8. **US-008 — Authenticated subscription**
+7. **US-007 — Authenticated subscription**
    Clients must be authenticated via the existing auth mechanism before they can subscribe; recipient resolution uses the authenticated identity, not client-supplied identity claims.
 
-9. **US-009 — Message envelope schema validation**
+8. **US-008 — Message envelope schema validation**
    Publishes that violate the envelope schema are rejected with a structured error before being durably stored.
+
+9. **US-009 — `messageType` registry enforcement**
+   Each producer registers its `messageType` keywords in a shared, version-controlled registry. Unregistered types are tolerated but counted; once enforcement is enabled per environment, they are rejected at publish. (Promoted from the Q-005 resolution on 2026-08-05.)
 
 ### Could Have
 
@@ -167,11 +208,35 @@ Each producer owns its own `messageType` namespace. The notification service doe
 
 ## Open Questions
 
-- **Q-001 — Delivery mechanism**: WebSocket push, webhook callback, client-pull retrieval, or a hybrid? The product contract is mechanism-agnostic; the implementation must pick one or more. Decision deferred to plan/implementation phase.
+- **Q-001 — Delivery mechanism** _(resolved 2026-08-05)_: **Hybrid.** A durable SQS
+  FIFO ingest/routing queue accepts publishes, a realtime push path serves connected
+  subscribers, and a pull/replay endpoint serves reconnecting ones. Producers remain
+  transport-agnostic. Full design in [`../plan.md`](../plan.md) → _Ordering &
+  Partitioning_ and _Transport and Queue Architecture Choice_.
 
-- **Q-002 — Group membership source of truth**: Where does the service look up "which users are in group X"? Options: (a) consume from feature 002 / a future identity feature, (b) maintain its own membership store, (c) require the producer to expand groups before publishing. Decision needed before US-003 can be implemented.
+- **Q-002 — Group membership source of truth** _(resolved 2026-08-05, owner decision)_:
+  **The identity service owns groups, and this feature builds them.** Groups are a
+  first-class identity concept — a `group` and `group_membership` model in
+  `packages/services/identity` with its own API — and are explicitly **not** mapped
+  onto Clerk Organizations. The notification service resolves membership against that
+  API at delivery time, preserving FR-022.
 
-- **Q-003 — Catch-up retention window**: What is the default retention window for offline catch-up (US-006)? Per `messageType`? Per recipient kind? Default value (e.g., 24h, 7d) needs product input.
+    Rejected alternatives: (b) a membership store owned by 014 (creates a second
+    source of truth for who is in a group, guaranteed to drift from identity);
+    (c) producer-side expansion (pushes fan-out into every producer and makes
+    `recipient.kind = "group"` a fiction); Clerk Organizations (binds the group model
+    to an external vendor's tenancy semantics, which is not what these groups are).
+
+    **Scope consequence:** feature 002 is shipped, so this work lands as an extension
+    to the identity service delivered under 014. It is new capability, not a
+    dependency to wait on — tracked in [`../tasks.md`](../tasks.md) (identity-groups
+    task block) and [`../plan.md`](../plan.md) → _Group Model (identity service)_.
+
+- **Q-003 — Catch-up retention window** _(resolved 2026-08-05)_: **24 hours**, uniform
+  across `messageType` and applied to `user` and `group` recipients only. This is the
+  floor `spec.md` FR-012 already mandates (`MUST be ≥ 24 hours`) and the value
+  `tasks.md` T-009 implements; it is recorded here so the two stop being an
+  unreconciled default. Revisit only with production evidence of missed catch-up.
 
 - **Q-004 — Authentication strategy for producers**: Are publishes authenticated via service-to-service tokens (e.g., signed JWTs from a service registry), per-feature API keys, or AWS IAM? Should align with feature 002's auth approach.
 
@@ -179,7 +244,24 @@ Each producer owns its own `messageType` namespace. The notification service doe
 
 - **Q-006 — Global broadcast safety**: `recipient = global` is powerful and dangerous. Should it require an additional capability/role check beyond the standard publish auth? At minimum it should be observable in operational counters.
 
-- **Q-007 — Failure semantics on unknown recipient**: If `recipient = { kind: "user", id }` references a user that does not exist (or a group that has no members), is that an error, a silent no-op, or a counter increment? Need a deliberate decision before US-002/US-003.
+- **Q-007 — Failure semantics on unknown recipient** _(resolved — decision already
+  recorded in `spec.md`, restated here 2026-08-05)_: **Counter increment, never an
+  error to the producer.** Publishing to an unknown user id succeeds at the API
+  boundary (deliberately decoupled from identity lookup) and increments an
+  "undeliverable, unknown recipient" counter; publishing to an empty group succeeds
+  with zero deliveries and a counter increment. See `spec.md` → _Edge Cases_. The
+  rationale is that publish-time identity validation would couple every producer's
+  write path to identity availability.
+
+- **Q-009 — Are global broadcasts retained for offline catch-up?** _(new, opened
+  2026-08-05)_ `spec.md` FR-012 scopes retention to `user` and `group` recipients,
+  and its edge case is explicit: _"broadcasts published while a client is offline
+  beyond the retention window are dropped for that client."_ But
+  [`user-journey.md`](./user-journey.md) Journey C step 4 states disconnected clients
+  _"retrieve it later if still relevant"_ (sync-report DRIFT-013). The story map above
+  now follows `spec.md` (live-only). Confirm at the revalidation gate, then correct
+  Journey C — an operational maintenance broadcast that silently misses every offline
+  client is a defensible product choice, but it must be a stated one.
 
 - **Q-008 — Ordering guarantees** _(resolved 2026-05-10, research-backed)_: **Per-recipient FIFO** for `recipient.kind ∈ { user, group }`. Messages addressed to the same recipient are delivered in publish order; no cross-recipient and no cross-producer ordering is guaranteed. **Global broadcasts (`recipient.kind = "global"`) are best-effort ordered only**, matching industry practice (Ably multi-consumer queues, AWS SNS FIFO carve-outs, Knock broadcast vs. per-user feed). Implementation implication: the transport must support a partition-key-per-recipient model (e.g., SQS FIFO `MessageGroupId = recipient.id`, Kafka partition by recipient, or per-recipient WebSocket channel with monotonic sequence). Producers MAY still send `idempotencyKey` (US-010); consumers MUST treat handlers as idempotent regardless.
 

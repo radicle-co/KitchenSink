@@ -1,8 +1,8 @@
 # Feature 014: Notification Service
 
 **Branch**: `014-notification-service`
-**Status**: Bootstrap — initial product context only
-**Created**: 2026-05-10
+**Status**: Planning complete, reconciled — **not implemented**
+**Created**: 2026-05-10 · **Last reconciled**: 2026-08-05
 
 ---
 
@@ -61,21 +61,30 @@ This feature owns that infrastructure.
 
 ## Status
 
-**Bootstrap only.** This folder currently contains:
+> The previous version of this section claimed `spec.md`, `plan.md`, `tasks.md` and
+> `v-model/` did not exist. All four have existed since the 007–014 reconciliation
+> commit; the section was never updated.
 
-- Product-spec foundation (vision, personas, story map, open questions).
-- Light research scaffolding pointing at the cross-feature evidence.
-- An empty review log ready for the first revalidation pass.
+**Planning complete and reconciled. No code has been written.**
 
-It does **not** yet contain:
+Present:
 
-- `spec.md` (SpecKit FR-NNN decomposition)
-- `plan.md` (architecture / sequencing)
-- `tasks.md`
-- `v-model/` artifacts
-- `research/competitors.md`, `research/ux-patterns.md`, `research/tech-stack.md`, `research/metrics-roi.md`
+- `spec.md` — 23 FR, 8 NFR, 7 SC, 11 user stories
+- `plan.md` — architecture, ordering/partitioning, data model, group model, NFR budgets
+- `tasks.md` — 33 dependency-ordered tasks, **0 complete**
+- `v-model/` — 21 artifacts incl. peer reviews; 31 `REQ-NNN` fully mapped, **186 scenarios untested**
+- `product-spec/` (4 docs), `research/` (2 docs), `review.md`, `sync-report.md`
 
-These should be authored in a follow-up Product Forge cycle once the open questions in the product spec are resolved.
+Still thin or outstanding:
+
+- `research/competitors.md`, `ux-patterns.md`, `tech-stack.md`, `metrics-roi.md` — unauthored
+- `contracts/` — no OpenAPI/AsyncAPI yet, so contract-drift checking cannot run
+- The `v-model/` chain predates the 2026-08-05 scope additions and needs regeneration (see `review.md` → Outstanding)
+- Revalidation gate is **pending**; `verify-report.md` is **superseded**
+
+Two open questions block implementation start: **Q-004** producer authentication
+mechanism (blocks T-003) and the realtime subscribe protocol (blocks T-012).
+Q-001, Q-002, Q-003, Q-005, Q-007 and Q-008 are resolved.
 
 ---
 

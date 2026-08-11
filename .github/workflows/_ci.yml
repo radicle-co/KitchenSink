@@ -1027,9 +1027,19 @@ jobs:
             # keeps `html` as its default so a local `npx playwright test` is unchanged.
             - name: Run web e2e tests (shard ${{ matrix.shard }}/${{ strategy.job-total }})
               if: steps.secrets.outcome == 'success'
+              # ⚠️ The shard coordinates reach the shell through `env:`, NOT by `${{ }}` interpolation into
+              # the `run:` body. Expanding a template directly into a shell script is the
+              # `template-injection` class: the expansion happens BEFORE the shell sees the line, so the
+              # value is spliced in as code rather than passed as data. These two happen to be integers
+              # GitHub generates, so nothing is exploitable here today — but the audit is gating precisely
+              # so that the pattern never gets copied to a value an outsider controls (a PR title, a branch
+              # name, a comment body). The step NAME above may keep its `${{ }}`: a name is not executed.
+              env:
+                  SHARD_INDEX: ${{ matrix.shard }}
+                  SHARD_TOTAL: ${{ strategy.job-total }}
               run: |
                   npm run test:e2e --workspace=@commise/web -- \
-                      --shard=${{ matrix.shard }}/${{ strategy.job-total }} \
+                      --shard="${SHARD_INDEX}/${SHARD_TOTAL}" \
                       --reporter=blob
             # One blob per shard, consumed ONLY by the report job. `!cancelled()` rather than `failure()`: the
             # merged report must describe the whole run, so a PASSING shard's blob is required too.
@@ -1080,10 +1090,13 @@ jobs:
         needs: e2e-web
         if: ${{ !cancelled() }}
         permissions:
+            # Checkout only — this job merges blob artifacts and uploads to Argos; it writes nothing to the repo.
             contents: read
             # Same secretless Argos OIDC exchange as the shard job — the upload moved here, so the permission
             # must move with it (a job-level `permissions:` REPLACES the workflow default rather than adding).
-            id-token: write
+            # The comment must be TRAILING to satisfy `undocumented-permissions`: the audit reads the same
+            # line, not the lines above it, which is why the block comment alone left this flagged.
+            id-token: write # the secretless Argos OIDC exchange — see the note above
         steps:
             - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
               with:
@@ -1177,8 +1190,14 @@ jobs:
             # worst form, a single signal that lies. `needs.e2e-web.result` aggregates the whole matrix:
             # `success` only if every shard succeeded, otherwise `failure`/`cancelled`/`skipped`.
             - name: Re-assert the shards' verdict
+              # Same `template-injection` reasoning as the shard step: the matrix result arrives as DATA in
+              # `env:` rather than being expanded into the script. Note the quoting in the old form was not
+              # protection — `'${{ ... }}'` is substituted before the shell parses the line, so a value
+              # containing a quote would have ended the string and run whatever followed.
+              env:
+                  MATRIX_RESULT: ${{ needs.e2e-web.result }}
               run: |
-                  result='${{ needs.e2e-web.result }}'
+                  result="${MATRIX_RESULT}"
                   echo "e2e-web matrix result: $result"
                   case "$result" in
                       success|skipped) exit 0 ;;

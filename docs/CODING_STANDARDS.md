@@ -949,22 +949,59 @@ That is the failure this section exists to make structurally impossible. Contrac
 
 ### 15.2 The required shape (owner-approved 2026-08-11)
 
-For each service, a **schema package** — `packages/schemas/<service>` (`@kitchensink/schema-<service>`) —
-is the single seam. It is **generated output, committed to the repo**:
+**Zod is AUTHORED IN THE SERVICE. The schema package is a committed COPY of it.**
 
 ```
-packages/schemas/<service>/
-├── openapi.yaml            generated FROM the service's DTOs
-├── src/types.ts            generated TypeScript types
-├── src/schemas.ts          generated zod schemas
-├── src/contract-hash.ts    hash of the service's DTO sources
-└── src/index.ts            barrel — named exports only
+packages/services/<service>/src/**/*.schema.ts   ← zod authored HERE, beside the
+                                                    controller it serves, and used
+                                                    directly for request validation
+                        │
+                        │  copy  (turbo: schema-<service> dependsOn <service>)
+                        ▼
+packages/schemas/<service>/        @kitchensink/schema-<service>  — GENERATED, committed
+├── src/schemas.ts                 the zod, assembled from the service's *.schema.ts
+├── src/types.ts                   `z.infer` types
+├── src/contract-hash.ts           hash of the service's schema sources
+├── src/index.ts                   barrel — named exports only
+└── openapi.yaml                   DERIVED from the zod, for oasdiff / docs / integrators
+                        │
+                        ▼
+packages/clients/<service> → web + mobile    (depend on the leaf, never on the service)
 ```
 
-1. **Derivation flows one way: DTOs → `openapi.yaml` → types + zod.** The service's DTOs
-   (`class-validator` + `@ApiProperty`) are the source of truth. The schema package is generated from
-   them and **depends on the service** in turbo — never the reverse. Nothing in the schema package is
-   hand-edited.
+Two constraints drove this shape, and both are non-negotiable:
+
+- **Authoring lives in the service.** A contributor adding an endpoint must not have to edit a second
+  package to describe it — that is how a contract drifts or the practice gets abandoned.
+- **The package lives under `packages/schemas/`.** Not nested in the service, not under
+  `packages/services/`.
+
+Together they force a copy, and the copy is accepted deliberately. Naming it plainly matters: **the
+"generation" of `schemas.ts`/`types.ts` is a file copy**, not a transformation. Zod schemas are runtime
+values, so they cannot be derived from themselves; and every package here exports raw `./src/*.ts`
+(see `recipe-core`, the recipe client), so there is no bundle-into-`dist` path that would let a build
+inline them instead. The alternatives were a client dependency on the service package (drags the server
+graph into web and mobile) or moving the package next to the files (rejected — the location is fixed).
+
+⚠️ **THE COPY'S LOAD-BEARING CONSTRAINT — enforce it in code, not by convention.** A `*.schema.ts` file
+may import **only `zod` and other `*.schema.ts` files**. A single import of a service internal — a DAL
+type, a drizzle schema, a Nest symbol — either breaks the copied package outright or pulls the server
+graph into every client. This WILL be violated: `RecipeSearchResponse.facets` already takes its wire type
+from `../dal/search.dal.js`, which is this exact leak in shipped code. A lint rule and/or a generate-time
+check must fail loudly, naming the file and symbol.
+
+1. **Derivation flows one way: zod → `z.infer` types, and zod → `openapi.yaml`.** Zod is the authored
+   source. `openapi.yaml` is a **derived artifact for external consumption** — `oasdiff`, docs,
+   integrators — and is **NOT a codegen input**. Deriving types _through_ OpenAPI was rejected: JSON
+   Schema cannot express `readonly`, branded types, or template literals, and discriminated unions
+   flatten without explicit `oneOf`/`discriminator`, so it would degrade the strong gate (typecheck) to
+   serve the weak artifact.
+
+    The schema package is a copy of the service's zod and **depends on the service** in turbo — never the
+    reverse. Nothing in the schema package is hand-edited: to change a contract you edit the service's
+    `*.schema.ts` and regenerate. The service consumes its own zod for request validation (via
+    `nestjs-zod`'s `createZodDto`), so server and clients validate against one authored definition.
+
 2. **The schema package exports BOTH the types and runtime zod schemas.** A consumer gets compile-time
    types and a runtime validator from one place, so a boundary can be checked at both layers without a
    second representation.
@@ -975,10 +1012,10 @@ packages/schemas/<service>/
    only genuinely client-side types (config, options, its own error shapes) — never a wire shape.
 5. **Three drift layers, each catching what the others cannot. All three are required:**
     - **Rebuild (turbo):** `schema-<service>#build` `dependsOn` `<service>#build`, with `inputs` covering
-      the service's DTO sources, so content hashing rebuilds the package automatically.
+      the service's `*.schema.ts` sources, so content hashing rebuilds the package automatically.
     - **Correctness (CI):** regenerate and fail on any diff against the committed artifacts. This is the
       strong gate — it is what catches generated output that someone hand-edited.
-    - **Skew (runtime):** a `CONTRACT_HASH` over the service's DTO sources, embedded in both the service
+    - **Skew (runtime):** a `CONTRACT_HASH` over the service's `*.schema.ts` sources, embedded in both the service
       and the schema package and asserted equal at service boot. This catches a **deployed** service
       running ahead of a consumer's pinned schema — invisible to both layers above, and the live case for
       mobile, where a released binary cannot be updated in step with a backend deploy.

@@ -15,11 +15,14 @@
 #   PREVIEW_HOSTED_ZONE_ID  the Route 53 zone holding it
 #   VERCEL_TOKEN / VERCEL_PROJECT_ID / VERCEL_TEAM_ID
 #
-# Environment (required for the GitHub-Environment step, section 0b):
-#   GH_ENVIRONMENT_ADMIN_TOKEN  a token with `Administration: write` on this repo. Deliberately NOT
-#                               `github.token`/`GH_TOKEN`: the workflow token CANNOT delete an environment
-#                               (`administration` is not a grantable `permissions:` key), so reusing that
-#                               name would guarantee a 403 on every run. Unset ⇒ the step warns and skips.
+# Environment (required for the LEGACY GitHub-Environment step, section 0b):
+#   GH_ENVIRONMENT_ADMIN_TOKEN  a token with `Administration: write` on this repo — provisioned as the repo
+#                               secret of the same name and passed in by `sandbox-deploy.yml`'s `cleanup`
+#                               and `reap-abandoned` jobs. Deliberately NOT `github.token`/`GH_TOKEN`: the
+#                               workflow token CANNOT delete an environment (`administration` is not a
+#                               grantable `permissions:` key), so reusing that name would guarantee a 403 on
+#                               every run. Unset (rotation, or a fork with no secret access) ⇒ the step warns
+#                               and skips, because what it reclaims is metadata, not spend.
 #   GITHUB_REPOSITORY           owner/repo; set automatically by GitHub Actions.
 set -uo pipefail
 
@@ -74,13 +77,28 @@ else
     teardown_failed=1
 fi
 
-## 0b. The PR's GitHub ENVIRONMENT — `sandbox-preview/pr-{N}`, created by `sandbox-web-preview.yml`'s
-##     Deployments-API call so the PR gets a "View deployment" button pointing at the working preview URL.
+## 0b. The PR's LEGACY GitHub ENVIRONMENT — `sandbox-preview/pr-{N}`.
 ##
-##     Nothing has ever reclaimed these. Measured 2026-08-11: 51 `sandbox-preview/pr-{N}` environments
-##     existed against 8 open PRs — 43 orphans, the same leak class as the DELETE_FAILED stacks and the
-##     dangling CNAMEs, and invisible for the same reason (no signal, and `transient_environment: true`
-##     does NOT make GitHub delete anything).
+##     ⚠️ READ THE TENSE: this is a FINITE, DRAINING reclamation of names already on the repository, not a
+##     steady-state sweep of an ongoing stream. `sandbox-web-preview.yml` created one of these per PR (via
+##     the Deployments API, so the PR got a "View deployment" button aimed at the working preview URL) until
+##     `c86f3e09`, which collapsed every preview onto the ONE shared `sandbox-preview` environment for
+##     exactly the reason this block exists: no workflow can delete an environment at any permission level
+##     (`administration` is not a grantable `permissions:` key), so a per-PR NAME could only ever accumulate.
+##     No new `sandbox-preview/pr-{N}` is created any more. Do not build further machinery around this
+##     block, and do not "generalize" it to other environment shapes — there are none.
+##
+##     Ledger, so the end state is checkable rather than folklore. Measured against the live API on
+##     2026-08-11: 51 `sandbox-preview/pr-{N}` environments against 8 open PRs — 43 orphans, the same leak
+##     class as the DELETE_FAILED stacks and the dangling CNAMEs, and invisible for the same reason (no cost
+##     signal, and `transient_environment: true` does NOT make GitHub delete anything). The 43 were reclaimed
+##     that day. The 8 survivors — `sandbox-preview/pr-{84,85,86,87,88,89,91,92}` — belong to PRs that were
+##     still OPEN, and each drains here when its PR closes.
+##
+##     ⛔ WHEN THE LAST ONE IS GONE, DELETE THIS BLOCK. Re-verify with
+##     `gh api --paginate repos/:owner/:repo/environments --jq '.environments[].name' | grep 'pr-'`; an empty
+##     result means every legacy name has been reclaimed and this step is a permanent no-op. Leaving a
+##     permanent no-op behind is how the next reader concludes per-PR environments are still being created.
 ##
 ##     EARLY, like section 0 and for the same reason: it needs no AWS credentials and costs one API call,
 ##     so it must not be queued behind a stack delete that can hang for an hour.
@@ -100,8 +118,13 @@ if [ -z "${GH_ENVIRONMENT_ADMIN_TOKEN:-}" ]; then
     # subdomain-takeover vector, whereas a leaked environment costs nothing and exposes nothing — it is
     # clutter plus stale deployment history. Failing every PR-close run over it would train people to
     # ignore the red on the job whose real work is reclaiming billable compute, which is the failure mode
-    # this script has already been rebuilt twice to remove. Provision the token to close it.
-    echo "::warning::GH_ENVIRONMENT_ADMIN_TOKEN is unset — the GitHub Environment 'sandbox-preview/$PR' will be left behind (43 such orphans existed on 2026-08-11). github.token CANNOT delete an environment; this needs a token with Administration: write, stored as the GH_ENVIRONMENT_ADMIN_TOKEN secret."
+    # this script has already been rebuilt twice to remove.
+    #
+    # The secret IS provisioned, so reaching this branch means something changed: the token expired or was
+    # rotated, or this is a run with no access to repository secrets. The blast radius is bounded — at most
+    # the handful of legacy names in the ledger above — so the recovery is to delete the named environment by
+    # hand and re-provision the token.
+    echo "::warning::GH_ENVIRONMENT_ADMIN_TOKEN is unset (expired, rotated, or a run without secret access) — the legacy GitHub Environment 'sandbox-preview/$PR' will be left behind. github.token CANNOT delete an environment; this needs a token with Administration: write, stored as the GH_ENVIRONMENT_ADMIN_TOKEN repo secret. Delete it by hand: gh api --method DELETE repos/OWNER/REPO/environments/sandbox-preview%2F$PR"
 elif [ -z "${GITHUB_REPOSITORY:-}" ]; then
     echo "::error::GITHUB_REPOSITORY is unset, so the GitHub Environment for $PR cannot be resolved — it will be left behind"
     teardown_failed=1

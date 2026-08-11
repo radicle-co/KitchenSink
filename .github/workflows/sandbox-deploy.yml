@@ -147,10 +147,14 @@ jobs:
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
                   VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
                   VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
-                  # Reclaims this PR's `sandbox-preview/pr-{N}` GitHub Environment (teardown section 0b).
+                  # Reclaims this PR's LEGACY `sandbox-preview/pr-{N}` GitHub Environment (teardown §0b).
                   # NOT `github.token`: `administration` is not a grantable `permissions:` key, so the
-                  # workflow token structurally cannot delete an environment. While this secret is unset the
-                  # step WARNS and skips rather than failing the close — see the script.
+                  # workflow token structurally cannot delete an environment — which is why `c86f3e09`
+                  # stopped CREATING per-PR environments and moved every preview onto the one shared
+                  # `sandbox-preview`. So this is a DRAINING backlog, not an ongoing stream: only the
+                  # legacy names that predate that commit are left, and §0b's ledger says which. If the
+                  # secret is ever unset (rotation, or a run without secret access) the step WARNS and
+                  # skips rather than failing the close, because it reclaims metadata, not spend.
                   GH_ENVIRONMENT_ADMIN_TOKEN: ${{ secrets.GH_ENVIRONMENT_ADMIN_TOKEN }}
               run: |
                   chmod +x .github/scripts/teardown-sandbox-pr.sh
@@ -310,8 +314,12 @@ jobs:
                   REPOSITORY: ${{ github.repository }}
                   PREVIEW_ZONE: sandbox.${{ vars.DOMAIN_NAME }}
                   PREVIEW_HOSTED_ZONE_ID: ${{ steps.zone.outputs.hosted_zone_id }}
-                  # Lets the sweep reclaim the `sandbox-preview/pr-{N}` GitHub Environment of a PR whose
-                  # on-close cleanup never ran — the only path that reaches the 43 existing orphans.
+                  # Two jobs in one variable. It lets the sweep (a) DISCOVER a legacy
+                  # `sandbox-preview/pr-{N}` environment — see the source list in the script below, where it
+                  # is the only signal left once a PR's AWS resources are gone — and (b) DELETE it via
+                  # teardown §0b. This is the backstop for a close whose §0b failed; the on-close `cleanup`
+                  # job is the mechanism. Nothing creates these names any more (`c86f3e09`), so a
+                  # steady-state sweep finds none and this is expected to become a no-op.
                   GH_ENVIRONMENT_ADMIN_TOKEN: ${{ secrets.GH_ENVIRONMENT_ADMIN_TOKEN }}
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
                   VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
@@ -320,13 +328,22 @@ jobs:
                   set -uo pipefail
                   chmod +x .github/scripts/teardown-sandbox-pr.sh
 
-                  # Distinct pr-{N} tokens from CFN stack names, ECR repos, log groups, and Route 53
-                  # record names. Route 53 is load-bearing, not belt-and-braces: a PR that only ever had
-                  # a WEB preview owns no stack, repo or log group, so without this source its dangling
-                  # `pr-{N}.sandbox.<domain>` CNAME would be invisible to the reaper forever. This is
-                  # only CANDIDATE discovery — the teardown script re-applies the anchored pr-{N} match
-                  # (and the DNS half re-checks the exact record label), so an incidental "pr-5"
-                  # substring can never widen the blast radius.
+                  # Distinct pr-{N} tokens from CFN stack names, ECR repos, log groups, Route 53 record
+                  # names, and legacy GitHub Environments. Route 53 is load-bearing, not belt-and-braces:
+                  # a PR that only ever had a WEB preview owns no stack, repo or log group, so without
+                  # this source its dangling `pr-{N}.sandbox.<domain>` CNAME would be invisible to the
+                  # reaper forever. This is only CANDIDATE discovery — the teardown script re-applies the
+                  # anchored pr-{N} match (and the DNS half re-checks the exact record label), so an
+                  # incidental "pr-5" substring can never widen the blast radius.
+                  #
+                  # ⚠️ THE SOURCE LIST MUST COVER EVERY RESOURCE CLASS THE TEARDOWN DELETES, or the class
+                  # it cannot see becomes unreclaimable the moment the others are gone. That asymmetry was
+                  # real: teardown §0b deletes the legacy `sandbox-preview/pr-{N}` GitHub Environment, but
+                  # nothing here enumerated environments, so a close whose §0b failed (expired token, API
+                  # 403) stranded that name PERMANENTLY — by the next sweep the stacks, ECR repos and the
+                  # CNAME were already reclaimed, leaving no token to rediscover the PR by. Same defect
+                  # shape as the log-group sweep that matched nothing for two years, and cheap to close.
+                  # Asserted by `packages/infra/global/__tests__/reaper-discovery-covers-teardown.test.ts`.
                   stacks=$(aws cloudformation list-stacks --region "$REGION" \
                       --stack-status-filter CREATE_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE ROLLBACK_FAILED UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE UPDATE_ROLLBACK_FAILED IMPORT_COMPLETE IMPORT_ROLLBACK_COMPLETE IMPORT_ROLLBACK_FAILED DELETE_FAILED \
                       --query 'StackSummaries[].StackName' --output text 2>/dev/null | tr '\t' '\n')
@@ -339,6 +356,16 @@ jobs:
                               --query 'logGroups[].logGroupName' --output text 2>/dev/null | tr '\t' '\n'
                           aws route53 list-resource-record-sets --hosted-zone-id "$PREVIEW_HOSTED_ZONE_ID" \
                               --query 'ResourceRecordSets[].Name' --output text 2>/dev/null | tr '\t' '\n'
+                          # Gated on the admin token because that token is ALSO what §0b needs to delete
+                          # what this finds: without it, discovering the token would only produce a
+                          # candidate the teardown must then warn-and-skip on. `--paginate` for the same
+                          # reason as §0b (default page size 30). The shared `sandbox-preview`, `Sandbox`,
+                          # `Production`, `Preview` and `copilot` names carry no `pr-{N}`, so they yield no
+                          # token here — and §0b refuses them twice over regardless.
+                          if [ -n "${GH_ENVIRONMENT_ADMIN_TOKEN:-}" ]; then
+                              GH_TOKEN="$GH_ENVIRONMENT_ADMIN_TOKEN" gh api --paginate \
+                                  "repos/${REPOSITORY}/environments" --jq '.environments[].name' 2>/dev/null
+                          fi
                       } | grep -oE 'pr-[0-9]+' | sort -u
                   )
                   # Tokens that still own a STACK. A long-closed PR appearing here is direct evidence the

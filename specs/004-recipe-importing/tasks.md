@@ -722,20 +722,3 @@ SC-002 is unverifiable without this; the number is meaningless until the corpus 
 
 **No §14.1 single-platform waiver is claimed.** Every user-facing task (T-021..T-024) delivers web and mobile
 together.
-
-## Notification correlation (added 2026-08-10)
-
-- [ ] **T-032** [P1] [M] Import-completion notification translator. 004 FR-020 submits every parsed ingredient
-      name to 003 for asynchronous resolution, bounded at 100 names/request by 003 FR-045, and each resolution
-      completes independently — so without correlation one import produces up to 100 notifications. Subscribe to
-      the resolution completions belonging to an import, correlate them against the import's own job identity,
-      and publish **exactly one** envelope to 014 per user-meaningful outcome (e.g. "ready", or "ready with N
-      unidentified"). — `packages/services/recipe-service/src/notifications/import-translator.ts`
-    - **Depends on**: 014 T-021 (EventBridge ingress), 014 T-024 (envelope validation)
-    - **Implements**: 004-FR-020, 014 FR-031
-    - **Acceptance**: an import of 30 unknown ingredient names yields exactly ONE delivered notification; a
-      redelivered underlying completion does not yield a second (idempotency key derived from the import's
-      durable job identity plus terminal status, never from a transport id or a clock).
-    - **Why it lives here**: 014 is forbidden from aggregating (its FR-023 makes payload opaque, its FR-031
-      assigns correlation to the publisher). Only 004 knows that N ingredient resolutions constitute one
-      import and what "done" means for it.

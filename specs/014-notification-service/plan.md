@@ -67,47 +67,23 @@ Source of truth: [`../governance-rules.md`](../governance-rules.md).
 
 ## Notification Ownership Contract (GR-011)
 
-### Producer ingress — two adapters, one core (FR-024)
+### Producer API
 
-| Ingress         | Surface                                       | Producer identity from                                | Requirement trace              |
-| --------------- | --------------------------------------------- | ----------------------------------------------------- | ------------------------------ |
-| HTTP            | `POST /api/v1/notifications/publish`          | Ed25519 service-principal token, verified networkless | FR-001..FR-004, FR-015, FR-032 |
-| **EventBridge** | reserved `detailType` on the notification bus | validated event `source` + bus resource policy        | FR-024..FR-030                 |
+| Method | Path                            | Purpose                                         | Requirement trace      |
+| ------ | ------------------------------- | ----------------------------------------------- | ---------------------- |
+| `POST` | `/api/v1/notifications/publish` | Validate + durably accept notification envelope | FR-001..FR-004, FR-015 |
 
-Both adapters delegate to the **same** core: validate → registry check → producer authorization →
-idempotency dedupe → durable accept → enqueue routing. A rule enforced in only one adapter is a defect
-(FR-024), so the adapters own transport concerns only and hold no business logic.
-
-The EventBridge path exists because the platform's async producers already emit domain events; forcing them
-into a synchronous publish inside a database transaction would make this service a runtime dependency of
-their hot paths and hard-code a dual write. It ingests **notification envelopes, never domain events**
-(FR-025) — a domain event carries no recipient, and deriving one would require inspecting `payload`
-(forbidden, FR-023) or calling back into the producer.
-
-Envelope shape (contract source: `spec.md` FR-026 — normative, both paths):
+Envelope shape (contract source: `spec.md`):
 
 ```text
 {
-  schemaVersion:  <integer>,             // REQUIRED — two doors make this a versioned wire contract
-  recipient:      { kind: "user" | "group" | "global", id?: string },
-  messageType:    string,                // REQUIRED — registry-checked
-  payload:        <opaque producer-defined>,
-  occurredAt:     ISO-8601,              // REQUIRED, producer-assigned — the FIFO ordering key (FR-029)
-  idempotencyKey: string,                // REQUIRED on EventBridge (at-least-once); optional on HTTP
-  producer:       string                 // REQUIRED on EventBridge (no bearer token to derive it from)
+  recipient: { kind: "user" | "group" | "global", id?: string },
+  messageType: string,
+  payload: <opaque producer-defined>,
+  occurredAt: ISO-8601,
+  idempotencyKey?: string
 }
 ```
-
-An envelope missing a required field is rejected outright — never partially routed, never defaulted. On the
-EventBridge path a rejection has no caller to receive a structured error, so it dead-letters and alarms
-(FR-028).
-
-### Producer-side correlation (FR-031)
-
-This service does not aggregate. A producer whose work fans out publishes **one** envelope per
-user-meaningful outcome, correlating its own fan-out first — typically via a feature-owned **translator**
-that subscribes to its own domain events, resolves recipients, and publishes once. 004's recipe import is
-the sizing case: up to 100 ingredient resolutions (004 FR-020 × 003 FR-045) must become one notification.
 
 ### Subscriber API
 
@@ -120,33 +96,27 @@ the sizing case: up to 100 ingredient resolutions (004 FR-020 × 003 FR-045) mus
 
 ## Cross-Feature Notification Trigger Inventory (`001`–`013`)
 
-> **Non-normative.** This table is coordination information about features that intend to publish here. It
-> creates **no obligation inside this feature** and this service's code must not encode any of it: a producer's
-> event names, fan-out bounds, recipient-resolution rules and correlation logic are that producer's own
-> concern (FR-025, FR-031, FR-033). Nothing in this inventory may become a requirement, a task, or a success
-> criterion of 014 — if it needs to be true, it belongs in the producer's spec.
-
 Legend:
 
 - **Firm**: explicitly defined in current artifacts.
 - **Implied**: referenced by feature docs but event contract not finalized.
 - **Coordination**: producer team dependency for final trigger schema/ownership sign-off.
 
-| Feature                   | Candidate trigger(s) / messageType namespace                                                 | Recipient kind(s)                   | Priority in M8 integration | Ownership status                                                                                                                                                                                                                                                                                     |
-| ------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `001` Commise Recipe App  | Recipe lifecycle notifications (create/update/share-style lifecycle references)              | user, group                         | Medium                     | **Implied** — requires 001 contract finalization (**coordination required**)                                                                                                                                                                                                                         |
-| `002` Clerk User Auth     | Security/session/admin notices (optional for v1)                                             | user, global                        | Low                        | Not explicitly required by 014 launch contract                                                                                                                                                                                                                                                       |
-| `003` USDA Food Data      | `food.backfill.completed`, `food.fetch.failed`                                               | user (fan-out list), optional group | **High**                   | **Firm** in 003/014 artifacts                                                                                                                                                                                                                                                                        |
-| `004` Recipe Importing    | Import completion/failure notices — **one envelope per import**, not per ingredient (FR-031) | user                                | **High**                   | **Firm — launch consumer** (raised from Low, 2026-08-10). 004 FR-020 submits every parsed ingredient name to 003 for async resolution, bounded at 100 names/request by 003 FR-045, so 004 carries the platform's worst fan-in and the correlation requirement must be designed with it, not after it |
-| `005` AI Integration      | AI-generation disclosure/compliance events                                                   | user                                | High                       | **Implied/Firm-in-principle** — disclosure required; event taxonomy pending (**coordination required**)                                                                                                                                                                                              |
-| `006` Meal Planning       | Plan-change reminders / schedule nudges                                                      | user, group                         | Medium                     | Implied via M8 launch integration requirement (**coordination required**)                                                                                                                                                                                                                            |
-| `007` Grocery Lists       | Collaboration/list-change events                                                             | group, user                         | Medium                     | Implied by 007 collaboration hazard references (**coordination required**)                                                                                                                                                                                                                           |
-| `008` Cooking Mode        | Timer started/completed/expired alerts                                                       | user                                | **High**                   | **Firm-in-spirit** time-sensitive alerts; concrete message contract pending (**coordination required**)                                                                                                                                                                                              |
-| `009` Nutrition Planning  | Compliance-gap / deficiency-related informational notices                                    | user                                | High                       | **Implied** and partially open in 009 artifacts (**coordination required**)                                                                                                                                                                                                                          |
-| `010` Subscriptions       | Trial ending, past-due, entitlement-change notices                                           | user                                | Medium                     | Present in 010 planning language; integration scope decision pending (**coordination required**)                                                                                                                                                                                                     |
-| `011` Recipe Digitization | OCR job completed/failed, circle/invite workflow informational events                        | user, group                         | Low/Medium                 | Optional in v1; not hard M8 gate                                                                                                                                                                                                                                                                     |
-| `012` Creator Profiles    | Moderation/action-result notifications to creators                                           | user                                | Medium                     | Present in 012 requirement narratives; integration contract pending (**coordination required**)                                                                                                                                                                                                      |
-| `013` Cooking School      | Publish/enroll milestone events to learners/creators                                         | user, group                         | Medium                     | 013 plan explicitly defers full notification ownership to 014 (**coordination required**)                                                                                                                                                                                                            |
+| Feature                   | Candidate trigger(s) / messageType namespace                                    | Recipient kind(s)                   | Priority in M8 integration | Ownership status                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------- | ----------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `001` Commise Recipe App  | Recipe lifecycle notifications (create/update/share-style lifecycle references) | user, group                         | Medium                     | **Implied** — requires 001 contract finalization (**coordination required**)                            |
+| `002` Clerk User Auth     | Security/session/admin notices (optional for v1)                                | user, global                        | Low                        | Not explicitly required by 014 launch contract                                                          |
+| `003` USDA Food Data      | `food.backfill.completed`, `food.fetch.failed`                                  | user (fan-out list), optional group | **High**                   | **Firm** in 003/014 artifacts                                                                           |
+| `004` Recipe Importing    | Import completion/failure notices (optional)                                    | user                                | Low                        | Not currently required by 014 launch goals                                                              |
+| `005` AI Integration      | AI-generation disclosure/compliance events                                      | user                                | High                       | **Implied/Firm-in-principle** — disclosure required; event taxonomy pending (**coordination required**) |
+| `006` Meal Planning       | Plan-change reminders / schedule nudges                                         | user, group                         | Medium                     | Implied via M8 launch integration requirement (**coordination required**)                               |
+| `007` Grocery Lists       | Collaboration/list-change events                                                | group, user                         | Medium                     | Implied by 007 collaboration hazard references (**coordination required**)                              |
+| `008` Cooking Mode        | Timer started/completed/expired alerts                                          | user                                | **High**                   | **Firm-in-spirit** time-sensitive alerts; concrete message contract pending (**coordination required**) |
+| `009` Nutrition Planning  | Compliance-gap / deficiency-related informational notices                       | user                                | High                       | **Implied** and partially open in 009 artifacts (**coordination required**)                             |
+| `010` Subscriptions       | Trial ending, past-due, entitlement-change notices                              | user                                | Medium                     | Present in 010 planning language; integration scope decision pending (**coordination required**)        |
+| `011` Recipe Digitization | OCR job completed/failed, circle/invite workflow informational events           | user, group                         | Low/Medium                 | Optional in v1; not hard M8 gate                                                                        |
+| `012` Creator Profiles    | Moderation/action-result notifications to creators                              | user                                | Medium                     | Present in 012 requirement narratives; integration contract pending (**coordination required**)         |
+| `013` Cooking School      | Publish/enroll milestone events to learners/creators                            | user, group                         | Medium                     | 013 plan explicitly defers full notification ownership to 014 (**coordination required**)               |
 
 ### M8 required integration subset (per launch plan + current evidence)
 

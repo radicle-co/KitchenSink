@@ -31,7 +31,8 @@
  * dispatch), so on an ordinary PR the win is unguarded — the same hole T-198a closed for the routing. A
  * latency assertion could not guard it here anyway: this workstation measures the statement ~4.4x faster
  * than CI (45.8ms local against ~200ms of a 209.9ms CI p95), so a local millisecond number says nothing
- * about the gate.
+ * about the gate. CI is the arbiter, and it measured `narrow` 209.9 -> 42.4ms p95 and the SC-007 aggregate
+ * 154.3 -> 39.8ms p95 across this change (runs 31454689817 -> 31459435996).
  *
  * 1. **Equivalence (the semantics).** The statement `FoodSearchDao.search` actually sends must return the
  *    IDENTICAL `(id, name, score)` SEQUENCE with every index access path disabled — a pure Seq Scan, where

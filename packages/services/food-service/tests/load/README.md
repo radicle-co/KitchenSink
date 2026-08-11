@@ -380,11 +380,41 @@ result (the operator is rechecked from the heap); proved over 932 probes on two 
 against a pure Seq Scan, and pinned per-PR by `tests/food-search-access-path.integration.test.ts`. Local DB
 time, on the fixture CI seeds and in CI's build order (migration first, so the index is built by the bulk
 INSERT rather than packed by a later `CREATE INDEX`): `narrow` 45.8 → 14.6ms, `phrase` 44.4 → 11.1ms,
-`broad` 17.7 → 15.0ms, with `brand` 11.5 → 19.5ms and `miss` 0.12 → 6.7ms deliberately traded — GiST scans its whole index whatever the
-needle, so a cost that tracked pattern length (0.12–45.8ms) becomes a flat 7–20ms band, which is the right
-shape for a p95
-gate. Full evidence, the rejected alternatives (removing either branch, a UNION rewrite, a query-plan cost
-gate) and the mutation results are in `specs/003-usda-food-data/tasks.md` → "T-202 — measured evidence".
+`broad` 17.7 → 15.0ms, with `brand` 11.5 → 19.5ms and `miss` 0.12 → 6.7ms deliberately traded — GiST scans
+its whole index whatever the needle, so a cost that tracked pattern length (0.12–45.8ms) becomes a flat
+7–20ms band, which is the right shape for a p95 gate: it caps the tail, and the worst shape falls from 45.8ms
+to 19.5ms. Full evidence, the rejected alternatives (removing either branch, a UNION rewrite, a query-plan
+cost gate) and the mutation results are in `specs/003-usda-food-data/tasks.md` → "T-202 — measured evidence".
+
+**CI-MEASURED, before and after** — the only arbiter of this gate, since this workstation runs ~4.4× faster.
+Both runs are the same 50-VU profile against the same 50,000-food fixture on GitHub-hosted runners; before =
+run 31454689817 (job 93666141627, the last green run on the old access path), after = run 31459435996 (job
+93680080158).
+
+| shape                          | p95 before | p95 after   | p99 before | p99 after | max before | max after |
+| ------------------------------ | ---------- | ----------- | ---------- | --------- | ---------- | --------- |
+| `narrow`                       | 209.90ms   | **42.42ms** | 253.69ms   | 45.82ms   | 294.94ms   | 47.45ms   |
+| `phrase`                       | 158.39ms   | **29.42ms** | 222.23ms   | 32.60ms   | 256.04ms   | 52.69ms   |
+| `broad`                        | 71.78ms    | 35.18ms     | 114.56ms   | 38.56ms   | 138.24ms   | 66.81ms   |
+| `brand`                        | 64.23ms    | 43.95ms     | 83.72ms    | 47.86ms   | 135.11ms   | 58.82ms   |
+| `short`                        | 44.46ms    | 44.70ms     | 87.06ms    | 66.88ms   | 121.56ms   | 81.22ms   |
+| `miss`                         | 6.53ms     | 18.64ms     | 9.91ms     | 21.16ms   | 22.68ms    | 43.14ms   |
+| `barcode`                      | 11.45ms    | 16.36ms     | 15.62ms    | 18.81ms   | 23.60ms    | 26.75ms   |
+| **aggregate (the SC-007 p95)** | 154.33ms   | **39.81ms** | 207.87ms   | 46.44ms   | 294.94ms   | 81.22ms   |
+
+**Headroom against the 287.5ms ceiling went from 1.37× to 6.4×.** The gated quantity is the worst shape, and
+that is now `short` at 44.70ms rather than `narrow` at 209.90ms — a **4.7× improvement in the number the gate
+actually tests**. The tail moved even more than the p95: `narrow`'s max was **294.94ms, ABOVE the ceiling**
+(only p95 is asserted, so it passed), and is now 47.45ms.
+
+Two things the local measurements got wrong, both in the same direction:
+
+- **`brand` did not regress on CI, it improved 64.23 → 43.95ms**, where locally it went 11.5 → 19.5ms. At 50
+  VUs the runner is partly contention-bound, so cutting total CPU across the rotation helps every shape —
+  including the ones whose isolated cost rose. `miss` (6.5 → 18.6ms) and `barcode` (11.5 → 16.4ms) did regress
+  as predicted, and are 15× and 18× inside the ceiling.
+- **The whole suite now lands in a 16–45ms band** (was 6.5–210ms), which is the flat-tail property the GiST
+  trade was chosen for, measured end to end rather than argued.
 
 ### 🔴 Finding 4 (SC-007), OPEN: `similarity()` is 100× under-costed, so the planner picks a Seq Scan on a production-shaped store — and this fixture hides it
 

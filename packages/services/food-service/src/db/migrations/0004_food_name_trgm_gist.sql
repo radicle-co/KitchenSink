@@ -12,7 +12,9 @@
 -- operator itself: on a 50,000-food store it returned 9,758 candidate rows for 368 true matches, and the
 -- bitmap heap scan then re-evaluated the predicate — a fresh `similarity()` call, measured at 2.19µs —
 -- on the 9,754 it discarded, touching all 4,250 heap blocks of the table. That single branch was 30.5ms of
--- a 45.8ms statement, against SC-007's 250ms p95 (+/-15%) budget which CI measured at 209.9ms p95.
+-- a 45.8ms statement, against SC-007's 250ms p95 (+/-15%) budget which CI measured at 209.9ms p95 for the
+-- `narrow` shape — and 294.9ms max, i.e. ABOVE the 287.5ms ceiling, since only p95 is asserted. CI now
+-- measures that shape at 42.4ms p95 / 47.5ms max (run 31459435996).
 --
 -- A GiST trigram index answers the same operator with 368 candidates for 368 matches. Measured on the
 -- 50,000-food fixture CI seeds: the `narrow` shape 45.8ms -> 14.6ms and `phrase` 44.4ms -> 11.1ms. Those

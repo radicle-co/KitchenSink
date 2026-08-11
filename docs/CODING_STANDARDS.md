@@ -947,45 +947,60 @@ That is the failure this section exists to make structurally impossible. Contrac
 > Re-declaring `Recipe` or `PaginatedResponse` to achieve a literally-dependency-free package would
 > manufacture the exact drift this section exists to prevent.
 
-### 15.2 The required shape
+### 15.2 The required shape (owner-approved 2026-08-11)
 
-For each service, a **contract package** — `packages/contracts/<service>` (`@kitchensink/<service>-contract`) —
-is the single seam:
+For each service, a **schema package** — `packages/schemas/<service>` (`@kitchensink/schema-<service>`) —
+is the single seam. It is **generated output, committed to the repo**:
 
-1. **The contract package owns the TYPE; the service's DTO owns the VALIDATION and the schema.** They are
-   linked by `implements` — `export class CreateRecipeDto implements CreateRecipeRequest` — so the
-   compiler enforces agreement in one direction and nothing is authored twice. The chain is:
-   contract type ← `implements` ← DTO class (`class-validator` + `@ApiProperty`) → generates →
-   `openapi.yaml`.
-    - This is deliberately **not** `DTO → yaml → codegen → types`. Pure generation cannot express a
-      discriminated union or an intersection from a decorated class without hand-written `schema:`
-      overrides — at which point the OpenAPI is hand-authored anyway — and generated types lose
-      `readonly`, doc comments, and the exhaustive narrowing clients rely on.
-2. **The contract package is a leaf: no runtime dependency on the service's graph** (no NestJS, no
-   drizzle, no aws-sdk), so a client can depend on it without pulling a server in. An `import type`
-   dependency on a shared domain package such as `recipe-core` is REQUIRED rather than forbidden — it
-   erases at compile time, so the leaf property holds.
-3. **The service's controllers are typed by the contract package**, so the server cannot drift from the
-   document it publishes.
-4. **Every client imports its wire types from the contract package.** `types.ts` in a client holds only
-   genuinely client-side types (config, options, its own error shapes) — never a wire shape.
-5. **`openapi.yaml` is committed and regenerated in CI.** Two gates, and they are **not equal in
-   strength** — rank them accordingly:
-    - **drift** (strong): regenerate from the code and fail if it differs from the committed document —
-      a contract that is not what the code serves is worse than no contract;
-    - **breaking** (currently partial): `oasdiff breaking` against the base branch. Be honest about its
-      limit — `@nestjs/swagger` emits **no response schema** for a handler whose return type is an
-      `interface`, so until every response type is a decorated class this gate is **blind to response
-      changes**, which are most of what actually breaks a client. The `implements` seam in (1), checked
-      by `typecheck`, is what delivers §15.1's promise; the document is the weaker, external-facing
-      artifact.
-6. **One document per service, and it REPLACES any hand-written predecessor.** A generated document
-   added alongside a hand-maintained one makes the problem worse, not better.
-    - ⚠️ **OPEN — owner ruling required before recipe's contract lands.**
-      `specs/001-commise-recipe-app/contracts/api.openapi.yaml` is **2810 hand-written lines** that
-      **57 source files cite by name as their authority**, and nothing verifies it. Either the generated
-      document supersedes it (and those citations are repointed), or this section produces a fourth
-      representation of one contract. Do not add a generated document for recipe until this is decided.
+```
+packages/schemas/<service>/
+├── openapi.yaml            generated FROM the service's DTOs
+├── src/types.ts            generated TypeScript types
+├── src/schemas.ts          generated zod schemas
+├── src/contract-hash.ts    hash of the service's DTO sources
+└── src/index.ts            barrel — named exports only
+```
+
+1. **Derivation flows one way: DTOs → `openapi.yaml` → types + zod.** The service's DTOs
+   (`class-validator` + `@ApiProperty`) are the source of truth. The schema package is generated from
+   them and **depends on the service** in turbo — never the reverse. Nothing in the schema package is
+   hand-edited.
+2. **The schema package exports BOTH the types and runtime zod schemas.** A consumer gets compile-time
+   types and a runtime validator from one place, so a boundary can be checked at both layers without a
+   second representation.
+3. **It carries no runtime dependency on the service's graph** (no NestJS, no drizzle, no aws-sdk), so a
+   client can depend on it without pulling a server in. An `import type` dependency on a shared domain
+   package such as `recipe-core` is fine — it erases at compile time.
+4. **Every client imports its wire types and zod from the schema package.** `types.ts` in a client holds
+   only genuinely client-side types (config, options, its own error shapes) — never a wire shape.
+5. **Three drift layers, each catching what the others cannot. All three are required:**
+    - **Rebuild (turbo):** `schema-<service>#build` `dependsOn` `<service>#build`, with `inputs` covering
+      the service's DTO sources, so content hashing rebuilds the package automatically.
+    - **Correctness (CI):** regenerate and fail on any diff against the committed artifacts. This is the
+      strong gate — it is what catches generated output that someone hand-edited.
+    - **Skew (runtime):** a `CONTRACT_HASH` over the service's DTO sources, embedded in both the service
+      and the schema package and asserted equal at service boot. This catches a **deployed** service
+      running ahead of a consumer's pinned schema — invisible to both layers above, and the live case for
+      mobile, where a released binary cannot be updated in step with a backend deploy.
+    - `oasdiff breaking` against the base branch is worth adding, with a known limit stated honestly:
+      `@nestjs/swagger` emits **no response schema** for a handler returning an `interface`, so until
+      every response type is a decorated class that check is blind to response changes — most of what
+      actually breaks a client.
+6. **One document per service, and it REPLACES any hand-written predecessor.** A generated document added
+   alongside a hand-maintained one makes the problem worse.
+    - `specs/001-commise-recipe-app/contracts/api.openapi.yaml` — 2810 hand-written lines that **57
+      source files cite as their authority**, verified by nothing — is **superseded** by recipe's
+      generated document. Citations get repointed; the old file is marked superseded. Two documents both
+      claiming to be normative is the state this section exists to end.
+
+> **Superseded design note.** An earlier draft of §15.2 put the contract in `packages/contracts/<service>`
+> and linked it to the DTOs with `implements` (contract owns the type, DTO owns the validation). That was
+> replaced by the owner-approved shape above, which generates types **and zod** and points the turbo
+> dependency schema → service. The `implements` draft's one durable finding still applies as a hazard to
+> handle, not a reason to deviate: codegen cannot express a discriminated union (`IngredientSuggestion`)
+> or an intersection (`Collection`) from a decorated class without explicit `oneOf`/`discriminator`
+> handling. Handle those explicitly — a generated schema that silently flattens them to `object` is a
+> contract that lies, which is worse than no contract.
 
 ### 15.3 Third-party APIs are the OPPOSITE case — do not "converge" them
 

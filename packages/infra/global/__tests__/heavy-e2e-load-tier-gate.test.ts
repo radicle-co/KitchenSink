@@ -1,23 +1,34 @@
 // @vitest-environment node
 /**
- * Repo-wide guard: the k6 LOAD tier auto-runs on any PR that can plausibly slow food's measured queries —
- * without a human remembering a label, and without dragging the 50-minute Android emulator along.
+ * Repo-wide guard: each HEAVY tier auto-runs on any PR that can plausibly break what that tier measures —
+ * without a human remembering a label, and without either tier dragging the other along.
  *
- * ## The invariant this protects (T-198)
+ * ## The invariant this protects
  *
- * T-198 put 1–2 character food searches back on the `food_search_vector_idx` GIN index (156ms → 14ms).
- * Deterministic tests now run on every PR and make the OLD query SHAPE structurally impossible to
- * reintroduce. They cannot see a pure LATENCY regression: drop the index, alter the schema, or grow the
- * RESOLVED population past the tested size and every one of those tests still passes. The only thing that
- * fails is the k6 tier — which, before this guard, ran nightly, on demand, or on a PR carrying the
- * `heavy-e2e` LABEL. **A guard that depends on a human remembering a label is not a guard.**
+ * **k6 (T-198).** T-198 put 1–2 character food searches back on the `food_search_vector_idx` GIN index
+ * (156ms → 14ms). Deterministic tests now run on every PR and make the OLD query SHAPE structurally
+ * impossible to reintroduce. They cannot see a pure LATENCY regression: drop the index, alter the schema, or
+ * grow the RESOLVED population past the tested size and every one of those tests still passes. The only
+ * thing that fails is the k6 tier.
  *
- * So `heavy-e2e.yml`'s `heavy` job now runs when ANY of three things is true:
+ * **Maestro.** The identical argument one tier over: nothing in the base pipeline RUNS the mobile app.
+ * `_ci.yml` type-checks it and runs its vitest component/screen tests, but the only tier that builds a real
+ * APK and drives it on a real Android emulator is `e2e-mobile-maestro` — and it used to require the LABEL on
+ * a `pull_request`, so a PR that broke the mobile app shipped GREEN unless a human remembered to label it.
  *
- *   1. the event is not a `pull_request` (the nightly schedule and manual dispatch, unchanged), OR
- *   2. the PR carries `heavy-e2e` (the explicit opt-in, unchanged — and still the ONLY path that also runs
- *      Maestro), OR
- *   3. the PR changed one of food's measured query paths (the new automatic path — k6 only).
+ * **A guard that depends on a human remembering a label is not a guard** — the sentence that justified the
+ * k6 path, now applied to the tier it originally excluded.
+ *
+ * So `heavy-e2e.yml`'s `heavy` job runs when ANY of four things is true:
+ *
+ *   1. the event is not a `pull_request` (the nightly schedule and manual dispatch), OR
+ *   2. the PR carries `heavy-e2e` (the explicit opt-in — still the only path that runs BOTH tiers
+ *      regardless of what changed), OR
+ *   3. the PR changed one of food's measured query paths, OR
+ *   4. the PR changed the mobile app's surface.
+ *
+ * …and then the two `with:` inputs SPLIT it per tier, which is the part most worth protecting: clause 3
+ * admits k6 only, clause 4 admits Maestro only. Neither tier may ride the other's trigger.
  *
  * ## The failure classes this file exists to catch
  *
@@ -32,10 +43,17 @@
  *   Rename any one of those four and the expression still PARSES — it just evaluates to the empty string
  *   forever, so the automatic path quietly never fires while the label path keeps working. Nothing here is
  *   hardcoded: the chain is discovered end to end and each link is asserted against the next.
- * - **Maestro rides along.** A food-search change has no business booting an Android emulator for ~50
- *   measured minutes. The `run_mobile_maestro` input must be OFF on the automatic path and ON for the label.
+ * - **A tier rides along on the other's trigger.** A food-search change has no business booting an Android
+ *   emulator for ~50 measured minutes, and a `.native.tsx` change has no business driving three k6 load
+ *   tests. `run_mobile_maestro` must be OFF on the food path, `run_load_test` OFF on the mobile path, and
+ *   BOTH ON for the label. Asserted in both directions, because the cost mistake is symmetric.
+ * - **A filter is widened into "always".** `dorny/paths-filter` answers "does ANY pattern match", so ONE
+ *   leading-`!` negation is true for every unrelated file and silently converts a filter into an
+ *   unconditional trigger — a ~50-minute emulator on every PR in the repo. A dedicated test rejects any
+ *   negation, which is also what keeps this file's `minimatch`-based model an honest stand-in for the action.
  * - **The filter points at a file that moved.** Every representative path is asserted to EXIST, so renaming
- *   `food-search.dao.ts` or the migrations directory fails here instead of silently emptying the filter.
+ *   `food-search.dao.ts`, the migrations directory, or a Maestro flow fails here instead of silently
+ *   emptying the filter.
  *
  * ## How it is asserted
  *
@@ -78,6 +96,16 @@
  *      PR-gated detect job. What it buys is that the scenario assertions stop LYING — without it,
  *      "runs on the nightly schedule" reports green against a pipeline whose nightly run is dead, and a
  *      future scenario added by someone who trusts that green inherits the same blind spot.
+ *  10. `run_mobile_maestro` reverted to its label-only form (the exact pre-change expression) → 4 fail,
+ *      led by "runs Maestro for an UNLABELLED PR that touched the mobile app". This is the regression that
+ *      would re-open the silent-mobile-breakage hole, so it is the single most important one here.
+ *  11. `'!**\/__tests__\/**'` appended to the `mobile` filter → 4 fail: the dedicated negation guard, AND
+ *      three behavioural tests ("does NOT cover food, web, or infra", "does NOT run Maestro for an
+ *      unlabelled PR that touched nothing mobile", "does NOT boot the emulator … only changed search
+ *      paths"). Proof the negation hazard is real and not theoretical: ONE `!` pattern made the mobile
+ *      filter match food and infra paths, i.e. a ~53-minute emulator on essentially every PR.
+ *  12. The `services/recipe-service/src/**` entry deleted → "covers the BACKEND the job boots" fails,
+ *      which is the backend-only-PR-ships-green hole.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -191,24 +219,21 @@ interface DetectionChain {
     readonly patterns: readonly string[];
 }
 
+/** Every `needs.<job>.outputs.<name>` reference in an expression, in order of appearance. */
+function outputReferences(expression: string): readonly (readonly [string, string])[] {
+    return [...expression.matchAll(/needs\.([\w-]+)\.outputs\.([\w-]+)/g)].map(
+        (match) => [match[1] ?? '', match[2] ?? ''] as const,
+    );
+}
+
 /**
- * Follow the gate's `needs.<job>.outputs.<name>` reference all the way down to its glob patterns.
+ * Follow ONE `needs.<job>.outputs.<name>` reference all the way down to its glob patterns.
  *
  * Every hop throws rather than degrading, because every hop is a place where a rename leaves an expression
  * that still parses and evaluates to the empty string forever.
  */
-function detectionChain(): DetectionChain {
+function resolveChain(job: string, outputName: string): DetectionChain {
     const gate = jobOf(caller, CALLER_FILE, GATED_JOB);
-    const reference = /needs\.([\w-]+)\.outputs\.([\w-]+)/.exec(gate.if ?? '');
-
-    if (reference === null) {
-        throw new Error(
-            `${CALLER_FILE}::${GATED_JOB} has no \`needs.<job>.outputs.<name>\` term in its \`if:\` — the ` +
-                'changed-path leg of the gate is missing, so the load tier runs only on a label again.',
-        );
-    }
-
-    const [, job, outputName] = reference as unknown as readonly [string, string, string];
 
     if (!needsOf(gate).includes(job)) {
         throw new Error(
@@ -260,11 +285,68 @@ function detectionChain(): DetectionChain {
     return { job, outputName, stepId, filterKey, patterns };
 }
 
-const chain = detectionChain();
+/**
+ * Every detection chain the caller actually uses, discovered from the gate AND from each `with:` value.
+ *
+ * There are TWO now (`search` -> k6, `mobile` -> Maestro), and they are found rather than listed: a tier whose
+ * changed-path clause is deleted disappears from this map, and the scenario asserting that tier auto-runs then
+ * fails on a missing chain instead of quietly passing through the label clause.
+ */
+function detectionChains(): ReadonlyMap<string, DetectionChain> {
+    const gate = jobOf(caller, CALLER_FILE, GATED_JOB);
+    const expressions = [gate.if ?? '', ...Object.values(gate.with ?? {}).map((value) => String(value))];
+    const chains = new Map<string, DetectionChain>();
 
-/** Does any changed path match the discovered filter? The same question `paths-filter` answers. */
-function filterMatches(changedFiles: readonly string[]): boolean {
-    return changedFiles.some((file) => chain.patterns.some((pattern) => minimatch(file, pattern, { dot: true })));
+    for (const expression of expressions) {
+        for (const [job, outputName] of outputReferences(expression)) {
+            if (!chains.has(outputName)) {
+                chains.set(outputName, resolveChain(job, outputName));
+            }
+        }
+    }
+
+    if (chains.size === 0) {
+        throw new Error(
+            `${CALLER_FILE}::${GATED_JOB} has no \`needs.<job>.outputs.<name>\` term in its \`if:\` or its ` +
+                '`with:` values — every changed-path leg is missing, so the heavy tiers run only on a label again.',
+        );
+    }
+
+    return chains;
+}
+
+const chains = detectionChains();
+
+/** The chain for one filter key, or a loud failure — a missing tier must never pass silently. */
+function chainFor(outputName: string): DetectionChain {
+    const chain = chains.get(outputName);
+
+    if (chain === undefined) {
+        throw new Error(
+            `no detection chain for \`${outputName}\`: nothing in ${CALLER_FILE}::${GATED_JOB}'s \`if:\` or ` +
+                `\`with:\` reads \`needs.*.outputs.${outputName}\`, so that tier has no automatic trigger.`,
+        );
+    }
+
+    return chain;
+}
+
+/** The food-search chain (k6) and the mobile chain (Maestro), as the caller names their outputs. */
+const SEARCH_OUTPUT = 'search';
+const MOBILE_OUTPUT = 'mobile';
+
+/**
+ * Does any changed path match a given filter? The same question `paths-filter` answers.
+ *
+ * NOTE the deliberate absence of negation handling: `paths-filter` answers "does ANY pattern match", so a
+ * leading-`!` pattern is TRUE for every unrelated file and would make its filter fire on every PR. The
+ * dedicated test below asserts no pattern starts with `!`, which is what keeps this simple `.some()` an honest
+ * model of the action's behaviour.
+ */
+function filterMatches(outputName: string, changedFiles: readonly string[]): boolean {
+    const { patterns } = chainFor(outputName);
+
+    return changedFiles.some((file) => patterns.some((pattern) => minimatch(file, pattern, { dot: true })));
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -303,13 +385,17 @@ function resolveAtom(atom: string, scenario: Scenario): Truth {
         return asTruth(scenario.event === 'pull_request' && (scenario.labels ?? []).includes('heavy-e2e'));
     }
 
-    const detectOutput = new RegExp(`^needs\\.${chain.job}\\.outputs\\.${chain.outputName}\\s*==\\s*'true'$`).exec(
-        atom,
-    );
+    const detectOutput = /^needs\.([\w-]+)\.outputs\.([\w-]+)\s*==\s*'true'$/.exec(atom);
 
     if (detectOutput !== null) {
+        // Resolving through `chainFor` (rather than any name) keeps this TOTAL: a term naming an output no
+        // filter produces throws here instead of silently evaluating false forever.
+        const outputName = detectOutput[2] ?? '';
+
+        chainFor(outputName);
+
         // The detect job only runs `paths-filter` on a PR; on any other event its output is the empty string.
-        return asTruth(scenario.event === 'pull_request' && filterMatches(scenario.changedFiles ?? []));
+        return asTruth(scenario.event === 'pull_request' && filterMatches(outputName, scenario.changedFiles ?? []));
     }
 
     const dispatchInput = /^github\.event\.inputs\.([\w-]+)\s*==\s*'([^']*)'$/.exec(atom);
@@ -456,63 +542,228 @@ const UNRELATED_ELSEWHERE = 'packages/apps/commise/web/next.config.ts';
 const COVERED_PATHS = [SEARCH_DAO, FTS_MIGRATION, FOOD_SCHEMA, SEARCH_LOAD_SCRIPT, PERF_FIXTURE] as const;
 const UNCOVERED_PATHS = [UNRELATED_IN_PACKAGE, UNRELATED_ELSEWHERE] as const;
 
+// --- and the same, for the MOBILE tier -------------------------------------------------------------------
+
+/** A mobile screen. The most ordinary way to break the app the emulator drives. */
+const MOBILE_SCREEN = 'packages/apps/commise/mobile/src/screens/login.tsx';
+
+/** A Maestro flow itself — changing what is asserted must re-run the assertions. */
+const MAESTRO_FLOW = 'packages/apps/commise/mobile/.maestro/auth/login-flow.yaml';
+
+/** The harness the emulator job executes; a break here fails every flow. */
+const MAESTRO_HARNESS = 'packages/apps/commise/mobile/tests/e2e/run-maestro-flows.sh';
+
+/** A design-system `.native.tsx` — renders inside the APK, invisible to the web suite. */
+const UI_NATIVE = 'packages/apps/commise/ui/src/button/Button.native.tsx';
+
+/** A shared feature package's native surface — `features/recipes` holds 42 of these. */
+const FEATURE_NATIVE = 'packages/apps/commise/features/recipes/src/list/RecipeList.native.tsx';
+
+/** Flows match localized copy as LITERAL TEXT, so a string change breaks them and nothing else. */
+const I18N_STRINGS = 'packages/apps/commise/i18n/src/dictionary.ts';
+
+/** The API client the app calls (46 import sites in mobile). */
+const RECIPE_CLIENT = 'packages/clients/recipe-service/src/index.ts';
+
+/**
+ * The BACKEND the flows actually drive. The Maestro job builds, boots, migrates and seeds recipe-service, so a
+ * backend-only PR can break every flow — and a mobile-paths-only filter would have let it ship green, which is
+ * the "not a guard" defect one layer down.
+ */
+const RECIPE_SERVICE = 'packages/services/recipe-service/src/recipes/recipes.service.ts';
+
+/** `dist` is COPY'd into the recipe image, so a break here fails the image build the job boots. */
+const FOOD_CLIENT = 'packages/clients/food-service/src/index.ts';
+
+const MOBILE_COVERED_PATHS = [
+    MOBILE_SCREEN,
+    MAESTRO_FLOW,
+    MAESTRO_HARNESS,
+    UI_NATIVE,
+    FEATURE_NATIVE,
+    I18N_STRINGS,
+    RECIPE_CLIENT,
+    RECIPE_SERVICE,
+    FOOD_CLIENT,
+] as const;
+
+/**
+ * Paths that must NEVER boot the emulator. `SEARCH_DAO` is the load-bearing one: the food service is not even
+ * booted by the Maestro job (`FOOD_SERVICE_URL` points at nothing on purpose and the catalog flow asserts the
+ * DEGRADED path), so a query change cannot alter a flow's outcome — and ~50 minutes is the price of getting
+ * this wrong. The web app and the CDK infra have no edge to the APK at all.
+ */
+const MOBILE_UNCOVERED_PATHS = [
+    SEARCH_DAO,
+    UNRELATED_IN_PACKAGE,
+    UNRELATED_ELSEWHERE,
+    'packages/infra/global/bin/app.ts',
+    'docs/CI_ARCHITECTURE.md',
+] as const;
+
 // ---------------------------------------------------------------------------------------------------------
 
 describe('heavy-e2e load tier — the trigger paths', () => {
     it('names only paths that exist (a filter pointing at a moved file matches nothing, forever)', () => {
-        for (const path of [...COVERED_PATHS, ...UNCOVERED_PATHS]) {
+        for (const path of [...COVERED_PATHS, ...UNCOVERED_PATHS, ...MOBILE_COVERED_PATHS]) {
             expect(existsSync(join(REPO_ROOT, path)), `${path} does not exist`).toBe(true);
         }
     });
 
     it('covers the search DAO', () => {
-        expect(filterMatches([SEARCH_DAO])).toBe(true);
+        expect(filterMatches(SEARCH_OUTPUT, [SEARCH_DAO])).toBe(true);
     });
 
     it('covers the schema and the ordered migrations (the index-drop scenario)', () => {
-        expect(filterMatches([FTS_MIGRATION])).toBe(true);
-        expect(filterMatches([FOOD_SCHEMA])).toBe(true);
+        expect(filterMatches(SEARCH_OUTPUT, [FTS_MIGRATION])).toBe(true);
+        expect(filterMatches(SEARCH_OUTPUT, [FOOD_SCHEMA])).toBe(true);
     });
 
     it('covers the k6 load scripts and the performance fixture that measure it', () => {
-        expect(filterMatches([SEARCH_LOAD_SCRIPT])).toBe(true);
-        expect(filterMatches([PERF_FIXTURE])).toBe(true);
+        expect(filterMatches(SEARCH_OUTPUT, [SEARCH_LOAD_SCRIPT])).toBe(true);
+        expect(filterMatches(SEARCH_OUTPUT, [PERF_FIXTURE])).toBe(true);
     });
 
     it('does NOT cover unrelated files, in the same package or elsewhere', () => {
         // Cost is the reason this tier is opt-in at all (ADR-0007/0008). A filter that matched everything
         // would pay tens of runner-minutes for a Dockerfile tweak.
         for (const path of UNCOVERED_PATHS) {
-            expect(filterMatches([path]), `${path} should not trigger the load tier`).toBe(false);
+            expect(filterMatches(SEARCH_OUTPUT, [path]), `${path} should not trigger the load tier`).toBe(false);
         }
     });
 
-    it('is wired end to end: filter key → step output → job output → the gate expression', () => {
-        // `detectionChain()` throws on any broken link, so reaching this point IS the assertion; these
-        // re-state it in a form a failure message can show.
-        expect(chain.patterns.length).toBeGreaterThan(0);
-        expect(jobOf(caller, CALLER_FILE, chain.job).outputs?.[chain.outputName]).toContain(
-            `steps.${chain.stepId}.outputs.${chain.filterKey}`,
-        );
-        expect(jobOf(caller, CALLER_FILE, GATED_JOB).if).toContain(`needs.${chain.job}.outputs.${chain.outputName}`);
+    it('is wired end to end: filter key → step output → job output → the caller expression', () => {
+        // `detectionChains()` throws on any broken link, so reaching this point IS the assertion; these
+        // re-state it in a form a failure message can show. Asserted for EVERY discovered chain, so a
+        // second tier's wiring cannot drift while the first one's keeps the suite green.
+        const gate = jobOf(caller, CALLER_FILE, GATED_JOB);
+        const expressions = [gate.if ?? '', ...Object.values(gate.with ?? {}).map((value) => String(value))].join('\n');
+
+        expect(chains.size).toBeGreaterThanOrEqual(2);
+
+        for (const chain of chains.values()) {
+            expect(chain.patterns.length).toBeGreaterThan(0);
+            expect(jobOf(caller, CALLER_FILE, chain.job).outputs?.[chain.outputName]).toContain(
+                `steps.${chain.stepId}.outputs.${chain.filterKey}`,
+            );
+            expect(expressions).toContain(`needs.${chain.job}.outputs.${chain.outputName}`);
+        }
     });
 
-    it('detects changes in a job that can run on EVERY trigger, so no event loses the tier to a skip', () => {
+    it('uses POSITIVE patterns only — a `!` negation would make its tier fire on every PR', () => {
+        // `dorny/paths-filter` answers "does ANY pattern match". Under that rule a leading-`!` pattern is
+        // TRUE for every file it does not name, so ONE negation turns a filter into "always" — a ~50-minute
+        // emulator, or three k6 jobs, on every PR in the repo. Precision comes from narrow positives.
+        for (const chain of chains.values()) {
+            for (const pattern of chain.patterns) {
+                expect(pattern.startsWith('!'), `${chain.filterKey} pattern \`${pattern}\` is a negation`).toBe(false);
+            }
+        }
+    });
+
+    it('detects changes in a job that can run on EVERY trigger, so no event loses a tier to a skip', () => {
         // A skipped dependency skips its dependents. If this job were gated on `pull_request`, the nightly
         // and dispatch runs would silently stop while every `if:` still read correctly (ADR-0010's class).
-        const detect = jobOf(caller, CALLER_FILE, chain.job);
+        for (const chain of chains.values()) {
+            const detect = jobOf(caller, CALLER_FILE, chain.job);
 
-        for (const event of triggerEvents(caller)) {
-            const scenario = { event } as unknown as Scenario;
-            const runs =
-                detect.if === undefined ||
-                definite(
-                    evaluateCondition(detect.if, (atom) => resolveAtom(atom, scenario)),
-                    'detect.if',
-                );
+            for (const event of triggerEvents(caller)) {
+                const scenario = { event } as unknown as Scenario;
+                const runs =
+                    detect.if === undefined ||
+                    definite(
+                        evaluateCondition(detect.if, (atom) => resolveAtom(atom, scenario)),
+                        'detect.if',
+                    );
 
-            expect(runs, `the detect job does not run on \`${event}\``).toBe(true);
+                expect(runs, `the ${chain.job} job does not run on \`${event}\``).toBe(true);
+            }
         }
+    });
+
+    it('computes BOTH filters in ONE job, so neither tier can be lost to a per-tier skip', () => {
+        // A second detect job gated on `pull_request` is the tempting shape and the wrong one: it would
+        // silently kill whichever tier depended on it for the nightly/dispatch runs.
+        expect(new Set([...chains.values()].map((chain) => chain.job)).size).toBe(1);
+        expect(new Set([...chains.values()].map((chain) => chain.stepId)).size).toBe(1);
+    });
+});
+
+describe('heavy-e2e mobile tier — Maestro now has a trigger of its OWN', () => {
+    it('covers the mobile app, its Maestro flows, and the harness that runs them', () => {
+        expect(filterMatches(MOBILE_OUTPUT, [MOBILE_SCREEN])).toBe(true);
+        expect(filterMatches(MOBILE_OUTPUT, [MAESTRO_FLOW])).toBe(true);
+        expect(filterMatches(MOBILE_OUTPUT, [MAESTRO_HARNESS])).toBe(true);
+    });
+
+    it('covers the shared design-system and feature packages the APK renders', () => {
+        expect(filterMatches(MOBILE_OUTPUT, [UI_NATIVE])).toBe(true);
+        expect(filterMatches(MOBILE_OUTPUT, [FEATURE_NATIVE])).toBe(true);
+    });
+
+    it('covers the localized copy the flows match as literal text, and the API client', () => {
+        expect(filterMatches(MOBILE_OUTPUT, [I18N_STRINGS])).toBe(true);
+        expect(filterMatches(MOBILE_OUTPUT, [RECIPE_CLIENT])).toBe(true);
+    });
+
+    it('covers the BACKEND the job boots — a backend-only PR must not break flows unseen', () => {
+        // The job builds the recipe-service image, boots it, migrates + seeds it, and re-seeds between flows.
+        // Filtering on mobile paths alone would have let a recipe API change red every flow behind a green PR.
+        expect(filterMatches(MOBILE_OUTPUT, [RECIPE_SERVICE])).toBe(true);
+        // `dist` COPY'd into that image — a break fails the image build before any flow runs.
+        expect(filterMatches(MOBILE_OUTPUT, [FOOD_CLIENT])).toBe(true);
+    });
+
+    it('still excludes the food SERVICE — the only catalog flow is not in the executed FLOWS list', () => {
+        // Measured, not assumed: `tests/e2e/run-maestro-flows.sh` runs a hardcoded 23-flow list, and
+        // `.maestro/recipes/ingredient-catalog-blend.yaml` is NOT in it. So a food-service change could not
+        // change any flow's outcome, and booting a ~53-minute emulator for one would buy zero coverage. Its
+        // CLIENT is covered above, because that IS compiled into the recipe image.
+        expect(filterMatches(MOBILE_OUTPUT, ['packages/services/food-service/src/foods/foods.service.ts'])).toBe(false);
+        expect(filterMatches(MOBILE_OUTPUT, [SEARCH_DAO])).toBe(false);
+    });
+
+    it('does NOT cover food, web, or infra — a ~50-minute emulator is the cost of getting this wrong', () => {
+        for (const path of MOBILE_UNCOVERED_PATHS) {
+            expect(filterMatches(MOBILE_OUTPUT, [path]), `${path} should not boot the emulator`).toBe(false);
+        }
+    });
+
+    it('runs Maestro for an UNLABELLED PR that touched the mobile app (the whole point)', () => {
+        // The defect this closes: before it, a PR that broke the mobile app passed CI green unless a human
+        // remembered to apply a label.
+        const scenario: Scenario = { event: 'pull_request', labels: [], changedFiles: [MOBILE_SCREEN] };
+
+        expect(maestroRuns(scenario)).toBe(true);
+    });
+
+    it('runs Maestro for an unlabelled PR that only changed a shared native component', () => {
+        expect(maestroRuns({ event: 'pull_request', labels: [], changedFiles: [UI_NATIVE] })).toBe(true);
+    });
+
+    it('does NOT run the k6 tier for a mobile-only PR (the per-tier split, in the other direction)', () => {
+        // Symmetry with "Maestro stays off the automatic path": neither tier may ride the other's trigger.
+        const scenario: Scenario = { event: 'pull_request', labels: [], changedFiles: [MOBILE_SCREEN, UI_NATIVE] };
+
+        expect(maestroRuns(scenario)).toBe(true);
+        expect(loadTierRuns(scenario)).toBe(false);
+    });
+
+    it('does NOT run Maestro for an unlabelled PR that touched nothing mobile', () => {
+        expect(
+            maestroRuns({ event: 'pull_request', labels: [], changedFiles: [UNRELATED_IN_PACKAGE, 'README.md'] }),
+        ).toBe(false);
+    });
+
+    it('runs BOTH tiers for a PR that touched food queries AND the mobile app', () => {
+        const scenario: Scenario = {
+            event: 'pull_request',
+            labels: [],
+            changedFiles: [SEARCH_DAO, MOBILE_SCREEN],
+        };
+
+        expect(loadTierRuns(scenario)).toBe(true);
+        expect(maestroRuns(scenario)).toBe(true);
     });
 });
 

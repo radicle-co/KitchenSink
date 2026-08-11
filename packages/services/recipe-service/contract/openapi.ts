@@ -24,16 +24,18 @@
  *
  *  - **Covered** — the health probes (their payload carries `contractHash`, the drift-layer-3 skew signal, so
  *    it IS wire contract and has an authored `health.schema.ts`), plus the recipes, photos, versions,
- *    ingredient-CRUD, search and rating-read bodies, because
- *    `@kitchensink/recipe-core` already owns their zod AND `@kitchensink/recipe-service-client` PARSES
- *    production responses with those same schemas today. That is empirical evidence of truth, not a guess:
- *    were `recipeDetailSchema` wrong about a detail response, the shipped client would already be throwing
- *    on every read.
- *  - **NOT covered** — collections, account export/erasure, and the two blended ingredient endpoints
- *    (`suggest`, `candidates`). Those are exactly the boundaries the client validates with
- *    `expectUnvalidated`, i.e. the ones with no shared schema on either side. They are filled in as each
- *    vertical gains an authored `*.schema.ts`; publishing a hopeful shape for them now would be a contract
- *    that lies.
+ *    ingredient, search, rating-read and COLLECTIONS bodies, because
+ *    `@kitchensink/recipe-core` already owns their zod (or the vertical now authors it) AND
+ *    `@kitchensink/recipe-service-client` PARSES production responses with those same schemas today. That is
+ *    empirical evidence of truth, not a guess: were `recipeDetailSchema` wrong about a detail response, the
+ *    shipped client would already be throwing on every read. The collections bodies additionally carry a suite
+ *    that drives `CollectionsService` and parses its ACTUAL output with the published schema
+ *    (`src/collections/__tests__/collections.schema.test.ts`), which is the same evidence obtained deliberately
+ *    rather than by luck.
+ *  - **NOT covered** — the three account bodies (`exportAccount`, `requestAccountErasure`,
+ *    `requestServiceErasure`). Those are the boundaries with no shared schema on either side. They are filled
+ *    in as the vertical gains an authored `*.schema.ts`; publishing a hopeful shape for them now would be a
+ *    contract that lies.
  *
  * ── WHY ONLY THE `/api/v1/...` SPELLING IS PUBLISHED ──
  *
@@ -68,6 +70,20 @@ import {
     updateRecipeInputSchema,
 } from '@kitchensink/recipe-core';
 
+import {
+    addRecipeToCollectionRequestSchema,
+    cloneCollectionRequestSchema,
+    collectionListResponseSchema,
+    collectionMemberRecipeSchema,
+    collectionRecipeMembershipResponseSchema,
+    collectionResponseSchema,
+    collectionWithRecipesResponseSchema,
+    createCollectionRequestSchema,
+    pullDiffSchema,
+    pullFromSourceRequestSchema,
+    pullFromSourceResponseSchema,
+    updateCollectionRequestSchema,
+} from '../src/collections/collections.schema.js';
 import { healthStatusSchema, healthUnavailableSchema } from '../src/health/health.schema.js';
 import {
     addIngredientByFoodRequestSchema,
@@ -119,6 +135,23 @@ const components = {
     RecipeVersionList: z.array(recipeVersionSchema),
     RestoreVersionResponse: restoreVersionResponseSchema,
     RecipeSearchResponse: recipeSearchResponseSchema,
+    Collection: collectionResponseSchema,
+    PaginatedCollections: collectionListResponseSchema,
+    // Declared as its OWN component (rather than left to inline inside `CollectionWithRecipes`) so an
+    // integrator's generated client gets one named type for a collection member instead of an anonymous
+    // shape, and so `oasdiff` reports a change to it once rather than at every use site.
+    CollectionMemberRecipe: collectionMemberRecipeSchema,
+    CollectionWithRecipes: collectionWithRecipesResponseSchema,
+    CollectionRecipeMembership: collectionRecipeMembershipResponseSchema,
+    CreateCollectionRequest: createCollectionRequestSchema,
+    UpdateCollectionRequest: updateCollectionRequestSchema,
+    AddRecipeToCollectionRequest: addRecipeToCollectionRequestSchema,
+    CloneCollectionRequest: cloneCollectionRequestSchema,
+    // ONE component for BOTH directions of the pull diff — it is the response of `previewPullFromSource` and
+    // the `previewedDiff` a client echoes back on commit, and the drift check compares those two documents.
+    PullDiff: pullDiffSchema,
+    PullFromSourceRequest: pullFromSourceRequestSchema,
+    PullFromSourceResponse: pullFromSourceResponseSchema,
 } as const;
 
 /** A component name, so a typo in a response is a `typecheck` failure rather than a missing `$ref`. */
@@ -649,9 +682,14 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             operationId: 'createCollection',
             summary: 'Create a collection owned by the caller.',
             description:
-                'REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — the collections vertical has no authored `*.schema.ts`; its zod lives in `collections.schemas.ts`, which imports a drizzle type and so cannot cross into the schema package.',
+                'Visibility defaults to `private` (FR-010). `ownerId` is not an accepted field — ownership comes from the verified token, and an `ownerId` in the body is stripped.',
+            requestBody: {
+                description: 'The collection to create.',
+                required: true,
+                schema: 'CreateCollectionRequest',
+            },
             responses: {
-                '201': { description: 'The created collection.' },
+                '201': { description: 'The created collection.', schema: 'Collection' },
                 '409': { description: 'The caller is at the 50-collection cap.', schema: 'ErrorResponse' },
                 ...sharedErrorResponses(),
             },
@@ -659,7 +697,8 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         get: {
             operationId: 'listCollections',
             summary: 'List the caller’s collections.',
-            description: 'RESPONSE BODY NOT YET DESCRIBED — see `createCollection`.',
+            description:
+                'Newest first. `recipeCount` is OMITTED on this list projection (it is present on the single-collection read) — counting members per row would be an N+1.',
             parameters: [
                 { name: 'page', in: 'query', description: '1-based page number.', schema: z.number().int().min(1) },
                 {
@@ -669,17 +708,21 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
                     schema: z.number().int().min(1).max(100),
                 },
             ],
-            responses: { '200': { description: 'A page of collections.' }, ...sharedErrorResponses() },
+            responses: {
+                '200': { description: 'A page of collections.', schema: 'PaginatedCollections' },
+                ...sharedErrorResponses(),
+            },
         },
     },
     '/api/v1/collections/{id}': {
         get: {
             operationId: 'getCollectionById',
             summary: 'Read a collection with its member recipes.',
-            description: 'RESPONSE BODY NOT YET DESCRIBED — see `createCollection`.',
+            description:
+                '`recipes` is ALWAYS present — an empty array means “no members you can see”, which is a real state. Members are filtered to those the caller may view, so a member that has since gone private simply disappears. `coverPhotoUrl` is never populated on this embed.',
             parameters: [uuidPathParam('id', 'The collection id.')],
             responses: {
-                '200': { description: 'The collection and its members.' },
+                '200': { description: 'The collection and its members.', schema: 'CollectionWithRecipes' },
                 '404': { description: 'No such collection.', schema: 'ErrorResponse' },
                 ...sharedErrorResponses(),
             },
@@ -687,10 +730,12 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         patch: {
             operationId: 'updateCollection',
             summary: 'Update a collection (at least one field required).',
-            description: 'REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — see `createCollection`.',
+            description:
+                'AT LEAST ONE FIELD IS REQUIRED, and that rule is NOT expressible in this document: it is a zod `.refine()`, which JSON Schema cannot represent, so an empty object validates here and is answered `400` by the service. Stated rather than dropped — dropping the rule would turn a client bug into a silent success.',
             parameters: [uuidPathParam('id', 'The collection id.')],
+            requestBody: { description: 'The fields to change.', required: true, schema: 'UpdateCollectionRequest' },
             responses: {
-                '200': { description: 'The updated collection.' },
+                '200': { description: 'The updated collection.', schema: 'Collection' },
                 '403': NOT_OWNER,
                 '404': { description: 'No such collection.', schema: 'ErrorResponse' },
                 ...sharedErrorResponses(),
@@ -712,10 +757,16 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         post: {
             operationId: 'addRecipeToCollection',
             summary: 'Add a recipe to a collection.',
-            description: 'REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — see `createCollection`.',
+            description:
+                'Idempotent. A recipe the caller cannot VIEW is answered `404`, not `403`, so a private recipe’s existence is never disclosed. The response body’s timestamp field is `createdAt`, while the persisted column and the shared domain type both call it `addedAt`.',
             parameters: [uuidPathParam('id', 'The collection id.')],
+            requestBody: {
+                description: 'The recipe to add.',
+                required: true,
+                schema: 'AddRecipeToCollectionRequest',
+            },
             responses: {
-                '201': { description: 'The created membership.' },
+                '201': { description: 'The created membership.', schema: 'CollectionRecipeMembership' },
                 '403': NOT_OWNER,
                 '404': { description: 'No such collection or recipe.', schema: 'ErrorResponse' },
                 ...sharedErrorResponses(),
@@ -739,10 +790,16 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         post: {
             operationId: 'cloneCollection',
             summary: 'Clone a visible collection, seeding it with the source’s recipes.',
-            description: 'REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — see `createCollection`.',
+            description:
+                'The BODY IS OPTIONAL — a bodyless POST inherits the source’s name/description. The clone is always `private` regardless of the source’s visibility, and its source attribution is FROZEN at clone time (a later rename of the source owner does not propagate). The seed set is read through the CLONER’s eyes, so the source’s private recipes are excluded.',
             parameters: [uuidPathParam('id', 'The collection to clone.')],
+            requestBody: {
+                description: 'Optional name/description overrides for the clone.',
+                required: false,
+                schema: 'CloneCollectionRequest',
+            },
             responses: {
-                '201': { description: 'The caller’s new clone.' },
+                '201': { description: 'The caller’s new clone.', schema: 'Collection' },
                 '404': { description: 'No such collection.', schema: 'ErrorResponse' },
                 '409': { description: 'The caller is at the 50-collection cap.', schema: 'ErrorResponse' },
                 ...sharedErrorResponses(),
@@ -754,10 +811,10 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             operationId: 'previewPullFromSource',
             summary: 'Preview what a pull from the source collection would add.',
             description:
-                'RESPONSE BODY NOT YET DESCRIBED — `PullDiff` has four independent declarations today; converging them is the collections step.',
+                'READ-ONLY — the service runs it in a read-only transaction, so a preview is structurally incapable of writing. Echo the returned document back as `previewedDiff` on the commit call to get the drift guard. Buckets are sorted and de-duplicated, and that ordering is significant: byte-equality is the drift signal.',
             parameters: [uuidPathParam('id', 'The cloned collection id.')],
             responses: {
-                '200': { description: 'The three-way diff of source against clone.' },
+                '200': { description: 'The three-way diff of source against clone.', schema: 'PullDiff' },
                 '400': {
                     description: 'The collection was never cloned, so it has no source.',
                     schema: 'ErrorResponse',
@@ -772,10 +829,19 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         post: {
             operationId: 'pullCollectionFromSource',
             summary: 'Pull new recipes from the source collection into the clone.',
-            description: 'REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — see `previewPullFromSource`.',
+            description:
+                'ADDITIVE ONLY: recipes the source owner has since removed are LEFT IN PLACE, so there is deliberately no `removed` field in the response. An empty `addedRecipeIds` is the ordinary “nothing new” outcome. The BODY IS OPTIONAL — omitting `previewedDiff` applies directly with no drift guard.',
             parameters: [uuidPathParam('id', 'The cloned collection id.')],
+            requestBody: {
+                description: 'Optionally echoes the previewed diff as the drift baseline.',
+                required: false,
+                schema: 'PullFromSourceRequest',
+            },
             responses: {
-                '200': { description: 'The refreshed collection and the recipe ids the pull added.' },
+                '200': {
+                    description: 'The refreshed collection and the recipe ids the pull added.',
+                    schema: 'PullFromSourceResponse',
+                },
                 '400': {
                     description: 'The collection was never cloned, so it has no source.',
                     schema: 'ErrorResponse',

@@ -59,20 +59,13 @@ const CONTROLLERS: readonly NewableFunction[] = [
  *
  * The health probes USED to be here. They came off when `contractHash` was added to their payload for drift
  * layer 3: the moment a consumer is expected to read a field off `/health`, that body IS wire contract, so it
- * got an authored `health.schema.ts` like everything else.
+ * got an authored `health.schema.ts` like everything else. The eight COLLECTIONS entries came off with
+ * `collections.schema.ts`, which also settled the four ways the collections contract had already drifted.
  */
 const RESPONSES_WITHOUT_SCHEMA: readonly string[] = [
-    'addRecipeToCollection 201',
-    'cloneCollection 201',
-    'createCollection 201',
     'exportAccount 200',
-    'getCollectionById 200',
-    'listCollections 200',
-    'previewPullFromSource 200',
-    'pullCollectionFromSource 200',
     'requestAccountErasure 202',
     'requestServiceErasure 202',
-    'updateCollection 200',
 ];
 
 /** Nest's `RequestMethod` enum → the lower-case verb OpenAPI uses. */

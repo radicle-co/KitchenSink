@@ -2013,6 +2013,10 @@ paths:
       responses:
         "201":
           description: The created collection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
         "400":
           description: The request body or query failed validation.
           content:
@@ -2057,8 +2061,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — the collections vertical has no authored `*.schema.ts`; its
-        zod lives in `collections.schemas.ts`, which imports a drizzle type and so cannot cross into the schema package.
+      description: Visibility defaults to `private` (FR-010). `ownerId` is not an accepted field — ownership comes from the
+        verified token, and an `ownerId` in the body is stripped.
+      requestBody:
+        description: The collection to create.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCollectionRequest"
     get:
       operationId: listCollections
       summary: List the caller’s collections.
@@ -2067,6 +2078,10 @@ paths:
       responses:
         "200":
           description: A page of collections.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedCollections"
         "400":
           description: The request body or query failed validation.
           content:
@@ -2105,7 +2120,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: RESPONSE BODY NOT YET DESCRIBED — see `createCollection`.
+      description: Newest first. `recipeCount` is OMITTED on this list projection (it is present on the single-collection
+        read) — counting members per row would be an N+1.
       parameters:
         - name: page
           in: query
@@ -2132,6 +2148,10 @@ paths:
       responses:
         "200":
           description: The collection and its members.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CollectionWithRecipes"
         "400":
           description: The request body or query failed validation.
           content:
@@ -2176,7 +2196,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: RESPONSE BODY NOT YET DESCRIBED — see `createCollection`.
+      description: "`recipes` is ALWAYS present — an empty array means “no members you can see”, which is a real state.
+        Members are filtered to those the caller may view, so a member that has since gone private simply disappears.
+        `coverPhotoUrl` is never populated on this embed."
       parameters:
         - name: id
           in: path
@@ -2194,6 +2216,10 @@ paths:
       responses:
         "200":
           description: The updated collection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
         "400":
           description: The request body or query failed validation.
           content:
@@ -2244,7 +2270,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — see `createCollection`.
+      description: "AT LEAST ONE FIELD IS REQUIRED, and that rule is NOT expressible in this document: it is a zod
+        `.refine()`, which JSON Schema cannot represent, so an empty object validates here and is answered `400` by the
+        service. Stated rather than dropped — dropping the rule would turn a client bug into a silent success."
       parameters:
         - name: id
           in: path
@@ -2254,6 +2282,13 @@ paths:
             type: string
             format: uuid
             pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      requestBody:
+        description: The fields to change.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCollectionRequest"
     delete:
       operationId: deleteCollection
       summary: Delete a collection (its recipes are untouched).
@@ -2330,6 +2365,10 @@ paths:
       responses:
         "201":
           description: The created membership.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CollectionRecipeMembership"
         "400":
           description: The request body or query failed validation.
           content:
@@ -2380,7 +2419,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — see `createCollection`.
+      description: Idempotent. A recipe the caller cannot VIEW is answered `404`, not `403`, so a private recipe’s existence
+        is never disclosed. The response body’s timestamp field is `createdAt`, while the persisted column and the
+        shared domain type both call it `addedAt`.
       parameters:
         - name: id
           in: path
@@ -2390,6 +2431,13 @@ paths:
             type: string
             format: uuid
             pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      requestBody:
+        description: The recipe to add.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddRecipeToCollectionRequest"
   /api/v1/collections/{id}/recipes/{recipeId}:
     delete:
       operationId: removeRecipeFromCollection
@@ -2475,6 +2523,10 @@ paths:
       responses:
         "201":
           description: The caller’s new clone.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
         "400":
           description: The request body or query failed validation.
           content:
@@ -2525,7 +2577,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — see `createCollection`.
+      description: The BODY IS OPTIONAL — a bodyless POST inherits the source’s name/description. The clone is always
+        `private` regardless of the source’s visibility, and its source attribution is FROZEN at clone time (a later
+        rename of the source owner does not propagate). The seed set is read through the CLONER’s eyes, so the source’s
+        private recipes are excluded.
       parameters:
         - name: id
           in: path
@@ -2535,6 +2590,13 @@ paths:
             type: string
             format: uuid
             pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      requestBody:
+        description: Optional name/description overrides for the clone.
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloneCollectionRequest"
   /api/v1/collections/{id}/pull-from-source/preview:
     post:
       operationId: previewPullFromSource
@@ -2544,6 +2606,10 @@ paths:
       responses:
         "200":
           description: The three-way diff of source against clone.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PullDiff"
         "400":
           description: The request body or query failed validation.
           content:
@@ -2594,8 +2660,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: RESPONSE BODY NOT YET DESCRIBED — `PullDiff` has four independent declarations today; converging them is
-        the collections step.
+      description: "READ-ONLY — the service runs it in a read-only transaction, so a preview is structurally incapable of
+        writing. Echo the returned document back as `previewedDiff` on the commit call to get the drift guard. Buckets
+        are sorted and de-duplicated, and that ordering is significant: byte-equality is the drift signal."
       parameters:
         - name: id
           in: path
@@ -2614,6 +2681,10 @@ paths:
       responses:
         "200":
           description: The refreshed collection and the recipe ids the pull added.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PullFromSourceResponse"
         "400":
           description: The request body or query failed validation.
           content:
@@ -2670,7 +2741,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: REQUEST AND RESPONSE BODIES NOT YET DESCRIBED — see `previewPullFromSource`.
+      description: "ADDITIVE ONLY: recipes the source owner has since removed are LEFT IN PLACE, so there is deliberately no
+        `removed` field in the response. An empty `addedRecipeIds` is the ordinary “nothing new” outcome. The BODY IS
+        OPTIONAL — omitting `previewedDiff` applies directly with no drift guard."
       parameters:
         - name: id
           in: path
@@ -2680,6 +2753,13 @@ paths:
             type: string
             format: uuid
             pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      requestBody:
+        description: Optionally echoes the previewed diff as the drift baseline.
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullFromSourceRequest"
   /api/v1/account/export:
     get:
       operationId: exportAccount
@@ -4132,4 +4212,431 @@ components:
         - page
         - pageSize
         - hasMore
+      additionalProperties: false
+    Collection:
+      readOnly: true
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        ownerId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        description:
+          type: string
+          minLength: 1
+        sourceCollectionId:
+          type: string
+          minLength: 1
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        recipeCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        sourceOwnerHandle:
+          type: string
+          minLength: 1
+        sourceCollectionName:
+          type: string
+          minLength: 1
+        lastPulledAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+      required:
+        - id
+        - ownerId
+        - name
+        - visibility
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+    PaginatedCollections:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Collection"
+        total:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        page:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        pageSize:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        hasMore:
+          type: boolean
+      required:
+        - data
+        - total
+        - page
+        - pageSize
+        - hasMore
+      additionalProperties: false
+    CollectionMemberRecipe:
+      readOnly: true
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        ownerId:
+          type: string
+          minLength: 1
+        title:
+          type: string
+          minLength: 1
+        description:
+          default: ""
+          type: string
+        prepTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        cookTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        totalTimeMinutes:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        servings:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        difficulty:
+          type: string
+          enum:
+            - easy
+            - medium
+            - hard
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        status:
+          type: string
+          enum:
+            - draft
+            - published
+        sourceType:
+          type: string
+          enum:
+            - user_created
+            - imported_public
+            - imported_physical
+            - imported_paid
+        sourceUrl:
+          type: string
+          format: uri
+        sourceAttribution:
+          type: string
+          minLength: 1
+        clonedFromId:
+          type: string
+          minLength: 1
+        hasSubstantiveEdit:
+          type: boolean
+        cuisine:
+          type: string
+          minLength: 1
+        dietaryFlags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        tags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        hasPartialNutrition:
+          type: boolean
+        leadCaloriesPerServing:
+          type: number
+          minimum: 0
+        authorHandle:
+          type: string
+          minLength: 1
+        currentVersion:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 9007199254740991
+        averageRating:
+          type: number
+          minimum: 1
+          maximum: 5
+        ratingCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        usesPremiumCapability:
+          type: boolean
+        coverPhotoUrl:
+          type: string
+          format: uri
+        deletedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        addedVia:
+          type: string
+          enum:
+            - manual
+            - clone_seed
+            - pull
+      required:
+        - id
+        - ownerId
+        - title
+        - description
+        - prepTimeMinutes
+        - cookTimeMinutes
+        - totalTimeMinutes
+        - servings
+        - visibility
+        - status
+        - sourceType
+        - hasSubstantiveEdit
+        - dietaryFlags
+        - tags
+        - hasPartialNutrition
+        - currentVersion
+        - ratingCount
+        - usesPremiumCapability
+        - createdAt
+        - updatedAt
+        - addedVia
+      additionalProperties: false
+    CollectionWithRecipes:
+      readOnly: true
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        ownerId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        description:
+          type: string
+          minLength: 1
+        sourceCollectionId:
+          type: string
+          minLength: 1
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        recipeCount:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        sourceOwnerHandle:
+          type: string
+          minLength: 1
+        sourceCollectionName:
+          type: string
+          minLength: 1
+        lastPulledAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+        recipes:
+          readOnly: true
+          type: array
+          items:
+            $ref: "#/components/schemas/CollectionMemberRecipe"
+      required:
+        - id
+        - ownerId
+        - name
+        - visibility
+        - createdAt
+        - updatedAt
+        - recipes
+      additionalProperties: false
+    CollectionRecipeMembership:
+      readOnly: true
+      type: object
+      properties:
+        collectionId:
+          type: string
+          minLength: 1
+        recipeId:
+          type: string
+          minLength: 1
+        addedVia:
+          type: string
+          enum:
+            - manual
+            - clone_seed
+            - pull
+        createdAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+      required:
+        - collectionId
+        - recipeId
+        - addedVia
+        - createdAt
+      additionalProperties: false
+    CreateCollectionRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+      required:
+        - name
+      additionalProperties: false
+    UpdateCollectionRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+      additionalProperties: false
+    AddRecipeToCollectionRequest:
+      type: object
+      properties:
+        recipeId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      required:
+        - recipeId
+      additionalProperties: false
+    CloneCollectionRequest:
+      default: {}
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      additionalProperties: false
+    PullDiff:
+      readOnly: true
+      type: object
+      properties:
+        added:
+          readOnly: true
+          type: array
+          items:
+            type: string
+            minLength: 1
+        removed:
+          readOnly: true
+          type: array
+          items:
+            type: string
+            minLength: 1
+        unchanged:
+          readOnly: true
+          type: array
+          items:
+            type: string
+            minLength: 1
+      required:
+        - added
+        - removed
+        - unchanged
+      additionalProperties: false
+    PullFromSourceRequest:
+      default: {}
+      type: object
+      properties:
+        previewedDiff:
+          allOf:
+            - $ref: "#/components/schemas/PullDiff"
+      additionalProperties: false
+    PullFromSourceResponse:
+      readOnly: true
+      type: object
+      properties:
+        collection:
+          $ref: "#/components/schemas/Collection"
+        addedRecipeIds:
+          readOnly: true
+          type: array
+          items:
+            type: string
+            minLength: 1
+      required:
+        - collection
+        - addedRecipeIds
       additionalProperties: false

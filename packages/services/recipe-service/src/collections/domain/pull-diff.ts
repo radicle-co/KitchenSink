@@ -17,18 +17,20 @@
  * whenever (and only whenever) neither the source nor the clone membership changed — which is exactly the
  * drift signal decision 7 relies on.
  *
+ * ── WHY THE SHAPE IS IMPORTED AND NOT DECLARED HERE ──
+ *
+ * `PullDiff` is a PUBLIC RESPONSE BODY (`previewPullFromSource`) and a PUBLIC REQUEST BODY (the
+ * `previewedDiff` echoed back on commit), so the CONTRACT owns it — `../collections.schema.ts`. It used to be
+ * declared here, which meant a domain internal defined the wire type and the response imported *up* from the
+ * domain. Computing a value does not confer ownership of its type; this module now imports the shape it must
+ * PRODUCE. That also collapses what were four independent declarations of one thing (here, the controller's
+ * request zod, the typed client's `types.ts`, and a second zod inside the client) into one.
+ *
  * @module
  */
+import type { PullDiff } from '../collections.schema.js';
 
-/** The three-way pull diff (sorted, de-duplicated id lists). */
-export interface PullDiff {
-    /** Recipes in the source but not the clone — the pull WILL add these. */
-    readonly added: string[];
-    /** Recipes in the clone but not the source — informational; a pull never removes them. */
-    readonly removed: string[];
-    /** Recipes in both — already present; the pull is a no-op for these. */
-    readonly unchanged: string[];
-}
+export type { PullDiff };
 
 /**
  * Compute the {@link PullDiff} from the (already access-scoped) source and clone membership id lists. Pure.

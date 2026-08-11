@@ -17,7 +17,6 @@
  */
 import {
     IDENTITY_SYNC_PENDING_CODE,
-    collectionSchema,
     ingredientSchema,
     paginatedResponseSchema,
     recipeDetailSchema,
@@ -81,33 +80,17 @@ import type {
 // Runtime schemas from the GENERATED contract — the same zod the service validates with, so these two
 // boundaries are now CHECKED rather than trusted. See CODING_STANDARDS §15.2.
 import {
+    collectionListResponseSchema,
+    collectionRecipeMembershipResponseSchema,
+    collectionResponseSchema,
+    collectionWithRecipesResponseSchema,
     ingredientCandidatesResponseSchema,
     ingredientSuggestionsResponseSchema,
     photoUploadUrlResponseSchema,
+    pullDiffSchema,
+    pullFromSourceResponseSchema,
     recipeSearchResponseSchema,
 } from '@kitchensink/schema-recipe';
-
-/**
- * The `Collection` response schema, WIDENED (W5 Task 5) from `@kitchensink/recipe-core`'s `collectionSchema`
- * with the recipe service's response-only pull-provenance fields (`./types.js`'s local `Collection`). This
- * MUST stay in sync with that widening: `collectionSchema.parse` alone would silently STRIP these fields
- * (zod drops unrecognized keys by default), so every validated collection-returning method below uses this
- * extended schema, never the bare core one — otherwise the wider TS type would be a lie about what `parse`
- * actually returns. `lastPulledAt` reuses the same `.datetime({ offset: true })` strictness as the core
- * schema's own timestamp fields (its private `isoDateTimeStringSchema` is not exported for reuse here).
- */
-const collectionResponseSchema = collectionSchema.extend({
-    sourceOwnerHandle: z.string().min(1).optional(),
-    sourceCollectionName: z.string().min(1).optional(),
-    lastPulledAt: z.string().datetime({ offset: true }).optional(),
-});
-
-/** Runtime validator for {@link PullDiff} — the response shape of `previewPullFromSource`. */
-const pullDiffSchema = z.object({
-    added: z.array(z.string()),
-    removed: z.array(z.string()),
-    unchanged: z.array(z.string()),
-});
 
 /**
  * A bearer token supplied either as a literal or a (sync/async) per-request callback. The callback
@@ -740,7 +723,7 @@ export class RecipeServiceClient {
             pageSize: params.pageSize,
         });
 
-        return this.expect(res, 200, paginatedResponseSchema(collectionResponseSchema));
+        return this.expect(res, 200, collectionListResponseSchema);
     }
 
     /**
@@ -754,7 +737,7 @@ export class RecipeServiceClient {
     public async getCollectionById(id: string): Promise<CollectionWithRecipes> {
         const res = await this.send('GET', `/api/v1/collections/${encodeURIComponent(id)}`);
 
-        return this.expectUnvalidated<CollectionWithRecipes>(res, 200);
+        return this.expect(res, 200, collectionWithRecipesResponseSchema);
     }
 
     /**
@@ -797,7 +780,7 @@ export class RecipeServiceClient {
     public async addRecipeToCollection(id: string, recipeId: string): Promise<CollectionRecipeMembership> {
         const res = await this.send('POST', `/api/v1/collections/${encodeURIComponent(id)}/recipes`, { recipeId });
 
-        return this.expectUnvalidated<CollectionRecipeMembership>(res, 201);
+        return this.expect(res, 201, collectionRecipeMembershipResponseSchema);
     }
 
     /**
@@ -867,7 +850,7 @@ export class RecipeServiceClient {
     ): Promise<PullFromSourceResponse> {
         const res = await this.send('POST', `/api/v1/collections/${encodeURIComponent(id)}/pull-from-source`, body);
 
-        return this.expectUnvalidated<PullFromSourceResponse>(res, 200);
+        return this.expect(res, 200, pullFromSourceResponseSchema);
     }
 
     // ─── Search & account ───────────────────────────────────────────────────────────────────────

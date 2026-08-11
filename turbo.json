@@ -30,6 +30,18 @@
             // needs is CACHE INVALIDATION when an authored schema changes, and the `$TURBO_ROOT$` input
             // below delivers exactly that (verified: editing an authored schema turns this task into a cache
             // miss). Generation itself is the `contract:generate` task plus CI's regenerate-and-diff gate.
+            //
+            // ⚠️ `^build` IS NOT OPTIONAL AND IS NOT INHERITED. A package-task entry REPLACES the base `build`
+            // task rather than merging with it, so the first version of this block — which argued only about the
+            // SERVICE edge — silently dropped the ordinary "build my own workspace dependencies first" edge along
+            // with it. Measured with `--dry=json`: this task had `deps=[]` while `typecheck` (not overridden)
+            // still depended on `@kitchensink/recipe-core#build`, and that asymmetry was the tell. This package
+            // has a real runtime dependency on `@kitchensink/recipe-core` and its schemas import runtime values
+            // from it; it only compiled because recipe-core's DEV manifest exports `./src`, so `tsc` resolved
+            // source instead of a build output that had never been produced. `^build` restores that edge (and
+            // must stay on the other two, where the packages are zod-only today and the cost of the omission is
+            // therefore latent rather than live).
+            "dependsOn": ["^build"],
             "inputs": [
                 "src/**",
                 "openapi.yaml",
@@ -56,6 +68,10 @@
             // which turbo rejects outright. Ordering was never what layer 1 needed: the generated files are
             // COMMITTED, so `build` only compiles what is already on disk. Generation is `contract:generate`, and
             // the regenerate-and-diff gate is `food-service`'s own `contract/__tests__` suite.
+            //
+            // `^build` for the same reason as above: a package-task entry REPLACES the base task, so omitting it
+            // drops this package's own workspace-dependency ordering.
+            "dependsOn": ["^build"],
             "inputs": [
                 "src/**",
                 "openapi.yaml",
@@ -68,6 +84,7 @@
         "@kitchensink/schema-identity#build": {
             // DRIFT LAYER 1 (Rebuild) for the identity contract. See `@kitchensink/schema-food#build` above for
             // the full reasoning; the only difference is which service authors the sources.
+            "dependsOn": ["^build"],
             "inputs": [
                 "src/**",
                 "openapi.yaml",

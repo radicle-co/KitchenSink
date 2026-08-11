@@ -35,10 +35,13 @@ import {
     type SchemaExclusion,
 } from './authored-schema.js';
 import {
+    findUnpublishedSiblingImports,
     findViolations,
+    formatUnpublishedSiblingImports,
     formatViolations,
     type AllowedPackageImport,
     type SchemaImportViolation,
+    type UnpublishedSiblingImport,
 } from './schema-imports.js';
 import type { OpenApiBuildResult } from './openapi.js';
 
@@ -131,14 +134,47 @@ export function assertNoForbiddenImports(
 }
 
 /**
+ * Enforce that every sibling schema import RESOLVES to a module the generated package will actually contain.
+ *
+ * The import restriction admits a specifier that is SHAPED like a flat sibling schema module. That is not the
+ * same as the module being published, and the gap is reachable rather than theoretical: every service EXCLUDES
+ * its `src/config/env.schema.ts` from publication, while `./env.schema.js` matches the sibling pattern — so
+ * without this check an authored wire schema could import an excluded sibling, generation would succeed, and the
+ * leaf package would ship an import of a file that is not there. A renamed or deleted sibling is the same class.
+ *
+ * @param schemas - The authored schemas, which are also the definition of what WILL be published.
+ * @param config - Supplies the destination package name for the message.
+ * @throws When any sibling import names a module outside the published set.
+ */
+export function assertSiblingImportsResolve(
+    schemas: readonly AuthoredSchema[],
+    config: Pick<ContractGenerationConfig, 'schemaPackageName'>,
+): void {
+    const publishedModuleNames = schemas.map((schema) => schema.moduleName);
+    const unresolved: UnpublishedSiblingImport[] = schemas.flatMap((schema) =>
+        findUnpublishedSiblingImports(schema.servicePath, schema.source, publishedModuleNames),
+    );
+
+    if (unresolved.length > 0) {
+        throw new Error(
+            formatUnpublishedSiblingImports(unresolved, {
+                schemaPackageName: config.schemaPackageName,
+                publishedModuleNames,
+            }),
+        );
+    }
+}
+
+/**
  * Generate a service's schema package: the copied zod, the inferred types, the barrel, both hash stamps, and
  * the derived `openapi.yaml`.
  *
  * @param config - The service's contract configuration.
  * @returns What was published, for the caller to print.
- * @throws When no authored schema exists, when two share a flat module name, or when the import restriction is
- *   breached. Every one of those is checked BEFORE anything is written, so a failed run leaves the committed
- *   package untouched rather than half-rewritten.
+ * @throws When no authored schema exists, when two share a flat module name, when the import restriction is
+ *   breached, or when a sibling import names a module that will not be published. Every one of those is checked
+ *   BEFORE anything is written, so a failed run leaves the committed package untouched rather than
+ *   half-rewritten.
  * @sideEffect Deletes and rewrites the generated `src/schemas/` directory and writes six files.
  */
 export async function generateSchemaPackage(config: ContractGenerationConfig): Promise<ContractGenerationResult> {
@@ -162,6 +198,7 @@ export async function generateSchemaPackage(config: ContractGenerationConfig): P
     }
 
     assertNoForbiddenImports(schemas, config);
+    assertSiblingImportsResolve(schemas, config);
 
     const banner = generatedBanner(config);
     const generatedSrc = join(config.schemaPackageRoot, 'src');

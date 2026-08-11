@@ -242,6 +242,156 @@ describe('buildOpenApiDocument', () => {
         expect(at(document, 'paths', '/api/v1/foods/{id}', 'get', 'security')).toStrictEqual([{ clerkSession: [] }]);
     });
 
+    /**
+     * THE DOCUMENT MUST NOT ASSERT WHAT THE SERVICE DOES NOT ENFORCE.
+     *
+     * Every case here was a lie the generator shipped. The measured one: ten request bodies published
+     * `additionalProperties: false` while their `z.object` STRIPPED unknown keys and returned `2xx`, so a strict
+     * client generated from the document refuses bodies the services accept. Each assertion is written against
+     * the emitted keywords rather than against the same introspection the generator uses, so it fails if the
+     * override is removed, weakened, or applied to the wrong node.
+     */
+    describe('truthfulness of the emitted keywords', () => {
+        /** Build a one-component document and return that component's emitted schema. */
+        function componentOf(schema: z.ZodType): Record<string, unknown> {
+            const { document } = buildOpenApiDocument({
+                ...makeSpec(),
+                components: { ...components, Subject: schema },
+            } as unknown as OpenApiSpec<typeof components>);
+
+            return at(document, 'components', 'schemas', 'Subject') as Record<string, unknown>;
+        }
+
+        it('says NOTHING about unknown keys for a stripping z.object, because it accepts and drops them', () => {
+            expect(componentOf(z.object({ name: z.string() }))).not.toHaveProperty('additionalProperties');
+        });
+
+        it('publishes additionalProperties:false for a z.strictObject, which really does reject them', () => {
+            expect(componentOf(z.strictObject({ name: z.string() }))['additionalProperties']).toBe(false);
+        });
+
+        it('publishes an open additionalProperties for a z.looseObject, which passes them through', () => {
+            expect(componentOf(z.looseObject({ name: z.string() }))['additionalProperties']).toStrictEqual({});
+        });
+
+        // A component-level fix that missed nested objects would leave the lie everywhere it actually appears:
+        // request bodies are objects OF objects.
+        it('applies the same rule to an object NESTED inside a component, not just the top level', () => {
+            const nested = componentOf(
+                z.object({
+                    stripping: z.object({ a: z.string() }),
+                    strict: z.strictObject({ b: z.string() }),
+                }),
+            );
+            const properties = nested['properties'] as Record<string, Record<string, unknown>>;
+
+            expect(properties['stripping']).not.toHaveProperty('additionalProperties');
+            expect(properties['strict']?.['additionalProperties']).toBe(false);
+        });
+
+        // `readOnly` in OpenAPI means "MUST NOT be sent in a request" — a direction claim `.readonly()` (which is
+        // TypeScript immutability of the parsed value) never made, and which a codegen will act on.
+        it('does not turn a .readonly() into the OpenAPI readOnly direction keyword', () => {
+            const schema = componentOf(z.object({ id: z.string().readonly(), tags: z.array(z.string()).readonly() }));
+            const properties = schema['properties'] as Record<string, Record<string, unknown>>;
+
+            expect(properties['id']).toStrictEqual({ type: 'string' });
+            expect(properties['tags']?.['readOnly']).toBeUndefined();
+        });
+
+        // The document told integrators a photo may be 9 quadrillion bytes.
+        it('drops zod safe-integer sentinel bounds, which are not authored constraints', () => {
+            const properties = componentOf(z.object({ bytes: z.number().int() }))['properties'] as Record<
+                string,
+                Record<string, unknown>
+            >;
+
+            expect(properties['bytes']).toStrictEqual({ type: 'integer' });
+        });
+
+        it('keeps a REAL bound, so the sentinel rule cannot swallow an authored one', () => {
+            const properties = componentOf(
+                z.object({ bytes: z.number().int().min(1).max(20971520), small: z.int32() }),
+            )['properties'] as Record<string, Record<string, unknown>>;
+
+            expect(properties['bytes']).toMatchObject({ minimum: 1, maximum: 20971520 });
+            expect(properties['small']).toMatchObject({ minimum: -2147483648, maximum: 2147483647 });
+        });
+
+        // `z.string().trim().min(1)` emits `minLength: 1`, which `"   "` satisfies — and then the service answers
+        // 400. The pattern is exactly equivalent to the post-trim bound, and `pattern` is an unanchored search,
+        // which is what makes the surrounding whitespace irrelevant.
+        it('publishes a non-blank pattern for a bound applied AFTER a trim', () => {
+            const properties = componentOf(z.object({ name: z.string().trim().min(1) }))['properties'] as Record<
+                string,
+                Record<string, unknown>
+            >;
+
+            expect(properties['name']).toStrictEqual({ type: 'string', minLength: 1, pattern: '\\S' });
+            expect(new RegExp(String(properties['name']?.['pattern']), 'u').test('   ')).toBe(false);
+            expect(new RegExp(String(properties['name']?.['pattern']), 'u').test('  salt  ')).toBe(true);
+        });
+
+        it('scales that pattern to the declared minimum, matching the trimmed span exactly', () => {
+            const properties = componentOf(z.object({ name: z.string().trim().min(3) }))['properties'] as Record<
+                string,
+                Record<string, unknown>
+            >;
+            const pattern = new RegExp(String(properties['name']?.['pattern']), 'u');
+
+            expect(pattern.test('  ab  ')).toBe(false);
+            expect(pattern.test('  abc  ')).toBe(true);
+        });
+
+        // A bound BEFORE the trim really does describe the raw input, so adding a pattern there would invent a
+        // constraint the service does not have.
+        it('leaves a bound applied BEFORE the trim alone', () => {
+            const properties = componentOf(z.object({ name: z.string().min(2).trim() }))['properties'] as Record<
+                string,
+                Record<string, unknown>
+            >;
+
+            expect(properties['name']).toStrictEqual({ type: 'string', minLength: 2 });
+        });
+
+        // zod records `.trim()` and `.toLowerCase()` as the SAME `{ check: 'overwrite' }` def. Treating every
+        // overwrite as a trim would publish a non-whitespace pattern that `.toLowerCase().min(3)` does not
+        // require — trading one lie for another.
+        it('does not mistake a case normalization for a trim', () => {
+            const properties = componentOf(z.object({ code: z.string().toLowerCase().min(3) }))['properties'] as Record<
+                string,
+                Record<string, unknown>
+            >;
+
+            expect(properties['code']).toStrictEqual({ type: 'string', minLength: 3 });
+        });
+
+        it('applies the same corrections to an inlined parameter schema', () => {
+            const { document } = buildOpenApiDocument(
+                makeSpec({
+                    '/api/v1/foods': {
+                        get: {
+                            operationId: 'search',
+                            summary: 'Search',
+                            parameters: [
+                                { name: 'page', in: 'query', description: 'Page', schema: z.number().int() },
+                                { name: 'q', in: 'query', description: 'Query', schema: z.string().trim().min(1) },
+                            ],
+                            responses: { '200': { description: 'ok', schema: 'FoodResponse' } },
+                        },
+                    },
+                }),
+            );
+            const parameters = at(document, 'paths', '/api/v1/foods', 'get', 'parameters') as readonly Record<
+                string,
+                Record<string, unknown>
+            >[];
+
+            expect(parameters[0]?.['schema']).toStrictEqual({ type: 'integer' });
+            expect(parameters[1]?.['schema']).toStrictEqual({ type: 'string', minLength: 1, pattern: '\\S' });
+        });
+    });
+
     describe('coverage', () => {
         it('counts every operation', () => {
             const { coverage } = buildOpenApiDocument(makeSpec());
@@ -378,6 +528,39 @@ describe('buildOpenApiDocument', () => {
                     components: withTransform,
                 } as unknown as OpenApiSpec<typeof components>),
             ).toThrow(/move it out of the published schema/u);
+        });
+
+        it('refuses a published string that bounds its MAXIMUM length after a trim', () => {
+            const withTrimmedMax = { ...components, Padded: z.object({ note: z.string().trim().max(5) }) };
+
+            expect(() =>
+                buildOpenApiDocument({
+                    ...makeSpec(),
+                    components: withTrimmedMax,
+                } as unknown as OpenApiSpec<typeof components>),
+            ).toThrow(/`\.max\(\)` AFTER a whitespace-stripping `\.trim\(\)`/u);
+        });
+
+        // OpenAPI 3.0 holds ONE `pattern` per Schema Object, so the post-trim minimum and an authored regex
+        // cannot both be published — and silently dropping either is the lie this whole hook removes.
+        it('refuses a post-trim minimum on a string that already carries its own pattern', () => {
+            const both = {
+                ...components,
+                Slug: z.object({
+                    slug: z
+                        .string()
+                        .regex(/^[a-z-]+$/u)
+                        .trim()
+                        .min(2),
+                }),
+            };
+
+            expect(() =>
+                buildOpenApiDocument({
+                    ...makeSpec(),
+                    components: both,
+                } as unknown as OpenApiSpec<typeof components>),
+            ).toThrow(/carries its own `pattern`/u);
         });
 
         it('accepts a record whose VALUES are described, which is not opaque', () => {

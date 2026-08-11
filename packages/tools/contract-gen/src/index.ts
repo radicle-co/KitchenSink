@@ -24,8 +24,23 @@ export {
 } from './authored-schema.js';
 export type { AuthoredSchema, SchemaDiscoveryOptions, SchemaExclusion } from './authored-schema.js';
 
-export { findViolations, formatViolations, isAllowedSpecifier } from './schema-imports.js';
-export type { AllowedPackageImport, SchemaImportViolation, ViolationMessageContext } from './schema-imports.js';
+export {
+    collectModuleReferences,
+    findUnpublishedSiblingImports,
+    findViolations,
+    formatUnpublishedSiblingImports,
+    formatViolations,
+    isAllowedSpecifier,
+    siblingModuleName,
+} from './schema-imports.js';
+export type {
+    AllowedPackageImport,
+    ModuleReference,
+    ModuleReferenceKind,
+    SchemaImportViolation,
+    UnpublishedSiblingImport,
+    ViolationMessageContext,
+} from './schema-imports.js';
 
 export { buildOpenApiDocument } from './openapi.js';
 export type {
@@ -39,5 +54,10 @@ export type {
     ParameterLocation,
 } from './openapi.js';
 
-export { assertNoForbiddenImports, formatGenerationSummary, generateSchemaPackage } from './generate.js';
+export {
+    assertNoForbiddenImports,
+    assertSiblingImportsResolve,
+    formatGenerationSummary,
+    generateSchemaPackage,
+} from './generate.js';
 export type { ContractGenerationConfig, ContractGenerationResult } from './generate.js';

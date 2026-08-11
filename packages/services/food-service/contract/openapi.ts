@@ -16,7 +16,7 @@
  * ⚠️ This is the INGREDIENT service (see `foods.schema.ts`). The `food_*` naming is historical and deliberate.
  *
  * ADDING AN ENDPOINT: add its schemas to a `*.schema.ts`, register the component here, and declare the path.
- * `components` is typed, so referencing a component that does not exist is a `typecheck` failure, and the
+ * `openApiComponents` is typed, so referencing a component that does not exist is a `typecheck` failure, and the
  * generator prints every response left without a body schema on each run.
  */
 import { buildOpenApiDocument } from '@kitchensink/contract-gen';
@@ -59,12 +59,16 @@ import { healthStatusSchema } from '../src/health/health.schema.js';
 /**
  * The named component schemas, keyed by the name the document publishes them under.
  *
+ * EXPORTED so `contract/__tests__/contract.test.ts` can hold the published document against the authored zod it
+ * came from — specifically, that the document's `additionalProperties` matches what each schema actually does
+ * with an unknown key. Nothing else imports it.
+ *
  * `GetFoodResult` is intentionally ABSENT: it is a client-side convenience union over the `200`/`202` fork of
  * `GET /api/v1/foods/{id}`, and OpenAPI already expresses that fork as two separate responses. Publishing the
  * union as well would describe the same knowledge twice, in a document whose whole purpose is being the single
  * external description.
  */
-const components = {
+export const openApiComponents = {
     ApiError: apiErrorSchema,
     NestHttpError: nestHttpErrorSchema,
     ControllerError: controllerErrorSchema,
@@ -162,7 +166,7 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
         },
     },
     defaultSecurity: ['clerkSession'],
-    components,
+    components: openApiComponents,
     paths: {
         '/api/v1/foods/search': {
             get: {

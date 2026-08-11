@@ -17,6 +17,14 @@
  * {@link buildOpenApiDocument} is PURE — it takes the spec and returns the document plus a coverage report,
  * touching no filesystem — so it is unit-testable without generating anything.
  *
+ * THE DOCUMENT MAY UNDER-SPECIFY; IT MUST NEVER ASSERT WHAT THE SERVICE DOES NOT ENFORCE. Because it is read by
+ * integrators and by codegen, a keyword nobody honours is worse than a missing one — a client generated from it
+ * refuses bodies the service accepts, or sends bodies the service rejects. zod converts in the OUTPUT direction
+ * by default, which makes three of its emissions false for a REQUEST: a stripping `z.object` looks closed, a
+ * `.readonly()` looks like OpenAPI's request/response `readOnly`, and every `.int()` carries zod's safe-integer
+ * sentinel as if it were an authored bound. {@link emitOnlyWhatIsTrue} is the single policy that removes each of
+ * those, and refuses to emit at all where the truth cannot be expressed in one OpenAPI 3.0 Schema Object.
+ *
  * HOW THE DISCRIMINATED-UNION HAZARD IS HANDLED. §15.2's superseded-design note warns that a generated schema
  * which silently flattens a union to `object` is "a contract that lies". zod's own `toJSONSchema` emits
  * `anyOf`/`oneOf` for a union rather than collapsing it, and {@link assertNoOpaqueSchemas} then REFUSES to emit
@@ -139,6 +147,217 @@ export interface OpenApiBuildResult {
 const BODYLESS_STATUSES: readonly string[] = ['204', '304'];
 
 /**
+ * The subset of zod's internal schema definition this module reads.
+ *
+ * ⚠️ WHY AN INTERNAL SHAPE AT ALL. zod v4 publishes no introspection API for "is this object strict" or "which
+ * checks does this string carry", and those two facts are exactly what decides whether the emitted document is
+ * TRUE. The alternative — converting the same schema twice with `io: 'input'` and `io: 'output'` and diffing —
+ * would require every component that appears in both directions to be published twice under two names, which
+ * changes every `$ref` in the document to work around a missing accessor. `_zod` and `_zod.def` are part of the
+ * declared surface of zod's core `$ZodType` (which is what its `override` hook hands over); the FIELDS below are
+ * the internal part. Every test that pins this reads the EMITTED keywords rather than the accessor, so if a zod
+ * release moves the shape, the assertions still describe the property that matters.
+ */
+interface ZodDefinition {
+    /** zod's discriminator, e.g. `object`, `string`, `number`, `readonly`. */
+    readonly type: string;
+    /**
+     * The unknown-key policy of an object type. `undefined` for `z.object` (STRIPS unknown keys), a `never`
+     * schema for `z.strictObject` (REJECTS them), an `unknown` schema for `z.looseObject` (passes them through).
+     */
+    readonly catchall?: unknown;
+    /** The refinements/normalizations attached to the type, in APPLICATION order. */
+    readonly checks?: readonly { readonly _zod: { readonly def: ZodCheckDefinition } }[];
+}
+
+/** One check on a zod type, as far as this module needs it. */
+interface ZodCheckDefinition {
+    /** zod's check discriminator, e.g. `min_length`, `max_length`, `overwrite`. */
+    readonly check: string;
+    /** The normalization an `overwrite` check applies. */
+    readonly tx?: (value: unknown) => unknown;
+    /** The bound of a `min_length` check. */
+    readonly minimum?: number;
+    /** The bound of a `max_length` check. */
+    readonly maximum?: number;
+}
+
+/**
+ * Read a zod schema's definition.
+ *
+ * Reads `_zod.def` rather than the `.def` getter because zod's `override` hook is typed with the CORE schema
+ * types, which carry `_zod` and not the classic façade's `.def`.
+ *
+ * @param schema - The schema to inspect.
+ * @returns Its definition. Pure.
+ */
+function definitionOf(schema: unknown): ZodDefinition {
+    return (schema as { readonly _zod: { readonly def: ZodDefinition } })._zod.def;
+}
+
+/**
+ * The JSON Schema pattern that expresses "at least `minimum` characters remain after trimming".
+ *
+ * Exactly equivalent, not an approximation: a trimmed string spans from the first non-whitespace character to the
+ * last, so its length is at least `n` precisely when the raw input contains a non-whitespace character, then at
+ * least `n - 2` further characters, then another non-whitespace character. JSON Schema `pattern` is an UNANCHORED
+ * search, which is what makes the surrounding whitespace irrelevant.
+ *
+ * @param minimum - The post-trim minimum length. Must be at least 1.
+ * @returns The ECMA-262 pattern source. Pure.
+ */
+function trimmedMinLengthPattern(minimum: number): string {
+    return minimum === 1 ? '\\S' : `\\S[\\s\\S]{${minimum - 2},}\\S`;
+}
+
+/**
+ * Whether an `overwrite` check strips surrounding whitespace.
+ *
+ * Probed rather than inferred: zod records `.trim()`, `.toLowerCase()` and `.normalize()` as the SAME
+ * `{ check: 'overwrite' }` def, distinguishable only by what the transform does. Treating every `overwrite` as a
+ * trim would make `z.string().toLowerCase().min(3)` publish a non-whitespace pattern it does not require —
+ * trading one lie for another.
+ *
+ * The probe is guarded because `tx` is arbitrary author-supplied code: a normalization that throws on an input it
+ * did not expect must make this answer "not a trim", not crash generation from inside a probe.
+ *
+ * @param check - The check definition.
+ * @returns True when the check trims. Pure.
+ */
+function isTrimCheck(check: ZodCheckDefinition): boolean {
+    if (check.check !== 'overwrite' || check.tx === undefined) {
+        return false;
+    }
+
+    try {
+        return check.tx(' \t a \n ') === 'a';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Correct the length keywords of a string whose bounds are applied AFTER a trim.
+ *
+ * THE LIE THIS REMOVES. `z.string().trim().min(1)` emits `minLength: 1`, so `{"name":"   "}` validates against
+ * the published document and then gets a `400` from the service — the bound describes the NORMALIZED value, which
+ * is not what the caller sends. The truthful statement is the equivalent pattern.
+ *
+ * @param schema - The string schema node.
+ * @param json - The emitted JSON Schema fragment, mutated in place.
+ * @throws When the truthful shape cannot be expressed in one OpenAPI 3.0 Schema Object — a `maxLength` after a
+ *   trim (no finite bound on the RAW input exists, so the emitted one would refuse bodies the service accepts),
+ *   or a post-trim `minLength` on a string that already carries a `pattern` (3.0 allows only one, and dropping
+ *   either is a lie). Both are refused rather than silently published.
+ */
+function correctTrimmedStringBounds(schema: unknown, json: Record<string, unknown>): void {
+    const checks = definitionOf(schema).checks ?? [];
+    const trimIndex = checks.findIndex((check) => isTrimCheck(check._zod.def));
+
+    if (trimIndex === -1) {
+        return;
+    }
+
+    const afterTrim = checks.slice(trimIndex + 1).map((check) => check._zod.def);
+
+    if (afterTrim.some((check) => check.check === 'max_length')) {
+        throw new Error(
+            'A published string schema applies `.max()` AFTER a whitespace-stripping `.trim()`. The emitted ' +
+                '`maxLength` would describe the trimmed value, so the document would refuse a whitespace-padded ' +
+                'body the service accepts, and no finite bound on the raw input exists. Move the normalization ' +
+                'into the handler (server-side normalization is not part of the shape a caller must satisfy), or ' +
+                'bound the raw input instead by putting `.max()` before `.trim()`.',
+        );
+    }
+
+    const minimums = afterTrim
+        .filter((check) => check.check === 'min_length')
+        .map((check) => check.minimum ?? 0)
+        .filter((minimum) => minimum >= 1);
+
+    if (minimums.length === 0) {
+        return;
+    }
+
+    if (json['pattern'] !== undefined) {
+        throw new Error(
+            'A published string schema applies `.min()` after a `.trim()` AND carries its own `pattern`. An ' +
+                'OpenAPI 3.0 Schema Object holds one `pattern`, so the post-trim minimum cannot be published ' +
+                'alongside it without dropping one of the two. Move the trim into the handler, or fold the ' +
+                'non-blank requirement into the existing pattern.',
+        );
+    }
+
+    json['pattern'] = trimmedMinLengthPattern(Math.max(...minimums));
+}
+
+/**
+ * Make one emitted JSON Schema fragment say only what the authored zod actually requires.
+ *
+ * Passed to zod as its `override` hook — the library's own extension point — so it applies to every node,
+ * including the inline objects nested inside a component, rather than only to the components' top level.
+ *
+ * ── 1. `additionalProperties` MUST TRACK THE AUTHORED STRICTNESS ──
+ *
+ * zod converts in the OUTPUT direction by default, where a `z.object` genuinely has no extra keys (it STRIPPED
+ * them), so it emits `additionalProperties: false` for `z.object` and `z.strictObject` alike. For a REQUEST BODY
+ * that erases the only distinction that matters: `z.object` accepts an unknown key and returns `2xx`, and only
+ * `z.strictObject` rejects it. Measured on the real documents: ten request bodies published
+ * `additionalProperties: false` while stripping, so a strict client generated from the document refuses bodies
+ * the services accept. The document is for EXTERNAL consumption, so it must not assert a rejection that will not
+ * happen — `false` is emitted for `z.strictObject` only, `additionalProperties: {}` still for `z.looseObject`,
+ * and a stripping `z.object` says nothing (which is also the OAS-idiomatic posture for an evolvable response).
+ *
+ * ── 2. `readOnly` IS A DIRECTION KEYWORD, AND `.readonly()` DOES NOT MEAN IT ──
+ *
+ * `.readonly()` is TypeScript immutability of the parsed value. OpenAPI's `readOnly` means "sent in responses,
+ * MUST NOT be sent in requests" — a claim about request/response direction that the authored zod never made and
+ * that a codegen will act on. Stripped.
+ *
+ * ── 3. zod's SAFE-INTEGER SENTINELS ARE NOT AUTHORED BOUNDS ──
+ *
+ * Every `.int()` carries zod's `safeint` format, which converts to `minimum: -(2^53-1)` / `maximum: 2^53-1`. A
+ * document that tells an integrator a photo may be 9 quadrillion bytes is worse than one that states no bound.
+ * Only those two exact values are dropped, so a real `.int32()` (±2147483647) or an authored `.max()` survives.
+ *
+ * @param zodSchema - The authored node being converted.
+ * @param jsonSchema - The emitted fragment, mutated in place.
+ * @throws Through {@link correctTrimmedStringBounds} when a post-trim bound cannot be expressed truthfully.
+ * @sideEffect Mutates `jsonSchema`, which is how zod's `override` hook is defined to work.
+ */
+function emitOnlyWhatIsTrue(zodSchema: unknown, jsonSchema: Record<string, unknown>): void {
+    const definition = definitionOf(zodSchema);
+
+    if (definition.type === 'object' && definition.catchall === undefined) {
+        delete jsonSchema['additionalProperties'];
+    }
+
+    if (jsonSchema['readOnly'] !== undefined) {
+        delete jsonSchema['readOnly'];
+    }
+
+    if (jsonSchema['maximum'] === Number.MAX_SAFE_INTEGER) {
+        delete jsonSchema['maximum'];
+    }
+
+    if (jsonSchema['minimum'] === Number.MIN_SAFE_INTEGER) {
+        delete jsonSchema['minimum'];
+    }
+
+    if (definition.type === 'string') {
+        correctTrimmedStringBounds(zodSchema, jsonSchema);
+    }
+}
+
+/** zod's `override` hook, bound to {@link emitOnlyWhatIsTrue}. Shared by every conversion in this module. */
+const TRUTHFUL_OVERRIDE = (context: {
+    readonly zodSchema: unknown;
+    readonly jsonSchema: Record<string, unknown>;
+}): void => {
+    emitOnlyWhatIsTrue(context.zodSchema, context.jsonSchema);
+};
+
+/**
  * Convert a spec's components into OpenAPI `components.schemas`, with real `$ref`s between them.
  *
  * Uses zod's REGISTRY mode rather than converting each schema independently: converting independently would
@@ -159,7 +378,7 @@ function buildComponentSchemas(components: Readonly<Record<string, ZodType>>): R
 
     for (const [name, schema] of Object.entries(components)) {
         try {
-            z.toJSONSchema(schema, { target: 'openapi-3.0' });
+            z.toJSONSchema(schema, { target: 'openapi-3.0', override: TRUTHFUL_OVERRIDE });
         } catch (error) {
             throw new Error(
                 `Component '${name}' cannot be represented in JSON Schema: ${error instanceof Error ? error.message : String(error)}. ` +
@@ -175,6 +394,7 @@ function buildComponentSchemas(components: Readonly<Record<string, ZodType>>): R
     const converted = z.toJSONSchema(registry, {
         target: 'openapi-3.0',
         uri: (id) => `#/components/schemas/${id}`,
+        override: TRUTHFUL_OVERRIDE,
     }) as { schemas: Record<string, Record<string, unknown>> };
 
     const schemas: Record<string, Record<string, unknown>> = {};
@@ -236,7 +456,10 @@ function assertNoOpaqueSchemas(schemas: Readonly<Record<string, Record<string, u
  * @returns The OpenAPI 3.0 schema object. Pure apart from zod's own conversion.
  */
 function inlineSchema(schema: ZodType): Record<string, unknown> {
-    const { $schema: _schema, ...rest } = z.toJSONSchema(schema, { target: 'openapi-3.0' }) as Record<string, unknown>;
+    const { $schema: _schema, ...rest } = z.toJSONSchema(schema, {
+        target: 'openapi-3.0',
+        override: TRUTHFUL_OVERRIDE,
+    }) as Record<string, unknown>;
 
     return rest;
 }

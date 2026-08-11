@@ -35,7 +35,7 @@
         "lint": "turbo run lint format:check",
         "boundaries": "node scripts/boundariesRatchet.mjs",
         "boundaries:update": "node scripts/boundariesRatchet.mjs --update",
-        "contract:generate": "turbo run contract:generate --filter='./packages/services/*'",
+        "contract:generate": "node scripts/contractGenerate.mjs",
         "contract:verify": "npm run contract:generate && node scripts/contractDriftGate.mjs",
         "typecheck": "turbo run typecheck",
         "dev:local": "turbo run dev:local",

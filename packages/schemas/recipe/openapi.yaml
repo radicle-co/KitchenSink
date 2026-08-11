@@ -106,7 +106,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -163,7 +162,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -178,7 +176,6 @@ paths:
           schema:
             type: integer
             minimum: 1
-            maximum: 9007199254740991
         - name: pageSize
           in: query
           required: false
@@ -253,7 +250,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -330,7 +326,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -404,7 +399,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -470,7 +464,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -542,7 +535,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -616,7 +608,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -685,7 +676,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -751,7 +741,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -835,7 +824,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -934,7 +922,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1013,7 +1000,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1088,7 +1074,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1162,7 +1147,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1228,7 +1212,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1252,7 +1235,6 @@ paths:
             type: integer
             minimum: 0
             exclusiveMinimum: true
-            maximum: 9007199254740991
   /api/v1/recipes/{recipeId}/versions/{versionNumber}/restore:
     post:
       operationId: restoreRecipeVersion
@@ -1315,7 +1297,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1339,7 +1320,6 @@ paths:
             type: integer
             minimum: 0
             exclusiveMinimum: true
-            maximum: 9007199254740991
   /api/v1/search/recipes:
     get:
       operationId: searchRecipes
@@ -1384,7 +1364,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1436,7 +1415,6 @@ paths:
           schema:
             type: integer
             minimum: 0
-            maximum: 9007199254740991
         - name: maxCookTime
           in: query
           required: false
@@ -1444,7 +1422,6 @@ paths:
           schema:
             type: integer
             minimum: 0
-            maximum: 9007199254740991
         - name: maxTotalTime
           in: query
           required: false
@@ -1452,7 +1429,6 @@ paths:
           schema:
             type: integer
             minimum: 0
-            maximum: 9007199254740991
         - name: page
           in: query
           required: false
@@ -1460,7 +1436,6 @@ paths:
           schema:
             type: integer
             minimum: 1
-            maximum: 9007199254740991
         - name: pageSize
           in: query
           required: false
@@ -1468,7 +1443,6 @@ paths:
           schema:
             type: integer
             minimum: 1
-            maximum: 9007199254740991
         - name: sortBy
           in: query
           required: false
@@ -1525,7 +1499,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1548,7 +1521,6 @@ paths:
             type: integer
             minimum: 0
             exclusiveMinimum: true
-            maximum: 9007199254740991
   /api/v1/ingredients/suggest:
     get:
       operationId: suggestIngredients
@@ -1593,7 +1565,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1619,7 +1590,6 @@ paths:
             type: integer
             minimum: 0
             exclusiveMinimum: true
-            maximum: 9007199254740991
   /api/v1/ingredients:
     post:
       operationId: createIngredient
@@ -1664,7 +1634,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1722,7 +1691,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1782,7 +1750,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1846,7 +1813,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1912,7 +1878,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -1981,7 +1946,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2054,7 +2018,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2113,7 +2076,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2130,7 +2092,6 @@ paths:
           schema:
             type: integer
             minimum: 1
-            maximum: 9007199254740991
         - name: pageSize
           in: query
           required: false
@@ -2189,7 +2150,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2263,7 +2223,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2340,7 +2299,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2412,7 +2370,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2490,7 +2447,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2570,7 +2526,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2653,7 +2608,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2734,7 +2688,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2804,7 +2757,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2868,7 +2820,6 @@ paths:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
         "500":
           description: Unexpected server error. The body never carries internals.
           content:
@@ -2966,7 +2917,6 @@ components:
       required:
         - code
         - message
-      additionalProperties: false
     HealthStatus:
       type: object
       properties:
@@ -2985,7 +2935,6 @@ components:
         - status
         - service
         - contractHash
-      additionalProperties: false
     HealthUnavailable:
       type: object
       properties:
@@ -3000,7 +2949,6 @@ components:
       required:
         - status
         - service
-      additionalProperties: false
     Recipe:
       type: object
       properties:
@@ -3019,20 +2967,16 @@ components:
         prepTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         cookTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         totalTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         servings:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         difficulty:
           type: string
           enum:
@@ -3092,7 +3036,6 @@ components:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         averageRating:
           type: number
           minimum: 1
@@ -3100,7 +3043,6 @@ components:
         ratingCount:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         usesPremiumCapability:
           type: boolean
         coverPhotoUrl:
@@ -3139,7 +3081,6 @@ components:
         - usesPremiumCapability
         - createdAt
         - updatedAt
-      additionalProperties: false
     RecipeDetail:
       type: object
       properties:
@@ -3158,20 +3099,16 @@ components:
         prepTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         cookTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         totalTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         servings:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         difficulty:
           type: string
           enum:
@@ -3231,7 +3168,6 @@ components:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         averageRating:
           type: number
           minimum: 1
@@ -3239,7 +3175,6 @@ components:
         ratingCount:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         usesPremiumCapability:
           type: boolean
         coverPhotoUrl:
@@ -3285,7 +3220,6 @@ components:
               - name
               - quantity
               - isUserEntered
-            additionalProperties: false
         steps:
           type: array
           items:
@@ -3295,18 +3229,15 @@ components:
                 type: integer
                 minimum: 0
                 exclusiveMinimum: true
-                maximum: 9007199254740991
               instruction:
                 type: string
                 minLength: 1
               timerSeconds:
                 type: integer
                 minimum: 0
-                maximum: 9007199254740991
             required:
               - stepNumber
               - instruction
-            additionalProperties: false
         photos:
           type: array
           items:
@@ -3334,7 +3265,6 @@ components:
             - carbsG
             - fatG
             - isComplete
-          additionalProperties: false
         viewerRating:
           type: integer
           minimum: 1
@@ -3364,7 +3294,6 @@ components:
         - steps
         - photos
         - nutrition
-      additionalProperties: false
     PaginatedRecipes:
       type: object
       properties:
@@ -3375,17 +3304,14 @@ components:
         total:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         page:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         pageSize:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         hasMore:
           type: boolean
       required:
@@ -3394,7 +3320,6 @@ components:
         - page
         - pageSize
         - hasMore
-      additionalProperties: false
     CreateRecipeRequest:
       type: object
       properties:
@@ -3440,7 +3365,6 @@ components:
               - ingredientId
               - name
               - quantity
-            additionalProperties: false
         steps:
           type: array
           items:
@@ -3452,27 +3376,21 @@ components:
               timerSeconds:
                 type: integer
                 minimum: 0
-                maximum: 9007199254740991
             required:
               - instruction
-            additionalProperties: false
         servings:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         prepTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         cookTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         totalTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         difficulty:
           type: string
           enum:
@@ -3510,7 +3428,6 @@ components:
         - prepTimeMinutes
         - cookTimeMinutes
         - totalTimeMinutes
-      additionalProperties: false
     UpdateRecipeRequest:
       type: object
       properties:
@@ -3556,7 +3473,6 @@ components:
               - ingredientId
               - name
               - quantity
-            additionalProperties: false
         steps:
           type: array
           items:
@@ -3568,27 +3484,21 @@ components:
               timerSeconds:
                 type: integer
                 minimum: 0
-                maximum: 9007199254740991
             required:
               - instruction
-            additionalProperties: false
         servings:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         prepTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         cookTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         totalTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         difficulty:
           nullable: true
           type: string
@@ -3623,10 +3533,8 @@ components:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
       required:
         - expectedVersion
-      additionalProperties: false
     SetRatingRequest:
       type: object
       properties:
@@ -3636,7 +3544,6 @@ components:
           maximum: 5
       required:
         - stars
-      additionalProperties: false
     RecipePhoto:
       type: object
       properties:
@@ -3659,7 +3566,6 @@ components:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         createdAt:
           type: string
           format: date-time
@@ -3672,7 +3578,6 @@ components:
         - contentType
         - order
         - createdAt
-      additionalProperties: false
     RecipePhotoList:
       type: array
       items:
@@ -3694,16 +3599,13 @@ components:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
           description: Declared object size in bytes. Must not exceed 5242880 (5 MB); a larger value is answered 413 by the
             service, not 400.
       required:
         - fileName
         - contentType
         - fileSize
-      additionalProperties: false
     PhotoUploadUrlResponse:
-      readOnly: true
       type: object
       properties:
         uploadUrl:
@@ -3716,18 +3618,15 @@ components:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         maxBytes:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
       required:
         - uploadUrl
         - key
         - expiresIn
         - maxBytes
-      additionalProperties: false
     ConfirmPhotoRequest:
       type: object
       properties:
@@ -3744,7 +3643,6 @@ components:
       required:
         - key
         - contentType
-      additionalProperties: false
     ReorderPhotosRequest:
       type: object
       properties:
@@ -3757,7 +3655,6 @@ components:
             pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$
       required:
         - photoIds
-      additionalProperties: false
     Ingredient:
       type: object
       properties:
@@ -3807,7 +3704,6 @@ components:
             required:
               - unit
               - gramsPerUnit
-            additionalProperties: false
         createdAt:
           type: string
           format: date-time
@@ -3817,16 +3713,13 @@ components:
         - name
         - isUserEntered
         - createdAt
-      additionalProperties: false
     IngredientList:
       type: array
       items:
         $ref: "#/components/schemas/Ingredient"
     IngredientCandidateList:
-      readOnly: true
       type: array
       items:
-        readOnly: true
         type: object
         properties:
           candidateId:
@@ -3850,18 +3743,14 @@ components:
           - externalKey
           - name
           - summary
-        additionalProperties: false
     IngredientSuggestions:
-      readOnly: true
       type: object
       properties:
         suggestions:
-          readOnly: true
           type: array
           items:
             oneOf:
-              - readOnly: true
-                type: object
+              - type: object
                 properties:
                   provenance:
                     type: string
@@ -3872,9 +3761,7 @@ components:
                 required:
                   - provenance
                   - ingredient
-                additionalProperties: false
-              - readOnly: true
-                type: object
+              - type: object
                 properties:
                   provenance:
                     type: string
@@ -3893,7 +3780,6 @@ components:
                   - foodId
                   - name
                   - score
-                additionalProperties: false
         catalogAvailability:
           type: string
           enum:
@@ -3903,7 +3789,6 @@ components:
       required:
         - suggestions
         - catalogAvailability
-      additionalProperties: false
     CreateIngredientRequest:
       type: object
       properties:
@@ -3913,7 +3798,6 @@ components:
           maxLength: 120
       required:
         - name
-      additionalProperties: false
     AddIngredientByFoodRequest:
       type: object
       properties:
@@ -3923,7 +3807,6 @@ components:
           maxLength: 64
       required:
         - foodId
-      additionalProperties: false
     ResolveIngredientRequest:
       type: object
       properties:
@@ -3936,7 +3819,6 @@ components:
             minLength: 1
       required:
         - candidateIds
-      additionalProperties: false
     RecipeVersion:
       type: object
       properties:
@@ -3950,7 +3832,6 @@ components:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         snapshot:
           type: object
           properties:
@@ -3958,7 +3839,6 @@ components:
               type: integer
               minimum: 0
               exclusiveMinimum: true
-              maximum: 9007199254740991
             title:
               type: string
               minLength: 1
@@ -3980,20 +3860,17 @@ components:
                     type: integer
                     minimum: 0
                     exclusiveMinimum: true
-                    maximum: 9007199254740991
                   instruction:
                     type: string
                     minLength: 1
                   timerSeconds:
                     type: integer
                     minimum: 0
-                    maximum: 9007199254740991
                 required:
                   - id
                   - recipeId
                   - stepNumber
                   - instruction
-                additionalProperties: false
             ingredients:
               type: array
               items:
@@ -4020,7 +3897,6 @@ components:
                   sortOrder:
                     type: integer
                     minimum: 0
-                    maximum: 9007199254740991
                   ingredientName:
                     type: string
                     minLength: 1
@@ -4047,20 +3923,16 @@ components:
                   - sortOrder
                   - ingredientName
                   - isUserEntered
-                additionalProperties: false
             servings:
               type: integer
               minimum: 0
               exclusiveMinimum: true
-              maximum: 9007199254740991
             prepTimeMinutes:
               type: integer
               minimum: 0
-              maximum: 9007199254740991
             cookTimeMinutes:
               type: integer
               minimum: 0
-              maximum: 9007199254740991
           required:
             - version
             - title
@@ -4070,12 +3942,10 @@ components:
             - servings
             - prepTimeMinutes
             - cookTimeMinutes
-          additionalProperties: false
         baseVersion:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         s3Key:
           type: string
           minLength: 1
@@ -4103,7 +3973,6 @@ components:
         - snapshot
         - createdBy
         - createdAt
-      additionalProperties: false
     RecipeVersionList:
       type: array
       items:
@@ -4117,23 +3986,18 @@ components:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         currentVersion:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
       required:
         - recipe
         - restoredFromVersion
         - currentVersion
-      additionalProperties: false
     RecipeSearchResponse:
-      readOnly: true
       type: object
       properties:
         results:
-          readOnly: true
           type: array
           items:
             type: object
@@ -4144,13 +4008,10 @@ components:
                 type: number
             required:
               - recipe
-            additionalProperties: false
         facets:
-          readOnly: true
           type: object
           properties:
             dietaryFlags:
-              readOnly: true
               type: array
               items:
                 type: object
@@ -4161,13 +4022,10 @@ components:
                   count:
                     type: integer
                     minimum: 0
-                    maximum: 9007199254740991
                 required:
                   - value
                   - count
-                additionalProperties: false
             tags:
-              readOnly: true
               type: array
               items:
                 type: object
@@ -4178,13 +4036,10 @@ components:
                   count:
                     type: integer
                     minimum: 0
-                    maximum: 9007199254740991
                 required:
                   - value
                   - count
-                additionalProperties: false
             cuisine:
-              readOnly: true
               type: array
               items:
                 type: object
@@ -4195,13 +4050,10 @@ components:
                   count:
                     type: integer
                     minimum: 0
-                    maximum: 9007199254740991
                 required:
                   - value
                   - count
-                additionalProperties: false
             totalTime:
-              readOnly: true
               type: array
               items:
                 type: object
@@ -4212,31 +4064,25 @@ components:
                   count:
                     type: integer
                     minimum: 0
-                    maximum: 9007199254740991
                 required:
                   - value
                   - count
-                additionalProperties: false
           required:
             - dietaryFlags
             - tags
             - cuisine
             - totalTime
-          additionalProperties: false
         total:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         page:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         pageSize:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         hasMore:
           type: boolean
       required:
@@ -4246,9 +4092,7 @@ components:
         - page
         - pageSize
         - hasMore
-      additionalProperties: false
     Collection:
-      readOnly: true
       type: object
       properties:
         id:
@@ -4282,7 +4126,6 @@ components:
         recipeCount:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         sourceOwnerHandle:
           type: string
           minLength: 1
@@ -4300,7 +4143,6 @@ components:
         - visibility
         - createdAt
         - updatedAt
-      additionalProperties: false
     PaginatedCollections:
       type: object
       properties:
@@ -4311,17 +4153,14 @@ components:
         total:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         page:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         pageSize:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         hasMore:
           type: boolean
       required:
@@ -4330,9 +4169,7 @@ components:
         - page
         - pageSize
         - hasMore
-      additionalProperties: false
     CollectionMemberRecipe:
-      readOnly: true
       type: object
       properties:
         id:
@@ -4350,20 +4187,16 @@ components:
         prepTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         cookTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         totalTimeMinutes:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         servings:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         difficulty:
           type: string
           enum:
@@ -4423,7 +4256,6 @@ components:
           type: integer
           minimum: 0
           exclusiveMinimum: true
-          maximum: 9007199254740991
         averageRating:
           type: number
           minimum: 1
@@ -4431,7 +4263,6 @@ components:
         ratingCount:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         usesPremiumCapability:
           type: boolean
         coverPhotoUrl:
@@ -4477,9 +4308,7 @@ components:
         - createdAt
         - updatedAt
         - addedVia
-      additionalProperties: false
     CollectionWithRecipes:
-      readOnly: true
       type: object
       properties:
         id:
@@ -4513,7 +4342,6 @@ components:
         recipeCount:
           type: integer
           minimum: 0
-          maximum: 9007199254740991
         sourceOwnerHandle:
           type: string
           minLength: 1
@@ -4525,7 +4353,6 @@ components:
           format: date-time
           pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
         recipes:
-          readOnly: true
           type: array
           items:
             $ref: "#/components/schemas/CollectionMemberRecipe"
@@ -4537,9 +4364,7 @@ components:
         - createdAt
         - updatedAt
         - recipes
-      additionalProperties: false
     CollectionRecipeMembership:
-      readOnly: true
       type: object
       properties:
         collectionId:
@@ -4563,7 +4388,6 @@ components:
         - recipeId
         - addedVia
         - createdAt
-      additionalProperties: false
     CreateCollectionRequest:
       type: object
       properties:
@@ -4582,7 +4406,6 @@ components:
             - private
       required:
         - name
-      additionalProperties: false
     UpdateCollectionRequest:
       type: object
       properties:
@@ -4599,7 +4422,6 @@ components:
           enum:
             - public
             - private
-      additionalProperties: false
     AddRecipeToCollectionRequest:
       type: object
       properties:
@@ -4609,7 +4431,6 @@ components:
           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
       required:
         - recipeId
-      additionalProperties: false
     CloneCollectionRequest:
       default: {}
       type: object
@@ -4622,25 +4443,20 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
-      additionalProperties: false
     PullDiff:
-      readOnly: true
       type: object
       properties:
         added:
-          readOnly: true
           type: array
           items:
             type: string
             minLength: 1
         removed:
-          readOnly: true
           type: array
           items:
             type: string
             minLength: 1
         unchanged:
-          readOnly: true
           type: array
           items:
             type: string
@@ -4649,7 +4465,6 @@ components:
         - added
         - removed
         - unchanged
-      additionalProperties: false
     PullFromSourceRequest:
       default: {}
       type: object
@@ -4657,15 +4472,12 @@ components:
         previewedDiff:
           allOf:
             - $ref: "#/components/schemas/PullDiff"
-      additionalProperties: false
     PullFromSourceResponse:
-      readOnly: true
       type: object
       properties:
         collection:
           $ref: "#/components/schemas/Collection"
         addedRecipeIds:
-          readOnly: true
           type: array
           items:
             type: string
@@ -4673,9 +4485,7 @@ components:
       required:
         - collection
         - addedRecipeIds
-      additionalProperties: false
     AccountExport:
-      readOnly: true
       type: object
       properties:
         exportedAt:
@@ -4685,10 +4495,8 @@ components:
           type: string
           minLength: 1
         recipes:
-          readOnly: true
           type: array
           items:
-            readOnly: true
             type: object
             properties:
               id:
@@ -4704,20 +4512,12 @@ components:
                 type: string
               prepTimeMinutes:
                 type: integer
-                minimum: -9007199254740991
-                maximum: 9007199254740991
               cookTimeMinutes:
                 type: integer
-                minimum: -9007199254740991
-                maximum: 9007199254740991
               totalTimeMinutes:
                 type: integer
-                minimum: -9007199254740991
-                maximum: 9007199254740991
               servings:
                 type: integer
-                minimum: -9007199254740991
-                maximum: 9007199254740991
               difficulty:
                 nullable: true
                 type: string
@@ -4726,8 +4526,6 @@ components:
                 type: string
               ratingCount:
                 type: integer
-                minimum: -9007199254740991
-                maximum: 9007199254740991
               visibility:
                 type: string
               status:
@@ -4750,12 +4548,10 @@ components:
                 nullable: true
                 type: string
               dietaryFlags:
-                readOnly: true
                 type: array
                 items:
                   type: string
               tags:
-                readOnly: true
                 type: array
                 items:
                   type: string
@@ -4769,8 +4565,6 @@ components:
                 type: string
               currentVersion:
                 type: integer
-                minimum: -9007199254740991
-                maximum: 9007199254740991
               deletedAt:
                 nullable: true
                 type: string
@@ -4810,12 +4604,9 @@ components:
               - deletedAt
               - createdAt
               - updatedAt
-            additionalProperties: false
         collections:
-          readOnly: true
           type: array
           items:
-            readOnly: true
             type: object
             properties:
               id:
@@ -4852,10 +4643,8 @@ components:
                 type: string
                 minLength: 1
               recipes:
-                readOnly: true
                 type: array
                 items:
-                  readOnly: true
                   type: object
                   properties:
                     recipeId:
@@ -4870,7 +4659,6 @@ components:
                     - recipeId
                     - addedAt
                     - addedVia
-                  additionalProperties: false
             required:
               - id
               - ownerId
@@ -4884,12 +4672,9 @@ components:
               - createdAt
               - updatedAt
               - recipes
-            additionalProperties: false
         ratings:
-          readOnly: true
           type: array
           items:
-            readOnly: true
             type: object
             properties:
               id:
@@ -4903,8 +4688,6 @@ components:
                 minLength: 1
               stars:
                 type: integer
-                minimum: -9007199254740991
-                maximum: 9007199254740991
               createdAt:
                 type: string
                 minLength: 1
@@ -4918,12 +4701,9 @@ components:
               - stars
               - createdAt
               - updatedAt
-            additionalProperties: false
         photos:
-          readOnly: true
           type: array
           items:
-            readOnly: true
             type: object
             properties:
               id:
@@ -4951,12 +4731,8 @@ components:
               sizeBytes:
                 nullable: true
                 type: integer
-                minimum: -9007199254740991
-                maximum: 9007199254740991
               sortOrder:
                 type: integer
-                minimum: -9007199254740991
-                maximum: 9007199254740991
               createdAt:
                 type: string
                 minLength: 1
@@ -4975,12 +4751,9 @@ components:
               - sortOrder
               - createdAt
               - updatedAt
-            additionalProperties: false
         versions:
-          readOnly: true
           type: array
           items:
-            readOnly: true
             type: object
             properties:
               id:
@@ -4991,13 +4764,9 @@ components:
                 minLength: 1
               versionNumber:
                 type: integer
-                minimum: -9007199254740991
-                maximum: 9007199254740991
               baseVersion:
                 nullable: true
                 type: integer
-                minimum: -9007199254740991
-                maximum: 9007199254740991
               s3Key:
                 nullable: true
                 type: string
@@ -5028,12 +4797,9 @@ components:
               - deviceLabel
               - editorHandle
               - createdAt
-            additionalProperties: false
         authorHandles:
-          readOnly: true
           type: array
           items:
-            readOnly: true
             type: object
             properties:
               userId:
@@ -5048,7 +4814,6 @@ components:
               - userId
               - displayName
               - sourceTimestamp
-            additionalProperties: false
       required:
         - exportedAt
         - ownerId
@@ -5058,7 +4823,6 @@ components:
         - photos
         - versions
         - authorHandles
-      additionalProperties: false
     ErasureRequest:
       type: object
       properties:
@@ -5069,7 +4833,6 @@ components:
           description: The exact confirmation phrase. Required. A non-matching value is answered 400 by the service, not by
             request validation — the accepted literal is deliberately not published as an enum.
         publishRecipeIds:
-          readOnly: true
           maxItems: 1000
           type: array
           items:
@@ -5078,9 +4841,7 @@ components:
             pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
       required:
         - confirmationPhrase
-      additionalProperties: false
     ErasureRequestAcceptedResponse:
-      readOnly: true
       type: object
       properties:
         jobId:
@@ -5094,9 +4855,7 @@ components:
       required:
         - jobId
         - status
-      additionalProperties: false
     ServiceErasureAcceptedResponse:
-      readOnly: true
       type: object
       properties:
         jobId:
@@ -5116,4 +4875,3 @@ components:
       required:
         - status
         - triggerSource
-      additionalProperties: false

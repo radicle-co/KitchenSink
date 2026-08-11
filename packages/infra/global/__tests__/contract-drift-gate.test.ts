@@ -93,6 +93,31 @@ function makeContractRepo(): string {
     execFileSync('git', ['config', 'user.email', 'gate@test.invalid'], { cwd: root });
     execFileSync('git', ['config', 'user.name', 'Gate Test'], { cwd: root });
 
+    // The OWNERSHIP correspondence, which is what makes "no diff" mean anything: the schema package names the
+    // service that regenerates it, and that service declares the script. Both manifests are part of the fixture
+    // because the gate now refuses to report a count it cannot account for.
+    write(
+        root,
+        'packages/schemas/recipe/package.json',
+        `${JSON.stringify(
+            {
+                name: '@kitchensink/schema-recipe',
+                scripts: { 'contract:generate': 'npm run contract:generate --workspace=@kitchensink/recipe-service' },
+            },
+            null,
+            4,
+        )}\n`,
+    );
+    write(
+        root,
+        'packages/services/recipe-service/package.json',
+        `${JSON.stringify(
+            { name: '@kitchensink/recipe-service', scripts: { 'contract:generate': 'tsx contract/generate.ts' } },
+            null,
+            4,
+        )}\n`,
+    );
+
     write(root, 'packages/schemas/recipe/openapi.yaml', 'openapi: 3.0.3\n');
     write(root, 'packages/schemas/recipe/src/contract-hash.ts', "export const CONTRACT_HASH = 'aaaa';\n");
     write(root, 'packages/schemas/recipe/src/schemas.ts', "export * from './schemas/x.schema.js';\n");
@@ -232,6 +257,104 @@ describe('the gate against a real repository', () => {
             expect(result.status).toBe(1);
             expect(result.output).toContain('git-IGNORED');
             expect(result.output).toContain('packages/schemas/recipe/src/generated-extra.ts');
+        });
+    });
+
+    // ── THE COUNT MUST MEAN WHAT IT SAYS ──
+    //
+    // Measured: `turbo run contract:generate --filter=<pkg>` prints "No tasks were executed" and exits 0 when the
+    // package has no such task. So a service that loses or renames its `contract:generate` script silently stops
+    // being regenerated; the gate then finds no diff for its document — because nothing rewrote it — and used to
+    // print "1 document(s) checked" over a contract it had not verified. A pass certifying an unregenerated
+    // contract is the exact failure this whole gate exists to prevent, so it must be loud.
+    it('fails when the service that owns a tracked document has lost its contract:generate script', () => {
+        withContractRepo((root) => {
+            write(
+                root,
+                'packages/services/recipe-service/package.json',
+                `${JSON.stringify({ name: '@kitchensink/recipe-service', scripts: { build: 'nest build' } }, null, 4)}\n`,
+            );
+
+            const result = runGate(root);
+
+            expect(result.status).toBe(1);
+            expect(result.output).toContain('cannot state what it regenerates');
+            expect(result.output).toContain('NEVER regenerated');
+            expect(result.output).not.toContain('byte-identical');
+        });
+    });
+
+    it('fails when a schema package names no generating service at all', () => {
+        withContractRepo((root) => {
+            write(
+                root,
+                'packages/schemas/recipe/package.json',
+                `${JSON.stringify({ name: '@kitchensink/schema-recipe', scripts: { build: 'tsc' } }, null, 4)}\n`,
+            );
+
+            const result = runGate(root);
+
+            expect(result.status).toBe(1);
+            expect(result.output).toContain('no');
+            expect(result.output).toContain("'contract:generate' script naming the service");
+        });
+    });
+
+    it('fails when a schema package delegates to a service that does not exist', () => {
+        withContractRepo((root) => {
+            write(
+                root,
+                'packages/schemas/recipe/package.json',
+                `${JSON.stringify(
+                    {
+                        name: '@kitchensink/schema-recipe',
+                        scripts: {
+                            'contract:generate': 'npm run contract:generate --workspace=@kitchensink/renamed-service',
+                        },
+                    },
+                    null,
+                    4,
+                )}\n`,
+            );
+
+            const result = runGate(root);
+
+            expect(result.status).toBe(1);
+            expect(result.output).toContain('@kitchensink/renamed-service');
+        });
+    });
+
+    // The other direction: a new service generating a contract into a package no gate looks at.
+    it('fails when a service generates a contract that no schema package claims', () => {
+        withContractRepo((root) => {
+            write(
+                root,
+                'packages/services/notification-service/package.json',
+                `${JSON.stringify(
+                    {
+                        name: '@kitchensink/notification-service',
+                        scripts: { 'contract:generate': 'tsx contract/generate.ts' },
+                    },
+                    null,
+                    4,
+                )}\n`,
+            );
+
+            const result = runGate(root);
+
+            expect(result.status).toBe(1);
+            expect(result.output).toContain('@kitchensink/notification-service');
+            expect(result.output).toContain('outside the drift gate');
+        });
+    });
+
+    it('names the owning service in the passing message, so the count is attributable', () => {
+        withContractRepo((root) => {
+            const result = runGate(root);
+
+            expect(result.status).toBe(0);
+            expect(result.output).toContain('1 document(s) checked');
+            expect(result.output).toContain('@kitchensink/recipe-service');
         });
     });
 

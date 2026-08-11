@@ -8,11 +8,20 @@
  *
  * ── WHAT IT CATCHES, AND — SAID PLAINLY — WHAT IT CANNOT ──
  *
- * Both stamps are written from ONE computed hash in ONE generator run, so they can only disagree if a commit
- * carried a hand-edit of one, or carried one file and not the other. That is a narrow class, and CI's
- * regenerate-and-diff gate (layer 2) already catches it at PR time. The value here is the case layer 2 cannot
- * reach: an image built OUTSIDE that path — a hand-built container, a bypassed gate, a partially-applied
- * hotfix — whose published contract does not describe the binary serving traffic.
+ * Both stamps are STATIC COMMITTED FILES written from ONE computed hash in ONE generator run, so what this
+ * assertion proves is narrow and worth stating exactly: **the two stamp files in this image came from the same
+ * tree.** It fires when a commit carried a hand-edit of one, or carried one file and not the other, or when an
+ * image was assembled from mixed sources (a stale `node_modules` copy of the leaf package against a fresh service
+ * build). CI's regenerate-and-diff gate (layer 2) already catches the committed-tree version of that at PR time;
+ * the value here is the same class reaching an image built OUTSIDE that path.
+ *
+ * ⚠️ IT THEREFORE DOES **NOT** CATCH "the published contract does not describe this binary" IN GENERAL, and
+ * reading it that way is the trap. An image built from a tree where a `*.schema.ts` was edited but
+ * `contract:generate` was never run carries two IDENTICAL stamps — both stale — and boots perfectly clean while
+ * serving a shape NEITHER stamp describes. Nothing at runtime can see that, because the authored sources are not
+ * in the image and the fingerprint is not recomputed from them; only layer 2, in CI, compares a stamp against a
+ * fresh derivation. A hand-built container, a bypassed gate or a partially-applied hotfix is caught here ONLY if
+ * it mixed the two stamps, not merely because it skipped generation.
  *
  * ⚠️ IT DOES **NOT** CATCH THE SKEW §15.2.5 NAMES AS THE MOTIVATING CASE: a deployed service running ahead of
  * a CONSUMER's pinned schema — the released mobile binary that cannot be updated in step with a backend

@@ -50,6 +50,15 @@ Nothing here is hand-written. Correctness is enforced from the outside by three 
 3. **Skew** — `CONTRACT_HASH` is stamped into both this package and the service, so a consumer pinned to an older
    contract can detect that the service has moved ahead of it.
 
+There is deliberately no `eslint.config.js` and no `.prettierignore` here either. Both existed and were dead —
+`turbo run lint format:check --filter='./packages/schemas/*'` reported "No tasks were executed", because no such
+script exists — and the `.prettierignore` justified itself with a claim that was false (the root `.prettierignore`
+already covers `dist` and `packages/schemas/*/openapi.yaml`). Wiring the scripts instead would be worse than dead
+config: a formatter rewriting generated `src/` reads as contract drift and reds layer 2 until the generator is
+re-run. The authored sources are linted and formatted in the service that owns them, which is the one place that
+knowledge belongs. `packages/infra/global/__tests__/generated-schema-packages.test.ts` pins this, so the config
+cannot quietly come back.
+
 ## What `openapi.yaml` is
 
 A **derived** artifact for external consumption — API diffing, published docs, integrators. It is **not** a

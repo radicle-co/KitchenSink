@@ -515,7 +515,6 @@ components:
         - status
         - createdAt
         - updatedAt
-      additionalProperties: false
     UserProfileAccount:
       type: object
       properties:
@@ -538,7 +537,6 @@ components:
         - subscriptionTier
         - createdAt
         - updatedAt
-      additionalProperties: false
     UserProfile:
       type: object
       properties:
@@ -549,7 +547,6 @@ components:
       required:
         - user
         - account
-      additionalProperties: false
     PatchUserMeRequest:
       type: object
       properties:
@@ -578,7 +575,6 @@ components:
         - sub
         - deletedAt
         - message
-      additionalProperties: false
     AvatarPresignResponse:
       type: object
       properties:
@@ -589,7 +585,6 @@ components:
       required:
         - uploadUrl
         - publicUrl
-      additionalProperties: false
     AdminUserListItem:
       type: object
       properties:
@@ -611,7 +606,6 @@ components:
         - name
         - picture
         - status
-      additionalProperties: false
     AdminListUsersResponse:
       type: object
       properties:
@@ -627,7 +621,6 @@ components:
         - users
         - limit
         - offset
-      additionalProperties: false
     AdminSuspendUserResponse:
       type: object
       properties:
@@ -643,7 +636,6 @@ components:
         - sub
         - status
         - suspendedAt
-      additionalProperties: false
     AdminUnsuspendUserResponse:
       type: object
       properties:
@@ -659,7 +651,6 @@ components:
         - sub
         - status
         - unsuspendedAt
-      additionalProperties: false
     AdminReactivateUserResponse:
       type: object
       properties:
@@ -675,7 +666,6 @@ components:
         - sub
         - status
         - reactivatedAt
-      additionalProperties: false
     ImpersonationStartResponse:
       type: object
       properties:
@@ -692,7 +682,6 @@ components:
         - impersonatedSub
         - sessionId
         - startedAt
-      additionalProperties: false
     ImpersonationStopResponse:
       type: object
       properties:
@@ -709,7 +698,6 @@ components:
         - impersonatedSub
         - stoppedAt
         - message
-      additionalProperties: false
     HealthStatus:
       type: object
       properties:
@@ -720,4 +708,3 @@ components:
       required:
         - status
         - service
-      additionalProperties: false

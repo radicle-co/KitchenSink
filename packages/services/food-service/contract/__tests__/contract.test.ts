@@ -22,6 +22,7 @@ import { join } from 'node:path';
 import {
     computeContractHash,
     discoverAuthoredSchemas,
+    findUnpublishedSiblingImports,
     findViolations,
     flattenSiblingImports,
 } from '@kitchensink/contract-gen';
@@ -38,7 +39,7 @@ import {
     SERVICE_ROOT,
     SERVICE_STAMP_PATH,
 } from '../config.js';
-import { foodOpenApiDocument } from '../openapi.js';
+import { foodOpenApiDocument, openApiComponents } from '../openapi.js';
 
 /** The authored schemas, discovered once with the SAME config the generator runs with. */
 const authored: AuthoredSchema[] = await discoverAuthoredSchemas(SERVICE_ROOT, { excludeFiles: EXCLUDED_FILES });
@@ -69,6 +70,19 @@ describe('the authored food wire contract', () => {
         );
 
         expect(violations).toStrictEqual([]);
+    });
+
+    // The gap the allowlist alone does NOT close: `./env.schema.js` is shaped like a flat sibling schema module,
+    // so `findViolations` admits it — while `EXCLUDED_FILES` keeps `env.schema.ts` out of the published package.
+    // Asserted against the REAL authored files, so a future sibling import of an excluded or renamed schema fails
+    // here as well as at generation time.
+    it('imports no sibling schema that the generated package will not contain', () => {
+        const publishedModuleNames = authored.map((schema) => schema.moduleName);
+        const unresolved = authored.flatMap((schema) =>
+            findUnpublishedSiblingImports(schema.servicePath, schema.source, publishedModuleNames),
+        );
+
+        expect(unresolved).toStrictEqual([]);
     });
 
     // Widening the allowlist is the one edit that can quietly undo the property above, so it is pinned. Changing
@@ -206,6 +220,83 @@ describe('openapi coverage', () => {
         );
 
         expect(publicOperations.sort()).toStrictEqual(['GET /health', 'GET /health/ready']);
+    });
+
+    /**
+     * THE DOCUMENT'S STRICTNESS MUST MATCH THE SERVICE'S.
+     *
+     * `additionalProperties: false` is a promise that an unknown key is REJECTED. zod's `z.object` strips unknown
+     * keys and answers `2xx`; only `z.strictObject` rejects. The generator used to emit `false` for both, so this
+     * service published three request bodies (`AddFoodRequest`, `BatchAddFoodRequest`, `ResolveFoodRequest`)
+     * claiming a rejection that never happens — and a strict client generated from the document refuses bodies
+     * this service accepts.
+     *
+     * The expectation is derived BEHAVIOURALLY, by parsing a body carrying an unknown key and looking for zod's
+     * `unrecognized_keys` issue — not from the same introspection the generator uses, which would make the
+     * assertion agree with the generator by construction.
+     */
+    it('claims to reject unknown keys ONLY where the authored zod actually rejects them', () => {
+        const schemas = foodOpenApiDocument.document['components'] as {
+            schemas: Record<string, Record<string, unknown>>;
+        };
+
+        const disagreements = Object.entries(openApiComponents).flatMap(([name, schema]) => {
+            const parsed = schema.safeParse({ __unknownKeyProbe__: 'x' });
+            const rejectsUnknownKeys =
+                !parsed.success && parsed.error.issues.some((issue) => issue.code === 'unrecognized_keys');
+            const published = schemas.schemas[name]?.['additionalProperties'];
+
+            if (rejectsUnknownKeys === (published === false)) {
+                return [];
+            }
+
+            return [
+                `${name}: the document says additionalProperties=${JSON.stringify(published)} but the zod ` +
+                    `${rejectsUnknownKeys ? 'REJECTS' : 'accepts and strips'} an unknown key`,
+            ];
+        });
+
+        expect(disagreements).toStrictEqual([]);
+    });
+
+    // Non-vacuity for the assertion above, in both directions. It compares against `=== false`, so a rule that
+    // stripped the keyword WHOLESALE would satisfy it trivially — and stripping it from the `.loose()` error
+    // envelopes would be its own lie, since those really do pass unknown fields through (deliberately: an error
+    // body that grows a field must not crash a client that has not been taught it). So: no component may claim a
+    // rejection (this service authors no `z.strictObject`), and the loose ones must still say they are open.
+    it('claims no rejection anywhere, while still publishing the loose error envelopes as OPEN', () => {
+        const schemas = (
+            foodOpenApiDocument.document['components'] as { schemas: Record<string, Record<string, unknown>> }
+        ).schemas;
+
+        const claimingRejection = Object.entries(schemas)
+            .filter(([, schema]) => schema['additionalProperties'] === false)
+            .map(([name]) => name);
+
+        expect(claimingRejection).toStrictEqual([]);
+
+        for (const name of ['ApiError', 'NestHttpError', 'ControllerError']) {
+            expect(
+                schemas[name]?.['additionalProperties'],
+                `${name} is .loose() and must publish as open`,
+            ).toStrictEqual({});
+        }
+    });
+
+    // `z.string().trim().min(1)` emits `minLength: 1`, which `"   "` satisfies — and then this service answers
+    // 400. The document must not accept a body the service refuses.
+    it('does not publish a length bound that a whitespace-only name would satisfy', () => {
+        const schemas = (
+            foodOpenApiDocument.document['components'] as { schemas: Record<string, Record<string, unknown>> }
+        ).schemas;
+        const properties = schemas['AddFoodRequest']?.['properties'] as
+            | Record<string, Record<string, unknown>>
+            | undefined;
+        const pattern = properties?.['name']?.['pattern'];
+
+        expect(typeof pattern).toBe('string');
+        expect(new RegExp(String(pattern), 'u').test('   ')).toBe(false);
+        expect(openApiComponents.AddFoodRequest.safeParse({ name: '   ' }).success).toBe(false);
     });
 
     // The erasure route is machine-to-machine: it must NOT accept a Clerk user session, because its whole

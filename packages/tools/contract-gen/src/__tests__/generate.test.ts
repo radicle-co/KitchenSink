@@ -271,6 +271,80 @@ describe('generateSchemaPackage', () => {
 
             await expect(generateSchemaPackage(harness.config)).rejects.toThrow(/Duplicate schema module name/u);
         });
+
+        // THE HOLE BETWEEN THE TWO CHECKS. `./env.schema.js` is SHAPED like a flat sibling schema module, so the
+        // import restriction admits it — while every service excludes `src/config/env.schema.ts` from
+        // publication. Without this check generation succeeded and the leaf package shipped an import of a file
+        // that is not in it, which is failure mode 1 of the seam, reached through the guard that exists to
+        // prevent it.
+        it('refuses a sibling import of an EXCLUDED schema, which the leaf package would not contain', async () => {
+            await mkdir(join(harness.serviceRoot, 'src/config'), { recursive: true });
+            await writeFile(
+                join(harness.serviceRoot, 'src/config/env.schema.ts'),
+                "import { z } from 'zod';\nexport const envSchema = z.object({ PORT: z.string() });\n",
+            );
+            await writeFile(
+                join(harness.serviceRoot, 'src/widgets/widgets.schema.ts'),
+                [
+                    "import { z } from 'zod';",
+                    "import { envSchema } from './env.schema.js';",
+                    'export const s = z.object({ env: envSchema });',
+                ].join('\n'),
+            );
+
+            const config: ContractGenerationConfig = {
+                ...harness.config,
+                excludeFiles: [{ servicePath: 'src/config/env.schema.ts', why: 'Process configuration, not wire.' }],
+            };
+
+            await expect(generateSchemaPackage(config)).rejects.toThrow(/NOT published/u);
+            await expect(generateSchemaPackage(config)).rejects.toThrow(/env\.schema/u);
+        });
+
+        it('refuses a sibling import of a schema that does not exist at all', async () => {
+            await writeFile(
+                join(harness.serviceRoot, 'src/widgets/widgets.schema.ts'),
+                [
+                    "import { z } from 'zod';",
+                    "import { gone } from './renamed.schema.js';",
+                    'export const s = z.object({ gone });',
+                ].join('\n'),
+            );
+
+            await expect(generateSchemaPackage(harness.config)).rejects.toThrow(/NOT published/u);
+        });
+
+        it('accepts a sibling import of a schema that IS published', async () => {
+            await writeFile(
+                join(harness.serviceRoot, 'src/widgets/parts.schema.ts'),
+                "import { z } from 'zod';\nexport const partSchema = z.string();\n",
+            );
+            await writeFile(
+                join(harness.serviceRoot, 'src/widgets/widgets.schema.ts'),
+                [
+                    "import { z } from 'zod';",
+                    "import { partSchema } from './parts.schema.js';",
+                    'export const s = z.object({ part: partSchema });',
+                ].join('\n'),
+            );
+
+            await expect(generateSchemaPackage(harness.config)).resolves.toBeDefined();
+        });
+
+        // Same no-half-write property as the forbidden-import guard: this check has to run BEFORE the writes,
+        // not after, or a failed run leaves the committed package half-rewritten.
+        it('leaves the previously generated package untouched when a sibling does not resolve', async () => {
+            await generateSchemaPackage(harness.config);
+            const before = await readGenerated(harness, 'src/schemas/widgets.schema.ts');
+
+            await writeFile(
+                join(harness.serviceRoot, 'src/widgets/widgets.schema.ts'),
+                "import { g } from './gone.schema.js';\nexport const s = g;\n",
+            );
+
+            await expect(generateSchemaPackage(harness.config)).rejects.toThrow(/NOT published/u);
+            expect(await readGenerated(harness, 'src/schemas/widgets.schema.ts')).toBe(before);
+        });
     });
 });
 

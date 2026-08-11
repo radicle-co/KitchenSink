@@ -8,12 +8,20 @@
  *
  * ── WHAT IT CATCHES, AND — SAID PLAINLY — WHAT IT CANNOT ──
  *
- * Both stamps are written from ONE computed hash in ONE generator run, so they can only disagree if a commit
- * carried a hand-edit of one, or carried one file and not the other. That is a narrow class, and the
- * regenerate-and-diff gate (layer 2, `contract/__tests__/contract.test.ts`) already catches it at PR time. The
- * value here is the case layer 2 cannot reach: an image built OUTSIDE that path — a hand-built container, a
- * bypassed gate, a partially-applied hotfix — whose published contract does not describe the binary serving
- * traffic.
+ * Both stamps are written from ONE computed hash in ONE generator run, so what this assertion proves is narrow
+ * and worth stating exactly: **the two stamp files in this image came from the same tree.** It fires when a
+ * commit hand-edited one, carried one file and not the other, or when the image was assembled from mixed
+ * sources — a stale `node_modules` copy of the leaf package against a fresh service build. The
+ * regenerate-and-diff gate (layer 2, `contract/__tests__/contract.test.ts`) already catches the commit-time
+ * cases at PR time; the mixed-image case is the one layer 2 cannot reach.
+ *
+ * ⚠️ AN EARLIER VERSION OF THIS COMMENT OVERCLAIMED, and the correction matters because false assurance in a
+ * comment is worse than no comment. It said this catches "an image built OUTSIDE that path — a hand-built
+ * container, a bypassed gate, a partially-applied hotfix". It does not, in general: a hand-built image from a
+ * tree where a `*.schema.ts` was edited but `contract:generate` was never run carries two IDENTICAL stamps —
+ * both stale — and boots perfectly clean while serving a shape neither stamp describes. The check compares the
+ * two stamps to each other, not either of them to the authored corpus, so it is blind to a tree that is
+ * self-consistently wrong. It is fail-closed and cheap, and it is near-vacuous against that case.
  *
  * ⚠️ IT DOES **NOT** CATCH THE SKEW §15.2.5 NAMES AS THE MOTIVATING CASE: a deployed service running ahead of
  * a CONSUMER's pinned schema — the released mobile binary that cannot be updated in step with a backend

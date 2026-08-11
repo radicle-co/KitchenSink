@@ -21,11 +21,38 @@ import { describe, expect, it } from 'vitest';
 /** `main.ts`'s source text. `import.meta.dirname` is `src/contract/__tests__`, so `src` is two levels up. */
 const source = await readFile(join(import.meta.dirname, '../../main.ts'), 'utf8');
 
+/**
+ * `source` with comments stripped, so prose ABOUT a static import cannot satisfy — or trip — an assertion
+ * that is meant to be about code. The doc comment above `main.ts`'s dynamic import explains the static form
+ * it replaced, which is exactly the text a naive scan mistakes for the thing it forbids.
+ */
+const codeOnly = source.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/^[ \t]*\/\/.*$/gmu, '');
+
 describe('main.ts boot order', () => {
+    // Non-vacuity: the negative assertion below is satisfied by a file that does not mention the app module at
+    // all, which would be a passing test over a boot sequence that no longer exists.
+    it('is not vacuous — the file really does reference the app module and the assertion', () => {
+        expect(codeOnly).toContain('app.module.js');
+        expect(codeOnly).toContain('assertContractHashesAgree');
+    });
+
     // The regression this file exists to prevent.
+    //
+    // ⚠️ THE NEGATIVE REGEX MUST NOT BE LINE-ANCHORED. It used to be
+    // `/^import .*from '\.\/app\.module\.js';$/mu`, which requires the whole static import to sit on ONE line,
+    // start at column 0, use single quotes and end in a semicolon. Prettier wraps an import the moment the
+    // clause grows past the print width, so the exact regression this test exists to catch —
+    //
+    //     import {
+    //         AppModule,
+    //     } from './app.module.js';
+    //
+    // — would not have matched, while every positive assertion kept passing. `[^;]*` spans newlines and `\s*`
+    // tolerates indentation, so the SHAPE is matched rather than one formatting of it. Ported from
+    // `food-service`'s copy of this guard, which was hardened first.
     it('loads AppModule with a DYNAMIC import, never a static one', () => {
-        expect(source).toContain("await import('./app.module.js')");
-        expect(source).not.toMatch(/^import .*from '\.\/app\.module\.js';$/mu);
+        expect(codeOnly).toMatch(/await import\(['"]\.\/app\.module\.js['"]\)/u);
+        expect(codeOnly).not.toMatch(/^\s*import\s[^;]*from\s+['"]\.\/app\.module\.js['"]/mu);
     });
 
     it('asserts contract-hash agreement BEFORE loading AppModule', () => {

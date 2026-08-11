@@ -19,6 +19,19 @@ import type { RecipeSearchFacets } from '@kitchensink/schema-recipe';
 export type { RecipeSearchFacets, RecipeSearchResponse } from '@kitchensink/schema-recipe';
 
 export type { AddIngredientByFoodRequest, IngredientCandidate } from '@kitchensink/schema-recipe';
+
+/**
+ * The photo-upload wire shapes, from the contract. `PhotoUploadUrlRequest`/`PhotoConfirmRequest`/
+ * `UploadUrlResponse` are the client's historical NAMES for them, kept because this package's public surface
+ * and its consumers use them; each is an ALIAS of the contract type, never a second declaration. The client's
+ * copies had already drifted — both request types widened `contentType` to a bare `string`, which is what the
+ * validation layer enforces, so the alias is the honest shape either way.
+ */
+export type {
+    ConfirmPhotoRequest as PhotoConfirmRequest,
+    CreatePhotoUploadRequest as PhotoUploadUrlRequest,
+    PhotoUploadUrlResponse as UploadUrlResponse,
+} from '@kitchensink/schema-recipe';
 // Imported (not merely re-exported) because `IngredientSuggestionProvenance` below is DERIVED from it, and a
 // re-export does not bring a name into this module's scope.
 import type { IngredientSuggestion } from '@kitchensink/schema-recipe';
@@ -65,30 +78,6 @@ export interface ListCollectionsParams {
  * service actually sends — the same pattern as `RecipeSearchFacetCounts` below.
  */
 export type IngredientSuggestionProvenance = IngredientSuggestion['provenance'];
-
-/** Request body for `createPhotoUploadUrl` (`POST /api/v1/recipes/{id}/photos/upload-url`). */
-export interface PhotoUploadUrlRequest {
-    readonly fileName: string;
-    readonly contentType: string;
-    /** File size in bytes (≤ 5 MiB, per the contract). */
-    readonly fileSize: number;
-}
-
-/** Response from `createPhotoUploadUrl`: a presigned S3 URL for a direct client upload. */
-export interface UploadUrlResponse {
-    readonly uploadUrl: string;
-    readonly key: string;
-    /** Presigned-URL expiry, in seconds. */
-    readonly expiresIn: number;
-    /** The maximum object size (bytes) the client must respect for this upload. */
-    readonly maxBytes: number;
-}
-
-/** Request body for `confirmPhotoUpload` (`POST /api/v1/recipes/{id}/photos/confirm`). */
-export interface PhotoConfirmRequest {
-    readonly key: string;
-    readonly contentType: string;
-}
 
 /** Request body for `createCollection` (`POST /api/v1/collections`). */
 export interface CreateCollectionRequest {

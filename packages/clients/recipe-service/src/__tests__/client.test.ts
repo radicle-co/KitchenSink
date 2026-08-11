@@ -203,13 +203,17 @@ describe('RecipeServiceClient — request build + token attach', () => {
     });
 
     it('serializes list params and repeats array query params (search facets)', async () => {
+        // `facets: {}` here until `searchRecipes` began validating its response against the published
+        // `recipeSearchResponseSchema` — which caught it. All four facet dimensions are REQUIRED on the wire
+        // (the server always aggregates all four over the match sample; an empty dimension is `[]`, never an
+        // absent key — see `search.schema.ts`), so the old stub asserted a body the service never sends.
         const fetchMock = stubFetch(200, {
             results: [],
             total: 0,
             page: 1,
             pageSize: 20,
             hasMore: false,
-            facets: {},
+            facets: { dietaryFlags: [], tags: [], cuisine: [], totalTime: [] },
         });
         const client = new RecipeServiceClient({ baseUrl: BASE, fetch: fetchMock });
 

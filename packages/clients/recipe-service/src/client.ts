@@ -80,7 +80,12 @@ import type {
 
 // Runtime schemas from the GENERATED contract — the same zod the service validates with, so these two
 // boundaries are now CHECKED rather than trusted. See CODING_STANDARDS §15.2.
-import { ingredientCandidatesResponseSchema, ingredientSuggestionsResponseSchema } from '@kitchensink/schema-recipe';
+import {
+    ingredientCandidatesResponseSchema,
+    ingredientSuggestionsResponseSchema,
+    photoUploadUrlResponseSchema,
+    recipeSearchResponseSchema,
+} from '@kitchensink/schema-recipe';
 
 /**
  * The `Collection` response schema, WIDENED (W5 Task 5) from `@kitchensink/recipe-core`'s `collectionSchema`
@@ -641,7 +646,7 @@ export class RecipeServiceClient {
     public async createPhotoUploadUrl(id: string, request: PhotoUploadUrlRequest): Promise<UploadUrlResponse> {
         const res = await this.send('POST', `/api/v1/recipes/${encodeURIComponent(id)}/photos/upload-url`, request);
 
-        return this.expectUnvalidated<UploadUrlResponse>(res, 200);
+        return this.expect(res, 200, photoUploadUrlResponseSchema);
     }
 
     /**
@@ -890,7 +895,7 @@ export class RecipeServiceClient {
             sortBy: params.sortBy,
         });
 
-        return this.expectUnvalidated<RecipeSearchResponse>(res, 200);
+        return this.expect(res, 200, recipeSearchResponseSchema);
     }
 
     /**

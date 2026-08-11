@@ -82,16 +82,25 @@ export const createPhotoUploadRequestSchema = z.object({
 /** Request body for minting a presigned photo-upload URL. */
 export type CreatePhotoUploadRequest = z.infer<typeof createPhotoUploadRequestSchema>;
 
-/** Response of `POST /api/v1/recipes/{id}/photos/upload-url`: a presigned target for a direct S3 PUT. */
-export const photoUploadUrlResponseSchema = z.object({
-    uploadUrl: z.string().url(),
-    /** The object key the client must echo back to `confirm`. */
-    key: z.string().min(1),
-    /** Presigned-URL lifetime in seconds. */
-    expiresIn: z.number().int().positive(),
-    /** The maximum object size in bytes this upload may carry. */
-    maxBytes: z.number().int().positive(),
-});
+/**
+ * Response of `POST /api/v1/recipes/{id}/photos/upload-url`: a presigned target for a direct S3 PUT.
+ *
+ * `readonly` throughout, matching every other response shape in this contract and the promise the typed client
+ * already made its callers. A parsed response body is a snapshot of what the server said; a consumer mutating
+ * it in place corrupts a value other consumers (and the query cache) share. Verified rather than assumed: no
+ * consumer mutates one — every read site passes it to `fetch` or reads a field.
+ */
+export const photoUploadUrlResponseSchema = z
+    .object({
+        uploadUrl: z.string().url(),
+        /** The object key the client must echo back to `confirm`. */
+        key: z.string().min(1),
+        /** Presigned-URL lifetime in seconds. */
+        expiresIn: z.number().int().positive(),
+        /** The maximum object size in bytes this upload may carry. */
+        maxBytes: z.number().int().positive(),
+    })
+    .readonly();
 
 /** Response carrying a presigned photo-upload target. */
 export type PhotoUploadUrlResponse = z.infer<typeof photoUploadUrlResponseSchema>;

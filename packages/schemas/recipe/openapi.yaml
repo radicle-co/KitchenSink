@@ -3589,6 +3589,7 @@ components:
         - fileSize
       additionalProperties: false
     PhotoUploadUrlResponse:
+      readOnly: true
       type: object
       properties:
         uploadUrl:

@@ -64,7 +64,11 @@ export type NewFetchQueueRow = InferInsertModel<typeof fetchQueue>;
 
 /**
  * Distinct-requester demand (FR-044) + per-requester pending-count source for fairness-by-demotion
- * (FR-043) and WebSocket targeting. The `(food_id, requester_id)` PK structurally caps each requester
+ * (FR-043) and FR-044 demand counting. NOT notification targeting — that intent was recorded here and is
+ * IMPOSSIBLE from this table: `FetchQueueDao.resolve` deletes every row for a food in the same transaction
+ * that completes it (DSN-10), so a completion notifier reading recipients here races its own deletion. The
+ * recipe service owns the notification subscription set (014 T-044). This comment previously claimed
+ * "WebSocket targeting" and is what pointed 003's US-9 at the wrong service. The `(food_id, requester_id)` PK structurally caps each requester
  * to one row per food (so a requester cannot inflate priority by repeating). Pruned when the food
  * leaves the queue (DSN-10).
  *

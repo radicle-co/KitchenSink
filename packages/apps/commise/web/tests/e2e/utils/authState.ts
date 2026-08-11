@@ -90,6 +90,12 @@ export const SESSION_OWNING_SPECS: readonly string[] = [
     'authPages.spec.ts',
     // SIGNED-OUT — asserts a protected route redirects an anonymous caller to sign-in.
     'routeProtection.spec.ts',
+    // SIGNED-OUT, then signed in. Found by CI, not by review: it captures the wireframe/implementation pair
+    // for the SIGN-IN screen before signing in, so a restored session sends `/sign-in` straight to Home and
+    // the `Sign in to Commise` heading never renders. A spec can therefore need its own session while
+    // containing no sign-out at all — which is why `SESSION_HOSTILE_SIGNATURES` now also looks for visits to
+    // the signed-out auth surface.
+    'mockupFidelity.spec.ts',
 ];
 
 /** Glob form of {@link SESSION_OWNING_SPECS}, for Playwright's `testMatch` / `testIgnore`. */

@@ -67,6 +67,14 @@ const SESSION_HOSTILE_SIGNATURES: readonly { readonly pattern: RegExp; readonly 
     { pattern: /clerk\.signOut\(/, meaning: 'signs out through @clerk/testing' },
     { pattern: /name: 'Sign out of your account'/, meaning: 'clicks the app sign-out control' },
     { pattern: /account\/erasure/, meaning: 'drives the erasure flow, which ends in a sign-out' },
+    // Added after CI caught what review missed. `mockupFidelity.spec.ts` contains no sign-out at all: it
+    // simply visits `/sign-in` to capture that screen, and a restored session redirects that route to Home, so
+    // the heading it waits for never appears. The tell is not "ends the session" but "expects to be ANONYMOUS",
+    // and both classes need the same treatment.
+    {
+        pattern: /['"`]\/sign-(?:in|up)['"`]|Sign in to Commise/,
+        meaning: 'visits or asserts a signed-out auth surface, which a restored session redirects away from',
+    },
 ];
 
 /**

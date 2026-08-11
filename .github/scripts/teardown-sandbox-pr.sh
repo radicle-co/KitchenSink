@@ -92,6 +92,29 @@ else
     echo "No food migration function for $PR (stack $STACK absent) — nothing to drop."
 fi
 
+## 1b. Drain the PR's ECS services and tasks BEFORE any stack delete — an ORDERING fix, not a retry.
+##
+##     Without this, deleting a per-PR service stack fails on its own cluster:
+##
+##         AWS::ECS::ClusterCapacityProviderAssociations  DELETE_FAILED
+##           "The specified capacity provider is in use and cannot be removed." (ResourceInUseException)
+##
+##     CloudFormation deletes the ECS service before the association, but `DeleteService` returns while the
+##     tasks are still DRAINING, so the association delete lands while FARGATE_SPOT is still referenced and
+##     the whole stack settles into DELETE_FAILED with its cluster intact. It is NOT fixable by retrying the
+##     same delete — the precondition only clears once the reference is gone — and it is non-prod-only,
+##     because ADR-0008's `enableFargateCapacityProviders: useSpot` emits that association ONLY for spot
+##     stages. Measured: 9 stacks across PRs 73/77/78/79/80 sat in DELETE_FAILED on exactly this.
+##
+##     A failure here is recorded but does NOT skip the stack deletes below: a stack that deletes cleanly
+##     anyway must still be reclaimed. See .github/scripts/ecs-quiesce.sh and its integration suite.
+if bash "$SCRIPT_DIR/ecs-quiesce.sh" "$PR" "$REGION"; then
+    echo "[ecs-quiesce] $PR drained"
+else
+    echo "::error::could not fully drain $PR's ECS services/tasks — a stack delete may fail on its cluster's capacity-provider association"
+    teardown_failed=1
+fi
+
 ## 2. CloudFormation stacks — name matches $PR OR Environment=$PR tag. The status filter includes the
 ##    FAILED/stuck resting states (CREATE_FAILED, ROLLBACK_FAILED, …) so a per-PR stack that failed or
 ##    hung at close time is still torn down instead of leaking.

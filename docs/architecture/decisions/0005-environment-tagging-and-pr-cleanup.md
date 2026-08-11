@@ -91,6 +91,47 @@ defect and **failed all 11 runs it has ever made**, which also meant the only re
   lookup is pinned to the shared helper), analyzer 3 removes the _consequence_. Neither `actionlint` nor
   `zizmor` can see any of these failures — the YAML is valid and the shell is well-formed.
 
+**The second independent reason teardown never worked: a per-PR stack CANNOT delete its own ECS cluster, and no
+number of retries fixes it.** Every per-PR service stack delete failed on:
+
+```
+AWS::ECS::ClusterCapacityProviderAssociations  DELETE_FAILED
+  "The specified capacity provider is in use and cannot be removed."  (AmazonECS, 400, ResourceInUseException)
+```
+
+CloudFormation deletes the ECS _service_ before the association, but `DeleteService` returns while the tasks are
+still DRAINING — so the association delete arrives while `FARGATE_SPOT` is still referenced, and the cluster, and
+therefore the whole stack, lands in `DELETE_FAILED`. Nine stacks across five merged PRs (73, 77, 78, 79, 80 —
+food and recipe) were sitting on exactly this, some since 2026-07-05.
+
+**This is non-prod-only, and it is a cost-lever regression.** ADR-0008 puts non-prod Fargate tasks on
+`FARGATE_SPOT`; binding a service to a capacity provider requires the cluster to advertise it, so the CDK sets
+`enableFargateCapacityProviders: useSpot` — which emits the association resource **only when spot is on**.
+Verified against the live account: `kitchensink-food-service-prod` has no such resource,
+`kitchensink-food-service-pr-81` does. So the association exists exclusively in the stages that get torn down,
+and prod — the one stage never deleted — is the only stage that cannot hit it. The code path that breaks is the
+one no prod deploy exercises, which is why it went unseen.
+
+**The fix is ORDERING, not retrying** — a retry re-fails for as long as the reference stands, so
+`DELETE_FAILED` in the reaper's status filter was never going to be enough on its own.
+`.github/scripts/ecs-quiesce.sh` (called by `teardown-sandbox-pr.sh` before any stack delete) force-deletes every
+service in the PR's clusters, stops standalone tasks — the food change-refresh `RunTask` binds `FARGATE_SPOT`
+too — and then WAITS on the CLI's own `services-inactive` / `tasks-stopped` waiters. Clusters are discovered only
+by an exact `Environment=pr-{N}` tag, the same authority that already licenses deleting whole stacks, so nothing
+is widened; the per-PR cluster NAME is deliberately not used, because `pr_scope_belongs` is a prefix rule and
+loosening it is what this ADR forbids. Proven live: pr-82, pr-83 and pr-90 deleted all three stacks cleanly with
+no `DELETE_FAILED` at all, where every earlier PR had left two. Covered by
+`packages/infra/global/__tests__/ecs-quiesce.integration.test.ts`, which executes the real script against a
+stubbed AWS CLI and asserts the call ORDER (a wait that ran before the deletes, or not at all, is the whole bug).
+
+**Pattern worth naming: `list-exports` + `--query` is broken per-page, and it has now bitten twice.**
+`ListExports` pages at 100 items and the AWS CLI applies `--query` to EACH page, printing one result per page.
+`cfn-export.sh` was created after the first outbreak (ten call sites, a sandbox deploy aborting on an export that
+demonstrably existed); the reclamation jobs were the **second** confirmed instance, and there the two-line value
+did not merely mislead a guard — it produced an `Invalid format 'None'` `$GITHUB_OUTPUT` write that killed the
+step. Treat any new `aws cloudformation list-exports … --query` as a defect on sight; analyzer 2 of
+`sandbox-reclamation-reachability.test.ts` now enforces that across every workflow.
+
 **Known residues found while reclaiming, NOT fixed here** — each is a real leak, each deserves its own change:
 
 - **ECS Container Insights log groups are never matched.** `/aws/ecs/containerinsights/kitchensink-{service}-pr-{N}-…Cluster…/performance` survives even a clean stack delete: it is untagged, and `pr_scope_path_belongs`
@@ -100,13 +141,23 @@ defect and **failed all 11 runs it has ever made**, which also meant the only re
   so the intent and the implementation disagree, and reconciling them means amending a **documented security
   decision**. Deliberately left for the owner rather than widened unilaterally; a bare suffix match here is
   exactly what ADR-0005 warns against. Cost is small (empty performance groups) but it is unbounded growth.
-- **A failed per-PR food DB drop is a `::warning::`, so the database silently stays.** This contradicts
-  decision 5 above ("failures are errors, not warnings"). All eleven reclaimed PRs left their
-  `kitchensink_food_pr_{N}` database in the shared sandbox RDS, because the drop Lambda answered PostgreSQL
-  53300 `sorry, too many clients already` — the orphans were themselves exhausting the shared `db.t4g.micro`'s
-  connection budget, so the leak actively obstructed its own cleanup. `teardown-sandbox-pr.sh` also sends the
-  invoke's stderr to `/dev/null`, which hides the reason. Not changed here on purpose: the script was in use by
-  the reclamation running at the time, and a behaviour change to it needs a shim-based test of its own.
+- **A failed per-PR food DB drop is only a `::warning::` — and that failure is IRREVERSIBLE.** This contradicts
+  decision 5 above ("failures are errors, not warnings"), and it is worse here than the phrase suggests. The
+  drop must run _before_ the stack delete because the in-VPC migration Lambda is the only thing that can reach
+  the `PRIVATE_ISOLATED` RDS — and that Lambda is destroyed with the stack seconds later. So a swallowed drop
+  failure has **no second chance**: the reaper cannot retry it, because the tool is gone. The database is then
+  orphaned in the shared instance with no in-band way to remove it.
+  Observed live on pr-73: its drop failed with PostgreSQL 53300 `sorry, too many clients already`, the run
+  emitted a warning, the stack deleted, and `kitchensink_food_pr_73` is now unreachable. Connections on the
+  shared `db.t4g.micro` were ~22–25 steady and spiked to 45 during teardown, so the drop is competing for
+  connection slots with the very orphans it is cleaning up — though the exact ceiling being hit (instance
+  `max_connections`, which is the RDS default formula, versus a role/database `CONNECTION LIMIT`) was **not**
+  determined and should be confirmed before sizing any fix.
+  pr-57 and pr-59 are in the same state. Every later PR dropped cleanly (`{"dropped":"dropped"}`), so the
+  mechanism is sound — it is the error handling that is not. `teardown-sandbox-pr.sh` also sends the invoke's
+  stderr to `/dev/null`, hiding the reason. Both branches should be `::error::` + `teardown_failed=1`, and the
+  drop should be retried before the stack delete proceeds. Not changed here on purpose: the script was in use
+  by the reclamation running at the time, and a behaviour change to it needs a shim-based test of its own.
 
 ## Alternatives considered
 

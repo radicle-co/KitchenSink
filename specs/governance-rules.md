@@ -1,7 +1,7 @@
 # KitchenSink Cross-Feature Governance Rules
 
-**Version**: 3.0.0
-**Ratified**: 2026-05-10 | **Last amended**: 2026-08-02
+**Version**: 3.1.0
+**Ratified**: 2026-05-10 | **Last amended**: 2026-08-11
 **Authority**: Senior Product Owner, cross-feature governance
 **Scope**: All features 001–014 and any future feature in this portfolio
 **Status**: Active — enforced from this date forward
@@ -28,7 +28,8 @@ Engineering handoff is blocked until every CRITICAL rule is satisfied for the fe
 12. [Subscription Gating Mechanism (GR-012)](#gr-012-subscription-gating-mechanism)
 13. [Persona Library Compliance (GR-013)](#gr-013-persona-library-compliance)
 14. [Audience and Sharing Model (GR-014)](#gr-014-audience-and-sharing-model)
-15. [Governance Amendment Process](#governance-amendment-process)
+15. [API Contract Ownership (GR-015)](#gr-015-api-contract-ownership)
+16. [Governance Amendment Process](#governance-amendment-process)
 
 ---
 
@@ -637,6 +638,144 @@ licensed, or paywalled against republication.
 
 ---
 
+## GR-015: API Contract Ownership
+
+**Severity**: CRITICAL
+**Ratified**: 2026-08-11
+**Normative source**: [`docs/CODING_STANDARDS.md` §15](../docs/CODING_STANDARDS.md) — **§15 wins on any
+detail this rule summarizes.** Reasoning and rejected alternatives:
+[`docs/architecture/decisions/0014-service-owned-api-contracts.md`](../docs/architecture/decisions/0014-service-owned-api-contracts.md).
+**Resolves**: silent wire-contract drift between services and their clients (measured 2026-08-11: 276 + 144
+lines of independently declared client wire types, agreeing with nothing)
+
+### Rule
+
+For every HTTP service in this portfolio, **the service is the single authoritative author of its wire
+contract**, and every consumer imports types the service owns. The rule has a service half and a client
+half, and **both halves are mandatory**.
+
+#### 15-a. The service's obligation
+
+1. Zod schemas are **AUTHORED IN THE SERVICE** at `packages/services/<service>/src/**/*.schema.ts`, beside
+   the controller they serve.
+2. The service **validates its own requests with that same zod**, via `nestjs-zod`'s `createZodDto`. Server
+   and clients therefore check against one authored definition, not two that agree by convention.
+3. A generated, **committed** package `packages/schemas/<service>` (`@kitchensink/schema-<service>`) exports
+   the zod (`schemas.ts`), the `z.infer` types (`types.ts`), a `contract-hash.ts`, a barrel (`index.ts`), and
+   a **derived** `openapi.yaml`.
+4. `openapi.yaml` is derived **from the zod**, and exists for `oasdiff`, docs, and external integrators. It
+   is **NOT a codegen input** — deriving types through it is rejected (ADR-0014, alternative 1).
+5. A `*.schema.ts` file may import **only `zod` and other `*.schema.ts` files**. This is enforced in code,
+   not by convention.
+6. The schema package carries **no runtime dependency on the service graph** (no NestJS, no drizzle, no
+   aws-sdk). An `import type` dependency on a shared domain package such as `@kitchensink/recipe-core` is
+   fine — it erases at compile time.
+7. **One contract document per service, and it REPLACES any hand-written predecessor.** A generated document
+   added alongside a hand-maintained one makes the problem worse.
+
+#### 15-b. The client's obligation — separately mandatory
+
+**A feature that mandates only 15-a has not satisfied this rule.** Mandating only the service side is
+exactly how the client half got skipped, and it is why the drift survived behind green builds.
+
+1. Every client imports its wire types **and** its runtime zod from `@kitchensink/schema-<service>`.
+2. **A `packages/clients/*` package MUST NOT declare a type describing a request or response body of a
+   service in `packages/services/*`.** A client's own `types.ts` holds only genuinely client-side types —
+   config, options, its own error shapes — never a wire shape.
+3. Where a consumer's shape **genuinely differs** from the wire shape (a view model, a form model, a
+   narrowed projection), it is **DERIVED** from the wire type with `Pick` / `Omit` / `Partial` / mapped
+   types — **never independently declared**. Reference implementation:
+   `packages/apps/commise/features/recipes/src/filters/model.ts`.
+4. App and feature packages (`packages/apps/commise/**`) are bound by 15-b.2 and 15-b.3 identically. The rule
+   is about who authors a wire shape, not about which directory it lives in.
+5. **A new endpoint is not complete until its types are reachable from the schema package.** "The client will
+   add the type" is a contract fork, not a task.
+
+#### 15-c. Drift gates — a new feature inherits these rather than reinventing them
+
+All three are required; each catches what the others cannot.
+
+| Layer                     | Mechanism                                                                                                                   | Catches                                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Rebuild** (turbo)       | `schema-<service>#build` `dependsOn` `<service>#build`, with `inputs` covering the service's `*.schema.ts`                  | a stale schema package after a service edit                                               |
+| **Correctness** (CI)      | regenerate and fail on any diff against the committed artifacts                                                             | generated output someone hand-edited; a contract changed without regenerating             |
+| **Skew** (runtime)        | `CONTRACT_HASH` over the service's `*.schema.ts`, embedded in **both** the service and the schema package, asserted at boot | a **deployed** service running ahead of a consumer's pinned schema — the live mobile case |
+| _(additionally worth it)_ | `oasdiff breaking` against the base branch                                                                                  | breaking contract changes, **with a stated blind spot** — see the honest limit below      |
+
+The `oasdiff` blind spot must be stated, not glossed: `@nestjs/swagger` emits **no response schema** for a
+handler returning an `interface`, so until every response type is zod-derived or a decorated class, that
+check cannot see response changes — which is most of what actually breaks a client.
+
+#### 15-d. THE EXCEPTION — a third-party API is the OPPOSITE case, and converging it deletes a security boundary
+
+For an API the platform does **not** serve — **USDA FoodData Central, Clerk, Vercel, Stripe, an OCR
+provider, an LLM provider, a grocery-retailer API** — there is **no service of ours to own the type** and the
+upstream contract **cannot be trusted**.
+
+- Those clients **MUST validate the raw upstream wire shape at the boundary with zod**, the moment a body
+  arrives.
+- Those clients **MAY declare their own types**, and the normalized type they return **may deliberately
+  differ** from the raw upstream shape.
+- **No OpenAPI document is written for an API we do not serve.**
+- `packages/clients/usda` is the **reference implementation**. Its `schemas.ts` **must never be
+  "converged"** under 15-b.
+
+15-b's reasoning does not reach this case: duplication is only wrong when one side could have been derived
+from the other, and here it could not — the other side belongs to someone else and can change without
+telling us. **Applying 15-b mechanically to a third-party client replaces a checked parse with unchecked
+trust in a remote party's JSON.** That is a security regression, not a consistency win.
+
+### Relationship to GR-007
+
+GR-007 governs **domain** types (`Recipe`, `Collection`, `User`, `PaginatedResponse`) and puts them in
+`@kitchensink/recipe-core`. GR-015 governs **wire** types — the endpoint envelopes. Different axes; neither
+replaces the other. A schema package **reuses `recipe-core` type-only and never re-declares its types**:
+re-declaring `Recipe` or `PaginatedResponse` to make a schema package literally dependency-free would
+manufacture the exact drift GR-015 exists to prevent.
+
+### Acceptance Criteria
+
+- **AC-015-a**: Every feature that owns or extends an HTTP service names, in its API-contract section, the
+  **owning service**, the **schema package**, and **every consuming client/app package**.
+- **AC-015-b**: Every such feature states the client obligation (15-b) explicitly, not by implication.
+- **AC-015-c**: No `packages/clients/*` or `packages/apps/**` file declares a request/response body type of a
+  `packages/services/*` service. Divergent consumer shapes are `Pick`/`Omit`/`Partial` derivations.
+- **AC-015-d**: All three drift gates (15-c) are wired for every service that has a schema package.
+- **AC-015-e**: Every feature that consumes a third-party API records the 15-d exception prominently in its
+  own spec, so a contributor applying 15-b mechanically is stopped before deleting a boundary.
+- **AC-015-f**: No feature introduces a second contract artifact for a service that already has one, and no
+  hand-written OpenAPI document is treated as normative once a generated one exists for that service.
+
+### Violation
+
+- A client, app, or feature package that declares a wire shape of one of our services is in violation; **the
+  client is the one that changes.**
+- A feature spec that mandates 15-a without 15-b is in violation even if the shipped service is correct — the
+  spec is the artifact that lets the next contributor skip the client half.
+- Deleting a third-party client's boundary schemas in the name of this rule is a violation of **15-d**, and
+  is treated as a security regression rather than a style disagreement.
+- Hand-editing a generated schema package is a violation; CI discards it rather than shipping it.
+
+### Current State (2026-08-11) — IN PROGRESS, NOT SATISFIED
+
+This rule is being propagated into the specs at the same time the code is being converged. Nothing below
+should be read as a completed migration.
+
+- ✅ `@kitchensink/schema-recipe` exists at `packages/schemas/recipe` with `schemas.ts`, `types.ts`,
+  `contract-hash.ts` and a barrel. **Converged so far: the search / photos / ratings vertical only.**
+- 🔄 **Food and identity are being converged now.** Neither has a schema package yet.
+- ❌ **`openapi.yaml` does not exist for any service.** `@kitchensink/schema-recipe`'s `package.json` already
+  declares the `./openapi.yaml` export, so that export currently names a file that has not been generated.
+- ❌ `specs/001-commise-recipe-app/contracts/api.openapi.yaml` — 2810 hand-written lines cited as authority
+  by 57 source files, verified by nothing — is **superseded in principle** by recipe's generated document,
+  but the generated document does not exist yet, so the citations have **not** been repointed.
+- ⚠️ Features **006–010** do not identify an owning service package for their endpoints at all. Each carries
+  an **OPEN** marker to that effect; the obligation applies to whichever service ends up owning the paths.
+- ⚠️ **Feature 013** specified `packages/shared/cooking-school-contracts`, which predates this rule.
+  Corrected in its plan to `packages/schemas/cooking-school`.
+
+---
+
 ## Governance Amendment Process
 
 Amendments to these rules require:
@@ -655,8 +794,9 @@ Downgrading a CRITICAL rule to WARNING requires explicit product owner approval 
 
 ## Change Log
 
-| Version | Date       | Author                                          | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------- | ---------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1.0.0   | 2026-05-10 | Senior Product Owner (cross-feature governance) | Initial ratification. Converts all CRITICAL and WARNING findings from `cross-feature-consistency-report.md` into enforceable rules with acceptance criteria. Corrects all release audit reports to BLOCKED status. Establishes release readiness gate (GR-001) as the primary blocker for engineering handoff.                                                                                                                                                                                                                                                               |
-| 3.0.0   | 2026-08-02 | Repository owner                                | **GR-014 amended** (MAJOR — incompatible redefinition): recipe visibility declared **binary** (`private` \| `public`); the missing `public` scope added, and `public-profile` demoted to a surfacing concern rather than a third visibility state; `circle` clarified as read-only; `price_cents` removed from the audience shape and restricted to `published-lesson`; ingestion-provenance and attribution criteria added (AC-014-d/e/f). Withdraws the premium-recipe and paid-follow model portfolio-wide. `cross-feature-consistency-report.md` S-004 amended to match. |
-| 2.0.0   | 2026-08-02 | Repository owner                                | **GR-009 amended** (MAJOR — incompatible redefinition): the `@kitchensink/{group}-{name}` pattern was ratified when no packages existed and none of the 26 shipped packages follow it. Restated to the two scopes actually in use, `@kitchensink/{name}` and `@commise/{name}`, with role suffixes (`-service`, `-workers`, `-service-client`) replacing group prefixes. Superseded pattern preserved in-section. **GR-002/GR-003/GR-007 Current State** refreshed against shipped `main`; GR-002 confirmed portfolio-wide with no exceptions.                               |
+| Version | Date       | Author                                          | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------- | ---------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.1.0   | 2026-08-11 | Repository owner                                | **GR-015 added** (MINOR — new rule): API Contract Ownership. The service authors its wire contract in zod at `src/**/*.schema.ts`, validates its own requests with it, and generates a committed `packages/schemas/<service>` package that clients import; `openapi.yaml` is derived and outbound-only, never a codegen input. **The client half (15-b) is separately mandatory** — a client declares no wire types and derives divergent consumer shapes with `Pick`/`Omit`/`Partial` — because mandating only the service side is how the client half got skipped. Records the three drift gates (15-c) and, prominently, the third-party exception (15-d): USDA/Clerk/Vercel/Stripe/OCR/LLM clients validate the raw upstream shape at the boundary and MAY declare their own types, so "converging" them deletes a security boundary. Normative source is `docs/CODING_STANDARDS.md` §15; reasoning and rejected alternatives in ADR-0014. |
+| 1.0.0   | 2026-05-10 | Senior Product Owner (cross-feature governance) | Initial ratification. Converts all CRITICAL and WARNING findings from `cross-feature-consistency-report.md` into enforceable rules with acceptance criteria. Corrects all release audit reports to BLOCKED status. Establishes release readiness gate (GR-001) as the primary blocker for engineering handoff.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 3.0.0   | 2026-08-02 | Repository owner                                | **GR-014 amended** (MAJOR — incompatible redefinition): recipe visibility declared **binary** (`private` \| `public`); the missing `public` scope added, and `public-profile` demoted to a surfacing concern rather than a third visibility state; `circle` clarified as read-only; `price_cents` removed from the audience shape and restricted to `published-lesson`; ingestion-provenance and attribution criteria added (AC-014-d/e/f). Withdraws the premium-recipe and paid-follow model portfolio-wide. `cross-feature-consistency-report.md` S-004 amended to match.                                                                                                                                                                                                                                                                                                                                                                   |
+| 2.0.0   | 2026-08-02 | Repository owner                                | **GR-009 amended** (MAJOR — incompatible redefinition): the `@kitchensink/{group}-{name}` pattern was ratified when no packages existed and none of the 26 shipped packages follow it. Restated to the two scopes actually in use, `@kitchensink/{name}` and `@commise/{name}`, with role suffixes (`-service`, `-workers`, `-service-client`) replacing group prefixes. Superseded pattern preserved in-section. **GR-002/GR-003/GR-007 Current State** refreshed against shipped `main`; GR-002 confirmed portfolio-wide with no exceptions.                                                                                                                                                                                                                                                                                                                                                                                                 |

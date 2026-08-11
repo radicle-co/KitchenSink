@@ -14,7 +14,6 @@
  * @implements FR-001 FR-IDN-1
  */
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
-import { UsdaApiClient } from '@kitchensink/usda-client';
 
 import { DrizzleProvider, type FoodDrizzle } from '../database/database.module.js';
 import { FoodMetrics } from '../observability/emf-metrics.js';
@@ -23,7 +22,7 @@ import { FoodServiceErasureAuthService } from '../auth/food-service-erasure-auth
 import { FoodServiceErasureGuard } from '../auth/food-service-erasure.guard.js';
 import { SourceAdapterRegistry } from '../sources/food-source-adapter.js';
 import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
-import { UsdaSourceAdapter } from '../sources/usda/usda.adapter.js';
+import { createUsdaSourceRegistry } from '../sources/usda/usda-registry.js';
 import { AdmissionService } from './admission.service.js';
 import { AdminMetricsDao } from './admin/admin-metrics.dao.js';
 import { AdminMetricsService } from './admin/admin-metrics.service.js';
@@ -77,16 +76,10 @@ import { UserErasureService } from './user-erasure.service.js';
         // through. A factory rather than a bare class provider because its only constructor parameter is
         // the injectable line sink (defaulting to `console.log`), which Nest's DI cannot resolve.
         { provide: FoodMetrics, useFactory: (): FoodMetrics => new FoodMetrics() },
-        {
-            provide: SourceAdapterRegistry,
-            useFactory: (): SourceAdapterRegistry => {
-                const registry = new SourceAdapterRegistry();
-                const apiKey = process.env['USDA_API_KEY'] ?? '';
-                registry.register(new UsdaSourceAdapter(new UsdaApiClient({ apiKey })));
-
-                return registry;
-            },
-        },
+        // The ONE registry factory, shared with both Fargate entrypoints. It replaces a local `?? ''`
+        // fallback that would have built a client with an EMPTY api key, and it is what finally gives
+        // `USDA_API_BASE_URL` a consumer.
+        { provide: SourceAdapterRegistry, useFactory: createUsdaSourceRegistry },
         {
             provide: GoldenRecordMergeEngine,
             inject: [SourceAdapterRegistry],

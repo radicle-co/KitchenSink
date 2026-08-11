@@ -5,7 +5,7 @@
  * live per-`sub` pending count, and requester pruning when a food leaves the queue
  * (FR-014, FR-015, FR-018, FR-043, FR-044).
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 
 import { FoodDao } from '../src/foods/dao/food.dao.js';
@@ -140,6 +140,61 @@ describe.skipIf(!DATABASE_URL)('FetchQueueDao + FetchRequestersDao (integration)
             const reclaimed = await queue.leaseNext(30);
             expect(reclaimed?.foodId).toBe(id);
             expect(reclaimed?.attempts).toBe(0);
+        });
+
+        /**
+         * T-150 — the lease window is CONFIGURED (`FOOD_LEASE_TIMEOUT_SECONDS`), not the module literal 30
+         * the DAO used to carry (with a third copy in `FoodConsumerService`). Raising it is what stops the
+         * reaper stealing a row from a slow-but-live worker mid-fan-out; lowering it is what recovers a row
+         * faster after a task is killed. Neither worked before, and neither said so.
+         *
+         * A fresh `FetchQueueDao` is built per case because the window is resolved at construction.
+         */
+        describe('the configured lease window (FR-018)', () => {
+            afterEach(() => {
+                vi.unstubAllEnvs();
+            });
+
+            /** Enqueue a food, lease it, and backdate the lease by `seconds`. */
+            async function leasedAndBackdated(name: string, seconds: number): Promise<string> {
+                const { id } = await foods.createByName({ normalizedName: name });
+                await requesters.add({ foodId: id, requesterId: 'a' });
+                await queue.enqueue(id);
+                await queue.leaseNext(30);
+                await pool.query(
+                    `UPDATE fetch_queue SET leased_at = now() - make_interval(secs => $2) WHERE food_id = $1`,
+                    [id, seconds],
+                );
+
+                return id;
+            }
+
+            it('reclaims a 15s-old lease when the window is tuned DOWN to 10s (the default 30 would not)', async () => {
+                const id = await leasedAndBackdated('short-lease food', 15);
+
+                vi.stubEnv('FOOD_LEASE_TIMEOUT_SECONDS', '10');
+
+                expect(await new FetchQueueDao(db).reapExpiredLeases()).toBe(1);
+                expect((await queue.getByFoodId(id))?.status).toBe('pending');
+            });
+
+            it('leaves that same lease ALONE when the window is tuned UP to 300s', async () => {
+                const id = await leasedAndBackdated('long-lease food', 60);
+
+                vi.stubEnv('FOOD_LEASE_TIMEOUT_SECONDS', '300');
+
+                expect(await new FetchQueueDao(db).reapExpiredLeases()).toBe(0);
+                expect((await queue.getByFoodId(id))?.status).toBe('in_flight');
+            });
+
+            it("applies the configured window to leaseNext's reaper-on-claim, so a drain reclaims it too", async () => {
+                const id = await leasedAndBackdated('claim-lease food', 15);
+
+                vi.stubEnv('FOOD_LEASE_TIMEOUT_SECONDS', '10');
+
+                // Under the old literal 30s window this row is not yet expired, so the claim finds nothing.
+                expect((await new FetchQueueDao(db).leaseNext())?.foodId).toBe(id);
+            });
         });
     });
 

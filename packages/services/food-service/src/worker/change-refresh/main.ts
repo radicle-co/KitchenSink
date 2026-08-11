@@ -21,10 +21,8 @@ import { SourceCallLogDao } from '../../foods/dao/source-call-log.dao.js';
 import { EnqueueEmitter } from '../../foods/enqueue.emitter.js';
 import { foodPoolConfigFromEnv } from '../../database/pool-config.js';
 import * as schema from '../../db/schema/index.js';
-import { SourceAdapterRegistry } from '../../sources/food-source-adapter.js';
 import { RollingWindowLimiter } from '../../sources/rolling-window-limiter.js';
-import { UsdaSourceAdapter } from '../../sources/usda/usda.adapter.js';
-import { UsdaApiClient } from '@kitchensink/usda-client';
+import { createUsdaSourceRegistry } from '../../sources/usda/usda-registry.js';
 import { ConsoleWorkerLogger } from '../worker-logger.js';
 import { ChangeRefreshConsumer } from './change-refresh.consumer.js';
 
@@ -40,14 +38,9 @@ async function bootstrap(): Promise<void> {
     const pool = new Pool({ ...foodPoolConfigFromEnv(), max: 5 });
     const db = drizzle(pool, { schema });
 
-    const apiKey = process.env['USDA_API_KEY'];
-
-    if (!apiKey) {
-        throw new Error('USDA_API_KEY is required to run the change-refresh task');
-    }
-
-    const registry = new SourceAdapterRegistry();
-    registry.register(new UsdaSourceAdapter(new UsdaApiClient({ apiKey })));
+    // Source credentials (USDA_API_KEY) and the adapter's base URL (USDA_API_BASE_URL) are resolved by the
+    // ONE registry factory through the ONE validated reader — see the note in `worker/main.ts`.
+    const registry = createUsdaSourceRegistry();
 
     const consumer = new ChangeRefreshConsumer({
         sources: new FoodSourcesDao(db),

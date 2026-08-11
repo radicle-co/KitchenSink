@@ -106,7 +106,12 @@ export interface FoodConsumerDeps {
     readonly logger?: WorkerLogger;
     /** Optional EMF metric recorder — when present, per-row resolution latency is emitted (T-181). */
     readonly metrics?: FoodMetrics;
-    /** Lease window in seconds (default 30). */
+    /**
+     * Lease window in seconds. Left UNSET by the composition roots on purpose: omitted, the queue DAO
+     * applies the configured `FOOD_LEASE_TIMEOUT_SECONDS` (FR-018). Restating a default here is what made
+     * that variable dead — this service passed its own literal 30 on every call, so the DAO's configured
+     * default never applied.
+     */
     readonly leaseSeconds?: number;
     /**
      * How many foods to process concurrently in {@link FoodConsumerService.drain} (default 1). The fan-out
@@ -126,7 +131,7 @@ export class FoodConsumerService {
     private readonly events: FoodEventPublisher;
     private readonly logger: WorkerLogger;
     private readonly metrics: FoodMetrics | undefined;
-    private readonly leaseSeconds: number;
+    private readonly leaseSeconds: number | undefined;
     private readonly concurrency: number;
 
     /** @param deps - The injected DAOs, registry, limiter, merge seam, and event publisher. */
@@ -140,7 +145,7 @@ export class FoodConsumerService {
         this.events = deps.events;
         this.logger = deps.logger ?? new ConsoleWorkerLogger();
         this.metrics = deps.metrics;
-        this.leaseSeconds = deps.leaseSeconds ?? 30;
+        this.leaseSeconds = deps.leaseSeconds;
         this.concurrency = Math.max(1, deps.concurrency ?? 1);
     }
 

@@ -7,8 +7,9 @@
  *
  * @implements FR-002 FR-005 FR-013 FR-025 FR-028 FR-028a FR-IDN-1
  */
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, type SQL } from 'drizzle-orm';
 
+import { settingFromEnv } from '../../config/env.schema.js';
 import type { FoodDrizzle } from '../../database/database.module.js';
 import {
     food,
@@ -118,7 +119,7 @@ export interface CreateByNameResult {
     id: string;
     /** `true` only when this call inserted a fresh row. */
     created: boolean;
-    /** `true` when a terminal-state row past its 30-day TTL was reset to `PENDING` (FR-028a). */
+    /** `true` when a terminal-state row past its configured TTL was reset to `PENDING` (FR-028a). */
     reactivated: boolean;
 }
 
@@ -158,8 +159,20 @@ export interface GoldenScalars {
 /** Two-int advisory-lock classid for per-name dedup (DSN-15) — distinct from the drainer/limiter classes. */
 const LOCK_CLASS_DEDUP = 2;
 
-/** The 30-day terminal-row / NOT_FOUND TTL window (FR-025/FR-028a). */
-const TERMINAL_TTL = sql`interval '30 days'`;
+/** Options for {@link FoodDao}. */
+export interface FoodDaoOptions {
+    /**
+     * Terminal-row (`NOT_FOUND`/`FAILED`) TTL in days, past which {@link FoodDao.createByName} reactivates
+     * a tombstone to `PENDING` (FR-025/FR-028a). Defaults to the configured `FOOD_NOT_FOUND_TTL_DAYS`
+     * (30 when unset).
+     *
+     * Resolved HERE rather than at each composition root, for the reason recorded on
+     * `FetchQueueDaoOptions.demoteThreshold`: a caller that forgets to pass the configured value falls
+     * back to a built-in one silently. This variable was worse than that — boot-validated and documented,
+     * with NO consumer at all, because the statement carried `interval '30 days'` as a literal.
+     */
+    readonly notFoundTtlDays?: number;
+}
 
 /**
  * Legal status-transition set (FR-028a) expressed as the set of prior statuses from which each
@@ -175,7 +188,26 @@ const LEGAL_PRIORS: Record<FoodStatus, readonly FoodStatus[]> = {
 };
 
 export class FoodDao {
-    public constructor(private readonly db: FoodDrizzle) {}
+    /**
+     * The terminal-row / NOT_FOUND TTL as a SQL interval (FR-025/FR-028a), bound as a parameter so the
+     * configured value reaches Postgres instead of being baked into the statement text.
+     *
+     * Resolved per instance, not at module load: a malformed value must fail where an operator can
+     * attribute it (constructing this DAO), not as an import-time crash in whichever module happens to
+     * pull the file in first — and a frozen module constant made the knob unobservable to any test.
+     */
+    private readonly terminalTtl: SQL;
+
+    /**
+     * @param db - The food-schema Drizzle client.
+     * @param options - Optional tombstone-TTL override (defaults to `FOOD_NOT_FOUND_TTL_DAYS`).
+     */
+    public constructor(
+        private readonly db: FoodDrizzle,
+        options?: FoodDaoOptions,
+    ) {
+        this.terminalTtl = sql`make_interval(days => ${options?.notFoundTtlDays ?? settingFromEnv('FOOD_NOT_FOUND_TTL_DAYS')})`;
+    }
 
     /**
      * Fetch the raw `food` row by internal id.
@@ -194,7 +226,8 @@ export class FoodDao {
      * Add-by-name with normalized-name dedup (FR-005/FR-013/FR-028a). A single
      * `INSERT … ON CONFLICT (normalized_name) DO UPDATE … RETURNING` always returns a row: a fresh add
      * inserts a `PENDING` row; a duplicate collapses to the existing `id`; a terminal-state
-     * (`NOT_FOUND`/`FAILED`) row PAST its 30-day TTL is reactivated to `PENDING` (never a `23505`). A
+     * (`NOT_FOUND`/`FAILED`) row PAST its configured TTL (`FOOD_NOT_FOUND_TTL_DAYS`, default 30 days) is
+     * reactivated to `PENDING` (never a `23505`). A
      * short per-name advisory lock (DSN-15) serializes same-name adds; the `UNIQUE(normalized_name)`
      * index is the durable backstop. `created` distinguishes insert (`xmax=0`) from conflict; the
      * reactivation flag is computed from the row's pre-update state captured in the CTE.
@@ -221,15 +254,15 @@ export class FoodDao {
                     ON CONFLICT (normalized_name) DO UPDATE SET
                         status = CASE
                             WHEN food.status IN ('NOT_FOUND', 'FAILED')
-                                 AND food.tombstoned_at < now() - ${TERMINAL_TTL}
+                                 AND food.tombstoned_at < now() - ${this.terminalTtl}
                             THEN 'PENDING'::food_status ELSE food.status END,
                         tombstoned_at = CASE
                             WHEN food.status IN ('NOT_FOUND', 'FAILED')
-                                 AND food.tombstoned_at < now() - ${TERMINAL_TTL}
+                                 AND food.tombstoned_at < now() - ${this.terminalTtl}
                             THEN NULL ELSE food.tombstoned_at END,
                         updated_at = CASE
                             WHEN food.status IN ('NOT_FOUND', 'FAILED')
-                                 AND food.tombstoned_at < now() - ${TERMINAL_TTL}
+                                 AND food.tombstoned_at < now() - ${this.terminalTtl}
                             THEN now() ELSE food.updated_at END
                     RETURNING id, (xmax = 0) AS inserted
                 )
@@ -237,7 +270,7 @@ export class FoodDao {
                     u.id,
                     u.inserted,
                     COALESCE(
-                        e.status IN ('NOT_FOUND', 'FAILED') AND e.tombstoned_at < now() - ${TERMINAL_TTL},
+                        e.status IN ('NOT_FOUND', 'FAILED') AND e.tombstoned_at < now() - ${this.terminalTtl},
                         false
                     ) AS reactivated
                 FROM upserted u

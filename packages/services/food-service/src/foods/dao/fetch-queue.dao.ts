@@ -18,9 +18,6 @@ import { settingFromEnv } from '../../config/env.schema.js';
 import type { FoodDrizzle } from '../../database/database.module.js';
 import { fetchQueue, type FetchQueueRow } from '../../db/schema/index.js';
 
-/** Default worker lease window in seconds (REQ-017). */
-const DEFAULT_LEASE_SECONDS = 30;
-
 /** Options for {@link FetchQueueDao}. */
 export interface FetchQueueDaoOptions {
     /**
@@ -34,21 +31,36 @@ export interface FetchQueueDaoOptions {
      * validated `Environment`.
      */
     readonly demoteThreshold?: number;
+    /**
+     * Worker lease window in seconds (FR-018) — the age at which the reaper reverts an `in_flight` row.
+     * Defaults to the configured `FOOD_LEASE_TIMEOUT_SECONDS` (30 when unset).
+     *
+     * Resolved HERE for the same reason as `demoteThreshold`: the variable is documented, boot-validated,
+     * and used to have NO consumer at all — the reaper ran on a module literal, and `FoodConsumerService`
+     * held a third copy of the same 30 that overrode this one on every real call. An operator raising the
+     * window to stop the reaper stealing rows from a slow-but-live fan-out changed nothing, silently.
+     */
+    readonly leaseSeconds?: number;
 }
 
 export class FetchQueueDao {
     /** The resolved per-requester pending threshold used by {@link leaseNext}'s demotion ranking. */
     private readonly demoteThreshold: number;
 
+    /** The resolved lease window (seconds) the reaper and the reaper-on-claim default to (FR-018). */
+    private readonly leaseSeconds: number;
+
     /**
      * @param db - The food-schema Drizzle client.
-     * @param options - Optional demotion-threshold override (defaults to `FOOD_DEMOTE_THRESHOLD`).
+     * @param options - Optional demotion-threshold / lease-window overrides (defaulting to
+     *   `FOOD_DEMOTE_THRESHOLD` and `FOOD_LEASE_TIMEOUT_SECONDS`).
      */
     public constructor(
         private readonly db: FoodDrizzle,
         options?: FetchQueueDaoOptions,
     ) {
         this.demoteThreshold = options?.demoteThreshold ?? settingFromEnv('FOOD_DEMOTE_THRESHOLD');
+        this.leaseSeconds = options?.leaseSeconds ?? settingFromEnv('FOOD_LEASE_TIMEOUT_SECONDS');
     }
 
     /**
@@ -243,11 +255,11 @@ export class FetchQueueDao {
      * a maintained per-requester counter — a second representation of the same number, i.e. the T-199a
      * split-brain by construction — and it is not justified at the measured cost.
      *
-     * @param leaseSeconds - Lease window in seconds (default 30).
+     * @param leaseSeconds - Lease window in seconds (defaults to the configured `FOOD_LEASE_TIMEOUT_SECONDS`).
      * @returns The leased row, or `undefined` when nothing is eligible.
      * @sideEffect Updates `fetch_queue` (status/leased_at) — including reverting lapsed leases.
      */
-    public async leaseNext(leaseSeconds: number = DEFAULT_LEASE_SECONDS): Promise<FetchQueueRow | undefined> {
+    public async leaseNext(leaseSeconds: number = this.leaseSeconds): Promise<FetchQueueRow | undefined> {
         // Reaper-on-claim as its own statement (FR-018). A lapsed `in_flight` row always has
         // `last_requested <= now()` — nothing pushes that stamp forward without also setting
         // `status = 'pending'` — so reverting it here makes it eligible for THIS claim at exactly the
@@ -316,11 +328,11 @@ export class FetchQueueDao {
      * Revert orphaned `in_flight` rows whose lease has lapsed back to `pending` (the reaper, FR-018).
      * Does NOT touch `attempts` — a reclaim is not a failure (DSN-5).
      *
-     * @param leaseSeconds - Lease window in seconds (default 30).
+     * @param leaseSeconds - Lease window in seconds (defaults to the configured `FOOD_LEASE_TIMEOUT_SECONDS`).
      * @returns The number of reclaimed rows.
      * @sideEffect Updates `fetch_queue`.
      */
-    public async reapExpiredLeases(leaseSeconds: number = DEFAULT_LEASE_SECONDS): Promise<number> {
+    public async reapExpiredLeases(leaseSeconds: number = this.leaseSeconds): Promise<number> {
         const result = await this.db.execute(sql`
             UPDATE fetch_queue SET status = 'pending'
             WHERE status = 'in_flight' AND leased_at < now() - make_interval(secs => ${leaseSeconds})

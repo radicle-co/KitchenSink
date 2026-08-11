@@ -24,10 +24,8 @@ import { MergeAndPersistService } from '../foods/merge/merge-and-persist.service
 import { FoodMetrics } from '../observability/emf-metrics.js';
 import { foodPoolConfigFromEnv } from '../database/pool-config.js';
 import * as schema from '../db/schema/index.js';
-import { SourceAdapterRegistry } from '../sources/food-source-adapter.js';
 import { RollingWindowLimiter } from '../sources/rolling-window-limiter.js';
-import { UsdaSourceAdapter } from '../sources/usda/usda.adapter.js';
-import { UsdaApiClient } from '@kitchensink/usda-client';
+import { createUsdaSourceRegistry } from '../sources/usda/usda-registry.js';
 import { containerCpus, workerConcurrency } from './concurrency.js';
 import { FoodConsumerService } from './food-consumer.service.js';
 import { ConsoleWorkerLogger } from './worker-logger.js';
@@ -47,14 +45,10 @@ async function bootstrap(): Promise<void> {
     const pool = new Pool({ ...foodPoolConfigFromEnv(), max: Math.max(10, concurrency + 2) });
     const db = drizzle(pool, { schema });
 
-    const apiKey = process.env['USDA_API_KEY'];
-
-    if (!apiKey) {
-        throw new Error('USDA_API_KEY is required to run the food-fetch consumer');
-    }
-
-    const registry = new SourceAdapterRegistry();
-    registry.register(new UsdaSourceAdapter(new UsdaApiClient({ apiKey })));
+    // Source credentials (USDA_API_KEY) and the adapter's base URL (USDA_API_BASE_URL) are resolved by the
+    // ONE registry factory through the ONE validated reader, so this entrypoint cannot wire a differently
+    // configured adapter than the API or the change-refresh task.
+    const registry = createUsdaSourceRegistry();
 
     const metrics = new FoodMetrics();
     const queue = new FetchQueueDao(db);

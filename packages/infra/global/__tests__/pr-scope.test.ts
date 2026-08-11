@@ -161,14 +161,55 @@ describe('pr_scope_path_belongs — the same rule for a `/`-delimited log-group 
         expect(pathBelongs('pr-1', '/aws/lambda/pr-15')).toBe(false);
     });
 
-    it('never matches a segment that merely CONTAINS the token', () => {
+    // ⚠️ ASSERTION REVERSED (2026-08-11). This case used to require `service-pr-1` to be REFUSED, under the
+    // heading "never matches a segment that merely CONTAINS the token". That was not a safeguard — it was
+    // the defect, pinned. `service-pr-{N}` is exactly the shape ECS generates for the cluster it
+    // auto-creates, so refusing it meant teardown's log-group sweep enumerated every group on every PR
+    // close and matched NOTHING, silently, which is how 22 orphans accumulated. A suffix collision
+    // (`xpr-1`, `expr-57`) is still correctly refused — that is the LEADING delimiter's job, and it stays.
+    it('matches a token delimited by `-` inside a segment, but not a suffix collision', () => {
+        expect(pathBelongs('pr-1', '/aws/lambda/service-pr-1')).toBe(true);
         expect(pathBelongs('pr-1', '/aws/lambda/xpr-1')).toBe(false);
-        expect(pathBelongs('pr-1', '/aws/lambda/service-pr-1')).toBe(false);
+        expect(pathBelongs('pr-57', '/aws/ecs/containerinsights/kitchensink-expr-57-cluster/performance')).toBe(false);
+    });
+
+    // The REAL names, copied verbatim from `aws logs describe-log-groups` on 2026-08-11. The pre-existing
+    // cases above used a hand-written shape (`/…/pr-73-cluster/performance`) that ECS never emits, so they
+    // passed while the live resource went unmatched — the failure mode is a fixture that agrees with the
+    // code instead of with the cloud. Keep these anchored to observed output.
+    it.each([
+        'pr-57|/aws/ecs/containerinsights/kitchensink-food-service-pr-57-FoodServiceCluster442EDB29-XJQiEps8SkTM/performance',
+        'pr-73|/aws/ecs/containerinsights/kitchensink-food-service-pr-73-FoodServiceCluster442EDB29-HT2Ouy2EeNIU/performance',
+        'pr-90|/aws/ecs/containerinsights/kitchensink-recipe-service-pr-90-RecipeServiceClusterB7546CB8-YXduIPkelBS5/performance',
+    ])('reclaims the real Container Insights group %s', (probe) => {
+        const [token, path] = probe.split('|') as [string, string];
+
+        expect(pathBelongs(token, path)).toBe(true);
+    });
+
+    it('still refuses a NEIGHBOURING PR whose real group differs by one digit', () => {
+        const g = (n: number): string =>
+            `/aws/ecs/containerinsights/kitchensink-food-service-pr-${n}-FoodServiceCluster442EDB29-abc/performance`;
+
+        // The trailing anchor is the only thing standing between "reclaim my group" and "delete an OPEN
+        // PR's telemetry": 5 vs 57, and 57 vs 570.
+        expect(pathBelongs('pr-5', g(57))).toBe(false);
+        expect(pathBelongs('pr-57', g(570))).toBe(false);
+        expect(pathBelongs('pr-57', g(57))).toBe(true);
     });
 
     it.each(GLOBAL_NAMES)('refuses the persistent global log path for %s', (name) => {
         expect(pathBelongs('pr-1', `/aws/lambda/${name}`)).toBe(false);
         expect(pathBelongs('pr-73', `/aws/ecs/containerinsights/${name}-cluster/performance`)).toBe(false);
+    });
+
+    it('refuses a real-shaped group for the PERSISTENT sandbox stage, which carries no pr-{N} token', () => {
+        expect(
+            pathBelongs(
+                'pr-91',
+                '/aws/ecs/containerinsights/kitchensink-food-service-sandbox-FoodServiceCluster442EDB29-abc/performance',
+            ),
+        ).toBe(false);
     });
 });
 

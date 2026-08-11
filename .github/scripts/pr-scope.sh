@@ -48,14 +48,38 @@ pr_scope_belongs() {
 
 # pr_scope_path_belongs <token> <path>
 #
-# pr_scope_belongs, plus the same rule applied to a `/`-delimited SEGMENT inside a path — for
-# auto-created resources whose name we do not choose, e.g. the
-# `/aws/ecs/containerinsights/<token>-cluster.../performance` log group. The `/` and `-` delimiters keep
-# `pr-1` out of `/…/pr-15-cluster/…` and out of `/…/service-pr-1`.
+# pr_scope_belongs, plus the same rule applied ANYWHERE inside a path — for auto-created resources whose
+# name we do not choose, e.g. the Container Insights log group
+# `/aws/ecs/containerinsights/kitchensink-food-service-pr-{N}-{LogicalId}-{hash}/performance`.
+#
+# ⚠️ This deliberately REVERSES a claim this comment used to make. It said the delimiters keep `pr-1` out
+# of `/…/service-pr-1` — treating a mid-segment token as something to exclude. That exclusion was the
+# defect, not a safeguard: `service-pr-1` is exactly the shape ECS generates, so excluding it meant the
+# teardown's log-group sweep matched nothing on every PR close. `pr-1` out of `/…/pr-15-cluster/…` is
+# still correct and still enforced — that is the TRAILING anchor's job, and it is preserved.
+#
+# The rule is now: the token must be delimited on both sides by start/end-of-string, `/`, or `-`.
 pr_scope_path_belongs() {
     pr_scope_is_token "${1-}" || return 2
     pr_scope_belongs "$1" "${2-}" && return 0
-    case "${2-}" in *"/$1" | *"/$1-"* | *"/$1/"*) return 0 ;; *) return 1 ;; esac
+    case "${2-}" in *"/$1" | *"/$1-"* | *"/$1/"*) return 0 ;; esac
+
+    # ⚠️ The token also appears MID-SEGMENT, and for two years this function did not match it. The globs
+    # above require the segment to START with the token (`/pr-57-cluster/`), which is what this function's
+    # own docstring used to claim a Container Insights log group looks like. It does not. ECS names the
+    # cluster it auto-creates `kitchensink-{service}-pr-{N}-{LogicalId}-{hash}`, so the real name is
+    #   /aws/ecs/containerinsights/kitchensink-food-service-pr-57-FoodServiceCluster442EDB29-XJQiEps8SkTM/performance
+    # where `pr-57` is preceded by `-`, not `/`. The sweep in `teardown-sandbox-pr.sh` §4 therefore ran on
+    # every PR close, enumerated every log group, matched NOTHING, and reported success — which is how 22
+    # orphans (pr-57 … pr-90) accumulated behind a routine that looked implemented and even documented the
+    # resource by name. Verified against the live API 2026-08-11.
+    #
+    # Anchored on BOTH sides, which is what keeps this from becoming the over-broad prefix match ADR-0005
+    # forbids: the token must be preceded by start-of-string, `/`, or `-`, and followed by `-`, `/`, or
+    # end-of-string. The trailing anchor is what stops `pr-5` from claiming `…-pr-57-…` and `pr-57` from
+    # claiming `…-pr-570-…`; the leading one stops a suffix collision like `…-expr-57-…`.
+    [[ ${2-} =~ (^|[/-])"$1"([/-]|$) ]] && return 0
+    return 1
 }
 
 # The prefix `sandbox-web-preview.yml` publishes a per-PR web preview's GitHub **Environment** under, as

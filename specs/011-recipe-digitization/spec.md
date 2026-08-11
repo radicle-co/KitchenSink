@@ -325,6 +325,49 @@ New tables (PostgreSQL 16, Drizzle): `circles`, `circle_members` (PK = `circle_i
 
 > Included because **FEATURE_TYPE = shared_infrastructure**. 011 owns `Circle`, the `circle` audience scope, and `@kitchensink/audience` — consumed by 001 / 006 / 007.
 
+### How consumers depend on this feature (GR-015 — read before the Public API block)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
+
+011 owns two deployable services, so it owns **two** wire contracts, and both halves of GR-015 apply:
+
+- **The service half.** `@kitchensink/digitization-service` and `@kitchensink/circles-service` each **author**
+  their wire shapes as zod at `src/**/*.schema.ts` beside the controller that serves them, **validate their own
+  requests with that same zod** (`nestjs-zod` `createZodDto`), and each generates a committed
+  `@kitchensink/schema-digitization` / `@kitchensink/schema-circles` package exporting the zod, `z.infer` types,
+  a `contract-hash.ts`, and a **derived** `openapi.yaml` (outbound only — for `oasdiff`, docs and integrators,
+  never a codegen input).
+- **The client half — separately mandatory.** Every consumer, whether it is `@commise/web`, `@commise/mobile`,
+  a feature package, or **another service (001 / 006 / 007)**, imports its wire types **and zod** from those
+  schema packages and **declares no request or response body shape of its own**. Where a consumer's shape
+  genuinely differs it is **DERIVED** with `Pick` / `Omit` / `Partial` over the wire type, never independently
+  declared (reference: `packages/apps/commise/features/recipes/src/filters/model.ts`). A consumer that
+  hand-writes a `Circle` response or the `error_code` union is the failure GR-015 exists to prevent — it drifts
+  silently and `typecheck` reports agreement between two representations that were never compared.
+- **Drift gates** are inherited from GR-015 §15-c, all three, per service — turbo `inputs` rebuild, a
+  regenerate-and-diff CI gate, and a `CONTRACT_HASH` boot assertion. The last one is what catches circles being
+  deployed ahead of 001/006/007's pinned schema, since those ship independently.
+
+⚠️ **A consumer MUST NOT depend on `@kitchensink/circles-service` itself.** The `CirclesService` interface below
+describes the **capability**, not the dependency edge. Importing the deployable service package is ADR-0014's
+rejected alternative 2 — it drags NestJS, Drizzle and the AWS SDK into web, mobile and every consuming service,
+and inverts the build order. Consumers depend on **`packages/clients/circles` + `@kitchensink/schema-circles`**.
+This corrects _Acceptance Criteria_ item 2, which says 001 "imports `@kitchensink/circles-service`".
+
+✅ **`@kitchensink/audience` is unaffected and stays exactly as specified.** It is a **type-only domain**
+package on the GR-007 axis — not a wire contract. A schema package **reuses** it `import type` and never
+re-declares `Audience` or `AudienceScope`; re-declaring them to make a schema package literally
+dependency-free would manufacture the very drift GR-015 prevents.
+
+⚠️ **The OCR provider is the OPPOSITE case (GR-015 §15-d) — do not converge it.** Textract (and any future OCR
+provider behind `ocr-provider.interface.ts`) is an API we do **not** serve. Its adapters **validate the raw
+upstream response at the boundary with zod** and **may declare their own types**; no OpenAPI document is written
+for it, and its shapes never enter `@kitchensink/schema-digitization`. `packages/clients/usda` is the reference
+implementation. Deleting those boundary schemas in the name of convergence removes the parse standing between a
+user-supplied photograph's extracted text and the recipe write path — a security regression, not a cleanup.
+
 ### Public API
 
 ```typescript

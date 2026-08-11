@@ -74,6 +74,35 @@ Rule reference: [`governance-rules.md#gr-007-shared-type-library-ownership`](../
 
 012 will import shared canonical entities from `@kitchensink/recipe-core` and avoid local type forks for recipe/user/shared domain entities.
 
+### GR-015 — API Contract Ownership
+
+Rule reference: [`governance-rules.md#gr-015-api-contract-ownership`](../governance-rules.md#gr-015-api-contract-ownership)
+· normative source [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) · reasoning and rejected
+alternatives in [ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
+
+**Both halves apply, and the client half is separately mandatory** — mandating only the service side is how the
+client half got skipped portfolio-wide.
+
+- **Service half.** `@kitchensink/creator-profiles-service` **authors** every wire shape as zod at
+  `src/**/*.schema.ts` beside its controller, **validates its own requests with that same zod** via
+  `nestjs-zod`'s `createZodDto`, and generates the committed `@kitchensink/schema-creator-profiles` package at
+  `packages/schemas/creator-profiles` (zod + `z.infer` types + `contract-hash.ts` + barrel + a **derived**,
+  outbound-only `openapi.yaml`). A `*.schema.ts` imports **only `zod` and other `*.schema.ts` files**.
+- **Client half.** `packages/clients/creator-profiles`, `@commise/web` and `@commise/mobile` import wire types
+  **and zod** from that schema package and **declare no wire shape of their own**; a divergent consumer shape
+  (the `/@handle` SSR page model, an analytics series) is **DERIVED** with `Pick` / `Omit` / `Partial`.
+- **Drift gates** are inherited from GR-015 §15-c — turbo `inputs` rebuild, regenerate-and-diff CI gate, and a
+  `CONTRACT_HASH` boot assertion. **Phase 1 of the scaffold below must create the schema package and wire all
+  three gates**, not defer them; a service that ships without them is where drift starts.
+- **Third-party exception (§15-d)** does not bite here: monetization is delegated to 010, so **Stripe's shapes
+  stay behind 010's boundary** and never enter this feature's schema package. If 012 later calls an external API
+  directly, that client validates the raw upstream shape at the boundary with zod, may declare its own types,
+  and gets no OpenAPI document — `packages/clients/usda` is the reference implementation and must not be
+  "converged".
+
+Full bindings, including the HTML-fragment widget caveat, are in
+[`spec.md` → _Contract ownership (GR-015)_](./spec.md#contract-ownership-gr-015--the-service-authors-it-and-clients-declare-nothing).
+
 ### Additional cross-feature guardrails applied
 
 - Audience ownership boundaries respected: `public-profile` behavior is owned here; `circle` and `published-lesson` remain external scopes governed by GR-014.

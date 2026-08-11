@@ -220,6 +220,76 @@ Auth model for all endpoints: **Clerk session token required** (feature 002), ve
 
 - RFC 7807 Problem Details envelope on all 4xx/5xx (FR-030)
 - Machine-readable `error_code` required for revoked invite, forbidden audience, validation failures, payload constraints.
+- ⚠️ **The Problem Details envelope and the `error_code` enum are wire types**, so they are authored as zod in
+  each owning service and exported from its schema package — not re-declared per client. A client that
+  hand-writes the `error_code` union drifts by one member and silently stops handling a real failure.
+
+### Contract ownership and drift (GR-015)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
+
+011 introduces **two** deployable services, so it gets **two** schema packages — one per service. A schema
+package is per-service, never per-feature.
+
+| Role                                        | Digitization                                                                                  | Circles                                                         |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Owning service (**authors** the zod)        | `@kitchensink/digitization-service` — `src/**/*.schema.ts`                                    | `@kitchensink/circles-service` — `src/**/*.schema.ts`           |
+| Schema package (generated, committed)       | `@kitchensink/schema-digitization` — `packages/schemas/digitization`                          | `@kitchensink/schema-circles` — `packages/schemas/circles`      |
+| Consuming client                            | `packages/clients/digitization`                                                               | `packages/clients/circles`                                      |
+| Consuming apps                              | `@commise/web`, `@commise/mobile`                                                             | `@commise/web`, `@commise/mobile`, **and services 001/006/007** |
+| Domain types (a **different** axis, GR-007) | `@kitchensink/recipe-core`, `@kitchensink/audience` — reused `import type`, never re-declared |                                                                 |
+
+**Each service MUST** author every job, correction, save, circle, membership and invitation request/response
+shape — plus the Problem Details envelope and `error_code` enum — as **zod in that service** at
+`src/**/*.schema.ts` beside its controller; **validate its own requests with that same zod** via `nestjs-zod`'s
+`createZodDto` (this is where the payload constraints of FR-027/FR-028 belong, so a client sees the same bound
+the server enforces); generate and commit its schema package exporting the zod, `z.infer` types,
+`contract-hash.ts`, a barrel and a **derived** `openapi.yaml` (outbound only — never a codegen input); and keep
+every `*.schema.ts` importing **only `zod` and other `*.schema.ts` files**.
+
+**Every client MUST** — separately mandatory, because mandating only the service half is exactly how the client
+half got skipped portfolio-wide:
+
+- Import its wire **types and zod** from the relevant schema package, and **declare no digitization or circles
+  request/response body type of its own** — including in `@commise/web`, `@commise/mobile` and feature packages
+  (GR-015 §15-b.4).
+- **Derive** any divergent consumer shape with `Pick` / `Omit` / `Partial`. The inline-correction editor's model
+  is a derivation of the job-result wire type, and the review screen's per-field confidence model is a
+  derivation of the same — not parallel interfaces, and not re-typed once for web and again for mobile.
+  Reference: `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **A new endpoint is not complete until its types are reachable from its schema package.**
+
+⚠️ **Consumers MUST NOT import `@kitchensink/circles-service` (or `@kitchensink/digitization-service`).** The
+_Consumer Contract_ in `spec.md` and this plan's acceptance criteria say 001 "imports
+`@kitchensink/circles-service`" for audience resolution. That is **ADR-0014's rejected alternative 2**: a
+consumer depending on a deployable service package drags NestJS, Drizzle and the AWS SDK into web, mobile and
+every consuming service, and inverts the build order. Consumers depend on **`packages/clients/circles` +
+`@kitchensink/schema-circles`**. `@kitchensink/audience` stays as it is — it is a **type-only domain** package
+on the GR-007 axis, not a wire contract, and it is reused rather than re-declared inside a schema package.
+
+**Drift gates** — inherited from GR-015 §15-c, all three required per service: turbo `inputs` rebuild, the
+regenerate-and-diff CI gate, and the `CONTRACT_HASH` boot assertion. The boot assertion matters especially for
+circles, which is consumed by **three separately deployed services** (001, 006, 007) — the one skew case
+neither turbo nor CI can see.
+
+### ⛔ THE EXCEPTION — the OCR provider is a third-party API. NEVER converge it. (GR-015 §15-d)
+
+**We do not serve AWS Textract's API, nor any future OCR provider's.**
+
+- The **`OcrProvider` port's adapters** (T050's Textract adapter, and any provider added later — Q-001) MUST
+  **validate the raw upstream response at the boundary with zod** before any extracted block, geometry, or
+  confidence value reaches a job result. OCR output is untrusted, attacker-influenceable content: the input is
+  a user-supplied photograph of an arbitrary page.
+- Those adapters **MAY declare their own types**, and the normalized job-result shape we publish **deliberately
+  differs** from the provider payload. That difference is the normalization, not drift — and it is what keeps
+  the provider swap of `ocr-provider.interface.ts` genuinely pluggable.
+- **No OpenAPI document is written for Textract or any OCR provider**, and provider shapes are **not** folded
+  into `@kitchensink/schema-digitization` as though we owned them.
+- `packages/clients/usda` is the reference implementation; its `schemas.ts` must never be "converged".
+- **Deleting an OCR boundary schema under the convergence rule is a security regression**, not a cleanup: it is
+  the parse standing between a hostile image's extracted text and the recipe write path.
 
 ---
 

@@ -30,3 +30,4 @@ Without those two layers the ADR is invisible at the moment it matters.
 - [0011 — Canonical `/api/{version}/*` endpoints, bare `/{version}/*` kept as a deprecated alias](0011-api-version-prefix.md)
 - [0012 — MCP agent credential bridge: Clerk proves identity, we own the grant](0012-mcp-agent-credential-bridge.md)
 - [0013 — cdk-nag on every CDK app, ADVISORY, with a byte-identical-template guarantee](0013-cdk-nag-advisory-iac-security-linting.md)
+- [0014 — The service authors its wire contract in zod; clients import only `packages/schemas/<service>`](0014-service-owned-api-contracts.md)

@@ -110,6 +110,26 @@ ADR under `docs/architecture/decisions/` and confirm you are not reintroducing t
   removed yet.** The Clerk dashboard holds the webhook URL, i.e. configuration outside this repository.
   Deleting the alias mapping would 404 every `user.*` callback and silently stop syncing users — no failed
   deploy, no alarm.
+- **ADR-0014 — the service owns its wire types; `packages/schemas/*` is GENERATED and clients never
+  redeclare a wire shape.** zod is authored in the service at `src/**/*.schema.ts`, beside the controller
+  it serves, and a committed COPY is generated into `packages/schemas/<svc>` (`@kitchensink/schema-<svc>`)
+  by `@kitchensink/contract-gen`. Clients import zod + `z.infer` types from there and declare none of
+  their own; a consumer whose shape genuinely differs DERIVES it (`Pick`/`Omit`/`Partial`). Four things
+  look like defects and are not: **(1)** the schema package is a literal file COPY, not a transformation —
+  zod schemas are runtime values, so they cannot be derived from themselves, and every package exports raw
+  `./src/*.ts`, so no bundle-into-`dist` path exists; **(2)** turbo uses `$TURBO_ROOT$` **`inputs`**, NOT
+  `dependsOn` — that edge closes the cycle `client → schema → service → client`, and ordering is not the
+  requirement because the generated files are committed; **(3)** `openapi.yaml` is DERIVED output for
+  `oasdiff`/docs/integrators and is **never a codegen input** — routing types through JSON Schema loses
+  `readonly`, branded and template-literal types and flattens discriminated unions; **(4)** a
+  `*.schema.ts` may import ONLY `zod`, enforced by a parser-based guard, because the copy would otherwise
+  break or drag the server graph into web and mobile. ⛔ And the INVERSE is deliberate: a third-party API
+  we do NOT serve (`packages/clients/usda`, Clerk, Vercel, Stripe) has no service of ours to own its type
+  and cannot be trusted, so those clients validate the raw upstream shape at the boundary with zod and MAY
+  declare their own types — do not "converge" them, and never publish an OpenAPI document for an API we do
+  not serve. Also: `createZodDto` classes carry NO `class-validator` metadata, so a service using them
+  MUST bind `nestjs-zod`'s `ZodValidationPipe` — under Nest's own `ValidationPipe` such a DTO validates
+  **nothing** while looking correctly wired.
 
 ## Cross-platform rule (enforced)
 

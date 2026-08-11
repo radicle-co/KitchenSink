@@ -378,9 +378,11 @@ predicate — a fresh `similarity()`, measured at 2.19µs — on the 9,754 it di
 **GiST** trigram index on the same column, which answers it with 368 candidates. An index cannot change a
 result (the operator is rechecked from the heap); proved over 932 probes on two 50,000-row fixture shapes
 against a pure Seq Scan, and pinned per-PR by `tests/food-search-access-path.integration.test.ts`. Local DB
-time, on the fixture CI seeds: `narrow` 45.8 → 12.4ms, `phrase` 44.4 → 9.9ms, `broad` 17.7 → 13.2ms, with
-`brand` 11.5 → 16.9ms and `miss` 0.12 → 4.9ms deliberately traded — GiST scans its whole index whatever the
-needle, so a cost that tracked pattern length becomes a flat 4–17ms band, which is the right shape for a p95
+time, on the fixture CI seeds and in CI's build order (migration first, so the index is built by the bulk
+INSERT rather than packed by a later `CREATE INDEX`): `narrow` 45.8 → 14.6ms, `phrase` 44.4 → 11.1ms,
+`broad` 17.7 → 15.0ms, with `brand` 11.5 → 19.5ms and `miss` 0.12 → 6.7ms deliberately traded — GiST scans its whole index whatever the
+needle, so a cost that tracked pattern length (0.12–45.8ms) becomes a flat 7–20ms band, which is the right
+shape for a p95
 gate. Full evidence, the rejected alternatives (removing either branch, a UNION rewrite, a query-plan cost
 gate) and the mutation results are in `specs/003-usda-food-data/tasks.md` → "T-202 — measured evidence".
 

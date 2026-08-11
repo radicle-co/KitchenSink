@@ -15,7 +15,10 @@
 -- a 45.8ms statement, against SC-007's 250ms p95 (+/-15%) budget which CI measured at 209.9ms p95.
 --
 -- A GiST trigram index answers the same operator with 368 candidates for 368 matches. Measured on the
--- 50,000-food fixture CI seeds: the `narrow` shape 45.8ms -> 12.4ms and `phrase` 44.4ms -> 9.9ms.
+-- 50,000-food fixture CI seeds: the `narrow` shape 45.8ms -> 14.6ms and `phrase` 44.4ms -> 11.1ms. Those
+-- are the numbers for CI's ORDERING — this migration runs before the seed, so the index is built by the
+-- bulk INSERT. Creating it after the rows packs it better and reads 12.4ms / 9.9ms; the pessimistic pair
+-- is quoted because it is the one the gate measures.
 --
 -- **It cannot change a search result.** `%` is rechecked from the heap (`Recheck Cond` in the plan), so a
 -- trigram index — precise or lossy — can only change how fast rows are found, never which rows or in what
@@ -32,7 +35,10 @@
 -- couple the index's usability to the exact text of the DAO's WHERE clause, so an unrelated edit there
 -- would silently cost 4x with nothing red.
 --
--- Cost: ~8.5MB per 50,000 foods and one more index to maintain on `food` writes. `CREATE INDEX` (not
+-- Cost, measured rather than assumed: ~8.5MB per 50,000 foods, and **+4.1µs per `food` row written** — a
+-- 20,000-row bulk INSERT went 350ms -> 431ms (+23%) and 5,000 single-row INSERTs 80.5ms -> 101.6ms (+26%).
+-- The USDA bulk seed is the only writer that moves in volume, so that is ~1.2s added to a 300,000-row
+-- import: worth 3.7x off the read path the API serves on every keystroke. `CREATE INDEX` (not
 -- CONCURRENTLY) because the runner applies each file as one statement in a transaction, as 0001 does for
 -- `food_search_vector_idx`; on a store of this size the write lock is sub-second.
 -- Implements: FR-008 FR-010.

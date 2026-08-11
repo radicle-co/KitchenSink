@@ -760,7 +760,7 @@ T-172, T-185.
       **NOT attributable to T-197/T-201** — nothing in that work touches `FoodSearchDao`, the search indexes or the fixture, and the drain probe runs in its own process after the k6 scripts.
       **SUPERSEDED 2026-08-10 by owner ruling:** SC-007 is now 250ms p95 ±15% (gate 287.5ms), because the 200ms was validated on a workstation and CI measures 2.5-3.8x slower. The gate passes at that ceiling. This instruction originally read "Do NOT raise SEARCH_P95_MS — 200ms is SC-007 verbatim"; widening it changes the reported number, not the latency (the same rule that governs `FOOD_DRAIN_CLAIM_P95_MS`). The fix belongs in the search path. `narrow` is a 3-lexeme AND plus a long `ILIKE` pattern, so the cost is index intersection plus a per-row `GREATEST(ts_rank, similarity(…))` over every matched row before `LIMIT 20`. The candidate that changes NO semantics is to stop ranking rows that cannot reach the top 20. Per T-198, anything that changes which rows match (or their order) needs a product call, not a DAO edit.
       **Blast radius while open:** the `Load test (food — k6)` job is RED, so the whole heavy tier reports failure on a search regression rather than on anything else.
-      **CLOSED 2026-08-11.** The recorded candidate was measured and is WRONG — ranking all 364 `narrow` matches down to 20 costs **0.14ms of a 45.8ms statement**. 66% of the statement is the `name % query` branch's ACCESS PATH, fixed by a GiST trigram index (migration `0004`); no SQL in the DAO changed, because an index cannot move a row or a rank. Local DB time on the fixture CI seeds: `narrow` 45.8 → 12.4ms, `phrase` 44.4 → 9.9ms. Evidence, the rejected alternatives, the mutation results and two ESCALATED findings are in "T-202 — measured evidence" below.
+      **CLOSED 2026-08-11.** The recorded candidate was measured and is WRONG — ranking all 364 `narrow` matches down to 20 costs **0.14ms of a 45.8ms statement**. 66% of the statement is the `name % query` branch's ACCESS PATH, fixed by a GiST trigram index (migration `0004`); no SQL in the DAO changed, because an index cannot move a row or a rank. Local DB time on the fixture CI seeds, in CI's build order: `narrow` 45.8 → 14.6ms, `phrase` 44.4 → 11.1ms. Evidence, the rejected alternatives, the mutation results and two ESCALATED findings are in "T-202 — measured evidence" below.
 
 - [x] **T-198** [S] [Test-first: true] **SC-007 short-query index bypass** — a 2-char query yields no complete trigram, so the `ILIKE` branches Seq Scan 51,000 rows at ~158ms. Gate them behind `length(query) >= 3` (or enforce a minimum at the boundary) — `packages/services/food-service/src/foods/dao/food-search.dao.ts:48` (SC-007, FR-008, FR-010)
       This CHANGES SEARCH SEMANTICS (a 2-char query stops matching mid-word), so it needs a product call, not just a DAO edit.
@@ -799,19 +799,23 @@ then re-evaluates the predicate (a fresh `similarity()`, measured at **2.19µs**
 touching all 4,250 heap blocks of the table. A **GiST** trigram index over the same column answers the same
 operator with 368 candidates: that branch drops 30.5ms → 8.0ms.
 
-| shape (local DB time, the fixture CI seeds) | before  | after   |
-| ------------------------------------------- | ------- | ------- |
-| `narrow` (`raw chicken breast`)             | 45.76ms | 12.35ms |
-| `phrase` (`raw chicken`)                    | 44.43ms | 9.85ms  |
-| `broad` (`chicken`)                         | 17.65ms | 13.20ms |
-| `brand` (`northvale`)                       | 11.48ms | 16.94ms |
-| `miss` (`zqxjkvwf0`)                        | 0.12ms  | 4.93ms  |
-| `barcode`                                   | 1.14ms  | 4.04ms  |
+Local DB time on the fixture CI seeds. Two "after" columns because the index's packing depends on WHEN it is
+built: CI applies this migration BEFORE the seed, so the index is grown by the bulk INSERT; a later
+`CREATE INDEX` packs it better. The CI-order column is the honest one for the gate.
+
+| shape (local DB time, the fixture CI seeds) | before  | after (CI order) | after (index built last) |
+| ------------------------------------------- | ------- | ---------------- | ------------------------ |
+| `narrow` (`raw chicken breast`)             | 45.76ms | 14.56ms          | 12.35ms                  |
+| `phrase` (`raw chicken`)                    | 44.43ms | 11.14ms          | 9.85ms                   |
+| `broad` (`chicken`)                         | 17.65ms | 15.04ms          | 13.20ms                  |
+| `brand` (`northvale`)                       | 11.48ms | 19.53ms          | 16.94ms                  |
+| `miss` (`zqxjkvwf0`)                        | 0.12ms  | 6.68ms           | 4.93ms                   |
+| `barcode`                                   | 1.14ms  | —                | 4.04ms                   |
 
 **`brand`/`miss`/`barcode` regress in relative terms, deliberately.** GiST scans its whole index whatever the
-needle, so this trades a cost that tracked pattern length (0.12–45.8ms) for a flat 4–17ms band. For a **p95**
-gate that is the better property — it caps the tail — and the worst shape drops from 45.8ms to 16.9ms while
-every regressed shape stays 17–58× inside the 287.5ms ceiling. The GIN index is KEPT: it is the better answer
+needle, so this trades a cost that tracked pattern length (0.12–45.8ms) for a flat 7–20ms band. For a **p95**
+gate that is the better property — it caps the tail — and the worst shape drops from 45.8ms to 19.5ms while
+every regressed shape stays 14–43× inside the 287.5ms ceiling. The GIN index is KEPT: it is the better answer
 for the `ILIKE '%q%'` branches, which GiST can only serve by scanning its whole index. The planner picks per
 branch, so the two are complements — do not "consolidate" them.
 

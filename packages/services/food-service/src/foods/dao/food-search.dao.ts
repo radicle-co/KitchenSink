@@ -76,7 +76,8 @@
  * matches**, and the bitmap heap scan then re-evaluated the predicate — a fresh `similarity()` call, 2.19µs
  * each — on the 9,754 it discarded, touching all 4,250 heap blocks of the table. The 0004 migration adds a
  * **GiST** trigram index on the same column, which answers the same operator with 368 candidates: the
- * `narrow` shape 45.8ms → 12.4ms, `phrase` 44.4ms → 9.9ms. **No SQL here changed**, because an index
+ * `narrow` shape 45.8ms → 14.6ms, `phrase` 44.4ms → 11.1ms (CI's build order; 12.4/9.9ms when the index is
+ * created after the rows instead of by them). **No SQL here changed**, because an index
  * cannot change which rows match or their order (`%` is rechecked from the heap) — which is exactly why
  * this was the fix available: per T-198, anything that moves rows or ranks is a product decision.
  *

@@ -15,7 +15,9 @@
  * measured at **2.19µs** — on the 9,754 rows it throws away, touching all 4,250 heap blocks of the table.
  *
  * `food_name_trgm_gist_idx` (0004) answers the same operator with 368 candidates for 368 matches: 30.5ms
- * of the statement becomes 8.0ms, and the whole statement 45.8ms → 12.4ms.
+ * of the statement becomes 8.0ms, and the whole statement 45.8ms → 14.6ms in CI's build order (this
+ * migration runs before the seed, so the index is built by the bulk INSERT; created after the rows it
+ * packs better and reads 12.4ms).
  *
  * The branch is **not** dead work, which is why it is made cheap instead of removed: for `narrow` it
  * contributes **335 of the 364 matched rows** on its own. (T-198's finding 4 — "`name % query` contributes
@@ -36,7 +38,11 @@
  *    no index can participate — and with them enabled. An index cannot change a result set (the operator
  *    is rechecked from the heap), and this is what PROVES that rather than asserting it, for this change
  *    and for the next one. It is also the only kind of assertion here that is deterministic and
- *    hardware-independent.
+ *    hardware-independent. **Its own vacuity is guarded**: one test asserts that the two runs really did
+ *    get different plans and that the index-side plan really did use `food_name_trgm_gist_idx`. An earlier
+ *    draft of this suite proved nothing twice over — it seeded 6,000 rows, where the planner answers this
+ *    statement with a Seq Scan even with every index available, and it applied the planner settings with a
+ *    plain `SET`, which survives `client.release()` and leaked onto the next pooled connection.
  * 2. **The index exists, with the opclass that makes it work.** A GiST trigram index is not
  *    interchangeable with the GIN one that was already there: GIN is the better answer for `ILIKE` and the
  *    worse answer for `%`. "Consolidating" the two, or dropping 0004, is the realistic regression.
@@ -71,21 +77,32 @@ import { FoodSearchDao } from '../src/foods/dao/food-search.dao.js';
 import { DATABASE_URL, makeDb, makePool, resetSchema } from './support/db.js';
 
 /**
- * Store size for the equivalence proof.
+ * Store size for the equivalence proof — **SC-007's stated population**, and not a smaller convenient one.
  *
- * Large enough that all four `OR` branches find rows and that the similarity branch carries rows NO other
- * branch does (asserted below, so the number cannot quietly stop meaning that), and small enough that the
- * ground-truth Seq Scan — one per probe, each evaluating `similarity()` on every row — stays quick in a
- * tier that runs on every pull request.
+ * A smaller store makes this suite VACUOUS, which an earlier draft was: below roughly 25,000 rows the
+ * planner answers this statement with a plain Seq Scan even with every index available (measured at 6,000,
+ * 12,000 and 20,000 rows, with both description shapes), and no combination of `enable_*` settings reaches
+ * the trigram indexes either — forcing an index path just picks `food_status_idx`, which matches every
+ * `RESOLVED` row. So both sides of the comparison were the same scan and it proved nothing. At 50,000 the
+ * planner reaches the trigram BitmapOr, which is what makes the comparison real. The
+ * "really do get different plans" test below is the guard that keeps it real: if the crossover ever moves,
+ * it fails with that instruction rather than passing silently.
  */
-const EQUIVALENCE_SIZE = 6_000;
+const EQUIVALENCE_SIZE = 50_000;
 
-// The name vocabulary. Deliberately the SHAPE the deployed store has: a golden `name`, and a
-// `description` that is a COPY of it, because both USDA ingestion paths set `description := name`
-// (`usda.adapter.ts`, `usda-bulk.parser.ts`). The four list LENGTHS are coprime-ish and large enough that
-// a three-word needle is selective (~1/1,771 of the store) rather than matching a twentieth of it — with
-// a small vocabulary every name is trigram-similar to every needle, and the similarity branch stops
-// discriminating, which is exactly the property under test.
+// The name vocabulary. The four list LENGTHS are coprime-ish and large enough that a three-word needle is
+// selective (~1/1,771 of the store) rather than matching a twentieth of it — with a small vocabulary every
+// name is trigram-similar to every needle and the similarity branch stops discriminating, which is exactly
+// the property under test.
+//
+// The `description` is the k6 fixture's VERBOSE shape rather than production's `description := name`, and
+// that is deliberate: it roughly doubles the table's page count, which is what tips the planner onto the
+// trigram BitmapOr at this size. This suite's job is to prove an ACCESS PATH cannot move a result, so it
+// has to be seeded such that an access path is actually taken — and this is the shape the k6 gate measures.
+// Production's shape is not left unproven: the same comparison was run over 932 probes on BOTH 50,000-row
+// shapes (see `specs/003-usda-food-data/tasks.md` T-202), and on the production shape the planner picks a
+// Seq Scan, i.e. the index is not involved there at all — which is escalated as Finding 4 in
+// `tests/load/README.md`, not something this suite can assert.
 const PREPARATIONS = ['raw', 'cooked', 'roasted', 'canned', 'frozen', 'dried', 'grilled'];
 const INGREDIENTS = [
     'chicken',
@@ -149,7 +166,10 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao relevance access path (T-202, SC-0
         await resetSchema(pool);
         await pool.query(
             `INSERT INTO food (id, name, normalized_name, description, status)
-             SELECT 'f' || lpad(s.i::text, 25, '0'), built.name, lower(built.name), built.name, 'RESOLVED'
+             SELECT 'f' || lpad(s.i::text, 25, '0'), built.name, lower(built.name),
+                    built.name || '. Nutrition information for a ' || built.name ||
+                        ' product; includes macronutrients and household measures per 100 grams.',
+                    'RESOLVED'
                FROM generate_series(0, $1 - 1) AS s(i),
                     LATERAL (
                         SELECT ($2::text[])[(s.i % array_length($2::text[], 1)) + 1] || ' ' ||
@@ -205,15 +225,19 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao relevance access path (T-202, SC-0
     }
 
     /**
-     * Run a captured statement on one dedicated session with the given planner settings applied.
+     * Run a captured statement in its own transaction with the given planner settings applied.
      *
-     * The session must be dedicated: a pooled `query` can land on a different connection than the `SET`
-     * did, which would silently measure the default planner twice and pass no matter what.
+     * `SET LOCAL` inside `BEGIN`/`COMMIT`, and not a plain `SET`, for a reason that made an earlier draft of
+     * this suite VACUOUS: a plain `SET` is session-scoped, and `client.release()` returns the connection to
+     * the pool without a `DISCARD ALL`, so the next `pool.connect()` hands back the same connection with
+     * `enable_bitmapscan` still off. The "with indexes" run then executed the same Seq Scan as the ground
+     * truth and the comparison below passed no matter what the indexes did. `SET LOCAL` cannot outlive the
+     * transaction, so the leak is not merely unlikely — it is unrepresentable.
      *
      * @param statement - SQL text plus bound parameters.
-     * @param settings - `SET` arguments (e.g. `'enable_bitmapscan = off'`) applied before the statement.
+     * @param settings - `SET LOCAL` arguments (e.g. `'enable_bitmapscan = off'`), applied in the transaction.
      * @returns The statement's rows, in the order returned.
-     * @sideEffect Opens a connection and reads `food`.
+     * @sideEffect Opens a connection and reads `food` inside a transaction that is always ended.
      */
     async function runWith(
         statement: { text: string; values: readonly unknown[] },
@@ -222,8 +246,10 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao relevance access path (T-202, SC-0
         const client = await pool.connect();
 
         try {
+            await client.query('BEGIN');
+
             for (const setting of settings) {
-                await client.query(`SET ${setting}`);
+                await client.query(`SET LOCAL ${setting}`);
             }
 
             const { rows } = await client.query<Record<string, unknown>>({
@@ -231,24 +257,110 @@ describe.skipIf(!DATABASE_URL)('FoodSearchDao relevance access path (T-202, SC-0
                 values: [...statement.values],
             });
 
+            await client.query('COMMIT');
+
             return rows;
+        } catch (error) {
+            await client.query('ROLLBACK');
+
+            throw error;
         } finally {
             client.release();
         }
     }
 
+    /**
+     * Prove the two runs really did get different plans, so a green comparison means "the plans agree" and
+     * never "the settings leaked and both runs were the same scan". Counts `food` scan node types.
+     *
+     * @param statement - SQL text plus bound parameters.
+     * @param settings - `SET LOCAL` arguments applied before the `EXPLAIN`.
+     * @returns The node types the plan used to read `food`, plus every index it named.
+     * @sideEffect Opens a connection and executes the statement inside a transaction that is rolled back.
+     */
+    async function scanNodeTypes(
+        statement: { text: string; values: readonly unknown[] },
+        settings: readonly string[],
+    ): Promise<{ readonly types: readonly string[]; readonly indexes: readonly string[] }> {
+        const client = await pool.connect();
+
+        try {
+            await client.query('BEGIN');
+
+            for (const setting of settings) {
+                await client.query(`SET LOCAL ${setting}`);
+            }
+
+            const explained = await client.query<{ 'QUERY PLAN': { Plan: Record<string, unknown> }[] }>({
+                text: `EXPLAIN (FORMAT JSON) ${statement.text}`,
+                values: [...statement.values],
+            });
+
+            await client.query('ROLLBACK');
+
+            const types: string[] = [];
+            const indexes: string[] = [];
+
+            const walk = (node: Record<string, unknown> | undefined): void => {
+                if (node === undefined) {
+                    return;
+                }
+
+                if (node['Relation Name'] === 'food') {
+                    types.push(String(node['Node Type']));
+                }
+
+                if (node['Index Name'] !== undefined) {
+                    indexes.push(String(node['Index Name']));
+                }
+
+                for (const child of (node['Plans'] as Record<string, unknown>[] | undefined) ?? []) {
+                    walk(child);
+                }
+            };
+
+            walk(explained.rows[0]?.['QUERY PLAN']?.[0]?.Plan);
+
+            return { types, indexes };
+        } finally {
+            client.release();
+        }
+    }
+
+    /** The settings that leave the planner no index access path at all — a pure Seq Scan is the only option. */
+    const NO_INDEX_PATHS = ['enable_indexscan = off', 'enable_bitmapscan = off', 'enable_indexonlyscan = off'];
+
     describe('equivalence: an access path cannot move a row or a rank (the T-198 mandate)', () => {
+        it('the two runs below really do get different plans (this proof is not comparing a scan to itself)', async () => {
+            const statement = await captureRelevanceStatement('raw chicken breast');
+
+            expect((await scanNodeTypes(statement, NO_INDEX_PATHS)).types).toEqual(['Seq Scan']);
+
+            const natural = await scanNodeTypes(statement, []);
+
+            expect(
+                natural.types,
+                'with every index available the planner still chose a plain Seq Scan, so every comparison ' +
+                    'below is a Seq Scan against a Seq Scan and proves nothing. Either the planner-setting ' +
+                    'scope leaked across pooled connections (it must be SET LOCAL in a transaction), or the ' +
+                    'store is too small for an index path to win — raise EQUIVALENCE_SIZE.',
+            ).not.toContain('Seq Scan');
+            expect(
+                natural.indexes,
+                'the plan under test does not use food_name_trgm_gist_idx, so this suite is proving ' +
+                    'equivalence for an access path that is not the one T-202 introduced. The planner picks ' +
+                    'the trigram BitmapOr only once the table is large enough; if this reds, the crossover ' +
+                    'moved and EQUIVALENCE_SIZE needs raising (or the index was dropped).',
+            ).toContain('food_name_trgm_gist_idx');
+        });
+
         it.each(EQUIVALENCE_PROBES)(
             'returns an identical (id, name, score) sequence with and without index access paths — $probe',
             async ({ probe, reaches }) => {
                 const statement = await captureRelevanceStatement(probe);
                 // Ground truth: no index access path of ANY kind is available, so both the rows and their
                 // order come from the predicate and the ORDER BY alone.
-                const withoutIndexes = await runWith(statement, [
-                    'enable_indexscan = off',
-                    'enable_bitmapscan = off',
-                    'enable_indexonlyscan = off',
-                ]);
+                const withoutIndexes = await runWith(statement, NO_INDEX_PATHS);
                 const withIndexes = await runWith(statement, []);
 
                 expect(

@@ -598,6 +598,9 @@ jobs:
                     --food-origin "${FOOD_ORIGIN}" \
                     --configured-food-origin "${food_url}"
 
+            # Liveness FIRST, on its own, because it is the only check worth RETRYING: a freshly rolled
+            # Fargate task needs a couple of minutes to pass its ALB health check, and the currency
+            # assertion below would otherwise burn its whole retry budget waiting for that.
             - name: Smoke test — food service live & reachable (prod)
               if: steps.flags.outputs.deploy_food == 'true'
               env:
@@ -614,6 +617,59 @@ jobs:
                   done
                   echo "::error::food not serving HTTP 200 at $HEALTH_URL after ~$((attempts * delay))s (last=$code)"
                   exit 1
+
+            # Task #152 — the food half of #137. The step above proves a container ANSWERS; it does not prove
+            # THIS deploy landed. A food task running a weeks-old image returns the same 200, so a rollout
+            # that never happened (or that the deployment circuit breaker rolled BACK) shipped green. That is
+            # exactly the shape that let a stale recipe build serve pr-73 for fifteen days.
+            #
+            # Cluster + service come from the food stack's own CloudFormation exports (`FoodClusterArn` /
+            # `FoodApiServiceArn`, added for this), modelled on the identity leg rather than on the recipe
+            # leg's `ecs list-clusters | grep` heuristic — a renamed cluster must fail loudly, not match
+            # nothing. `FoodApiServiceArn` is the ALB-fronted API service, not the fetch worker: both carry
+            # the same tag, but only the API serves the origin checked above.
+            #
+            # ⚠️ NO `--web-origin`, and that is DERIVED, not an oversight. The food service has no
+            # `app.enableCors(…)` in `main.ts` because nothing outside the cluster calls it — its only
+            # consumer is the recipe service, server-to-server (`food-catalog.gateway.ts`), which is also why
+            # `/api/v1/foods/search` needing a Clerk token is the recipe smoke's PASS condition. Sending food
+            # a CORS preflight would assert a browser path that does not exist, and the smoke would red for a
+            # reason unrelated to the deploy. `prod-deploy-smoke-depth.test.ts` reads each service's `main.ts`
+            # and requires `--web-origin` exactly when CORS is enabled, so if food ever becomes
+            # browser-facing this step owes the flag and the build says so.
+            - name: Smoke test — food service CURRENT (prod)
+              if: steps.flags.outputs.deploy_food == 'true'
+              env:
+                  EXPECTED_IMAGE_TAG: ${{ github.sha }}
+              run: |
+                  set -euo pipefail
+                  # `>&2` on the diagnostic, NOT stdout: this runs inside `$( … )`, so an `::error::` on
+                  # stdout is captured into the variable and never reaches the log. The `exit 1` ends the
+                  # SUBSHELL, and `set -e` then fails the step on the assignment.
+                  lookup() {
+                    local name="$1" value
+                    value=$(bash .github/scripts/cfn-export.sh --optional "${name}")
+                    if [ -z "$value" ] || [ "$value" = "None" ]; then
+                      echo "::error::CloudFormation export '${name}' not found — is kitchensink-food-service-${STAGE} deployed?" >&2
+                      exit 1
+                    fi
+                    echo "$value"
+                  }
+                  cluster=$(lookup "kitchensink-food-service-${STAGE}:FoodClusterArn")
+                  service=$(lookup "kitchensink-food-service-${STAGE}:FoodApiServiceArn")
+                  task_def=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+                    --query 'services[0].taskDefinition' --output text)
+                  image=$(aws ecs describe-task-definition --task-definition "$task_def" \
+                    --query 'taskDefinition.containerDefinitions[0].image' --output text)
+                  # The `|| { … }` is NOT a suppression — it re-raises. The shared module's own annotation is
+                  # hardcoded to "the DEPLOYED recipe service", which is actively misleading in a food
+                  # failure at 3am. Deriving that string from `--base-url` inside deployedSmoke.ts is the
+                  # proper fix, and belongs with the `--preflight-path` follow-up the identity leg names.
+                  npx tsx packages/services/recipe-service/infra/smoke/deployedSmoke.ts \
+                    --base-url "https://food.${DOMAIN_NAME}" \
+                    --expected-image-tag "${EXPECTED_IMAGE_TAG}" \
+                    --running-image-tag "${image##*:}" \
+                    || { echo "::error::the DEPLOYED FOOD service failed post-deploy verification (running image ${image##*:}, expected ${EXPECTED_IMAGE_TAG})" >&2; exit 1; }
 
     # ─────────────────────────────────────────────────────────────────────────────────────────────────────
     # The production WEB front door — the only check in this repo that fetches a web page at all. Every

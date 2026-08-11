@@ -347,8 +347,20 @@ function allowOriginOf(headers: Headers): string | undefined {
 export interface SmokeTarget {
     /** The recipe service origin, e.g. `https://recipe-pr-73.commise.app`. */
     readonly baseUrl: string;
-    /** The front-end origin that must be CORS-allowed. */
-    readonly webOrigin: string;
+    /**
+     * The front-end origin that must be CORS-allowed. Omit to skip the preflight check entirely.
+     *
+     * Omitting it is correct for a service that is NOT browser-facing, and the food service is the case
+     * that forced the option (task #152): it has no `app.enableCors(…)` because nothing outside the cluster
+     * calls it — its only consumer is the recipe service, server-to-server. Sending it a preflight would
+     * assert something false by design, and the alternative (giving food CORS so a smoke could pass) means
+     * opening a browser-facing surface with no browser consumer.
+     *
+     * Which deploy legs MUST supply it is not a judgement call left to the caller:
+     * `prod-deploy-smoke-depth.test.ts` derives it from whether the service's `main.ts` enables CORS, so a
+     * service that gains CORS immediately owes the assertion and one that has it cannot silently drop it.
+     */
+    readonly webOrigin?: string;
     /** Image tag this deploy pushed; omit to skip the currency check. */
     readonly expectedImageTag?: string;
     /** Image tag read from the running task (resolved by the caller via the AWS CLI). */
@@ -406,19 +418,24 @@ export async function runSmoke(target: SmokeTarget): Promise<readonly SmokeVerdi
 
     verdicts.push(classifyHealth(health.status));
 
-    const preflight = await fetch(`${baseUrl}/api/v1/recipes`, {
-        method: 'OPTIONS',
-        headers: {
-            origin: webOrigin,
-            'access-control-request-method': 'GET',
-            'access-control-request-headers': 'authorization',
-        },
-        signal: AbortSignal.timeout(15_000),
-    });
+    // Gated the same way the ecosystem checks below are: an absent flag means "this assertion does not
+    // apply to this service", not "assert it against nothing". Sending the preflight with an undefined
+    // origin would produce a verdict about a browser that does not exist.
+    if (webOrigin !== undefined) {
+        const preflight = await fetch(`${baseUrl}/api/v1/recipes`, {
+            method: 'OPTIONS',
+            headers: {
+                origin: webOrigin,
+                'access-control-request-method': 'GET',
+                'access-control-request-headers': 'authorization',
+            },
+            signal: AbortSignal.timeout(15_000),
+        });
 
-    verdicts.push(
-        classifyPreflight(webOrigin, { status: preflight.status, allowOrigin: allowOriginOf(preflight.headers) }),
-    );
+        verdicts.push(
+            classifyPreflight(webOrigin, { status: preflight.status, allowOrigin: allowOriginOf(preflight.headers) }),
+        );
+    }
 
     if (expectedImageTag !== undefined) {
         verdicts.push(classifyImageCurrency(runningImageTag, expectedImageTag));
@@ -446,7 +463,7 @@ export async function runSmoke(target: SmokeTarget): Promise<readonly SmokeVerdi
 
 /** How the CLI is invoked, printed on misuse. */
 const USAGE =
-    'usage: deployedSmoke.ts --base-url <url> --web-origin <url> [--expected-image-tag <tag>]\n' +
+    'usage: deployedSmoke.ts --base-url <url> [--web-origin <url>] [--expected-image-tag <tag>]\n' +
     '                        [--running-image-tag <tag>] [--food-origin <url>] [--configured-food-origin <url>]';
 
 /** Treat an absent or empty flag as "not supplied" — a shell that interpolates a blank var yields `''`. */
@@ -489,7 +506,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     const baseUrl = optional(values['base-url']);
     const webOrigin = optional(values['web-origin']);
 
-    if (baseUrl === undefined || webOrigin === undefined) {
+    if (baseUrl === undefined) {
         console.error(USAGE);
         process.exitCode = 2;
 
@@ -505,7 +522,10 @@ export async function main(argv: readonly string[]): Promise<void> {
         configuredFoodOrigin: optional(values['configured-food-origin']),
     });
 
-    console.log(`Post-deploy smoke — ${baseUrl} (browser origin ${webOrigin})`);
+    console.log(
+        `Post-deploy smoke — ${baseUrl}` +
+            (webOrigin === undefined ? ' (no browser origin: preflight skipped)' : ` (browser origin ${webOrigin})`),
+    );
 
     for (const verdict of verdicts) {
         console.log(`  ${verdict.ok ? 'OK  ' : 'FAIL'} ${verdict.reason}`);

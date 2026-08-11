@@ -438,6 +438,39 @@ describe('In-VPC migration-runner Lambda (T-191)', () => {
 
         expect(exportNames.some((name: string) => name.includes('FoodMigrationFunctionName'))).toBe(true);
     });
+
+    /**
+     * Task #152. `prod-deploy.yml`'s food smoke was a `/health` retry loop, which a task running a
+     * weeks-old image satisfies perfectly — the same shape as identity's before #137. Closing it needs the
+     * two inputs identity's smoke resolves from its own stack's exports: the cluster and the API service.
+     *
+     * These are exported (not merely output) BECAUSE the alternative is what the recipe leg still does —
+     * `aws ecs list-clusters | grep recipe-service-${STAGE}-` — where a renamed cluster matches NOTHING and
+     * the smoke fails for a reason unrelated to the deploy, or worse, matches a DIFFERENT stage's cluster.
+     * An export resolved by name either exists or fails loudly.
+     */
+    it('exports the API cluster and service ARNs so the prod smoke can read the RUNNING task definition', () => {
+        const outputs = serviceTemplate.findOutputs('*');
+        // Matched by SUFFIX: this suite synthesizes under the construct id `TestFoodService`, so
+        // `${this.stackName}` is not the real `kitchensink-food-service-{stage}` prefix. The prefix is
+        // pinned by the no-diff synth parity suite instead; what matters here is the export's own name.
+        const exportNames = Object.values(outputs).map((o: any) => (o.Export?.Name ?? '').split(':').pop());
+
+        expect(exportNames).toContain('FoodClusterArn');
+        expect(exportNames).toContain('FoodApiServiceArn');
+    });
+
+    it('points FoodApiServiceArn at the API service, not the fetch worker', () => {
+        // The two Fargate services share an image tag, but only the API is behind the ALB host rule the
+        // smoke probes — reading the worker's task definition would be checking the wrong thing.
+        const outputs = serviceTemplate.findOutputs('*');
+        const [apiServiceArn] = Object.values(outputs).filter((output: any) =>
+            (output.Export?.Name ?? '').endsWith(':FoodApiServiceArn'),
+        );
+
+        expect(JSON.stringify(apiServiceArn)).toContain('FoodApiService');
+        expect(JSON.stringify(apiServiceArn)).not.toContain('FoodFetchWorkerService');
+    });
 });
 
 describe('Change-refresh Fargate scheduled task (T-001c)', () => {

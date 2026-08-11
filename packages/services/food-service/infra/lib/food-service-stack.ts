@@ -887,5 +887,25 @@ export class FoodServiceStack extends Stack {
             value: migrationFn.functionName,
             exportName: `${this.stackName}:FoodMigrationFunctionName`,
         });
+        // Task #152 — the post-deploy smoke's two inputs, mirroring the identity service stack's
+        // `IdentityClusterArn`/`IdentityServiceArn`. `prod-deploy.yml` reads them to look up the RUNNING
+        // API task definition and compare its image tag to the one the run just pushed; `/health` → 200
+        // cannot make that comparison, so a food deploy whose task never rolled out (or rolled back) used
+        // to stay green while the OLD healthy task answered the probe.
+        //
+        // EXPORTED rather than merely output, deliberately: the alternative is the
+        // `aws ecs list-clusters | grep food-service-${STAGE}-` heuristic the recipe leg still carries,
+        // where a renamed cluster silently matches nothing — or matches another stage's. An export
+        // resolved by name either exists or fails loudly. `FoodApiServiceArn` is the ALB-fronted API
+        // service specifically, not the fetch worker: they share an image tag, but only the API answers
+        // the origin the smoke probes.
+        new CfnOutput(this, 'FoodClusterArn', {
+            value: cluster.clusterArn,
+            exportName: `${this.stackName}:FoodClusterArn`,
+        });
+        new CfnOutput(this, 'FoodApiServiceArn', {
+            value: apiService.serviceArn,
+            exportName: `${this.stackName}:FoodApiServiceArn`,
+        });
     }
 }

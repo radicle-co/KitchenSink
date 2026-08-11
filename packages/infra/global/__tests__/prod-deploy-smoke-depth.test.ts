@@ -60,6 +60,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const WORKFLOW_DIR = fileURLToPath(new URL('../../../../.github/workflows/', import.meta.url));
 const TEST_DIR = fileURLToPath(new URL('./', import.meta.url));
 const PROD_DEPLOY = 'prod-deploy.yml';
@@ -207,6 +208,38 @@ function gatingFlags(step: WorkflowStep): readonly string[] {
     return [...(step.if ?? '').matchAll(/steps\.flags\.outputs\.(deploy_\w+)/g)].map((match) => match[1] as string);
 }
 
+/** The workspace directory a push step builds from, e.g. `packages/services/food-service`. */
+function builtPackage(step: WorkflowStep): string | undefined {
+    return (step.run ?? '').match(/-f\s+(packages\/services\/[\w-]+)\/Dockerfile/)?.[1];
+}
+
+/**
+ * Whether a service is reachable from a BROWSER, decided by whether its own bootstrap enables CORS.
+ *
+ * DERIVED, not listed, and that distinction is the whole point. The browser-reachability assertion applies
+ * to identity and recipe (both call `app.enableCors(…)` in `main.ts`, and the web app calls both
+ * cross-origin) and does NOT apply to the food service, which has no `enableCors` at all because nothing
+ * outside the cluster calls it — its only consumer is the recipe service, server-to-server via
+ * `food-catalog.gateway.ts`. Sending food a preflight asserts something false by design: `OPTIONS
+ * /api/v1/recipes` against it is an app 404.
+ *
+ * The two alternatives were both worse. An exception list here would be a place to add a service to in
+ * order to make a check go away. Giving food CORS purely so a smoke could pass would open a browser-facing
+ * surface with no browser consumer, to satisfy a test. Reading the source means a service that GAINS CORS
+ * immediately owes the assertion, and one that has it cannot silently drop it.
+ *
+ * @sideEffect Reads the service's `main.ts`.
+ */
+function isBrowserFacing(servicePackage: string): boolean {
+    try {
+        return /\.enableCors\s*\(/.test(readFileSync(join(REPO_ROOT, servicePackage, 'src/main.ts'), 'utf8'));
+    } catch {
+        // A service with no `src/main.ts` is not a Nest HTTP app; treat it as not browser-facing rather
+        // than inventing a violation.
+        return false;
+    }
+}
+
 /**
  * Deploy flags that push an image but whose smoke cannot tell a fresh task from a stale one.
  *
@@ -218,8 +251,15 @@ function gatingFlags(step: WorkflowStep): readonly string[] {
 function findShallowImageSmokes(doc: WorkflowDocument): readonly string[] {
     const violations: string[] = [];
     const steps = allSteps(doc);
-    const pushing = new Set(
-        steps.filter(({ step }) => IMAGE_PUSH.test(step.run ?? '')).flatMap(({ step }) => gatingFlags(step)),
+    const pushSteps = steps.filter(({ step }) => IMAGE_PUSH.test(step.run ?? ''));
+    const pushing = new Set(pushSteps.flatMap(({ step }) => gatingFlags(step)));
+    /** flag → the workspace whose Dockerfile that flag's push step builds. */
+    const packageOf = new Map(
+        pushSteps.flatMap(({ step }) => {
+            const servicePackage = builtPackage(step);
+
+            return servicePackage === undefined ? [] : gatingFlags(step).map((flag) => [flag, servicePackage] as const);
+        }),
     );
 
     for (const flag of [...pushing].sort()) {
@@ -254,11 +294,26 @@ function findShallowImageSmokes(doc: WorkflowDocument): readonly string[] {
             }
 
             // Browser reachability is the other thing `/health` cannot see: a credential-less CORS preflight
-            // answered by auth middleware is a 401, i.e. healthy to curl and dead to every browser.
-            if (!run.includes('--web-origin')) {
+            // answered by auth middleware is a 401, i.e. healthy to curl and dead to every browser. Required
+            // exactly when the service ENABLES CORS, and forbidden when it does not — see isBrowserFacing.
+            const servicePackage = packageOf.get(flag);
+            const browserFacing = servicePackage !== undefined && isBrowserFacing(servicePackage);
+
+            if (browserFacing && !run.includes('--web-origin')) {
                 violations.push(
                     `${flag}::${stepLabel(step)} → checks image currency but not browser reachability ` +
-                        '(no --web-origin, so a CORS regression stays invisible)',
+                        `(no --web-origin, and ${servicePackage as string}/src/main.ts enables CORS, so a CORS ` +
+                        'regression stays invisible)',
+                );
+            }
+
+            if (!browserFacing && run.includes('--web-origin')) {
+                // Not pedantry: the preflight would fail, so the smoke would red for a reason that has
+                // nothing to do with the deploy — and the fix people reach for is deleting the smoke.
+                violations.push(
+                    `${flag}::${stepLabel(step)} → passes --web-origin for a service that does NOT enable ` +
+                        `CORS (${servicePackage ?? 'unknown package'}), so the preflight asserts a browser ` +
+                        'path that does not exist and the smoke fails for a reason unrelated to the deploy',
                 );
             }
         }
@@ -414,7 +469,10 @@ describe('every image-pushing leg of prod-deploy.yml has a smoke a stale task wo
         expect(violations.join('\n')).toMatch(/running task/);
     });
 
-    it('flags a currency check that ignores browser reachability', () => {
+    it('flags a BROWSER-FACING service whose currency check ignores browser reachability', () => {
+        // `packages/services/identity` really does call `app.enableCors(…)`, so this fixture's push step
+        // makes the analyzer demand `--web-origin` — the requirement is derived from that source file, not
+        // from a list here, so this case dies the moment identity stops being browser-facing.
         const violations = findShallowImageSmokes({
             jobs: {
                 deploy: {
@@ -422,7 +480,7 @@ describe('every image-pushing leg of prod-deploy.yml has a smoke a stale task wo
                         {
                             name: 'Push',
                             if: "steps.flags.outputs.deploy_thing == 'true'",
-                            run: 'docker buildx build -t image --push .',
+                            run: 'docker buildx build -f packages/services/identity/Dockerfile -t image --push .',
                         },
                         {
                             name: 'Smoke test — thing is current',
@@ -439,6 +497,66 @@ describe('every image-pushing leg of prod-deploy.yml has a smoke a stale task wo
         });
 
         expect(violations.join('\n')).toMatch(/--web-origin/);
+        expect(violations.join('\n')).toMatch(/enables CORS/);
+    });
+
+    it('does NOT demand browser reachability from a service that enables no CORS', () => {
+        // `packages/services/food-service/src/main.ts` has no `enableCors`: nothing outside the cluster
+        // calls it (the recipe service does, server-to-server). Demanding a preflight here would be
+        // demanding an assertion that is false by design.
+        const violations = findShallowImageSmokes({
+            jobs: {
+                deploy: {
+                    steps: [
+                        {
+                            name: 'Push',
+                            if: "steps.flags.outputs.deploy_food == 'true'",
+                            run: 'docker buildx build -f packages/services/food-service/Dockerfile -t image --push .',
+                        },
+                        {
+                            name: 'Smoke test — food is current',
+                            if: "steps.flags.outputs.deploy_food == 'true'",
+                            run:
+                                'image=$(aws ecs describe-task-definition --task-definition "$td" --query ' +
+                                "'taskDefinition.containerDefinitions[0].image' --output text)\n" +
+                                'npx tsx smoke.ts --expected-image-tag "${{ github.sha }}" ' +
+                                '--running-image-tag "${image##*:}"',
+                        },
+                    ],
+                },
+            },
+        });
+
+        expect(violations).toEqual([]);
+    });
+
+    it('flags --web-origin passed to a service that enables no CORS', () => {
+        // The other direction, and not pedantry: the preflight would fail, so the smoke would red for a
+        // reason unrelated to the deploy — and the fix people reach for when that happens is deleting it.
+        const violations = findShallowImageSmokes({
+            jobs: {
+                deploy: {
+                    steps: [
+                        {
+                            name: 'Push',
+                            if: "steps.flags.outputs.deploy_food == 'true'",
+                            run: 'docker buildx build -f packages/services/food-service/Dockerfile -t image --push .',
+                        },
+                        {
+                            name: 'Smoke test — food is current',
+                            if: "steps.flags.outputs.deploy_food == 'true'",
+                            run:
+                                'image=$(aws ecs describe-task-definition --task-definition "$td" --query ' +
+                                "'taskDefinition.containerDefinitions[0].image' --output text)\n" +
+                                'npx tsx smoke.ts --web-origin https://example.com ' +
+                                '--expected-image-tag "${{ github.sha }}" --running-image-tag "${image##*:}"',
+                        },
+                    ],
+                },
+            },
+        });
+
+        expect(violations.join('\n')).toMatch(/does NOT enable/);
     });
 
     it('does NOT flag a leg whose smoke reads the running task definition', () => {
@@ -449,7 +567,7 @@ describe('every image-pushing leg of prod-deploy.yml has a smoke a stale task wo
                         {
                             name: 'Push',
                             if: "steps.flags.outputs.deploy_thing == 'true'",
-                            run: 'docker buildx build -t image --push .',
+                            run: 'docker buildx build -f packages/services/identity/Dockerfile -t image --push .',
                         },
                         {
                             name: 'Smoke test — thing is current',
@@ -480,27 +598,21 @@ describe('every image-pushing leg of prod-deploy.yml has a smoke a stale task wo
         expect([...pushing].sort()).toEqual(['deploy_food', 'deploy_recipe', 'deploy_service']);
     });
 
-    it('has no violations beyond the recorded, still-open ones', () => {
+    it('EVERY image-pushing leg now has a smoke a stale task would fail', () => {
         expect(
             findShallowImageSmokes(prodDeploy()),
-            'a smoke that only checks `/health` passes for a task running a build from weeks ago (#137). If ' +
-                'you FIXED a recorded leg, delete its entry from KNOWN_SHALLOW_SMOKES.',
-        ).toEqual([...KNOWN_SHALLOW_SMOKES].sort());
+            'a smoke that only checks `/health` passes for a task running a build from weeks ago (#137)',
+        ).toEqual([]);
+    });
+
+    it('derives the browser-reachability requirement from each service, and gets a real answer', () => {
+        // Guards the derivation itself. If `isBrowserFacing` silently started answering `false` for
+        // everything — a moved `main.ts`, a renamed `enableCors` — the assertion above would go quiet
+        // rather than red, because "not browser-facing" is the permissive answer.
+        expect({
+            identity: isBrowserFacing('packages/services/identity'),
+            recipe: isBrowserFacing('packages/services/recipe-service'),
+            food: isBrowserFacing('packages/services/food-service'),
+        }).toEqual({ identity: true, recipe: true, food: false });
     });
 });
-
-/**
- * Image-pushing legs whose prod smoke still cannot detect a stale task — a ratchet, not an excuse (same
- * posture as `KNOWN_BUILDS_AFTER_PRUNE`): the equality assertion above means a NEW one fails the build.
- *
- * `deploy_food` is the remaining one. Its smoke is the `/health` retry loop at the bottom of the workflow,
- * so a food task running a weeks-old image passes it exactly as identity's did before #137. Closing it needs
- * the same two inputs identity's now resolves — food's cluster/service ARNs — which the food stack does not
- * currently export (identity exports `IdentityClusterArn`/`IdentityServiceArn`; recipe's smoke falls back to
- * an `ecs list-clusters | grep` heuristic). Fixing that is a food-service infra change, deliberately out of
- * scope here rather than papered over with a second grep heuristic.
- */
-const KNOWN_SHALLOW_SMOKES: readonly string[] = [
-    'deploy_food → pushes an image but no smoke gated on it asserts image currency: `/health` → 200 is ' +
-        'satisfied by a task running a build from weeks ago',
-];

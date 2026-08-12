@@ -327,6 +327,27 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                         message:
                             "Read environment variables with bracket notation: process.env['KEY'], not process.env.KEY (CODING_STANDARDS). The sole exception is a bundler-inlined `runtimeEnv` map in a frontend src/config/env.ts, allowed by path in the shared ESLint config.",
                     },
+                    {
+                        // `sql.raw` SPLICES ITS ARGUMENT INTO THE STATEMENT TEXT, bypassing parameterisation by
+                        // design — so the value's provenance is the only thing between it and SQL injection.
+                        //
+                        // Banned outright rather than reviewed case-by-case, because the audit that motivated
+                        // this found the repo's three `sql.raw` sites were all safe *by virtue of their
+                        // callers* (each argument was a module constant or a construction default), with
+                        // nothing in the build that would notice when a later refactor turned one of those
+                        // constants into a request value. Safety that has to be re-derived by hand on every
+                        // future edit is not safety. All three were rewritten to bound parameters — an interval
+                        // as `${VALUE}::interval`, a row cap as `LIMIT ${value}` — which is both injection-proof
+                        // AND fails closed on a malformed value (Postgres rejects the cast) instead of
+                        // executing it. That left ZERO call sites, so this rule costs nothing to keep.
+                        //
+                        // The parameterising `sql` tag and its `${}` interpolations are untouched: those ARE
+                        // the correct form, and every DAL should keep using them.
+                        selector:
+                            "CallExpression[callee.type='MemberExpression'][callee.object.name='sql'][callee.property.name='raw']",
+                        message:
+                            'Do not use sql.raw() — it splices its argument into the statement text and bypasses parameterisation. Use a bound parameter instead: `${value}` for a LIMIT/OFFSET, `${value}::interval` for an interval. If an identifier really must be dynamic, map it through a hard-coded allow-list first.',
+                    },
                 ],
             },
         },

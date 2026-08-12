@@ -1045,9 +1045,9 @@ export const recipeVersionPendingArchiveSchema = z.object({
     updatedAt: isoDateTimeStringSchema,
 });
 
-// ── Recipe write inputs: TYPES here, the VALIDATION in the service ────────────────────────────────
+// ── Recipe write inputs: TYPES here, the BOUNDS in `recipeRequestBounds.ts`, the ENVELOPE in the service ──
 //
-// ⚠️ The four request schemas that used to sit alongside these interfaces —
+// ⚠️ The four whole-BODY request schemas that used to sit alongside these interfaces —
 // `createRecipeInputSchema`, `updateRecipeInputSchema`, `createRecipeIngredientInputSchema` and
 // `createRecipeStepInputSchema` — HAVE BEEN REMOVED, and must not be reinstated here. They were a strictly
 // LOOSER second representation of rules the recipe service enforces: no `title` maximum against the
@@ -1056,15 +1056,26 @@ export const recipeVersionPendingArchiveSchema = z.object({
 // published OpenAPI document was generated from it and therefore told integrators that `title` had no
 // maximum while the service rejected at 201.
 //
-// The AUTHORITY is now `packages/services/recipe-service/src/recipes/recipes.schema.ts`, published as
-// `@kitchensink/schema-recipe` (`createRecipeRequestSchema`, `updateRecipeRequestSchema`,
-// `recipeIngredientInputSchema`, `recipeStepInputSchema`) — CODING_STANDARDS §15.2, "the service OWNS its
-// wire types". Both apps import their field-level validators from there.
+// Note precisely WHAT was wrong with them, because the fix is not "no zod in recipe-core": it is that there
+// were TWO representations of one rule and the weaker one got published. Ownership now splits so that each
+// rule exists exactly once —
+//
+//   • the BOUNDS (how long a title may be, how large a serving count may be) live in
+//     `./recipeRequestBounds.ts`, per the owner's ruling, so both apps and the service inherit ONE number;
+//   • the ENVELOPE (which fields a create body has, which are optional, the `visibility` omit, the
+//     three-state `difficulty`) is AUTHORED BY THE SERVICE in
+//     `packages/services/recipe-service/src/recipes/recipes.schema.ts` and published as
+//     `@kitchensink/schema-recipe` — CODING_STANDARDS §15.2, "the service OWNS its wire types".
+//
+// ⛔ So a whole request BODY schema still does not belong in this package. A single bounded FIELD does, and
+// the service composes it by reference (asserted by identity in that service's `recipes.schema.test.ts`).
 //
 // The INTERFACES below stay, because they are the shape the typed client's method signatures and the
 // editor's form model are written against, and a `z.infer` of the service's schema is asserted mutually
 // assignable to them in `recipe-service/src/recipes/__tests__/recipes.schema.test.ts` — so the domain type
-// and the wire schema cannot drift apart in silence.
+// and the wire schema cannot drift apart in silence. They carry no BOUNDS and cannot: a TypeScript `number`
+// has no way to express `≤ 2147483647`, which is exactly why the zod above is the authority and these are a
+// projection of it rather than a rival.
 
 /**
  * Input payload for a single ingredient when creating or updating a recipe draft.

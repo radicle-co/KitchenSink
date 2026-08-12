@@ -65,6 +65,7 @@ import {
     recipeSchema,
     recipeVersionSchema,
     restoreVersionResponseSchema,
+    MAX_RECIPE_LIST_PAGE_SIZE,
 } from '@kitchensink/recipe-core';
 
 import {
@@ -107,7 +108,6 @@ import {
     listRecipesQuerySchema,
     setRecipeVisibilityRequestSchema,
     updateRecipeRequestSchema,
-    MAX_RECIPE_LIST_PAGE_SIZE,
 } from '../src/recipes/recipes.schema.js';
 import { recipeSearchResponseSchema } from '../src/search/search.schema.js';
 

@@ -9,28 +9,23 @@ import { sql } from 'drizzle-orm';
 import { requireEnv } from '../common/config.js';
 import { getRecipeDb } from '../common/db.js';
 import { logger } from '../common/logger.js';
+import { recipeVersionArchiveMessageSchema } from '../common/messages.schema.js';
+import type { RecipeVersionArchiveMessage } from '../common/messages.schema.js';
 
 /**
  * SQS-triggered version-archive worker (FR-007b-i). Reads a recipe version from the shared RDS
  * `kitchensink_recipes` database and archives an immutable snapshot to S3. VPC-attached DB consumer.
  */
 
-export interface RecipeVersionArchiveMessage {
-    readonly recipeId: string;
-    /** The internal `recipe_versions.id` — how the worker LOADS the row and clears its pending record. */
-    readonly versionId: string;
-    /**
-     * The 1-based client-facing version number — how the archive object is KEYED (ARCH-BE-3).
-     *
-     * Carried on the message rather than derived, so the key can be built before the row is loaded and
-     * stays identical to what `recipe-service` would have written inline.
-     */
-    readonly versionNumber: number;
-    /** App-user ULID of the recipe owner (no users table; owner identity is a string reference). */
-    readonly ownerId: string;
-    /** ISO 8601 timestamp of when the archive was requested. */
-    readonly requestedAt: string;
-}
+/**
+ * The archive message contract.
+ *
+ * DERIVED from {@link recipeVersionArchiveMessageSchema} rather than declared here, so the type and the runtime
+ * validator cannot disagree — a hand-written `interface` beside a schema is two representations of one contract,
+ * and the `interface` is the one the compiler trusts while the queue delivers whatever it likes. Re-exported
+ * from this module because `archive-sweeper` (the producer) already imports the name from here.
+ */
+export type { RecipeVersionArchiveMessage } from '../common/messages.schema.js';
 
 /**
  * The archived object's body: the `RecipeVersion` wire contract from `@kitchensink/recipe-core`.
@@ -56,9 +51,26 @@ type RecipeVersionArchiveRow = {
 
 const s3 = new S3Client({});
 
-/** Parse and shape an SQS record body into a typed archive message. */
+/**
+ * Parse and VALIDATE an SQS record body into a typed archive message.
+ *
+ * This was `JSON.parse(record.body) as RecipeVersionArchiveMessage` — a cast, which asserts a shape rather than
+ * establishing one. Nothing runs in front of an SQS handler, so that cast WAS this worker's entire input
+ * handling, and the values it produced reach a SQL predicate, an S3 object key, and the GDPR
+ * archive-resurrection guard. See {@link recipeVersionArchiveMessageSchema} for why a malformed `ownerId` makes
+ * that guard fail OPEN rather than closed, which is the reason this is a validation boundary and not a
+ * formality.
+ *
+ * @param record - The raw SQS record.
+ * @returns The validated message.
+ * @throws {SyntaxError} When the body is not JSON — a poison message must surface, not be silently acked.
+ * @throws {ZodError} When the body is JSON but not a valid archive message. Both throws propagate, so the
+ *   record is retried and then routed to the DLQ (which is alarmed) rather than dropped. That is the right
+ *   disposition here: the producer is our OWN sweeper reading our own columns, so an invalid message means a
+ *   bug on the producing side that a human needs to see — not a caller mistake to answer politely.
+ */
 export const parseArchiveMessage = (record: SQSRecord): RecipeVersionArchiveMessage =>
-    JSON.parse(record.body) as RecipeVersionArchiveMessage;
+    recipeVersionArchiveMessageSchema.parse(JSON.parse(record.body));
 
 /**
  * Deterministic S3 object key for a recipe version snapshot — the shared `recipeObjectKeys` scheme

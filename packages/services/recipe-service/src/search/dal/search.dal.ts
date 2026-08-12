@@ -53,6 +53,17 @@ export { clampPage, clampPageSize };
 export const FACET_SAMPLE_SIZE = 200;
 
 /**
+ * The largest facet sample the {@link SearchDal} constructor will accept.
+ *
+ * A ceiling rather than an exact equality check, because the size is deliberately injectable (tests drive the
+ * sampling boundary with a handful of rows). What it rules out is the value that would make every search scan
+ * the table — the facet CTE runs on EVERY search request, so an absurd sample here is a whole-service
+ * performance fault, not a slow query in one place. Set well above {@link FACET_SAMPLE_SIZE} so tuning the
+ * default upward stays possible without touching this bound.
+ */
+export const MAX_FACET_SAMPLE_SIZE = 10_000;
+
+/**
  * The explicit `recipes` projection returned by the page read — deliberately excludes `search_vector`.
  * Every name is qualified `recipes.` because the page read joins a cover-photo LATERAL (see below), so a
  * bare column list would be ambiguous once another relation is in scope.
@@ -322,7 +333,20 @@ export class SearchDal {
         // compiling; `SearchModule` always supplies it in production, so cover URLs are always resolved
         // there. When absent, `coverPhotoUrl` is simply omitted (never a malformed URL).
         private readonly cloudfrontUrl?: string,
-    ) {}
+    ) {
+        // FAIL CLOSED ON THE FACET SAMPLE SIZE. This value is the one number in this DAL that reaches a
+        // statement without passing through the request schema, so it is bounded HERE rather than trusted.
+        // It used to be interpolated via `sql.raw(String(...))`, where a non-integer would have produced
+        // `LIMIT 1e21` / `LIMIT NaN` — a syntax error at best — and a request-derived value would have been
+        // raw SQL. It is now a bound parameter, so the remaining risk is not injection but an absurd sample
+        // (`LIMIT 2000000000` scans the table on every search); refusing it at construction turns a silent
+        // production pathology into an immediate, un-missable boot failure.
+        if (!Number.isSafeInteger(facetSampleSize) || facetSampleSize < 1 || facetSampleSize > MAX_FACET_SAMPLE_SIZE) {
+            throw new RangeError(
+                `facetSampleSize must be an integer in 1..${MAX_FACET_SAMPLE_SIZE}, received ${String(facetSampleSize)}`,
+            );
+        }
+    }
 
     /**
      * Run one ranked, filtered, paginated search and aggregate its facets.
@@ -375,7 +399,15 @@ export class SearchDal {
                 -- created_at (newest-first, matching the page) then the unique id makes the sample
                 -- deterministic and stable.
                 ORDER BY rank DESC, created_at DESC, id
-                LIMIT ${sql.raw(String(this.facetSampleSize))}
+                -- A BOUND PARAMETER, not a spliced sql.raw(String(...)). The raw form put this value into the
+                -- statement TEXT, which is unnecessary here (the page query two statements up passes its own
+                -- LIMIT as a parameter) and it made the DAL's injection-safety a property of whoever happened
+                -- to construct it. Parameterised, a bad value can only ever be a rejected parameter, never
+                -- new SQL. The constructor additionally rejects a non-integer/out-of-range size, so the two
+                -- together make this safe by construction rather than by convention.
+                -- NB: no backticks and no dollar-brace in this comment — it lives inside a JS template
+                -- literal, so a backtick would END the statement and a dollar-brace would INTERPOLATE.
+                LIMIT ${this.facetSampleSize}
             )
             SELECT 'dietary_flags' AS facet, flag AS value, count(*)::int AS count
             FROM matched, unnest(matched.dietary_flags) AS flag

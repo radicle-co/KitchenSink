@@ -23,14 +23,7 @@ export class RecipeIngredientInputDto extends createZodDto(recipeIngredientInput
 /** One instruction step on a create/update body; the server assigns `stepNumber` from array order. */
 export class CreateRecipeStepInputDto extends createZodDto(recipeStepInputSchema) {}
 
-export {
-    MAX_RECIPE_CUISINE_LENGTH,
-    MAX_RECIPE_DESCRIPTION_LENGTH,
-    MAX_RECIPE_INGREDIENTS,
-    MAX_RECIPE_INGREDIENT_NAME_LENGTH,
-    MAX_RECIPE_INGREDIENT_QUANTITY,
-    MAX_RECIPE_TAGS,
-    MAX_RECIPE_TITLE_LENGTH,
-    MIN_RECIPE_INGREDIENT_QUANTITY,
-    RECIPE_DEVICE_LABEL_PATTERN,
-} from '../recipes.schema.js';
+// NOTE: the bound CONSTANTS are deliberately NOT re-exported from here. They live in
+// `@kitchensink/recipe-core` (`recipeRequestBounds.ts`), which is where every consumer — this service, both
+// apps, and the published schema package — imports them from. A pass-through export here would give one
+// number two import paths, which is how a reader ends up believing there are two numbers.

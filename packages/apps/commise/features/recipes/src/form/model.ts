@@ -5,12 +5,13 @@
  * (`*.native.tsx`) form leaves and by the app container. Holds the editable form shape, the auto total-time
  * rule, the mapping to the `CreateRecipeInput` wire contract, and validation. No React, no platform APIs.
  */
-import { computeRecipeNutrition, toNutritionLine as buildNutritionLine } from '@kitchensink/recipe-core';
 import {
-    createRecipeRequestSchema,
-    recipeIngredientInputSchema,
-    recipeStepInputSchema,
-} from '@kitchensink/schema-recipe';
+    computeRecipeNutrition,
+    recipeIngredientQuantitySchema,
+    recipeStepInstructionSchema,
+    recipeTitleSchema,
+    toNutritionLine as buildNutritionLine,
+} from '@kitchensink/recipe-core';
 import type {
     CreateRecipeInput,
     FoodResolutionStatus,
@@ -90,7 +91,7 @@ export interface RecipeFormValues {
  * Maximum title length (w3/e6) — enforced client-side via `maxLength` and surfaced by a live "N/64" counter.
  *
  * ⚠️ This is the EDITOR's display cap and it is deliberately TIGHTER than the wire's
- * `MAX_RECIPE_TITLE_LENGTH` (200, from `@kitchensink/schema-recipe`): a title has to fit a recipe card. The
+ * `MAX_RECIPE_TITLE_LENGTH` (200, from `@kitchensink/recipe-core`): a title has to fit a recipe card. The
  * relationship is the invariant —
  * the editor may be stricter than the server, NEVER looser, or the user types something the API then rejects on
  * submit. `__tests__/model.test.ts` asserts it, so raising this above the wire cap fails the build rather than
@@ -391,22 +392,26 @@ export interface RecipeFormErrors {
     times?: RecipeFormErrorCode;
 }
 
-// Field-level validators COMPOSED from the PUBLISHED wire schema (parse-don't-validate, DA5) — the single
-// authoritative source for the rules the form and the create contract genuinely SHARE, so the form can never
-// hand-restate (and drift from) what the wire already encodes:
-//   - `titleSchema`: a non-empty, ≤200-character title.
-//   - `quantitySchema`: a quantity inside the 0.001 .. 1 000 000 window the column can actually store.
-//   - `instructionSchema`: a non-empty step instruction.
+// Field-level validators COMPOSED from `@kitchensink/recipe-core`'s bound Value Objects (parse-don't-validate,
+// DA5) — the single authoritative source for the rules the form and the create contract genuinely SHARE, so
+// the form can never hand-restate (and drift from) what the wire already encodes:
+//   - `recipeTitleSchema`: a non-empty, ≤200-character title.
+//   - `recipeIngredientQuantitySchema`: a quantity inside the 0.001 .. 1 000 000 window the column can store.
+//   - `recipeStepInstructionSchema`: a non-empty step instruction.
 //
-// ⚠️ THESE NOW COME FROM `@kitchensink/schema-recipe`, the contract the SERVICE authors and enforces
-// (CODING_STANDARDS §15.2) — not from `@kitchensink/recipe-core`, whose request zod has been REMOVED. That is
-// the point of the change, not an import tidy-up: recipe-core's version was strictly looser than the server
-// (no title maximum, no quantity bounds), so a form composing it could build a body the server then rejected.
-// Composing the real contract makes the two agree by construction — `quantitySchema` in particular now rejects
-// `0.0001` and `2_000_000` in the editor instead of on the round trip.
-const titleSchema = createRecipeRequestSchema.shape.title;
-const quantitySchema = recipeIngredientInputSchema.shape.quantity;
-const instructionSchema = recipeStepInputSchema.shape.instruction;
+// ⚠️ THESE ARE THE SAME OBJECTS THE SERVER VALIDATES WITH — not copies, and not the same rule written twice.
+// Per the owner's ruling the recipe bounds live in `recipe-core`, and `recipe-service`'s
+// `recipes.schema.ts` composes these very exports into `CreateRecipeRequest` (asserted by reference identity
+// in that service's `recipes.schema.test.ts`). So the editor inherits a server-side bound change with no
+// second edit here, in EITHER direction — which is the whole point of moving them, and is what makes the
+// "stricter, never looser" invariant below checkable rather than aspirational.
+//
+// Importing them from `recipe-core` rather than reaching into `@kitchensink/schema-recipe`'s `.shape` is also
+// what stops a wire-envelope reshape (renaming a field, making one optional) from silently breaking a
+// field-level rule the form depends on: a named Value Object survives that, `shape.title` does not.
+const titleSchema = recipeTitleSchema;
+const quantitySchema = recipeIngredientQuantitySchema;
+const instructionSchema = recipeStepInstructionSchema;
 
 /**
  * Whether an ingredient line has been RESOLVED to a catalog row.

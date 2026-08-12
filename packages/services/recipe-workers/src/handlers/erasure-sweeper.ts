@@ -141,7 +141,7 @@ export async function claimStaleErasureJobs(db: NodePgDatabase<Record<string, ne
                EXTRACT(EPOCH FROM (now() - created_at))::int AS age_seconds
         FROM account_erasure_jobs
         WHERE status IN ('queued', 'running')
-          AND updated_at <= now() - interval '${sql.raw(STALE_AFTER)}'
+          AND updated_at <= now() - ${STALE_AFTER}::interval
         ORDER BY created_at ASC
         LIMIT ${SWEEP_BATCH_SIZE}
     `);

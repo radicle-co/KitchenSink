@@ -28,6 +28,7 @@ import {
     DEFAULT_SEARCH_PAGE_SIZE,
     MAX_SEARCH_PAGE_SIZE,
     FACET_SAMPLE_SIZE,
+    MAX_FACET_SAMPLE_SIZE,
     type RecipeSearchFilters,
 } from '../search.dal.js';
 
@@ -50,6 +51,17 @@ const dialect = new PgDialect();
  */
 function sqlText(value: unknown): string {
     return dialect.sqlToQuery(value as Parameters<PgDialect['sqlToQuery']>[0]).sql;
+}
+
+/**
+ * The parameters bound to the statement handed to `db.execute`, rendered by the same production dialect.
+ *
+ * The companion to {@link sqlText}: asserting a value is in `params` (and NOT in the text) is what
+ * distinguishes a parameterised query from one that spliced the value in, which `sqlText` alone cannot tell
+ * apart — the number appears either way.
+ */
+function sqlParams(value: unknown): unknown[] {
+    return dialect.sqlToQuery(value as Parameters<PgDialect['sqlToQuery']>[0]).params;
 }
 
 const OWNER = '01J000000000000000000FREE0';
@@ -302,6 +314,31 @@ describe('SearchDal.search', () => {
         expect(pageSql).not.toContain('cook_time_minutes <=');
     });
 
+    describe('facet sample size is bounded at construction (fail closed)', () => {
+        // This is the value that used to be spliced into the statement with `sql.raw(String(...))`. It is now a
+        // bound parameter, so injection is off the table; what remains is an absurd sample making EVERY search
+        // scan the table, because the facet CTE runs on every request. Refusing it here turns a silent
+        // production pathology into an immediate boot failure. These cases red if the guard is removed.
+        it.each([
+            ['zero', 0],
+            ['negative', -1],
+            ['fractional', 2.5],
+            ['NaN', Number.NaN],
+            ['Infinity', Number.POSITIVE_INFINITY],
+            ['above the ceiling', MAX_FACET_SAMPLE_SIZE + 1],
+        ])('refuses %s', (_label, size) => {
+            expect(() => new SearchDal({} as never, size)).toThrow(RangeError);
+        });
+
+        it.each([
+            ['the default', FACET_SAMPLE_SIZE],
+            ['a small test value', 2],
+            ['the ceiling itself', MAX_FACET_SAMPLE_SIZE],
+        ])('accepts %s', (_label, size) => {
+            expect(() => new SearchDal({} as never, size)).not.toThrow();
+        });
+    });
+
     it('aggregates facets via a rank-sampling CTE that unnests dietary_flags and tags', async () => {
         primeExecute(execute);
 
@@ -313,7 +350,13 @@ describe('SearchDal.search', () => {
         expect(facetSql).toContain('dietary_flags');
         expect(facetSql).toContain('tags');
         expect(facetSql).toContain('count(*)');
-        expect(facetSql).toContain(String(FACET_SAMPLE_SIZE)); // the rank sample ceiling
+        // The rank sample ceiling is a BOUND PARAMETER, so it is in the params and NOT in the statement text.
+        // This assertion used to be `toContain(String(FACET_SAMPLE_SIZE))`, which passed only because
+        // `sql.raw(String(...))` spliced the number into the SQL — i.e. the old test was inadvertently
+        // asserting the injection-prone form. Flipped deliberately: it now reds if `sql.raw` comes back.
+        expect(facetSql).not.toContain(String(FACET_SAMPLE_SIZE));
+        expect(facetSql).toMatch(/LIMIT\s+\$\d+/);
+        expect(sqlParams(execute.mock.calls[2]![0])).toContain(FACET_SAMPLE_SIZE);
         // W8-a.9 facet dimensions: cuisine (non-null scalar) + total-time buckets (mutually-exclusive CASE).
         expect(facetSql).toContain("'cuisine'");
         expect(facetSql).toContain('cuisine IS NOT NULL');

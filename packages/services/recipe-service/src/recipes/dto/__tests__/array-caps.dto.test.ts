@@ -16,7 +16,9 @@ import type { ArgumentMetadata } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { describe, expect, it } from 'vitest';
 
-import { CreateRecipeDto, MAX_RECIPE_INGREDIENTS, MAX_RECIPE_TAGS } from '../create-recipe.dto.js';
+import { MAX_RECIPE_INGREDIENTS, MAX_RECIPE_TAGS } from '@kitchensink/recipe-core';
+
+import { CreateRecipeDto } from '../create-recipe.dto.js';
 import { UpdateRecipeDto } from '../update-recipe.dto.js';
 
 /** The exact pipe the `RecipesController` applies (`@UsePipes(ZodValidationPipe)`). */

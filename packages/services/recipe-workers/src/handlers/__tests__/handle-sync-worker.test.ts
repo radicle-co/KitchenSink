@@ -47,7 +47,9 @@ function record(body: unknown, messageId = 'm-1'): SQSRecord {
     return { messageId, body: typeof body === 'string' ? body : JSON.stringify(body) } as SQSRecord;
 }
 
-const VALID = { userId: 'user-1', displayName: 'Ada Lovelace', sourceTimestamp: '2026-07-20T00:00:00.000Z' };
+/** A real app-user ULID: identity mints ULIDs, and `userId` is now ULID-validated (it is the predicate of three SQL statements). */
+const USER = '01J0000000000000000000WN00';
+const VALID = { userId: USER, displayName: 'Ada Lovelace', sourceTimestamp: '2026-07-20T00:00:00.000Z' };
 
 describe('parseHandleSyncMessage', () => {
     it('parses a raw-delivery body', () => {
@@ -65,14 +67,30 @@ describe('parseHandleSyncMessage', () => {
         ['blank userId', { ...VALID, userId: '  ' }],
         ['missing timestamp', { userId: 'u', displayName: 'x' }],
         ['unparseable timestamp', { ...VALID, sourceTimestamp: 'not-a-date' }],
+        // The cases the previous five-clause `typeof` ladder ADMITTED. Each reds if the schema is loosened
+        // back to "is a non-blank string" / "is a string".
+        ['userId that is not a ULID', { ...VALID, userId: 'user-1' }],
+        ['userId with a path fragment', { ...VALID, userId: '../../etc' }],
+        ['displayName over the 100-char bound', { ...VALID, displayName: 'x'.repeat(101) }],
+        ['displayName that is whitespace only', { ...VALID, displayName: '   ' }],
+        ['displayName that is not a string', { ...VALID, displayName: { $ne: null } }],
+        // A non-normalized instant would be compared against `source_timestamp` as-is, so it must be refused
+        // rather than silently win or lose the monotonic guard.
+        ['a date-only timestamp', { ...VALID, sourceTimestamp: '2026-07-20' }],
     ])('drops a structurally-invalid message (%s) → undefined', (_label, body) => {
         expect(parseHandleSyncMessage(record(body))).toBeUndefined();
+    });
+
+    it('trims displayName so one name has one stored form across the three tables it fans out to', () => {
+        expect(parseHandleSyncMessage(record({ ...VALID, displayName: '  Ada Lovelace  ' }))?.displayName).toBe(
+            'Ada Lovelace',
+        );
     });
 });
 
 describe('applyHandleRename SQL', () => {
     it('does a monotonic upsert then fans out to recipes + versions', async () => {
-        const { db, texts } = makeFakeDb(() => Promise.resolve({ rows: [{ user_id: 'user-1' }] }));
+        const { db, texts } = makeFakeDb(() => Promise.resolve({ rows: [{ user_id: USER }] }));
 
         const applied = await applyHandleRename(db, VALID);
 

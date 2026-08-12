@@ -15,5 +15,8 @@ import { listRecipesQuerySchema } from '../recipes.schema.js';
 /** Query parameters of `GET /api/v1/recipes`. */
 export class ListRecipesQueryDto extends createZodDto(listRecipesQuerySchema) {}
 
-export { MAX_RECIPE_LIST_PAGE_SIZE, RECIPE_LIST_SORT_BY } from '../recipes.schema.js';
+// `MAX_RECIPE_LIST_PAGE_SIZE` is NOT re-exported here — it is a bound, so it lives in
+// `@kitchensink/recipe-core`. `RECIPE_LIST_SORT_BY` is this endpoint's own wire enum, so it stays authored
+// in `recipes.schema.ts` and is re-exported for the controller and the OpenAPI route table.
+export { RECIPE_LIST_SORT_BY } from '../recipes.schema.js';
 export type { RecipeListSortBy } from '../recipes.schema.js';

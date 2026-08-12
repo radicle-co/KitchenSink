@@ -18,14 +18,17 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { getRecipeDb } from '../common/db.js';
 import { logger } from '../common/logger.js';
+import { handleSyncMessageSchema } from '../common/messages.schema.js';
+import type { HandleSyncMessage } from '../common/messages.schema.js';
 
-/** The rename payload both producer routes publish. */
-export interface HandleSyncMessage {
-    readonly userId: string;
-    readonly displayName: string;
-    /** ISO-8601 `profiles.updatedAt` written in the same tx as the displayName change (the single clock). */
-    readonly sourceTimestamp: string;
-}
+/**
+ * The rename payload both producer routes publish.
+ *
+ * DERIVED from {@link handleSyncMessageSchema} rather than declared here, so the compile-time shape and the
+ * runtime validator are one definition instead of an `interface` the compiler trusts sitting beside a queue
+ * that delivers whatever it likes.
+ */
+export type { HandleSyncMessage } from '../common/messages.schema.js';
 
 /**
  * Parse an SQS record body into a {@link HandleSyncMessage}, unwrapping the SNS envelope when the
@@ -34,21 +37,22 @@ export interface HandleSyncMessage {
  */
 export function parseHandleSyncMessage(record: SQSRecord): HandleSyncMessage | undefined {
     try {
-        const outer = JSON.parse(record.body) as { Type?: string; Message?: string } & Partial<HandleSyncMessage>;
-        const payload =
-            typeof outer.Message === 'string' ? (JSON.parse(outer.Message) as Partial<HandleSyncMessage>) : outer;
+        // The SNS envelope itself is untrusted structure too, so it is narrowed rather than cast: all we need
+        // from it is whether `.Message` is a string, which is what distinguishes an envelope from a
+        // raw-message-delivery payload.
+        const outer: unknown = JSON.parse(record.body);
+        const wrapped =
+            typeof outer === 'object' && outer !== null ? (outer as { Message?: unknown }).Message : undefined;
+        const payload: unknown = typeof wrapped === 'string' ? JSON.parse(wrapped) : outer;
 
-        if (
-            typeof payload.userId !== 'string' ||
-            payload.userId.trim() === '' ||
-            typeof payload.displayName !== 'string' ||
-            typeof payload.sourceTimestamp !== 'string' ||
-            Number.isNaN(Date.parse(payload.sourceTimestamp))
-        ) {
-            return undefined;
-        }
+        // Replaces a five-clause `typeof` ladder. The ladder was not merely verbose — it was WEAKER than it
+        // looked: `userId` passed on any non-blank string (never ULID-checked, though it becomes the predicate
+        // of three SQL statements), and `displayName` passed on any string at all, with no trim and no length
+        // bound, before being written to `author_handles.display_name` and denormalized into
+        // `recipes.author_handle` and `recipe_versions.editor_handle` — three unbounded `text` columns.
+        const parsed = handleSyncMessageSchema.safeParse(payload);
 
-        return { userId: payload.userId, displayName: payload.displayName, sourceTimestamp: payload.sourceTimestamp };
+        return parsed.success ? parsed.data : undefined;
     } catch {
         return undefined;
     }

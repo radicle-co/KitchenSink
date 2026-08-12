@@ -8,8 +8,16 @@
  * and no upper bound on any int4-backed number. So every bound that existed before is asserted here as a
  * REJECTION, one field at a time, and the suite is written to fail if any of them is dropped.
  *
- * Three properties carry most of the value:
+ * ⚠️ The BOUNDS themselves now live in `@kitchensink/recipe-core` (`recipeRequestBounds.ts`) — the owner's
+ * ruling, so both apps inherit the same numbers — and this file composes them. That relocation is why suite 0
+ * exists: it asserts REFERENCE IDENTITY between each request field and the `recipe-core` Value Object, which
+ * is what makes "the bound is not restated here" a checked property rather than a comment. The value-level
+ * accept/reject cases below are retained on TOP of that, because identity alone would not notice
+ * `recipe-core` itself loosening a bound.
  *
+ * Four properties carry most of the value:
+ *
+ *  0. **Every bounded field IS the recipe-core object** (`shape.title === recipeTitleSchema`).
  *  1. **The DTO and the published schema are the SAME OBJECT** (`Dto.schema === …Schema`). `@kitchensink/
  *     schema-recipe` publishes these verbatim, so identity makes it impossible to validate one shape
  *     server-side and publish another.
@@ -23,10 +31,34 @@
  */
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
-    MAX_RECIPE_DEVICE_LABEL_LENGTH,
     recipeIngredientViewSchema,
     recipeSchema,
     recipeStepViewSchema,
+    MAX_RECIPE_CUISINE_LENGTH,
+    MAX_RECIPE_DESCRIPTION_LENGTH,
+    MAX_RECIPE_DEVICE_LABEL_LENGTH,
+    MAX_RECIPE_INGREDIENTS,
+    MAX_RECIPE_INGREDIENT_NAME_LENGTH,
+    MAX_RECIPE_INGREDIENT_QUANTITY,
+    MAX_RECIPE_LIST_PAGE_SIZE,
+    MAX_RECIPE_TAGS,
+    MAX_RECIPE_TITLE_LENGTH,
+    MIN_RECIPE_INGREDIENT_QUANTITY,
+    recipeCuisineSchema,
+    recipeDescriptionSchema,
+    recipeDeviceLabelSchema,
+    recipeExpectedVersionSchema,
+    recipeIngredientIdSchema,
+    recipeIngredientNameSchema,
+    recipeIngredientNotesSchema,
+    recipeIngredientQuantitySchema,
+    recipeIngredientUnitSchema,
+    recipeLineNutritionSchema,
+    recipeMinutesSchema,
+    recipeServingsSchema,
+    recipeStepInstructionSchema,
+    recipeTimerSecondsSchema,
+    recipeTitleSchema,
 } from '@kitchensink/recipe-core';
 import type { CreateRecipeInput, CreateRecipeIngredientInput, CreateRecipeStepInput } from '@kitchensink/recipe-core';
 
@@ -38,15 +70,6 @@ import {
     recipeStepInputSchema,
     setRecipeVisibilityRequestSchema,
     updateRecipeRequestSchema,
-    MAX_RECIPE_CUISINE_LENGTH,
-    MAX_RECIPE_DESCRIPTION_LENGTH,
-    MAX_RECIPE_INGREDIENTS,
-    MAX_RECIPE_INGREDIENT_NAME_LENGTH,
-    MAX_RECIPE_INGREDIENT_QUANTITY,
-    MAX_RECIPE_LIST_PAGE_SIZE,
-    MAX_RECIPE_TAGS,
-    MAX_RECIPE_TITLE_LENGTH,
-    MIN_RECIPE_INGREDIENT_QUANTITY,
 } from '../recipes.schema.js';
 import type { CreateRecipeRequest, RecipeIngredientInput, RecipeStepInput } from '../recipes.schema.js';
 import { CreateRecipeDto } from '../dto/create-recipe.dto.js';
@@ -85,6 +108,43 @@ function createAccepts(over: Record<string, unknown>): boolean {
 function lineAccepts(over: Record<string, unknown>): boolean {
     return recipeIngredientInputSchema.safeParse({ ...A_LINE, ...over }).success;
 }
+
+// ── 0. Every bounded field IS recipe-core's object, so no bound can be restated here ──────────────
+
+describe('the request fields ARE the recipe-core Value Objects (identity, not equivalence)', () => {
+    // OWNER RULING: the bounds live in `recipe-core` so both apps inherit them. `toBe` — reference identity
+    // — is what makes that structural rather than aspirational: an equivalent-looking `z.string().max(200)`
+    // re-declared here would pass any behavioural assertion while being a SECOND representation of the rule,
+    // which is the exact defect (a looser twin drifting from the enforced bound) this seam removed. If a
+    // field is ever re-declared locally, this fails immediately and names the field.
+    it.each([
+        ['title', createRecipeRequestSchema.shape.title, recipeTitleSchema],
+        ['servings', createRecipeRequestSchema.shape.servings, recipeServingsSchema],
+        ['prepTimeMinutes', createRecipeRequestSchema.shape.prepTimeMinutes, recipeMinutesSchema],
+        ['cookTimeMinutes', createRecipeRequestSchema.shape.cookTimeMinutes, recipeMinutesSchema],
+        ['totalTimeMinutes', createRecipeRequestSchema.shape.totalTimeMinutes, recipeMinutesSchema],
+        ['ingredients[].ingredientId', recipeIngredientInputSchema.shape.ingredientId, recipeIngredientIdSchema],
+        ['ingredients[].name', recipeIngredientInputSchema.shape.name, recipeIngredientNameSchema],
+        ['ingredients[].quantity', recipeIngredientInputSchema.shape.quantity, recipeIngredientQuantitySchema],
+        ['steps[].instruction', recipeStepInputSchema.shape.instruction, recipeStepInstructionSchema],
+        ['expectedVersion', updateRecipeRequestSchema.shape.expectedVersion, recipeExpectedVersionSchema],
+    ])('%s is the recipe-core schema object itself', (_field, wireField, valueObject) => {
+        expect(wireField).toBe(valueObject);
+    });
+
+    it('the OPTIONAL fields wrap the same object rather than re-declaring it', () => {
+        // `.optional()` returns a wrapper, so identity is asserted one level in — the wrapped inner type.
+        const unwrap = (schema: { unwrap: () => unknown }): unknown => schema.unwrap();
+
+        expect(unwrap(createRecipeRequestSchema.shape.description)).toBe(recipeDescriptionSchema);
+        expect(unwrap(createRecipeRequestSchema.shape.cuisine)).toBe(recipeCuisineSchema);
+        expect(unwrap(createRecipeRequestSchema.shape.deviceLabel)).toBe(recipeDeviceLabelSchema);
+        expect(unwrap(recipeIngredientInputSchema.shape.unit)).toBe(recipeIngredientUnitSchema);
+        expect(unwrap(recipeIngredientInputSchema.shape.notes)).toBe(recipeIngredientNotesSchema);
+        expect(unwrap(recipeStepInputSchema.shape.timerSeconds)).toBe(recipeTimerSecondsSchema);
+        expect(unwrap(recipeIngredientInputSchema.shape.userCalories)).toBe(recipeLineNutritionSchema);
+    });
+});
 
 // ── 1. The DTOs ARE the published schemas ─────────────────────────────────────────────────────────
 

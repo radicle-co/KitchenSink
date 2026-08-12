@@ -144,7 +144,7 @@ export async function readRecentlyCompletedOwners(
         SELECT owner_id, removed_recipe_ids
         FROM account_erasure_jobs
         WHERE status = 'completed'
-          AND updated_at >= now() - interval '${sql.raw(COMPLETED_LOOKBACK)}'
+          AND updated_at >= now() - ${COMPLETED_LOOKBACK}::interval
         ORDER BY updated_at ASC
         LIMIT ${SWEEP_BATCH_SIZE}
     `);

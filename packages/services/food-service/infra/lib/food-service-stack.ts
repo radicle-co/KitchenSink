@@ -27,6 +27,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
+import { listenerPriorityForStage } from '@kitchensink/infra-alb';
 import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@kitchensink/infra-security';
 
 /**
@@ -57,42 +58,6 @@ const FOOD_METRIC = {
 
 /** The single shared base logical database on the persistent platform instance (ADR-0006). */
 export const BASE_FOOD_DATABASE_NAME = 'kitchensink_food';
-
-/**
- * Per-PR listener-rule priority band on the shared sandbox ALB (ADR-0003 + ADR-0006).
- *
- * Base stages use the fixed food priority (200); every per-PR preview rides the shared sandbox
- * listener and MUST carry a unique priority, so `pr-{N}` allocates `PER_PR_PRIORITY_BASE + N`. The
- * band (10000–19999) sits well clear of the fixed service priorities (identity=100, food=200, …).
- */
-export const PER_PR_PRIORITY_BASE = 10_000;
-
-/** Width of each ephemeral priority band; also caps the PR number that fits below the named band. */
-export const EPHEMERAL_PRIORITY_BAND_WIDTH = 10_000;
-
-/**
- * Listener-rule priority band for a NAMED non-PR ephemeral stage (e.g. `dev`, `team-feature-x`).
- *
- * Kept strictly ABOVE the per-PR band so a hashed named-stage priority can never collide with a
- * `pr-{N}` rule: PRs occupy 10000–19999, named stages 20000–29999 (ALB rule priorities max at 50000,
- * so both fit).
- *
- * ⚠️ THE EPHEMERAL BAND SPACE IS NOW FULL. Each feature service owns two 10000-wide bands and they must be
- * disjoint across services (`recipe-service-stack.ts` takes 30000–39999 and 40000–49999 for exactly that
- * reason). With the ALB ceiling at 50000, food's 10000–29999 plus recipe's 30000–49999 exhausts the range: a
- * THIRD feature service has no band left to claim. Do not "solve" that by overlapping a band — the collision
- * surfaces as a failed per-PR deploy, not a synth error. It needs a different allocation scheme (one shared
- * ephemeral band hashed over service AND stage, or a priority derived from a registry).
- *
- * Within the named band the stage string is hashed, so two *distinct, concurrently
- * deployed* named stages could still collide — that residual is inherent to hashing and acceptable
- * because named ephemeral stages are deployed one-at-a-time by hand (unlike PRs, which are keyed off
- * the globally unique PR number).
- */
-export const NAMED_STAGE_PRIORITY_BASE = 20_000;
-
-/** The fixed shared-ALB listener-rule priority for the food service on a base (prod/sandbox) stage. */
-export const BASE_FOOD_LISTENER_PRIORITY = 200;
 
 /**
  * Resolve the food service's logical database name for a stage.
@@ -126,55 +91,6 @@ export function foodDatabaseNameForStage(stage: string, baseStage: string, impor
     }
 
     return `${BASE_FOOD_DATABASE_NAME}_${suffix}`;
-}
-
-/**
- * Resolve the shared-ALB listener-rule priority for a stage.
- *
- * A base stage uses the fixed food priority (200). A per-PR `pr-{N}` stage allocates from the per-PR
- * band (`PER_PR_PRIORITY_BASE + N`, 10000–19999) keyed off the globally unique PR number. Any other
- * non-base (named ephemeral) stage hashes into a SEPARATE band (`NAMED_STAGE_PRIORITY_BASE + hash`,
- * 20000–29999) so a hashed value can never collide with a `pr-{N}` rule — the two bands are disjoint
- * by construction. The per-PR band is capped at {@link EPHEMERAL_PRIORITY_BAND_WIDTH} so an
- * (unrealistically large) PR number can never overflow into the named band; it throws instead.
- *
- * @param stage - The deploy stage.
- * @param baseStage - The resolved base stage.
- * @returns A listener-rule priority for the stage within the shared listener.
- * @throws If a `pr-{N}` number is too large to fit the per-PR band.
- */
-export function foodListenerPriorityForStage(stage: string, baseStage: string): number {
-    if (stage === baseStage) {
-        return BASE_FOOD_LISTENER_PRIORITY;
-    }
-
-    const prMatch = /^pr-(\d+)$/.exec(stage);
-
-    if (prMatch) {
-        const prNumber = Number(prMatch[1]);
-
-        // Keep the PR band disjoint from the named band by construction; a PR number this large is not
-        // real, so fail loudly at synth rather than silently overflow into another stage's priority.
-        if (prNumber >= EPHEMERAL_PRIORITY_BAND_WIDTH) {
-            throw new Error(
-                `PR number ${prNumber} exceeds the per-PR listener-priority band width ` +
-                    `(${EPHEMERAL_PRIORITY_BAND_WIDTH}); the shared-ALB priority scheme cannot allocate it.`,
-            );
-        }
-
-        return PER_PR_PRIORITY_BASE + prNumber;
-    }
-
-    // Named non-PR ephemeral stage (e.g. `dev`, a named feature sandbox): hash the stage into the
-    // DEDICATED named band so it is stable across synths and stays clear of BOTH the fixed service
-    // priorities and the per-PR band (see NAMED_STAGE_PRIORITY_BASE for the residual collision note).
-    let hash = 0;
-
-    for (const char of stage) {
-        hash = (hash * 31 + char.charCodeAt(0)) % EPHEMERAL_PRIORITY_BAND_WIDTH;
-    }
-
-    return NAMED_STAGE_PRIORITY_BASE + hash;
 }
 
 /**
@@ -729,14 +645,13 @@ export class FoodServiceStack extends Stack {
             },
         );
 
-        // Per-service listener-rule priority allocation (ADR-0003): identity=100, food=200, recipe=300.
-        // Future services pick 400, 500, … A per-PR preview rides the SHARED sandbox listener, so it MUST
-        // NOT reuse 200 —
-        // it allocates from the per-PR band (PER_PR_PRIORITY_BASE + N; ADR-0006). Base stages keep 200,
-        // so their template does not diff. Priorities must be unique across all rules on the listener.
+        // Listener-rule priorities are ONE namespace shared across every service's stack on this stage's
+        // single HTTPS listener, so they are allocated by @kitchensink/infra-alb and NOT restated here — the
+        // copy-per-service that preceded it drifted (ADR-0003). A base stage keeps food's fixed 200 (no prod
+        // diff); a per-PR preview rides the SHARED sandbox listener and takes food's own per-PR band.
         new elbv2.ApplicationListenerRule(this, 'FoodServiceListenerRule', {
             listener: sharedHttpsListener,
-            priority: foodListenerPriorityForStage(stage, baseStage),
+            priority: listenerPriorityForStage({ service: 'food', stage, baseStage }),
             conditions: [elbv2.ListenerCondition.hostHeaders([serviceDomain])],
             targetGroups: [targetGroup],
         });

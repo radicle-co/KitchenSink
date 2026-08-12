@@ -2,6 +2,13 @@ import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect, beforeAll } from 'vitest';
 
+import {
+    BASE_LISTENER_PRIORITY,
+    BASE_SPAN_CEILING,
+    EPHEMERAL_SERVICE_SLOTS,
+    ephemeralBandsForSlot,
+} from '@kitchensink/infra-alb';
+
 import { IdentityServiceStack } from '../lib/identity-service-stack.js';
 
 // NetworkStack/DataStack assertions live with the deployed (global) definitions in
@@ -173,10 +180,36 @@ describe('Shared ALB topology (no per-service ALB)', () => {
         serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 0);
     });
 
+    /**
+     * Identity is the ONE shared persistent service every per-PR preview signs in against, so it has no
+     * ephemeral deploy and must NEVER allocate from an ephemeral band — it reads its BASE priority straight
+     * from `@kitchensink/infra-alb`'s registry (note this stack imports `kitchensink-alb-${stage}`, not
+     * `${baseStage}`: its stage is always a base stage). Asserted against the SYNTHESIZED rule, not the
+     * constant, and against EVERY reserved slot's bands — so "consistency-fixing" this stack onto the stage
+     * resolver reds here even though this suite synthesizes the non-prod `test` stage.
+     */
+    it('synthesizes its rule in the BASE span, outside every reserved slot`s ephemeral band', () => {
+        const priorities = Object.values(
+            serviceTemplate.findResources('AWS::ElasticLoadBalancingV2::ListenerRule'),
+        ).map((resource) => resource.Properties.Priority as number);
+
+        expect(priorities).toEqual([BASE_LISTENER_PRIORITY.identity]);
+        expect(priorities[0]).toBe(100);
+
+        for (let slot = 0; slot < EPHEMERAL_SERVICE_SLOTS; slot += 1) {
+            const { perPr, named } = ephemeralBandsForSlot(slot);
+
+            expect(priorities[0]).toBeLessThan(named.floor);
+            expect(priorities[0]).toBeLessThan(perPr.floor);
+        }
+
+        expect(priorities[0]).toBeLessThanOrEqual(BASE_SPAN_CEILING);
+    });
+
     it('attaches exactly one host-based listener rule to the shared HTTPS listener', () => {
         serviceTemplate.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerRule', 1);
         serviceTemplate.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
-            Priority: 100,
+            Priority: BASE_LISTENER_PRIORITY.identity,
             Conditions: Match.arrayWith([
                 Match.objectLike({
                     Field: 'host-header',

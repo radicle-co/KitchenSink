@@ -163,7 +163,11 @@ describe('recipe database-name parity — API vs workers', () => {
     });
 
     it('agrees across independent preview stages, without cross-contamination', () => {
-        for (const stage of ['pr-1', 'pr-15', 'pr-9999']) {
+        // `pr-5999` is the LARGEST PR number the shared-ALB per-PR band admits (ADR-0003 —
+        // `@kitchensink/infra-alb`'s `PER_PR_BAND_WIDTH`), so it doubles as this suite's boundary probe. It
+        // was `pr-9999`, which now throws at synth: that is the priority ceiling doing its job, not a
+        // regression here — do not raise it back without widening the band.
+        for (const stage of ['pr-1', 'pr-15', 'pr-5999']) {
             const apiName = apiDatabaseName(serviceTemplate(stage, 'sandbox'));
             const workerNames = new Set(lambdaDatabaseNames(workersTemplate(stage, 'sandbox'), 'RECIPE_DB_NAME'));
 

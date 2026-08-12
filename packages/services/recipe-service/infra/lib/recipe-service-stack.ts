@@ -22,81 +22,9 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Construct } from 'constructs';
 
+import { listenerPriorityForStage } from '@kitchensink/infra-alb';
 import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@kitchensink/infra-security';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
-
-/**
- * Per-PR listener-rule priority band on the shared sandbox ALB (ADR-0003 + ADR-0006).
- *
- * CRITICAL: every per-PR preview of EVERY feature service rides the ONE shared sandbox HTTPS listener, so
- * a per-PR priority must be unique across services, not just across PR numbers. Each feature service
- * therefore owns a DISJOINT per-PR band: food uses 10000–19999 (its `PER_PR_PRIORITY_BASE`), so recipe
- * MUST NOT reuse 10000 — recipe-pr-73 (10073) would collide with the already-deployed food-pr-73 (10073),
- * which is exactly the "Priority '10073' is currently in use" failure this avoids. Recipe takes
- * 30000–39999. Do NOT "align" this back to 10000 to match food.
- */
-export const PER_PR_PRIORITY_BASE = 30_000;
-
-/** Width of each ephemeral priority band; also caps the PR number that fits below the named band. */
-export const EPHEMERAL_PRIORITY_BAND_WIDTH = 10_000;
-
-/** Listener-rule priority band for a NAMED non-PR ephemeral stage (recipe's, disjoint from food's). */
-export const NAMED_STAGE_PRIORITY_BASE = 40_000;
-
-/**
- * The fixed shared-ALB listener-rule priority for the recipe service on a base (prod/sandbox) stage.
- * identity = 100, food = 200, recipe = 300 (priorities must be unique across the shared listener).
- */
-export const BASE_RECIPE_LISTENER_PRIORITY = 300;
-
-/**
- * Resolve the shared-ALB listener-rule priority for a stage, keeping the per-PR and named bands disjoint.
- *
- * base = {@link BASE_RECIPE_LISTENER_PRIORITY} (300) · per-PR = {@link PER_PR_PRIORITY_BASE} + N (30000–39999) ·
- * named = {@link NAMED_STAGE_PRIORITY_BASE} + hash (40000–49999).
- *
- * ⚠️ The bases are recipe's OWN, and are deliberately NOT food's. This summary previously read "per-PR =
- * 10000+N; named = 20000+hash" — food's bands, copied when this function was mirrored from
- * {@link foodListenerPriorityForStage} and never updated to the constants below. Following the prose instead of
- * the code puts recipe-pr-{N} on food-pr-{N}'s priority, which is the "Priority '10073' is currently in use"
- * deploy failure the disjoint bands exist to prevent — so it would have broken every per-PR deploy. The
- * constants are the source of truth; this text mirrors them and must be changed with them.
- *
- * Mirrors {@link foodListenerPriorityForStage} in SHAPE, not in values.
- *
- * @param stage - The deploy stage.
- * @param baseStage - The resolved base stage.
- * @returns A listener-rule priority unique within the shared listener.
- * @throws If a `pr-{N}` number is too large to fit the per-PR band.
- */
-export function recipeListenerPriorityForStage(stage: string, baseStage: string): number {
-    if (stage === baseStage) {
-        return BASE_RECIPE_LISTENER_PRIORITY;
-    }
-
-    const prMatch = /^pr-(\d+)$/.exec(stage);
-
-    if (prMatch) {
-        const prNumber = Number(prMatch[1]);
-
-        if (prNumber >= EPHEMERAL_PRIORITY_BAND_WIDTH) {
-            throw new Error(
-                `PR number ${prNumber} exceeds the per-PR listener-priority band width ` +
-                    `(${EPHEMERAL_PRIORITY_BAND_WIDTH}); the shared-ALB priority scheme cannot allocate it.`,
-            );
-        }
-
-        return PER_PR_PRIORITY_BASE + prNumber;
-    }
-
-    let hash = 0;
-
-    for (const char of stage) {
-        hash = (hash * 31 + char.charCodeAt(0)) % EPHEMERAL_PRIORITY_BAND_WIDTH;
-    }
-
-    return NAMED_STAGE_PRIORITY_BASE + hash;
-}
 
 /**
  * Resolve the recipe service's DNS label for a stage. prod → `recipe`; every other stage → `recipe-{stage}`
@@ -506,11 +434,13 @@ export class RecipeServiceStack extends Stack {
             },
         );
 
-        // identity=100, food=200, recipe=300. A per-PR preview rides the SHARED sandbox listener, so it
-        // MUST NOT reuse 300 — it allocates from the per-PR band (ADR-0006). Base stages keep 300.
+        // Allocated by @kitchensink/infra-alb, never restated here. This stack's own copy of the scheme is
+        // exactly what drifted: its docstring described FOOD's bands, which if followed put recipe-pr-{N} on
+        // food-pr-{N} and failed every per-PR deploy with `Priority '10073' is currently in use` (ADR-0003).
+        // A base stage keeps recipe's fixed 300 (no prod diff); a per-PR preview takes recipe's own band.
         new elbv2.ApplicationListenerRule(this, 'RecipeServiceListenerRule', {
             listener: sharedHttpsListener,
-            priority: recipeListenerPriorityForStage(stage, baseStage),
+            priority: listenerPriorityForStage({ service: 'recipe', stage, baseStage }),
             conditions: [elbv2.ListenerCondition.hostHeaders([serviceDomain])],
             targetGroups: [targetGroup],
         });

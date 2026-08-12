@@ -1,0 +1,5 @@
+# Build output is not source. Prettier resolves .prettierignore from its CWD, and turbo runs each
+# package's `format:check` with CWD = the package — so the ROOT .prettierignore does not apply here.
+node_modules
+dist
+*.tsbuildinfo

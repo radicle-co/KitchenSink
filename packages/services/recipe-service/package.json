@@ -58,6 +58,7 @@
     "devDependencies": {
         "@kitchensink/contract-gen": "*",
         "@kitchensink/eslint": "*",
+        "@kitchensink/infra-alb": "*",
         "@kitchensink/infra-security": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/recipe-service-client": "*",

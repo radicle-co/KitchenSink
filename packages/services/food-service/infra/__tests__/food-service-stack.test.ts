@@ -2,19 +2,23 @@ import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect, beforeAll } from 'vitest';
 
+import {
+    BASE_LISTENER_PRIORITY,
+    EPHEMERAL_SLOT_ORDER,
+    ephemeralBandsForSlot,
+    listenerPriorityForStage,
+} from '@kitchensink/infra-alb';
 import { NODE_LAMBDA_RUNTIME } from '@kitchensink/infra-security';
 
 import {
     FoodServiceStack,
     foodDatabaseNameForStage,
-    foodListenerPriorityForStage,
     foodServiceOriginForStage,
     foodSubdomainForStage,
-    BASE_FOOD_LISTENER_PRIORITY,
-    PER_PR_PRIORITY_BASE,
-    NAMED_STAGE_PRIORITY_BASE,
-    EPHEMERAL_PRIORITY_BAND_WIDTH,
 } from '../lib/food-service-stack.js';
+
+/** Food's own per-PR band, read from the allocation authority rather than restated as a literal. */
+const FOOD_PER_PR_BAND = ephemeralBandsForSlot(EPHEMERAL_SLOT_ORDER.indexOf('food')).perPr;
 
 /**
  * The VPC-lookup context every synth in this suite shares — `Vpc.fromLookup` resolves to this dummy
@@ -171,7 +175,7 @@ describe('Shared ALB topology (no per-service ALB)', () => {
             // Derived, not the literal 200: `test` is an EPHEMERAL named stage riding the sandbox platform,
             // so it draws from the named-stage band. 200 is prod's base priority, and asserting it here
             // would only have held while this suite synthesized the forbidden `stage === baseStage` shape.
-            Priority: foodListenerPriorityForStage('test', 'sandbox'),
+            Priority: listenerPriorityForStage({ service: 'food', stage: 'test', baseStage: 'sandbox' }),
             Conditions: Match.arrayWith([
                 Match.objectLike({
                     Field: 'host-header',
@@ -671,9 +675,10 @@ describe('Base-stage platform imports (ADR-0006)', () => {
         expect(json).toContain('kitchensink-network-prod:ServiceSecurityGroupId');
         expect(json).not.toContain('kitchensink_food_pr_');
 
-        // Base food priority is unchanged.
+        // Base food priority is unchanged — 200, the value already on the live prod listener.
+        expect(BASE_LISTENER_PRIORITY.food).toBe(200);
         template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
-            Priority: BASE_FOOD_LISTENER_PRIORITY,
+            Priority: BASE_LISTENER_PRIORITY.food,
             Conditions: Match.arrayWith([
                 Match.objectLike({
                     Field: 'host-header',
@@ -725,7 +730,7 @@ describe('Base-stage platform imports (ADR-0006)', () => {
         const template = synthFoodTemplate('pr-7', 'sandbox');
 
         template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
-            Priority: PER_PR_PRIORITY_BASE + 7,
+            Priority: FOOD_PER_PR_BAND.floor + 7,
             Conditions: Match.arrayWith([
                 Match.objectLike({
                     Field: 'host-header',
@@ -801,42 +806,26 @@ describe('foodDatabaseNameForStage', () => {
     });
 });
 
-describe('foodListenerPriorityForStage', () => {
-    it('keeps the fixed food priority for the base stage (prod — the only one)', () => {
-        expect(foodListenerPriorityForStage('prod', 'prod')).toBe(BASE_FOOD_LISTENER_PRIORITY);
-    });
-
-    it('allocates pr-{N} into the per-PR band as PER_PR_PRIORITY_BASE + N', () => {
-        expect(foodListenerPriorityForStage('pr-7', 'sandbox')).toBe(PER_PR_PRIORITY_BASE + 7);
-        expect(foodListenerPriorityForStage('pr-42', 'sandbox')).toBe(PER_PR_PRIORITY_BASE + 42);
-    });
-
-    it('gives distinct per-PR priorities that never collide with the base priority', () => {
-        const a = foodListenerPriorityForStage('pr-1', 'sandbox');
-        const b = foodListenerPriorityForStage('pr-15', 'sandbox');
-
-        expect(a).not.toBe(b);
-        expect(a).toBeGreaterThan(BASE_FOOD_LISTENER_PRIORITY);
-        expect(b).toBeGreaterThan(BASE_FOOD_LISTENER_PRIORITY);
-    });
-
-    it('hashes a named non-PR stage into a band disjoint from the per-PR band', () => {
-        const priority = foodListenerPriorityForStage('team-feature-x', 'sandbox');
-
-        // Named stages live at 20000–29999, strictly above the per-PR band (10000–19999), so a hashed
-        // value can never equal a `pr-{N}` rule's priority on the shared listener.
-        expect(priority).toBeGreaterThanOrEqual(NAMED_STAGE_PRIORITY_BASE);
-        expect(priority).toBeLessThan(NAMED_STAGE_PRIORITY_BASE + EPHEMERAL_PRIORITY_BAND_WIDTH);
-        expect(priority).toBeGreaterThanOrEqual(PER_PR_PRIORITY_BASE + EPHEMERAL_PRIORITY_BAND_WIDTH);
-    });
-
-    it('is deterministic across synths for the same named stage', () => {
-        expect(foodListenerPriorityForStage('dev', 'sandbox')).toBe(foodListenerPriorityForStage('dev', 'sandbox'));
-    });
-
-    it('throws for a PR number too large to fit the per-PR band (cannot overflow into the named band)', () => {
-        expect(() => foodListenerPriorityForStage(`pr-${EPHEMERAL_PRIORITY_BAND_WIDTH}`, 'sandbox')).toThrow(
-            /exceeds the per-PR listener-priority band/,
+/**
+ * This stack no longer OWNS a priority resolver — allocation lives once in `@kitchensink/infra-alb`, whose
+ * suite proves disjointness exhaustively across every reserved slot and the full PR range. What remains
+ * testable HERE is the wiring: that this stack claims a rule in FOOD's band and not in another service's,
+ * which is precisely the drift that fired when each service kept its own copy of the scheme.
+ */
+describe('the listener rule this stack claims on the shared listener', () => {
+    it('lands in FOOD`s own per-PR band, strictly below the next service`s', () => {
+        const template = synthFoodTemplate('pr-7', 'sandbox');
+        const priorities = Object.values(template.findResources('AWS::ElasticLoadBalancingV2::ListenerRule')).map(
+            (resource) => resource.Properties.Priority as number,
         );
+        const recipeBand = ephemeralBandsForSlot(EPHEMERAL_SLOT_ORDER.indexOf('recipe')).perPr;
+
+        expect(priorities).toHaveLength(1);
+        expect(priorities[0]).toBe(FOOD_PER_PR_BAND.floor + 7);
+        // ⛔ MUTATION GUARD: pass `service: 'recipe'` in the stack and this reds — the exact class of bug the
+        // duplicated per-service resolvers produced (`Priority '10073' is currently in use`).
+        expect(priorities[0]).toBeGreaterThanOrEqual(FOOD_PER_PR_BAND.floor);
+        expect(priorities[0]).toBeLessThanOrEqual(FOOD_PER_PR_BAND.ceiling);
+        expect(priorities[0]).toBeLessThan(recipeBand.floor);
     });
 });

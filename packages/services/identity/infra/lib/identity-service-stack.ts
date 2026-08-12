@@ -23,6 +23,7 @@ import {
 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
 
+import { BASE_LISTENER_PRIORITY } from '@kitchensink/infra-alb';
 import { AcceptedNagFindings, acceptNagFindings } from '@kitchensink/infra-security';
 
 export interface IdentityServiceStackProps extends StackProps {
@@ -366,14 +367,15 @@ export class IdentityServiceStack extends Stack {
             },
         );
 
-        // Per-service listener-rule priority allocation (ADR-0003): identity=100, food=200, recipe=300.
-        // Future services pick 400, 500, … Priorities must be unique across every rule on the shared
-        // listener, so this is a repo-wide namespace: allocate the next free number, never reuse one.
-        // Identity has no ephemeral variant — it is the ONE shared persistent service every per-PR preview
-        // signs in against — so unlike food and recipe it needs no per-PR priority band.
+        // Listener-rule priorities are ONE namespace shared across every service's stack on this stage's
+        // single HTTPS listener, owned by @kitchensink/infra-alb (ADR-0003). Identity reads its BASE priority
+        // directly and never calls the stage resolver, because it has no ephemeral variant: it is the ONE
+        // shared persistent service every per-PR preview signs in against, so `stage` is always a base stage
+        // here (note the `kitchensink-alb-${stage}` import above, not `${baseStage}`). Its ephemeral band is
+        // reserved in the registry and deliberately unused.
         new elbv2.ApplicationListenerRule(this, 'IdentityServiceListenerRule', {
             listener: sharedHttpsListener,
-            priority: 100,
+            priority: BASE_LISTENER_PRIORITY.identity,
             conditions: [elbv2.ListenerCondition.hostHeaders([serviceDomain])],
             targetGroups: [targetGroup],
         });

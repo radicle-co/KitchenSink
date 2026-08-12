@@ -2,15 +2,13 @@ import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { beforeAll, describe, expect, it } from 'vitest';
 
+import { BASE_LISTENER_PRIORITY, EPHEMERAL_SLOT_ORDER, ephemeralBandsForSlot } from '@kitchensink/infra-alb';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
-import {
-    BASE_RECIPE_LISTENER_PRIORITY,
-    PER_PR_PRIORITY_BASE,
-    recipeListenerPriorityForStage,
-    recipeSubdomainForStage,
-    RecipeServiceStack,
-} from '../lib/recipe-service-stack.js';
+import { recipeSubdomainForStage, RecipeServiceStack } from '../lib/recipe-service-stack.js';
+
+/** Recipe's own per-PR band, read from the allocation authority rather than restated as a literal. */
+const RECIPE_PER_PR_BAND = ephemeralBandsForSlot(EPHEMERAL_SLOT_ORDER.indexOf('recipe')).perPr;
 
 // Pre-seed the VPC lookup so `Vpc.fromLookup` resolves to a dummy VPC during synth instead of an AWS call.
 const VPC_LOOKUP_CONTEXT = {
@@ -65,20 +63,31 @@ function synthTemplate(stage: string, baseStage: string, foodServiceUrl?: string
     return Template.fromStack(stack);
 }
 
-describe('recipeListenerPriorityForStage', () => {
-    it('uses the fixed recipe priority (300) on the base stage (prod — the only one)', () => {
-        // Not `('sandbox', 'sandbox')`: `recipeSubdomainForStage` refuses that pair, because the recipe
-        // service has no persistent non-prod instance. Prod is the one reachable base stage.
-        expect(recipeListenerPriorityForStage('prod', 'prod')).toBe(BASE_RECIPE_LISTENER_PRIORITY);
-        expect(BASE_RECIPE_LISTENER_PRIORITY).toBe(300);
+/**
+ * This stack no longer OWNS a priority resolver. It used to, and that copy is what drifted: its docstring
+ * described FOOD's bands, so following the prose put `recipe-pr-{N}` on `food-pr-{N}`. Allocation now lives
+ * once in `@kitchensink/infra-alb`, whose suite proves disjointness exhaustively; what belongs here is the
+ * wiring — that this stack claims a rule in RECIPE's band, and prod's fixed 300 has not moved.
+ */
+describe('the listener rule this stack claims on the shared listener', () => {
+    it('keeps prod on the fixed 300 already deployed on the live listener', () => {
+        expect(BASE_LISTENER_PRIORITY.recipe).toBe(300);
+
+        synthTemplate('prod', 'prod').hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
+            Priority: 300,
+        });
     });
 
-    it('allocates per-PR priorities from the per-PR band keyed off the PR number', () => {
-        expect(recipeListenerPriorityForStage('pr-73', 'sandbox')).toBe(PER_PR_PRIORITY_BASE + 73);
-    });
+    it('lands a per-PR preview in RECIPE`s own band, never in food`s', () => {
+        const priorities = Object.values(
+            synthTemplate('pr-73', 'sandbox').findResources('AWS::ElasticLoadBalancingV2::ListenerRule'),
+        ).map((resource) => resource.Properties.Priority as number);
+        const foodBand = ephemeralBandsForSlot(EPHEMERAL_SLOT_ORDER.indexOf('food')).perPr;
 
-    it('throws for an out-of-band PR number', () => {
-        expect(() => recipeListenerPriorityForStage('pr-99999', 'sandbox')).toThrow(/band width/);
+        expect(priorities).toHaveLength(1);
+        expect(priorities[0]).toBe(RECIPE_PER_PR_BAND.floor + 73);
+        // ⛔ MUTATION GUARD: pass `service: 'food'` in the stack and this reds — literally the historical bug.
+        expect(priorities[0]).toBeGreaterThan(foodBand.ceiling);
     });
 });
 
@@ -148,7 +157,7 @@ describe('Shared ALB topology (no per-service ALB)', () => {
     it('attaches exactly one host-based listener rule at the per-PR priority', () => {
         template.resourceCountIs('AWS::ElasticLoadBalancingV2::ListenerRule', 1);
         template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
-            Priority: PER_PR_PRIORITY_BASE + 73,
+            Priority: RECIPE_PER_PR_BAND.floor + 73,
             Conditions: Match.arrayWith([
                 Match.objectLike({ Field: 'host-header', HostHeaderConfig: { Values: ['recipe-pr-73.example.com'] } }),
             ]),

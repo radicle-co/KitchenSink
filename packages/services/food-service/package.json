@@ -58,6 +58,7 @@
         "@kitchensink/contract-gen": "*",
         "@kitchensink/eslint": "*",
         "@kitchensink/food-service-client": "*",
+        "@kitchensink/infra-alb": "*",
         "@kitchensink/infra-security": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",

@@ -3,6 +3,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, eq, ilike } from 'drizzle-orm';
 
 import { users, lifecycleEvents, DrizzleProvider } from '../database/index.js';
+import { containsPattern } from '../common/like-pattern.js';
 import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
 import { SqsService } from '../queue/sqs.service.js';
 import { createServiceLogger } from '../observability/sentry-logging.js';
@@ -24,9 +25,13 @@ export class AdminService {
     ) {}
 
     async listUsers(filters: { email?: string; name?: string; sub?: string; limit?: number; offset?: number }) {
+        // `containsPattern`, not a template literal: `%` and `_` in the caller's filter are ILIKE SYNTAX, and
+        // they live inside the bound parameter's value where parameterisation cannot help. `?email=%` used to
+        // build `ILIKE '%%%'` — the filter silently became "match every user" — and `?email=a_b` over-matched
+        // addresses that do not contain `a_b`. See `common/like-pattern.ts`.
         const predicates = [
-            filters.email ? ilike(users.email, `%${filters.email}%`) : undefined,
-            filters.name ? ilike(users.name, `%${filters.name}%`) : undefined,
+            filters.email ? ilike(users.email, containsPattern(filters.email)) : undefined,
+            filters.name ? ilike(users.name, containsPattern(filters.name)) : undefined,
             filters.sub ? eq(users.id, filters.sub) : undefined,
         ].filter((predicate) => predicate !== undefined);
 

@@ -259,21 +259,38 @@ describe('openapi coverage', () => {
         expect(disagreements).toStrictEqual([]);
     });
 
-    // Non-vacuity for the assertion above, in both directions. It compares against `=== false`, so a rule that
-    // stripped the keyword WHOLESALE would satisfy it trivially — and stripping it from the `.loose()` error
-    // envelopes would be its own lie, since those really do pass unknown fields through (deliberately: an error
-    // body that grows a field must not crash a client that has not been taught it). So: no component may claim a
-    // rejection (this service authors no `z.strictObject`), and the loose ones must still say they are open.
-    it('claims no rejection anywhere, while still publishing the loose error envelopes as OPEN', () => {
+    /**
+     * Non-vacuity for the assertion above, in BOTH directions — and the record of which side of the line each
+     * shape is on.
+     *
+     * That assertion compares against `=== false`, so a generator rule that stripped the keyword WHOLESALE
+     * would satisfy it trivially. Two concrete populations therefore have to be named:
+     *
+     *  - **Every MUTATING request body claims rejection**, because each is authored as `z.strictObject` (the
+     *    owner's ruling for POST/PUT/PATCH bodies). Plain `z.object` STRIPS an unknown key and answers `2xx`,
+     *    which on `AddFoodRequest` means a caller who sends `ownerId` is told their field was accepted. These
+     *    three published `additionalProperties: false` for a long time while actually stripping — the document
+     *    already promised this behaviour, and the schemas now deliver it.
+     *  - **The error envelopes stay OPEN**, because they are `.loose()` and genuinely pass unknown fields
+     *    through. That is deliberate and must not be "tidied" into strictness: an error body that grows a field
+     *    must not crash a client that has not been taught it, and a deployed service adds fields ahead of a
+     *    released mobile binary.
+     *
+     * A shape that changes population fails here, which is the point: `z.object` ⇄ `z.strictObject` is a
+     * BREAKING wire change in one direction and a silently-permissive one in the other, and neither should be
+     * possible to make by accident.
+     */
+    it('claims rejection on exactly the strict request bodies, and publishes the loose error envelopes as OPEN', () => {
         const schemas = (
             foodOpenApiDocument.document['components'] as { schemas: Record<string, Record<string, unknown>> }
         ).schemas;
 
         const claimingRejection = Object.entries(schemas)
             .filter(([, schema]) => schema['additionalProperties'] === false)
-            .map(([name]) => name);
+            .map(([name]) => name)
+            .sort();
 
-        expect(claimingRejection).toStrictEqual([]);
+        expect(claimingRejection).toStrictEqual(['AddFoodRequest', 'BatchAddFoodRequest', 'ResolveFoodRequest']);
 
         for (const name of ['ApiError', 'NestHttpError', 'ControllerError']) {
             expect(

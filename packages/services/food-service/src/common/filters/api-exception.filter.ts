@@ -24,6 +24,8 @@ export enum FoodErrorCode {
     FETCH_UNAVAILABLE = 'FETCH_UNAVAILABLE',
     /** Generic bucket for any un-mapped throwable — always paired with a 500 and an empty body. */
     INTERNAL_ERROR = 'INTERNAL_ERROR',
+    /** A request body/query the globally bound `ZodValidationPipe` rejected — always a 400. */
+    VALIDATION_FAILED = 'VALIDATION_FAILED',
 }
 
 /**
@@ -39,7 +41,84 @@ export const FOOD_ERROR_STATUS: Record<FoodErrorCode, number> = {
     [FoodErrorCode.NOT_RESOLVABLE]: HttpStatus.CONFLICT,
     [FoodErrorCode.FETCH_UNAVAILABLE]: HttpStatus.SERVICE_UNAVAILABLE,
     [FoodErrorCode.INTERNAL_ERROR]: HttpStatus.INTERNAL_SERVER_ERROR,
+    [FoodErrorCode.VALIDATION_FAILED]: HttpStatus.BAD_REQUEST,
 };
+
+/**
+ * Render ONE zod issue as a human-readable constraint, prefixed with the field it failed on. Pure.
+ *
+ * A zod issue's `message` is the CONSTRAINT alone (`Too small: expected string to have >=1 characters`), so
+ * without the path a caller is told something is wrong but not what. An issue whose `path` is empty describes
+ * the object itself — `z.strictObject`'s `unrecognized_keys` is exactly that — and is rendered bare rather than
+ * with an empty `': '` prefix. A path segment may be a symbol in zod v4, hence the string/number filter.
+ *
+ * @param issue - One entry of the validation exception's `errors` array.
+ * @returns `"<field path>: <message>"`, the bare message for a path-less issue, or `undefined` when the entry
+ *   is not renderable (so an unrecognised shape degrades to the envelope's own message).
+ */
+function describeIssue(issue: unknown): string | undefined {
+    if (issue === null || typeof issue !== 'object') {
+        return undefined;
+    }
+
+    const message = (issue as Record<string, unknown>)['message'];
+
+    if (typeof message !== 'string' || message.length === 0) {
+        return undefined;
+    }
+
+    const rawPath = (issue as Record<string, unknown>)['path'];
+    const field = Array.isArray(rawPath)
+        ? rawPath
+              .filter(
+                  (segment): segment is string | number => typeof segment === 'string' || typeof segment === 'number',
+              )
+              .join('.')
+        : '';
+
+    return field.length === 0 ? message : `${field}: ${message}`;
+}
+
+/**
+ * Translate a `nestjs-zod` validation rejection into the ARCH-PS-2 envelope, or `undefined` when the body is
+ * not one.
+ *
+ * WHY THIS EXISTS. `ZodValidationPipe` throws a `ZodValidationException` whose response body is
+ * `{ statusCode, message: 'Validation failed', errors: [...issues] }`. This filter passes an `HttpException`'s
+ * body through UNCHANGED, so binding the pipe without this branch would have put a FOURTH error shape on the
+ * wire — one that matches none of the three `errorResponseSchema` documents, and whose fixed `message` string
+ * discards both the field names and the issues. Normalizing here means the pipe's arrival adds no new shape:
+ * a rejection is `{ code: 'VALIDATION_FAILED', message, details.fields }`, which is `apiErrorSchema`, the
+ * envelope identity and recipe already emit.
+ *
+ * The `errors` key is matched STRUCTURALLY rather than with `instanceof ZodValidationException`: the input here
+ * is the serialized response body, and a duck-typed match cannot be defeated by a duplicated `nestjs-zod`
+ * install. That the pipe really does put its issues there is pinned by a test that drives the REAL pipe.
+ *
+ * @param body - The `HttpException`'s response body.
+ * @returns The envelope, or `undefined` when this is not a validation rejection.
+ */
+function asValidationEnvelope(body: unknown): ApiErrorBody | undefined {
+    if (body === null || typeof body !== 'object') {
+        return undefined;
+    }
+
+    const rawErrors = (body as Record<string, unknown>)['errors'];
+
+    if (!Array.isArray(rawErrors)) {
+        return undefined;
+    }
+
+    const fields = rawErrors.map(describeIssue).filter((field): field is string => field !== undefined);
+
+    // An `errors` array with nothing renderable in it must not manufacture an empty `details.fields` or a blank
+    // `message` — fall through and let the body pass as it did before.
+    if (fields.length === 0) {
+        return undefined;
+    }
+
+    return { code: FoodErrorCode.VALIDATION_FAILED, message: fields.join(', '), details: { fields } };
+}
 
 // The envelope is AUTHORED as zod in `../api-error.schema.ts` and published via `@kitchensink/schema-food`
 // (CODING_STANDARDS §15.2), so the shape this filter writes and the shape clients parse are ONE definition
@@ -127,7 +206,14 @@ function resolve(exception: unknown): Resolution {
     }
 
     if (exception instanceof HttpException) {
-        return { status: exception.getStatus(), body: exception.getResponse() };
+        const body = exception.getResponse();
+        const validation = asValidationEnvelope(body);
+
+        // A pipe rejection becomes the shared envelope; every other `HttpException` body still passes through
+        // unchanged, so the controller's FR-051 mapping and the auth guard's `401`s are untouched.
+        return validation === undefined
+            ? { status: exception.getStatus(), body }
+            : { status: exception.getStatus(), body: validation, code: FoodErrorCode.VALIDATION_FAILED };
     }
 
     return {

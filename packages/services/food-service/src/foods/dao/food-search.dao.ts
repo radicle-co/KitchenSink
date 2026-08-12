@@ -129,6 +129,54 @@ const NON_SEARCHABLE = /[^\p{L}\p{N}]/gu;
  */
 const NAME_INITIAL_WEIGHT = 0.5;
 
+/**
+ * Every character that is SYNTAX to `ILIKE` rather than data: the two wildcards (`%` any run, `_` any single
+ * character) and the escape character itself.
+ */
+const LIKE_METACHARACTERS = /[\\%_]/gu;
+
+/**
+ * Wrap a user query as a substring `ILIKE` pattern, with every LIKE metacharacter in it escaped.
+ *
+ * ## Why this exists
+ *
+ * The pattern is `%<query>%`, so a `%` or `_` the caller typed lands inside it as PATTERN SYNTAX. Bound
+ * parameters do not help — the metacharacter sits in the parameter's VALUE, which is exactly where `ILIKE`
+ * looks for wildcards. `?query=%` therefore bound `'%%%'`, a pattern matching every row that has a name, so
+ * one request turned a bounded search into a full scan of `food`; `___` matched every 3+ character name; and
+ * alternating `%_` multiplies the per-row recheck the GIN bitmap heap scan performs. The class is
+ * bounded-work / availability, not SQL injection — nothing here can leave the string literal.
+ *
+ * ## Why it escapes HERE, and not at validation
+ *
+ * The validated query feeds three branches of one statement, and only one of them is a pattern:
+ *
+ *  - `name ILIKE $n` / `description ILIKE $n` — a PATTERN. Needs escaping.
+ *  - `plainto_tsquery('english', $n)` — already safe by construction: it parses its input into lexemes and
+ *    discards operator syntax rather than honouring it.
+ *  - `name % $n` (pg_trgm similarity) — a VALUE, compared as text. Not a pattern at all.
+ *
+ * Escaping at validation time would corrupt the latter two: a search for `50% cream` would look for the
+ * literal characters `50\% cream` in the full-text and trigram branches and find nothing. So the query stays
+ * raw everywhere it is a value, and the escape belongs to the one place a pattern is constructed.
+ *
+ * ## Why ONE pass and not three replaces
+ *
+ * The obvious implementation is `\`, then `%`, then `_` — and that order is load-bearing only BECAUSE it is
+ * sequential: escaping `%` before `\` re-escapes the backslashes just inserted, doubling them. A single
+ * left-to-right regex pass cannot revisit its own output, so the hazard is not merely avoided, it is
+ * unrepresentable. `$&` re-emits whichever metacharacter matched.
+ *
+ * The statements declare `ESCAPE '\'` explicitly rather than relying on Postgres' default, so a pattern's
+ * meaning does not depend on server configuration.
+ *
+ * @param query - The trimmed user query.
+ * @returns The substring pattern to bind, for use with `ILIKE … ESCAPE '\'`. Pure.
+ */
+export function toIlikePattern(query: string): string {
+    return `%${query.replace(LIKE_METACHARACTERS, '\\$&')}%`;
+}
+
 /** A ranked search row. */
 export interface SearchHit {
     /** Internal food id. */
@@ -261,7 +309,9 @@ export class FoodSearchDao {
      * @returns The composable statement.
      */
     private relevanceQuery(query: string, limit: number): SQL {
-        const pattern = `%${query}%`;
+        // Escaped HERE, at the one place a PATTERN is built — see `toIlikePattern` for why not at validation
+        // (the same `query` is bound raw below, where it is a value rather than a pattern).
+        const pattern = toIlikePattern(query);
 
         return sql`
             SELECT id, name,
@@ -275,8 +325,8 @@ export class FoodSearchDao {
               AND (
                   search_vector @@ plainto_tsquery('english', ${query})
                   OR name % ${query}
-                  OR name ILIKE ${pattern}
-                  OR description ILIKE ${pattern}
+                  OR name ILIKE ${pattern} ESCAPE '\\'
+                  OR description ILIKE ${pattern} ESCAPE '\\'
               )
             ORDER BY score DESC, name ASC
             LIMIT ${limit}

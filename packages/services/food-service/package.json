@@ -47,6 +47,7 @@
         "csv-parse": "^6.2.1",
         "drizzle-orm": "^0.45.2",
         "jose": "^6.1.0",
+        "nestjs-zod": "^5.5.0",
         "pg": "^8.13.0",
         "reflect-metadata": "^0.2.2",
         "rxjs": "^7.8.1",

@@ -270,6 +270,75 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
         });
     });
 
+    /**
+     * LIKE-METACHARACTER ESCAPING — the security half of the relevance statement.
+     *
+     * `%` and `_` are wildcards to `ILIKE`, not literals, and the pattern is built by wrapping the user's
+     * query: `%${query}%`. So `?query=%` produced `ILIKE '%%%'` — a pattern that matches EVERY row with a
+     * name, turning a search endpoint into a full-table scan on demand; `?query=___` matched any 3+
+     * character name; and a query of alternating `%_` compounds the recheck cost per row. Parameterisation
+     * does not help, because the metacharacters are inside the parameter's VALUE, where they are still
+     * pattern syntax. This is a bounded-work / availability defect, not SQL injection.
+     *
+     * The escape happens where the PATTERN IS BUILT, and nowhere else. That placement is load-bearing: the
+     * same validated string is also bound to `plainto_tsquery` (which parses to lexemes and discards
+     * operators, so it is already safe) and to the trigram comparison `name % query` (where the string is a
+     * VALUE, not a pattern). Escaping at validation time would corrupt both — a search for `50% cream` would
+     * become a search for the literal text `50\% cream`.
+     *
+     * Mutation lens: each case reds if the escaping is removed, if it is moved to validation, if `ESCAPE`
+     * stops being declared, or if a metacharacter is dropped from the set.
+     */
+    describe('LIKE metacharacters in the ILIKE pattern are escaped, so a wildcard cannot scan the table', () => {
+        it.each([
+            ['%', '\\%'],
+            ['_', '\\_'],
+            ['\\', '\\\\'],
+        ])('escapes %j inside the pattern as %j', async (needle, escaped) => {
+            // Padded to 3+ characters so the query routes to the relevance statement rather than the prefix
+            // one; `abc` carries no metacharacter of its own, so the only escaping observed is the needle's.
+            const statement = await soleStatementFor(`abc${needle}`);
+
+            expect(stringParams(statement)).toContain(`%abc${escaped}%`);
+        });
+
+        it('escapes a lone % so the pattern can no longer match every row', async () => {
+            // The exploit, reduced: before escaping this bound `%%%`, which ILIKE matches against any name.
+            const statement = await soleStatementFor('%%%');
+
+            expect(stringParams(statement)).toContain('%\\%\\%\\%%');
+            expect(stringParams(statement)).not.toContain('%%%%%');
+        });
+
+        it('leaves a LEGITIMATE % in the query searchable — `50% cream` still finds `50% cream`', async () => {
+            const statement = await soleStatementFor('50% cream');
+
+            // The pattern matches the literal percent sign…
+            expect(stringParams(statement)).toContain('%50\\% cream%');
+            // …while the FTS and trigram branches receive the query UNESCAPED, because a backslash there is
+            // a character to match, not an escape. This is the assertion that reds if escaping is hoisted
+            // into validation.
+            expect(stringParams(statement)).toContain('50% cream');
+        });
+
+        it('declares the escape character explicitly on both ILIKE branches', async () => {
+            const statement = await soleStatementFor('chicken');
+
+            // Postgres defaults to backslash, but the default is a server setting away from being wrong;
+            // stating it makes the pattern's meaning independent of the connection's configuration.
+            expect(statement.text).toMatch(/name ILIKE \$\d+ ESCAPE '\\'/);
+            expect(statement.text).toMatch(/description ILIKE \$\d+ ESCAPE '\\'/);
+        });
+
+        it('never double-escapes, so a backslash the user typed survives as one backslash', async () => {
+            // A sequential `\` → `%` → `_` escape is where the classic double-escaping bug lives. One
+            // left-to-right pass cannot re-visit what it just inserted, which is why this holds.
+            const statement = await soleStatementFor('a\\%b');
+
+            expect(stringParams(statement)).toContain('%a\\\\\\%b%');
+        });
+    });
+
     describe('the routing boundary, asserted through the DAO and not just the pure selector', () => {
         // `selectSearchStrategy` can be right while `search` ignores it. These two cases are what fail if
         // the dispatch is collapsed back to a single statement, or if the threshold moves by one.

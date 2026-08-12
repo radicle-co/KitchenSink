@@ -28,6 +28,21 @@
 import { z } from 'zod';
 
 /**
+ * Longest food name / search term accepted on the wire.
+ *
+ * A BOUND, not a preference. Every one of these strings becomes work in Postgres: a name is normalized and
+ * trigram-indexed, and a search term becomes an `ILIKE` pattern plus a `plainto_tsquery` parse plus a trigram
+ * comparison. Unbounded, a single request could hand the database a megabyte to index or match. 200 characters
+ * is comfortably above the longest USDA description this service actually stores (the descriptive names run to
+ * roughly half that), so the bound rejects abuse without rejecting data.
+ *
+ * ⚠️ Stated in the CONTRACT rather than the controller, unlike the batch cap: this is a fixed property of the
+ * wire, not a runtime knob, so a client can and should know it. The batch cap is the opposite — see
+ * {@link batchAddFoodRequestSchema}.
+ */
+export const MAX_FOOD_NAME_LENGTH = 200;
+
+/**
  * Food lifecycle status — the service's canonical set (FR-002/FR-003/FR-004).
  *
  * `PENDING` a fetch is enqueued · `UNRESOLVED` awaiting a human disambiguation pick · `RESOLVED` a golden
@@ -251,9 +266,9 @@ export type GetFoodResult = z.infer<typeof getFoodResultSchema>;
  * The name is trimmed and required non-empty by the schema itself, so "what counts as an empty name" has one
  * definition that both the request validator and the published contract use.
  */
-export const addFoodRequestSchema = z.object({
+export const addFoodRequestSchema = z.strictObject({
     /** The display name to resolve. Trimmed; must be non-empty after trimming (FR-006). */
-    name: z.string().trim().min(1),
+    name: z.string().max(MAX_FOOD_NAME_LENGTH).trim().min(1),
 });
 
 /** Request body for `POST /api/v1/foods`. */
@@ -272,16 +287,16 @@ export type AddFoodRequest = z.infer<typeof addFoodRequestSchema>;
  *    `.transform()` here cannot be represented in JSON Schema at all, so it would make the published document
  *    ungenerable while describing nothing a caller needs to know.
  */
-export const batchAddFoodRequestSchema = z.object({
+export const batchAddFoodRequestSchema = z.strictObject({
     /** The names to add. Each trimmed. Blank entries are dropped and the rest capped, server-side. */
-    names: z.array(z.string().trim()),
+    names: z.array(z.string().max(MAX_FOOD_NAME_LENGTH).trim()),
 });
 
 /** Request body for `POST /api/v1/foods/batch`. */
 export type BatchAddFoodRequest = z.infer<typeof batchAddFoodRequestSchema>;
 
 /** Request body for `PATCH /api/v1/foods/{id}` — resolve from the user's candidate pick (FR-RES-2, DSN-14). */
-export const resolveFoodRequestSchema = z.object({
+export const resolveFoodRequestSchema = z.strictObject({
     /** The picked candidate row ids. At least one; validated against the food's own set server-side. */
     candidateIds: z.array(z.string()).min(1),
 });
@@ -289,10 +304,28 @@ export const resolveFoodRequestSchema = z.object({
 /** Request body for `PATCH /api/v1/foods/{id}`. */
 export type ResolveFoodRequest = z.infer<typeof resolveFoodRequestSchema>;
 
-/** Query for `GET /api/v1/foods/search` (FR-008). An absent `query` searches for the empty string. */
-export const searchFoodQuerySchema = z.object({
-    /** The search query. Absent is treated as empty, which yields an empty result set. */
-    query: z.string().optional(),
+/**
+ * Query for `GET /api/v1/foods/search` (FR-008).
+ *
+ * ⚠️ THIS SCHEMA WAS WRITTEN AND THEN NEVER WIRED UP. The controller read a bare `@Query('query') query?: string`
+ * and passed `query ?? ''` straight to the DAO, so the published contract described a validation that did not
+ * exist. Three consequences, all of them reachable with one request:
+ *
+ *  - **Unbounded length.** The term becomes an `ILIKE` pattern, a `plainto_tsquery` parse and a trigram
+ *    comparison against every candidate row. Nothing capped it.
+ *  - **A wildcard scanned the catalog.** `?query=%` built the pattern `'%%%'`, which `ILIKE` matches against
+ *    every row that has a name. Fixed at the point the pattern is BUILT (`toIlikePattern` in
+ *    `dao/food-search.dao.ts`) rather than here — escaping at validation time would corrupt the full-text and
+ *    trigram branches, which receive the same string as a VALUE and where a backslash is a character to match.
+ *  - **An empty term was a silent no-op**, so a caller could not distinguish "no results" from "you sent
+ *    nothing". `.min(1)` after trimming makes it a `400`.
+ *
+ * `query` is REQUIRED. It was previously optional with an absent value treated as the empty string — a shape
+ * whose only possible outcome was an empty result set, i.e. a request that can only waste a round trip.
+ */
+export const searchFoodQuerySchema = z.strictObject({
+    /** The search term. Trimmed; must be non-empty and within {@link MAX_FOOD_NAME_LENGTH} after trimming. */
+    query: z.string().max(MAX_FOOD_NAME_LENGTH).trim().min(1),
 });
 
 /** Query for `GET /api/v1/foods/search`. */

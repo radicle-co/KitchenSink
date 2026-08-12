@@ -57,7 +57,7 @@ import { FoodsService } from './foods.service.js';
 // The AUTHORED wire contract (CODING_STANDARDS §15.2): the request schemas below are the validators this
 // controller runs AND the definitions `@kitchensink/schema-food` publishes to every client, so there is one
 // representation of each shape instead of a server-side check and a client-side belief about it.
-import { addFoodRequestSchema, batchAddFoodRequestSchema, resolveFoodRequestSchema } from './foods.schema.js';
+import { AddFoodBodyDto, BatchAddFoodBodyDto, ResolveFoodBodyDto, SearchFoodQueryDto } from './dto/foods.dto.js';
 import type {
     AddResponse,
     BatchResponse,
@@ -80,23 +80,27 @@ export class FoodsController {
         private readonly config: ConfigService<Environment, true>,
     ) {}
 
-    /** `GET /api/v1/foods/search?query=` — local fuzzy/crosswalk search (declared before `:id`). */
+    /**
+     * `GET /api/v1/foods/search?query=` — local fuzzy/crosswalk search (declared before `:id`).
+     *
+     * The query is now VALIDATED — trimmed, required, length-bounded — by the globally bound pipe against
+     * {@link SearchFoodQueryDto}. It previously arrived as a bare `@Query('query') query?: string` and went to
+     * the DAO as `query ?? ''`, so the published `searchFoodQuerySchema` described a check that never ran.
+     */
     @Get('search')
-    public async search(@Query('query') query?: string): Promise<SearchResponse> {
-        return this.foodsService.search(query ?? '');
+    public async search(@Query() query: SearchFoodQueryDto): Promise<SearchResponse> {
+        return this.foodsService.search(query.query);
     }
 
     /** `POST /api/v1/foods` — add by name → `202` + `id` (FR-005); empty name → `400` (FR-006). */
     @Post()
     public async addByName(
-        @Body() body: unknown,
+        @Body() body: AddFoodBodyDto,
         @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
     ): Promise<AddResponse> {
-        const name = this.requireName(body);
-
         try {
-            const result = await this.foodsService.addByName(name, this.requireRequesterId(req));
+            const result = await this.foodsService.addByName(body.name, this.requireRequesterId(req));
             res.status(HttpStatus.ACCEPTED);
 
             return result;
@@ -108,11 +112,11 @@ export class FoodsController {
     /** `POST /api/v1/foods/batch` — batch add-by-name; ≤100 names (`400` over) (FR-045). */
     @Post('batch')
     public async batch(
-        @Body() body: unknown,
+        @Body() body: BatchAddFoodBodyDto,
         @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
     ): Promise<BatchResponse> {
-        const names = this.requireNames(body);
+        const names = this.boundedNames(body.names);
 
         try {
             return await this.foodsService.batchAdd(names, this.requireRequesterId(req));
@@ -184,14 +188,13 @@ export class FoodsController {
     @Patch(':id')
     public async patchResolve(
         @Param('id') id: string,
-        @Body() body: unknown,
+        @Body() body: ResolveFoodBodyDto,
         @Res({ passthrough: true }) res: Response,
     ): Promise<ResolveResponse> {
         this.requireId(id);
-        const candidateIds = this.requireCandidateIds(body);
 
         try {
-            const result = await this.foodsService.patchResolve(id, candidateIds);
+            const result = await this.foodsService.patchResolve(id, body.candidateIds);
             res.status(HttpStatus.OK);
 
             return result;
@@ -267,42 +270,22 @@ export class FoodsController {
     }
 
     /**
-     * Validate + extract a non-empty `name` from the add body → else `400`.
+     * Apply the two batch rules that deliberately do NOT live in the published contract.
      *
-     * Parses with {@link addFoodRequestSchema} — the SAME definition `@kitchensink/schema-food` publishes and
-     * `openapi.yaml` documents — so "what counts as an empty name" has one representation rather than a zod
-     * schema for clients and a hand-rolled `typeof`/`trim` check for the server (CODING_STANDARDS §15.2).
-     * The `400` body is unchanged: the shape is the contract, the label is the wire.
-     */
-    private requireName(body: unknown): string {
-        const parsed = addFoodRequestSchema.safeParse(body);
-
-        if (!parsed.success) {
-            throw new BadRequestException({ error: 'Empty name' });
-        }
-
-        return parsed.data.name;
-    }
-
-    /**
-     * Validate + extract the `names` array (all strings, ≤ the configured maximum) → else `400`.
-     *
-     * The SHAPE is checked by {@link batchAddFoodRequestSchema} (the published definition). The two rules that
-     * are NOT in it stay here on purpose and are not duplication:
-     *  - dropping blank entries is server-side normalization, not a shape a caller must satisfy — and as a
+     * The array's SHAPE is validated by the pipe against {@link BatchAddFoodBodyDto}. These two are different in
+     * kind and belong here:
+     *  - dropping blank entries is server-side NORMALIZATION, not a shape a caller must satisfy — and as a
      *    `.transform()` it could not be represented in the published JSON Schema at all;
      *  - the cap is `FOOD_MAX_BATCH_NAMES`, a RUNTIME configuration value. A static bound in the contract would
      *    be a second representation that silently disagrees the moment the environment variable is tuned, so
      *    the configured value is enforced here and reported in the `400` body where a caller can read it.
+     *
+     * @param names - The trimmed names the pipe accepted.
+     * @returns The non-blank names, guaranteed within the configured cap.
+     * @throws {BadRequestException} (→ 400) when more names remain than the configured maximum.
      */
-    private requireNames(body: unknown): string[] {
-        const parsed = batchAddFoodRequestSchema.safeParse(body);
-
-        if (!parsed.success) {
-            throw new BadRequestException({ error: 'Invalid names' });
-        }
-
-        const cleaned = parsed.data.names.filter((name) => name.length > 0);
+    private boundedNames(names: readonly string[]): string[] {
+        const cleaned = names.filter((name) => name.length > 0);
         const maxNames = this.config.get('FOOD_MAX_BATCH_NAMES', { infer: true });
 
         if (cleaned.length > maxNames) {
@@ -310,22 +293,6 @@ export class FoodsController {
         }
 
         return cleaned;
-    }
-
-    /**
-     * Validate + extract the non-empty `candidateIds` array (malformed body → `400`, DSN-14).
-     *
-     * `.min(1)` lives in {@link resolveFoodRequestSchema}, so the published contract states the requirement
-     * instead of leaving a client to discover it from a `400`.
-     */
-    private requireCandidateIds(body: unknown): string[] {
-        const parsed = resolveFoodRequestSchema.safeParse(body);
-
-        if (!parsed.success) {
-            throw new BadRequestException({ error: 'Invalid candidateIds' });
-        }
-
-        return parsed.data.candidateIds;
     }
 
     /** Map a read-path error: `FoodNotFoundError` → `404` with the status in the body; else rethrow. */

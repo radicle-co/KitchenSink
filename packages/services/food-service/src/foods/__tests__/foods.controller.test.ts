@@ -135,14 +135,16 @@ describe('FoodsController.getStatus / getCandidates / search', () => {
         await expect(ctx.controller.getCandidates('bad')).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('delegates the search query (and empty when omitted)', async () => {
+    it('delegates the validated search term', async () => {
+        // The controller no longer receives a bare `string | undefined`: the globally bound `ZodValidationPipe`
+        // hands it a `SearchFoodQueryDto` that is already trimmed, non-empty and length-bounded. That the pipe
+        // really enforces those is proven against the REAL pipe in `../dto/__tests__/foods.dto.test.ts` — here
+        // we only assert the delegation.
         ctx.service.search.mockResolvedValue({ results: [] });
 
-        await ctx.controller.search('chicken');
-        await ctx.controller.search(undefined);
+        await ctx.controller.search({ query: 'chicken' });
 
-        expect(ctx.service.search).toHaveBeenNthCalledWith(1, 'chicken');
-        expect(ctx.service.search).toHaveBeenNthCalledWith(2, '');
+        expect(ctx.service.search).toHaveBeenCalledWith('chicken');
     });
 });
 
@@ -186,14 +188,9 @@ describe('FoodsController.addByName / batch', () => {
         expect(ctx.service.addByName).not.toHaveBeenCalled();
     });
 
-    it('rejects an empty name with 400 before calling the service (FR-006)', async () => {
-        const { res } = makeRes();
-
-        await expect(ctx.controller.addByName({ name: '  ' }, makeReq(), res)).rejects.toBeInstanceOf(
-            BadRequestException,
-        );
-        expect(ctx.service.addByName).not.toHaveBeenCalled();
-    });
+    // NOTE: "rejects an empty name with 400" (FR-006) moved to `../dto/__tests__/foods.dto.test.ts`, where it
+    // runs against the REAL `ZodValidationPipe`. The controller's parameter is typed as the DTO now, so the only
+    // whitespace-only name a test could pass here is one the pipe would already have rejected.
 
     it('maps a FetchUnavailableError to 503 + Retry-After (FR-046)', async () => {
         ctx.service.addByName.mockRejectedValue(new FetchUnavailableError(30));
@@ -213,13 +210,9 @@ describe('FoodsController.addByName / batch', () => {
         expect(ctx.service.batchAdd).not.toHaveBeenCalled();
     });
 
-    it('rejects a non-array names body with 400', async () => {
-        const { res } = makeRes();
-
-        await expect(ctx.controller.batch({ names: 'nope' }, makeReq(), res)).rejects.toBeInstanceOf(
-            BadRequestException,
-        );
-    });
+    // NOTE: "rejects a non-array `names`" moved to `../dto/__tests__/foods.dto.test.ts`, where it runs against
+    // the REAL `ZodValidationPipe`. Asserting it here would now be theatre: the controller's parameter is typed
+    // as the DTO, so a test can only pass it a well-formed object or lie about the type.
 });
 
 describe('FoodsController.patchResolve', () => {
@@ -257,11 +250,8 @@ describe('FoodsController.patchResolve', () => {
         );
     });
 
-    it('rejects a malformed body (no candidateIds) with 400 (DSN-14)', async () => {
-        const { res } = makeRes();
-
-        await expect(ctx.controller.patchResolve(VALID_ID, {}, res)).rejects.toBeInstanceOf(BadRequestException);
-    });
+    // NOTE: "rejects a body with no `candidateIds`" (DSN-14) moved to `../dto/__tests__/foods.dto.test.ts`,
+    // against the REAL pipe — see the batch note above for why it cannot stay here.
 });
 
 describe('FoodsController.refetch', () => {

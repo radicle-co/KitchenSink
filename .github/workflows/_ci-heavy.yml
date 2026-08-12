@@ -873,8 +873,24 @@ jobs:
             #     remaining per-claim aggregate as well, which is exactly why THIS STEP, not a dev machine,
             #     is the arbiter of the absolute numbers.
             #
-            #     If it ever breaches again, the fix is the query — NOT raising FOOD_DRAIN_CLAIM_P95_MS, NOT
-            #     adding `continue-on-error`, and NOT deleting this step. Owner decision in tasks.md T-197.
+            #     (c) 2026-08-12 (run 31608073724): `mixed` @10,000 reported 90.23ms p95 — and the query was
+            #         NOT the cause. Its MEDIAN was 12.23ms, the second-fastest ever measured for that series
+            #         and 22% faster than the 15.69ms of the confirming run above; the plan, its `never
+            #         executed` branch and its buffer counts were all unchanged. Cause: the probe sampled
+            #         n=30, where its nearest-rank "p95" IS the second-largest sample (and "p99" IS the max —
+            #         hence `p99 == max` in every row it ever printed), combined with 30-170ms host stalls on
+            #         the runner. Same run: `adversarial` @1,000 p50 3.55ms / p95 29.37ms. Run 31537195430:
+            #         `mixed` @100 p50 2.31ms / p95 56.51ms, i.e. 94% of the budget at the depth where SC-003
+            #         binds and where the statement does ~2ms of work. T-203 raised the sample default to 300
+            #         (p95 is now the 16th-largest observation) and corrected the reporting, changing NO SQL,
+            #         NO budget and NO fixture. The stall SOURCE on GitHub's runners is not diagnosed.
+            #
+            #     WHEN IT BREACHES, DIAGNOSE BEFORE CHANGING ANYTHING — the step's own failure output leads
+            #     with the host-stall signature for this reason. Compare MEDIANS against the table in
+            #     tests/load/README.md "Finding 2" FIRST: a median in family with earlier runs means the
+            #     query is fine and the tail is the runner. If the median moved, the fix is the query — NOT
+            #     raising FOOD_DRAIN_CLAIM_P95_MS, NOT adding `continue-on-error`, and NOT deleting this step.
+            #     Owner decisions in tasks.md T-197 (gate stays at every depth) and T-203.
             - name: Drain-claim FR-046 ceiling probe (depths 1000+10000, DSN-11)
               if: ${{ !cancelled() }}
               working-directory: packages/services/food-service

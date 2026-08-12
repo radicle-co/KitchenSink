@@ -263,11 +263,13 @@ Two consequences for this suite:
    regression whose symptom is **time rather than statement shape** — principally a dropped
    `food_search_vector_idx` or growth past the 50,000-food ceiling.
 
-### ✅ Finding 2 (DSN-11), CLOSED IN TWO STAGES: the drain claim now stays within the SC-003 budget
+### ✅ Finding 2 (DSN-11), CLOSED IN THREE STAGES: the drain claim stays within the SC-003 budget
 
 Measured with `FetchQueueDao.leaseNext()` called directly (the shipped SQL, never a copy). Kept as a record
-rather than deleted, because the two stages failed in different ways and the second one hid behind a stale
-description of the first.
+rather than deleted, because the stages failed in different ways: the second hid behind a stale description of
+the first, and the third was **not a query defect at all** — it was this probe's own p95 estimator converting
+runner noise into a contract breach. Read all three before concluding anything from a red here, and compare
+MEDIANS across runs before touching the statement.
 
 **Stage 0 — as originally shipped (T-195's finding).** FR-043's demotion was a per-requester correlated
 `COUNT(*)` in the LEADING position of the `ORDER BY`. A computed leading sort key must be evaluated for every
@@ -330,6 +332,74 @@ number — the T-199a split-brain by construction — and it is not justified at
 
 The breaching series is 7.9× faster and sits 5.6× inside the budget. Note the local prediction was 7.20ms
 against CI's 10.81ms: the ~3× hardware factor applies to the REMAINING per-claim aggregate too.
+
+**Stage 3 — 2026-08-12: the probe red-flagged a 5.4× "regression" that did not exist. The estimator was the
+defect, not the query.** Run 31608073724 reported `mixed` @10,000 at **90.23ms p95 against the 60ms budget**,
+and the obvious reading — a query-shape regression in the promoted branch, since `adversarial` was unaffected
+— was wrong. Read the MEDIAN column instead:
+
+| run                                | p50         | p95         | p99 = max |
+| ---------------------------------- | ----------- | ----------- | --------- |
+| 31451860784 (the confirming run)   | 15.69ms     | 16.59ms     | 16.97ms   |
+| 31542581165                        | 15.14ms     | 15.41ms     | 15.65ms   |
+| 31553227712                        | 16.58ms     | 18.01ms     | 18.30ms   |
+| 31537195430                        | 11.84ms     | 12.36ms     | 41.96ms   |
+| **31608073724** (the "regression") | **12.23ms** | **90.23 ✗** | 114.96ms  |
+
+The breaching run had the **second-fastest median ever recorded** for that series — 22% faster than the run
+the budget was confirmed on. The statement, its plan, its `never executed` branch and its buffer counts were
+all unchanged (verified by `EXPLAIN (ANALYZE, BUFFERS)` on the statement captured from the DAO, and by both
+committed gates passing unmodified). Two mechanisms combined:
+
+1. **`percentile()` at n=30 made "p95" the second-largest sample**, and "p99" the maximum, definitionally —
+   which is why `p99 == max` in every row of every table above, arithmetic rather than a property of the
+   queue. Two slow samples out of thirty therefore decided the verdict, so the gate's real sensitivity was set
+   by the host and not by the query. **Fixed:** the default is now 300 samples, where p95 is the 16th-largest
+   observation. The budget, the fixture, the profiles and the depths are unchanged — the same quantity is
+   simply estimated with enough samples to mean what it says. Cost at depth 10,000: sampling 0.35s → 3.0s per
+   series against ~18s of seeding, i.e. the two-profile run went 38.4s → 42.1s.
+2. **Host stalls of 30–170ms occur on the runner.** In the same run, `adversarial` @1,000 measured p50 3.55ms
+   with p95 29.37ms; in run 31537195430, `mixed` @**100** measured p50 2.31ms with p95 **56.51ms** — 94% of
+   the budget at the depth where SC-003 actually binds, where the statement does ~2ms of work and no plan can
+   explain 56ms. That example is the important one: the estimator could red the **SC-003 gate itself** on
+   noise. Contamination is also time-localised rather than series-specific — in the failing run, series 1 and
+   4 were clean while series 2 and 3 were contaminated, spanning a series boundary, and a cost regression
+   cannot be heavier at depth 1,000 than at 10,000 for the same profile.
+
+Reproduced locally, so this is not a CI peculiarity: with medians of 8–10ms at depth 10,000, single samples of
+**62.63ms and 73.78ms** were observed, and two 300-sample measurements of the identical fixture minutes apart
+returned p95 **32.28ms and 7.60ms**. The plausible innocent explanation — this harness's own fixture churn,
+since every series bulk-deletes and re-inserts tens of thousands of rows — was **measured and rejected**: 300
+samples either side of an explicit `VACUUM (ANALYZE)` moved p50 by 0.2–0.4ms (6.64 → 6.40 `adversarial`,
+9.89 → 9.48 `mixed`) and `autovacuum_count` did not advance during either phase.
+
+**Stated rather than implied: the SOURCE of the stalls on GitHub's runners is NOT diagnosed** — CPU steal
+versus IO contention cannot be told apart from inside the job. What is established is that the stalls exist,
+that they are not the query, and that they are not this fixture's vacuum state.
+
+**Where the cost actually is** (`EXPLAIN (ANALYZE, BUFFERS)`, freshly-seeded depth-10,000 fixture, this
+workstation) — recorded because the wrong diagnosis is the tempting one:
+
+| series        | statement | buffers | `demand` aggregate | branch 1 (promoted tier)         |
+| ------------- | --------- | ------- | ------------------ | -------------------------------- |
+| `mixed`       | 8.889ms   | 755     | 7.239ms (81%)      | 1.547ms (1.521ms of it the hash) |
+| `adversarial` | 5.356ms   | 328     | 5.224ms (97%)      | `never executed`                 |
+
+Branch 1 — the tier `adversarial` never enters, and therefore the natural suspect for a `mixed`-only
+regression — is **~17% of the statement**, and 98% of _that_ is building the 50-row hashed `over_demand`
+SubPlan once; the index scan itself is 0.003ms at `rows=1 loops=1`. The FR-043 aggregate is 81–97% of the
+statement. The `mixed`/`adversarial` delta is that aggregate reading 30,000 versus 20,000 `fetch_requesters`
+rows (727 vs 311 buffers), not the promoted tier.
+
+**Also corrected here: the 328 buffers above versus the 1,439 recorded in Stage 2.** Same statement, same
+depth — the 1,439 was measured against a CI-style database the k6 steps had already churned, so the tables
+carried roughly 5× the pages for the same rows. Nothing asserts on either figure; the scaling gate asserts
+index TUPLES, which bloat does not move.
+
+**What was deliberately NOT done:** `FOOD_DRAIN_CLAIM_P95_MS` is still 60, the fixture is unchanged, no
+`continue-on-error` was added, the depth-100 gate is untouched, and no SQL was modified. A
+re-measure-before-failing gate (fail only if a breaching series breaches again) was proposed and is **held
+pending an owner ruling**, because SC-007's own text requires one for any change to a budget's tolerance.
 
 **Local numbers are not evidence about CI** (~3× slower), which is why the invariants that hold regardless of
 hardware are asserted separately: `tests/drain-claim-ranking-differential.integration.test.ts` proves the

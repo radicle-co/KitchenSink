@@ -54,6 +54,37 @@
  * Both are measured at every depth, so the report distinguishes "the query is fine" from "the query is fine
  * until fairness actually has work to do".
  *
+ * ## The third mechanism: a HOST STALL, and why the sample count is 300 (2026-08-12)
+ *
+ * This probe has now produced a red for a reason that is neither of the two query shapes above, and it did it
+ * twice in five runs on one branch. Run 31608073724 reported `mixed` @10,000 at **90.23ms p95 against the
+ * 60ms budget** — a 5.4x "regression" over the 16.59ms the budget was confirmed at — while the MEDIAN of that
+ * same series was **12.23ms**, the second-fastest ever measured for it and faster than the 15.69ms median of
+ * the confirming run. The query had not changed and neither had its plan: `EXPLAIN (ANALYZE, BUFFERS)` on the
+ * statement the DAO actually sends shows the documented shape intact, and the branch the failure was first
+ * attributed to costs **1.55ms of an 8.89ms statement** (the FR-043 `demand` aggregate is 81% of it).
+ *
+ * Two things combined to turn runner noise into a contract breach:
+ *
+ *   1. **{@link percentile} at n=30 made "p95" the second-largest sample** (and "p99" the maximum,
+ *      definitionally). Two slow samples out of thirty therefore decided the verdict, so the gate's real
+ *      sensitivity was set by the host, not by the query. {@link SAMPLES} is now 300, where p95 is the
+ *      16th-largest observation. The budget, the fixture and the depths are UNCHANGED.
+ *   2. **The reported framing said SC-003.** A depth-10,000 breach was printed as a share of "SC-003's 60s
+ *      budget", which is a promise conditioned on a depth under 100. See {@link SC003_MAX_DEPTH}.
+ *
+ * The stall mechanism was reproduced on a quiet workstation, so it is not specific to CI: with medians of
+ * 8-10ms at depth 10,000, single samples of **62.63ms and 73.78ms** were observed, and two 300-sample
+ * measurements of the IDENTICAL fixture minutes apart returned p95 32.28ms and 7.60ms. It was also measured
+ * NOT to be this harness's own fixture churn — the plausible suspect, since each series bulk-deletes and
+ * re-inserts tens of thousands of rows: 300 samples before and after an explicit `VACUUM (ANALYZE)` moved p50
+ * by 0.2-0.4ms (6.64 -> 6.40 `adversarial`, 9.89 -> 9.48 `mixed`) and `autovacuum_count` did not advance
+ * during either phase.
+ *
+ * **Stated honestly: what remains UNPROVEN is the source of the stalls on GitHub's runners** — CPU steal
+ * versus IO contention is not diagnosed, and cannot be from inside the job. What IS established is that the
+ * stalls exist, that they are not the query, and that they are not this fixture's vacuum state.
+ *
  * Usage (from packages/services/food-service):
  *   DATABASE_URL=postgres://postgres:postgres@localhost:5432/food_load npm run test:load:drain
  *   FOOD_DRAIN_DEPTHS=100,1000,10000 FOOD_DRAIN_SAMPLES=50 DATABASE_URL=… npm run test:load:drain
@@ -102,8 +133,29 @@ const DEPTHS = (process.env['FOOD_DRAIN_DEPTHS'] ?? '100,1000,10000')
     .map((value) => Number(value.trim()))
     .filter((value) => Number.isInteger(value) && value > 0);
 
-/** Measured claims per (profile, depth), subject to {@link SERIES_BUDGET_MS}. */
-const SAMPLES = Math.max(5, Number(process.env['FOOD_DRAIN_SAMPLES'] ?? 30));
+/**
+ * Measured claims per (profile, depth), subject to {@link SERIES_BUDGET_MS}.
+ *
+ * **300, not 30 — this is what makes the reported p95 an actual p95.** {@link percentile} is a nearest-rank
+ * estimator, so at n=30 the "p95" it returns IS the second-largest sample and the "p99" IS the maximum,
+ * definitionally. Two slow samples out of thirty therefore decided the verdict. That is how run 31608073724
+ * reported `mixed` @10,000 at 90.23ms p95 while that same series' MEDIAN, 12.23ms, was the second-fastest
+ * ever measured for it — faster than the 15.69ms of the run this budget was confirmed on. A 30-sample series
+ * cannot resolve a tail finer than 1/30 = 3.3%, and it leaves only 1.5 expected samples above the very
+ * percentile it claims to estimate.
+ *
+ * At 300 samples p95 is the 16th-largest observation, with 15 above it, so a burst of host stalls no longer
+ * sets it while a genuine 5%-of-claims pathology still does. **Nothing is widened by this.** The budget, the
+ * fixture, the profiles and the depths are untouched; the SAME quantity is estimated with enough samples to
+ * mean what it says.
+ *
+ * Cost, measured on this workstation at depth 10,000 (the most expensive series): sampling grows from ~0.35s
+ * to ~3.0s per series, against the ~18s of seeding per series that dominates either way — the two-profile
+ * depth-10,000 run went **38.4s -> 42.1s** end to end. CI claims measure ~1.2-3x slower, so expect up to
+ * ~10s of sampling per series there, still far inside {@link SERIES_BUDGET_MS}. A pathological regression is
+ * still bounded by that wall-clock backstop, which stops a series once it holds {@link MIN_SAMPLES}.
+ */
+const SAMPLES = Math.max(5, Number(process.env['FOOD_DRAIN_SAMPLES'] ?? 300));
 
 /** Floor on samples per series — never traded away for the wall-clock budget. */
 const MIN_SAMPLES = Math.min(SAMPLES, Math.max(3, Number(process.env['FOOD_DRAIN_MIN_SAMPLES'] ?? 5)));
@@ -132,6 +184,19 @@ const WARMUP = Math.max(1, Number(process.env['FOOD_DRAIN_WARMUP'] ?? 3));
  *     has NOT satisfied SC-003 — see the DSN-11 escalation this script prints.
  */
 const CLAIM_P95_BUDGET_MS = Number(process.env['FOOD_DRAIN_CLAIM_P95_MS'] ?? 60);
+
+/**
+ * The queue depth below which SC-003's promise binds: it is conditioned on "when the `fetch_queue`
+ * pending-row depth is **under 100 rows**" (spec.md SC-003), which is also where
+ * {@link CLAIM_P95_BUDGET_MS} is derived from.
+ *
+ * Above this depth the SAME 60ms bar still applies and still fails the run — it is the depth-independent
+ * engineering intent that the queue machinery must not be what sets the drain rate — but a breach there is
+ * an **FR-046 ceiling / DSN-11 scaling** finding, NOT a breach of SC-003. The distinction is not pedantry: a
+ * breach above this depth was reported as "15.0% of SC-003's 60s budget", which reads as a product-promise
+ * emergency and sent a reader after the wrong mechanism entirely.
+ */
+const SC003_MAX_DEPTH = 100;
 
 /**
  * The per-requester pending threshold the DAO under measurement actually uses (FR-043) — read from the
@@ -333,7 +398,28 @@ async function countDemotedRows(): Promise<number> {
     return rows[0]?.demoted ?? 0;
 }
 
-/** The `percentile`-th value of a sorted-ascending copy of `values`. Pure. */
+/**
+ * The `percentile`-th value of `values` by **nearest rank** — the observed sample at `ceil(p/100 x n)`, with
+ * NO interpolation. Pure.
+ *
+ * Nearest rank is deliberate and is what k6 and the other load tools in this repo report: a latency gate
+ * should assert on a measurement that actually happened, not on a synthetic value interpolated between two
+ * samples that did. It is kept rather than "fixed" for that reason.
+ *
+ * ⚠️ **What the estimator cannot fix, so read it here: a percentile only means something when `n` is large
+ * enough to have samples above it.** The zero-based rank is `ceil(p/100 x n) - 1`, so:
+ *
+ *   - n=30:  p95 -> index 28 = the **2nd-largest** sample; p99 -> index 29 = **the maximum, definitionally**.
+ *     That is why every table this probe printed under the old 30-sample default had `p99 == max` in EVERY
+ *     row — it was arithmetic, not a property of the queue, and it must not be read as a tail measurement.
+ *   - n=300: p95 -> index 284 = the 16th-largest, with 15 samples above it, which is enough to mean what it
+ *     says; p99 -> index 296 = the 4th-largest, with only 3 above it.
+ *
+ * Rule of thumb: a p-th percentile needs `n >= 10 x 100/(100-p)` before it stops being a near-max — 200 for
+ * p95, 1,000 for p99. {@link SAMPLES} is sized for **p95**, which is the budgeted statistic. `p99` and `max`
+ * are reported as tail DIAGNOSTICS — they are what expose a host stall (see the breach message) — and
+ * nothing gates on them.
+ */
 function percentile(values: readonly number[], percentileRank: number): number {
     const sorted = [...values].sort((left, right) => left - right);
     const index = Math.min(sorted.length - 1, Math.ceil((percentileRank / 100) * sorted.length) - 1);
@@ -496,14 +582,32 @@ try {
         );
     }
 
-    // The claim overhead a 100-item backlog pays, expressed against the budget SC-003 actually states.
+    // What the measured claim cost MEANS, framed by the depth it was measured at.
+    //
+    // Only at or below SC003_MAX_DEPTH does SC-003's 60s promise bind, so only there is "the claim's share of
+    // that budget" the right translation. Above it the claim cost is a SCALING measurement — FR-046's ceiling
+    // and DSN-11's "revisit at N rows" — and the honest translation is what the FULL backlog at that depth
+    // costs in claim overhead, with no 60s comparison at all. Printing the depth-100 arithmetic at depth
+    // 10,000 produced "draining a 100-item backlog … 15.0% of SC-003's 60s budget", which is a category
+    // error twice over: at that depth the backlog is 10,000 items, not 100, and enqueues are already failing
+    // closed with 503 (FR-046). It read as an SC-003 emergency that the spec does not describe.
     for (const entry of measurements) {
-        const backlogSeconds = (entry.p95 * 100) / 1000;
-        console.log(
-            `drain-demotion: at depth ${entry.depth} (${entry.profile}), draining a 100-item backlog spends ` +
-                `${backlogSeconds.toFixed(1)}s in claim overhead alone — ${((backlogSeconds / 60) * 100).toFixed(1)}% ` +
-                `of SC-003's 60s budget, before any source call.`,
-        );
+        const backlogSeconds = (entry.p95 * entry.depth) / 1000;
+
+        if (entry.depth <= SC003_MAX_DEPTH) {
+            console.log(
+                `drain-demotion: at depth ${entry.depth} (${entry.profile}), draining a ${entry.depth}-item ` +
+                    `backlog spends ${backlogSeconds.toFixed(1)}s in claim overhead alone — ` +
+                    `${((backlogSeconds / 60) * 100).toFixed(1)}% of SC-003's 60s budget, before any source call.`,
+            );
+        } else {
+            console.log(
+                `drain-demotion: at depth ${entry.depth} (${entry.profile}), draining the full ` +
+                    `${entry.depth}-item backlog spends ${backlogSeconds.toFixed(1)}s in claim overhead alone. ` +
+                    `That is an FR-046-ceiling SCALING figure (DSN-11), NOT an SC-003 number: SC-003's 60s ` +
+                    `promise is conditioned on a pending depth under ${SC003_MAX_DEPTH}.`,
+            );
+        }
     }
 
     const breaches = measurements.filter((entry) => entry.p95 > CLAIM_P95_BUDGET_MS);
@@ -512,17 +616,39 @@ try {
         console.error('');
 
         for (const entry of breaches) {
+            const kind = entry.depth <= SC003_MAX_DEPTH ? 'SC-003' : 'FR-046 ceiling / DSN-11 scaling';
+
             console.error(
-                `drain-demotion: BREACH — ${entry.profile} @ depth ${entry.depth}: claim p95 ${ms(entry.p95)} ` +
-                    `> ${CLAIM_P95_BUDGET_MS}ms.`,
+                `drain-demotion: BREACH (${kind}) — ${entry.profile} @ depth ${entry.depth}: claim p95 ` +
+                    `${ms(entry.p95)} > ${CLAIM_P95_BUDGET_MS}ms (p50 ${ms(entry.p50)}, p99 ${ms(entry.p99)}, ` +
+                    `max ${ms(entry.max)} over ${entry.samples} samples).`,
             );
         }
 
+        // WHICH contract broke depends on the depth, and the answer changes what the reader should do next.
+        const breachesSc003 = breaches.some((entry) => entry.depth <= SC003_MAX_DEPTH);
+        const headline = breachesSc003
+            ? 'the FR-043 fairness demotion in leaseNext() does NOT stay within the SC-003 backfill budget ' +
+              `on this runner — the breach is at depth <= ${SC003_MAX_DEPTH}, where SC-003's 60s promise ` +
+              'actually binds.\n'
+            : `every breach is ABOVE depth ${SC003_MAX_DEPTH}, so this is an FR-046-CEILING / DSN-11 SCALING ` +
+              'breach, NOT a breach of SC-003 (whose 60s promise is conditioned on a pending depth under ' +
+              `${SC003_MAX_DEPTH}, and which passes above). It still fails the run deliberately: the queue ` +
+              'machinery is starting to set the drain rate, and depth >= 1,000 is where BOTH real defects ' +
+              'this probe has ever caught actually surfaced while depth 100 kept 8-12x headroom.\n';
+
         fail(
-            'the FR-043 fairness demotion in leaseNext() does NOT stay within the SC-003 backfill budget ' +
-                'on this runner.\n' +
-                'DIAGNOSE BEFORE CHANGING ANYTHING — two mechanisms have breached this budget before, and ' +
-                'they need opposite fixes (both recorded in tests/load/README.md "Finding 2"):\n' +
+            headline +
+                'DIAGNOSE BEFORE CHANGING ANYTHING — three mechanisms produce this red and they need ' +
+                'different fixes (all recorded in tests/load/README.md "Finding 2"):\n' +
+                '  • FIRST, rule out a HOST STALL on the runner, because it is the cheapest to check and the ' +
+                'most common cause of this red. Signature: the MEDIAN is in family with earlier runs (or ' +
+                'faster) and only p95/p99/max moved, and often ANOTHER series in the same run spikes at a ' +
+                'depth where the claim does almost no work. Recorded example: run 31537195430 measured ' +
+                '`mixed` @100 at p50 2.31ms with p95 56.51ms — 94% of the 60ms budget at the depth where SC-003 ' +
+                'binds, from stalls alone; run 31608073724 reported `mixed` @10,000 at p95 90.23ms with a ' +
+                'p50 of 12.23ms, faster than the 15.69ms median of the run this budget was confirmed on. ' +
+                'Compare MEDIANS against tests/load/README.md "Finding 2" before touching the query.\n' +
                 '  • if `mixed` and `adversarial` breach TOGETHER and scale with requester rows, the ' +
                 'per-claim `demand` aggregate is the cost — the escalation is a MAINTAINED per-requester ' +
                 'outstanding count, accepting that it is a second representation of one number and needs a ' +
@@ -536,9 +662,24 @@ try {
         );
     }
 
+    // The PASS line is depth-aware for the same reason the breach line is: claiming SC-003 compliance from a
+    // depth-10,000 series would be the same category error in the green direction.
+    const sc003Depths = DEPTHS.filter((depth) => depth <= SC003_MAX_DEPTH);
+    const scalingDepths = DEPTHS.filter((depth) => depth > SC003_MAX_DEPTH);
+    const sc003Verdict =
+        sc003Depths.length > 0
+            ? ` At depth ${sc003Depths.join(', ')} — where SC-003's 60s promise binds — FR-043's fairness ` +
+              `demotion is within the SC-003 backfill budget.`
+            : '';
+    const scalingVerdict =
+        scalingDepths.length > 0
+            ? ` At depth ${scalingDepths.join(', ')} the same per-claim bar holds as an FR-046-ceiling / ` +
+              `DSN-11 scaling check, so the queue machinery is not what sets the drain rate (DSN-11 closed).`
+            : '';
+
     console.log(
-        `\ndrain-demotion: PASS — every series stayed within ${CLAIM_P95_BUDGET_MS}ms p95, so FR-043's ` +
-            `fairness demotion is within the SC-003 backfill budget at the measured depths (DSN-11 closed).`,
+        `\ndrain-demotion: PASS — every series stayed within ${CLAIM_P95_BUDGET_MS}ms p95.${sc003Verdict}` +
+            `${scalingVerdict}`,
     );
 } finally {
     await pool.end();

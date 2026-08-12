@@ -237,17 +237,55 @@ export class FetchQueueDao {
      * real DAO, 30 samples, before → after): `adversarial` p95 **41.70ms → 7.20ms** at depth 10,000 (5.8×)
      * and 6.97ms → 4.03ms at 1,000, with `mixed` unchanged (8.86ms → 9.04ms at 10,000, inside run-to-run
      * spread). In-database timing without the client round trip isolates the statement itself: 33.21ms →
-     * 3.56ms adversarial, and 40,457 → 1,439 shared buffer hits. An earlier revision that also replaced
+     * 3.56ms adversarial, and 40,457 → 1,439 shared buffer hits. (**Buffer figure corrected 2026-08-12: 328,
+     * not 1,439**, for `adversarial` @10,000 re-measured on a FRESHLY SEEDED fixture — 311 of those 328 are the
+     * `demand` aggregate's two sequential scans. The 1,439 was measured against a CI-style database the k6
+     * steps had already churned, i.e. bloated tables carrying ~5× the pages for the same rows. Neither figure
+     * is asserted anywhere: the scaling gate asserts index TUPLES, which bloat does not move.) An earlier
+     * revision that also replaced
      * `NOT IN over_demand` with `IN under_demand` cost `mixed` ~30% (a 10,000-entry hashed SubPlan instead of
      * 50) for no semantic gain, which is why branch 1 keeps the small over-threshold set. CI hardware is ~3×
      * slower than this machine, so **the CI probe is the only arbiter of the absolute numbers**; what is
      * hardware-independent is the buffer count and the `never executed` branch, and both are asserted.
+     *
+     * **WHERE THE TIME ACTUALLY GOES** (`EXPLAIN (ANALYZE, BUFFERS)` of the statement the DAO sends, captured
+     * from a Drizzle logger; freshly-seeded depth-10,000 fixture, this workstation, 2026-08-12). Recorded
+     * because a `mixed` p95 regression invites exactly one wrong diagnosis — "it must be branch 1, the tier
+     * `adversarial` never enters" — and the numbers say otherwise:
+     *
+     *   - `mixed`: **8.889ms** total, 755 buffers. The `demand` aggregate is **7.239ms of it (81%)**;
+     *     `promoted_ready` adds 0.013ms and 6 buffers on top of it; **branch 1 is 1.547ms**, of which 1.521ms
+     *     is building the 50-row hashed `over_demand` SubPlan and only 0.003ms is the index scan itself
+     *     (`idx_fetch_queue_priority`, `rows=1 loops=1` — early termination working as designed).
+     *   - `adversarial`: **5.356ms** total, 328 buffers. `demand` is 5.224ms (97%); branch 1 `never executed`;
+     *     branch 2's index scan is 0.018ms.
+     *
+     * So the whole `mixed` − `adversarial` delta (3.5ms) is the aggregate reading 30,000 rather than 20,000
+     * `fetch_requesters` rows (727 vs 311 buffers) plus branch 1's one-time hash. **Branch 1 is ~17% of the
+     * statement, and the FR-043 aggregate is 81–97% of it.**
      *
      * **CONFIRMED ON CI** (run 31451860784, budget p95 <= 60ms, before -> after on the same runner class):
      * `adversarial` @10,000 **85.52ms -> 10.81ms** (7.9x, now 5.6x inside budget), @1,000 10.76ms -> 3.91ms,
      * @100 2.64ms -> 2.65ms; `mixed` @10,000 16.73ms -> 16.59ms, @1,000 3.98ms -> 5.46ms, @100 4.78ms ->
      * 4.87ms. Every series passes. Note the local prediction was 7.20ms and CI measured 10.81ms — the ~3x
      * hardware factor applies to the REMAINING aggregate too, which is why the probe stays the contract.
+     *
+     * **SUPERSEDED AS A p95 REFERENCE (2026-08-12) — the before/after above stands, but read the MEDIANS, not
+     * the p95s.** The same probe later reported `mixed` @10,000 at **90.23ms p95** (run 31608073724) with this
+     * statement, its plan, its `never executed` branch and its buffer counts ALL unchanged. Across five heavy
+     * runs on one branch that series measured p50/p95 of 15.69/16.59, 15.14/15.41, 16.58/18.01, 11.84/12.36
+     * and **12.23/90.23** — the "regressing" run had the second-FASTEST median ever recorded for it. Two
+     * things combined: the probe sampled n=30, where its nearest-rank p95 IS the second-largest sample (and
+     * p99 IS the maximum, which is why every table it ever printed had `p99 == max` in every row), and the
+     * runner intermittently stalls for 30-170ms — visible in the same run as `adversarial` @1,000 at p50
+     * 3.55ms with p95 29.37ms, and in run 31537195430 as `mixed` @100 at p50 2.31ms with p95 **56.51ms**, at a
+     * depth where this statement does ~2ms of work. The probe now samples 300 per series, so p95 is the
+     * 16th-largest observation; `FOOD_DRAIN_CLAIM_P95_MS`, the fixture and both plan gates are untouched. The
+     * stall was reproduced locally (62.63ms and 73.78ms samples against 8-10ms medians) and its most plausible
+     * innocent explanation was measured and REJECTED (300 samples either side of an explicit `VACUUM
+     * (ANALYZE)` moved p50 by 0.2-0.4ms, and `autovacuum_count` never advanced). **What is NOT diagnosed, and
+     * is not claimed to be: the source of those stalls on GitHub's runners — CPU steal versus IO contention.**
+     * Full evidence in `tests/load/README.md` "Finding 2".
      *
      * **Residual, stated rather than hidden:** the claim is still linear in `fetch_requesters` ROWS, because
      * one aggregate must read them to know each requester's outstanding count. It is no longer linear in

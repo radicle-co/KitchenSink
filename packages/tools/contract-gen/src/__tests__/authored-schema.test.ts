@@ -22,6 +22,7 @@ import {
     isWalkableDirectory,
 } from '../authored-schema.js';
 import type { AuthoredSchema } from '../authored-schema.js';
+import type { ComposedSource } from '../composed-sources.js';
 
 /** Build an {@link AuthoredSchema} for the pure functions, deriving `moduleName` the way discovery does. */
 function makeSchema(overrides: Partial<AuthoredSchema> & Pick<AuthoredSchema, 'servicePath'>): AuthoredSchema {
@@ -212,24 +213,33 @@ describe('flattenSiblingImports', () => {
 });
 
 describe('computeContractHash', () => {
+    /**
+     * The authored-only corpus. Every case in this block fixes `composed` to empty so it measures the AUTHORED
+     * half alone; the composed half — and the two directions of hash response to a composed leaf — are covered in
+     * `./composed-sources.test.ts` against real reachability, which is where they belong.
+     */
+    const NO_COMPOSED: readonly ComposedSource[] = [];
+
     const schemas = [
         makeSchema({ servicePath: 'src/a/a.schema.ts', source: 'export const a = 1;\n' }),
         makeSchema({ servicePath: 'src/b/b.schema.ts', source: 'export const b = 2;\n' }),
     ];
 
     it('is a lower-case hex sha256', () => {
-        expect(computeContractHash(schemas)).toMatch(/^[0-9a-f]{64}$/u);
+        expect(computeContractHash(schemas, NO_COMPOSED)).toMatch(/^[0-9a-f]{64}$/u);
     });
 
     it('is insensitive to the order the schemas were discovered in', () => {
-        expect(computeContractHash([...schemas].reverse())).toBe(computeContractHash(schemas));
+        expect(computeContractHash([...schemas].reverse(), NO_COMPOSED)).toBe(
+            computeContractHash(schemas, NO_COMPOSED),
+        );
     });
 
     it('is insensitive to CRLF, so a Windows checkout agrees with CI', () => {
         const crlf = [makeSchema({ servicePath: 'src/a/a.schema.ts', source: 'export const a = 1;\r\n' })];
         const lf = [makeSchema({ servicePath: 'src/a/a.schema.ts', source: 'export const a = 1;\n' })];
 
-        expect(computeContractHash(crlf)).toBe(computeContractHash(lf));
+        expect(computeContractHash(crlf, NO_COMPOSED)).toBe(computeContractHash(lf, NO_COMPOSED));
     });
 
     it('changes when a schema body changes', () => {
@@ -238,13 +248,13 @@ describe('computeContractHash', () => {
             makeSchema({ servicePath: 'src/b/b.schema.ts', source: 'export const b = 3;\n' }),
         ];
 
-        expect(computeContractHash(mutated)).not.toBe(computeContractHash(schemas));
+        expect(computeContractHash(mutated, NO_COMPOSED)).not.toBe(computeContractHash(schemas, NO_COMPOSED));
     });
 
     it('changes when a schema is added', () => {
         const added = [...schemas, makeSchema({ servicePath: 'src/c/c.schema.ts', source: 'export const c = 3;\n' })];
 
-        expect(computeContractHash(added)).not.toBe(computeContractHash(schemas));
+        expect(computeContractHash(added, NO_COMPOSED)).not.toBe(computeContractHash(schemas, NO_COMPOSED));
     });
 
     it('changes when a schema is renamed but its body is identical', () => {
@@ -253,7 +263,7 @@ describe('computeContractHash', () => {
             makeSchema({ servicePath: 'src/b/renamed.schema.ts', source: 'export const b = 2;\n' }),
         ];
 
-        expect(computeContractHash(renamed)).not.toBe(computeContractHash(schemas));
+        expect(computeContractHash(renamed, NO_COMPOSED)).not.toBe(computeContractHash(schemas, NO_COMPOSED));
     });
 
     // Kills a mutation from NUL-framing to plain concatenation. Without a delimiter, the boundary between a
@@ -263,17 +273,17 @@ describe('computeContractHash', () => {
         const left = [makeSchema({ servicePath: 'a', source: 'b' })];
         const right = [makeSchema({ servicePath: 'ab', source: '' })];
 
-        expect(computeContractHash(left)).not.toBe(computeContractHash(right));
+        expect(computeContractHash(left, NO_COMPOSED)).not.toBe(computeContractHash(right, NO_COMPOSED));
     });
 
     it('does not collide when the boundary between two schemas shifts', () => {
         const left = [makeSchema({ servicePath: 'a', source: 'b' }), makeSchema({ servicePath: 'c', source: 'd' })];
         const right = [makeSchema({ servicePath: 'ab', source: '' }), makeSchema({ servicePath: 'cd', source: '' })];
 
-        expect(computeContractHash(left)).not.toBe(computeContractHash(right));
+        expect(computeContractHash(left, NO_COMPOSED)).not.toBe(computeContractHash(right, NO_COMPOSED));
     });
 
     it('is empty-corpus stable rather than throwing', () => {
-        expect(computeContractHash([])).toMatch(/^[0-9a-f]{64}$/u);
+        expect(computeContractHash([], NO_COMPOSED)).toMatch(/^[0-9a-f]{64}$/u);
     });
 });

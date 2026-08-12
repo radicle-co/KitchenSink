@@ -24,6 +24,9 @@ export {
 } from './authored-schema.js';
 export type { AuthoredSchema, SchemaDiscoveryOptions, SchemaExclusion } from './authored-schema.js';
 
+export { collectComposedSources, composedSourceKey } from './composed-sources.js';
+export type { ComposedSource, ComposedSourceOptions } from './composed-sources.js';
+
 export {
     collectModuleReferences,
     findUnpublishedSiblingImports,

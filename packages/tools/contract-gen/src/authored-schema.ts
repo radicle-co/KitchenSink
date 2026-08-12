@@ -18,6 +18,8 @@ import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { join, relative } from 'node:path';
 
+import type { ComposedSource } from './composed-sources.js';
+
 /** Directory names never walked: tests and fixtures do not define the wire contract, and build output is not source. */
 const SKIPPED_DIRECTORIES: readonly string[] = ['__tests__', '__fixtures__', '__testing__', 'node_modules', 'dist'];
 
@@ -187,19 +189,37 @@ export function flattenSiblingImports(source: string): string {
 }
 
 /**
- * Fingerprint the authored contract.
+ * Fingerprint the authored contract AND the composed sources its shapes are built from.
  *
- * Hashes the SOURCE TEXT of the authored schemas — path and contents, NUL-framed so a boundary shift cannot
- * collide, sorted by path so traversal order is irrelevant, and CRLF-normalized so a Windows checkout agrees
- * with CI. This is the value embedded in BOTH the service and the schema package (drift layer 3).
+ * Hashes the SOURCE TEXT of both corpora — key and contents, NUL-framed so a boundary shift cannot collide,
+ * sorted by key so traversal order is irrelevant, and CRLF-normalized so a Windows checkout agrees with CI. This
+ * is the value embedded in BOTH the service and the schema package (drift layer 3).
+ *
+ * ⚠️ `composed` is REQUIRED and has NO default. Defaulting it to `[]` would be a one-character change and is
+ * exactly the defect this parameter exists to fix: the fingerprint used to cover only the authored files, so
+ * changing `recipeDetailSchema`'s definition inside `@kitchensink/recipe-core` altered the wire shape — measurably,
+ * `openapi.yaml` gained a required property — while the hash stood still. A caller that omits the composed corpus
+ * must fail to COMPILE rather than quietly recreate the blind hash. See `./composed-sources.ts` for the
+ * reachability rule, the measured reproduction, and what is deliberately not followed.
+ *
+ * The two corpora cannot collide in the framing: an authored key is a service-relative path (`src/…`), a composed
+ * key is a package name followed by a package-relative path (`@scope/pkg/src/…`).
  *
  * @param schemas - The authored schemas.
+ * @param composed - The transitively reachable composed sources, from `collectComposedSources`. EMPTY for a
+ *   service whose import allowlist is zod-only (food, identity), whose fingerprint is therefore identical to what
+ *   it was before composed sources were counted at all.
  * @returns Lower-case hex SHA-256 of the framed corpus. Pure.
  */
-export function computeContractHash(schemas: readonly AuthoredSchema[]): string {
-    const framed = [...schemas]
-        .sort((left, right) => (left.servicePath < right.servicePath ? -1 : 1))
-        .map((schema) => `${schema.servicePath}\u0000${schema.source.replaceAll('\r\n', '\n')}\u0000`)
+export function computeContractHash(schemas: readonly AuthoredSchema[], composed: readonly ComposedSource[]): string {
+    const entries: { readonly key: string; readonly source: string }[] = [
+        ...schemas.map((schema) => ({ key: schema.servicePath, source: schema.source })),
+        ...composed.map((source) => ({ key: source.key, source: source.source })),
+    ];
+
+    const framed = entries
+        .sort((left, right) => (left.key < right.key ? -1 : 1))
+        .map((entry) => `${entry.key}\u0000${entry.source.replaceAll('\r\n', '\n')}\u0000`)
         .join('');
 
     return createHash('sha256').update(framed, 'utf8').digest('hex');

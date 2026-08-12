@@ -353,6 +353,7 @@ describe('formatGenerationSummary', () => {
         const summary = formatGenerationSummary(
             {
                 schemas: [{ servicePath: 'src/widgets/widgets.schema.ts', moduleName: 'widgets.schema', source: '' }],
+                composed: [],
                 contractHash: 'abcdef0123456789',
                 coverage: {
                     totalOperations: 3,
@@ -376,6 +377,7 @@ describe('formatGenerationSummary', () => {
         const summary = formatGenerationSummary(
             {
                 schemas: [{ servicePath: 'src/a/a.schema.ts', moduleName: 'a.schema', source: '' }],
+                composed: [],
                 contractHash: '0'.repeat(64),
                 coverage: {
                     totalOperations: 2,

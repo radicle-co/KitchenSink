@@ -21,12 +21,13 @@ import { join } from 'node:path';
 
 import {
     computeContractHash,
+    collectComposedSources,
     discoverAuthoredSchemas,
     findUnpublishedSiblingImports,
     findViolations,
     flattenSiblingImports,
 } from '@kitchensink/contract-gen';
-import type { AuthoredSchema } from '@kitchensink/contract-gen';
+import type { AuthoredSchema, ComposedSource } from '@kitchensink/contract-gen';
 import { describe, expect, it } from 'vitest';
 import { stringify } from 'yaml';
 
@@ -43,6 +44,18 @@ import { foodOpenApiDocument, openApiComponents } from '../openapi.js';
 
 /** The authored schemas, discovered once with the SAME config the generator runs with. */
 const authored: AuthoredSchema[] = await discoverAuthoredSchemas(SERVICE_ROOT, { excludeFiles: EXCLUDED_FILES });
+
+/**
+ * The COMPOSED sources the authored schemas build their shapes from — EMPTY for this service, and that emptiness
+ * is an assertion below rather than an assumption.
+ *
+ * `CONTRACT_HASH` fingerprints the authored `*.schema.ts` files AND every source they transitively reach through
+ * an allowlisted package import, because a hash over the authored files alone did not move when a shape defined
+ * in a composed leaf changed — drift layer 3 certified skew as agreement. This service's allowlist is zod-only, so
+ * it reaches nothing and its fingerprint is unchanged. Collected with the SAME call the generator makes, so if the
+ * allowlist is ever widened this test follows automatically instead of pinning a stale empty corpus.
+ */
+const composed: readonly ComposedSource[] = await collectComposedSources(authored, { serviceRoot: SERVICE_ROOT });
 
 /**
  * Read a committed file from the generated package.
@@ -165,7 +178,25 @@ describe('drift layer 2 — the committed package matches a fresh generation', (
 });
 
 describe('drift layer 3 — the contract hash', () => {
-    const expected = computeContractHash(authored);
+    const expected = computeContractHash(authored, composed);
+
+    /*
+     * What this asserts, stated precisely, because an earlier draft of this comment over-claimed and that is the
+     * same class of defect as the blindness being fixed.
+     *
+     * It pins THIS SERVICE to composing nothing. If someone widens the import allowlist — the reviewed decision
+     * that admits a package's whole transitive graph into a leaf web and mobile depend on — this fails, so the
+     * fingerprint consequences of that widening cannot arrive unnoticed.
+     *
+     * It does NOT prove the collector still works: a collector that had stopped following imports entirely would
+     * also return `[]` here. That property is guarded where it can actually be observed, in the RECIPE service's
+     * contract test, which requires `@kitchensink/recipe-core/src/recipe.types.ts` by name. All three services
+     * share one collector, so recipe's non-vacuity assertion is the liveness check for this one too.
+     */
+    it('reaches no composed source, because the allowlist is zod-only', () => {
+        expect(composed).toStrictEqual([]);
+        expect(ALLOWED_PACKAGE_IMPORTS.map((entry) => entry.specifier)).toStrictEqual(['zod']);
+    });
 
     it('is stamped in the schema package as the fingerprint of the authored sources', async () => {
         expect(await readCommitted('src/contract-hash.ts')).toContain(`export const CONTRACT_HASH = '${expected}';`);

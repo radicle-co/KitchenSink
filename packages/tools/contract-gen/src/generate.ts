@@ -34,6 +34,7 @@ import {
     type AuthoredSchema,
     type SchemaExclusion,
 } from './authored-schema.js';
+import { collectComposedSources, type ComposedSource } from './composed-sources.js';
 import {
     findUnpublishedSiblingImports,
     findViolations,
@@ -79,6 +80,11 @@ export interface ContractGenerationConfig {
 export interface ContractGenerationResult {
     /** The authored schemas that were published. */
     readonly schemas: readonly AuthoredSchema[];
+    /**
+     * The composed sources the authored schemas transitively reach, which are part of the fingerprint but are NOT
+     * copied into the package (they belong to a leaf the consumer already depends on).
+     */
+    readonly composed: readonly ComposedSource[];
     /** The contract fingerprint written into both the service and the schema package. */
     readonly contractHash: string;
     /** The OpenAPI coverage report. */
@@ -200,6 +206,11 @@ export async function generateSchemaPackage(config: ContractGenerationConfig): P
     assertNoForbiddenImports(schemas, config);
     assertSiblingImportsResolve(schemas, config);
 
+    // AFTER the import restriction, never before: that check is what bounds the specifiers reaching the
+    // reachability walk to zod, the allowlist, and published siblings. Running it first would let a service
+    // internal — a DAL type, a drizzle schema — pull the server graph into the hash corpus before being rejected.
+    const composed = await collectComposedSources(schemas, { serviceRoot: config.serviceRoot });
+
     const banner = generatedBanner(config);
     const generatedSrc = join(config.schemaPackageRoot, 'src');
     const schemasDir = join(generatedSrc, 'schemas');
@@ -224,7 +235,7 @@ export async function generateSchemaPackage(config: ContractGenerationConfig): P
         `${banner}\n\n// The inferred types, re-exported type-only for consumers that want types alone.\nexport type * from './schemas.js';\n`,
     );
 
-    const contractHash = computeContractHash(schemas);
+    const contractHash = computeContractHash(schemas, composed);
     const stamp = (context: string): string =>
         [
             banner,
@@ -232,9 +243,10 @@ export async function generateSchemaPackage(config: ContractGenerationConfig): P
             '/**',
             ` * Fingerprint of the ${config.contractDisplayName}'s authored wire contract (${context}).`,
             ' *',
-            ' * SHA-256 over the authored `*.schema.ts` sources. The generator writes this value into BOTH the',
-            ' * service and the schema package, so a consumer pinned to an older schema package can detect that',
-            ' * the service it is talking to has moved ahead of it.',
+            ' * SHA-256 over the authored `*.schema.ts` sources AND the composed sources they transitively',
+            ' * reach (see @kitchensink/contract-gen composed-sources.ts). The generator writes this value into',
+            ' * BOTH the service and the schema package, so a consumer pinned to an older schema package can',
+            ' * detect that the service it is talking to has moved ahead of it.',
             ' */',
             `export const CONTRACT_HASH = '${contractHash}';`,
             '',
@@ -269,7 +281,7 @@ export async function generateSchemaPackage(config: ContractGenerationConfig): P
         ].join('\n'),
     );
 
-    return { schemas, contractHash, coverage: config.openApi.coverage };
+    return { schemas, composed, contractHash, coverage: config.openApi.coverage };
 }
 
 /**
@@ -288,6 +300,11 @@ export function formatGenerationSummary(result: ContractGenerationResult, schema
         `contract:generate — ${schemaPackageName}`,
         `  ${result.schemas.length} schema module(s), CONTRACT_HASH=${result.contractHash.slice(0, 12)}…`,
         ...result.schemas.map((schema) => `    ${schema.servicePath}`),
+        // Printed every run, like the response-schema gaps: the composed corpus is the part of the fingerprint
+        // that is NOT visible in this package's own files, so a reader who cannot see it cannot reason about why
+        // the hash moved.
+        `  ${result.composed.length} composed source(s) in the fingerprint:`,
+        ...result.composed.map((source) => `    ${source.key}`),
         `  openapi.yaml — ${result.coverage.totalOperations} operation(s), ` +
             `${result.coverage.componentCount} component schema(s), ` +
             `${result.coverage.operationsFullyTyped}/${result.coverage.totalOperations} fully typed`,

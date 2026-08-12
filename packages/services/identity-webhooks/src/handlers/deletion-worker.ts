@@ -1,5 +1,6 @@
 import type { Context, SQSEvent, SQSRecord } from 'aws-lambda';
 
+import { idpDeletionMessageSchema, type IdpDeletionMessage } from '../common/deletion-queue.schema.js';
 import { withDb, type DbContext } from '../common/handler-pipeline.js';
 import { eraseIdentityRow } from '../common/erase-identity.js';
 import { runErasureFanout, type ErasureFanoutResult, type ErasureFanoutTarget } from '../common/erasure-fanout.js';
@@ -18,16 +19,24 @@ import { emitMetric, logger, withObservability } from '../common/observability.j
  *
  * @implements REQ-025 REQ-026 REQ-IF-005 REQ-CN-001 FR-025 FR-026 ARCH-017 MOD-017
  */
-type IdpDeletionMessage = {
-    identityId: string;
-    userId?: string;
-    event?: 'closure' | 'reactivation' | 'erasure';
-    enqueuedAt?: string;
-};
-
-/** @implements REQ-025 REQ-026 REQ-IF-005 REQ-CN-001 FR-025 FR-026 ARCH-017 MOD-017 */
+/**
+ * Parse and VALIDATE an SQS record into a deletion message.
+ *
+ * Was `JSON.parse(record.body) as IdpDeletionMessage`. A cast cannot narrow a string, so `message.event` was
+ * unchecked at runtime and ANY value that was not exactly one of the three literals fell through the `switch`
+ * `default` below — which performs a full GDPR erasure and a cross-service fan-out. See
+ * `../common/deletion-queue.schema.ts` for the full reasoning.
+ *
+ * @param record - The raw SQS record.
+ * @returns The validated message.
+ * @throws {SyntaxError} When the body is not JSON.
+ * @throws {ZodError} When the body is JSON but not a valid deletion message. Throwing is correct HERE (unlike
+ *   the Clerk webhook, which acknowledges): every producer of this queue is our own code, so an invalid message
+ *   is our bug — it must reach the DLQ and its alarm, not be quietly acknowledged.
+ * @implements REQ-025 REQ-026 REQ-IF-005 REQ-CN-001 FR-025 FR-026 ARCH-017 MOD-017
+ */
 const parseMessage = (record: SQSRecord): IdpDeletionMessage => {
-    return JSON.parse(record.body) as IdpDeletionMessage;
+    return idpDeletionMessageSchema.parse(JSON.parse(record.body));
 };
 
 /**
@@ -157,7 +166,13 @@ const processRecord = async (record: SQSRecord, dbCtx: DbContext): Promise<void>
         }
 
         default: {
-            // No `event`: the `user.deleted` webhook (KTD-2 full erasure).
+            // `event` is ABSENT: the `user.deleted` webhook (KTD-2 full erasure).
+            //
+            // This arm is reachable ONLY for an absent `event`, and that is now guaranteed by
+            // `idpDeletionMessageSchema` rather than hoped for: `event` is `z.enum(DELETION_EVENTS).optional()`,
+            // so an unrecognised value is a rejected message and never arrives here. Before that schema existed
+            // this `default` also caught every typo, case difference and version skew — making the most
+            // destructive operation in the system the fallback for unrecognised input.
             await eraseFromWebhook(message.identityId, dbCtx);
         }
     }

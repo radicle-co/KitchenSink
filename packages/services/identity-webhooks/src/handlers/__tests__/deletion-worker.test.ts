@@ -117,6 +117,56 @@ describe('deletion-worker handler', () => {
         });
     });
 
+    /**
+     * THE MOST DESTRUCTIVE DEFAULT IN THE SYSTEM, closed.
+     *
+     * `event` is typed `'closure' | 'reactivation' | 'erasure' | undefined`, and `undefined` legitimately means
+     * the `user.deleted` webhook full-erasure path — so the `switch` `default` has to erase. But the message was
+     * read with a CAST, and a cast cannot narrow a string at runtime. So every value that was not exactly one of
+     * the three literals — a typo, a case difference, a renamed event, a producer/consumer version skew — fell
+     * through `default` and performed a full GDPR erasure plus a cross-service fan-out.
+     *
+     * These cases red if `event` stops being a strict enum. They assert on the SINKS (no erase, no fan-out, no
+     * Clerk call), not merely that it threw, because a throw AFTER the erasure would be no protection at all.
+     */
+    describe('an UNRECOGNISED event is rejected, never treated as a full erasure', () => {
+        it.each([
+            ['a typo', 'closre'],
+            ['wrong case', 'Closure'],
+            ['a renamed/unknown event', 'account.purge'],
+            ['an empty string', ''],
+            ['a non-string', 42],
+        ])('refuses %s without erasing or fanning out', async (_label, event) => {
+            await expect(
+                handler(makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event } as never), makeContext()),
+            ).rejects.toThrow();
+
+            expect(mockEraseIdentityRow).not.toHaveBeenCalled();
+            expect(mockRunErasureFanout).not.toHaveBeenCalled();
+            expect(mockBanUser).not.toHaveBeenCalled();
+            expect(mockUnbanUser).not.toHaveBeenCalled();
+        });
+
+        it('refuses a message with no identityId at all', async () => {
+            // `findByIdentityId('')` would match nothing and the handler would report a clean idempotent
+            // no-op — a deletion that silently did not happen.
+            await expect(handler(makeSqsEvent({ identityId: '' } as never), makeContext())).rejects.toThrow();
+
+            expect(mockEraseIdentityRow).not.toHaveBeenCalled();
+            expect(mockRunErasureFanout).not.toHaveBeenCalled();
+        });
+
+        it('STILL treats an ABSENT event as the user.deleted full-erasure path (behaviour preserved)', async () => {
+            // The counterpart that keeps the fix honest: absent and unrecognised must NOT collapse into one
+            // verdict. Absent is the legitimate webhook path and must keep erasing.
+            mockFindByIdentityId.mockResolvedValue({ id: 'usr_01', identityId: 'user_abc', status: 'active' });
+
+            await handler(makeSqsEvent({ identityId: 'user_abc' }), makeContext());
+
+            expect(mockEraseIdentityRow).toHaveBeenCalledTimes(1);
+        });
+    });
+
     describe('erasure event (tombstone-sweep) — fan out only (identity already scrubbed by the sweep)', () => {
         it('fans out to recipe + food keyed by the app ULID, actor = the sweep', async () => {
             await handler(

@@ -292,12 +292,10 @@ describe('openapi coverage', () => {
 
         expect(claimingRejection).toStrictEqual(['AddFoodRequest', 'BatchAddFoodRequest', 'ResolveFoodRequest']);
 
-        for (const name of ['ApiError', 'NestHttpError', 'ControllerError']) {
-            expect(
-                schemas[name]?.['additionalProperties'],
-                `${name} is .loose() and must publish as open`,
-            ).toStrictEqual({});
-        }
+        expect(
+            schemas['ApiError']?.['additionalProperties'],
+            'ApiError is .loose() and must publish as open',
+        ).toStrictEqual({});
     });
 
     // `z.string().trim().min(1)` emits `minLength: 1`, which `"   "` satisfies — and then this service answers

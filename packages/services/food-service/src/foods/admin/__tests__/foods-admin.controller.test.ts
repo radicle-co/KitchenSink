@@ -5,12 +5,17 @@
  * returns the service's metrics when the scope is present.
  *
  * Requirement → test mapping:
- * - FR-039 / FR-051 → authenticated-but-unscoped → 403 Forbidden; scoped → 200 + metrics.
+ * - FR-039 / FR-051 → authenticated-but-unscoped → 403 `FORBIDDEN`; scoped → 200 + metrics.
+ *
+ * The rejection is asserted by STATUS + published `code`, not by which `HttpException` subclass was constructed:
+ * the status comes from the one `FOOD_ERROR_STATUS` table (`common/api-error.ts`), and this route used to emit the
+ * legacy `{ error: 'Forbidden', message }` body that the 2026-08-12 convergence removed.
  */
-import { ForbiddenException } from '@nestjs/common';
+import { HttpException, HttpStatus } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AuthenticatedRequest } from '../../../auth/authenticated-principal.js';
+import type { ApiErrorBody } from '../../../common/api-error.schema.js';
 import { AdminMetricsService } from '../admin-metrics.service.js';
 import { FoodsAdminController } from '../foods-admin.controller.js';
 
@@ -42,14 +47,22 @@ describe('FoodsAdminController scope gate (FR-039)', () => {
         ctx = makeController();
     });
 
-    it('rejects GET /admin/metrics without the food:admin scope → 403', async () => {
-        await expect(ctx.controller.getMetrics(makeReq([]))).rejects.toBeInstanceOf(ForbiddenException);
-        expect(ctx.service['collect']).not.toHaveBeenCalled();
-    });
+    it.each([
+        ['metrics', (c: FoodsAdminController) => c.getMetrics(makeReq([])), 'collect'],
+        ['queue', (c: FoodsAdminController) => c.getQueue(makeReq(['some:other'])), 'queueDepths'],
+    ])('rejects GET /admin/%s without the food:admin scope → 403 FORBIDDEN', async (_label, call, method) => {
+        let thrown: unknown;
 
-    it('rejects GET /admin/queue without the food:admin scope → 403', async () => {
-        await expect(ctx.controller.getQueue(makeReq(['some:other']))).rejects.toBeInstanceOf(ForbiddenException);
-        expect(ctx.service['queueDepths']).not.toHaveBeenCalled();
+        try {
+            await call(ctx.controller);
+        } catch (error) {
+            thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(HttpException);
+        expect((thrown as HttpException).getStatus()).toBe(HttpStatus.FORBIDDEN);
+        expect(((thrown as HttpException).getResponse() as ApiErrorBody).code).toBe('FORBIDDEN');
+        expect(ctx.service[method]).not.toHaveBeenCalled();
     });
 
     it('returns the full operational metrics with the food:admin scope', async () => {

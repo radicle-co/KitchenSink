@@ -34,6 +34,7 @@ vi.mock('../../src/sources/usda/usda.adapter.js', async () => {
 import { DrizzleProvider, type FoodDrizzle } from '../../src/database/database.module.js';
 import { FoodEventEmitter, type EventBus, type EventBusPutInput } from '../../src/events/food-event-emitter.js';
 import { FetchQueueDao, FoodDao, FoodSourcesDao } from '../../src/foods/dao/index.js';
+import { foodErrorSchema } from '../../src/foods/foods.schema.js';
 import { MergeAndPersistService } from '../../src/foods/merge/merge-and-persist.service.js';
 import { SourceAdapterRegistry } from '../../src/sources/food-source-adapter.js';
 import { RollingWindowLimiter } from '../../src/sources/rolling-window-limiter.js';
@@ -390,7 +391,12 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
 
             const got = await call('GET', `/api/v1/foods/${id}`, { token: userToken });
             expect(got.status).toBe(404);
-            expect((got.body as { status: string }).status).toBe('NOT_FOUND');
+            // The 404's status lives in the envelope's `details`, parsed against the published typed union.
+            expect(foodErrorSchema.parse(got.body)).toEqual({
+                code: 'FOOD_NOT_FOUND',
+                message: expect.any(String),
+                details: { id, status: 'NOT_FOUND' },
+            });
 
             const poll = await call('GET', `/api/v1/foods/${id}/status`, { token: userToken });
             expect(poll.status).toBe(200);
@@ -494,7 +500,11 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* full-stack e2e (booted Nest + re
 
             const got = await call('GET', `/api/v1/foods/${id}`, { token: userToken });
             expect(got.status).toBe(404);
-            expect((got.body as { status: string }).status).toBe('FAILED');
+            expect(foodErrorSchema.parse(got.body)).toEqual({
+                code: 'FOOD_NOT_FOUND',
+                message: expect.any(String),
+                details: { id, status: 'FAILED' },
+            });
 
             expect(eventsFor(id, 'FoodFetchCompleted').some((event) => event.detail['status'] === 'FAILED')).toBe(true);
             const failed = eventsFor(id, 'FetchFailed');

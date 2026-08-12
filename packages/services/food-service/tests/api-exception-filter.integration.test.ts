@@ -25,8 +25,12 @@ import { APP_FILTER, NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiExceptionFilter, FoodErrorCode } from '../src/common/filters/api-exception.filter.js';
+import { ApiExceptionFilter } from '../src/common/filters/api-exception.filter.js';
 import { FetchUnavailableError, FoodPendingError } from '../src/foods/foods.errors.js';
+import { foodErrorCodeSchema } from '../src/foods/foods.schema.js';
+
+/** The PUBLISHED codes (`@kitchensink/schema-food`), by name — no longer a TS enum local to the filter. */
+const FoodErrorCode = foodErrorCodeSchema.enum;
 
 const PENDING_ID = '01J9ZZZZZZZZZZZZZZZZZZZZZZ';
 

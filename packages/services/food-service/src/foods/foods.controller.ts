@@ -1,36 +1,46 @@
 /**
- * `FoodsController` (ARCH-001, MOD-001) — the source-agnostic `/api/v1/foods/*` HTTP surface. Validates
- * input at the boundary, delegates to {@link FoodsService}, and maps the service's typed domain errors
- * to HTTP responses under the FR-051 precedence `401 → 403 → 400 → 404/202/200`:
+ * `FoodsController` (ARCH-001, MOD-001) — the source-agnostic `/api/v1/foods/*` HTTP surface. Validates input at
+ * the boundary, delegates to {@link FoodsService}, and otherwise gets out of the way.
  *
- * - `FoodPendingError` → `202` (PENDING/UNRESOLVED)
- * - `FoodNotFoundError` → `404` (NOT_FOUND/FAILED/no row; status still in the body)
- * - `CandidateMismatchError` / `NotResolvableError` → `409`
- * - `FetchUnavailableError` → `503` + `Retry-After` (backpressure / flood-shed / resolve cap; never `429`)
+ * ── IT NO LONGER MAPS DOMAIN ERRORS TO STATUS CODES, AND THAT IS A DELETION, NOT AN OMISSION ──
  *
- * The `401` (authn) layer is the {@link FoodAuthGuard} middleware mounted ahead of this controller; it
- * sets `req.user` from the verified Clerk `sub` only. Operational `/refetch` additionally requires the
- * `food:admin` scope (`403` otherwise) — checked BEFORE id validation so `403` precedes `400`. Internal/DB
- * errors are never leaked; they propagate to Nest's generic `500`.
+ * It used to: `mapReadError` / `mapResolveError` / `mapWriteError` turned each {@link FoodsService} error into a
+ * `NotFoundException` / `ConflictException` / `ServiceUnavailableException` with a `{ error, …extras }` body. Every
+ * one of those decisions was ALREADY made, exhaustively and in one table, by `ApiExceptionFilter` +
+ * `FOOD_ERROR_STATUS` — which the same errors reached anyway whenever they escaped a `try` block. So one piece of
+ * knowledge ("a `CandidateMismatchError` is a 409") had two authors that nothing forced to agree, and the
+ * controller's copy was also the one emitting the second of this service's three legacy error shapes.
+ *
+ * The domain errors now simply propagate. The FR-051 precedence `401 → 403 → 400 → 404/202/200` is unchanged and
+ * still asserted end-to-end (`tests/foods-api.integration.test.ts`); what changed is that only ONE place decides
+ * it. Do not re-add a `catch` that re-raises a domain error as an `HttpException`.
+ *
+ * What genuinely belongs here, and stays:
+ *
+ *  - **`202` on the pending READ.** `GET /{id}` answering a `FoodPendingError` with the `PendingResponse` body is
+ *    a SUCCESS shape (`{ id, status, estimatedWaitSeconds? }`), not an error envelope, so the controller is the
+ *    only layer that can produce it.
+ *  - **Boundary rejections** — a malformed `{id}`, and the batch cap. Both raised through {@link apiError}, so the
+ *    status still comes from the one table.
+ *  - **The `403` scope check on `/refetch`**, deliberately BEFORE id validation so `403` precedes `400` (FR-051).
+ *
+ * The `401` (authn) layer is the {@link FoodAuthGuard} middleware mounted ahead of this controller; it sets
+ * `req.user` from the verified Clerk `sub` only. Internal/DB errors are never leaked — they reach the filter's
+ * generic `500`.
  *
  * @implements FR-002 FR-003 FR-004 FR-005 FR-006 FR-007 FR-008 FR-012 FR-039 FR-045 FR-046 FR-051 FR-RES-1 FR-RES-2
  */
 import {
-    BadRequestException,
     Body,
-    ConflictException,
     Controller,
-    ForbiddenException,
     Get,
     HttpStatus,
-    NotFoundException,
     Param,
     Patch,
     Post,
     Query,
     Req,
     Res,
-    ServiceUnavailableException,
     UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -44,15 +54,10 @@ import {
     type AuthenticatedPrincipal,
     type AuthenticatedRequest,
 } from '../auth/authenticated-principal.js';
+import { apiError } from '../common/api-error.js';
 import type { Environment } from '../config/env.schema.js';
 import { isFoodId } from '../db/ulid.js';
-import {
-    isCandidateMismatchError,
-    isFetchUnavailableError,
-    isFoodNotFoundError,
-    isFoodPendingError,
-    isNotResolvableError,
-} from './foods.errors.js';
+import { isFoodPendingError } from './foods.errors.js';
 import { FoodsService } from './foods.service.js';
 // The AUTHORED wire contract (CODING_STANDARDS §15.2): the request schemas below are the validators this
 // controller runs AND the definitions `@kitchensink/schema-food` publishes to every client, so there is one
@@ -99,30 +104,18 @@ export class FoodsController {
         @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
     ): Promise<AddResponse> {
-        try {
-            const result = await this.foodsService.addByName(body.name, this.requireRequesterId(req));
-            res.status(HttpStatus.ACCEPTED);
+        const result = await this.foodsService.addByName(body.name, this.requireRequesterId(req));
+        res.status(HttpStatus.ACCEPTED);
 
-            return result;
-        } catch (error) {
-            throw this.mapWriteError(error, res);
-        }
+        return result;
     }
 
     /** `POST /api/v1/foods/batch` — batch add-by-name; ≤100 names (`400` over) (FR-045). */
     @Post('batch')
-    public async batch(
-        @Body() body: BatchAddFoodBodyDto,
-        @Req() req: AuthenticatedRequest,
-        @Res({ passthrough: true }) res: Response,
-    ): Promise<BatchResponse> {
+    public async batch(@Body() body: BatchAddFoodBodyDto, @Req() req: AuthenticatedRequest): Promise<BatchResponse> {
         const names = this.boundedNames(body.names);
 
-        try {
-            return await this.foodsService.batchAdd(names, this.requireRequesterId(req));
-        } catch (error) {
-            throw this.mapWriteError(error, res);
-        }
+        return this.foodsService.batchAdd(names, this.requireRequesterId(req));
     }
 
     /** `GET /api/v1/foods/{id}/status` — lifecycle poll (FR-007). */
@@ -130,11 +123,7 @@ export class FoodsController {
     public async getStatus(@Param('id') id: string): Promise<StatusResponse> {
         this.requireId(id);
 
-        try {
-            return await this.foodsService.getStatus(id);
-        } catch (error) {
-            throw this.mapReadError(error, id);
-        }
+        return this.foodsService.getStatus(id);
     }
 
     /** `GET /api/v1/foods/{id}/candidates` — disambiguation candidate set (FR-RES-1). */
@@ -142,11 +131,7 @@ export class FoodsController {
     public async getCandidates(@Param('id') id: string): Promise<CandidatesResponse> {
         this.requireId(id);
 
-        try {
-            return await this.foodsService.getCandidates(id);
-        } catch (error) {
-            throw this.mapReadError(error, id);
-        }
+        return this.foodsService.getCandidates(id);
     }
 
     /** `POST /api/v1/foods/{id}/refetch` — admin-scoped manual re-enqueue; `403` without scope (FR-039). */
@@ -158,19 +143,15 @@ export class FoodsController {
     ): Promise<AddResponse> {
         // 403 (authz scope) precedes 400 (id validation) per FR-051.
         if (!hasScope(req.user, FOOD_ADMIN_SCOPE)) {
-            throw new ForbiddenException({ error: 'Forbidden', message: 'Operation requires elevated scope' });
+            throw apiError('FORBIDDEN', 'Operation requires elevated scope');
         }
 
         this.requireId(id);
 
-        try {
-            const result = await this.foodsService.refetch(id, this.requireRequesterId(req));
-            res.status(HttpStatus.ACCEPTED);
+        const result = await this.foodsService.refetch(id, this.requireRequesterId(req));
+        res.status(HttpStatus.ACCEPTED);
 
-            return result;
-        } catch (error) {
-            throw this.mapReadError(this.mapWriteError(error, res), id);
-        }
+        return result;
     }
 
     /**
@@ -193,14 +174,10 @@ export class FoodsController {
     ): Promise<ResolveResponse> {
         this.requireId(id);
 
-        try {
-            const result = await this.foodsService.patchResolve(id, body.candidateIds);
-            res.status(HttpStatus.OK);
+        const result = await this.foodsService.patchResolve(id, body.candidateIds);
+        res.status(HttpStatus.OK);
 
-            return result;
-        } catch (error) {
-            throw this.mapResolveError(this.mapWriteError(error, res), id);
-        }
+        return result;
     }
 
     /** `GET /api/v1/foods/{id}` — golden-record read with lifecycle status codes (FR-002/FR-003/FR-004). */
@@ -217,13 +194,16 @@ export class FoodsController {
 
             return food;
         } catch (error) {
+            // THE ONE domain error this controller still intercepts, because a `202` here is a SUCCESS body
+            // (`PendingResponse`), not an error envelope — see the class doc. Everything else propagates to the
+            // filter, which owns the status for it.
             if (isFoodPendingError(error)) {
                 res.status(HttpStatus.ACCEPTED);
 
                 return { id: error.id, status: error.status, estimatedWaitSeconds: error.estimatedWaitSeconds };
             }
 
-            throw this.mapReadError(error, id);
+            throw error;
         }
     }
 
@@ -236,18 +216,21 @@ export class FoodsController {
      *
      * @param req - The guard-authenticated request.
      * @returns The resolved requester key.
-     * @throws {UnauthorizedException} (→ 401) when `req.user` is absent (defensive) or the app-user ULID
-     *   is not yet available (first-token sync race).
+     * @throws (→ 401) when `req.user` is absent (defensive) or the app-user ULID is not yet available (the
+     *   first-token sync race, `IDENTITY_SYNC_PENDING`).
      */
     private requireRequesterId(req: AuthenticatedRequest): string {
         const principal = this.requirePrincipal(req);
         const resolution = resolveRequesterId(principal);
 
         if (resolution.status === IDENTITY_SYNC_PENDING_CODE) {
-            throw new UnauthorizedException({
-                code: IDENTITY_SYNC_PENDING_CODE,
-                message: 'App-user identity (external_id) not yet available; retry with a refreshed token.',
-            });
+            // `IDENTITY_SYNC_PENDING_CODE` is `auth/authenticated-principal.ts`'s constant and `apiError` takes a
+            // PUBLISHED `FoodErrorCode`, so the two agreeing is a `typecheck` obligation rather than a
+            // convention: change the auth constant's string and this line stops compiling.
+            throw apiError(
+                IDENTITY_SYNC_PENDING_CODE,
+                'App-user identity (external_id) not yet available; retry with a refreshed token.',
+            );
         }
 
         return resolution.requesterId;
@@ -265,7 +248,7 @@ export class FoodsController {
     /** Validate the `id` path param is a structurally valid ULID (FR-006) → else `400`. */
     private requireId(id: string): void {
         if (!isFoodId(id)) {
-            throw new BadRequestException({ error: 'Invalid id' });
+            throw apiError('INVALID_ID', 'The id is not a valid food (ingredient) ULID');
         }
     }
 
@@ -282,67 +265,16 @@ export class FoodsController {
      *
      * @param names - The trimmed names the pipe accepted.
      * @returns The non-blank names, guaranteed within the configured cap.
-     * @throws {BadRequestException} (→ 400) when more names remain than the configured maximum.
+     * @throws (→ 400 `BATCH_TOO_LARGE`) when more names remain than the configured maximum.
      */
     private boundedNames(names: readonly string[]): string[] {
         const cleaned = names.filter((name) => name.length > 0);
         const maxNames = this.config.get('FOOD_MAX_BATCH_NAMES', { infer: true });
 
         if (cleaned.length > maxNames) {
-            throw new BadRequestException({ error: 'Batch too large', maxNames });
+            throw apiError('BATCH_TOO_LARGE', `At most ${maxNames} names per batch`, { maxNames });
         }
 
         return cleaned;
-    }
-
-    /** Map a read-path error: `FoodNotFoundError` → `404` with the status in the body; else rethrow. */
-    private mapReadError(error: unknown, id: string): unknown {
-        if (isFoodNotFoundError(error)) {
-            return new NotFoundException({
-                error: 'Food not found',
-                id,
-                status: error.status,
-                message:
-                    error.status === 'NOT_FOUND'
-                        ? 'No source has this food; tombstoned until TTL (default 30 days)'
-                        : error.status === 'FAILED'
-                          ? 'All sources errored after retries; try again later'
-                          : 'No such food',
-            });
-        }
-
-        return error;
-    }
-
-    /** Map a resolve-path error: candidate/lifecycle conflicts → `409`; else fall through to read mapping. */
-    private mapResolveError(error: unknown, id: string): unknown {
-        if (isCandidateMismatchError(error)) {
-            return new ConflictException({ error: "Candidate not in food's candidate set" });
-        }
-
-        if (isNotResolvableError(error)) {
-            return new ConflictException({ error: 'Food is not awaiting disambiguation', status: error.status });
-        }
-
-        return this.mapReadError(error, id);
-    }
-
-    /**
-     * Map a {@link FetchUnavailableError} to a `503` + `Retry-After` (backpressure / flood-shed / resolve
-     * cap, never `429`): set the `Retry-After` header on `res` (it survives Nest's exception filter, which
-     * reuses the same response) and return a {@link ServiceUnavailableException}. Any other error is
-     * returned unchanged for the caller's read/resolve mapper (or Nest's generic `500`).
-     */
-    private mapWriteError(error: unknown, res: Response): unknown {
-        if (isFetchUnavailableError(error)) {
-            res.setHeader('Retry-After', String(error.retryAfterSeconds));
-
-            return new ServiceUnavailableException({
-                error: 'Fetch temporarily unavailable',
-                retryAfterSeconds: error.retryAfterSeconds,
-            });
-        }
-
-        return error;
     }
 }

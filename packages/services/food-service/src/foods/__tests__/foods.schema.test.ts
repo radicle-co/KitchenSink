@@ -17,14 +17,19 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { apiErrorSchema } from '../../common/api-error.schema.js';
 import { foodStatusEnum } from '../../db/schema/food.js';
 import {
     addFoodRequestSchema,
     batchAddFoodRequestSchema,
+    foodErrorCodeSchema,
+    foodErrorSchema,
     foodStatusSchema,
     getFoodResultSchema,
     pendingFoodStatusSchema,
+    pendingResponseSchema,
     resolveFoodRequestSchema,
+    terminalFoodStatusSchema,
 } from '../foods.schema.js';
 
 describe('foodStatusSchema', () => {
@@ -64,6 +69,159 @@ describe('pendingFoodStatusSchema', () => {
         for (const value of pendingFoodStatusSchema.options) {
             expect(foodStatusSchema.safeParse(value).success).toBe(true);
         }
+    });
+});
+
+describe('terminalFoodStatusSchema', () => {
+    // A `404` means "there is nothing readable and there never will be without a refetch". `PENDING`/
+    // `UNRESOLVED` answer `202` and `RESOLVED` answers `200`, so admitting any of them here would describe a
+    // `404` body the service cannot produce.
+    it('admits only the two statuses that answer 404', () => {
+        expect([...terminalFoodStatusSchema.options].sort()).toStrictEqual(['FAILED', 'NOT_FOUND']);
+    });
+
+    it('rejects RESOLVED and the non-terminal statuses', () => {
+        for (const value of ['RESOLVED', 'PENDING', 'UNRESOLVED']) {
+            expect(terminalFoodStatusSchema.safeParse(value).success).toBe(false);
+        }
+    });
+
+    // Together the two subsets must tile the lifecycle exactly: every status either answers 202, answers 404,
+    // or is `RESOLVED`. A migration that adds a sixth value fails HERE, forcing a decision about which status
+    // code it answers with, instead of silently landing in neither subset.
+    it('partitions the lifecycle with pendingFoodStatusSchema and RESOLVED, exhaustively', () => {
+        const partitioned = [...pendingFoodStatusSchema.options, ...terminalFoodStatusSchema.options, 'RESOLVED'];
+
+        expect([...partitioned].sort()).toStrictEqual([...foodStatusSchema.options].sort());
+    });
+});
+
+describe('pendingResponseSchema', () => {
+    // ⚠️ THE DEFECT THIS PINS. `status` published the FULL five-value lifecycle while only `PENDING`/
+    // `UNRESOLVED` can answer a `202` — so the contract disagreed with itself (`getFoodResultSchema`'s pending
+    // arm already used the two-value enum), and `@kitchensink/food-service-client` had to re-narrow at the
+    // boundary to keep `GetFoodResult.status` inside its own declared union.
+    it('rejects a status a 202 cannot carry', () => {
+        for (const status of ['RESOLVED', 'NOT_FOUND', 'FAILED']) {
+            expect(pendingResponseSchema.safeParse({ id: 'x', status }).success).toBe(false);
+        }
+    });
+
+    it('accepts the two statuses a 202 can carry', () => {
+        expect(pendingResponseSchema.parse({ id: 'x', status: 'PENDING', estimatedWaitSeconds: 30 })).toStrictEqual({
+            id: 'x',
+            status: 'PENDING',
+            estimatedWaitSeconds: 30,
+        });
+        expect(pendingResponseSchema.parse({ id: 'x', status: 'UNRESOLVED' }).status).toBe('UNRESOLVED');
+    });
+});
+
+/**
+ * THE ERROR CONTRACT. These are the assertions that keep "one envelope" from decaying back into three, and that
+ * keep `404` distinguishable from `409` without anyone parsing English.
+ */
+describe('foodErrorSchema', () => {
+    /** One representative body per published code, as the exception filter renders it. */
+    const BODIES: Readonly<Record<string, Record<string, unknown>>> = {
+        VALIDATION_FAILED: { code: 'VALIDATION_FAILED', message: 'name: too small', details: { fields: ['name'] } },
+        INVALID_ID: { code: 'INVALID_ID', message: 'Malformed food id' },
+        BATCH_TOO_LARGE: { code: 'BATCH_TOO_LARGE', message: 'Too many names', details: { maxNames: 100 } },
+        UNAUTHORIZED: { code: 'UNAUTHORIZED', message: 'Unauthorized' },
+        IDENTITY_SYNC_PENDING: { code: 'IDENTITY_SYNC_PENDING', message: 'Retry with a refreshed token' },
+        FORBIDDEN: { code: 'FORBIDDEN', message: 'Operation requires elevated scope' },
+        FOOD_PENDING: {
+            code: 'FOOD_PENDING',
+            message: 'pending',
+            details: { id: 'f1', status: 'PENDING', estimatedWaitSeconds: 30 },
+        },
+        FOOD_NOT_FOUND: { code: 'FOOD_NOT_FOUND', message: 'gone', details: { id: 'f1', status: 'NOT_FOUND' } },
+        CANDIDATE_MISMATCH: { code: 'CANDIDATE_MISMATCH', message: 'not in set', details: { id: 'f1' } },
+        NOT_RESOLVABLE: { code: 'NOT_RESOLVABLE', message: 'not awaiting', details: { id: 'f1', status: 'PENDING' } },
+        FETCH_UNAVAILABLE: { code: 'FETCH_UNAVAILABLE', message: 'shed', details: { retryAfterSeconds: 30 } },
+        INTERNAL_ERROR: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    };
+
+    // Exhaustiveness in the direction that matters: a code added to the enum without an arm (or a fixture)
+    // fails here rather than reaching a consumer as an un-narrowable body.
+    it('has one arm for every published code, and no code without an arm', () => {
+        expect([...foodErrorCodeSchema.options].sort()).toStrictEqual(Object.keys(BODIES).sort());
+
+        for (const [code, body] of Object.entries(BODIES)) {
+            const parsed = foodErrorSchema.safeParse(body);
+
+            expect(parsed.success, `no arm parsed the ${code} body`).toBe(true);
+        }
+    });
+
+    // THE REFINEMENT INVARIANT. `foodErrorSchema` is the TYPED view of the same bytes `apiErrorSchema`
+    // describes — not a second, competing error shape. Asserted rather than derived, because the two files
+    // cannot import each other: generation flattens every authored schema into one directory, so a
+    // `*.schema.ts` may import only a FLAT sibling, and `common/api-error.schema.ts` is not one of
+    // `foods.schema.ts`'s. This test is what makes that separation safe.
+    it('every arm is also a valid apiErrorSchema envelope', () => {
+        for (const [code, body] of Object.entries(BODIES)) {
+            expect(apiErrorSchema.safeParse(body).success, `${code} is not an envelope`).toBe(true);
+        }
+    });
+
+    it('narrows the 404 status to a FoodStatus rather than a bare string', () => {
+        const parsed = foodErrorSchema.parse(BODIES['FOOD_NOT_FOUND']);
+
+        // The type is what the client consumes; the runtime rejection below is what proves the type is honest.
+        expect(parsed.code === 'FOOD_NOT_FOUND' && parsed.details.status).toBe('NOT_FOUND');
+        expect(
+            foodErrorSchema.safeParse({ code: 'FOOD_NOT_FOUND', message: 'x', details: { id: 'f1', status: 'NOPE' } })
+                .success,
+        ).toBe(false);
+    });
+
+    // 404 and 409 carry different information — missing versus ambiguous — and the whole point of converging the
+    // envelope was to keep that difference machine-readable. `/candidate/i.test(message)` was the old test and it
+    // is a parser for English: it breaks on the first copy edit, and it matches an unrelated message that happens
+    // to contain the word.
+    it('discriminates the two 409s and the 404 on `code`, not on the message', () => {
+        const mismatch = foodErrorSchema.parse(BODIES['CANDIDATE_MISMATCH']);
+        const notResolvable = foodErrorSchema.parse(BODIES['NOT_RESOLVABLE']);
+
+        expect(mismatch.code).toBe('CANDIDATE_MISMATCH');
+        expect(notResolvable.code).toBe('NOT_RESOLVABLE');
+        // Reworded prose, identical discrimination — the assertion that would fail under a regex over `message`.
+        expect(
+            foodErrorSchema.parse({
+                code: 'CANDIDATE_MISMATCH',
+                message: 'Your pick is unknown here',
+                details: { id: 'f1' },
+            }).code,
+        ).toBe('CANDIDATE_MISMATCH');
+    });
+
+    // Forward compatibility, deliberately: a DEPLOYED service adds codes ahead of a released mobile binary, so
+    // an unknown code must not parse as a known one. The consumer's fallback is "map by status alone".
+    it('refuses a code it has not been taught, instead of coercing it into an arm', () => {
+        expect(foodErrorSchema.safeParse({ code: 'FOOD_ON_FIRE', message: 'x' }).success).toBe(false);
+        // …while the generic envelope still accepts it, which is exactly the division of labour.
+        expect(apiErrorSchema.safeParse({ code: 'FOOD_ON_FIRE', message: 'x' }).success).toBe(true);
+    });
+
+    // A body missing the detail its code promises must FAIL the typed parse rather than yield `undefined` deep
+    // inside a caller. This is the mutation-lens case for making `details` required per arm.
+    it('requires the details its code promises', () => {
+        expect(foodErrorSchema.safeParse({ code: 'FOOD_NOT_FOUND', message: 'gone' }).success).toBe(false);
+        expect(foodErrorSchema.safeParse({ code: 'FETCH_UNAVAILABLE', message: 'shed' }).success).toBe(false);
+        expect(foodErrorSchema.safeParse({ code: 'NOT_RESOLVABLE', message: 'x', details: { id: 'f1' } }).success).toBe(
+            false,
+        );
+    });
+
+    it('tolerates an unknown extra detail key, so a forward-compatible deploy is not a client crash', () => {
+        const parsed = foodErrorSchema.parse({
+            code: 'FOOD_NOT_FOUND',
+            message: 'gone',
+            details: { id: 'f1', status: 'FAILED', attempts: 7 },
+        });
+
+        expect(parsed.code === 'FOOD_NOT_FOUND' && parsed.details['attempts']).toBe(7);
     });
 });
 

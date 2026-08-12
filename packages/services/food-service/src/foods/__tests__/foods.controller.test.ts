@@ -1,29 +1,34 @@
 /**
- * Unit tests for {@link FoodsController} — the HTTP status-code + validation + scope mapping over a
- * mocked {@link FoodsService}. The end-to-end behaviour (real DAOs, guard, enqueue, backpressure) is
- * covered by `tests/foods-api.integration.test.ts`; this suite pins the pure controller mapping.
+ * Unit tests for {@link FoodsController} over a mocked {@link FoodsService}: what the controller itself decides —
+ * boundary rejections, the `202` pending READ body, the `/refetch` scope gate, and the requester key.
+ *
+ * ⚠️ WHAT IS DELIBERATELY NOT HERE ANY MORE. The controller no longer maps a domain error to a status: that
+ * knowledge lives in ONE table (`common/api-error.ts` → `FOOD_ERROR_STATUS`), executed by `ApiExceptionFilter`,
+ * and asserting it here as well would be a second copy of the assertion for a second copy of the code that no
+ * longer exists. So these cases assert that a domain error PROPAGATES UNCHANGED — which is the controller's actual
+ * contribution — and the status/body it becomes is pinned in
+ * `common/filters/__tests__/api-exception.filter.test.ts` (unit) and `tests/foods-api.integration.test.ts`
+ * (end-to-end, over a real HTTP request).
+ *
+ * That split matters for a specific reason: a `rejects.toBeInstanceOf(ConflictException)` here would still pass if
+ * the filter's 409 mapping were deleted, because nothing downstream of the controller was in the test's scope.
  *
  * Requirement → test mapping:
- * - FR-002/003/004 → getFood 200 / 202 / 404 mapping
- * - FR-006         → malformed ULID / empty name / oversized batch → 400
- * - FR-RES-2/DSN-14 → CandidateMismatch / NotResolvable → 409; malformed body → 400
- * - FR-039/FR-051   → /refetch requires the admin scope (403), checked before id validation
- * - FR-046          → FetchUnavailableError → 503 + Retry-After
+ * - FR-002/003     → getFood 200 / 202 pending body
+ * - FR-004/RES-2   → the read/resolve domain errors reach the filter untouched
+ * - FR-006         → malformed ULID → 400 `INVALID_ID`
+ * - FR-045         → oversized batch → 400 `BATCH_TOO_LARGE`, with the configured cap in the body
+ * - FR-039/FR-051  → /refetch requires the admin scope (403), checked before id validation
+ * - CR-002/U1      → the requester key is the app-user ULID, and defers with 401 `IDENTITY_SYNC_PENDING`
  */
-import {
-    BadRequestException,
-    ConflictException,
-    ForbiddenException,
-    HttpStatus,
-    NotFoundException,
-    ServiceUnavailableException,
-    UnauthorizedException,
-} from '@nestjs/common';
+import { HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AuthenticatedRequest } from '../../auth/authenticated-principal.js';
+import { FOOD_ERROR_STATUS } from '../../common/api-error.js';
+import type { ApiErrorBody } from '../../common/api-error.schema.js';
 import type { Environment } from '../../config/env.schema.js';
 import { FoodsController } from '../foods.controller.js';
 import {
@@ -36,6 +41,35 @@ import {
 import { FoodsService } from '../foods.service.js';
 
 const VALID_ID = '01J9ZZZZZZZZZZZZZZZZZZZZZZ';
+
+/**
+ * Assert a thrown value is the coded envelope for `code`, at the status the ONE table assigns it.
+ *
+ * Reads the status from `FOOD_ERROR_STATUS` rather than restating it, so this helper cannot disagree with the
+ * table the service actually serves — and asserts on `getStatus()` rather than on which `HttpException` SUBCLASS
+ * was constructed, because picking a subclass is picking the status a second time (see `common/api-error.ts`).
+ */
+function expectApiError(thrown: unknown, code: keyof typeof FOOD_ERROR_STATUS): ApiErrorBody {
+    expect(thrown).toBeInstanceOf(HttpException);
+    const exception = thrown as HttpException;
+    expect(exception.getStatus()).toBe(FOOD_ERROR_STATUS[code]);
+    const body = exception.getResponse() as ApiErrorBody;
+    expect(body.code).toBe(code);
+    expect(body.message.length).toBeGreaterThan(0);
+
+    return body;
+}
+
+/** Run `call`, returning whatever it threw (and failing if it threw nothing). */
+async function thrownBy(call: () => Promise<unknown>): Promise<unknown> {
+    try {
+        await call();
+    } catch (error) {
+        return error;
+    }
+
+    return expect.unreachable('expected the call to reject');
+}
 
 /** App-user ULID (from `external_id`) — THE requester key an enqueue records (CR-002/U1). */
 const USER_ULID = '01J9ZK8N7QF3B2X4M6T0V5C1AB';
@@ -103,17 +137,19 @@ describe('FoodsController.getFood', () => {
         expect(result).toEqual({ id: VALID_ID, status: 'PENDING', estimatedWaitSeconds: 30 });
     });
 
-    it('throws NotFoundException (404) on a FoodNotFoundError (FR-004)', async () => {
-        ctx.service.getFood.mockRejectedValue(new FoodNotFoundError(VALID_ID, 'NOT_FOUND'));
+    it('lets a FoodNotFoundError propagate to the filter, unwrapped (FR-004)', async () => {
+        const domainError = new FoodNotFoundError(VALID_ID, 'NOT_FOUND');
+        ctx.service.getFood.mockRejectedValue(domainError);
         const { res } = makeRes();
 
-        await expect(ctx.controller.getFood(VALID_ID, res)).rejects.toBeInstanceOf(NotFoundException);
+        // Identity, not just type: re-wrapping it here would put the code→status decision in two places.
+        await expect(ctx.controller.getFood(VALID_ID, res)).rejects.toBe(domainError);
     });
 
-    it('throws BadRequestException (400) for a malformed ULID, without calling the service (FR-006)', async () => {
+    it('rejects a malformed ULID with 400 INVALID_ID, without calling the service (FR-006)', async () => {
         const { res } = makeRes();
 
-        await expect(ctx.controller.getFood('not-a-ulid', res)).rejects.toBeInstanceOf(BadRequestException);
+        expectApiError(await thrownBy(() => ctx.controller.getFood('not-a-ulid', res)), 'INVALID_ID');
         expect(ctx.service.getFood).not.toHaveBeenCalled();
     });
 });
@@ -125,14 +161,15 @@ describe('FoodsController.getStatus / getCandidates / search', () => {
         ctx = makeController();
     });
 
-    it('maps a FoodNotFoundError to 404 on status', async () => {
-        ctx.service.getStatus.mockRejectedValue(new FoodNotFoundError(VALID_ID));
+    it('lets a FoodNotFoundError propagate on status', async () => {
+        const domainError = new FoodNotFoundError(VALID_ID);
+        ctx.service.getStatus.mockRejectedValue(domainError);
 
-        await expect(ctx.controller.getStatus(VALID_ID)).rejects.toBeInstanceOf(NotFoundException);
+        await expect(ctx.controller.getStatus(VALID_ID)).rejects.toBe(domainError);
     });
 
-    it('rejects a malformed id on candidates with 400', async () => {
-        await expect(ctx.controller.getCandidates('bad')).rejects.toBeInstanceOf(BadRequestException);
+    it('rejects a malformed id on candidates with 400 INVALID_ID', async () => {
+        expectApiError(await thrownBy(() => ctx.controller.getCandidates('bad')), 'INVALID_ID');
     });
 
     it('delegates the validated search term', async () => {
@@ -182,8 +219,9 @@ describe('FoodsController.addByName / batch', () => {
         // A verified user token whose external_id has not synced yet (no userId) — never falls back to sub.
         const preSyncReq = { user: { sub: 'user_9', scopes: [], permissions: [] } } as unknown as AuthenticatedRequest;
 
-        await expect(ctx.controller.addByName({ name: 'Broccoli' }, preSyncReq, res)).rejects.toBeInstanceOf(
-            UnauthorizedException,
+        expectApiError(
+            await thrownBy(() => ctx.controller.addByName({ name: 'Broccoli' }, preSyncReq, res)),
+            'IDENTITY_SYNC_PENDING',
         );
         expect(ctx.service.addByName).not.toHaveBeenCalled();
     });
@@ -192,21 +230,27 @@ describe('FoodsController.addByName / batch', () => {
     // runs against the REAL `ZodValidationPipe`. The controller's parameter is typed as the DTO now, so the only
     // whitespace-only name a test could pass here is one the pipe would already have rejected.
 
-    it('maps a FetchUnavailableError to 503 + Retry-After (FR-046)', async () => {
-        ctx.service.addByName.mockRejectedValue(new FetchUnavailableError(30));
+    it('lets a FetchUnavailableError propagate, and sets NO Retry-After itself (FR-046)', async () => {
+        const domainError = new FetchUnavailableError(30);
+        ctx.service.addByName.mockRejectedValue(domainError);
         const { res, setHeader } = makeRes();
 
-        await expect(ctx.controller.addByName({ name: 'Broccoli' }, makeReq(), res)).rejects.toBeInstanceOf(
-            ServiceUnavailableException,
-        );
-        expect(setHeader).toHaveBeenCalledWith('Retry-After', '30');
+        await expect(ctx.controller.addByName({ name: 'Broccoli' }, makeReq(), res)).rejects.toBe(domainError);
+        // The header is the FILTER's, derived from the body it publishes, so the two cannot disagree. The
+        // controller used to set it here as well — two writers for one header.
+        expect(setHeader).not.toHaveBeenCalled();
     });
 
-    it('rejects a batch over 100 names with 400, without calling the service (FR-045)', async () => {
-        const { res } = makeRes();
+    it('rejects a batch over the configured cap with 400 BATCH_TOO_LARGE, reporting the cap (FR-045)', async () => {
         const names = Array.from({ length: 101 }, (_, i) => `food ${i}`);
 
-        await expect(ctx.controller.batch({ names }, makeReq(), res)).rejects.toBeInstanceOf(BadRequestException);
+        const body = expectApiError(
+            await thrownBy(() => ctx.controller.batch({ names }, makeReq())),
+            'BATCH_TOO_LARGE',
+        );
+
+        // The cap is runtime config, so a caller can only re-chunk correctly if the body carries it.
+        expect(body.details).toEqual({ maxNames: 100 });
         expect(ctx.service.batchAdd).not.toHaveBeenCalled();
     });
 
@@ -232,26 +276,58 @@ describe('FoodsController.patchResolve', () => {
         expect(result).toEqual({ id: VALID_ID, status: 'RESOLVED' });
     });
 
-    it('maps a CandidateMismatchError to 409', async () => {
-        ctx.service.patchResolve.mockRejectedValue(new CandidateMismatchError(VALID_ID));
+    it.each([
+        ['CandidateMismatchError', new CandidateMismatchError(VALID_ID)],
+        ['NotResolvableError', new NotResolvableError(VALID_ID, 'PENDING')],
+    ])('lets a %s propagate to the filter, unwrapped (FR-RES-2/DSN-14)', async (_label, domainError) => {
+        ctx.service.patchResolve.mockRejectedValue(domainError);
         const { res } = makeRes();
 
-        await expect(ctx.controller.patchResolve(VALID_ID, { candidateIds: ['c1'] }, res)).rejects.toBeInstanceOf(
-            ConflictException,
-        );
-    });
-
-    it('maps a NotResolvableError to 409', async () => {
-        ctx.service.patchResolve.mockRejectedValue(new NotResolvableError(VALID_ID, 'PENDING'));
-        const { res } = makeRes();
-
-        await expect(ctx.controller.patchResolve(VALID_ID, { candidateIds: ['c1'] }, res)).rejects.toBeInstanceOf(
-            ConflictException,
-        );
+        await expect(ctx.controller.patchResolve(VALID_ID, { candidateIds: ['c1'] }, res)).rejects.toBe(domainError);
     });
 
     // NOTE: "rejects a body with no `candidateIds`" (DSN-14) moved to `../dto/__tests__/foods.dto.test.ts`,
     // against the REAL pipe — see the batch note above for why it cannot stay here.
+});
+
+/**
+ * The FIVE raw `@Param('id')` inputs, all in one place.
+ *
+ * `__tests__/route-validation.test.ts` enumerates them from Nest's own route metadata and asserts the list is
+ * exhaustive, on the claim that each is validated by `requireId`. This is the behavioural half of that claim: the
+ * list is only trustworthy if every entry on it actually rejects. A new by-id route fails the inventory (its
+ * parameter is not on the list) and then fails here (nobody added the case), which is one gate more than either
+ * gives alone.
+ */
+describe('every by-id route rejects a malformed ULID before touching the service (FR-006)', () => {
+    let ctx: ReturnType<typeof makeController>;
+
+    beforeEach(() => {
+        ctx = makeController();
+    });
+
+    const BAD = 'not-a-ulid';
+
+    it.each([
+        ['getFood', (c: FoodsController) => c.getFood(BAD, makeRes().res), 'getFood'],
+        ['getStatus', (c: FoodsController) => c.getStatus(BAD), 'getStatus'],
+        ['getCandidates', (c: FoodsController) => c.getCandidates(BAD), 'getCandidates'],
+        [
+            'patchResolve',
+            (c: FoodsController) => c.patchResolve(BAD, { candidateIds: ['c1'] }, makeRes().res),
+            'patchResolve',
+        ],
+        // `refetch` is passed an ADMIN-scoped principal on purpose: without the scope its 403 would win (FR-051),
+        // so this case would pass for the wrong reason and prove nothing about id validation.
+        [
+            'refetch',
+            (c: FoodsController) => c.refetch(BAD, makeReq('admin_1', ['food:admin'], USER_ULID), makeRes().res),
+            'refetch',
+        ],
+    ])('%s → 400 INVALID_ID', async (_label, call, serviceMethod) => {
+        expectApiError(await thrownBy(() => call(ctx.controller)), 'INVALID_ID');
+        expect(ctx.service[serviceMethod]).not.toHaveBeenCalled();
+    });
 });
 
 describe('FoodsController.refetch', () => {
@@ -264,9 +340,8 @@ describe('FoodsController.refetch', () => {
     it('rejects a principal without the admin scope with 403, before id validation (FR-039/FR-051)', async () => {
         const { res } = makeRes();
 
-        await expect(ctx.controller.refetch('bad-id', makeReq('user_1', []), res)).rejects.toBeInstanceOf(
-            ForbiddenException,
-        );
+        // The id is deliberately malformed: the 403 must win, so the scope check has to run FIRST.
+        expectApiError(await thrownBy(() => ctx.controller.refetch('bad-id', makeReq('user_1', []), res)), 'FORBIDDEN');
         expect(ctx.service.refetch).not.toHaveBeenCalled();
     });
 

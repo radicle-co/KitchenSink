@@ -5,17 +5,38 @@
  * carried into a message that reaches a caller.
  */
 import type { FoodStatus } from './dao/index.js';
+import type { PendingFoodStatus, TerminalFoodStatus } from './foods.schema.js';
+
+/**
+ * The human-readable explanation for a terminal food, keyed by which terminal state it is in.
+ *
+ * ⚠️ IT LIVES ON THE ERROR, not in the controller, and that placement is the point. `FoodsController` used to
+ * build this prose while mapping the error to a `NotFoundException` — so the error knew its status and the
+ * controller knew what that status MEANT, in two files. When the controller's mapping was deleted (the exception
+ * filter already owned the identical code→status table), prose held only there would have been lost. The error
+ * that knows the fact now carries the sentence about it.
+ */
+const TERMINAL_EXPLANATION: Readonly<Record<TerminalFoodStatus, string>> = {
+    NOT_FOUND: 'No source has this food; tombstoned until TTL (default 30 days)',
+    FAILED: 'All sources errored after retries; try again later',
+};
 
 /** The food is being fetched / awaiting disambiguation → `202` (`PENDING`/`UNRESOLVED`, FR-003). */
 export class FoodPendingError extends Error {
     /** The internal food id. */
     public readonly id: string;
-    /** The non-terminal status (`PENDING` | `UNRESOLVED`). */
-    public readonly status: FoodStatus;
+    /**
+     * The non-terminal status.
+     *
+     * Typed {@link PendingFoodStatus}, not the full lifecycle: a `202` cannot carry `RESOLVED` (a `200`) or a
+     * terminal status (a `404`), and the sole construction site already narrows to these two. Widening it here
+     * would let the type system admit a body the published `pendingResponseSchema` rejects.
+     */
+    public readonly status: PendingFoodStatus;
     /** Estimated seconds until availability (omitted for `UNRESOLVED`). */
     public readonly estimatedWaitSeconds?: number;
 
-    public constructor(id: string, status: FoodStatus, estimatedWaitSeconds?: number) {
+    public constructor(id: string, status: PendingFoodStatus, estimatedWaitSeconds?: number) {
         super(`Food '${id}' is ${status}`);
         this.name = 'FoodPendingError';
         this.id = id;
@@ -34,11 +55,18 @@ export function isFoodPendingError(error: unknown): error is FoodPendingError {
 export class FoodNotFoundError extends Error {
     /** The internal food id. */
     public readonly id: string;
-    /** The terminal status when a row exists (`NOT_FOUND` | `FAILED`), else `undefined` (no row). */
-    public readonly status?: FoodStatus;
+    /**
+     * The terminal status when a row exists, else `undefined` (no row at all).
+     *
+     * Typed {@link TerminalFoodStatus}: a `404` is only ever answered for a food that is absent, tombstoned or
+     * exhausted. `PENDING`/`UNRESOLVED` are a `202` and `RESOLVED` is a `200`.
+     */
+    public readonly status?: TerminalFoodStatus;
 
-    public constructor(id: string, status?: FoodStatus) {
-        super(`Food '${id}' not found`);
+    public constructor(id: string, status?: TerminalFoodStatus) {
+        // The message is what the `404` body's `message` shows a caller, so it explains the terminal state
+        // rather than restating the status code.
+        super(status === undefined ? `Food '${id}' not found` : TERMINAL_EXPLANATION[status]);
         this.name = 'FoodNotFoundError';
         this.id = id;
         this.status = status;

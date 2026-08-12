@@ -71,6 +71,20 @@ export const pendingFoodStatusSchema = z.enum(['PENDING', 'UNRESOLVED']);
 /** The lifecycle statuses that answer `202 Accepted`. */
 export type PendingFoodStatus = z.infer<typeof pendingFoodStatusSchema>;
 
+/**
+ * The terminal statuses a `404` body can carry — no wired source has the food (`NOT_FOUND`, tombstoned until
+ * TTL) or every source errored past the retry budget (`FAILED`).
+ *
+ * Together with {@link pendingFoodStatusSchema} and `RESOLVED` this PARTITIONS {@link foodStatusSchema}: every
+ * lifecycle value answers exactly one status code. `foods.schema.test.ts` asserts the partition is exhaustive, so
+ * a migration that adds a sixth value has to decide which code it answers with instead of landing in neither
+ * subset.
+ */
+export const terminalFoodStatusSchema = z.enum(['NOT_FOUND', 'FAILED']);
+
+/** The lifecycle statuses that answer `404 Not Found`. */
+export type TerminalFoodStatus = z.infer<typeof terminalFoodStatusSchema>;
+
 /** A golden nutrient value in the read shape (the dictionary join, source-tagged). */
 export const nutrientViewSchema = z.object({
     /** Nutrient display name (e.g. `Protein`). */
@@ -124,12 +138,20 @@ export const foodResponseSchema = z.object({
 /** The full golden record returned for a `RESOLVED` food. */
 export type FoodResponse = z.infer<typeof foodResponseSchema>;
 
-/** Body for a `PENDING`/`UNRESOLVED` food (`202 Accepted`, FR-003). */
+/**
+ * Body for a `PENDING`/`UNRESOLVED` food (`202 Accepted`, FR-003).
+ *
+ * ⚠️ `status` is {@link pendingFoodStatusSchema}, NOT the full lifecycle. It published the five-value enum until
+ * 2026-08-12, which made the contract disagree with itself — {@link getFoodResultSchema}'s pending arm already
+ * used the two-value form — and forced `@kitchensink/food-service-client` to re-narrow at the boundary just to
+ * keep its own declared return union honest. Only `PENDING` and `UNRESOLVED` can answer a `202`: `RESOLVED` is a
+ * `200` and the terminal statuses are a `404`.
+ */
 export const pendingResponseSchema = z.object({
     /** Internal food id. */
     id: z.string(),
     /** The lifecycle status (`PENDING` or `UNRESOLVED`). */
-    status: foodStatusSchema,
+    status: pendingFoodStatusSchema,
     /** Best-effort seconds until availability (omitted for `UNRESOLVED`). */
     estimatedWaitSeconds: z.number().optional(),
 });
@@ -341,3 +363,165 @@ export const searchFoodQuerySchema = z.strictObject({
 
 /** Query for `GET /api/v1/foods/search`. */
 export type SearchFoodQuery = z.infer<typeof searchFoodQuerySchema>;
+
+/* ─────────────────────────── THE ERROR CONTRACT ─────────────────────────── */
+
+/**
+ * Every stable, machine-readable `code` the `/api/v1/foods/*` surface emits.
+ *
+ * ⚠️ BRANCH ON THIS, NEVER ON `message`. Until 2026-08-12 this service published THREE error shapes — the
+ * `{ code, message, details? }` ARCH-PS-2 envelope, Nest's `{ statusCode, message, error }`, and the controller's
+ * `{ error, …extras }` — and the only way a consumer could tell a candidate-not-in-set `409` from a
+ * lifecycle-conflict `409` was `/candidate/i.test(body.error)`. That is a parser for English: it breaks on the
+ * first copy edit and it fires on any unrelated message containing the word. There is now ONE shape
+ * (`common/api-error.schema.ts`) and `code` is the discriminant.
+ *
+ * WHAT IS AND IS NOT IN HERE. These are the codes the FOOD DOMAIN owns, plus the transport-level codes its
+ * routes actually answer with. `ApiExceptionFilter` additionally derives a status-shaped code for a failure no
+ * documented route produces (a `405`, a `413`, a framework `404` on an unrouted path — `HTTP_<status>` at the
+ * limit), so this enum is deliberately NOT "every string that can ever appear in `code`". A consumer must
+ * tolerate a code it has not been taught — see {@link foodErrorSchema}.
+ */
+export const foodErrorCodeSchema = z.enum([
+    /** A request body/query/param the boundary rejected. `details.fields` names each offending field. */
+    'VALIDATION_FAILED',
+    /** The `{id}` path parameter is not a structurally valid food ULID (FR-006). */
+    'INVALID_ID',
+    /** More names than the service-configured `FOOD_MAX_BATCH_NAMES`, which `details.maxNames` reports (FR-045). */
+    'BATCH_TOO_LARGE',
+    /** No valid Clerk session or M2M token (FR-051). */
+    'UNAUTHORIZED',
+    /** The token is valid but its `external_id` has not synced yet — retry with a refreshed token (CR-002/U1). */
+    'IDENTITY_SYNC_PENDING',
+    /** Authenticated, but lacking the `food:admin` scope (FR-039). */
+    'FORBIDDEN',
+    /** The food is being fetched or awaits disambiguation — a `202`, not a failure (FR-003). */
+    'FOOD_PENDING',
+    /** No such food, or a terminal `NOT_FOUND`/`FAILED` one; the status stays in `details` (FR-004). */
+    'FOOD_NOT_FOUND',
+    /** A resolve pick is not in the food's own candidate set (`409`, DSN-14). */
+    'CANDIDATE_MISMATCH',
+    /** A resolve was attempted on a food that is not awaiting disambiguation (`409`, FR-028a). */
+    'NOT_RESOLVABLE',
+    /** Backpressure / flood-shed / resolve cap — a `503` + `Retry-After`, NEVER a per-user `429` (FR-046). */
+    'FETCH_UNAVAILABLE',
+    /** An unmapped server fault. The body carries no internal detail, by design. */
+    'INTERNAL_ERROR',
+]);
+
+/** A stable, machine-readable food-API failure code. */
+export type FoodErrorCode = z.infer<typeof foodErrorCodeSchema>;
+
+/**
+ * The TYPED view of a food-API error body: {@link foodErrorCodeSchema} as a discriminant, with the `details`
+ * each code actually carries.
+ *
+ * ── HOW THIS RELATES TO `apiErrorSchema`, AND WHY IT IS A SEPARATE FILE ──
+ *
+ * It is a REFINEMENT of the one published envelope, not a second error shape: every value here is also a valid
+ * `apiErrorSchema` body, and `src/foods/__tests__/foods.schema.test.ts` asserts that for every arm. The
+ * separation is forced rather than chosen — generation FLATTENS every authored schema into one directory, so a
+ * `*.schema.ts` may import only a flat `./x.schema.js` sibling, and `common/api-error.schema.ts` is not one of
+ * this file's siblings. The lifecycle enum, on the other hand, IS here, which is the whole reason the typed view
+ * lives on this side of the line: `details.status` can be a real {@link FoodStatus} instead of the bare
+ * `z.string()` the cross-vertical envelope was reduced to, which is what forced the client to re-narrow it.
+ *
+ * ── HOW A CONSUMER USES IT (both halves matter) ──
+ *
+ * 1. Parse the body with `apiErrorSchema` — it accepts ANY code, including one this build has never heard of.
+ * 2. Then `foodErrorSchema.safeParse` to NARROW. Success means "a code I was taught, with the details it
+ *    promises"; failure means "map by HTTP status alone", which is the correct degradation for a service
+ *    deployed ahead of a released mobile binary.
+ *
+ * `details` is REQUIRED on every arm whose code promises one. A body that dropped `details.id` must fail the
+ * typed parse — surfacing at the edge that names the field — rather than hand a caller an `undefined` that
+ * surfaces three layers deeper.
+ *
+ * Every arm is `.loose()`: an unknown key added by a forward-compatible deploy must survive rather than turn
+ * into a consumer-side parse crash.
+ */
+export const foodErrorSchema = z.discriminatedUnion('code', [
+    z
+        .object({
+            code: z.literal('VALIDATION_FAILED'),
+            message: z.string(),
+            /** One rendered `"<field path>: <constraint>"` per rejected field. */
+            details: z.object({ fields: z.array(z.string()) }).loose(),
+        })
+        .loose(),
+    z.object({ code: z.literal('INVALID_ID'), message: z.string() }).loose(),
+    z
+        .object({
+            code: z.literal('BATCH_TOO_LARGE'),
+            message: z.string(),
+            /** The configured cap, reported so a caller can re-chunk without guessing it. */
+            details: z.object({ maxNames: z.number() }).loose(),
+        })
+        .loose(),
+    z.object({ code: z.literal('UNAUTHORIZED'), message: z.string() }).loose(),
+    z.object({ code: z.literal('IDENTITY_SYNC_PENDING'), message: z.string() }).loose(),
+    z.object({ code: z.literal('FORBIDDEN'), message: z.string() }).loose(),
+    z
+        .object({
+            code: z.literal('FOOD_PENDING'),
+            message: z.string(),
+            details: z
+                .object({
+                    /** Internal food id. */
+                    id: z.string(),
+                    /** Which non-terminal state it is in. */
+                    status: pendingFoodStatusSchema,
+                    /** Best-effort seconds until availability (absent for `UNRESOLVED`). */
+                    estimatedWaitSeconds: z.number().optional(),
+                })
+                .loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('FOOD_NOT_FOUND'),
+            message: z.string(),
+            details: z
+                .object({
+                    /** Internal food id. */
+                    id: z.string(),
+                    /** The terminal status when a row exists; absent when there is no row at all. */
+                    status: terminalFoodStatusSchema.optional(),
+                })
+                .loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('CANDIDATE_MISMATCH'),
+            message: z.string(),
+            details: z.object({ id: z.string() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('NOT_RESOLVABLE'),
+            message: z.string(),
+            details: z
+                .object({
+                    /** Internal food id. */
+                    id: z.string(),
+                    /** The status that makes it non-resolvable (anything but `UNRESOLVED`). */
+                    status: foodStatusSchema,
+                })
+                .loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('FETCH_UNAVAILABLE'),
+            message: z.string(),
+            /** Also sent as the `Retry-After` header; repeated here so a body-only consumer can read it. */
+            details: z.object({ retryAfterSeconds: z.number() }).loose(),
+        })
+        .loose(),
+    z.object({ code: z.literal('INTERNAL_ERROR'), message: z.string() }).loose(),
+]);
+
+/** A food-API error body, narrowed by its `code`. */
+export type FoodError = z.infer<typeof foodErrorSchema>;

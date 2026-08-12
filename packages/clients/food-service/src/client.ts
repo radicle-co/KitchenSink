@@ -18,13 +18,12 @@ import type { z } from 'zod';
 import {
     addFoodRequestSchema,
     addResponseSchema,
+    apiErrorSchema,
     batchAddFoodRequestSchema,
     batchResponseSchema,
     candidatesResponseSchema,
-    errorResponseSchema,
+    foodErrorSchema,
     foodResponseSchema,
-    foodStatusSchema,
-    pendingFoodStatusSchema,
     pendingResponseSchema,
     resolveFoodRequestSchema,
     resolveResponseSchema,
@@ -32,6 +31,7 @@ import {
     searchResponseSchema,
     statusResponseSchema,
 } from '@kitchensink/schema-food';
+import type { FoodError } from '@kitchensink/schema-food';
 
 import { reportContractSkewOnce } from './contractSkew.js';
 import {
@@ -185,28 +185,12 @@ export class FoodServiceClient {
             // restate: an inline `{ id; status; estimatedWaitSeconds? }` here was a hand-written wire type on
             // the far side of a boundary that could not typecheck against the server (CODING_STANDARDS §15).
             //
-            // Now PARSED rather than cast, which also retires the `body.status as 'PENDING' | 'UNRESOLVED'`
-            // narrowing below it. That cast was the sharpest edge in this file: `PendingResponse.status` is the
-            // FULL five-value lifecycle enum, so the cast asserted a two-value narrowing that nothing checked.
-            // A service answering `202` with `RESOLVED`/`NOT_FOUND`/`FAILED` — a bug, but a reachable one —
-            // produced a `GetFoodResult` whose `status` was outside its own declared union, and every
-            // downstream exhaustive `switch` on it would silently fall through.
-            //
-            // ⚠️ FINDING, worked around here rather than silently: `pendingResponseSchema.status` is the FULL
-            // five-value `foodStatusSchema`, even though only `PENDING`/`UNRESOLVED` can legitimately answer a
-            // 202 — and `pendingFoodStatusSchema` (exactly those two) exists in the same authored file but is
-            // not used by it, while `getFoodResultSchema`'s pending arm DOES use it. So the service's own
-            // contract disagrees with itself about what a 202 carries. Tightening the published response is a
-            // service-side contract change and out of scope here, so the invariant is enforced at THIS
-            // boundary: the envelope is parsed, then the status is parsed against the two-value enum, which is
-            // what this method's own return type promises.
-            const body = pendingResponseSchema.parse(res.body);
-
-            return {
-                status: pendingFoodStatusSchema.parse(body.status),
-                id: body.id,
-                estimatedWaitSeconds: body.estimatedWaitSeconds,
-            };
+            // ONE parse, and no re-narrowing. `pendingResponseSchema.status` published the FULL five-value
+            // lifecycle until 2026-08-12, even though only `PENDING`/`UNRESOLVED` can answer a `202` — so this
+            // method had to re-apply the two-value enum HERE just to keep its own declared return union honest,
+            // a stopgap for a contract that disagreed with itself. The published schema is now the two-value
+            // enum, so parsing it is sufficient and the stopgap is gone.
+            return pendingResponseSchema.parse(res.body);
         }
 
         throw this.toError(res, id);
@@ -427,49 +411,125 @@ export class FoodServiceClient {
     }
 
     /**
-     * Map a non-success response to the typed error for its status (FR-051 precedence + DSN-14).
+     * Map a non-success response to its typed error (FR-051 precedence + DSN-14).
      *
-     * The error BODY is parsed against the envelope the food service publishes (`errorResponseSchema` — the
-     * union of its `ApiError`, controller-error and Nest-`HttpException` shapes), not cast. It used to be
-     * `(res.body ?? {}) as { error?; message?; status? }`, which is the same unfalsifiable belief as an
-     * unparsed success body and arguably worse: the fields read here DECIDE WHICH TYPED ERROR the caller
-     * gets. `/candidate/i.test(body.error)` selecting {@link CandidateMismatchError} over
-     * {@link ConflictError} is a control-flow branch taken on an unchecked string.
+     * ── TWO LAYERS, AND BOTH ARE LOAD-BEARING ──
      *
-     * `safeParse` with a fallback, NOT `parse`, and the fallback is the point: a non-2xx body is frequently
-     * not our envelope at all — the shared internet-facing ALB serves an HTML page for `502`/`503`/`504`
-     * during every deploy (ADR-0003). Throwing here would replace a recoverable typed error with a `ZodError`
-     * escaping the error-mapping path itself, so an unrecognized body degrades to "map by status alone",
-     * which is exactly what the status switch below can still do correctly.
+     * 1. **`foodErrorSchema` — the published discriminated union — decides the error, keyed on `code`.** This is
+     *    what replaced `/candidate/i.test(body.error)`. That regex was a control-flow branch taken on human-
+     *    readable prose: it picked {@link CandidateMismatchError} over {@link ConflictError} — two `409`s the
+     *    status cannot separate and whose correct handling differs — and it would have broken on the first copy
+     *    edit to the server's message, or fired on any unrelated message containing the word "candidate". The
+     *    switch below is EXHAUSTIVE over the published codes, so a code the service adds is a `typecheck`
+     *    failure here rather than a silent fall-through at runtime.
+     * 2. **`apiErrorSchema` then the STATUS, for anything the union does not recognise.** A body may legitimately
+     *    be an envelope carrying a code this build has never been taught (a deployed service adds codes ahead of
+     *    a released mobile binary), or not our envelope at all — the shared internet-facing ALB serves an HTML
+     *    page for `502`/`503`/`504` during every deploy (ADR-0003). Both degrade to "map by status alone", which
+     *    {@link errorForStatus} still does correctly.
+     *
+     * `safeParse` throughout, never `parse`: throwing here would replace a recoverable typed error with a
+     * `ZodError` escaping the error-mapping path itself.
+     *
+     * @param res - The normalized non-success response.
+     * @param id - The food id the call concerned (`''` where the call has none), used only where the body
+     *   carries no `details.id` of its own.
+     * @returns The typed error to throw.
      */
     private toError(res: RawResponse, id: string): FoodServiceClientError {
-        const parsed = errorResponseSchema.safeParse(res.body);
-        const body: { error?: string; message?: string; status?: string } = parsed.success ? parsed.data : {};
-        // ⚠️ FINDING, narrowed here rather than silently cast: the published envelope types the lifecycle
-        // `status` it may carry as a bare `z.string()`, while `NotFoundError` takes a {@link FoodStatus}. So the
-        // enum is re-applied at this boundary — a second `safeParse` against the two-value-plus-three enum the
-        // service also publishes — and an unrecognized value becomes `undefined` (a `404` with no status),
-        // which is what the field's own optionality already means. Tightening the published error envelope's
-        // `status` to `foodStatusSchema` is a service-side contract change and out of scope here.
-        const status = foodStatusSchema.safeParse(body.status);
+        const known = foodErrorSchema.safeParse(res.body);
 
+        if (known.success) {
+            return this.errorForCode(known.data, res);
+        }
+
+        const envelope = apiErrorSchema.safeParse(res.body);
+
+        return this.errorForStatus(res, id, envelope.success ? envelope.data.message : undefined);
+    }
+
+    /**
+     * The typed error for a body whose `code` this build knows, narrowed by the published union.
+     *
+     * Every `details` read here is one the union GUARANTEES for that code — `details.id` on the by-id failures,
+     * `details.status` as a real `FoodStatus` — which is why there is no optional chaining and no re-narrowing.
+     * The service's error envelope typed its lifecycle `status` as a bare `z.string()` until 2026-08-12, and this
+     * client had to `safeParse` it against the enum at this boundary just to construct a {@link NotFoundError};
+     * the published `details.status` is now the terminal-status enum, so that stopgap is gone.
+     *
+     * @param body - The narrowed error body.
+     * @param res - The normalized response (for the status and the `Retry-After` header).
+     * @returns The typed error to throw. Pure.
+     */
+    private errorForCode(body: FoodError, res: RawResponse): FoodServiceClientError {
+        switch (body.code) {
+            case 'VALIDATION_FAILED':
+            case 'INVALID_ID':
+            case 'BATCH_TOO_LARGE':
+                return new BadRequestError(body.message);
+            // Two distinct 401s, deliberately mapped to one client error but keeping the server's own message:
+            // `IDENTITY_SYNC_PENDING` means "retry with a refreshed token", which is what the message says.
+            case 'UNAUTHORIZED':
+            case 'IDENTITY_SYNC_PENDING':
+                return new UnauthorizedError(body.message);
+            case 'FORBIDDEN':
+                return new ForbiddenError(body.message);
+            case 'FOOD_NOT_FOUND':
+                return new NotFoundError(body.details.id, body.details.status);
+            case 'CANDIDATE_MISMATCH':
+                return new CandidateMismatchError(body.details.id);
+            case 'NOT_RESOLVABLE':
+                return new ConflictError(body.message);
+            case 'FETCH_UNAVAILABLE':
+                // The header is the transport-level contract and wins; the body repeats it for a consumer that
+                // only has the payload (and for the case a proxy stripped the header).
+                return new FetchUnavailableError(res.retryAfterSeconds ?? body.details.retryAfterSeconds, body.message);
+            // A `202` or a `500` reaching the error path means the service answered with something this call
+            // cannot represent. Surfacing it loudly is the honest outcome; swallowing it is how a contract break
+            // becomes a mystery `undefined` three layers into a caller.
+            case 'FOOD_PENDING':
+            case 'INTERNAL_ERROR':
+                return new UnexpectedResponseError(res.status, body.message);
+
+            default: {
+                // EXHAUSTIVENESS GATE (§15.1: drift must fail at `typecheck`, not in e2e). Adding a code to the
+                // service's `foodErrorCodeSchema` breaks this line until this client decides what it means — and
+                // an OLDER client, which cannot have this arm, still degrades correctly because `safeParse`
+                // rejects the unknown code before it ever gets here.
+                const unhandled: never = body;
+
+                return new UnexpectedResponseError(res.status, `Unhandled food error code ${String(unhandled)}`);
+            }
+        }
+    }
+
+    /**
+     * The typed error for a body this build cannot narrow — an unknown `code`, or not our envelope at all.
+     *
+     * ⚠️ A `409` here CANNOT be a {@link CandidateMismatchError}: without the `code` there is nothing to
+     * distinguish it from a lifecycle conflict, and guessing from the message is the defect this design removed.
+     * The conservative {@link ConflictError} is the correct answer, and a caller that needs the distinction is
+     * talking to a service whose contract it cannot read — which is what the skew warning reports.
+     *
+     * @param res - The normalized response.
+     * @param id - The food id the call concerned.
+     * @param message - The envelope's message, when the body was at least an envelope.
+     * @returns The typed error to throw. Pure.
+     */
+    private errorForStatus(res: RawResponse, id: string, message: string | undefined): FoodServiceClientError {
         switch (res.status) {
             case 400:
-                return new BadRequestError(body.error ?? body.message);
+                return new BadRequestError(message);
             case 401:
-                return new UnauthorizedError(body.error ?? body.message);
+                return new UnauthorizedError(message);
             case 403:
-                return new ForbiddenError(body.error ?? body.message);
+                return new ForbiddenError(message);
             case 404:
-                return new NotFoundError(id, status.success ? status.data : undefined);
+                return new NotFoundError(id);
             case 409:
-                // A candidate-not-in-set 409 is a CandidateMismatchError (DSN-14); any other 409 is a
-                // lifecycle conflict (e.g. not awaiting disambiguation).
-                return /candidate/i.test(body.error ?? '')
-                    ? new CandidateMismatchError(id)
-                    : new ConflictError(body.error ?? body.message);
+                return new ConflictError(message);
             case 503:
-                return new FetchUnavailableError(res.retryAfterSeconds, body.error ?? body.message);
+                return new FetchUnavailableError(res.retryAfterSeconds, message);
             default:
                 return new UnexpectedResponseError(res.status);
         }

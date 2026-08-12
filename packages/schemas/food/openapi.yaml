@@ -13,11 +13,12 @@ info:
   description: "The source-agnostic ingredient catalog. Despite the `food_*` naming, this service holds INGREDIENTS
     sourced from the USDA, not dishes: a recipe is a method, not a substance, and is never written back here (feature
     001 T150). Every food is addressed by its internal ULID; no source-native key (`fdcId`) appears in any public shape
-    (SC-013). ⚠️ Error bodies are NOT uniform: see `ErrorResponse`, a union of the shared `{ code, message, details? }`
-    envelope (ARCH-PS-2), Nest's default `{ statusCode, message, error }`, and the controller's `{ error, …extras }`.
-    Which one a caller receives depends on which layer failed; converging them is a tracked breaking change. Every path
-    is also served under the DEPRECATED `/v1/*` alias held by already-shipped clients (ADR-0011); only the canonical
-    `/api/v1/*` form is documented."
+    (SC-013). EVERY non-2xx body is the shared `{ code, message, details? }` envelope (`ApiError`, ARCH-PS-2) — there is
+    exactly one error shape, and `code` is the discriminant a client branches on, NEVER `message`. `FoodError` publishes
+    the TYPED view of the same bodies: the codes this API emits and the `details` each one carries. A client must still
+    tolerate a code it has not been taught (a deployed service adds codes ahead of a released mobile binary), so parse
+    with `ApiError` and narrow with `FoodError`. Every path is also served under the DEPRECATED `/v1/*` alias held by
+    already-shipped clients (ADR-0011); only the canonical `/api/v1/*` form is documented."
 servers:
   - url: https://food.commise.app
     description: production
@@ -40,11 +41,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/SearchResponse"
         "401":
-          description: No valid Clerk session or M2M token (FR-051).
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
       description: Local fuzzy / barcode-crosswalk search. NEVER calls an upstream source, so a miss is an empty result set
         rather than a fetch (FR-008).
       parameters:
@@ -68,24 +70,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/AddResponse"
         "400":
-          description: Empty name after trimming (FR-006).
+          description: "Empty name after trimming — `code: VALIDATION_FAILED` (FR-006)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "401":
-          description: No valid Clerk session or M2M token (FR-051).
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "503":
-          description: Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. Carries `Retry-After`; this
-            service never answers `429`.
+          description: "Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. `code: FETCH_UNAVAILABLE`,
+            with the same seconds in `details.retryAfterSeconds` and in `Retry-After`; this service never answers
+            `429`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
           headers:
             Retry-After:
               description: Seconds to wait before retrying.
@@ -115,24 +119,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/BatchResponse"
         "400":
-          description: Malformed `names`, or more names than the configured maximum.
+          description: "Malformed `names` (`code: VALIDATION_FAILED`), or more names than the configured maximum (`code:
+            BATCH_TOO_LARGE`, with the cap in `details.maxNames`)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "401":
-          description: No valid Clerk session or M2M token (FR-051).
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "503":
-          description: Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. Carries `Retry-After`; this
-            service never answers `429`.
+          description: "Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. `code: FETCH_UNAVAILABLE`,
+            with the same seconds in `details.retryAfterSeconds` and in `Retry-After`; this service never answers
+            `429`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
           headers:
             Retry-After:
               description: Seconds to wait before retrying.
@@ -169,23 +176,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/PendingResponse"
         "400":
-          description: Malformed id or request body (FR-006).
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "401":
-          description: No valid Clerk session or M2M token (FR-051).
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "404":
-          description: No such food, or NOT_FOUND / FAILED. The status is in the body.
+          description: "No such food, or NOT_FOUND / FAILED — `code: FOOD_NOT_FOUND`, with the terminal status in `details.status`
+            (absent when there is no row at all)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
       description: "The lifecycle IS the status code: `200` a golden record, `202` still pending or awaiting disambiguation,
         `404` tombstoned (`NOT_FOUND`) or exhausted (`FAILED`) — with the status still in the body
         (FR-002/FR-003/FR-004)."
@@ -209,37 +218,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResolveResponse"
         "400":
-          description: Malformed id or empty `candidateIds` (DSN-14).
+          description: "Malformed id (`code: INVALID_ID`) or empty `candidateIds` (`code: VALIDATION_FAILED`, DSN-14)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "401":
-          description: No valid Clerk session or M2M token (FR-051).
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "404":
-          description: No such food.
+          description: "No such food — `code: FOOD_NOT_FOUND`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "409":
-          description: A candidate is not in this food's set (`CANDIDATE_MISMATCH`), or the food is not awaiting disambiguation
-            (`NOT_RESOLVABLE`).
+          description: "A candidate is not in this food's set (`code: CANDIDATE_MISMATCH`), or the food is not awaiting
+            disambiguation (`code: NOT_RESOLVABLE`). Both are `409`s, so the CODE — never the message — is what tells
+            them apart."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "503":
-          description: Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. Carries `Retry-After`; this
-            service never answers `429`.
+          description: "Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. `code: FETCH_UNAVAILABLE`,
+            with the same seconds in `details.retryAfterSeconds` and in `Retry-After`; this service never answers
+            `429`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
           headers:
             Retry-After:
               description: Seconds to wait before retrying.
@@ -275,23 +287,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusResponse"
         "400":
-          description: Malformed id or request body (FR-006).
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "401":
-          description: No valid Clerk session or M2M token (FR-051).
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "404":
-          description: No such food.
+          description: "No such food — `code: FOOD_NOT_FOUND`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
       description: Never enqueues a fetch. Includes the golden record once `RESOLVED` (FR-007).
       parameters:
         - name: id
@@ -314,23 +327,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/CandidatesResponse"
         "400":
-          description: Malformed id or request body (FR-006).
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "401":
-          description: No valid Clerk session or M2M token (FR-051).
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "404":
-          description: No such food.
+          description: "No such food — `code: FOOD_NOT_FOUND`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
       description: The non-expired cross-source candidates for an `UNRESOLVED` food; empty for any other status (FR-RES-1).
       parameters:
         - name: id
@@ -353,36 +367,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/AddResponse"
         "400":
-          description: Malformed id or request body (FR-006).
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "401":
-          description: No valid Clerk session or M2M token (FR-051).
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "403":
-          description: Authenticated but lacking the `food:admin` scope (FR-039).
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "404":
-          description: No such food.
+          description: "No such food — `code: FOOD_NOT_FOUND`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "503":
-          description: Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. Carries `Retry-After`; this
-            service never answers `429`.
+          description: "Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. `code: FETCH_UNAVAILABLE`,
+            with the same seconds in `details.retryAfterSeconds` and in `Retry-After`; this service never answers
+            `429`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
           headers:
             Retry-After:
               description: Seconds to wait before retrying.
@@ -412,17 +428,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/OperationalMetrics"
         "401":
-          description: No valid Clerk session or M2M token (FR-051).
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "403":
-          description: Authenticated but lacking the `food:admin` scope (FR-039).
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
       description: Queue depths, lifecycle backlog, and per-source rolling-window utilization (FR-039).
   /api/v1/foods/admin/queue:
     get:
@@ -438,17 +455,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/QueueDepthMetrics"
         "401":
-          description: No valid Clerk session or M2M token (FR-051).
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "403":
-          description: Authenticated but lacking the `food:admin` scope (FR-039).
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039)."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
       description: The focused queue-depth signals on their own (FR-039).
   /api/v1/internal/account/erasure:
     post:
@@ -464,11 +482,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/FoodServiceErasureAcceptedResponse"
         "401":
-          description: The service token is absent, malformed, or not bound to the food audience.
+          description: "The service token is absent, malformed, or not bound to the food audience — `code: UNAUTHORIZED`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
       description: "Called by the identity deletion-worker / erasure-reconciliation on a `user.deleted` or account-closure
         event. Synchronous and idempotent: an owner with no footprint erases 0 rows and still succeeds. The target owner
         comes ONLY from the verified token's bound claim — there is no request body (CR-002/U4b/R11)."
@@ -505,7 +523,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
       description: Probes the database pool so the ALB can drain an instance whose database is unreachable (ARCH-PS-3).
 components:
   securitySchemes:
@@ -536,43 +554,239 @@ components:
         - code
         - message
       additionalProperties: {}
-    NestHttpError:
-      type: object
-      properties:
-        statusCode:
-          type: number
-        message:
-          type: string
-        error:
-          type: string
-      required:
-        - statusCode
-        - message
-        - error
-      additionalProperties: {}
-    ControllerError:
-      type: object
-      properties:
-        error:
-          type: string
-        message:
-          type: string
-        id:
-          type: string
-        status:
-          type: string
-        maxNames:
-          type: number
-        retryAfterSeconds:
-          type: number
-      required:
-        - error
-      additionalProperties: {}
-    ErrorResponse:
-      anyOf:
-        - $ref: "#/components/schemas/ApiError"
-        - $ref: "#/components/schemas/ControllerError"
-        - $ref: "#/components/schemas/NestHttpError"
+    FoodError:
+      oneOf:
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_FAILED
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                fields:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - fields
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - INVALID_ID
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - BATCH_TOO_LARGE
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                maxNames:
+                  type: number
+              required:
+                - maxNames
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - UNAUTHORIZED
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - IDENTITY_SYNC_PENDING
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - FORBIDDEN
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - FOOD_PENDING
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                id:
+                  type: string
+                status:
+                  type: string
+                  enum:
+                    - PENDING
+                    - UNRESOLVED
+                estimatedWaitSeconds:
+                  type: number
+              required:
+                - id
+                - status
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - FOOD_NOT_FOUND
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                id:
+                  type: string
+                status:
+                  type: string
+                  enum:
+                    - NOT_FOUND
+                    - FAILED
+              required:
+                - id
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - CANDIDATE_MISMATCH
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                id:
+                  type: string
+              required:
+                - id
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - NOT_RESOLVABLE
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                id:
+                  type: string
+                status:
+                  type: string
+                  enum:
+                    - PENDING
+                    - UNRESOLVED
+                    - RESOLVED
+                    - NOT_FOUND
+                    - FAILED
+              required:
+                - id
+                - status
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - FETCH_UNAVAILABLE
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                retryAfterSeconds:
+                  type: number
+              required:
+                - retryAfterSeconds
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - INTERNAL_ERROR
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
     NutrientView:
       type: object
       properties:
@@ -657,9 +871,6 @@ components:
           enum:
             - PENDING
             - UNRESOLVED
-            - RESOLVED
-            - NOT_FOUND
-            - FAILED
         estimatedWaitSeconds:
           type: number
       required:

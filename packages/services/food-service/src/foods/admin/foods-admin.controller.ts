@@ -10,9 +10,10 @@
  *
  * @implements FR-039 FR-051
  */
-import { Controller, ForbiddenException, Get, Req } from '@nestjs/common';
+import { Controller, Get, Req } from '@nestjs/common';
 
 import { FOOD_ADMIN_SCOPE, hasScope, type AuthenticatedRequest } from '../../auth/authenticated-principal.js';
+import { apiError } from '../../common/api-error.js';
 import { AdminMetricsService, type OperationalMetrics } from './admin-metrics.service.js';
 import type { QueueDepthMetrics } from './admin-metrics.dao.js';
 
@@ -43,7 +44,7 @@ export class FoodsAdminController {
     /** Require the `food:admin` scope from the verified token, else `403` (FR-039/FR-051). */
     private requireAdmin(req: AuthenticatedRequest): void {
         if (!hasScope(req.user, FOOD_ADMIN_SCOPE)) {
-            throw new ForbiddenException({ error: 'Forbidden', message: 'Operation requires elevated scope' });
+            throw apiError('FORBIDDEN', 'Operation requires elevated scope');
         }
     }
 }

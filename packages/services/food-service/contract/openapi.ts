@@ -23,12 +23,7 @@ import { buildOpenApiDocument } from '@kitchensink/contract-gen';
 import type { OpenApiBuildResult } from '@kitchensink/contract-gen';
 import { z } from 'zod';
 
-import {
-    apiErrorSchema,
-    controllerErrorSchema,
-    errorResponseSchema,
-    nestHttpErrorSchema,
-} from '../src/common/api-error.schema.js';
+import { apiErrorSchema } from '../src/common/api-error.schema.js';
 import {
     addFoodRequestSchema,
     addResponseSchema,
@@ -37,6 +32,7 @@ import {
     batchResponseSchema,
     candidatesResponseSchema,
     candidateViewSchema,
+    foodErrorSchema,
     foodResponseSchema,
     nutrientViewSchema,
     pendingResponseSchema,
@@ -70,9 +66,7 @@ import { healthStatusSchema } from '../src/health/health.schema.js';
  */
 export const openApiComponents = {
     ApiError: apiErrorSchema,
-    NestHttpError: nestHttpErrorSchema,
-    ControllerError: controllerErrorSchema,
-    ErrorResponse: errorResponseSchema,
+    FoodError: foodErrorSchema,
     NutrientView: nutrientViewSchema,
     PortionView: portionViewSchema,
     FoodResponse: foodResponseSchema,
@@ -106,23 +100,32 @@ const idParameter = {
 } as const;
 
 /** `401` — the {@link FoodAuthGuard} rejected or found no Clerk session / M2M token. */
-const unauthorized = { description: 'No valid Clerk session or M2M token (FR-051).', schema: 'ErrorResponse' } as const;
+const unauthorized = {
+    description:
+        'No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is ' +
+        'valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002).',
+    schema: 'ApiError',
+} as const;
 
 /** `400` — the id or body failed boundary validation. */
-const badRequest = { description: 'Malformed id or request body (FR-006).', schema: 'ErrorResponse' } as const;
+const badRequest = {
+    description: 'Malformed id — `code: INVALID_ID` (FR-006).',
+    schema: 'ApiError',
+} as const;
 
 /** `403` — authenticated but lacking the `food:admin` scope. */
 const forbidden = {
-    description: 'Authenticated but lacking the `food:admin` scope (FR-039).',
-    schema: 'ErrorResponse',
+    description: 'Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039).',
+    schema: 'ApiError',
 } as const;
 
 /** `503` + `Retry-After` — backpressure / flood-shed / resolve cap. NEVER a `429` (FR-051). */
 const shed = {
     description:
-        'Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. Carries `Retry-After`; ' +
-        'this service never answers `429`.',
-    schema: 'ErrorResponse',
+        'Fetch temporarily unavailable — backpressure, flood-shed, or the resolve cap. `code: FETCH_UNAVAILABLE`, ' +
+        'with the same seconds in `details.retryAfterSeconds` and in `Retry-After`; this service never answers ' +
+        '`429`.',
+    schema: 'ApiError',
     headers: {
         'Retry-After': { description: 'Seconds to wait before retrying.', schema: z.number().int().nonnegative() },
     },
@@ -136,10 +139,12 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
         'The source-agnostic ingredient catalog. Despite the `food_*` naming, this service holds INGREDIENTS ' +
         'sourced from the USDA, not dishes: a recipe is a method, not a substance, and is never written back ' +
         'here (feature 001 T150). Every food is addressed by its internal ULID; no source-native key ' +
-        '(`fdcId`) appears in any public shape (SC-013). ⚠️ Error bodies are NOT uniform: see `ErrorResponse`, a ' +
-        "union of the shared `{ code, message, details? }` envelope (ARCH-PS-2), Nest's default " +
-        "`{ statusCode, message, error }`, and the controller's `{ error, …extras }`. Which one a caller " +
-        'receives depends on which layer failed; converging them is a tracked breaking change. ' +
+        '(`fdcId`) appears in any public shape (SC-013). EVERY non-2xx body is the shared ' +
+        '`{ code, message, details? }` envelope (`ApiError`, ARCH-PS-2) — there is exactly one error shape, ' +
+        'and `code` is the discriminant a client branches on, NEVER `message`. `FoodError` publishes the ' +
+        'TYPED view of the same bodies: the codes this API emits and the `details` each one carries. A client ' +
+        'must still tolerate a code it has not been taught (a deployed service adds codes ahead of a released ' +
+        'mobile binary), so parse with `ApiError` and narrow with `FoodError`. ' +
         'Every path is also served under the DEPRECATED `/v1/*` alias held by already-shipped clients ' +
         '(ADR-0011); only the canonical `/api/v1/*` form is documented.',
     servers: [
@@ -199,7 +204,10 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                 requestBody: { description: 'The display name to resolve.', schema: 'AddFoodRequest' },
                 responses: {
                     '202': { description: 'Accepted; poll the id for its lifecycle.', schema: 'AddResponse' },
-                    '400': { description: 'Empty name after trimming (FR-006).', schema: 'ErrorResponse' },
+                    '400': {
+                        description: 'Empty name after trimming — `code: VALIDATION_FAILED` (FR-006).',
+                        schema: 'ApiError',
+                    },
                     '401': unauthorized,
                     '503': shed,
                 },
@@ -218,8 +226,10 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                 responses: {
                     '201': { description: 'Per-item partial results.', schema: 'BatchResponse' },
                     '400': {
-                        description: 'Malformed `names`, or more names than the configured maximum.',
-                        schema: 'ErrorResponse',
+                        description:
+                            'Malformed `names` (`code: VALIDATION_FAILED`), or more names than the configured ' +
+                            'maximum (`code: BATCH_TOO_LARGE`, with the cap in `details.maxNames`).',
+                        schema: 'ApiError',
                     },
                     '401': unauthorized,
                     '503': shed,
@@ -244,8 +254,10 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                     '400': badRequest,
                     '401': unauthorized,
                     '404': {
-                        description: 'No such food, or NOT_FOUND / FAILED. The status is in the body.',
-                        schema: 'ErrorResponse',
+                        description:
+                            'No such food, or NOT_FOUND / FAILED — `code: FOOD_NOT_FOUND`, with the terminal ' +
+                            'status in `details.status` (absent when there is no row at all).',
+                        schema: 'ApiError',
                     },
                 },
             },
@@ -257,14 +269,20 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                 requestBody: { description: 'The picked candidate row ids.', schema: 'ResolveFoodRequest' },
                 responses: {
                     '200': { description: 'Resolved.', schema: 'ResolveResponse' },
-                    '400': { description: 'Malformed id or empty `candidateIds` (DSN-14).', schema: 'ErrorResponse' },
+                    '400': {
+                        description:
+                            'Malformed id (`code: INVALID_ID`) or empty `candidateIds` ' +
+                            '(`code: VALIDATION_FAILED`, DSN-14).',
+                        schema: 'ApiError',
+                    },
                     '401': unauthorized,
-                    '404': { description: 'No such food.', schema: 'ErrorResponse' },
+                    '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },
                     '409': {
                         description:
-                            "A candidate is not in this food's set (`CANDIDATE_MISMATCH`), or the food is not " +
-                            'awaiting disambiguation (`NOT_RESOLVABLE`).',
-                        schema: 'ErrorResponse',
+                            "A candidate is not in this food's set (`code: CANDIDATE_MISMATCH`), or the food is " +
+                            'not awaiting disambiguation (`code: NOT_RESOLVABLE`). Both are `409`s, so the CODE — ' +
+                            'never the message — is what tells them apart.',
+                        schema: 'ApiError',
                     },
                     '503': shed,
                 },
@@ -280,7 +298,7 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                     '200': { description: 'The current status.', schema: 'StatusResponse' },
                     '400': badRequest,
                     '401': unauthorized,
-                    '404': { description: 'No such food.', schema: 'ErrorResponse' },
+                    '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },
                 },
             },
         },
@@ -296,7 +314,7 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                     '200': { description: 'The candidate set, possibly empty.', schema: 'CandidatesResponse' },
                     '400': badRequest,
                     '401': unauthorized,
-                    '404': { description: 'No such food.', schema: 'ErrorResponse' },
+                    '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },
                 },
             },
         },
@@ -313,7 +331,7 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                     '400': badRequest,
                     '401': unauthorized,
                     '403': forbidden,
-                    '404': { description: 'No such food.', schema: 'ErrorResponse' },
+                    '404': { description: 'No such food — `code: FOOD_NOT_FOUND`.', schema: 'ApiError' },
                     '503': shed,
                 },
             },
@@ -358,8 +376,10 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                         schema: 'FoodServiceErasureAcceptedResponse',
                     },
                     '401': {
-                        description: 'The service token is absent, malformed, or not bound to the food audience.',
-                        schema: 'ErrorResponse',
+                        description:
+                            'The service token is absent, malformed, or not bound to the food audience — ' +
+                            '`code: UNAUTHORIZED`.',
+                        schema: 'ApiError',
                     },
                 },
             },
@@ -388,7 +408,7 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
                 security: [],
                 responses: {
                     '200': { description: 'Ready to serve traffic.', schema: 'HealthStatus' },
-                    '503': { description: 'Database not reachable (`NOT_READY`).', schema: 'ErrorResponse' },
+                    '503': { description: 'Database not reachable (`NOT_READY`).', schema: 'ApiError' },
                 },
             },
         },

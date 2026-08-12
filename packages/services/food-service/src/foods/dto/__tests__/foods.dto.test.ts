@@ -161,22 +161,9 @@ describe('SearchFoodQueryDto (GET /api/v1/foods/search)', () => {
     });
 });
 
-/**
- * The trap, asserted directly: these DTOs carry NO `class-validator` metadata, so the only thing standing
- * between a caller and the database is the ZOD pipe specifically.
- *
- * Without this case the suite above would still pass if someone swapped `AppModule`'s pipe for Nest's — every
- * test here constructs `ZodValidationPipe` explicitly. This one states WHY that substitution is not available.
+/*
+ * The `class-validator`-metadata trap used to be asserted here for `AddFoodBodyDto` alone. It moved to
+ * `../../__tests__/route-validation.test.ts`, which asserts it for EVERY DTO alongside the closed inventory of
+ * which route inputs are pipe-validated at all — the question this file cannot answer, because every case above
+ * constructs `ZodValidationPipe` explicitly and so would still pass if `AppModule` stopped binding it.
  */
-describe('the DTOs are validated by the Zod pipe SPECIFICALLY', () => {
-    it('carries no class-validator metadata, so Nest’s own ValidationPipe would validate nothing', () => {
-        // `class-validator` stores constraints on the constructor under its own metadata keys. A `createZodDto`
-        // class has none, which is exactly why Nest's `ValidationPipe` treats it as a plain type and passes the
-        // payload through untouched.
-        const metadataKeys = Reflect.getMetadataKeys(AddFoodBodyDto) as unknown[];
-
-        expect(metadataKeys.some((key) => String(key).includes('class-validator'))).toBe(false);
-        // …and the schema IS reachable from the class, which is what the Zod pipe uses instead.
-        expect((AddFoodBodyDto as unknown as { schema?: unknown }).schema).toBeDefined();
-    });
-});

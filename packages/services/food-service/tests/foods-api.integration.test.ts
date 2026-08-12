@@ -62,6 +62,10 @@ vi.mock('@kitchensink/usda-client', async (importOriginal) => {
 
 import { ClerkVerificationError, verifyClerkToken } from '@kitchensink/clerk-verify';
 
+// The PUBLISHED typed error union (`@kitchensink/schema-food`'s `foodErrorSchema`, authored in the service). Error
+// bodies are parsed against it rather than field-picked, so a shape the contract cannot describe fails here.
+import { foodErrorSchema } from '../src/foods/foods.schema.js';
+
 const mockVerify = vi.mocked(verifyClerkToken);
 
 const DATABASE_URL = process.env['DATABASE_URL'] ?? process.env['TEST_DATABASE_URL'];
@@ -345,28 +349,36 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* HTTP API (booted Nest + real Pos
             expect((res.body as { status: string }).status).toBe('UNRESOLVED');
         });
 
-        it('returns 404 with the status in the body for a NOT_FOUND food', async () => {
-            const id = await seedFood('NOT_FOUND', 'ghost food');
+        // The terminal status moved from a TOP-LEVEL `body.status` (the pre-2026-08-12 controller shape) into
+        // `details.status` of the one envelope, and it is parsed against the PUBLISHED typed union here rather
+        // than field-picked — so a body the schema package cannot describe fails this test over a real request.
+        it.each([
+            ['NOT_FOUND', 'ghost food'],
+            ['FAILED', 'failed food'],
+        ])('returns 404 FOOD_NOT_FOUND with %s in details, over a real request', async (status, name) => {
+            const id = await seedFood(status as 'NOT_FOUND' | 'FAILED', name);
             const res = await call('GET', `/api/v1/foods/${id}`, { token: 'user' });
+
             expect(res.status).toBe(404);
-            expect((res.body as { status: string }).status).toBe('NOT_FOUND');
+            const body = foodErrorSchema.parse(res.body);
+            expect(body.code).toBe('FOOD_NOT_FOUND');
+            expect(body.code === 'FOOD_NOT_FOUND' && body.details).toEqual({ id, status });
         });
 
-        it('returns 404 for a FAILED food', async () => {
-            const id = await seedFood('FAILED', 'failed food');
-            const res = await call('GET', `/api/v1/foods/${id}`, { token: 'user' });
+        it('returns 404 FOOD_NOT_FOUND with no status for an unknown id', async () => {
+            const unknownId = ulid();
+            const res = await call('GET', `/api/v1/foods/${unknownId}`, { token: 'user' });
+
             expect(res.status).toBe(404);
-            expect((res.body as { status: string }).status).toBe('FAILED');
+            const body = foodErrorSchema.parse(res.body);
+            expect(body.code === 'FOOD_NOT_FOUND' && body.details).toEqual({ id: unknownId });
         });
 
-        it('returns 404 for an unknown id', async () => {
-            const res = await call('GET', `/api/v1/foods/${ulid()}`, { token: 'user' });
-            expect(res.status).toBe(404);
-        });
-
-        it('returns 400 for a malformed ULID (with a valid token)', async () => {
+        it('returns 400 INVALID_ID for a malformed ULID (with a valid token)', async () => {
             const res = await call('GET', '/api/v1/foods/not-a-ulid', { token: 'user' });
+
             expect(res.status).toBe(400);
+            expect(foodErrorSchema.parse(res.body).code).toBe('INVALID_ID');
         });
 
         /**
@@ -574,10 +586,28 @@ describe.skipIf(!DATABASE_URL)('/api/v1/foods/* HTTP API (booted Nest + real Pos
             expect((res.body as { results: { id: string }[] }).results.map((r) => r.id)).toContain(id);
         });
 
-        it('returns an empty result set (never a source call) for an empty/whitespace query', async () => {
+        /**
+         * ⚠️ THIS ASSERTION WAS INVERTED, and it had gone stale in the working tree rather than being wrong when
+         * written. It expected `200` with an empty result set, which was the behaviour when the controller read a
+         * bare `@Query('query') query?: string` and passed `query ?? ''` to the DAO. `searchFoodQuerySchema` is now
+         * actually BOUND (`.trim().min(1)`), so a whitespace-only term is a `400` — and that is the point of the
+         * change: a caller could not previously tell "no results" from "you sent nothing", and the empty term still
+         * cost a full trigram + full-text scan to produce a guaranteed-empty answer.
+         */
+        it('rejects an empty/whitespace query with 400 VALIDATION_FAILED, naming the field', async () => {
             const res = await call('GET', '/api/v1/foods/search?query=%20%20', { token: 'user' });
-            expect(res.status).toBe(200);
-            expect((res.body as { results: unknown[] }).results).toEqual([]);
+
+            expect(res.status).toBe(400);
+            const body = foodErrorSchema.parse(res.body);
+            expect(body.code).toBe('VALIDATION_FAILED');
+            expect(body.code === 'VALIDATION_FAILED' && body.details.fields.join()).toContain('query');
+        });
+
+        it('rejects an absent query with 400, rather than treating it as the empty string', async () => {
+            const res = await call('GET', '/api/v1/foods/search', { token: 'user' });
+
+            expect(res.status).toBe(400);
+            expect(foodErrorSchema.parse(res.body).code).toBe('VALIDATION_FAILED');
         });
     });
 

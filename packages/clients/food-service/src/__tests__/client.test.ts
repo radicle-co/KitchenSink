@@ -1,7 +1,17 @@
 /**
- * Unit tests for {@link FoodServiceClient} (T-057) with a mocked `fetch`: request build (URL, method,
- * body, bearer-token attach from a literal and a callback) + status mapping (`202`/`200` → typed
- * results; `401`/`403`/`400`/`404`/`409`/`503` → typed errors; `CandidateMismatch` → `409`, no `429`).
+ * Unit tests for {@link FoodServiceClient} (T-057) with a mocked `fetch`: request build (URL, method, body,
+ * bearer-token attach from a literal and a callback) + response mapping (`202`/`200` → typed results; the coded
+ * error envelope → typed errors; no `429`).
+ *
+ * ⚠️ EVERY ERROR BODY BELOW IS THE ONE ENVELOPE — `{ code, message, details? }`. The food service published three
+ * error shapes until 2026-08-12 and this client discriminated a `409` with `/candidate/i.test(body.error)`; both
+ * are gone. Discrimination is on the stable `code`.
+ *
+ * These are still LITERALS, i.e. this file's own belief about the server, which is the limitation §15.1 names. The
+ * body the SERVICE actually produces is driven through this client for real in
+ * `packages/services/food-service/src/common/__tests__/error-contract-lockstep.test.ts` — that is the tier that
+ * fails when only one side of the contract moves. Cases here cover what that tier cannot: an unknown code, and a
+ * non-envelope body.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -138,10 +148,14 @@ describe('FoodServiceClient — getById result mapping', () => {
         expect(result).toEqual({ status: 'PENDING', id: 'food_2', estimatedWaitSeconds: 30 });
     });
 
-    it('404 → NotFoundError carrying the terminal food status', async () => {
+    it('404 → NotFoundError carrying the terminal food status from details', async () => {
         const client = new FoodServiceClient({
             baseUrl: BASE,
-            fetch: stubFetch(404, { error: 'Food not found', id: 'food_3', status: 'NOT_FOUND' }),
+            fetch: stubFetch(404, {
+                code: 'FOOD_NOT_FOUND',
+                message: 'No source has this food; tombstoned until TTL (default 30 days)',
+                details: { id: 'food_3', status: 'NOT_FOUND' },
+            }),
         });
 
         const error = await client.getById('food_3').catch((caught: unknown) => caught);
@@ -154,12 +168,18 @@ describe('FoodServiceClient — getById result mapping', () => {
 
 describe('FoodServiceClient — status → typed error mapping', () => {
     it('401 → UnauthorizedError', async () => {
-        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(401, { error: 'nope' }) });
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(401, { code: 'UNAUTHORIZED', message: 'nope' }),
+        });
         await expect(client.addByName('x')).rejects.toBeInstanceOf(UnauthorizedError);
     });
 
     it('403 → ForbiddenError', async () => {
-        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(403, { error: 'no scope' }) });
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(403, { code: 'FORBIDDEN', message: 'no scope' }),
+        });
         await expect(client.addByName('x')).rejects.toBeInstanceOf(ForbiddenError);
     });
 
@@ -167,14 +187,29 @@ describe('FoodServiceClient — status → typed error mapping', () => {
     // reachable at all now that the request schema runs first. `'x'` is a legal `addFoodRequestSchema` name, so
     // the request goes out and the service's rejection is what produces the error.
     it('400 → BadRequestError', async () => {
-        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(400, { error: 'Unavailable' }) });
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(400, {
+                code: 'VALIDATION_FAILED',
+                message: 'name: too small',
+                details: { fields: ['name'] },
+            }),
+        });
         await expect(client.addByName('x')).rejects.toBeInstanceOf(BadRequestError);
     });
 
     it('503 → FetchUnavailableError with the Retry-After seconds', async () => {
         const client = new FoodServiceClient({
             baseUrl: BASE,
-            fetch: stubFetch(503, { error: 'Fetch temporarily unavailable' }, { 'retry-after': '42' }),
+            fetch: stubFetch(
+                503,
+                {
+                    code: 'FETCH_UNAVAILABLE',
+                    message: 'Fetch temporarily unavailable',
+                    details: { retryAfterSeconds: 42 },
+                },
+                { 'retry-after': '42' },
+            ),
         });
 
         const error = await client.addByName('x').catch((caught: unknown) => caught);
@@ -183,25 +218,83 @@ describe('FoodServiceClient — status → typed error mapping', () => {
         expect((error as FetchUnavailableError).retryAfterSeconds).toBe(42);
     });
 
-    it('resolve 409 candidate-not-in-set → CandidateMismatchError (DSN-14, never 429)', async () => {
+    it('resolve 409 CANDIDATE_MISMATCH → CandidateMismatchError (DSN-14, never 429)', async () => {
         const client = new FoodServiceClient({
             baseUrl: BASE,
-            fetch: stubFetch(409, { error: "Candidate not in food's candidate set" }),
+            // Note the message says nothing about candidates: the code is the discriminant, and this body is
+            // exactly the one the retired `/candidate/i` regex would have mapped to a plain ConflictError.
+            fetch: stubFetch(409, {
+                code: 'CANDIDATE_MISMATCH',
+                message: 'That selection does not belong to this ingredient',
+                details: { id: 'food_1' },
+            }),
         });
 
         const error = await client.resolve('food_1', ['cand_x']).catch((caught: unknown) => caught);
 
         expect(isCandidateMismatchError(error)).toBe(true);
         expect((error as CandidateMismatchError).status).toBe(409);
+        expect((error as CandidateMismatchError).id).toBe('food_1');
     });
 
-    it('resolve 409 not-awaiting-disambiguation → ConflictError', async () => {
+    it('resolve 409 NOT_RESOLVABLE → ConflictError, even when the message mentions candidates', async () => {
         const client = new FoodServiceClient({
             baseUrl: BASE,
-            fetch: stubFetch(409, { error: 'Food is not awaiting disambiguation', status: 'RESOLVED' }),
+            // The mirror-image trap: prose containing "candidate" on the body that must NOT become a
+            // CandidateMismatchError. Under the old regex this test fails.
+            fetch: stubFetch(409, {
+                code: 'NOT_RESOLVABLE',
+                message: 'This ingredient has no candidate list to choose from',
+                details: { id: 'food_1', status: 'RESOLVED' },
+            }),
         });
 
-        await expect(client.resolve('food_1', ['cand_x'])).rejects.toBeInstanceOf(ConflictError);
+        const error = await client.resolve('food_1', ['cand_x']).catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(ConflictError);
+        expect(isCandidateMismatchError(error)).toBe(false);
+    });
+
+    /**
+     * FORWARD COMPATIBILITY, which is the other half of keying on `code`. A DEPLOYED service adds codes ahead of
+     * a released mobile binary, so an unrecognised code must degrade to "map by status alone" — never crash with
+     * a `ZodError` out of the error mapper, and never be coerced into a code this build does know.
+     */
+    it('maps a code it has not been taught by STATUS, without crashing', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(409, { code: 'FOOD_ON_FIRE', message: 'a code from a newer service' }),
+        });
+
+        const error = await client.resolve('food_1', ['cand_x']).catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(ConflictError);
+        expect(isCandidateMismatchError(error)).toBe(false);
+        // The envelope still parsed, so the server's message survives for a human reading a log.
+        expect((error as ConflictError).message).toBe('a code from a newer service');
+    });
+
+    /**
+     * The ALB case (ADR-0003): during every deploy the shared internet-facing load balancer answers `502`/`503`/
+     * `504` with an HTML page, and its default rule answers an unmatched host with `404 text/plain`. None of that
+     * is our envelope, and the error mapper must still produce the right typed error rather than throwing.
+     */
+    it('maps a body that is not our envelope at all by status, without throwing', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(
+                503,
+                { html: '<html>503 Service Temporarily Unavailable</html>' },
+                {
+                    'retry-after': '5',
+                },
+            ),
+        });
+
+        const error = await client.addByName('kale').catch((caught: unknown) => caught);
+
+        expect(isFetchUnavailableError(error)).toBe(true);
+        expect((error as FetchUnavailableError).retryAfterSeconds).toBe(5);
     });
 
     it('PATCH resolve sends the candidateIds body and returns RESOLVED on 200', async () => {
@@ -438,11 +531,10 @@ describe('FoodServiceClient — a drifted response FAILS at the boundary, not de
             // A field is present but the WRONG TYPE — the case a presence-only check would miss.
             ['search: `results` is an object, not an array', 200, { results: {} }, (c) => c.search('kale')],
             ['getStatus: `status` is a number', 200, { id: 'f', status: 7 }, (c) => c.getStatus('f')],
-            // A 202 answered with a status only a 200/404 may carry. `pendingResponseSchema.status` is the FULL
-            // five-value enum (a looseness in the service's own contract, noted in `client.ts`), so this is
-            // caught by the client's extra `pendingFoodStatusSchema` parse — without which a `GetFoodResult`
-            // would carry a status outside its own declared union and every exhaustive `switch` on it would
-            // silently fall through.
+            // A 202 answered with a status only a 200/404 may carry. `pendingResponseSchema.status` is now the
+            // TWO-value enum in the service's own published contract, so the single envelope parse rejects it —
+            // this used to need a second, client-side re-narrowing to catch, because the published response type
+            // admitted all five values and a `GetFoodResult` could carry a status outside its own union.
             [
                 'getById 202: a terminal `NOT_FOUND` status',
                 202,

@@ -35,12 +35,11 @@ export type {
     BatchResponse,
     CandidateView,
     CandidatesResponse,
-    ControllerError,
-    ErrorResponse,
+    FoodError,
+    FoodErrorCode,
     FoodResponse,
     FoodStatus,
     GetFoodResult,
-    NestHttpError,
     NutrientView,
     PendingFoodStatus,
     PendingResponse,
@@ -49,6 +48,7 @@ export type {
     SearchResponse,
     SearchResultView,
     StatusResponse,
+    TerminalFoodStatus,
 } from '@kitchensink/schema-food';
 
 import type {

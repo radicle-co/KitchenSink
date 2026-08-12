@@ -8,41 +8,18 @@ import {
     isFoodPendingError,
     isNotResolvableError,
 } from '../../foods/foods.errors.js';
+import { foodErrorCodeSchema, type FoodErrorCode } from '../../foods/foods.schema.js';
 import { ConsoleWorkerLogger, type LogContext, type WorkerLogger } from '../../worker/worker-logger.js';
+import { codeForStatus, FOOD_ERROR_STATUS } from '../api-error.js';
 import type { ApiErrorBody } from '../api-error.schema.js';
 
 /**
- * Machine-readable error codes surfaced to `/api/v1/foods/*` clients. One code per food domain error, so a
- * client (and the sibling identity/recipe services) can branch on a stable `code` string instead of a
- * localized `message`. Kept as an enum so {@link FOOD_ERROR_STATUS} is exhaustive over it at compile time.
+ * The published failure codes, by name. AUTHORED in `../../foods/foods.schema.ts` (`foodErrorCodeSchema`) and
+ * published to every consumer through `@kitchensink/schema-food`, so the code this filter writes and the code a
+ * client branches on are ONE definition. It was a TS `enum` local to this file until 2026-08-12, which meant the
+ * discriminant a consumer needed most was the one thing the contract did not publish.
  */
-export enum FoodErrorCode {
-    FOOD_PENDING = 'FOOD_PENDING',
-    FOOD_NOT_FOUND = 'FOOD_NOT_FOUND',
-    CANDIDATE_MISMATCH = 'CANDIDATE_MISMATCH',
-    NOT_RESOLVABLE = 'NOT_RESOLVABLE',
-    FETCH_UNAVAILABLE = 'FETCH_UNAVAILABLE',
-    /** Generic bucket for any un-mapped throwable — always paired with a 500 and an empty body. */
-    INTERNAL_ERROR = 'INTERNAL_ERROR',
-    /** A request body/query the globally bound `ZodValidationPipe` rejected — always a 400. */
-    VALIDATION_FAILED = 'VALIDATION_FAILED',
-}
-
-/**
- * Canonical, exhaustive mapping from each {@link FoodErrorCode} to the HTTP status the API surfaces —
- * anchored to the `FoodsController` / FR-051 contract (`FOOD_PENDING` → 202, `FOOD_NOT_FOUND` → 404,
- * candidate/lifecycle conflicts → 409, `FETCH_UNAVAILABLE` → 503, everything else → 500). Kept as a
- * complete `Record` so adding a new code fails to compile until it is mapped — there is no silent default.
- */
-export const FOOD_ERROR_STATUS: Record<FoodErrorCode, number> = {
-    [FoodErrorCode.FOOD_PENDING]: HttpStatus.ACCEPTED,
-    [FoodErrorCode.FOOD_NOT_FOUND]: HttpStatus.NOT_FOUND,
-    [FoodErrorCode.CANDIDATE_MISMATCH]: HttpStatus.CONFLICT,
-    [FoodErrorCode.NOT_RESOLVABLE]: HttpStatus.CONFLICT,
-    [FoodErrorCode.FETCH_UNAVAILABLE]: HttpStatus.SERVICE_UNAVAILABLE,
-    [FoodErrorCode.INTERNAL_ERROR]: HttpStatus.INTERNAL_SERVER_ERROR,
-    [FoodErrorCode.VALIDATION_FAILED]: HttpStatus.BAD_REQUEST,
-};
+const CODE = foodErrorCodeSchema.enum;
 
 /**
  * Render ONE zod issue as a human-readable constraint, prefixed with the field it failed on. Pure.
@@ -84,12 +61,9 @@ function describeIssue(issue: unknown): string | undefined {
  * not one.
  *
  * WHY THIS EXISTS. `ZodValidationPipe` throws a `ZodValidationException` whose response body is
- * `{ statusCode, message: 'Validation failed', errors: [...issues] }`. This filter passes an `HttpException`'s
- * body through UNCHANGED, so binding the pipe without this branch would have put a FOURTH error shape on the
- * wire — one that matches none of the three `errorResponseSchema` documents, and whose fixed `message` string
- * discards both the field names and the issues. Normalizing here means the pipe's arrival adds no new shape:
- * a rejection is `{ code: 'VALIDATION_FAILED', message, details.fields }`, which is `apiErrorSchema`, the
- * envelope identity and recipe already emit.
+ * `{ statusCode, message: 'Validation failed', errors: [...issues] }` — a fixed `message` that discards both the
+ * field names and the issues. Without this branch the generic normalization below would faithfully publish that
+ * useless string, telling a caller their request was invalid and nothing about which part.
  *
  * The `errors` key is matched STRUCTURALLY rather than with `instanceof ZodValidationException`: the input here
  * is the serialized response body, and a duck-typed match cannot be defeated by a duplicated `nestjs-zod`
@@ -112,12 +86,112 @@ function asValidationEnvelope(body: unknown): ApiErrorBody | undefined {
     const fields = rawErrors.map(describeIssue).filter((field): field is string => field !== undefined);
 
     // An `errors` array with nothing renderable in it must not manufacture an empty `details.fields` or a blank
-    // `message` — fall through and let the body pass as it did before.
+    // `message` — fall through to the generic normalization instead.
     if (fields.length === 0) {
         return undefined;
     }
 
-    return { code: FoodErrorCode.VALIDATION_FAILED, message: fields.join(', '), details: { fields } };
+    return { code: CODE.VALIDATION_FAILED, message: fields.join(', '), details: { fields } };
+}
+
+/** Body keys the framework owns; never lifted into `details`, because they duplicate the envelope. */
+const FRAMEWORK_KEYS = new Set(['statusCode', 'message', 'error', 'code', 'details', 'errors']);
+
+/** Last-resort `message` when neither the body nor the exception offers a non-empty one. */
+const UNSPECIFIED_MESSAGE = 'Request failed';
+
+/**
+ * A body that is ALREADY the envelope, taken verbatim. `undefined` when it is not one.
+ *
+ * This branch is what keeps a deliberate code from being overwritten by a status-derived one — the case that
+ * matters is `IDENTITY_SYNC_PENDING` versus a plain `UNAUTHORIZED`: both are `401`s, they need different
+ * handling ("retry with a refreshed token" versus "sign in"), and a status-keyed derivation flattens them into
+ * one. It also means {@link apiError}'s output passes through untransformed.
+ *
+ * The envelope is REBUILT from the recognised keys rather than spread: a body of `{ code, message, id }` must not
+ * publish a stray top-level `id`, because "extras live in `details`" is the property the one-shape contract rests
+ * on. Dropping it here is what makes the omission visible in a test rather than on the wire.
+ *
+ * @param body - The `HttpException`'s response body.
+ * @param fallbackMessage - `exception.message`, used when the body names a code but no message.
+ * @returns The envelope, or `undefined`. Pure.
+ */
+function asExplicitEnvelope(body: unknown, fallbackMessage: string): ApiErrorBody | undefined {
+    if (body === null || typeof body !== 'object') {
+        return undefined;
+    }
+
+    const record = body as Record<string, unknown>;
+    const code = record['code'];
+
+    if (typeof code !== 'string' || code.length === 0) {
+        return undefined;
+    }
+
+    // A `code` with NO message is still an explicit code, and losing it would flatten the very distinction this
+    // branch exists to protect. The message falls back to the exception's; only the code is load-bearing.
+    const raw = record['message'];
+    const message = typeof raw === 'string' && raw.length > 0 ? raw : fallbackMessage;
+    const details = record['details'];
+
+    return details !== null && typeof details === 'object' && !Array.isArray(details)
+        ? {
+              code,
+              message: message.length > 0 ? message : UNSPECIFIED_MESSAGE,
+              details: details as Record<string, unknown>,
+          }
+        : { code, message: message.length > 0 ? message : UNSPECIFIED_MESSAGE };
+}
+
+/**
+ * The best available `message` for a framework body, plus any caller-relevant extras lifted into `details`.
+ *
+ * Handles every body shape Nest can hand us, and the legacy controller shape it used to pass through:
+ *
+ *  - a bare STRING (`new HttpException('teapot', 418)`, and every `new UnauthorizedException('…')`);
+ *  - `{ statusCode, message, error }` — Nest's own object body;
+ *  - `{ message: [...] }` — the array form Nest builds for a multi-constraint rejection;
+ *  - `{ error: 'A label', …extras }` — the pre-convergence controller payload. `error` is used only when there
+ *    is no `message`, because in Nest's own body `error` is the STATUS TEXT (`'Unauthorized'`) and publishing
+ *    that as the message would be strictly less informative than what is beside it;
+ *  - anything else (a number, an array) — falls back to `exception.message`, which Nest always populates.
+ *
+ * @param body - The `HttpException`'s response body.
+ * @param fallbackMessage - `exception.message`, used when the body carries none.
+ * @returns The message and, when the body carried extras, the `details` to publish them under. Pure.
+ */
+function describeBody(body: unknown, fallbackMessage: string): { message: string; details?: Record<string, unknown> } {
+    if (typeof body === 'string') {
+        return { message: body.length > 0 ? body : fallbackMessage };
+    }
+
+    if (body === null || typeof body !== 'object') {
+        return { message: fallbackMessage.length > 0 ? fallbackMessage : UNSPECIFIED_MESSAGE };
+    }
+
+    const record = body as Record<string, unknown>;
+    const rawMessage = record['message'];
+    const rawError = record['error'];
+    let message = fallbackMessage;
+
+    if (Array.isArray(rawMessage)) {
+        message = rawMessage.join(', ');
+    } else if (typeof rawMessage === 'string' && rawMessage.length > 0) {
+        message = rawMessage;
+    } else if (typeof rawError === 'string' && rawError.length > 0) {
+        message = rawError;
+    }
+
+    const extras = Object.fromEntries(Object.entries(record).filter(([key]) => !FRAMEWORK_KEYS.has(key)));
+    const resolved = message.length > 0 ? message : UNSPECIFIED_MESSAGE;
+
+    // A `message` array is Nest's per-field rejection shape, so it is published as `details.fields` — the same
+    // key the zod path uses, so a client reads one place regardless of which validator rejected it.
+    if (Array.isArray(rawMessage)) {
+        return { message: resolved, details: { ...extras, fields: rawMessage } };
+    }
+
+    return Object.keys(extras).length === 0 ? { message: resolved } : { message: resolved, details: extras };
 }
 
 // The envelope is AUTHORED as zod in `../api-error.schema.ts` and published via `@kitchensink/schema-food`
@@ -126,100 +200,134 @@ function asValidationEnvelope(body: unknown): ApiErrorBody | undefined {
 // where every existing import site expects to find it.
 export type { ApiErrorBody } from '../api-error.schema.js';
 
-/** A classified food domain error: its stable code plus any extra `details` / `Retry-After` seconds. */
-interface ClassifiedFoodError {
-    code: FoodErrorCode;
-    details?: Record<string, unknown>;
-    retryAfterSeconds?: number;
-}
+/**
+ * An {@link ApiErrorBody} whose `code` is one of the PUBLISHED codes.
+ *
+ * Written as an intersection rather than a fresh interface on purpose: it stays THE authored envelope type — so a
+ * change to `api-error.schema.ts` still reaches this file — while narrowing `code` enough that
+ * {@link FOOD_ERROR_STATUS}, which is exhaustive over exactly those codes, can be indexed with it without a cast.
+ */
+type ClassifiedEnvelope = ApiErrorBody & { readonly code: FoodErrorCode };
 
 /**
- * Classify a thrown value as one of the food domain errors, or `undefined` when it is not one. Every
- * `foods.errors` type is handled here; the type guards keep this in lockstep with that module.
+ * Classify a thrown value as one of the food domain errors, or `undefined` when it is not one.
+ *
+ * Every `foods.errors` type is handled here and the type guards keep this in lockstep with that module. The
+ * status is NOT decided here: it comes from {@link FOOD_ERROR_STATUS}, the one table `apiError` also reads, so
+ * a domain error and a deliberately-raised code cannot disagree about what a `CANDIDATE_MISMATCH` answers with.
+ *
+ * `details.id` is on every by-id code because `FoodsController` used to put it in its own `{ error, id, status }`
+ * body. Converging the envelope had to preserve the information, not just the status.
+ *
+ * @param exception - The thrown value.
+ * @returns The envelope to publish, or `undefined` when this is not a food domain error. Pure.
  */
-function classifyFoodError(exception: unknown): ClassifiedFoodError | undefined {
+function classifyFoodError(exception: unknown): ClassifiedEnvelope | undefined {
     if (isFoodPendingError(exception)) {
-        const details: Record<string, unknown> = { status: exception.status };
+        const details: Record<string, unknown> = { id: exception.id, status: exception.status };
 
         if (exception.estimatedWaitSeconds !== undefined) {
             details['estimatedWaitSeconds'] = exception.estimatedWaitSeconds;
         }
 
-        return { code: FoodErrorCode.FOOD_PENDING, details };
+        return { code: CODE.FOOD_PENDING, message: exception.message, details };
     }
 
     if (isFoodNotFoundError(exception)) {
-        const details = exception.status !== undefined ? { status: exception.status } : undefined;
+        const details: Record<string, unknown> =
+            exception.status === undefined ? { id: exception.id } : { id: exception.id, status: exception.status };
 
-        return { code: FoodErrorCode.FOOD_NOT_FOUND, details };
+        return { code: CODE.FOOD_NOT_FOUND, message: exception.message, details };
     }
 
     if (isCandidateMismatchError(exception)) {
-        return { code: FoodErrorCode.CANDIDATE_MISMATCH };
+        return { code: CODE.CANDIDATE_MISMATCH, message: exception.message, details: { id: exception.id } };
     }
 
     if (isNotResolvableError(exception)) {
-        return { code: FoodErrorCode.NOT_RESOLVABLE, details: { status: exception.status } };
+        return {
+            code: CODE.NOT_RESOLVABLE,
+            message: exception.message,
+            details: { id: exception.id, status: exception.status },
+        };
     }
 
     if (isFetchUnavailableError(exception)) {
         return {
-            code: FoodErrorCode.FETCH_UNAVAILABLE,
+            code: CODE.FETCH_UNAVAILABLE,
+            message: exception.message,
             details: { retryAfterSeconds: exception.retryAfterSeconds },
-            retryAfterSeconds: exception.retryAfterSeconds,
         };
     }
 
     return undefined;
 }
 
-/** What the filter decided to put on the wire: the status, the body, and the food code when there is one. */
+/** What the filter decided to put on the wire: the status and the envelope (whose `code` drives logging). */
 interface Resolution {
     status: number;
-    body: unknown;
-    code?: FoodErrorCode;
-    retryAfterSeconds?: number;
+    body: ApiErrorBody;
+}
+
+/**
+ * The `Retry-After` seconds a resolution implies, read from the body it is already publishing.
+ *
+ * Derived from `details.retryAfterSeconds` rather than tracked alongside it, so the header and the body cannot
+ * disagree — and so a `FETCH_UNAVAILABLE` raised through {@link apiError} (rather than as the domain error) still
+ * gets the header a `503` is useless without.
+ *
+ * @param body - The envelope being published.
+ * @returns The seconds, or `undefined` when this failure carries no retry advice. Pure.
+ */
+function retryAfterSecondsFor(body: ApiErrorBody): number | undefined {
+    if (body.code !== CODE.FETCH_UNAVAILABLE) {
+        return undefined;
+    }
+
+    const seconds = body.details?.['retryAfterSeconds'];
+
+    return typeof seconds === 'number' && Number.isFinite(seconds) ? seconds : undefined;
 }
 
 /**
  * Decide the wire response for a thrown value. Pure — the whole status/body mapping in one place, so the
  * filter itself only has to execute it (and log it) once.
  *
+ * ⛔ THERE IS NO PASSTHROUGH BRANCH, AND THAT IS THE POINT. Returning `exception.getResponse()` unchanged is what
+ * put THREE error shapes on this service's wire: the envelope, Nest's `{ statusCode, message, error }`, and the
+ * controller's `{ error, …extras }`. Because the guarantee now lives here rather than at each throw site, it also
+ * covers exceptions this service does not raise — the auth guard's string-bodied `401`s, Nest's `404` for an
+ * unrouted path, the body parser's `413` — none of which any amount of controller discipline would have reached.
+ * Do not reintroduce a "pass it through if it looks fine" shortcut: "looks fine" is what the three shapes were.
+ *
  * @param exception - The thrown value.
- * @returns The status, body, and food code to surface.
+ * @returns The status and the envelope to surface.
  */
 function resolve(exception: unknown): Resolution {
     const classified = classifyFoodError(exception);
 
     if (classified) {
-        const body: ApiErrorBody = { code: classified.code, message: (exception as Error).message };
-
-        if (classified.details !== undefined) {
-            body.details = classified.details;
-        }
-
-        const resolution: Resolution = { status: FOOD_ERROR_STATUS[classified.code], body, code: classified.code };
-
-        return classified.retryAfterSeconds === undefined
-            ? resolution
-            : { ...resolution, retryAfterSeconds: classified.retryAfterSeconds };
+        return { status: FOOD_ERROR_STATUS[classified.code], body: classified };
     }
 
     if (exception instanceof HttpException) {
+        const status = exception.getStatus();
         const body = exception.getResponse();
-        const validation = asValidationEnvelope(body);
+        const envelope = asExplicitEnvelope(body, exception.message) ?? asValidationEnvelope(body);
 
-        // A pipe rejection becomes the shared envelope; every other `HttpException` body still passes through
-        // unchanged, so the controller's FR-051 mapping and the auth guard's `401`s are untouched.
-        return validation === undefined
-            ? { status: exception.getStatus(), body }
-            : { status: exception.getStatus(), body: validation, code: FoodErrorCode.VALIDATION_FAILED };
+        if (envelope !== undefined) {
+            return { status, body: envelope };
+        }
+
+        const { message, details } = describeBody(body, exception.message);
+        const code = codeForStatus(status);
+
+        return { status, body: details === undefined ? { code, message } : { code, message, details } };
     }
 
     return {
         status: HttpStatus.INTERNAL_SERVER_ERROR,
-        body: { code: FoodErrorCode.INTERNAL_ERROR, message: 'Internal server error' } satisfies ApiErrorBody,
-        code: FoodErrorCode.INTERNAL_ERROR,
+        body: { code: CODE.INTERNAL_ERROR, message: 'Internal server error' },
     };
 }
 
@@ -299,11 +407,14 @@ function requestFacts(request: Request | undefined): LogContext {
 }
 
 /**
- * Global exception filter for the food service (registered as an `APP_FILTER` provider). Mirrors the
- * recipe service's filter: it translates thrown food domain errors into their mapped HTTP status with a
- * structured `{ code, message, details? }` body (setting `Retry-After` for `FetchUnavailableError`),
- * passes framework {@link HttpException}s (validation/auth/the controller's FR-051 mapping) through
- * untouched, and collapses every other throwable to a generic 500 that never leaks internal detail.
+ * Global exception filter for the food service (registered as an `APP_FILTER` provider).
+ *
+ * **IT IS THE SINGLE AUTHOR OF EVERY ERROR BODY THIS SERVICE EMITS.** A thrown food domain error becomes the
+ * `{ code, message, details? }` envelope at the status {@link FOOD_ERROR_STATUS} assigns it; ANY
+ * {@link HttpException} — whoever raised it, whatever body it carries — is normalized into that same envelope;
+ * and every other throwable collapses to a generic 500 that leaks no internal detail. Making that a property of
+ * this class rather than of every throw site is what let three published error shapes become one (see
+ * {@link resolve}).
  *
  * **It also LOGS the failure (T-151), which it previously did not.** An unclassified throwable used to
  * return a 500 and leave no trace anywhere: no line on the container's stdout, and — since the food API
@@ -333,9 +444,10 @@ export class ApiExceptionFilter implements ExceptionFilter {
         this.record(exception, resolution, http.getRequest<Request | undefined>());
 
         const response = http.getResponse<Response>();
+        const retryAfterSeconds = retryAfterSecondsFor(resolution.body);
 
-        if (resolution.retryAfterSeconds !== undefined) {
-            response.setHeader('Retry-After', String(resolution.retryAfterSeconds));
+        if (retryAfterSeconds !== undefined) {
+            response.setHeader('Retry-After', String(retryAfterSeconds));
         }
 
         response.status(resolution.status).json(resolution.body);
@@ -364,7 +476,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
             const described = describeThrowable(exception);
             const context: LogContext = {
                 status: resolution.status,
-                ...(resolution.code === undefined ? {} : { code: resolution.code }),
+                // Always present now: every resolution carries a code, including the status-derived one for a
+                // framework failure. A log query can therefore group by `code` without a missing-field arm.
+                code: resolution.body.code,
                 ...requestFacts(request),
                 errorName: described.errorName,
                 errorMessage: described.errorMessage,

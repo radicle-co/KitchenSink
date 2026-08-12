@@ -18,6 +18,7 @@ import {
     FoodServiceClient,
     isBadRequestError,
     isFetchUnavailableError,
+    isInvalidRequestError,
     isUnauthorizedError,
 } from '@kitchensink/food-service-client';
 import pg from 'pg';
@@ -187,9 +188,41 @@ describe.skipIf(!DATABASE_URL)('@kitchensink/food-service-client against the boo
         expect((await pool.query('SELECT count(*)::int AS n FROM food')).rows[0].n).toBe(0);
     });
 
-    it('an empty name surfaces a typed BadRequestError', async () => {
+    /**
+     * ⚠️ THIS ASSERTION WAS STALE, and the distinction it was collapsing is the one the client's error hierarchy
+     * exists to preserve. It expected a `BadRequestError` — "the SERVER answered 400" — for a body that never
+     * leaves the process: the client now parses every outbound body against the same published request schema the
+     * service validates with (ADR-0014, outbound half), and `'   '` is illegal per `addFoodRequestSchema`, so this
+     * is the CALLER's own bug and no request is issued. `InvalidRequestError` says exactly that, and a retry with
+     * the same body cannot work; a `BadRequestError` would have meant the opposite (a legal body the server
+     * rejected anyway — genuine skew, worth alerting on).
+     */
+    it("an empty name is the CALLER's error, rejected before a request is issued", async () => {
         const error = await client.addByName('   ').catch((caught: unknown) => caught);
+
+        expect(isInvalidRequestError(error)).toBe(true);
+        expect(isBadRequestError(error)).toBe(false);
+        // Proof it never reached the service: an accepted add would have created a `food` row.
+        expect((await pool.query('SELECT count(*)::int AS n FROM food')).rows[0].n).toBe(0);
+    });
+
+    /**
+     * The other half, which nothing covered: a body the client's schema ACCEPTS and the server rejects anyway.
+     *
+     * `batchAddFoodRequestSchema` deliberately carries no `.max()` — the cap is `FOOD_MAX_BATCH_NAMES`, runtime
+     * configuration, and duplicating it in the contract would be a second representation that disagrees the moment
+     * it is tuned. So the oversized batch really goes out, really comes back a `400`, and this is the case that
+     * proves the client maps the SERVER's coded rejection (`BATCH_TOO_LARGE`) rather than only its own.
+     */
+    it("an oversized batch surfaces the SERVER's typed BadRequestError", async () => {
+        const names = Array.from({ length: 101 }, (_, index) => `bulk food ${index}`);
+
+        const error = await client.batch(names).catch((caught: unknown) => caught);
+
         expect(isBadRequestError(error)).toBe(true);
+        expect(isInvalidRequestError(error)).toBe(false);
+        // The configured cap is reported in the message, so a caller can re-chunk without guessing it.
+        expect((error as Error).message).toContain('100');
     });
 
     it('accepts an azp-allowlisted M2M token (FR-047)', async () => {

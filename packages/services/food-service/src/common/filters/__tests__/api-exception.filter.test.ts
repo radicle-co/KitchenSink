@@ -4,7 +4,12 @@
  *
  * - each food domain error → its mapped status + `{ code, message, details? }` (and `Retry-After` for
  *   `FetchUnavailableError`);
- * - a framework `HttpException` passes through untouched (the controller's FR-051 wire contract);
+ * - **EVERY `HttpException` is NORMALIZED into the envelope — there is no passthrough.** This is the
+ *   load-bearing case of the 2026-08-12 convergence: the filter used to return `exception.getResponse()`
+ *   unchanged, which is how Nest's `{ statusCode, message, error }` and the controller's `{ error, …extras }`
+ *   both reached the wire alongside the envelope. Because the guarantee lives HERE and not at the throw sites,
+ *   it holds for exceptions this service does not raise itself — a bare string `401` from `FoodAuthGuard`, a
+ *   framework `404` on an unrouted path, a `413` from the body parser.
  * - any other throwable collapses to a generic 500 whose body leaks no internal detail.
  *
  * **And that the failure is OBSERVABLE (T-151).** The filter used to log NOTHING, so a genuine 500 —
@@ -14,10 +19,18 @@
  * policy — which statuses log at which level, what the record must carry, and above all what it must
  * NEVER carry (the `Authorization` header, a bearer token, the request body, the query string).
  */
-import { BadRequestException, HttpException, HttpStatus, type ArgumentsHost } from '@nestjs/common';
+import {
+    BadRequestException,
+    HttpException,
+    HttpStatus,
+    UnauthorizedException,
+    type ArgumentsHost,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { ZodValidationPipe } from 'nestjs-zod';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AddFoodBodyDto } from '../../../foods/dto/foods.dto.js';
 import {
     CandidateMismatchError,
     FetchUnavailableError,
@@ -25,8 +38,13 @@ import {
     FoodPendingError,
     NotResolvableError,
 } from '../../../foods/foods.errors.js';
+import { foodErrorCodeSchema, foodErrorSchema } from '../../../foods/foods.schema.js';
 import type { LogContext, WorkerLogger } from '../../../worker/worker-logger.js';
-import { ApiExceptionFilter, FoodErrorCode } from '../api-exception.filter.js';
+import { apiErrorSchema } from '../../api-error.schema.js';
+import { ApiExceptionFilter } from '../api-exception.filter.js';
+
+/** The published codes, by name — the discriminant a consumer branches on. */
+const FoodErrorCode = foodErrorCodeSchema.enum;
 
 const VALID_ID = '01J9ZZZZZZZZZZZZZZZZZZZZZZ';
 
@@ -119,16 +137,22 @@ describe('ApiExceptionFilter (food)', () => {
         expect(captured.status).toBe(HttpStatus.NOT_FOUND);
         expect(captured.body).toEqual({
             code: FoodErrorCode.FOOD_NOT_FOUND,
-            message: `Food '${VALID_ID}' not found`,
-            details: { status: 'NOT_FOUND' },
+            message: 'No source has this food; tombstoned until TTL (default 30 days)',
+            // `id` is in the body because the CONTROLLER used to put it there, in its own `{ error, id, status }`
+            // shape. Converging the envelope must not lose information a consumer had.
+            details: { id: VALID_ID, status: 'NOT_FOUND' },
         });
     });
 
-    it('maps CandidateMismatchError / NotResolvableError → 409', () => {
+    it('maps CandidateMismatchError / NotResolvableError → 409, distinguishable by code alone', () => {
         const a = makeHost();
         filter.catch(new CandidateMismatchError(VALID_ID), a.host);
         expect(a.captured.status).toBe(HttpStatus.CONFLICT);
-        expect((a.captured.body as { code: string }).code).toBe(FoodErrorCode.CANDIDATE_MISMATCH);
+        expect(a.captured.body).toEqual({
+            code: FoodErrorCode.CANDIDATE_MISMATCH,
+            message: `A picked candidate is not in food '${VALID_ID}' candidate set`,
+            details: { id: VALID_ID },
+        });
 
         const b = makeHost();
         filter.catch(new NotResolvableError(VALID_ID, 'PENDING'), b.host);
@@ -136,8 +160,15 @@ describe('ApiExceptionFilter (food)', () => {
         expect(b.captured.body).toEqual({
             code: FoodErrorCode.NOT_RESOLVABLE,
             message: `Food '${VALID_ID}' is PENDING, not UNRESOLVED`,
-            details: { status: 'PENDING' },
+            details: { id: VALID_ID, status: 'PENDING' },
         });
+
+        // THE REGRESSION GUARD. Both are 409s; the status cannot tell them apart, and the old client told them
+        // apart with `/candidate/i.test(body.error)`. The codes must differ, and each body must satisfy the
+        // PUBLISHED typed union — otherwise a consumer is back to reading prose.
+        expect((a.captured.body as { code: string }).code).not.toBe((b.captured.body as { code: string }).code);
+        expect(foodErrorSchema.safeParse(a.captured.body).success).toBe(true);
+        expect(foodErrorSchema.safeParse(b.captured.body).success).toBe(true);
     });
 
     it('maps FetchUnavailableError → 503 and sets Retry-After', () => {
@@ -163,18 +194,8 @@ describe('ApiExceptionFilter (food)', () => {
         expect(captured.body).toEqual({
             code: FoodErrorCode.FOOD_PENDING,
             message: `Food '${VALID_ID}' is PENDING`,
-            details: { status: 'PENDING', estimatedWaitSeconds: 15 },
+            details: { id: VALID_ID, status: 'PENDING', estimatedWaitSeconds: 15 },
         });
-    });
-
-    it('passes a framework HttpException through untouched', () => {
-        const { host, captured } = makeHost();
-        const exception = new BadRequestException({ error: 'Invalid id' });
-
-        filter.catch(exception, host);
-
-        expect(captured.status).toBe(HttpStatus.BAD_REQUEST);
-        expect(captured.body).toEqual({ error: 'Invalid id' });
     });
 
     it('collapses an unknown throwable to a generic 500 with no leaked detail', () => {
@@ -189,12 +210,129 @@ describe('ApiExceptionFilter (food)', () => {
         expect(JSON.stringify(captured.body)).not.toContain('hunter2');
     });
 
-    it('does not treat a plain HttpException-subclass status as a food domain error', () => {
-        // A raw HttpException (e.g. a 418) must fall to the passthrough branch, never the 500 bucket.
-        const { host, captured } = makeHost();
-        filter.catch(new HttpException('teapot', 418), host);
-        expect(captured.status).toBe(418);
-        expect(captured.body).toBe('teapot');
+    /**
+     * THE CONVERGENCE. Each case below is a body shape that used to reach the wire verbatim, and the point of
+     * every one is the same: the envelope guarantee is the FILTER's, so no throw site can opt out of it.
+     */
+    describe('normalizes every HttpException into the one envelope', () => {
+        it('turns a bare STRING body into { code, message } — how the auth guard raises every 401', () => {
+            // `FoodAuthGuard` (not this agent's territory, and not required to change) throws
+            // `new UnauthorizedException('Valid Clerk session or M2M token required')`. Nest renders that as
+            // `{ statusCode: 401, message: '…', error: 'Unauthorized' }` — shape #2 of the old three.
+            const { host, captured } = makeHost();
+
+            filter.catch(new UnauthorizedException('Valid Clerk session or M2M token required'), host);
+
+            expect(captured.status).toBe(HttpStatus.UNAUTHORIZED);
+            expect(captured.body).toEqual({
+                code: FoodErrorCode.UNAUTHORIZED,
+                message: 'Valid Clerk session or M2M token required',
+            });
+        });
+
+        it("turns Nest's own { statusCode, message, error } object body into the envelope", () => {
+            const { host, captured } = makeHost();
+
+            // What `new HttpException()` with no message produces: Nest fills the body itself.
+            filter.catch(new BadRequestException(), host);
+
+            expect(captured.status).toBe(HttpStatus.BAD_REQUEST);
+            expect(captured.body).toEqual({ code: 'BAD_REQUEST', message: 'Bad Request' });
+            expect(JSON.stringify(captured.body)).not.toContain('statusCode');
+        });
+
+        it('turns the legacy { error, …extras } controller body into the envelope, losing no extras', () => {
+            // Shape #3. No controller in this service raises it any more, but a MISSED site — or a new one added
+            // by someone who has not read this — must still leave as the envelope rather than as a fourth shape.
+            const { host, captured } = makeHost();
+
+            filter.catch(new BadRequestException({ error: 'Batch too large', maxNames: 100 }), host);
+
+            expect(captured.status).toBe(HttpStatus.BAD_REQUEST);
+            expect(captured.body).toEqual({
+                code: 'BAD_REQUEST',
+                message: 'Batch too large',
+                details: { maxNames: 100 },
+            });
+        });
+
+        it('PRESERVES an explicit code, message and details rather than re-deriving from the status', () => {
+            // This is what `apiError()` produces, and it is also how `IDENTITY_SYNC_PENDING` survives: two
+            // distinct 401s that a status-derived code would flatten into one.
+            const { host, captured } = makeHost();
+            const body = {
+                code: FoodErrorCode.IDENTITY_SYNC_PENDING,
+                message: 'App-user identity (external_id) not yet available.',
+                details: { retryWithRefreshedToken: true },
+            };
+
+            filter.catch(new HttpException(body, HttpStatus.UNAUTHORIZED), host);
+
+            expect(captured.status).toBe(HttpStatus.UNAUTHORIZED);
+            expect(captured.body).toEqual(body);
+        });
+
+        it('renders a REAL ZodValidationPipe rejection as VALIDATION_FAILED with the offending fields', () => {
+            // Driven through the actual pipe, not a hand-shaped body: a `nestjs-zod` change to where the issues
+            // live fails this test instead of quietly degrading the wire to `message: 'Validation failed'`.
+            const pipe = new ZodValidationPipe();
+            const { host, captured } = makeHost();
+            let rejection: unknown;
+
+            try {
+                pipe.transform({ name: '   ' }, { type: 'body', metatype: AddFoodBodyDto } as never);
+            } catch (error) {
+                rejection = error;
+            }
+
+            filter.catch(rejection, host);
+
+            expect(captured.status).toBe(HttpStatus.BAD_REQUEST);
+            const body = captured.body as { code: string; message: string; details: { fields: string[] } };
+            expect(body.code).toBe(FoodErrorCode.VALIDATION_FAILED);
+            expect(body.details.fields[0]).toContain('name');
+            expect(body.message).not.toBe('Validation failed');
+        });
+
+        it('normalizes an unmapped status too, without leaking the framework body', () => {
+            const { host, captured } = makeHost();
+
+            filter.catch(new HttpException('teapot', 418), host);
+
+            expect(captured.status).toBe(418);
+            expect(captured.body).toEqual({ code: 'HTTP_418', message: 'teapot' });
+        });
+
+        it('produces a body that satisfies the published envelope for EVERY branch', () => {
+            // The mutation-lens assertion for the whole convergence: one shape means one shape. A branch that
+            // emitted anything else — a raw string, `{ statusCode }`, `{ error }` — fails here.
+            const throwables: unknown[] = [
+                new FoodNotFoundError(VALID_ID, 'FAILED'),
+                new CandidateMismatchError(VALID_ID),
+                new NotResolvableError(VALID_ID, 'PENDING'),
+                new FetchUnavailableError(30),
+                new FoodPendingError(VALID_ID, 'UNRESOLVED'),
+                new UnauthorizedException('nope'),
+                new BadRequestException({ error: 'Invalid id' }),
+                new HttpException('teapot', 418),
+                new HttpException(['an', 'array', 'body'], 400),
+                // A non-object, non-string body: the types forbid it, JavaScript does not, and this filter is
+                // the last thing between it and a caller. The cast reproduces runtime reality on purpose.
+                new HttpException(42 as unknown as string, 400),
+                new Error('boom'),
+                'a bare string',
+                undefined,
+            ];
+
+            for (const throwable of throwables) {
+                const { host, captured } = makeHost();
+                filter.catch(throwable, host);
+
+                const parsed = apiErrorSchema.safeParse(captured.body);
+                expect(parsed.success, `body for ${String(throwable)} is not the envelope`).toBe(true);
+                expect(parsed.success && parsed.data.message.length > 0).toBe(true);
+            }
+        });
     });
 
     /**

@@ -199,6 +199,41 @@ function trustProxyViolations(service: DiscoveredService): readonly string[] {
 }
 
 /**
+ * G6 — no service derives a caller's identity from a client-suppliable HEADER.
+ *
+ * PR #39 removed the `x-authorizer-context` path for a measured reason: both backend services sit behind a
+ * PUBLIC internet-facing ALB (ADR-0003), so any header a client can set is a header an attacker can set. A
+ * service that trusts one has no authentication at all — it has a suggestion. `auth.middleware.ts` is
+ * Bearer-only via `ClerkAuthService.verifyToken`, and CLAUDE.md records the absence of the header path as a
+ * standing property of the architecture.
+ *
+ * ⚠️ This gate exists because the property had DECAYED while every document still asserted it.
+ * `identity/src/auth/middleware/wsAuth.ts` survived the WebSocket's retirement (`e81c1d3d`) as 46 lines that
+ * read `x-authorizer-context` off a socket handshake, base64-decoded it, shape-checked it, and returned it as
+ * an `AuthorizerContext` — with NO signature verification anywhere. It had zero importers, so it was inert;
+ * but it was a loaded, correctly-named helper, and the next person wiring a socket gateway would have found
+ * exactly it. Deleted alongside this gate. Absence of callers is not a security property — a grep that finds
+ * nothing today finds something the moment someone reaches for the obvious name.
+ *
+ * Checks for the STRING in a non-test source, on G1's reasoning: there is no legitimate reason to write a
+ * trusted-identity header name other than to read it. Comments are AST trivia and therefore invisible here,
+ * which is what lets `auth.middleware.ts` keep the docstring explaining why the path does not exist without
+ * the guard reporting its own rationale — the prose-defeats-the-gate trap two of these gates hit in review.
+ *
+ * @param service - The service to check.
+ * @returns One finding per offending file.
+ */
+function trustedIdentityHeaderViolations(service: DiscoveredService): readonly string[] {
+    return service.sources
+        .filter((source) => !isTestFile(source.file))
+        .flatMap((source) =>
+            stringLiterals(source)
+                .filter((literal) => /^x-(authorizer-context|user(-id)?|principal|identity)$/iu.test(literal.trim()))
+                .map((literal) => `${source.file}: derives identity from the client-suppliable '${literal}' header`),
+        );
+}
+
+/**
  * G2 — no route handler takes an UNVALIDATED body.
  *
  * `@Body() body: unknown` is the shape that forces a hand-rolled `safeParse` inside the handler, which is how a
@@ -525,6 +560,18 @@ const VIOLATING_SERVICE: DiscoveredService = {
             `,
         },
         {
+            // The PR #39 shape, rebuilt: a header read, decoded, shape-checked, and trusted as the caller.
+            // Shape-checking is not verifying — it proves the attacker sent well-formed JSON, nothing more.
+            file: 'packages/services/fake-service/src/auth/wsAuth.ts',
+            contents: `
+                // A comment naming x-authorizer-context must NOT count — only the literal below does.
+                export function resolveContext(socket) {
+                    const raw = socket.handshake?.headers?.['x-authorizer-context'];
+                    return JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'));
+                }
+            `,
+        },
+        {
             file: 'packages/services/fake-service/src/things/things.dao.ts',
             contents: `
                 export const bad = (column: string) => db.execute(sql\`select \${sql.raw(column)} from things\`);
@@ -576,6 +623,7 @@ describe('every deployable service satisfies the repo-wide security invariants',
         ['G2 never takes an `unknown`/`any` request body', unvalidatedBodyViolations],
         ['G3 never calls `sql.raw`', sqlRawViolations],
         ['G4 validates every queue/webhook payload', unparsedHandlerViolations],
+        ['G6 never derives identity from a client-suppliable header', trustedIdentityHeaderViolations],
     ] as const)('%s', (_title, check) => {
         expect(services.flatMap((service) => check(service))).toEqual([]);
     });
@@ -609,6 +657,14 @@ describe('every deployable service satisfies the repo-wide security invariants',
             expect(unvalidatedBodyViolations(VIOLATING_SERVICE)).toHaveLength(2);
             expect(unvalidatedBodyViolations(VIOLATING_SERVICE).join('\n')).toContain('@Body() typed as unknown');
             expect(unvalidatedBodyViolations(VIOLATING_SERVICE).join('\n')).toContain('@Body() typed as any');
+        });
+
+        it('G6 catches the header read, and does NOT catch the comment naming it', () => {
+            const findings = trustedIdentityHeaderViolations(VIOLATING_SERVICE);
+
+            expect(findings).toEqual([
+                "packages/services/fake-service/src/auth/wsAuth.ts: derives identity from the client-suppliable 'x-authorizer-context' header",
+            ]);
         });
 
         it('G3 catches a `sql.raw` call', () => {

@@ -3,19 +3,34 @@
  * through the real `cors` middleware Nest's `enableCors` installs.
  *
  * ⚠️ WHY THIS EXISTS SEPARATELY FROM `tests/cors.test.ts`. The option value and the emitted header are NOT
- * the same claim, and the gap between them is a live trap. `cors@2.8.6`'s `configureOrigin` begins:
+ * the same claim, and the gap between them is a live trap — though NOT the one this file used to describe.
+ * `cors@2.8.6`'s `configureOrigin` does open with
+ * `if (!options.origin || options.origin === '*')` → `Access-Control-Allow-Origin: *`, but that branch is
+ * UNREACHABLE for a falsy static option: the package's `middlewareWrapper` tests `corsOptions.origin` first
+ * and calls `next()` without touching a header when it is falsy, so `cors()` — and therefore
+ * `configureOrigin` — never runs. MEASURED here, by booting the real Nest app below with each option value
+ * (`ExpressAdapter.enableCors` is `this.use(cors(options))`, so this is the deployed path):
  *
- * ```js
- * if (!options.origin || options.origin === '*') {
- *     headers.push([{ key: 'Access-Control-Allow-Origin', value: '*' }]);
- * }
- * ```
+ * | `origin`  | `Access-Control-Allow-Origin`    | `Vary`   | preflight |
+ * | --------- | -------------------------------- | -------- | --------- |
+ * | `true`    | reflects `https://evil.example`  | `Origin` | `204`     |
+ * | `false`   | absent                           | absent   | `404`     |
+ * | `[]`      | absent                           | `Origin` | `204`     |
  *
- * So `origin: false` — the intuitive spelling of "deny everything" — emits `Access-Control-Allow-Origin: *`.
- * Only a value that reaches the third branch (an ARRAY, matched by `isOriginAllowed`) can omit the header, and
- * an empty array is how "closed" is expressed. A unit test on the option object cannot see any of that; this
- * one asserts the header itself, so a future "simplification" of `[]` to `false` turns the suite red instead
- * of turning the service into an any-origin reflector.
+ * So `false` is not an open door — it is a SILENT BYPASS: the CORS middleware leaves the request path
+ * entirely, and the denial becomes an accident of absence rather than this policy's decision (no
+ * `Vary: Origin` for caches, and the preflight left to whatever the router does with an unrouted `OPTIONS`).
+ * An empty list keeps the middleware IN the path and denies by FAILING THE MATCH.
+ *
+ * ⚠️ The bypassed preflight's status is the ROUTER's fallback, not a CORS behaviour, so it differs by app:
+ * `404` here (this module's probe app declares only a `GET`), where `packages/services/recipe-service`
+ * measured `200` + `Allow:`. Do not "reconcile" the two tables — neither is wrong, and the guard below keys
+ * on the POSITIVE `204` that CORS itself produces, which holds in both.
+ *
+ * ⛔ THAT is why the closed-policy suite below asserts `Vary: Origin` and the `204`, not just the absence of
+ * `Access-Control-Allow-Origin`. Absence is what BOTH values produce, so an absence-only assertion cannot
+ * tell them apart — and it did not: swapping `[]` for `false` left this suite fully green. The `Vary` + `204`
+ * pair is the observable difference, and it is what turns red now.
  *
  * Runs in the DEFAULT test tier on purpose (no database, no AWS): identity's e2e job is gated on
  * `steps.secrets.outcome == 'success'` in `.github/workflows/_ci.yml`, and a security gate must not live
@@ -135,12 +150,38 @@ describe('CORS response headers — the fail-CLOSED policy', () => {
         await app?.close();
     });
 
-    // ⛔ MUTATION GUARD: change `origin: []` to `origin: false` in `src/config/cors.ts` and this test fails
-    // with `'*'`, which is the whole reason it is written at the header level.
-    it('emits no allow-origin header at all — never the `*` that `origin: false` would produce', async () => {
+    it('emits no allow-origin header at all, for an origin no rule admits', async () => {
         const res = await fetch(`${baseUrl}/probe`, { headers: { Origin: 'https://commise.app' } });
 
         expect(res.headers.get('access-control-allow-origin')).toBeNull();
+    });
+
+    // ⛔ MUTATION GUARD (1 of 2). Absence of `Access-Control-Allow-Origin` is what `[]` AND `false` both
+    // produce, so the assertion above cannot tell them apart. `Vary: Origin` can: `cors` only emits it from
+    // `configureOrigin`'s list branch, which a falsy `origin` never reaches because `middlewareWrapper`
+    // short-circuits to `next()` first. Change `origin: []` to `false` in `src/config/cors.ts` and this reds.
+    it('keeps the CORS middleware IN the path — `Vary: Origin` proves the denial was a decision', async () => {
+        const res = await fetch(`${baseUrl}/probe`, { headers: { Origin: 'https://commise.app' } });
+
+        expect(res.headers.get('vary')).toContain('Origin');
+    });
+
+    // ⛔ MUTATION GUARD (2 of 2). The preflight is where a browser actually checks, and WHO answers it
+    // changes with the option: `cors` replies `204` (its `optionsSuccessStatus`) because it short-circuits
+    // the request itself, whereas a bypassed middleware calls `next()` and leaves the router to handle an
+    // `OPTIONS` it has no route for (measured: `404`). Asserted as the POSITIVE 204 rather than as the
+    // bypass's status, because that status is the router's business and can change without this policy's.
+    it('answers the preflight from CORS itself — a 204, not the router`s unrouted-OPTIONS fallback', async () => {
+        const res = await fetch(`${baseUrl}/probe`, {
+            method: 'OPTIONS',
+            headers: {
+                Origin: 'https://commise.app',
+                'Access-Control-Request-Method': 'GET',
+                'Access-Control-Request-Headers': 'authorization',
+            },
+        });
+
+        expect(res.status).toBe(204);
     });
 
     it('still serves the request itself — CORS is a browser-enforced boundary, not an authz check', async () => {

@@ -20,11 +20,24 @@
  * ⚠️ `origin` IS ALWAYS A LIST — the type deliberately cannot express `true`. That is the fix, not a style
  * choice: as long as `boolean` is representable, "reflect anything" stays one keystroke away.
  *
- * ⚠️ AND "CLOSED" IS AN EMPTY LIST, NOT `false`. `cors@2.8.6`'s `configureOrigin` opens with
- * `if (!options.origin || options.origin === '*')` → `Access-Control-Allow-Origin: *`, so `origin: false`
- * means the OPPOSITE of denied. Only an array reaches the `isOriginAllowed` branch, where a failed match
- * omits the header entirely. `tests/cors-headers.test.ts` asserts that at the header level, because the
- * distinction is invisible in the option value.
+ * ⚠️ AND "CLOSED" IS AN EMPTY LIST, NOT `false` — for a reason that is NOT the one this comment used to give.
+ * It claimed `origin: false` emits `Access-Control-Allow-Origin: *`, i.e. "the OPPOSITE of denied". That is
+ * FALSE, and the claim was load-bearing: `tests/cors-headers.test.ts` cited it as a mutation guard, and the
+ * mutant it named was then MEASURED to leave that suite fully green (6 passed, 0 failed). `cors@2.8.6`'s
+ * `configureOrigin` does open with `if (!options.origin || options.origin === '*')` → `*`, but that branch is
+ * UNREACHABLE for a falsy static option: the package's `middlewareWrapper` tests `corsOptions.origin` first
+ * and calls `next()` without touching a header when it is falsy, so `cors()` — and therefore
+ * `configureOrigin` — never runs at all. Measured on the installed `cors@2.8.6` through the real
+ * `enableCors` path (`ExpressAdapter.enableCors` is `this.use(cors(options))`): `false` yields NO
+ * `Access-Control-Allow-Origin`, NO `Vary`, and a preflight the router answers instead of CORS.
+ *
+ * So `false` is not an open door — it is a SILENT BYPASS, and that is still the reason not to use it: the
+ * middleware leaves the request path, so the denial becomes an accident of absence rather than this policy's
+ * decision (no `Vary: Origin` for caches, and the preflight — where a browser actually checks — answered by
+ * whatever the router does with an unrouted `OPTIONS`). An empty list keeps the middleware IN the path and
+ * denies by FAILING THE MATCH. Because absence of the header is what BOTH values produce, the guard in
+ * `tests/cors-headers.test.ts` is re-anchored on the OBSERVABLE difference — `Vary: Origin` present and the
+ * preflight answered `204` — which is what now reds if `[]` is ever "simplified" to `false`.
  *
  * ⛔ PRECONDITION — THIS SERVICE IS BEARER-ONLY, AND THAT IS WHAT MAKES A PERMISSIVE ORIGIN SURVIVABLE.
  * Nothing in `src/` reads a cookie: there is no `cookie-parser`, no `req.cookies`, no `__session` /

@@ -114,11 +114,16 @@ describe('buildCorsPolicy', () => {
             expect(admits(policy, 'https://commise.app')).toBe(false);
         });
 
-        // ⚠️ THE REPRESENTATION IS LOAD-BEARING, NOT COSMETIC. `cors@2.8.6`'s `configureOrigin` starts with
-        // `if (!options.origin || options.origin === '*')` and answers `Access-Control-Allow-Origin: *` — so
-        // `origin: false` is the OPPOSITE of closed. Only an EMPTY LIST reaches the reflect branch, fails the
-        // match and omits the header. `tests/cors-headers.test.ts` proves that over real HTTP.
-        it('expresses "closed" as an EMPTY LIST — `false` would mean `*` in the cors middleware', () => {
+        // ⚠️ THE REPRESENTATION IS LOAD-BEARING, NOT COSMETIC — but NOT for the reason previously written
+        // here. This comment claimed `origin: false` makes `cors@2.8.6` answer `Access-Control-Allow-Origin: *`
+        // ("the OPPOSITE of closed"); that is false, and was measured to be false. `configureOrigin`'s `*`
+        // branch is unreachable for a falsy option, because `middlewareWrapper` short-circuits to `next()`
+        // before `cors()` ever runs. `false` therefore emits NO header — it is a silent middleware BYPASS, not
+        // a wildcard. An empty list keeps the middleware in the path and denies by failing the match, which is
+        // why the representation still matters. See `src/config/cors.ts` for the measured table, and
+        // `tests/cors-headers.test.ts`, which anchors the guard on the observable difference over real HTTP
+        // (`Vary: Origin` + a `204` preflight) rather than on the header absence both values share.
+        it('expresses "closed" as an EMPTY LIST, keeping the middleware in the request path', () => {
             expect(buildCorsPolicy(brokenInput).options.origin).toEqual([]);
         });
     });

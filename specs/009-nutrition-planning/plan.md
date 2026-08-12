@@ -147,8 +147,11 @@ of compliance), so any boundary that excludes recipes puts the network in the bu
 
 **A schema package is per SERVICE, not per feature.** 009 adds `*.schema.ts` files under
 `packages/services/recipe-service/src/nutrition-plans/`, beside the controller they serve, and the **existing**
-generator copies them into the **existing** `@kitchensink/schema-recipe` (8 authored schema files today, a
-4,945-line derived `openapi.yaml`). There is **no** `@kitchensink/schema-nutrition`, and neither
+generator copies them into the **existing** `@kitchensink/schema-recipe` (⚠️ **re-measured 2026-08-12: 10**
+authored schema files and a **5,700**-line derived `openapi.yaml`, correcting the "8 authored / 4,945-line" figures
+this line carried from 2026-08-11 — the `versions` and `api-error` copies have since landed, and the derived
+document is **generated**, so `ls` the directory and `wc -l` the file rather than quoting).
+There is **no** `@kitchensink/schema-nutrition`, and neither
 `packages/services/nutrition-service` nor `packages/services/nutrition` exists. 004 already set this precedent
 for the recipe service — add to `packages/schemas/recipe`, never fork it.
 
@@ -218,10 +221,16 @@ every obligation below binds a package that exists.
 - **One mechanism, one `400`.** Every plan, target, link, compliance-report and trainer-client input — body,
   path params (`{id}`, `{clientId}`), query params — is parsed by `@kitchensink/recipe-service`'s own
   `*.schema.ts` zod via `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. One mechanism per service, one
-  `400` path naming the offending field. ⚠️ 009 adds **no** `class-validator` DTO to the 19 files still being
-  removed from that service (re-measured 2026-08-12) — and 009's own `tasks.md` currently specifies
-  `class-validator` DTOs, which this plan forbids. A task list is where a validation mechanism actually gets
-  chosen, so that file needs repointing; it is owned elsewhere and is **not** edited by this amendment.
+  `400` path naming the offending field. 009 adds **no** `class-validator` DTO. ⚠️ **Two corrections, 2026-08-12.**
+  **(1)** This bullet said 009 must not add one "to the 19 files still being removed from that service"; **there are
+  no such files** — the 19 was a **mention** count, the one real importer is converged, and
+  `class-validator` / `class-transformer` are **removed from recipe-service's `package.json` and
+  `prod.package.json`**. 009 would therefore be **introducing** the second mechanism, not joining a residue.
+  **(2)** ✅ It also said "009's own `tasks.md` currently specifies `class-validator` DTOs, which this plan forbids …
+  that file needs repointing"; **`tasks.md` has since been repointed** (see its T-0xx "⛔ NOT `class-validator`"
+  note), so there is no divergence left to fix. Enforcement is no longer prose either: repo-wide gate **G5** in
+  `packages/infra/global/__tests__/service-security-invariants.test.ts` requires a `ZodValidationPipe` over every
+  controller in every deployable, with **no exception list**.
 - **⛔ THE FLOOR, and on this feature it doubles as a safety bound.** Every input field writing a bounded
   column is validated at least as strictly as the column can store. Naming 009's actual columns from §2:
   **seven `INT` (`int4`) columns** — `daily_calories`, `daily_protein_g`, `daily_carbs_g`, `daily_fat_g`,

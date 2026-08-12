@@ -561,14 +561,14 @@ _The service authors it; clients declare nothing — except at the USDA boundary
 [ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). Full bindings:
 [`plan.md` → _3.0 Contract ownership and drift_](./plan.md#30-contract-ownership-and-drift-gr-015--and-the-third-party-exception-this-feature-owns).
 
-| Role                                                            | Binding for 003                                                                                                                                                                                                                                                                                                              |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Owning service (**authors** the zod)                            | `@kitchensink/food-service` — `packages/services/food-service/src/**/*.schema.ts` (5 wire files: foods, admin-metrics, service-erasure, api-error, health)                                                                                                                                                                   |
-| Schema package (**GENERATED and committed; never hand-edited**) | `@kitchensink/schema-food` — `packages/schemas/food`. ⚠️ **It now EXISTS** (5 copied schema files; `openapi.yaml` **922 lines, 12 paths**), so the plan's "does not exist yet" status note is **stale**                                                                                                                      |
-| Consuming client                                                | `@kitchensink/food-service-client` — `packages/clients/food-service`                                                                                                                                                                                                                                                         |
-| Consuming service                                               | `@kitchensink/recipe-service` — ingredient resolution, via that client. **A service consuming another service is bound by §15-b identically.**                                                                                                                                                                               |
-| Bound identically, **no dependency declared yet**               | `@commise/web`, `@commise/mobile`. ⚠️ Measured 2026-08-12 the **only** dependents of `@kitchensink/food-service-client` are `recipe-service` and food's own contract tier — the apps reach the catalog **through** recipe. The plan's role table lists them as consumers; correct that to "bound the day they depend on it". |
-| **Third-party boundary (§15-d — EXEMPT, inverted)**             | `@kitchensink/usda-client` — `packages/clients/usda`, whose `src/schemas.ts` is the **portfolio's reference implementation** and must never be "converged"                                                                                                                                                                   |
+| Role                                                            | Binding for 003                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)                            | `@kitchensink/food-service` — `packages/services/food-service/src/**/*.schema.ts` (5 wire files: foods, admin-metrics, service-erasure, api-error, health)                                                                                                                                                                               |
+| Schema package (**GENERATED and committed; never hand-edited**) | `@kitchensink/schema-food` — `packages/schemas/food`. ⚠️ **It now EXISTS** (5 copied schema files; `openapi.yaml` **1,134 lines, 12 paths** — re-measured 2026-08-12, correcting **922** from the day before; the document is generated, so `wc -l` it rather than quoting), so the plan's "does not exist yet" status note is **stale** |
+| Consuming client                                                | `@kitchensink/food-service-client` — `packages/clients/food-service`                                                                                                                                                                                                                                                                     |
+| Consuming service                                               | `@kitchensink/recipe-service` — ingredient resolution, via that client. **A service consuming another service is bound by §15-b identically.**                                                                                                                                                                                           |
+| Bound identically, **no dependency declared yet**               | `@commise/web`, `@commise/mobile`. ⚠️ Measured 2026-08-12 the **only** dependents of `@kitchensink/food-service-client` are `recipe-service` and food's own contract tier — the apps reach the catalog **through** recipe. The plan's role table lists them as consumers; correct that to "bound the day they depend on it".             |
+| **Third-party boundary (§15-d — EXEMPT, inverted)**             | `@kitchensink/usda-client` — `packages/clients/usda`, whose `src/schemas.ts` is the **portfolio's reference implementation** and must never be "converged"                                                                                                                                                                               |
 
 **The service MUST** author every request/response shape of `/api/v1/foods/*` — add-by-name, read, status,
 candidates, resolve, search, batch, refetch — plus the admin metrics surface and the inbound
@@ -661,18 +661,25 @@ The section above decides **who authors** the contract; this one is where it **r
 - **⛔ 003 IS THE PROOF THAT GR-015 AND GR-016 ARE SEPARATE OBLIGATIONS.** Measured 2026-08-11 and re-measured
   in GR-016's own status table, `@kitchensink/food-service` had **`ZodValidationPipe` = 0 and
   `createZodDto` = 0** — **no validation pipe at all** — while satisfying GR-015 **in full** (5 authored schema
-  files, a committed `@kitchensink/schema-food`, a 922-line derived `openapi.yaml`). It took
+  files, a committed `@kitchensink/schema-food`, a derived `openapi.yaml` **1,134 lines** long — ⚠️ re-measured
+  2026-08-12, correcting the **922** recorded here a day earlier; it is generated, so `wc -l` it). It took
   `@Body() body: unknown` and hand-wrote a `safeParse` per method, and the consequence was neither hypothetical
   nor cosmetic: a **wrong-typed field**, a **missing field** and an **unknown key** all reported
   `{ error: 'Empty name' }` — three different caller mistakes, one answer that fixes none of them — and
   `/foods/search` was not validated at all. **A reviewer looking only at the contract artifacts would have seen
   a conformant service.**
-- 🔄 **Status, re-measured 2026-08-12 at 14:39 EDT: that has been remediated in the WORKING TREE and is NOT YET
-  COMMITTED.** `AppModule` now binds **`nestjs-zod`'s** `ZodValidationPipe` through the **`APP_PIPE`** token;
-  `src/foods/dto/foods.dto.ts` declares **4 `createZodDto` DTOs** (`AddFoodBodyDto`, `BatchAddFoodBodyDto`,
-  `ResolveFoodBodyDto`, `SearchFoodQueryDto`) over **4 `z.strictObject` schemas** in `foods.schema.ts`; all three
-  `@Body() body: unknown` parameters are gone; and the controller's per-method `safeParse` count is **0**. Until
-  that work lands, **the committed state is still the violation** — do not read this bullet as a closed item.
+- ✅ **Status, re-measured 2026-08-12: the remediation is COMMITTED — this bullet's "NOT YET COMMITTED / working
+  tree / untracked" framing is CORRECTED.** It landed in **`49a1df7f`** ("feat(security): bind food's validation
+  pipe, escape LIKE wildcards, gate future services"). `AppModule` binds **`nestjs-zod`'s** `ZodValidationPipe`
+  through the **`APP_PIPE`** token; **`src/foods/dto/foods.dto.ts` is TRACKED** — `git ls-files` lists it with its
+  own `__tests__/foods.dto.test.ts` and `service-erasure.schema.ts` beside it — and declares **4 `createZodDto`
+  DTOs** (`AddFoodBodyDto`, `BatchAddFoodBodyDto`, `ResolveFoodBodyDto`, `SearchFoodQueryDto`) over **4
+  `z.strictObject` schemas** in `foods.schema.ts`; all three `@Body() body: unknown` parameters are gone; and the
+  controllers' `safeParse` count is **0**. ⛔ **Do not read the bullet above as the current state, and do not
+  re-schedule this work** — the "committed state is still the violation" sentence it used to end on is no longer
+  true. The invariant is now held by a gate rather than by prose: **G5** in
+  `packages/infra/global/__tests__/service-security-invariants.test.ts` requires a `ZodValidationPipe` over every
+  HTTP controller in every discovered deployable, with **no exception list**.
 - **One mechanism, one `400`.** Every `/api/v1/foods/*` input — add-by-name, read, status, candidates, resolve,
   search, **batch**, refetch, plus the admin surface — is parsed by the service's own `*.schema.ts` zod via
   `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. **`@Body() body: unknown` is removed, not wrapped**:

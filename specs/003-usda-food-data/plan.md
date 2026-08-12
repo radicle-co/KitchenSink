@@ -528,13 +528,13 @@ the **bindings for this feature**; the rule lives there and wins on any detail.
 service's own API is governed by §15-b (converge it). USDA FoodData Central's API is governed by §15-d (never
 converge it). One feature, two opposite obligations.
 
-| Role                                      | Binding for 003                                                                                              |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Owning service (**authors** the zod)      | `@kitchensink/food-service` — `packages/services/food-service/src/**/*.schema.ts`, beside its controller     |
-| Schema package (generated, committed)     | `@kitchensink/schema-food` — `packages/schemas/food` — **does not exist yet; being converged now**           |
-| Consuming client                          | `@kitchensink/food-service-client` — `packages/clients/food-service`                                         |
-| Consuming services / apps                 | `@kitchensink/recipe-service` (ingredient resolution), `@commise/web`, `@commise/mobile`                     |
-| **Third-party boundary (§15-d — EXEMPT)** | `@kitchensink/usda-client` — `packages/clients/usda`, whose `schemas.ts` is the **reference implementation** |
+| Role                                      | Binding for 003                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)      | `@kitchensink/food-service` — `packages/services/food-service/src/**/*.schema.ts`, beside its controller                                                                                                                                                                                          |
+| Schema package (generated, committed)     | `@kitchensink/schema-food` — `packages/schemas/food`. ⚠️ **CORRECTED 2026-08-12: it EXISTS** (this cell said "does not exist yet; being converged now") — 5 copied schema files and a derived `openapi.yaml` of **1,134 lines / 12 paths**; `wc -l` it rather than quoting, since it is generated |
+| Consuming client                          | `@kitchensink/food-service-client` — `packages/clients/food-service`                                                                                                                                                                                                                              |
+| Consuming services / apps                 | `@kitchensink/recipe-service` (ingredient resolution), `@commise/web`, `@commise/mobile`                                                                                                                                                                                                          |
+| **Third-party boundary (§15-d — EXEMPT)** | `@kitchensink/usda-client` — `packages/clients/usda`, whose `schemas.ts` is the **reference implementation**                                                                                                                                                                                      |
 
 \_(Read every `food__`identifier here as`ingredient\__`— the service holds ingredients, not dishes. The name
 is a deliberate non-rename; see`CLAUDE.md`.)\_
@@ -597,10 +597,16 @@ have been derived from the other, and this side belongs to someone else. A contr
 mechanically to this client replaces a checked parse with unchecked trust; that is the specific damage this
 paragraph exists to prevent.
 
-#### Status — IN PROGRESS
+#### Status — RE-MEASURED 2026-08-12, and the first two bullets were WRONG
 
-- 🔄 **Food is being converged now.** `packages/schemas/food` does not exist yet.
-- ❌ No `openapi.yaml` exists for any service in this repo yet.
+- ✅ **`packages/schemas/food` EXISTS** — 5 copied schema files plus `contract-hash.ts` and a derived
+  `openapi.yaml` (**1,134 lines / 12 paths**). ⚠️ This bullet previously read _"Food is being converged now.
+  `packages/schemas/food` does not exist yet."_
+- ✅ **`openapi.yaml` exists for ALL THREE services** — recipe **5,700** lines / 34 paths, food **1,134** / 12,
+  identity **760** / 10. ⚠️ This bullet previously read _"❌ No `openapi.yaml` exists for any service in this repo
+  yet."_ ⛔ All three are **generated**, so those line counts are timestamps, not facts: re-measure with `wc -l`
+  instead of quoting them onward. That is exactly how the **4,945 / 922 / 716** figures from 2026-08-11 ended up
+  laundered into a dozen documents a day after they stopped being true.
 - ✅ `packages/clients/usda`'s boundary schemas already exist and are **correct as-is** — they need no change
   under GR-015 and must not be touched by the convergence work.
 
@@ -611,11 +617,20 @@ paragraph exists to prevent.
 [ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). GR-015 decides
 **who authors** the zod; GR-016 decides **where it runs**. Bindings for this feature only.
 
-⛔ **Measured 2026-08-11: `@kitchensink/food-service` has `ZodValidationPipe` = 0 and `createZodDto` = 0 — no
-validation pipe at all.** It takes `@Body() body: unknown` and hand-writes a `safeParse` per method. The
-consequence is not hypothetical and not cosmetic: a **wrong-typed field**, a **missing field** and an
-**unknown key** all report `{ error: 'Empty name' }`. Three different caller mistakes, one answer that fixes
+⛔ **Measured 2026-08-11: `@kitchensink/food-service` HAD `ZodValidationPipe` = 0 and `createZodDto` = 0 — no
+validation pipe at all.** It took `@Body() body: unknown` and hand-wrote a `safeParse` per method. The
+consequence was not hypothetical and not cosmetic: a **wrong-typed field**, a **missing field** and an
+**unknown key** all reported `{ error: 'Empty name' }`. Three different caller mistakes, one answer that fixes
 none of them.
+
+✅ **CORRECTED 2026-08-12 — that is HISTORY, and the paragraph above is deliberately kept in the past tense
+rather than deleted, because it is the argument for the rule.** Food now registers **`nestjs-zod`'s**
+`ZodValidationPipe` on the **`APP_PIPE`** token and declares **4** `createZodDto` classes over **4**
+`z.strictObject` schemas; its controllers hold **no** `safeParse` and **no** `@Body() body: unknown`. Committed in
+**`49a1df7f`** — ⛔ so do not re-schedule the convergence, and do not restore a per-method `safeParse` "as belt
+and braces" (§16-a.2: a second mechanism is a second error contract). The invariant is now held repo-wide by **G5**
+in `packages/infra/global/__tests__/service-security-invariants.test.ts`, which requires a `ZodValidationPipe`
+over every HTTP controller in every discovered deployable and runs with **no exception list at all**.
 
 - **One mechanism, one `400`.** Every `/api/v1/foods/*` input — add-by-name, read, status, candidates,
   resolve, search, **batch**, refetch, plus the admin surface — is parsed by the service's own `*.schema.ts`

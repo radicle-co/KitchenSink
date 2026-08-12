@@ -225,7 +225,8 @@ Group routing (`T-023…T-025`, `T-005`) and the four blocked producer integrati
     - **Depends on**: T-002, T-003
     - **Implements**: FR-015, FR-024, US-008, GR-016 §16-a, GR-017 §17-a.5
     - **Acceptance**: 10 malformed envelopes all rejected with structured errors; none stored. ⚠️ **A route test proves a known-bad body is rejected — inspection of the module wiring is NOT acceptance.** `createZodDto` under Nest's own built-in `ValidationPipe` validates **nothing while looking correctly wired** (a live case in this repo: identity's `PATCH /users/me`), and on this surface that failure admits **arbitrary envelopes into the retained store** with every visible signal saying they were checked. Paired with the same envelope over the bus (SC-008, T-075). Unit + integration + e2e.
-    - **Amended 2026-08-12.** It previously said **class-validator**. That is two mechanisms in one service (a GR-016 §16-a.2 violation — the state `recipe-service` is currently in mid-convergence with 19 remaining `class-validator` files) and it would make FR-015's enforced contract a _different artifact_ from the published one, so a producer could be surprised by a rule it could not see. There is also no `publish-validation.pipe.ts` to write: the pipe is `nestjs-zod`'s, registered, not authored.
+    - **Amended 2026-08-12.** It previously said **class-validator**. That is two mechanisms in one service (a GR-016 §16-a.2 violation) and it would make FR-015's enforced contract a _different artifact_ from the published one, so a producer could be surprised by a rule it could not see. There is also no `publish-validation.pipe.ts` to write: the pipe is `nestjs-zod`'s, registered, not authored.
+    - ⚠️ **Correction to the cautionary aside this note carried**: it cited "the state `recipe-service` is currently in mid-convergence with **19 remaining `class-validator` files**". Re-measured 2026-08-12, that is **wrong twice** — the 19 was a **mention** count (JSDoc narrating the migration), and the single real importer is now converged with `class-validator` / `class-transformer` **removed from recipe-service's `package.json` and `prod.package.json`**. **No service in `packages/services/**`has a`class-validator`importer.** 014 would therefore not be joining an existing residue; it would be **starting** one in a brand-new service, and would fail repo-wide gate **G5** in`packages/infra/global/**tests**/service-security-invariants.test.ts` (no exception list) on its first controller.
 
 ## US-009 — `messageType` Registry Enforcement
 
@@ -589,10 +590,16 @@ needed to actually ship it. A notification service with a synthetic producer and
 ## Contract & Client Deliverables (GR-017 §17-e.12 — added 2026-08-12)
 
 > ⛔ **CLIENT WORK IS ITS OWN DELIVERABLE, and these are the tasks that make it one.** GR-017 §17-e.12 records
-> this as the portfolio's most common violation, and it is measured rather than asserted: **on 2026-08-12, not one
-> of the fourteen `tasks.md` files in this portfolio contained a schema-package, `CONTRACT_HASH` or
-> receipt-validation task**, while nine `plan.md` files stated the obligation in prose. An obligation with no task
-> is an obligation that does not ship. Reference implementations to copy, all of which exist today:
+> this as the portfolio's most common violation. ✅ ⚠️ **RE-MEASURED 2026-08-12 — the figure this block opened with
+> is stale, and it understated the portfolio badly.** It read: _"not one of the fourteen `tasks.md` files in this
+> portfolio contained a schema-package, `CONTRACT_HASH` or receipt-validation task, while nine `plan.md` files
+> stated the obligation in prose."_ Counted today: **14 of 14 `tasks.md` reference `CONTRACT_HASH`, 14 of 14
+> reference contract **skew**, and 14 of 14 `plan.md` state the obligation**; **11 of 14** carry it as a real
+> **checkbox task** rather than prose (attributing each line to the checkbox block it sits under — a file-level grep
+> cannot tell a task from a paragraph, which is precisely how the original "not one" reading was produced).
+> **006, 008 and 009 are the three still carrying it in prose only.** An obligation with no task is still an
+> obligation that does not ship, so T-067 onward stay exactly as they are — 014 is one of the eleven **because**
+> these tasks exist. Reference implementations to copy, all of which exist today:
 > `packages/schemas/{recipe,food,identity}`, `packages/clients/{food-service,recipe-service}`,
 > `packages/tools/contract-gen`.
 

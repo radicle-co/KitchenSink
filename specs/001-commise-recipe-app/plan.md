@@ -19,7 +19,7 @@ Cross-cutting reliability behaviors driven by the 2026-04-30 spec clarifications
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x, Node.js 24.x (per `.nvmrc` + `package.json` engines)
-**Primary Dependencies**: NestJS 11, Drizzle ORM, `pg` (node-postgres), `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@aws-sdk/client-sqs` (version-archive, account-erasure queues), `class-validator` + `class-transformer` (DTO validation), `@nestjs/config` (Zod env), `@clerk/nextjs` (web), `@clerk/expo` (mobile), `@clerk/backend` (API session-token verification), `@kitchensink/food-service-client` (ingredient data via the source-agnostic food service 003 — async resolution), `ditox` + `@ditox/react` (frontend DI container / `appShell` for the Home widget surface)
+**Primary Dependencies**: NestJS 11, Drizzle ORM, `pg` (node-postgres), `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@aws-sdk/client-sqs` (version-archive, account-erasure queues), `nestjs-zod` (`createZodDto` + `ZodValidationPipe` — ⚠️ **corrected 2026-08-12**: this line named `class-validator` + `class-transformer`, which were the original DTO mechanism and have since been **removed from `packages/services/recipe-service/package.json` and `prod.package.json`** outright, so naming them here would send a reader to install a dependency the service deliberately dropped), `@nestjs/config` (Zod env), `@clerk/nextjs` (web), `@clerk/expo` (mobile), `@clerk/backend` (API session-token verification), `@kitchensink/food-service-client` (ingredient data via the source-agnostic food service 003 — async resolution), `ditox` + `@ditox/react` (frontend DI container / `appShell` for the Home widget surface)
 **Storage**: the **shared** RDS PostgreSQL 16 instance — recipe tables in their own logical database `kitchensink_recipes` on that shared instance (mirrors `kitchensink_food`; no new RDS instance) — pg_trgm, JSONB, tsvector FTS; S3 (photo objects + version archives) + CloudFront (CDN); SQS (version-archive, account-erasure queues + DLQs)
 **Testing**: Vitest (unit + integration), Playwright (web E2E), Maestro (mobile E2E); TDD red-green-refactor; LocalStack for AWS emulation (S3 + SQS); pyramid target ≥70% unit / ≤20% integration / ≤10% E2E
 **Target Platform**: AWS Fargate (ECS) for NestJS API, Lambda for version-archive worker (SQS-triggered, VPC-attached), Lambda for GDPR erasure worker (SQS-triggered, VPC-attached), CloudFront CDN, RDS PostgreSQL
@@ -220,12 +220,21 @@ party's JSON. See 003 for the full statement.
 > and `dist/`) instead of from **`git ls-files`**.
 
 - ✅ `packages/schemas/recipe` exists with `schemas.ts`, `types.ts`, `contract-hash.ts` and a barrel, and now
-  publishes **8** wire-schema files — `recipes`, `collections`, `ingredients`, `search`, `photos`, `ratings`,
-  `account`, `health`. The "search / photos / ratings vertical only" note is superseded.
-- ✅ **`openapi.yaml` HAS been generated for recipe** — `packages/schemas/recipe/openapi.yaml`, **4,945 lines,
-  34 paths**. The `./openapi.yaml` export now names a real file.
-- 🔄 [`contracts/api.openapi.yaml`](./contracts/api.openapi.yaml) — 2,827 lines (2,810 of body plus a 17-line
-  superseded-notice header), verified by nothing — is now **genuinely superseded**, not merely superseded in
+  publishes **10** wire-schema files — `recipes`, `collections`, `ingredients`, `search`, `photos`, `ratings`,
+  `account`, `health`, **`versions`** and **`api-error`**. The "search / photos / ratings vertical only" note is
+  superseded. ⚠️ **Re-measured 2026-08-12: this bullet said 8, which was true when written and is not now** —
+  the `versions` and `api-error` copies landed with the account/versions convergence. Count the directory
+  (`ls packages/schemas/recipe/src/schemas/`), never the prose.
+- ✅ **`openapi.yaml` HAS been generated for recipe** — `packages/schemas/recipe/openapi.yaml`, **5,700 lines,
+  34 paths** (re-measured 2026-08-12; this bullet previously said **4,945 lines**, which was the figure on
+  2026-08-11 and grew as the two new schema copies were derived in). The `./openapi.yaml` export now names a
+  real file. ⚠️ **A line count of a generated document is a moving target by design** — re-measure it with
+  `wc -l` at the moment you need it rather than quoting this number back.
+- 🔄 [`contracts/api.openapi.yaml`](./contracts/api.openapi.yaml) — **2,840 lines** (2,810 of body plus a
+  **30-line** superseded-notice header; re-measured 2026-08-12, correcting the earlier "2,827 lines / 17-line
+  header" — the header has been rewritten twice and grew each time, the **body has not changed**, which is why
+  the body count is the only figure here worth comparing across revisions), verified by nothing — is now
+  **genuinely superseded**, not merely superseded in
   principle: the generated document exists and covers **34 paths against this file's 32**. Citations, counted
   over **`git ls-files` only**: **12 files under `packages/`**, 26 under `specs/`, 5 under `docs/` — **not the
   "57 source files" previously claimed**, which counted build output. They have **not** been repointed and the
@@ -244,15 +253,36 @@ sharpest in the portfolio.**
 
 - **One mechanism, one `400`.** Every recipe/collection/photo/rating/search input — body, path params, query
   params, and any header a handler reads — is parsed by the service's own `*.schema.ts` zod via
-  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. Measured 2026-08-11: recipe-service is furthest
-  along (18 pipes / 26 DTOs) but **19 files are still on `class-validator`** — two mechanisms in one service,
-  which means two error contracts. The residue is removed, not extended; a new endpoint never adds a
-  `class-validator` DTO.
+  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`.
+    - ⚠️ **CORRECTED 2026-08-12 — this bullet previously read "recipe-service is furthest along (18 pipes /
+      26 DTOs) but **19 files are still on `class-validator`**", and every part of that was wrong.** The "19"
+      was a **mention** count (JSDoc narrating the migration away from it), not an importer count; there was
+      exactly **one** real importer, `src/search/dto/search-recipes.query.dto.ts`. That file is now
+      **converged** onto `createZodDto` + `ZodValidationPipe`, and `class-validator` / `class-transformer` have
+      been **removed from `packages/services/recipe-service/package.json` and `prod.package.json`**. Verified
+      2026-08-12: `grep -rn "from 'class-validator'" packages --include="*.ts"` (excluding `node_modules` and
+      `dist`) has **no importer anywhere under `packages/services/**`** — its only hit is a synthetic fixture
+string inside the repo-wide AST gate. The "18 pipes / 26 DTOs" pair was also **unreproducible by any
+parse**; measured now, recipe-service has **23 `ZodValidationPipe`references and 22 classes extending`createZodDto`** across 26 files. **Two mechanisms in one service is no longer recipe's state\*\*, so do
+      not cite it as the cautionary example — cite the rule.
+    - The rule stands unchanged and is now enforced repo-wide rather than per-service: a new endpoint never
+      adds a `class-validator` DTO, and **G5** in
+      `packages/infra/global/__tests__/service-security-invariants.test.ts` — a discovery-based TypeScript-AST
+      gate — requires every HTTP controller in **every discovered deployable** to be covered by
+      `ZodValidationPipe`, now with **no exception list at all** (the `UNCONVERGED_CONTROLLERS` ratchet was
+      deleted once its single entry, search's controller, converged).
 - **⛔ THE FLOOR — this feature's own `500` that owed a `400`.** Five int-backed wire fields — **`servings`,
   `prepTimeMinutes`, `cookTimeMinutes`, `totalTimeMinutes`, `timerSeconds`** — carried **no upper bound**
   while writing `integer` (`int4`) columns capped at **2,147,483,647**. `servings: 9999999999` passed
   validation and failed at the `INSERT`. Every input field writing a bounded column is validated at least as
   strictly as that column can store.
+    - ⚠️ **This is HISTORY, not an open gap — corrected 2026-08-12.** An earlier revision presented the missing
+      bound as the **current** state, which schedules work that is already done. All five fields are bounded
+      today by `positiveInt4()` / `recipeMinutesSchema` in
+      `packages/shared/recipe-core/src/recipeRequestBounds.ts` (`z.number().int().max(INT4_CEILING)`, with
+      `INT4_CEILING = 2_147_483_647`), and `__tests__/recipeRequestBounds.test.ts` asserts accept-at-ceiling /
+      reject-above. The paragraph above is retained deliberately, because it is **why the bound exists** — a
+      reader who does not know the `500` it caused is a reader who will "simplify" the ceiling away.
     - ⚠️ **Asserted, never derived.** Zod is **not** generated from drizzle and a `*.schema.ts` **never
       imports a storage type** — that is the same leak GR-015 flags in `RecipeSearchResponse.facets`
       (`../dal/search.dal.js`). The `*.schema.ts` import constraint is unchanged.
@@ -277,12 +307,18 @@ sharpest in the portfolio.**
 - **Unknown keys are a stated choice per surface**, not zod's default by accident: `z.object()` **strips**
   silently, `z.strictObject()` **rejects**. A recipe update that misspells a field must not return `200`
   having written nothing. (The portfolio default is **OPEN** — GR-016 OPEN-GR-016-B.)
-- **No request-derived value reaches `sql.raw()`.** The recipe search DAL
+- **No request-derived value reaches `sql.raw()`.** ⚠️ **Re-measured 2026-08-12 — stronger than this bullet
+  used to claim.** It previously named "the recipe search DAL
   (`packages/services/recipe-service/src/search/dal/search.dal.ts`) and the two sweepers
-  (`erasure-sweeper.ts`, `erasure-orphan-sweeper.ts`) are the only sites passing it a non-literal, and all
-  three take a config value or a module constant today. Search is the surface most likely to break that:
-  facet, sort and filter selections arrive **from the request**, so a validated enum maps to a **closed
-  allowlist of literals in code** — the request supplies the key, never the SQL fragment.
+  (`erasure-sweeper.ts`, `erasure-orphan-sweeper.ts`)" as **the three sites passing a non-literal — the state
+  to preserve**. There are now **ZERO `sql.raw(` call sites anywhere under `packages/`**: every remaining hit is
+  prose, a comment recording the removal, or a gate fixture. The former sites take a **bound parameter**
+  (`${value}`, or `${value}::interval` for an interval) instead. Two gates keep it at zero rather than trusting
+  the prose: an ESLint **`no-restricted-syntax`** ban in `packages/tools/eslint/index.js`, and repo-wide AST
+  gate **G3** ("never calls `sql.raw`") in
+  `packages/infra/global/__tests__/service-security-invariants.test.ts`. Search remains the surface that would
+  break it first — facet, sort and filter selections arrive **from the request** — so a validated enum still
+  maps to a **closed allowlist of literals in code**: the request supplies the key, never the SQL fragment.
 - **⛔ Response validation is DEFERRED (GR-016 §16-g) — do not "complete" it.** No service validates its own
   responses; TypeScript plus the client-side parse on receipt were judged sufficient for now. Adding
   server-side response parsing to this service undoes an owner decision.

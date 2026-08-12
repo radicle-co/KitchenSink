@@ -280,11 +280,16 @@ see response changes — which is most of what actually breaks a client.
 
 ⚠️ **`specs/001-commise-recipe-app/contracts/api.openapi.yaml` is SUPERSEDED — and the plan's status note on it
 is stale.** Recipe's derived document now **exists** at `packages/schemas/recipe/openapi.yaml`
-(**4,945 lines, 34 paths**) against the hand-written file's **2,827 lines, 32 paths**, so the condition
+(**5,700 lines, 34 paths** — re-measured 2026-08-12, correcting an earlier **4,945** taken the day before; the
+document is generated, so its line count moves whenever a schema copy lands and **must be re-measured, never
+quoted**) against the hand-written file's **2,840 lines, 32 paths** (also re-measured; the earlier **2,827**
+predated two successive header rewrites, and the **body is unchanged at 2,810 lines** — the body is the only
+figure worth comparing across revisions), so the condition
 [`plan.md` → _Status_](./plan.md#status--in-progress-and-001s-hand-written-contract-is-not-yet-replaced) and the
 hand-written file's own header both record ("the replacement has NOT been generated yet") no longer holds. The
-**citations have not been repointed**: measured 2026-08-12 via `git ls-files`, **12 committed files under
-`packages/`** (11 `.ts`, 1 k6 `.js`), **19 under `specs/`** and **5 under `docs/`** still cite it. So two
+**repointing is UNDERWAY, not untouched** — ⚠️ re-measured 2026-08-12 via `git ls-files`, only **5** committed
+files under `packages/` still cite it (4 `.ts`, 1 k6 `.js`), **down from the 12 this paragraph previously
+recorded**; **20 under `specs/`** and **5 under `docs/`** remain. So two
 OpenAPI documents describe one service and only one of them is verified. **Where they disagree, the service's
 zod wins**, and **the hand-written file MUST NOT be extended with a new endpoint** (GR-015 §15-a.7 / AC-015-f) —
 author the zod in the service instead.
@@ -311,13 +316,24 @@ above decides **who authors** the contract; this one is where it **runs**. It ad
 
 - **One mechanism, one `400`.** Every recipe / collection / photo / rating / search input — body, path params,
   query params and any header a handler reads — is parsed by the service's own `*.schema.ts` zod via
-  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. Measured 2026-08-12: **18 files referencing
-  `ZodValidationPipe`, 26 referencing `createZodDto` (21 `extends createZodDto(` sites)**. ⚠️ **The
-  `class-validator` residue is ONE file, not the 19 recorded elsewhere** — 19 files _mention_ the string,
-  almost all in JSDoc describing the migration away from it, while exactly one still **imports** it:
-  `src/search/dto/search-recipes.query.dto.ts` (plus one test asserting decorator metadata). That single file is
-  still a GR-016 §16-a.2 violation — two mechanisms in one service means two error contracts — and it is
-  **removed, not extended**. A new endpoint never adds a `class-validator` DTO.
+  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`.
+    - ⚠️ **The `class-validator` residue is GONE — corrected 2026-08-12, superseding this bullet's earlier
+      numbers, all of which were wrong in different ways.** The **"19 files"** was a **mention** count (JSDoc
+      narrating the migration away from it), not an importer count. The **"18 `ZodValidationPipe` / 26
+      `createZodDto` (21 `extends`)"** triple was **unreproducible by any parse**. And the "ONE file still
+      imports it" — `src/search/dto/search-recipes.query.dto.ts` — is now **converged** onto `createZodDto` +
+      `ZodValidationPipe`, with `class-validator` and `class-transformer` **removed from
+      `packages/services/recipe-service/package.json` and `prod.package.json`**. Re-measured today:
+      recipe-service has **23 `ZodValidationPipe` references** and **22 classes extending `createZodDto`** across
+      26 files, and `grep -rn "from 'class-validator'" packages --include="*.ts"` (minus `node_modules`/`dist`)
+      finds **no importer anywhere under `packages/services`** — its single hit is a synthetic fixture string
+      inside the repo-wide AST gate.
+    - So recipe-service is **no longer the GR-016 §16-a.2 example**; it is the converged case. The rule is
+      unchanged and now enforced repo-wide by **G5** in
+      `packages/infra/global/__tests__/service-security-invariants.test.ts`, which requires a `ZodValidationPipe`
+      over every HTTP controller in every discovered deployable and runs with **no exception list at all** — the
+      `UNCONVERGED_CONTROLLERS` ratchet was **deleted** when search's controller, its one entry, converged. A new
+      endpoint never adds a `class-validator` DTO, and the gate now fails the build rather than trusting prose.
 - **⚠️ The pipe hazard is invisible in review.** Under Nest's **own** built-in `ValidationPipe`, a
   `createZodDto` DTO **validates nothing while looking correctly wired** — the schema is present, the DTO is
   referenced, the route reads as validated, and no input is checked. It already bit identity's
@@ -328,14 +344,24 @@ above decides **who authors** the contract; this one is where it **runs**. It ad
   §17-c, which **closes OPEN-GR-016-B** (the plan still records it as OPEN; it is not). Plain `z.object()`
   survives only on a **read** surface with a **documented forward-compatibility reason at the schema**. The
   ruling picks the failure that is **visible**: on a mutating body a silently stripped unknown key is a `200`
-  plus a partial write the caller was told succeeded. ⛔ Measured 2026-08-12, `recipe-service` has **zero**
-  `z.strictObject()` against **36** `z.object()` occurrences — a live §17-c gap, and it is at its worst on
-  `PATCH /api/v1/recipes/:id`.
+  plus a partial write the caller was told succeeded. ⚠️ **Re-measured 2026-08-12 — the "zero `z.strictObject()`
+  against 36 `z.object()`" figure this bullet carried is stale and understated the progress badly.**
+  `recipe-service` now has **18** `z.strictObject()` occurrences against **22** `z.object()` in non-test sources.
+  §17-c is therefore **mostly closed**, not a wide-open gap; what remains is confirming that each surviving
+  `z.object()` is on a **read** surface with the documented forward-compatibility reason §17-c requires, rather
+  than a mutating body that was missed. Count them, and read the reason at each site.
 - **⛔ THE STORAGE FLOOR — this feature's own `500` that owed a `400`.** Five int-backed wire fields —
   **`servings`, `prepTimeMinutes`, `cookTimeMinutes`, `totalTimeMinutes`, `timerSeconds`** — carried **no upper
   bound** while writing `integer` (`int4`) columns capped at **2,147,483,647**, so `servings: 9999999999`
   **passed validation** and failed at the `INSERT`. Every input field writing a bounded column is validated at
   least as strictly as that column can store.
+    - ⚠️ **Read the paragraph above as HISTORY, not as an open gap — corrected 2026-08-12.** An earlier revision
+      let it stand as the **current** state, which schedules work already done. All five fields are bounded today
+      by `positiveInt4()` / `recipeMinutesSchema` in
+      `packages/shared/recipe-core/src/recipeRequestBounds.ts` (`z.number().int().max(INT4_CEILING)`,
+      `INT4_CEILING = 2_147_483_647`), with accept-at-ceiling / reject-above asserted in
+      `__tests__/recipeRequestBounds.test.ts`. It is kept because it is **why the bound exists**: a reader who
+      does not know the `500` it caused is a reader who will "simplify" the ceiling away.
     - ⚠️ **This is an ASSERTION between two independently authored artifacts, NEVER a derivation.** Zod is
       **not** generated from drizzle and a `*.schema.ts` **never imports a storage type** — that coupling is the
       disease ADR-0014 removed (`RecipeSearchResponse.facets` taking its wire type from `../dal/search.dal.js`),
@@ -372,12 +398,17 @@ above decides **who authors** the contract; this one is where it **runs**. It ad
   is permitted are the **create/upsert** bodies (`POST /api/v1/recipes`, `POST /api/v1/collections`, the rating
   upsert), where the id is **generated** as a ULID. An unresolvable id is a **rejection**, never a placeholder
   row.
-- **No request-derived value reaches `sql.raw()`.** The search DAL
-  (`packages/services/recipe-service/src/search/dal/search.dal.ts`) and the two sweepers are the only sites
-  passing it a non-literal, and all three take a config value or a module constant today — that is the state to
-  **preserve**, not a clean bill of health. Search is the surface most likely to break it: facet, sort and
-  filter selections arrive **from the request**, so a validated enum maps to a **closed allowlist of literals in
-  code** — the request supplies the key, never the SQL fragment.
+- **No request-derived value reaches `sql.raw()`.** ⚠️ **Re-measured 2026-08-12, and the answer is stronger than
+  this bullet claimed.** It named the search DAL
+  (`packages/services/recipe-service/src/search/dal/search.dal.ts`) plus the two sweepers as **the only three
+  sites passing a non-literal — "the state to preserve"**. There are now **ZERO `sql.raw(` call sites anywhere
+  under `packages/`**; every remaining textual hit is prose, a comment recording the removal, or a gate fixture.
+  Those sites now pass a **bound parameter** (`${value}`, or `${value}::interval` for an interval) instead.
+  ⛔ **Do not "restore" a `sql.raw()` for readability** — two gates now hold the count at zero: an ESLint
+  **`no-restricted-syntax`** ban in `packages/tools/eslint/index.js`, and repo-wide AST gate **G3** in
+  `packages/infra/global/__tests__/service-security-invariants.test.ts`. Search is still the surface that would
+  break it first — facet, sort and filter selections arrive **from the request** — so a validated enum still maps
+  to a **closed allowlist of literals in code**: the request supplies the key, never the SQL fragment.
 - **⛔ Server-side RESPONSE validation is DEFERRED by owner decision (GR-016 §16-g) and MUST NOT be
   "completed".** No service in this portfolio validates the bodies it **emits**, deliberately; a contributor who
   "finishes the job" is **undoing a decision**. Say which one you mean (GR-017 §17-f): a **consumer** parsing

@@ -201,13 +201,13 @@ This is mandatory for REQ-049 (LocalStack-backed local testing) and supports REQ
 [ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). This section states only
 the **bindings for this feature**; the rule lives there and wins on any detail.
 
-| Role                                  | Binding for 002                                                                                                     |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Owning service (**authors** the zod)  | `@kitchensink/identity-service` — `packages/services/identity/src/**/*.schema.ts`, beside its controller            |
-| Also in scope                         | `@kitchensink/identity-webhooks` — the `POST /api/v1/webhooks/users` **inbound Clerk** shape is third-party (below) |
-| Schema package (generated, committed) | `@kitchensink/schema-identity` — `packages/schemas/identity` — **does not exist yet; being converged now**          |
-| Consuming app / feature packages      | `@commise/features-account` (`ProfileServiceClient`), consumed by `@commise/web` and `@commise/mobile`              |
-| Domain types (a **different** axis)   | `@kitchensink/identity-core` — reused `import type`, never re-declared in the schema package (GR-007)               |
+| Role                                  | Binding for 002                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)  | `@kitchensink/identity-service` — `packages/services/identity/src/**/*.schema.ts`, beside its controller                                                                                                                                                                                                |
+| Also in scope                         | `@kitchensink/identity-webhooks` — the `POST /api/v1/webhooks/users` **inbound Clerk** shape is third-party (below)                                                                                                                                                                                     |
+| Schema package (generated, committed) | `@kitchensink/schema-identity` — `packages/schemas/identity`. ⚠️ **CORRECTED 2026-08-12: it EXISTS** (this cell said "does not exist yet; being converged now") — 5 copied schema files and a derived `openapi.yaml` of **760 lines / 10 paths**; `wc -l` it rather than quoting, since it is generated |
+| Consuming app / feature packages      | `@commise/features-account` (`ProfileServiceClient`), consumed by `@commise/web` and `@commise/mobile`                                                                                                                                                                                                  |
+| Domain types (a **different** axis)   | `@kitchensink/identity-core` — reused `import type`, never re-declared in the schema package (GR-007)                                                                                                                                                                                                   |
 
 ### The service's obligation
 
@@ -271,15 +271,22 @@ can change without telling us. So everything on the Clerk boundary is governed b
   external body with unchecked trust. That is a **security regression** on this feature's most exposed
   surface. See `packages/clients/usda` for the reference pattern.
 
-### Status — IN PROGRESS
+### Status — RE-MEASURED 2026-08-12, and the first bullet was WRONG in BOTH halves
 
-- 🔄 **Identity is being converged now.** `packages/schemas/identity` does not exist yet, and no
-  `openapi.yaml` exists for any service in this repo.
+- ✅ **`packages/schemas/identity` EXISTS** — 5 copied schema files plus `contract-hash.ts` and a derived
+  `openapi.yaml` (**760 lines / 10 paths**) — **and `openapi.yaml` exists for ALL THREE services**: recipe
+  **5,700** lines / 34 paths, food **1,134** / 12, identity **760** / 10. ⚠️ This bullet previously read
+  _"Identity is being converged now. `packages/schemas/identity` does not exist yet, and no `openapi.yaml` exists
+  for any service in this repo."_ ⛔ All three documents are **generated**, so those line counts are timestamps
+  rather than facts — re-measure with `wc -l` instead of quoting them onward, which is exactly how the
+  **4,945 / 922 / 716** figures from 2026-08-11 got laundered into a dozen documents a day after they expired.
 - ⚠️ [`contracts/identity-api.openapi.json`](./contracts/identity-api.openapi.json) and the hand-written TS
   contract files in [`contracts/`](./contracts/) (`user.ts`, `auth-session.ts`, `authorizer.ts`,
   `deletion.ts`, `errors.ts`, `post-reg.ts`, `reconciliation.ts`) are **hand-maintained and verified by
-  nothing**. Per §15.2(6) they are **superseded in principle** by the generated document, but the generated
-  document does not exist yet, so they are retained as the only record. Where they disagree with the
+  nothing**. ⚠️ **Corrected 2026-08-12**: this bullet said they were "superseded **in principle** … but the
+  generated document does not exist yet, so they are retained as the only record". The generated document
+  **does** exist, so per §15.2(6) they are **genuinely superseded** and are retained only as the **historical**
+  record until their citations are repointed (`tasks.md` T-089 / T-091). Where they disagree with the
   service's `*.schema.ts`, **the service's zod wins.** Do not extend them with new surface.
 
 ---

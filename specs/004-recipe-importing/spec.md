@@ -330,9 +330,13 @@ flattens discriminated unions).
 ⚠️ **`specs/001-commise-recipe-app/contracts/api.openapi.yaml` is SUPERSEDED and MUST NOT be extended with
 004's endpoints.** This **supersedes D-016 in place** — see the amended decision under _Owner decisions_ below.
 Recipe's derived document now
-**exists** at `packages/schemas/recipe/openapi.yaml` (**4,945 lines, 34 paths**) against the hand-written file's
-**2,827 lines, 32 paths**, so "the replacement has not been generated yet" — which the hand-written file's own
-header still says — is no longer true. Where the two disagree, **the service's zod wins**.
+**exists** at `packages/schemas/recipe/openapi.yaml` (**5,700 lines, 34 paths**) against the hand-written file's
+**2,840 lines, 32 paths** — ⚠️ **re-measured 2026-08-12, correcting the 4,945 / 2,827 pair this paragraph carried**;
+both documents moved the same day the figures were taken (the derived one because it is **generated**, the
+hand-written one by header rewrites over an unchanged 2,810-line body), so `wc -l` them rather than quoting.
+And "the replacement has not been generated yet" is no longer said by the hand-written file's own header either —
+it now carries a `STATUS (2026-08-12)` block naming the replacement. Where the two disagree, **the service's zod
+wins**.
 
 **The CLIENT's obligation — separately mandatory.** Mandating only the service half is exactly how the client
 half got skipped portfolio-wide, behind green builds.
@@ -402,10 +406,16 @@ The section above decides **who authors** the contract; this one is where it **r
 
 - **One mechanism, one `400`.** Every import / job / draft / admin-domain input — body, path params, query
   params, and the required `Idempotency-Key` header — is parsed by the recipe service's own `*.schema.ts` zod via
-  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. **004 adds NO `class-validator` DTO.** ⚠️ Measured
-  2026-08-12, the residue in `recipe-service` is **one file**, not the 19 recorded elsewhere — 19 files _mention_
-  the string, almost all in JSDoc about the migration away from it, while exactly one still **imports** it
-  (`src/search/dto/search-recipes.query.dto.ts`). That file is removed, not extended.
+  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. **004 adds NO `class-validator` DTO.** ✅ ⚠️ **CORRECTED
+  2026-08-12 — the residue is now ZERO, not "one file", and not the 19 recorded elsewhere.** The "19" was always a
+  **mention** count (JSDoc about the migration away from it); there was exactly one importer,
+  `src/search/dto/search-recipes.query.dto.ts`, and it is now **converged** onto `createZodDto` +
+  `ZodValidationPipe`, with `class-validator` and `class-transformer` **removed from recipe-service's
+  `package.json` and `prod.package.json`**. `grep -rn "from 'class-validator'" packages --include="*.ts"` finds no
+  importer anywhere under `packages/services`. So 004 inherits a **single-mechanism** service — ⛔ which raises the
+  cost of adding a `class-validator` DTO here from "joining a mess" to "**re-creating** one", and it would now also
+  fail **G5** in `packages/infra/global/__tests__/service-security-invariants.test.ts`, which carries **no
+  exception list**.
 - **⚠️ The pipe hazard is invisible in review.** Under Nest's **own** built-in `ValidationPipe`, a
   `createZodDto` DTO **validates nothing while looking correctly wired** — the schema is present, the DTO is
   referenced, the route reads as validated, and no input is checked. It already bit identity's
@@ -532,13 +542,16 @@ The section above decides **who authors** the contract; this one is where it **r
       `openapi.yaml` is **DERIVED** for `oasdiff`, docs and integrators — never as a codegen input. See
       _API Contract & Input Validation (GR-015 / GR-016)_ above.
     - **"One service, one contract" still holds; the contract moved to where it can be enforced.** The derived
-      document **exists** at `packages/schemas/recipe/openapi.yaml` (4,945 lines, 34 paths, measured 2026-08-12)
-      against the hand-written file's 2,827 lines and 32 paths, so the "the move stays its own change" reasoning
-      has been overtaken: the move happened. **Where the two disagree, the service's zod wins.**
+      document **exists** at `packages/schemas/recipe/openapi.yaml` (**5,700 lines**, 34 paths) against the
+      hand-written file's **2,840 lines** and 32 paths, so the "the move stays its own change" reasoning
+      has been overtaken: the move happened. **Where the two disagree, the service's zod wins.** ⚠️ **Both figures
+      re-measured 2026-08-12, correcting the 4,945 / 2,827 recorded here** — the derived document is generated and
+      the hand-written one has had two header rewrites, so treat any line count in this prose as a timestamp.
     - ⛔ **`specs/001-commise-recipe-app/contracts/api.openapi.yaml` MUST NOT be extended with 004's endpoints**
-      (GR-015 §15-a.7 / AC-015-f). Its citations have not yet been repointed — measured 2026-08-12 via
-      `git ls-files`, 12 committed files under `packages/`, 19 under `specs/` and 5 under `docs/` still cite it —
-      which is why this decision is marked superseded **in place** rather than deleted.
+      (GR-015 §15-a.7 / AC-015-f). Its citations are **partly** repointed — ⚠️ re-measured 2026-08-12 via
+      `git ls-files`, **5** committed files under `packages/`, **20** under `specs/` and **5** under `docs/` still
+      cite it, down from the **12 / 19 / 5** this bullet recorded — which is why this decision is marked superseded
+      **in place** rather than deleted.
     - **What survives from the original reasoning:** 004 still starts **no second document** and creates **no
       schema package of its own**. _(Original text: "The service's single contract stays at
       `specs/001-commise-recipe-app/contracts/api.openapi.yaml` for this feature; 004 extends it rather than

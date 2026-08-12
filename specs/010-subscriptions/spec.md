@@ -201,15 +201,26 @@ boundary schema is a security and correctness regression**, because this is the 
   consumer **fails closed** — an absent or unreadable entitlement claim is `free` (`FR-044`).
 - **⛔ GR-018 IN FULL, for the Stripe webhook — and instinct gets this backwards.** There is **ONE rejection path**
   producing **one** structured shape whose **`reason`** names the cause. A **signature failure and a shape failure
-  are EQUALLY invalid** and MUST NOT have two behaviours — they differ **only** in `reason`. An invalid payload is
-  **NEVER retried**. And because **Stripe retries on ANY non-2xx, for 72 hours**, "not retried" means answering
-  **`2xx`**, with the rejection recorded in **(1)** the response body, **(2)** structured logs with its `reason`,
-  **(3)** a **per-`reason` counter**, and **(4)** an **alarm** on that counter. **Reject the content, accept the
-  delivery.** ⚠️ This does **not** generalize to our own callers: `/api/v1/billing/*` returns the `400`/`403`
-  GR-016 §16-a.3 requires, because our clients do not blind-retry and a `2xx` would hide a fixable bug.
-    - ⛔ **010's `tasks.md` currently asserts "invalid signatures return `400`" — the exact inversion**, and it also
-      splits signature failure from shape failure into two behaviours. Both are violations (GR-018 §18-c and §18-a).
-      That file is owned elsewhere and is not corrected here; this is the record that it contradicts the rule.
+  are EQUALLY invalid** and MUST NOT have two **code paths** — they differ **only** in `reason`, and the status is
+  derived from that `reason` by **one complete lookup**. ⚠️ **CORRECTED 2026-08-12 — this bullet previously said an
+  invalid payload "is answered **`2xx`**" full stop, and that is only half of §18-a's table.** The three dispositions
+  are: a **shape** failure behind a **valid** signature ⇒ **`2xx` (200)**, because Stripe retries on ANY non-2xx for
+  72 hours and a body that cannot parse today cannot parse on any redelivery; a **signature** failure ⇒
+  **non-2xx (`401`)**, because it is an **authentication** failure and because the cause may be **our own stale
+  signing secret** — transient, operator-fixable, and rescued precisely by the retry window a `2xx` would throw
+  away; and a **valid** body ⇒ its normal success. The shipped reference is `WEBHOOK_REJECTION_STATUS` in
+  `packages/services/identity-webhooks/src/common/handler-pipeline.ts` (`shape → 200`, `signature → 401`) as a
+  **complete `Record`**, so adding a reason cannot compile until its retry disposition is decided. **Either**
+  rejection is recorded in **(1)** the response body, **(2)** structured logs with its `reason`, **(3)** a
+  **per-`reason` counter**, and **(4)** an **alarm** on that counter. **Reject the content, accept the delivery —
+  but never accept an unauthenticated one.** ⚠️ This does **not** generalize to our own callers:
+  `/api/v1/billing/*` returns the `400`/`403` GR-016 §16-a.3 requires, because our clients do not blind-retry and a
+  `2xx` would hide a fixable bug.
+    - ✅ **The `tasks.md` contradiction this bullet used to record is RESOLVED (2026-08-12).** It previously read:
+      _"010's `tasks.md` currently asserts 'invalid signatures return `400`' — the exact inversion."_ T-014 has since
+      been corrected twice — first off the `400`, then off an over-correction that answered **`2xx` for both
+      causes** — and now states all three dispositions with the `reason → status` lookup. Nothing here contradicts
+      the rule any longer, so do not "re-fix" T-014 back toward a single status.
     - **A rejected event is NOT recorded as a row** (GR-018 §18-d / GR-019). An invalid payload has **no trustworthy
       identifier** — not even a `stripe_event_id` worth keying on — so recording it would
       force the writer to invent an id, which is precisely the sentinel GR-019 forbids. The **log line and the

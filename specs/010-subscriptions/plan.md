@@ -263,17 +263,28 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
   contributor gets backwards on instinct, so it is stated in full
   ([GR-018](../governance-rules.md#gr-018-one-rejection-path-and-invalid-input-is-never-retried) §18-a–§18-d):
     - **One rejection path**, producing **one** structured shape whose **`reason`** names the cause. A
-      **signature failure and a shape failure are EQUALLY invalid** and MUST NOT have two different
-      behaviours — they differ **only** in `reason`. Two behaviours means two error contracts, and measured
-      repeatedly in this repo, one of the two ends up without a counter.
-    - **An invalid payload is NEVER retried.** It cannot become valid by being sent again; retrying it converts
-      a producer's bug into sustained load and buries the signal that would have found it.
-    - ⚠️ **Stripe retries on ANY non-2xx, for 72 hours.** So returning `400` for an invalid body **requests**
-      exactly the retry storm §18-b forbids. A rejected payload is therefore answered **`2xx`**, with the
-      rejection carried in **(1)** the response body (so the Stripe dashboard shows what was wrong), **(2)**
-      structured logs with its `reason`, **(3)** a **per-`reason` counter**, and **(4)** an **alarm** on that
-      counter — because a rejection nobody sees is indistinguishable from success. **Reject the content, accept
-      the delivery.**
+      **signature failure and a shape failure are EQUALLY invalid** and MUST NOT have two different **code
+      paths** — they differ **only** in `reason`. Two paths means two error contracts, and measured
+      repeatedly in this repo, one of the two ends up without a counter. ⚠️ **One PATH is not one STATUS**: the
+      status is derived from the `reason` by **one complete lookup**, which is §18-a's required shape for a signed
+      webhook, not an exception to it.
+    - **A payload that can never become valid is NEVER retried.** Retrying it converts a producer's bug into
+      sustained load and buries the signal that would have found it.
+    - ⚠️ **CORRECTED 2026-08-12 — this bullet used to say a rejected payload "is therefore answered `2xx`" for
+      either cause, which is the second inversion, not the fix.** Stripe retries on ANY non-2xx for 72 hours, so
+      a **`400` for a SHAPE failure behind a valid signature** requests exactly the retry storm §18-b forbids —
+      that failure is answered **`2xx` (200)**. But a **SIGNATURE failure is answered non-2xx (`401`)**,
+      deliberately: it is an authentication failure on a **public, unauthenticated** endpoint where a `2xx` tells
+      a forger the forgery landed, and if the cause is **our own stale signing secret** the condition is
+      **transient and operator-fixable** — the sender's retry window is the recovery mechanism, and a `2xx` there
+      says "delivered" while discarding every real event behind a green check. §18-c calls this the **more
+      expensive** inversion, and the incident is on record (a dropped `user.created`). The shipped lookup to copy
+      is `WEBHOOK_REJECTION_STATUS` in
+      `packages/services/identity-webhooks/src/common/handler-pipeline.ts` — `shape → 200`, `signature → 401`, a
+      complete `Record`. **Either** rejection carries **(1)** the response body (so the Stripe dashboard shows
+      what was wrong), **(2)** structured logs with its `reason`, **(3)** a **per-`reason` counter**, and **(4)**
+      an **alarm** on that counter — because a rejection nobody sees is indistinguishable from success.
+      **Reject the content, accept the delivery — but never accept an unauthenticated delivery.**
     - ⚠️ **This does NOT generalize.** `/api/v1/billing/checkout`, `/portal` and `/subscription` are called by
       **our own** clients and keep returning the `400`/`403` GR-016 §16-a.3 requires — a `2xx` there would hide
       a fixable integration bug from the only party able to fix it. The question is always _who is on the other
@@ -283,13 +294,16 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
       trustworthy identifier** — not even one to key the dedup row on — so
       "just record the rejected event" forces the writer to invent an id, which is precisely the sentinel GR-019
       forbids. The **log line and the counter are load-bearing**, not a consolation prize.
-    - ⛔ **This feature's `tasks.md` currently asserts the exact inversion** — "invalid signatures return
-      `400`" — which is a GR-018 §18-c violation that _looks_ more correct than the rule. It also splits
-      signature failure from shape failure into two behaviours, violating §18-a. That file is owned elsewhere
-      and is **not** edited by this amendment; this note is the record that it contradicts the ratified rule.
-      Both halves need a test (AC-018-c): an **invalid** body yields `2xx` + recorded rejection + counter, **and**
-      a **valid** body still yields its normal success — or the test passes on a handler that always returns
-      `200`.
+    - ✅ **RESOLVED 2026-08-12 — the `tasks.md` contradiction this bullet recorded is gone.** It previously read:
+      _"This feature's `tasks.md` currently asserts the exact inversion — 'invalid signatures return `400`'."_
+      T-014 has since been corrected twice: off the `400`, and then off an over-correction that answered **`2xx`
+      for both causes**. It now states all three dispositions and derives the status from the `reason` lookup.
+    - ⚠️ **AC-018-c needs THREE assertions, not two — corrected 2026-08-12.** This bullet used to ask for "both
+      halves" (invalid ⇒ `2xx`, valid ⇒ success). **Any TWO of the three pass on a handler that always returns
+      the same thing**, and that particular two would have passed a handler that `2xx`-ed a **forged** signature.
+      Assert: **shape** failure behind a valid signature ⇒ `2xx` + recorded rejection + shape counter;
+      **signature** failure ⇒ non-2xx (`401`) + the same shape + signature counter; **valid** body ⇒ normal
+      success.
 - **One mechanism, one `400`.** Every checkout, portal and subscription-status input — body, path params, query
   params — plus the webhook endpoint's **own** response contract, is parsed by `@kitchensink/identity-service`'s
   own `*.schema.ts` zod via `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. ⚠️ **Billing lands inside
@@ -297,7 +311,11 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
   Nest's **own** `ValidationPipe` and therefore validated **nothing while looking correctly wired** (`PATCH
 /users/me`, a route that writes user data). Billing routes must not inherit that wiring — and the only proof is
   a test that posts a known-bad body to a real billing route and asserts the `400`. Identity registers
-  `nestjs-zod`'s `ZodValidationPipe` in `app.module.ts` today (6 sites, up from 3, re-measured 2026-08-12).
+  `nestjs-zod`'s `ZodValidationPipe` in `app.module.ts` today — ⚠️ **re-measured 2026-08-12: 11
+  `ZodValidationPipe` references and 10 classes extending `createZodDto` across 6 files**, correcting the "6 sites,
+  up from 3" this line carried. Adoption is still climbing, so **count it rather than quoting this number**;
+  `ZodValidationPipe` coverage over every controller is now also asserted repo-wide by **G5** in
+  `packages/infra/global/__tests__/service-security-invariants.test.ts`, which runs with **no exception list**.
 - **⛔ THE FLOOR — and 010 has the TIGHTEST real bounds of any of these features, with a thin margin.** §2's
   `stripe_webhook_events` declares `stripe_event_id VARCHAR(255)`, `event_type VARCHAR(100)` and `status VARCHAR(20)`.
   ⚠️ **`'processing'` is 10 characters, so `VARCHAR(20)` leaves almost no room** — a future status string longer

@@ -192,9 +192,9 @@ T-020, T-021 → T-095[P]
 - [x] **T-089** [P] [US-005] ~~Generate OpenAPI 3.1 contract for identity API~~ — **SUPERSEDED** by `packages/schemas/identity/openapi.yaml`
     - **Depends on**: T-030
     - **Implements**: FR-038, FR-039, NFR-001
-    - **⛔ SUPERSEDED 2026-08-12 — do NOT regenerate or extend `contracts/identity-api.openapi.json`.** This task published a **hand-maintained** OpenAPI document at `specs/002-user-auth/contracts/identity-api.openapi.json` (**262 lines, 7 paths**, verified by nothing). The identity service's **derived** document now exists at **`packages/schemas/identity/openapi.yaml`** (**716 lines, 10 paths**, measured 2026-08-12), generated from the zod the service authors at `packages/services/identity/src/**/*.schema.ts` and guarded by the regenerate-and-diff CI gate.
+    - **⛔ SUPERSEDED 2026-08-12 — do NOT regenerate or extend `contracts/identity-api.openapi.json`.** This task published a **hand-maintained** OpenAPI document at `specs/002-user-auth/contracts/identity-api.openapi.json` (**262 lines, 7 paths**, verified by nothing). The identity service's **derived** document now exists at **`packages/schemas/identity/openapi.yaml`** (**760 lines, 10 paths** — ⚠️ re-measured 2026-08-12; this line said **716**, which was the figure a day earlier, and a **generated** document's line count moves whenever the authored zod does, so `wc -l` it rather than quoting), generated from the zod the service authors at `packages/services/identity/src/**/*.schema.ts` and guarded by the regenerate-and-diff CI gate.
     - **⚠️ CODING_STANDARDS §15.2(6) / GR-015 §15-a.7: one contract document per service, and it REPLACES its hand-written predecessor.** A generated document living alongside a hand-maintained one makes the problem worse, because two artifacts both claim to be normative and only one is verified. Where the two disagree, **the service's zod wins** — always.
-    - **⚠️ `plan.md`'s _Status — IN PROGRESS_ is stale on this point.** It records that "`packages/schemas/identity` does not exist yet, and no `openapi.yaml` exists for any service in this repo." Both halves are **no longer true**: all three schema packages exist with derived documents (recipe 4,945 lines / food 922 / identity 716). That correction belongs to `plan.md`'s owner; this note is the record.
+    - **⚠️ `plan.md`'s _Status — IN PROGRESS_ is stale on this point.** It records that "`packages/schemas/identity` does not exist yet, and no `openapi.yaml` exists for any service in this repo." Both halves are **no longer true**: all three schema packages exist with derived documents (⚠️ re-measured 2026-08-12 — **recipe 5,700 / food 1,134 / identity 760** lines, correcting the **4,945 / 922 / 716** this line carried from the day before; all three are **generated**, so treat any line count in prose as a timestamp, not a fact). That correction belongs to `plan.md`'s owner; this note is the record.
     - **Acceptance (historical)**: the hand-written contract covered the then-public endpoints. **Superseding it is T-091.**
 
 - [ ] **T-091** [P] [US-005] Mark the hand-written identity contracts superseded and repoint every citation — `specs/002-user-auth/contracts/`, `packages/services/identity/src/`
@@ -516,10 +516,13 @@ T-020, T-021 → T-095[P]
 
 ## Contract Ownership, Validation & the Client Half (GR-015, GR-016, GR-017)
 
-> ⚠️ **The service half of this is largely LANDED; the client half has never had a task.** Measured 2026-08-12:
-> `packages/schemas/identity` exists (5 authored schema files, `openapi.yaml` **716 lines / 10 paths**) and the
-> service registers **6** `ZodValidationPipe` / **6** `createZodDto` sites, up from 3/4. What has **no** task is
-> the consumer obligation — GR-017 §17-e.12's failure mode, and the portfolio's most common violation.
+> ⚠️ **The service half of this is largely LANDED; the client half has never had a task.** Re-measured 2026-08-12:
+> `packages/schemas/identity` exists (5 authored schema files, `openapi.yaml` **760 lines / 10 paths**) and the
+> service carries **11** `ZodValidationPipe` references and **10** classes extending `createZodDto` across 6 files.
+> ⚠️ **Both figures here have now been wrong twice** — this line said "716 lines" and "**6** pipes / **6** DTOs, up
+> from 3/4", and the 3/4 pair before that. Adoption is climbing daily, so **run the count**; do not quote a
+> paragraph. What has **no** task is the consumer obligation — GR-017 §17-e.12's failure mode, and the portfolio's
+> most common violation.
 
 - [ ] **T-092** [P] [US-005] Verify the identity contract's three drift gates, including the `CONTRACT_HASH` boot assertion — `packages/services/identity/src/main.ts`, `packages/services/identity/package.json`, `turbo.json`
     - **Depends on**: T-030

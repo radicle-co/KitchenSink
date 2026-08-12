@@ -321,13 +321,13 @@ _The service authors it; clients declare nothing._
 [ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). Full bindings:
 [`plan.md` → _API Contracts — ownership and drift_](./plan.md#api-contracts--ownership-and-drift-gr-015).
 
-| Role                                                            | Binding for 002                                                                                                                                                                                                 |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Owning service (**authors** the zod)                            | `@kitchensink/identity-service` — `packages/services/identity/src/**/*.schema.ts` (5 wire files: users, avatar, admin, api-error, health)                                                                       |
-| Second deployable in scope                                      | `@kitchensink/identity-webhooks` — the Lambda handlers; the **inbound** Clerk payload is third-party (§15-d below), the webhook's own **response** is ours                                                      |
-| Schema package (**GENERATED and committed; never hand-edited**) | `@kitchensink/schema-identity` — `packages/schemas/identity`. ⚠️ **It now EXISTS** (5 copied schema files; `openapi.yaml` **716 lines, 10 paths**), so the plan's "does not exist yet" status note is **stale** |
-| Consuming app / feature packages                                | `ProfileServiceClient` in `@commise/features-account` (`src/profileServiceClient.ts`); `@commise/web` (`src/lib/identityServiceClient.ts`); `@commise/mobile` (`src/services/api.ts`)                           |
-| Domain types (a **different** axis, GR-007)                     | `@kitchensink/identity-core` — reused `import type`, **never re-declared** inside the schema package                                                                                                            |
+| Role                                                            | Binding for 002                                                                                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Owning service (**authors** the zod)                            | `@kitchensink/identity-service` — `packages/services/identity/src/**/*.schema.ts` (5 wire files: users, avatar, admin, api-error, health)                                                                                                                                                                                                                    |
+| Second deployable in scope                                      | `@kitchensink/identity-webhooks` — the Lambda handlers; the **inbound** Clerk payload is third-party (§15-d below), the webhook's own **response** is ours                                                                                                                                                                                                   |
+| Schema package (**GENERATED and committed; never hand-edited**) | `@kitchensink/schema-identity` — `packages/schemas/identity`. ⚠️ **It now EXISTS** (5 copied schema files; `openapi.yaml` **760 lines, 10 paths** — re-measured 2026-08-12, correcting **716** from the day before; a generated document's line count moves, so `wc -l` it rather than quoting), so the plan's "does not exist yet" status note is **stale** |
+| Consuming app / feature packages                                | `ProfileServiceClient` in `@commise/features-account` (`src/profileServiceClient.ts`); `@commise/web` (`src/lib/identityServiceClient.ts`); `@commise/mobile` (`src/services/api.ts`)                                                                                                                                                                        |
+| Domain types (a **different** axis, GR-007)                     | `@kitchensink/identity-core` — reused `import type`, **never re-declared** inside the schema package                                                                                                                                                                                                                                                         |
 
 **The service MUST** author every request/response shape of `/api/v1/users/*`, `/api/v1/profile/*`,
 `/api/v1/accounts/*` and `/api/v1/admin/*` as **zod in the identity service**, at `src/**/*.schema.ts` beside
@@ -430,10 +430,15 @@ FR-021 and FR-039 already state the requirements; GR-016 states where they execu
   happened on **`PATCH /users/me`**, a route that **writes user data** (FR-021's surface). The identity service
   registers **`nestjs-zod`'s** pipe, and because the failure is invisible in review the **only** proof is a test
   that posts a **known-bad body to the real route** and asserts the `400`.
-- **One mechanism, one `400`.** Measured 2026-08-12: identity has **6 files referencing `ZodValidationPipe`, 6
-  referencing `createZodDto` (8 `extends createZodDto(` sites), and ZERO remaining `class-validator`
-  imports** — up from 3/4 on 2026-08-11, so identity is genuinely on **one** mechanism (`recipe-service` still
-  has one `class-validator` importer). Every `/api/v1/users/*`, `/api/v1/profile/*`, `/api/v1/accounts/*` and
+- **One mechanism, one `400`.** ⚠️ **Re-measured 2026-08-12: identity has 11 `ZodValidationPipe` references and
+  **10** classes extending `createZodDto` across **6** files, with ZERO `class-validator` imports** — correcting the
+  "6 / 6 (8 `extends`) … up from 3/4" this bullet carried, which has now been superseded twice in two days.
+  ⛔ **Stop quoting the number and run the count** — adoption is still climbing, and `ZodValidationPipe` coverage over
+  every controller is asserted repo-wide by **G5** in
+  `packages/infra/global/__tests__/service-security-invariants.test.ts`, which is the durable statement. Identity is
+  genuinely on **one** mechanism, and ✅ so is `recipe-service` now — the "still has one `class-validator` importer"
+  clause here is **corrected**: that importer is converged and the dependency is removed from its `package.json`
+  and `prod.package.json`. Every `/api/v1/users/*`, `/api/v1/profile/*`, `/api/v1/accounts/*` and
   `/api/v1/admin/*` input —
   body, path params, query params and any header a handler reads — goes through it. No second DTO framework, no
   per-method `safeParse`.
@@ -487,15 +492,22 @@ FR-021 and FR-039 already state the requirements; GR-016 states where they execu
     - ⚠️ **This does NOT generalize to our own callers.** Identity's own HTTP API returns the `400`/`403` GR-016
       §16-a.3 requires, and the erasure fan-out's callees do too: those callers do not blind-retry, and a `2xx`
       would hide a real integration bug from the party able to fix it.
-    - ⚠️ **Two measured gaps, recorded rather than glossed.** (i) `WEBHOOK_REJECTION_STATUS` maps
-      `shape → 200` but `signature → 401`, i.e. the status **does** differ by reason, on a documented and
-      incident-grounded rationale — a stale signing secret is **transient and operator-fixable**, and svix's
-      retry window is the mechanism that rescues it, whereas answering `2xx` would discard every real event
-      permanently (a dropped `user.created` is already on record). That is a genuine tension with GR-018 §18-a's
-      "differ only in `reason`" and needs an **owner ruling**, not a silent alignment in either direction.
-      (ii) The `IdentityWebhookRejected` **counter is emitted but no alarm is defined on it** — measured
-      2026-08-12, `packages/services/identity-webhooks/infra/lib/webhooks-stack.ts` alarms only on
-      `ErasureIncomplete`. §18-c.4 is therefore **unmet**.
+    - ✅ **Both of the "measured gaps" this bullet recorded are CLOSED — re-measured 2026-08-12.** Kept rather
+      than deleted, because each was a real reading of the tree and the resolution is the useful part.
+        - **(i) The `shape → 200` / `signature → 401` tension is RULED, not open.** GR-018 §18-a now carries the
+          reason→status table outright: "one behaviour" means one **PATH** and one **shape**, **not** one status,
+          and the status comes from a **single complete lookup** so adding a reason cannot compile until its retry
+          disposition is decided. `WEBHOOK_REJECTION_STATUS` is that lookup and is the rule's own **reference
+          implementation** — ⛔ so do **not** "align" it in either direction. §18-a's Violation list is explicit
+          that two statuses from one complete lookup is **not** a violation, while returning `2xx` for a
+          **signature** failure is the more expensive one of the two inversions.
+        - **(ii) The `IdentityWebhookRejected` counter IS alarmed.** This bullet previously said "no alarm is
+          defined on it … alarms only on `ErasureIncomplete`", which was true when measured and is not now:
+          `packages/services/identity-webhooks/infra/lib/webhooks-stack.ts` defines
+          **`WebhookShapeRejectionAlarm`** and **`WebhookSignatureRejectionAlarm`**, both dimensioned per
+          `reason`, alongside `ErasureIncompleteAlarm`. §18-c.4 / AC-018-f are **met**. ⚠️ Two alarms, not one
+          dimensionless one, is the point — a signature-rejection threshold has to be set independently, because
+          this endpoint is public and receives internet background scanning.
 - **⛔ A rejected event is NOT recorded as a row (GR-018 §18-d), and that is GR-019's doing.** An invalid payload
   has **no trustworthy identifier**, and `webhook_events.identity_id` is `text NOT NULL` (migration
   `0006_webhook_idempotency.sql`, made `NOT NULL` by `0007_webhook_events_ttl.sql` after backfilling

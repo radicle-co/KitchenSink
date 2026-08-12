@@ -128,8 +128,17 @@ nothing, survived behind green builds).
   type belonging to 001, 003, 005, 007 or 009.
 - ⚠️ **CLIENT WORK IS ITS OWN DELIVERABLE, with its own tasks** (GR-017 §17-e.12): the schema-package additions,
   the typed client methods, **response validation on receipt**, and the **contract-skew guard**. "The calendar UI
-  will add the type" is a **contract fork, not a task** — and measured 2026-08-12, not one `tasks.md` in the
-  portfolio carried these tasks while nine `plan.md` files stated the obligation in prose.
+  will add the type" is a **contract fork, not a task**.
+    - ✅ **CORRECTED 2026-08-12 — the portfolio-wide claim this bullet ended on is no longer true.** It read: _"not
+      one `tasks.md` in the portfolio carried these tasks while nine `plan.md` files stated the obligation in
+      prose."_ Re-measured today across all fourteen features: **14 of 14 `tasks.md` reference `CONTRACT_HASH`,
+      14 of 14 reference contract **skew**, and 14 of 14 `plan.md` state the obligation** — and **11 of 14** carry
+      it as a real **checkbox task**, not just prose (measured by attributing every line to the checkbox block it
+      falls under, rather than grepping the file, which cannot tell a task from a paragraph).
+    - ⛔ **006 is one of the THREE that still do not** (with 008 and 009): `specs/006-meal-planning/tasks.md` names
+      `CONTRACT_HASH` and skew **only in prose**, with **zero** checkbox blocks carrying either, and **no** task
+      naming `packages/schemas/`. So this bullet's warning still binds **here** — it is just no longer a
+      portfolio-wide indictment, and the fix is a task in 006's own list, not another paragraph.
 
 **Drift gates** — inherited from GR-015 §15-c, all three, not reinvented here: the turbo `inputs` rebuild, the
 **regenerate-and-diff CI gate**, and the **`CONTRACT_HASH` boot assertion** (the only layer that catches a

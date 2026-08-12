@@ -769,9 +769,16 @@ should be read as a completed migration. **Every figure here was re-measured aga
 the previous revision's claims about `openapi.yaml` and about food/identity had gone stale within a day.
 
 - ✅ **Three schema packages exist**, each with `schemas.ts`, `types.ts`, `contract-hash.ts`, a barrel **and a
-  generated `openapi.yaml`**: `packages/schemas/recipe` (**8** published wire-schema files, `openapi.yaml`
-  4,945 lines, 34 paths), `packages/schemas/food` (**5**, 922 lines, 12 paths), `packages/schemas/identity`
-  (**5**, 716 lines, 10 paths) — all measured 2026-08-12.
+  generated `openapi.yaml`**: `packages/schemas/recipe` (**10** published wire-schema files, 41 operations),
+  `packages/schemas/food` (**5**, 13 operations), `packages/schemas/identity` (**5**, 12 operations) — counts
+  measured 2026-08-12, end of day.
+    - ⛔ **The `openapi.yaml` LINE COUNTS that used to sit in this bullet (4,945 / 922 / 716) are deliberately
+      removed, not refreshed.** They are generated output, so every contract change invalidates them — all three
+      moved the same day they were written — and they had already been copied into five feature specs, where a
+      reader has no way to know they are a snapshot. Recipe's file counts change ~15% on a single vertical's
+      convergence. **A regenerated artifact's size is not a governance fact.** Operation counts are kept because
+      they are a property of the API rather than of the renderer, and the ratchet in each service's
+      `contract/__tests__/openapi.test.ts` asserts them against the controllers.
     - ⚠️ **Note for anyone re-counting**: food and identity each hold **6** files matching `*.schema.ts` in the
       service, but only **5** are wire schemas. The sixth is `src/config/env.schema.ts`, the Zod **environment**
       schema, which is correctly **not** published. The `*.schema.ts` suffix is therefore overloaded — it does
@@ -783,12 +790,19 @@ the previous revision's claims about `openapi.yaml` and about food/identity had 
 - ✅ **`openapi.yaml` now exists for all three services.** The previous revision recorded "does not exist for
   any service"; that is **no longer true**, and `@kitchensink/schema-recipe`'s `./openapi.yaml` export now
   names a real file.
-- 🔄 `specs/001-commise-recipe-app/contracts/api.openapi.yaml` — 2,827 hand-written lines (2,810 of body plus a
-  17-line superseded-notice header) — is now **genuinely superseded**: recipe's derived document exists and
-  covers **34 paths against the hand-written 32**. Citations, counted over **`git ls-files` only**: **12 files
-  under `packages/`**, 26 under `specs/`, 5 under `docs/`. The **citations have not been repointed**, so two
-  OpenAPI documents describe the recipe service and only one of them is verified. The hand-written file's own
-  header still says "the replacement has NOT been generated yet" and is stale.
+- 🔄 `specs/001-commise-recipe-app/contracts/api.openapi.yaml` — the hand-written document — is now **genuinely
+  superseded**: recipe's derived document exists and covers **34 paths against the hand-written 32**. Citations,
+  counted over **`git ls-files` only** and re-measured 2026-08-12: **11** files under `packages/` mention the
+  filename at all, 26 under `specs/`, 5 under `docs/` — but only **5** under `packages/` still cite it as the
+  contract to read; the rest name it while recording that it is superseded. ⚠️ **State the method with the
+  number.** Two honest measurements of "citations" differ by 2× here purely on whether a mention counts as a
+  citation, and the original figure (12) was the broad one. The number that decides whether repointing is a
+  small job is the narrow one. The **citations have not been repointed**, so two
+  OpenAPI documents describe the recipe service and only one of them is verified.
+    - ⚠️ Two figures previously in this bullet are corrected. Its **line count** (2,827 / 2,810 body / a 17-line
+      header) is removed for the reason above — the header has since been rewritten, so even the header figure
+      was wrong. And it said the file's own header "still says the replacement has NOT been generated yet"; that
+      header **has been corrected** and now records that the replacement exists.
     - ⚠️ **Correction to an earlier figure in this document, and to ADR-0014.** A previous revision said "57
       source files" and a first pass at this refresh said "31 files under `packages/`". Both counted **build
       output** — `.next/standalone/`, `dist/` — because they globbed the worktree instead of the index. **Count
@@ -923,14 +937,23 @@ Both are recorded here because a reviewer cannot see either one by reading the r
 
 #### 16-f. No request-derived value may reach `sql.raw()`
 
-`sql.raw` **bypasses parameterisation by design** — that is what it is for. Measured 2026-08-11, only three
-sites pass it a non-literal argument, and **all three take a config value or a module constant, so none is
-currently reachable from user input**: the recipe search DAL
-(`packages/services/recipe-service/src/search/dal/search.dal.ts`) and two recipe workers
-(`erasure-sweeper.ts`, `erasure-orphan-sweeper.ts`).
+`sql.raw` **bypasses parameterisation by design** — that is what it is for.
 
-That is the state to preserve, not a clean bill of health: the rule is that a **request-derived value must
-never reach `sql.raw()`**, directly or through a variable. Where a request legitimately selects an
+⚠️ **The measurement in this section has been superseded twice, and both revisions are worth keeping** because
+they show the rule doing its job. Measured 2026-08-11: **three** sites passed a non-literal argument (the recipe
+search DAL, and the `erasure-sweeper.ts` / `erasure-orphan-sweeper.ts` workers), all three taking a config value
+or a module constant, so none was reachable from user input — recorded then as "the state to preserve, not a
+clean bill of health". Re-measured **2026-08-12: ZERO `sql.raw(` call sites remain in `packages/**`.** A naive
+grep still returns two hits in the search DAL and **both are comments recording that the call was removed\*\*, so
+count call sites, not string matches (§16's Current State states the general form of that error).
+
+The posture is now **enforced instead of observed**, by two independent gates: an ESLint `no-restricted-syntax`
+ban in `packages/tools/eslint/index.js`, and repo-wide AST gate **G3** in
+`packages/infra/global/__tests__/service-security-invariants.test.ts`. That matters more than the count: the
+old state depended on nobody adding a fourth site, and a rule whose compliance depends on nobody doing the
+obvious thing is not a control.
+
+The rule is unchanged: a **request-derived value must never reach `sql.raw()`**, directly or through a variable. Where a request legitimately selects an
 identifier (a sort column, a partition, an index hint), the validated **enum maps to a closed allowlist of
 literals in code** — the request supplies the key, never the SQL fragment. Every other query is
 parameterised.
@@ -983,51 +1006,69 @@ deferral. Reversing it needs its own proposal under the [amendment process](#gov
   this rule and of GR-015 §15-a.5. Satisfying 16-d that way is not compliance.
 - Adding server-side response validation while 16-g stands is a violation of 16-g.
 
-### Current State (2026-08-12) — IN PROGRESS, NOT SATISFIED
+### Current State (re-measured 2026-08-12, end of day) — 16-a SATISFIED for HTTP; 16-g still deferred
 
-Measured 2026-08-11, while two convergence efforts were live in the code. **Nothing below describes a
-finished migration.**
+⛔ **THE TWO PIPE-COUNT TABLES THAT USED TO OPEN THIS SECTION ARE DELETED, NOT UPDATED.** They were the
+_before_ picture — a 2026-08-11 baseline plus a partial re-measure — and both had gone stale within a day, in
+the direction that does the most damage: they described gaps that were already closed, and those figures had
+already been copied into six feature plans, where they scheduled work that was done. A "before" snapshot whose
+only remaining function is to be re-measured is not a record, it is a liability. What matters is the END state
+and the GATE that holds it, so that is what this section carries.
 
-| Service                         | `ZodValidationPipe` | `createZodDto` | Notes                                                                                                                                                  |
-| ------------------------------- | ------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@kitchensink/recipe-service`   | 18                  | 26             | furthest along, but **19 files are still on `class-validator`** — two mechanisms in one service                                                        |
-| `@kitchensink/food-service`     | **0**               | **0**          | **no validation pipe at all**; `@Body() body: unknown` + per-method `safeParse`, which is why three distinct failures report `{ error: 'Empty name' }` |
-| `@kitchensink/identity-service` | 3                   | 4              | smallest surface; `PATCH /users/me` is the `createZodDto`-under-the-wrong-pipe case (16-e.1)                                                           |
+**16-a (one mechanism per service, HTTP surfaces) is now SATISFIED, and it is gated rather than asserted.**
 
-**Re-measured 2026-08-12** — two of those three rows have moved, and the one that has not is the one that
-matters most:
+- **Zero `class-validator` / `class-transformer` importers anywhere in `packages/services/**`.** The last one
+was `recipe-service/src/search/dto/search-recipes.query.dto.ts`, converged onto `createZodDto`over the
+authored`recipeSearchQuerySchema`; both packages are **removed from `recipe-service`'s `package.json`and`prod.package.json`**, so the mechanism cannot reappear by accident. Verify with
+`grep -rn "from 'class-validator'" packages --include="\*.ts" | grep -v node_modules | grep -v /dist/`.
+- **Every HTTP controller in every discovered deployable is covered by `ZodValidationPipe`, with no exception
+  list.** `packages/infra/global/__tests__/service-security-invariants.test.ts` gate **G5** discovers services
+  and parses their sources as TypeScript (not text), accepts a global `APP_PIPE` or a `@UsePipes`, and
+  explicitly catches the two ways a route can LOOK validated and not be: Nest's own `ValidationPipe` standing
+  in over a `createZodDto` class (16-e.1), and the bare-class-token bug. Its `UNCONVERGED_CONTROLLERS` ratchet
+  was **deleted** when its single entry converged — an empty allowlist is still an allowlist, and a future
+  controller could have been added to it as a line that reads like configuration.
+- `createZodDto` call sites, parsed (excluding tests), 2026-08-12: recipe **22**, identity **10**, food **4**.
+  ⚠️ Recorded as a fact about today, **not as a target**: the number is a function of how many endpoints exist,
+  so it can only be read alongside the gate above. The gate is the invariant; this is trivia.
 
-| Service                         | `ZodValidationPipe` | `createZodDto`  | Change since 2026-08-11                                                                                    |
-| ------------------------------- | ------------------- | --------------- | ---------------------------------------------------------------------------------------------------------- |
-| `@kitchensink/recipe-service`   | 18                  | 26              | pipe counts unchanged, but the `class-validator` figure was **wrong by an order of magnitude** — see below |
-| `@kitchensink/food-service`     | **0** committed     | **0** committed | 🔄 **5 / 3 in the working tree, uncommitted.** The committed state is still the violation                  |
-| `@kitchensink/identity-service` | **6**               | **6**           | ✅ up from 3 / 4                                                                                           |
+⛔ **COUNT IMPORTERS, NOT MENTIONS — the methodology error that produced the "19 `class-validator` files"
+figure, and the reason it survived so long.** A `grep -rl` for the string matched 19 files whose mentions were
+almost all JSDoc **about migrating away from it**; there was ever only **one** importer. The same error is easy
+to repeat with `sql.raw(`: a naive grep still returns two hits in
+`recipe-service/src/search/dal/search.dal.ts`, and **both are comments explaining that the call was removed**.
+Any number in this document must be produced by a measurement that distinguishes code from prose about code.
 
-⛔ **CORRECTION — "19 `class-validator` files" was a MENTION count, not an importer count.** Measured
-2026-08-12 with `grep -rl "from 'class-validator'"` over service sources, excluding `dist`: **exactly ONE file
-imports it** — `packages/services/recipe-service/src/search/dto/search-recipes.query.dto.ts`. The 19 is the
-number of files that mention the string, and almost all of those mentions are JSDoc **about migrating away from
-it**. This figure appears in ADR-0015, in §15.4 and in earlier revisions of this rule, and it materially
-misstates the size of the remaining work: recipe is **one file** away from one mechanism, not nineteen. Count
-importers, not mentions.
-
-⛔ **Food is still the live proof that GR-015 and GR-016 are separate obligations** — with a caveat that must be
-stated rather than smoothed over. In **committed** `main` it satisfies GR-015 in full (5 published wire-schema
-files, a committed `@kitchensink/schema-food`, a 922-line derived `openapi.yaml`) and **validates nothing**: a
-reviewer looking only at the contract artifacts would see a conformant service. A fix is **in the working tree
-and not yet committed** (5 `ZodValidationPipe` / 3 `createZodDto` sites, plus an untracked `foods.dto.ts`), so
-this row will need one more pass once it lands. The argument the row makes does not depend on the fix being
-absent — it depends on the two obligations having been independently satisfiable, which they were.
+⛔ **Food remains the live proof that GR-015 and GR-016 are SEPARATE obligations — as history, which is where
+its force is.** There was a state (committed, on `main`) in which it satisfied GR-015 in full — 5 published
+wire-schema files, a committed `@kitchensink/schema-food`, a derived `openapi.yaml` — and **validated nothing**:
+`@Body() body: unknown` plus a per-method `safeParse`, which is why three distinct client mistakes all answered
+`{ error: 'Empty name' }`. A reviewer looking only at the contract artifacts would have called it conformant.
+That is fixed (committed in `49a1df7f`; `src/foods/dto/foods.dto.ts` is tracked, with its own test), and the
+argument never depended on the fix being absent — it depends on the two obligations having been independently
+satisfiable, which they were. ⚠️ Do not "update" this paragraph to say food is now compliant and stop there;
+the counter-example is the reason the two rules are numbered separately.
 
 - ❌ **Response validation: none, in any service — and that is the deferred state (16-g), not a gap to close.**
-- 🔄 Recipe's `class-validator` residue and food's missing pipe are both mid-convergence.
+  Re-confirmed 2026-08-12: zero `ZodSerializerInterceptor` / `ZodSerializerDto`, and no producing-side response
+  parse in any service.
+- ✅ **16-f's `sql.raw()` posture is now ENFORCED rather than observed.** The rule used to record "only three
+  sites pass a non-literal argument … a state to preserve deliberately". There are now **zero `sql.raw(` call
+  sites in `packages/**`**, and two independent gates keep it that way: an ESLint `no-restricted-syntax`ban in`packages/tools/eslint/index.js`, and repo-wide AST gate **G3**. A posture that depended on nobody adding a
+  fourth site is now a posture nobody can add to.
+- ✅ **16-d's five int-backed recipe fields are bounded** by `positiveInt4()`
+  (`packages/shared/recipe-core/src/recipeRequestBounds.ts`), and `storage-capacity.test.ts` asserts the floor
+  for every bounded column in all three services. ⚠️ The `servings: 9999999999` → Postgres `22003` → `500`
+  story stays in 16-d as the REASON the bound exists; it is no longer an open gap.
 - ✅ Features **006–010** now identify an owning service package
   ([ADR-0017](../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md)); GR-016
   binds `@kitchensink/recipe-service` (006, 007, 009) and `@kitchensink/identity-service` +
   `@kitchensink/identity-webhooks` (010).
-- ⚠️ **006's and 009's `tasks.md` still specify `class-validator` DTOs**, which their own plans forbid. A task
-  list is where a validation mechanism actually gets chosen, so a plan that says `nestjs-zod` while the tasks
-  say `class-validator` will ship `class-validator`.
+- ✅ **006's and 009's `tasks.md` no longer specify `class-validator` DTOs** — both were repointed, and each now
+  carries an explicit ⛔ note naming the mechanism it must not use. (This bullet previously asserted the
+  opposite as a live gap.) The underlying observation still holds and is worth keeping: a task list is where a
+  validation mechanism actually gets chosen, so a plan that says `nestjs-zod` while the tasks say
+  `class-validator` will ship `class-validator`.
 
 **OPEN items — BOTH RULED 2026-08-12.**
 
@@ -1190,10 +1231,24 @@ covering every item:
 | 13  | the **third-party exception** (17-b.6) wherever an external API is consumed                                                                | ⚠️ partly                                                   |
 | 14  | that server-side **response validation is DEFERRED** and must not be "completed" (GR-016 §16-g)                                            | ✅ (grep)                                                   |
 
-**Item 12 is the one that has been skipped every time.** Measured 2026-08-12 across all fourteen feature
-specs: **not one `tasks.md` in the portfolio contained a task to create a schema package, wire `CONTRACT_HASH`,
-or validate a response on receipt** — while nine `plan.md` files stated the client obligation in prose. An
-obligation with no task is an obligation that does not ship.
+**Item 12 was the one skipped every time — and it has since been fixed portfolio-wide, which is worth recording
+precisely because the original measurement is now the most-replicated stale claim in this document.**
+
+- **What was measured 2026-08-11/12:** not one `tasks.md` in the portfolio contained a task to create a schema
+  package, wire `CONTRACT_HASH`, or validate a response on receipt, while nine `plan.md` files stated the client
+  obligation in prose. The lesson stands: **an obligation with no task is an obligation that does not ship.**
+- ⚠️ **Re-measured 2026-08-12, end of day: that is no longer true.** **14 of 14** `tasks.md` files reference
+  `CONTRACT_HASH`, **13 of 14** reference a contract-skew guard, and **14 of 15** `plan.md` files state the
+  obligation.
+    - ⚠️ **The file-level count is the wrong number, and that is why the original read "not one".** A grep cannot
+      tell a TASK from a PARAGRAPH, so "the file mentions it" and "the feature will ship it" are different
+      measurements. At the block level: **11 of 14** carry contract work as a real checkbox task, and the three
+      that do not — **006, 008, 009** — name it in prose only, with no `packages/schemas/` task. Those three are
+      the actual remaining exposure; the other eleven are done.
+- ⛔ **Do not cite the "not one `tasks.md`" figure.** It has been copied verbatim into `006/spec.md` and
+  `014/tasks.md` — where it now sits a few lines above tasks that disprove it — and quoting a superseded
+  measurement as current is the failure mode this ledger exists to prevent. Cite the re-measurement, with its
+  date, or measure it again.
 
 #### 17-f. Response validation — say which one you mean
 
@@ -1236,48 +1291,74 @@ skip the required one or add the forbidden one:
 ⚠️ **This table is the honest state on 2026-08-12, not an aspiration.** A rule that implies coverage it does
 not have is worse than an unenforced rule, because it stops people looking.
 
-| Obligation                                                  | Enforced by                                                                                                           | Discovery-based?                                                                                                   | State                                                                                                                                                                              |
-| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Schema package shape, scripts, lint/format posture (17-a.3) | `packages/infra/global/__tests__/generated-schema-packages.test.ts`                                                   | ✅ reads `packages/schemas/*`                                                                                      | **exists**                                                                                                                                                                         |
-| Regenerate-and-diff drift gate (GR-015 §15-c layer 2)       | `scripts/contractDriftGate.mjs` + `packages/infra/global/__tests__/contract-drift-gate.test.ts`                       | ✅                                                                                                                 | **exists**                                                                                                                                                                         |
-| Every contract owner is actually regenerated (17-a.2)       | `scripts/contractOwners.mjs` `discoverContractOwners` + `contract-generation-runner.test.ts`                          | ✅ reads `packages/services/*/package.json`                                                                        | **exists**                                                                                                                                                                         |
-| No app depends on a service package                         | `packages/infra/global/__tests__/app-service-dependency.test.ts`                                                      | ✅ discovers services + `git ls-files`                                                                             | **exists**                                                                                                                                                                         |
-| Turbo `inputs` wiring for the copy (GR-015 §15-c layer 1)   | `packages/infra/global/__tests__/turbo-build-graph.test.ts`, `packages/services/*/src/__tests__/build-inputs.test.ts` | ✅ / per-service                                                                                                   | **exists**                                                                                                                                                                         |
-| `CONTRACT_HASH` boot assertion (17-a.4)                     | `packages/services/*/src/__tests__/main-boot-order.test.ts`; client side `packages/clients/*/src/contractSkew.ts`     | per-service / per-client                                                                                           | **partial** — present for identity, food, recipe; **not** a repo-wide discovery gate                                                                                               |
-| `nestjs-zod` pipe registered, bad body ⇒ `400` (17-a.5)     | `packages/services/identity/tests/app-validation.test.ts`                                                             | ❌ per-service only                                                                                                | **partial** — identity has it; **no repo-wide gate**                                                                                                                               |
-| Contract test tier per service                              | `packages/services/{identity,food-service}/contract/__tests__/contract.test.ts`                                       | ❌                                                                                                                 | **partial** — `recipe-service` has **no** such tier                                                                                                                                |
-| Clients declare no wire types (17-b.1)                      | `packages/infra/global/__tests__/wire-contract-consumers.{ts,test.ts}`                                                | ✅ AST-based                                                                                                       | 🔄 **LANDING — present in the working tree, UNTRACKED as of 2026-08-12.** Until it is committed, treat 17-b.1 as ungated; do not cite it as coverage in a feature spec before then |
-| `z.strictObject()` on mutating bodies (17-c)                | —                                                                                                                     | —                                                                                                                  | ❌ **no gate yet** — greppable, so cheap to add                                                                                                                                    |
-| Storage-floor parity (17-d)                                 | `@kitchensink/contract-gen` `auditStorageCapacity` + `storage-capacity.test.ts` in **all three** services             | per-service, but **exhaustive over columns** within each — a new bounded column fails the gate the day it is added | ✅ **exists, and is the strongest gate in this table.** Bidirectional bookkeeping via `stale-account` / `duplicate-account` findings                                               |
-| Non-HTTP ingress enumerated (17-e.10)                       | —                                                                                                                     | —                                                                                                                  | ❌ **NOT MECHANIZABLE.** Nothing can prove a spec listed every consumer it will ever have; this one rests on review, and saying so is more useful than pretending otherwise        |
-| Spec content (17-e items 1–14)                              | —                                                                                                                     | —                                                                                                                  | ❌ **not mechanized.** Items 1, 2, 8 and 14 are greppable per spec and worth a gate; the rest are judgement                                                                        |
+| Obligation                                                  | Enforced by                                                                                                                                                                                                          | Discovery-based?                                                                                                   | State                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schema package shape, scripts, lint/format posture (17-a.3) | `packages/infra/global/__tests__/generated-schema-packages.test.ts`                                                                                                                                                  | ✅ reads `packages/schemas/*`                                                                                      | **exists**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Regenerate-and-diff drift gate (GR-015 §15-c layer 2)       | `scripts/contractDriftGate.mjs` + `packages/infra/global/__tests__/contract-drift-gate.test.ts`                                                                                                                      | ✅                                                                                                                 | **exists**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Every contract owner is actually regenerated (17-a.2)       | `scripts/contractOwners.mjs` `discoverContractOwners` + `contract-generation-runner.test.ts`                                                                                                                         | ✅ reads `packages/services/*/package.json`                                                                        | **exists**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| No app depends on a service package                         | `packages/infra/global/__tests__/app-service-dependency.test.ts`                                                                                                                                                     | ✅ discovers services + `git ls-files`                                                                             | **exists**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Turbo `inputs` wiring for the copy (GR-015 §15-c layer 1)   | `packages/infra/global/__tests__/turbo-build-graph.test.ts`, `packages/services/*/src/__tests__/build-inputs.test.ts`                                                                                                | ✅ / per-service                                                                                                   | **exists**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `CONTRACT_HASH` boot assertion (17-a.4)                     | `packages/services/*/src/__tests__/main-boot-order.test.ts`; consumer side `packages/clients/{food-service,recipe-service}/src/contractSkew.ts` **and** `packages/apps/commise/features/account/src/contractSkew.ts` | per-service / per-consumer                                                                                         | **partial** — the SERVICE half is present for all three. The CONSUMER half now covers all three too: identity's was the gap (there is no `packages/clients/identity-service`; web, mobile and `features/account` import `@kitchensink/schema-identity` directly) and it lives in `@commise/features-account`, fired from `ProfileServiceClient`'s transport funnel. ⚠️ Still **not** a repo-wide discovery gate, and mobile's `src/services/api.ts` + `useAvatarUpload.ts` reach identity WITHOUT going through that client — see 17-b.5 below |
+| `nestjs-zod` pipe registered, bad body ⇒ `400` (17-a.5)     | `packages/infra/global/__tests__/service-security-invariants.test.ts` gate **G5**, plus `packages/services/identity/tests/app-validation.test.ts`                                                                    | ✅ discovers deployables, parses sources as TypeScript                                                             | ✅ **exists, repo-wide.** ⚠️ This row said "per-service only, **no repo-wide gate**" — stale. G5 requires EVERY HTTP controller in EVERY discovered deployable to be covered by a `ZodValidationPipe` (global `APP_PIPE` or `@UsePipes`), catches Nest's own `ValidationPipe` standing in over a `createZodDto` class (16-e.1) and the bare-class-token bug, and now runs with **no exception list** — its `UNCONVERGED_CONTROLLERS` ratchet was deleted when its last entry converged                                                         |
+| Contract test tier per service                              | `packages/services/{identity,food-service,recipe-service}/contract/__tests__/contract.test.ts` (+ `openapi.test.ts`)                                                                                                 | per-service, collected by each service's default `vitest.config.ts`                                                | ✅ **exists in all three.** ⚠️ This row said `recipe-service` has **no** such tier — stale, and the claim had been copied into `specs/001-commise-recipe-app/tasks.md` as a "verified gap". Recipe has **two** files, both tracked and both matched by its `vitest.config.ts` `include`, so they run in the default `test` tier and therefore in CI. ⛔ Running the tier INSIDE the default glob is deliberate in all three — do not "fix" it into a separate config + exclusion                                                               |
+| Clients declare no wire types (17-b.1)                      | `packages/infra/global/__tests__/wire-contract-consumers.{ts,test.ts}`                                                                                                                                               | ✅ AST-based                                                                                                       | ✅ **exists.** ⚠️ This row said "UNTRACKED … do not cite it as coverage" — stale: it was committed in `df21cbed` with 12 violation fixtures and is green. Cite it                                                                                                                                                                                                                                                                                                                                                                              |
+| `z.strictObject()` on mutating bodies (17-c)                | —                                                                                                                                                                                                                    | —                                                                                                                  | ❌ **no gate yet** — greppable, so cheap to add                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Storage-floor parity (17-d)                                 | `@kitchensink/contract-gen` `auditStorageCapacity` + `storage-capacity.test.ts` in **all three** services                                                                                                            | per-service, but **exhaustive over columns** within each — a new bounded column fails the gate the day it is added | ✅ **exists, and is the strongest gate in this table.** Bidirectional bookkeeping via `stale-account` / `duplicate-account` findings                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Non-HTTP ingress enumerated (17-e.10)                       | —                                                                                                                                                                                                                    | —                                                                                                                  | ❌ **NOT MECHANIZABLE.** Nothing can prove a spec listed every consumer it will ever have; this one rests on review, and saying so is more useful than pretending otherwise                                                                                                                                                                                                                                                                                                                                                                    |
+| Spec content (17-e items 1–14)                              | —                                                                                                                                                                                                                    | —                                                                                                                  | ❌ **not mechanized.** Items 1, 2, 8 and 14 are greppable per spec and worth a gate; the rest are judgement                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 ### Current State (2026-08-12) — the rule is NEW; conformance is PARTIAL
 
 - ✅ **Three schema packages exist and are complete in shape**: `packages/schemas/{recipe,food,identity}`, each
   with `schemas.ts`, `types.ts`, `contract-hash.ts`, a barrel — **and `openapi.yaml`, which now exists for all
-  three** (4,945 / 922 / 716 lines). GR-015's Current State previously recorded "`openapi.yaml` does not exist
-  for any service"; that is **no longer true** and has been corrected.
-- ✅ **`packages/clients/{food-service,recipe-service}` carry contract-skew guards** and validate responses on
-  receipt.
-- 🔄 **`@kitchensink/recipe-service` is ONE file away from one mechanism** — `src/search/dto/search-recipes.query.dto.ts`
-  is the only remaining `class-validator` **importer** (measured 2026-08-12). The "19 files" figure repeated
-  elsewhere in this document, in ADR-0015 and in §15.4 is a **mention** count and overstates the work by ~19×.
-- ❌ **`@kitchensink/food-service` registers no validation pipe in committed `main`** (`ZodValidationPipe`: 0,
-  `createZodDto`: 0), despite having a schema package and a derived OpenAPI document. **A service can satisfy
-  GR-015 in full and still accept anything** — that is the sharpest argument for 17-a.5 being its own numbered
-  obligation. 🔄 A fix is **uncommitted in the working tree** (5 / 3 sites); this bullet describes `HEAD`.
-- ✅ **`@kitchensink/identity-service`** now has 6 `ZodValidationPipe` and 6 `createZodDto` sites, up from 3/4.
+  three**. GR-015's Current State previously recorded "`openapi.yaml` does not exist for any service"; that is
+  **no longer true** and has been corrected. ⚠️ The line counts that used to sit here (4,945 / 922 / 716) are
+  **deliberately gone**: they are regenerated output, so they go stale on every contract change, and these three
+  had already been copied into five feature specs. Measure them if you need them; do not cite them from here.
+- ✅ **Every consumer of a service contract now carries a skew guard.**
+  `packages/clients/{food-service,recipe-service}/src/contractSkew.ts` cover food and recipe and validate
+  responses on receipt; identity's consumer half — the gap, since there is no `packages/clients/identity-service`
+  — is `packages/apps/commise/features/account/src/contractSkew.ts`, fired from `ProfileServiceClient`'s
+  transport funnel. ⚠️ **Still owed:** mobile's `src/services/api.ts` and `src/hooks/useAvatarUpload.ts` call
+  identity WITHOUT going through that client, so those two paths are unguarded; and there is no repo-wide
+  discovery gate that a consumer of a schema package compares hashes at all.
+- ✅ **`@kitchensink/recipe-service` has ONE validation mechanism.** Its last `class-validator` **importer**,
+  `src/search/dto/search-recipes.query.dto.ts`, is converged onto `createZodDto` over the authored
+  `recipeSearchQuerySchema`, and both `class-validator` and `class-transformer` are removed from its
+  `package.json` and `prod.package.json`. ⚠️ This bullet previously said "ONE file away". The "19 files" figure
+  repeated in ADR-0015 and §15.4 was a **mention** count and overstated the work by ~19× — see §16's Current
+  State for the methodology error, which is the reusable lesson.
+- ✅ **`@kitchensink/food-service` registers its validation pipe** (committed in `49a1df7f`; its
+  `src/foods/dto/foods.dto.ts` is tracked, with its own test). ⚠️ This bullet previously read "registers no
+  validation pipe in committed `main` … a fix is uncommitted in the working tree" — stale. **The argument it
+  was making still stands and must not be deleted with the number:** there WAS a committed state satisfying
+  GR-015 in full while validating nothing, which is the sharpest case for 17-a.5 being its own obligation.
 - ✅ **17-d is already fully enforced** — `@kitchensink/contract-gen`'s `auditStorageCapacity` is wired by a
   `storage-capacity.test.ts` in **all three** services, exhaustive over bounded columns in both directions. The
   ruling that closed OPEN-GR-016-A describes shipped code, not a plan.
-- 🔄 **A gate for 17-b.1 is LANDING**: `packages/infra/global/__tests__/wire-contract-consumers.{ts,test.ts}`
-  (AST-based) exists in the working tree but is **untracked**. It is not coverage until it is committed.
-- ❌ **No gate exists for 17-c (`z.strictObject()` on mutating bodies)** — and it is the cheapest one left, since
-  it is greppable over the authored schemas. The gap it would close is measurable right now: **`recipe-service`
-  declares ZERO `z.strictObject()` against 36 `z.object()`** (identity 1, food 4, measured 2026-08-12), so the
-  portfolio default ruled in 17-c is currently unmet in the largest service. `PATCH /api/v1/recipes/:id` is the
-  case that matters — a misspelled field there is a `200` plus a partial write.
+- ✅ **The gate for 17-b.1 has LANDED**: `packages/infra/global/__tests__/wire-contract-consumers.{ts,test.ts}`
+  (AST-based) was committed in `df21cbed` with 12 violation fixtures and is green (27 tests). ⚠️ This bullet
+  previously said it was untracked and "not coverage until it is committed" — it is now coverage; cite it.
+- 🔄 **17-c (`z.strictObject()` on mutating bodies) is gated PER SERVICE, not repo-wide.** ⛔ Two things this
+  bullet used to say were wrong, and one of them inverted the facts:
+    - It said **"`recipe-service` declares ZERO `z.strictObject()` against 36 `z.object()`"**. Re-measured
+      2026-08-12 over the authored `*.schema.ts` files: recipe declares **18** `z.strictObject()` against 11
+      `z.object()`. The "36" was **food's** `z.object()` count attached to recipe's row. (A tree-wide grep
+      returns 36 for recipe because the committed schema-package COPY of each authored file is counted a second
+      time — another instance of the count-the-thing-not-its-shadow error §16's Current State records.)
+      `PATCH /api/v1/recipes/:id`, named here as the case that mattered, was converged in `ab6118ac`.
+    - It said **"no gate exists"**. Per-service gates now do: recipe's and food's
+      `contract/__tests__/contract.test.ts` each assert that the document claims `additionalProperties: false`
+      on **exactly** the mutating request bodies and nowhere else, that every authored `*RequestSchema` really
+      rejects an unknown key (discovered by NAME, so a body the document does not publish is still covered), and
+      — added 2026-08-12 — that the forward-compatibility exemption applies to **exactly** the four read queries,
+      each of which really is open. That last one closed a hole where a mutating body named `*QuerySchema` would
+      have inherited the exemption in silence.
+    - **What is genuinely still owed**: a repo-wide, discovery-based gate, and **identity has neither** of the
+      per-service ones. Current authored counts (`*.schema.ts`, 2026-08-12): recipe 18 strict / 11 open, food 4
+      strict / 36 open, identity 1 strict / 22 open. ⚠️ Those open counts are **not** violations on their own —
+      most are RESPONSE bodies, which must stay open — so the number to act on is not the ratio but the absence
+      of a gate that can tell a request body from a response body in identity.
 
 ---
 
@@ -1437,10 +1518,14 @@ exists to prevent on its credential-less ingress.
   `reason: 'shape' | 'signature'`, an `IdentityWebhookRejected` metric dimensioned by `reason`, and
   `WEBHOOK_REJECTION_STATUS` as a **complete `Record`** mapping `shape → 200`, `signature → 401`. 18-a's
   refinement was written **from** that code rather than against it.
-- ❌ **`IdentityWebhookRejected` has NO ALARM.** The counter is emitted; `identity-webhooks/infra/lib/webhooks-stack.ts`
-  alarms only on `ErasureIncomplete`. So **AC-018-f is unmet on the one ingress that implements everything else**,
-  which is precisely the "a rejection nobody sees is indistinguishable from success" failure. This is the
-  cheapest outstanding item in this rule and it is a **code** change, not a doc one.
+- ✅ **`IdentityWebhookRejected` IS alarmed, per REASON.** ⚠️ This bullet previously read "has NO ALARM …
+  `webhooks-stack.ts` alarms only on `ErasureIncomplete`", and AC-018-f was recorded as unmet. Stale: landed in
+  `34d9e8d0`. `identity-webhooks/infra/lib/webhooks-stack.ts` now creates **`WebhookShapeRejectionAlarm`**
+  (`datapointsToAlarm: 1` — one unparseable payload is a signal) and **`WebhookSignatureRejectionAlarm`**
+  (`datapointsToAlarm: 3` — a lone bad signature is background noise on a public endpoint), each dimensioned by
+  `reason` and each wired to the alarm action. Two alarms rather than one is what makes "a rejection nobody sees
+  is indistinguishable from success" actionable: the two causes need different thresholds and different
+  responses.
 - ❌ **No repo-wide gate exists for any part of GR-018.** Every acceptance criterion above is a review obligation
   today. Stated plainly rather than implied: AC-018-c is a single handler test per webhook and AC-018-f is one
   CDK alarm, so the cost of closing this is low — the rule is documentation until they land.
@@ -1714,12 +1799,19 @@ registry from an exact owner set to a floor.
   were resolved (seven merged as cross-listings, T-046 split to T-053).
 - ✅ **Tables: both collisions resolved.** `webhook_events` (010) → `stripe_webhook_events` per ADR-0018;
   `recipe_versions` (011) → not created, the shipped recipe-service table is used through its client.
-- ⚠️ **Three exemptions record a DEFECT rather than an approval**: `users`, `accounts` and `profiles` are each
-  declared twice in shipped code — `packages/services/identity/src/types/schema/*` is a **drifted** duplicate of
-  the authoritative `packages/shared/identity-db/src/schema/*` (`id` `varchar(255) COLLATE "C"` vs `text`, `email`
-  `varchar(320)` vs `citext`, `profiles.user_id` `uuid` vs `text`, and two columns missing) whose own comment
-  claims the two are "kept in lockstep". Nothing in production imports it; its only consumer is a test. Deleting
-  it is open work in `packages/**`.
+- ✅ **The three exemptions that recorded a DEFECT are RESOLVED.** ⚠️ This bullet previously said `users`,
+  `accounts` and `profiles` were each declared twice in shipped code — the `src/types/schema/*` directory of
+  `packages/services/identity` being a **drifted** duplicate of the authoritative
+  `packages/shared/identity-db/src/schema/*` (`id`
+  `varchar(255) COLLATE "C"` vs `text`, `email` `varchar(320)` vs `citext`, `profiles.user_id` `uuid` vs `text`,
+  two columns missing) under a comment claiming the two were "kept in lockstep" — and that "deleting it is open
+  work". **Deleted.** `users.ts`, `accounts.ts`, `profiles.ts` and their `src/types/dao/*` importers are gone;
+  that directory now holds only `__tests__/storage-capacity.test.ts`, and that audit reads the AUTHORITATIVE
+  schema (its predecessor audited the drifted copy — i.e. the storage-floor gate was measuring the wrong columns,
+  which is the sharpest possible argument for the one-declarer rule).
+    - ⚠️ The registry now holds **seven** entries, not three, and the remaining ones are a DIFFERENT kind: they
+      are Drizzle-schema-versus-own-migration-SQL attribution artifacts, not two competing definitions. Do not
+      read "seven exemptions" as "the defect got worse".
 - ⚠️ **Stated coverage limit**: 8 of 14 features declare tables structurally; 6 declare them in prose only and are
   therefore unseen by AC-021-a. 21-b is the obligation that closes this over time.
 - ❌ Two shipped tables (`author_handles`, `lifecycle_events`) appear in **no feature spec**, so nothing reserves

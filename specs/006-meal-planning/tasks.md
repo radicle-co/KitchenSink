@@ -331,10 +331,15 @@ than trailing the UI.
 ⛔ **NOT `class-validator`, and NOT a `dto/` directory.** This task previously said the DTOs were "all validated
 with `class-validator`". That is a **GR-016 §16-a.2 violation**: 006 lands in `@kitchensink/recipe-service`
 ([ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md)), which
-already validates with **`nestjs-zod`** and is mid-removal of **19 residual `class-validator` files** (measured
-2026-08-12, unchanged since 2026-08-11). Adding a **second** mechanism to a service that has one means two error
-contracts, two sets of edge cases, and a mechanism-per-route that is a per-file accident. **006's own `plan.md`
-forbids it** — it adds no `class-validator` DTO to the 19 already being removed.
+already validates with **`nestjs-zod`**. ⚠️ **CORRECTED 2026-08-12 — this paragraph said recipe-service was
+"mid-removal of **19 residual `class-validator` files**"; that removal is DONE, and the 19 was a MENTION count in
+the first place** (JSDoc narrating the migration), not an importer count. There was exactly one importer,
+`src/search/dto/search-recipes.query.dto.ts`, it is converged, and `class-validator` / `class-transformer` are
+**removed from the service's `package.json` and `prod.package.json`**. Adding a **second** mechanism to a service
+that has exactly one means two error contracts, two sets of edge cases, and a mechanism-per-route that is a
+per-file accident — and **006 would now be the one INTRODUCING the second mechanism**, not joining a residue, which
+is a strictly worse position to be in. **006's own `plan.md` forbids it**, and so does repo-wide gate **G5** in
+`packages/infra/global/__tests__/service-security-invariants.test.ts`, which runs with no exception list.
 
 Schemas are authored as zod at **`packages/services/recipe-service/src/meal-plans/meal-plans.schema.ts`**,
 **beside the controller they serve** (`docs/CODING_STANDARDS.md` §15.2) — **never** in a `dto/` directory — and

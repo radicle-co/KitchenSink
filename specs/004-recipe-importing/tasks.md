@@ -89,9 +89,12 @@ Contract-first: the contract is authored **before** any handler.
 
 > ⛔ **REPOINTED 2026-08-12 — the target document changed, and the old one is superseded.** This task previously
 > said "All 12 import endpoints added to `specs/001-commise-recipe-app/contracts/api.openapi.yaml`", extending a
-> **2,827-line hand-written** document that is **verified by nothing**. The recipe service's **derived** document
-> now exists at **`packages/schemas/recipe/openapi.yaml`** (**4,945 lines, 34 paths** — against the hand-written
-> file's 32 — measured 2026-08-12), generated from the zod the service authors.
+> **hand-written** document (2,810 lines of body) that is **verified by nothing**. The recipe service's **derived**
+> document now exists at **`packages/schemas/recipe/openapi.yaml`** (**5,700 lines, 34 paths** — against the
+> hand-written file's 32 — ⚠️ re-measured 2026-08-12, correcting the **4,945** / **2,827** figures this note carried
+> from 2026-08-11; the derived document is **generated** and grew when the `versions` and `api-error` schema copies
+> landed, and the hand-written file grew by header rewrites, not by body. **`wc -l` them; do not quote these back.**),
+> generated from the zod the service authors.
 >
 > **⛔ Do NOT extend the hand-written document.** Per `docs/CODING_STANDARDS.md` §15.2(6) and GR-015 §15-a.7 there
 > is **one contract document per service and it REPLACES its hand-written predecessor**; adding 12 endpoints to
@@ -112,8 +115,12 @@ Contract-first: the contract is authored **before** any handler.
       every client
 - [ ] Routes consume that zod through **`createZodDto`** under **`nestjs-zod`'s** `ZodValidationPipe` — ⚠️ never
       Nest's own `ValidationPipe`, under which a `createZodDto` DTO **validates nothing while looking correctly
-      wired** (this already bit identity's `PATCH /users/me`). ⛔ **No `class-validator` DTO** is added: recipe-service
-      is mid-removal of 19 such files (001 T-188), and a second mechanism is a GR-016 §16-a.2 violation
+      wired** (this already bit identity's `PATCH /users/me`). ⛔ **No `class-validator` DTO** is added — ⚠️ **corrected
+      2026-08-12: recipe-service is no longer "mid-removal of 19 such files" (001 T-188); that removal is DONE and the
+      count was a mention count anyway.** The service has **zero** `class-validator` importers and has dropped the
+      dependency from `package.json` and `prod.package.json`, so a DTO added here would **re-introduce** the second
+      mechanism GR-016 §16-a.2 forbids and would fail repo-wide gate **G5** in
+      `packages/infra/global/__tests__/service-security-invariants.test.ts`, which has no exception list
 - [ ] **Every mutating body uses `z.strictObject()`** (GR-017 §17-c) — `z.object()` strips unknown keys silently,
       so a misspelled field on an import request yields a `200` and a partial write the caller was told succeeded
 - [ ] `Idempotency-Key` required on `/api/v1/import/{url,instagram,photo}` — modelled in the schema (a required

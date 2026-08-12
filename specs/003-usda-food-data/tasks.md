@@ -802,25 +802,34 @@ T-172, T-185.
 
 ### Escalated by the GR-016 / GR-017 conformance sweep (2026-08-12)
 
-> ⛔ **Food is the live proof that GR-015 and GR-016 are SEPARATE obligations.** It satisfies GR-015 in full — 6
-> authored `*.schema.ts` files, a committed `@kitchensink/schema-food`, a **922-line / 12-path** derived
-> `openapi.yaml` — and, as measured on **2026-08-11 and re-measured 2026-08-12**, it registered **ZERO**
+> ⛔ **Food WAS the live proof that GR-015 and GR-016 are SEPARATE obligations.** It satisfied GR-015 in full — 6
+> authored `*.schema.ts` files, a committed `@kitchensink/schema-food`, a derived `openapi.yaml` now **1,134 lines /
+> 12 paths** (⚠️ re-measured 2026-08-12, correcting **922** from the day before; it is generated, so `wc -l` it) —
+> and, as measured on **2026-08-11 and again on 2026-08-12**, it registered **ZERO**
 > `ZodValidationPipe` and **ZERO** `createZodDto`: `FoodsController` took **`@Body() body: unknown`** and
 > re-derived validation per method with `safeParse`. **A reviewer reading only the contract artifacts would see a
 > conformant service.** That is why 17-a.5 is its own numbered obligation.
 >
-> ⚠️ **CONVERGENCE IS IN FLIGHT IN THE WORKING TREE (uncommitted, verified 2026-08-12).** `app.module.ts` now binds
-> `ZodValidationPipe` through `APP_PIPE`, a new untracked `src/foods/dto/foods.dto.ts` declares `createZodDto` DTOs,
-> and `foods.controller.ts` no longer contains a single `safeParse`. **T-204 is therefore partly landed, not
-> unstarted** — do not re-do the parts that exist, and do not assume the parts that do not. Every claim below names
-> what was measured so the next reader can re-measure rather than trust.
+> ✅ **Read that paragraph in the PAST TENSE — corrected 2026-08-12.** Food now registers **4**
+> `ZodValidationPipe` references and **4** `createZodDto` classes, all committed in `49a1df7f`. The example keeps
+> its place because it is the **evidence for the rule**, not an open finding: the two obligations are separable, and
+> food is how we know.
+>
+> ✅ **CONVERGENCE IS COMMITTED — corrected 2026-08-12.** This block previously read _"IN FLIGHT IN THE WORKING TREE
+> (uncommitted) … a new **untracked** `src/foods/dto/foods.dto.ts`"_. It landed in **`49a1df7f`** ("feat(security):
+> bind food's validation pipe, escape LIKE wildcards, gate future services"): `app.module.ts` binds
+> `ZodValidationPipe` through `APP_PIPE`, and **`src/foods/dto/foods.dto.ts` is TRACKED** — `git ls-files` lists it
+> with its own `__tests__/foods.dto.test.ts` beside it — and `foods.controller.ts` contains **no `safeParse`**.
+> ⛔ **Do not re-do this work on the strength of the "uncommitted" wording**, and do not treat the DTO file as a
+> stray artifact to clean up. Every claim below names what was measured so the next reader can re-measure rather
+> than trust — and that is the lesson, not the numbers: a working-tree observation goes stale on the next commit.
 >
 > ⛔ **Do NOT touch `packages/clients/usda/src/schemas.ts` in this work.** Those boundary schemas are **correct**
 > and are the portfolio's reference implementation for GR-015 §15-d.
 
 - [ ] **T-204** [M] [Test-first: true] **Register `nestjs-zod`'s `ZodValidationPipe` and convert EVERY food route to `createZodDto`, deleting the per-method `safeParse`** — `packages/services/food-service/src/app.module.ts`, `src/foods/foods.controller.ts`, `src/foods/admin/foods-admin.controller.ts`, `src/foods/service-erasure.controller.ts` (FR-008, FR-010, FR-035–FR-053, GR-016 §16-a, GR-017 §17-a.5)
       **The defect this closes, stated as measured:** with `@Body() body: unknown` plus hand-written per-method `safeParse`, validation failure had **no single path** — so a **wrong-typed field**, a **missing field** and an **unknown key** _all_ reported `{ error: 'Empty name' }`. Three distinct failures, one misleading message, and the parse living **inside** the method body where it is optional by construction and gets skipped on the next endpoint. `unknown` is not a validation strategy (GR-016 §16-a.4).
-      **State verified 2026-08-12 (uncommitted working tree):** `app.module.ts` binds `ZodValidationPipe` via `APP_PIPE`; `src/foods/dto/foods.dto.ts` exists (untracked) with `createZodDto` DTOs; `foods.controller.ts` has **zero** `safeParse` remaining across its 8 routes (`GET search`, `POST /`, `POST batch`, `GET :id/status`, `GET :id/candidates`, `POST :id/refetch`, `PATCH :id`, `GET :id`). **Still to verify/convert:** `foods-admin.controller.ts` and `service-erasure.controller.ts` — neither showed a `@Body`/`@Query`/`Dto`/`safeParse` match, so each must be confirmed as genuinely bodyless rather than assumed.
+      **State RE-VERIFIED 2026-08-12, against the COMMITTED tree** (⚠️ correcting this line's earlier "uncommitted working tree / `foods.dto.ts` exists (untracked)" reading, which was accurate when taken and went stale at `49a1df7f`): `app.module.ts` binds `ZodValidationPipe` via `APP_PIPE`; **`src/foods/dto/foods.dto.ts` is tracked** and declares **4** `createZodDto` classes (`AddFoodBodyDto`, `BatchAddFoodBodyDto`, `ResolveFoodBodyDto`, `SearchFoodQueryDto`) over **4** `z.strictObject` schemas, with `__tests__/foods.dto.test.ts` beside it; `foods.controller.ts` has **zero** `safeParse` across its 8 routes (`GET search`, `POST /`, `POST batch`, `GET :id/status`, `GET :id/candidates`, `POST :id/refetch`, `PATCH :id`, `GET :id`). ✅ **The two controllers this line left "to verify" are CONFIRMED genuinely bodyless**: `foods-admin.controller.ts` has two `@Get` routes and no parameter decorator at all, and `service-erasure.controller.ts`'s single `@Post('erasure')` takes only `@ServiceErasurePrincipal()` — the owner comes from the **verified token's bound claim, never a body or query value** — so there is no body for a DTO to wrap. ⚠️ **Still genuinely open**: the five `:id` routes narrow the path param with the controller's own `requireId(id)` rather than a zod ULID DTO, which is the remaining half of this task's "path params are the internal ULID" clause below.
       **⚠️ Bind `nestjs-zod`'s pipe, never Nest's own, and never to the bare class token.** Under Nest's built-in `ValidationPipe` a `createZodDto` DTO **validates nothing while looking correctly wired** — schema present, DTO referenced, route reads as validated, no input checked. Food's own `src/foods/dto/foods.dto.ts` header already documents this hazard for both wrong-pipe forms; identity shipped it live on `PATCH /users/me`.
       **⚠️ ONE mechanism only** (§16-a.2): no `class-validator` DTO is introduced, and no `safeParse` is left behind "as a belt and braces" — a second mechanism is a second error contract, and the whole point is that the parse **cannot** be skipped.
       **⛔ `z.strictObject()` on every mutating body** (GR-017 §17-c): `POST /`, `POST batch`, `POST :id/refetch`, `PATCH :id`. Plain `z.object()` **strips unknown keys silently**, so a client misspelling a field on `PATCH :id` (the resolve route) would get a `200` and a write that did not do what it was told.

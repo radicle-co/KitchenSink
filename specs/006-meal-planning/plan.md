@@ -107,8 +107,11 @@ calculation**: 009's `meal_plan_nutrition_link` joins a 006 table to a 009 table
 
 **A schema package is per SERVICE, not per feature.** 006 adds `*.schema.ts` files under
 `packages/services/recipe-service/src/meal-plans/`, beside the controller they serve, and the **existing**
-generator copies them into the **existing** `@kitchensink/schema-recipe` (8 authored schema files today, a
-4,945-line derived `openapi.yaml`). There is **no** `@kitchensink/schema-meal-planning`, and 006 does not get
+generator copies them into the **existing** `@kitchensink/schema-recipe` (⚠️ **re-measured 2026-08-12: 10**
+authored schema files and a **5,700**-line derived `openapi.yaml`, correcting the "8 authored / 4,945-line" figures
+this line carried from 2026-08-11 — the `versions` and `api-error` copies have since landed, and the derived
+document is **generated**, so `ls` the directory and `wc -l` the file rather than quoting).
+There is **no** `@kitchensink/schema-meal-planning`, and 006 does not get
 one. 004 already set this precedent for the recipe service — add to `packages/schemas/recipe`, never fork it.
 
 **The NestJS module is the internal boundary, and it is mandatory now even though the service boundary is

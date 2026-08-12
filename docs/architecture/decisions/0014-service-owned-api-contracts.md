@@ -45,7 +45,7 @@ packages/services/<service>/src/**/*.schema.ts   ← zod AUTHORED here, beside t
                                                     it serves, and used directly for request
                                                     validation via nestjs-zod createZodDto
                         │
-                        │  generate (copy)   turbo: schema-<service> dependsOn <service>
+                        │  generate (copy)   turbo: schema-<service> `inputs` the service's schemas
                         ▼
 packages/schemas/<service>/    @kitchensink/schema-<service>  — GENERATED, committed
 ├── src/schemas.ts             the zod, assembled from the service's *.schema.ts
@@ -75,13 +75,14 @@ packages/clients/<service>  →  web + mobile      (depend on the leaf, never on
 5. **Three drift layers, all required, each catching what the others cannot.**
     - **Rebuild (turbo)** — `schema-<service>#build` declares `$TURBO_ROOT$` **`inputs`** covering the
       service's `*.schema.ts` sources, so content hashing rebuilds the package automatically.
-      ⚠️ **`inputs`, NOT `dependsOn`** — see `docs/CODING_STANDARDS.md` §15 and the comment in `turbo.json`.
-      A `dependsOn` edge to the service closes the cycle `client -> schema -> service -> client` (the
-      service devDepends on its own client for a real contract-test tier) and turbo rejects it outright.
+      **Use `inputs`.** `dependsOn` is not forbidden on principle, but for a service that devDepends on its
+      own client (a real contract-test tier — `recipe-service` and `food-service` both do; `identity` does
+      not) that edge closes the cycle `client -> schema -> service -> client` and turbo rejects the graph.
+      `inputs` is sufficient everywhere and is used uniformly, so the services do not diverge on mechanism.
+      See `docs/CODING_STANDARDS.md` §15 and the comments in `turbo.json`.
       Ordering was never what this layer needed: the generated files are committed, so the package's
       `build` only compiles files already on disk. What it needs is cache INVALIDATION, which `inputs`
-      delivers. This bullet said `dependsOn` until 2026-08-12 and pointed readers at a change that
-      cannot build.
+      delivers.
     - **Correctness (CI)** — regenerate and fail on any diff against the committed artifacts. This is the
       strong gate; it is what catches generated output someone hand-edited.
     - **Skew (runtime)** — a `CONTRACT_HASH` over the service's `*.schema.ts` sources, embedded in both the
@@ -191,7 +192,8 @@ under time pressure. Authoring lives beside the controller it serves.
   CI gate is what makes a copy safe.
 - **The turbo relationship points schema → service** (the generated package reaches back at the service's
   sources), which is the reverse of the intuitive direction and must not be "corrected". It is expressed as
-  `$TURBO_ROOT$` **`inputs`**, never as a `dependsOn` edge — that edge is cycle-forming and turbo refuses it.
+  `$TURBO_ROOT$` **`inputs`** rather than a `dependsOn` edge, which is cycle-forming wherever the service
+  devDepends on its own client and is therefore not used anywhere, for uniformity.
 - **Nothing in a schema package is hand-edited.** To change a contract you edit the service's `*.schema.ts`
   and regenerate; a hand-edit is discarded by CI rather than shipped.
 

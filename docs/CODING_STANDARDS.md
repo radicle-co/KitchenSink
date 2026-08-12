@@ -1048,13 +1048,26 @@ check must fail loudly, naming the file and symbol.
 4. **Every client imports its wire types and zod from the schema package.** `types.ts` in a client holds
    only genuinely client-side types (config, options, its own error shapes) — never a wire shape.
 5. **Three drift layers, each catching what the others cannot. All three are required:**
-    - **Rebuild (turbo): `inputs`, NOT `dependsOn`.** ⚠️ `schema-<service>#build` `dependsOn`
-      `<service>#build` is **unavailable and must not be re-proposed** — `recipe-service` devDepends on
-      `recipe-service-client` for its contract test tier, so that edge closes the cycle
-      `client → schema → service → client` and turbo rejects the graph. It is also not what the
-      requirement needs: the generated files are committed, and `build` only compiles what is on disk, so
-      ordering was never the point. `$TURBO_ROOT$`-anchored `inputs` covering
-      the service's `*.schema.ts` sources, so content hashing rebuilds the package automatically.
+    - **Rebuild (turbo): use `inputs`.** `$TURBO_ROOT$`-anchored `inputs` covering the service's
+      `*.schema.ts` sources, so content hashing rebuilds the package automatically.
+
+        `dependsOn` is not forbidden on principle — it is the intuitive spelling, and where the graph
+        permits it, it works. Two things to know before reaching for it. **First, for most services here it
+        is unavailable**: a service that devDepends on its own client (a real contract-test tier driving the
+        published client against the booted app) closes the cycle `client → schema → service → client`, and
+        turbo rejects the graph outright. Measured 2026-08-12: `recipe-service` and `food-service` both do
+        this; `identity` does not, and has no client package at all, so the edge would build there.
+        **Second, ordering was never the requirement** — the generated files are committed and `build` only
+        compiles what is already on disk, so what this layer actually needs is cache INVALIDATION, which
+        `inputs` delivers on its own.
+
+        So `inputs` is the uniform choice: it is sufficient everywhere, and it means the three services do
+        not diverge on mechanism for a reason (the presence of a self-client devDependency) that has nothing
+        to do with contracts. Adding the edge where it happens to build would be a per-service special case
+        whose justification is invisible from the file you are reading. If you need it — a future service
+        with a genuine ordering requirement and no cycle — add it **alongside** `inputs`, never instead, and
+        record why in that package's turbo block.
+
     - **Correctness (CI):** regenerate and fail on any diff against the committed artifacts. This is the
       strong gate — it is what catches generated output that someone hand-edited.
     - **Skew (runtime):** a `CONTRACT_HASH` over the service's `*.schema.ts` sources, embedded in both the service
@@ -1065,6 +1078,7 @@ check must fail loudly, naming the file and symbol.
       `@nestjs/swagger` emits **no response schema** for a handler returning an `interface`, so until
       every response type is a decorated class that check is blind to response changes — most of what
       actually breaks a client.
+
 6. **One document per service, and it REPLACES any hand-written predecessor.** A generated document added
    alongside a hand-maintained one makes the problem worse.
     - `specs/001-commise-recipe-app/contracts/api.openapi.yaml` — 2810 hand-written lines that **57

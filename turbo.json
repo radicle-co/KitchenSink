@@ -83,7 +83,15 @@
         },
         "@kitchensink/schema-identity#build": {
             // DRIFT LAYER 1 (Rebuild) for the identity contract. See `@kitchensink/schema-food#build` above for
-            // the full reasoning; the only difference is which service authors the sources.
+            // the full reasoning on what `inputs` buys.
+            //
+            // ⚠️ ONE DIFFERENCE THAT MATTERS, so nobody reads food's cycle argument as applying here: identity
+            // has NO client package, so `identity` devDepends on no client of its own and the
+            // `client -> schema -> service -> client` cycle that makes the `dependsOn` edge unavailable for
+            // recipe and food does NOT exist for identity. The edge would build. `inputs` is used anyway, for
+            // UNIFORMITY — the three services should not diverge on mechanism because of a devDependency that
+            // has nothing to do with contracts, and `inputs` is sufficient on its own (the generated files are
+            // committed, so ordering was never the requirement). See `docs/CODING_STANDARDS.md` §15.
             "dependsOn": ["^build"],
             "inputs": [
                 "src/**",

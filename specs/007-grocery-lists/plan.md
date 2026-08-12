@@ -136,15 +136,19 @@ client base-URL change — which is why the module edge cannot be skipped today.
 **inbound** surface — a Walmart/Instacart webhook, a marketplace callback, or **per-user OAuth token storage**
 at a volume that wants its own secret rotation and its own blast radius.
 
-⚠️ **This feature's `tasks.md` is now WRONG and needs repointing.** It names
-`packages/services/grocery-service/**` throughout (57 occurrences, measured 2026-08-12) — a package that does
-not exist and, per ADR-0017, will not. Every one of those paths becomes
-`packages/services/recipe-service/src/grocery-lists/**`, and the retailer adapters plus the order-status
-polling move to `@kitchensink/recipe-workers`. That file is owned elsewhere and is **not** edited by this
-amendment; this note is the record that it diverges from the ratified decision. It is
+✅ **Repoint EXECUTED — `tasks.md` agrees with this section.** It formerly named
+`packages/services/grocery-service/**` throughout (57 occurrences); commit `b9221bb3` (2026-08-12) — the **same
+commit that ratified ADR-0017 and amended this plan** — repointed every one of them, changing that file by 183
+insertions / 82 deletions (the 57 is counted against the pre-repoint revision, `b9221bb3^`). Each now reads
+`packages/services/recipe-service/src/grocery-lists/**`, with the retailer adapters and the order-status polling
+under `packages/services/recipe-workers/src/grocery/**`, and the file carries its own `Was → Now` mapping table.
+Measured 2026-08-12: the **8** `grocery-service` strings left in it are all historical record (the mapping
+table's `Was` column, its count statement, one superseded-task note, and ADR-0017's flip-condition package
+name) — **no prescribed path** names a package that does not exist. This record is kept deliberately,
+because the divergence it closes is
 [GR-017 §17-e.12](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app)'s
-failure mode — the plan was amended and the task list was not — and a task list is where the package a
-contributor actually creates gets chosen.
+failure mode — a plan amended while its task list is not — and a task list is where the package a contributor
+actually creates gets chosen. Here the two moved together, in one commit; keep them that way.
 
 **`@kitchensink/recipe-service` MUST** author every grocery-list, item, pantry-flag and order request/response
 shape as **zod in the service** at `src/grocery-lists/*.schema.ts` beside its controller; **validate its own

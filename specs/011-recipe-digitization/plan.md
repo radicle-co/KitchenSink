@@ -170,10 +170,29 @@ packages/
     - `id`, `circle_id`, `token_hash`, `created_by`, `revoked_at`, `last_redeemed_at`
 4. `digitization_jobs`
     - `id`, `user_id`, `batch_id`, `s3_key`, `state`, `low_quality`, `language_code`, `raw_ocr_json`, `parsed_json`, `recipe_id`, `created_at`, `updated_at`, `deleted_at`
-5. Recipe extension (feature 001 entity)
+5. Recipe extension (feature 001 entity — **owned by `@kitchensink/recipe-service`, migrated there**)
     - `recipes.audience` JSONB contract: `{"scope":"private|circle|public","ref_id":string|null}` (no `price_cents` — GR-014 v3.0.0)
-6. `recipe_versions`
-    - append-only version rows for correction/save changes (supports archival/audit behavior)
+    - ⛔ 011 does **not** migrate this table from `digitization-service`. `recipes` has one writer; see the ruling below.
+6. `recipe_versions` — ⛔ **NOT a table 011 creates. It already ships, and recipe-service owns it.**
+    - ✅ **RULED 2026-08-12.** `recipe_versions` ships today at
+      `packages/services/recipe-service/src/database/schema/versions.ts` (`recipe_id` FK → `recipes` with cascade,
+      `version_number`, immutable `snapshot` jsonb, `base_version`, `s3_key`, `created_by`, `change_summary`,
+      `device_label`, `editor_handle`, plus `uniqueIndex(recipe_id, version_number)`), specified at
+      `specs/001-commise-recipe-app/data-model.md`. Earlier revisions of this plan listed it among the tables 011
+      creates, and `tasks.md` T-012 targeted
+      `packages/services/digitization-service/src/db/migrations/011_005_create_recipe_versions.sql` — a **second table
+      of the same name, in a different database**.
+    - **Why that is wrong and not merely duplicative.** A recipe's version history is a single append-only sequence
+      keyed `(recipe_id, version_number)`. Two tables means two independent numbering sequences over one recipe, so
+      "version 4" stops identifying anything, the unique index stops being an invariant, and the history a user sees
+      depends on which service they asked. The recipe service is already the **single writer** of that history.
+    - **What 011 does instead.** A digitization correction is a version **created through the recipe service**
+      (`@kitchensink/recipe-service-client`), exactly as any other edit is. 011 stores its OCR-specific state in its
+      own `digitization_jobs` table and references the recipe by id. This is also what this feature's own
+      `pre-impl-review.md` already assumed when it filed `recipe_versions` under _"Feature 001 recipe persistence —
+      ✅ Covered"_; the plan and the task list were the outliers.
+    - Enforced by `packages/infra/global/__tests__/spec-table-collisions.test.ts`
+      ([GR-021](../governance-rules.md#gr-021-one-declarer-per-table-name-and-one-definition-per-task-id)).
 7. Raw OCR retention
     - daily purge process updates `digitization_jobs.raw_ocr_json = NULL` for rows older than 90 days (FR-036, NFR-008)
 
@@ -391,8 +410,12 @@ circles.
 
 ## Migrations / Schema Changes
 
-1. Create `circles`, `circle_members`, `circle_invites`, `digitization_jobs`, `recipe_versions`.
-2. Alter `recipes` to include/normalize `audience` JSONB with circle scope support.
+1. Create `circles`, `circle_members`, `circle_invites`, `digitization_jobs`. ⛔ **Not `recipe_versions`** — it
+   already ships and `@kitchensink/recipe-service` owns it (see §Data Model item 6).
+2. Alter `recipes` to include/normalize `audience` JSONB with circle scope support — ⚠️ **as a `recipe-service`
+   migration**, not a `digitization-service` one. `recipes` has a single writer; a second service issuing DDL against
+   it forks ownership of the schema and races the owner's own migration ordering. 011 requests the column shape; the
+   recipe service ships it.
 3. Add constraints:
     - one active invite per circle (enforced via active-token uniqueness strategy)
     - idempotent membership (`circle_id,user_id` PK)

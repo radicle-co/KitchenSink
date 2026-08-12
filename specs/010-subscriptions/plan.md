@@ -25,13 +25,13 @@ User manages via Stripe Customer Portal (no custom UI needed)
 
 ### Stripe Billing Stack
 
-| Component               | Technology                                  | Rationale                                                   |
-| ----------------------- | ------------------------------------------- | ----------------------------------------------------------- |
-| Checkout                | Stripe Checkout (hosted)                    | PCI-compliant; no custom payment UI                         |
-| Subscription management | Stripe Customer Portal                      | Handles upgrade/downgrade/cancel; no custom UI              |
-| Webhook handling        | `@golevelup/nestjs-stripe` v3.0.0           | NestJS DI, auto signature verification, decorator routing   |
-| Idempotency             | `webhook_events` table                      | Stripe retries for 72h; must be deduplicated                |
-| Feature gating          | `@RequirePremium()` decorator + `PlanGuard` | Runs after `AuthMiddleware` (Clerk); fails closed, testable |
+| Component               | Technology                                  | Rationale                                                    |
+| ----------------------- | ------------------------------------------- | ------------------------------------------------------------ |
+| Checkout                | Stripe Checkout (hosted)                    | PCI-compliant; no custom payment UI                          |
+| Subscription management | Stripe Customer Portal                      | Handles upgrade/downgrade/cancel; no custom UI               |
+| Webhook handling        | `stripe` SDK in a raw Lambda (see §5b)      | ADR-0017 puts it in `identity-webhooks`, which has no NestJS |
+| Idempotency             | `stripe_webhook_events` table (ADR-0018)    | Stripe retries for 72h; must be deduplicated                 |
+| Feature gating          | `@RequirePremium()` decorator + `PlanGuard` | Runs after `AuthMiddleware` (Clerk); fails closed, testable  |
 
 ### Subscription States
 
@@ -79,10 +79,18 @@ cancelAtPeriodEnd: boolean;
 trialEndsAt: Date | null;
 ```
 
-### webhook_events Table (Idempotency)
+### stripe_webhook_events Table (Idempotency)
+
+✅ **RESOLVED (2026-08-12) — this table is `stripe_webhook_events`, NOT `webhook_events`.** Earlier revisions of
+this section declared it as `webhook_events`, which is the name of a table that **already ships** in the very
+database ADR-0017 puts this webhook in: `packages/shared/identity-db/src/schema/webhookEvents.ts`, keyed
+`svix_id text PRIMARY KEY` with `identity_id text NOT NULL`, used for Clerk's svix delivery dedup. Two different
+tables under one name is a migration that fails at deploy time — or, far worse, one that succeeds and corrupts
+dedup for both senders. The reasoning, the two rejected alternatives and the flip condition are recorded in
+[ADR-0018](../../docs/architecture/decisions/0018-per-sender-webhook-dedup-tables.md).
 
 ```sql
-CREATE TABLE webhook_events (
+CREATE TABLE stripe_webhook_events (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   stripe_event_id  VARCHAR(255) UNIQUE NOT NULL,
   event_type      VARCHAR(100) NOT NULL,
@@ -91,10 +99,16 @@ CREATE TABLE webhook_events (
   processed_at    TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_webhook_events_stripe_event_id ON webhook_events(stripe_event_id);
+CREATE INDEX idx_stripe_webhook_events_stripe_event_id ON stripe_webhook_events(stripe_event_id);
 CREATE INDEX idx_accounts_stripe_customer_id ON accounts(stripe_customer_id);
 CREATE INDEX idx_accounts_stripe_subscription_id ON accounts(stripe_subscription_id);
 ```
+
+⛔ **There is deliberately NO `identity_id` column, and that is not an oversight.** A Stripe event arrives
+attributed to a `stripe_customer_id`, not to an app identity; resolving it to one is a lookup that can legitimately
+fail (an event for a customer we never recorded), and a `NOT NULL` identity column would force the writer to invent
+the `'unknown'` sentinel that [GR-019](../governance-rules.md#gr-019-identifier-integrity--no-sentinels) forbids
+outright. Attribution lives on `accounts.stripe_customer_id`, where a miss is a miss.
 
 ---
 
@@ -157,13 +171,16 @@ reasons, all four of which that package already satisfies for Clerk's svix callb
    `NestFactory.create(AppModule, { rawBody: true })` — a global change to the API process for one route).
 3. It must **answer while the API is scaled down** — non-prod runs `FARGATE_SPOT` and a nightly sandbox
    shutdown (ADR-0007, ADR-0008), and Stripe retries for 72 hours against whatever is or is not up.
-4. It needs the **`webhook_events` idempotency table, which ALREADY EXISTS in that database** for the svix
-   callback (`packages/shared/identity-db/src/schema/webhookEvents.ts`).
-   ⚠️ **But not in the shape §2 declares.** The shipped table is keyed `svix_id text PRIMARY KEY` with
-   `identity_id text NOT NULL`, `event_type text`, `received_at`, `expires_at` — it has **no**
-   `stripe_event_id`, **no** `status`, **no** `error`, **no** `processed_at`. §2's DDL therefore describes a
-   _different_ table under the _same name_, and that collision must be resolved deliberately (extend the
-   existing table, or add a distinctly named one) rather than discovered by a failing migration.
+4. Its idempotency table lives in **that** database — alongside the svix one, written by the same deployable
+   (`packages/shared/identity-db/src/schema/`), so the webhook needs no second data source.
+   ✅ **RESOLVED (2026-08-12) — but it is a NEW table, not the existing one.** The shipped `webhook_events` is
+   keyed `svix_id text PRIMARY KEY` with `identity_id text NOT NULL`, `event_type text`, `received_at`,
+   `expires_at`, and has **no** `stripe_event_id`, **no** `status`, **no** `error`, **no** `processed_at`. §2's
+   DDL described a _different_ table under the _same name_ — a failing migration, or a succeeding one that
+   corrupts dedup for both senders. Per
+   [ADR-0018](../../docs/architecture/decisions/0018-per-sender-webhook-dedup-tables.md), Stripe gets its own
+   `stripe_webhook_events`; the shipped table is untouched, and its `identity_id text NOT NULL` — the constraint
+   GR-019 leans on — survives.
 
 **⛔ `@RequirePremium()` / `PlanGuard` live in a SHARED package, not in the identity service.** Every gated
 route is in some _other_ service (001's visibility PATCH is in the recipe service; 006's, 007's and 009's gated
@@ -214,7 +231,7 @@ its own contract independently of us.
   `invoice.payment_failed`, `customer.subscription.updated` / `.deleted`, `trial_will_end` — each MUST be
   **validated at the boundary** (after `@golevelup/nestjs-stripe`'s signature verification, which authenticates
   the sender but does **not** guarantee the shape) before any field drives a `subscriptions` or
-  `webhook_events` write. Signature-verified is **not** the same as shape-verified.
+  `stripe_webhook_events` write. Signature-verified is **not** the same as shape-verified.
 - Stripe's types (whether from `stripe`'s own SDK typings or a boundary zod schema) **stay on the Stripe side of
   the adapter** and are **not** folded into our schema package as though we owned them. Only `/api/v1/billing/*`
   request/response shapes are ours.
@@ -239,7 +256,7 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
   portfolio law.** `@golevelup/nestjs-stripe`'s signature check authenticates the **sender**; it says nothing
   about the **shape**. So every inbound Stripe event — `checkout.session.completed`, `invoice.paid`,
   `invoice.payment_failed`, `customer.subscription.updated` / `.deleted`, `trial_will_end` — is **validated at
-  the boundary after signature verification and before any field drives a `subscriptions` or `webhook_events`
+  the boundary after signature verification and before any field drives a `subscriptions` or `stripe_webhook_events`
   write**. Both controls, in that order, never one instead of the other. This is the same rule identity's svix
   webhook is bound by (002).
 - **⛔ GR-018 — ONE rejection path, and for Stripe "not retried" means answering `2xx`.** This is the half a
@@ -263,7 +280,7 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
       end, and do they retry on status?_
     - ⚠️ **A rejected event is NOT recorded as a row** (§18-d, and
       [GR-019](../governance-rules.md#gr-019-identifier-integrity--no-sentinels)). An invalid payload has **no
-      trustworthy identifier**, and `webhook_events.identity_id` is `text NOT NULL` in this very database — so
+      trustworthy identifier** — not even one to key the dedup row on — so
       "just record the rejected event" forces the writer to invent an id, which is precisely the sentinel GR-019
       forbids. The **log line and the counter are load-bearing**, not a consolation prize.
     - ⛔ **This feature's `tasks.md` currently asserts the exact inversion** — "invalid signatures return
@@ -282,7 +299,7 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
   a test that posts a known-bad body to a real billing route and asserts the `400`. Identity registers
   `nestjs-zod`'s `ZodValidationPipe` in `app.module.ts` today (6 sites, up from 3, re-measured 2026-08-12).
 - **⛔ THE FLOOR — and 010 has the TIGHTEST real bounds of any of these features, with a thin margin.** §2's
-  `webhook_events` declares `stripe_event_id VARCHAR(255)`, `event_type VARCHAR(100)` and `status VARCHAR(20)`.
+  `stripe_webhook_events` declares `stripe_event_id VARCHAR(255)`, `event_type VARCHAR(100)` and `status VARCHAR(20)`.
   ⚠️ **`'processing'` is 10 characters, so `VARCHAR(20)` leaves almost no room** — a future status string longer
   than 20 characters is a failed `INSERT` on the money path, and the zod enum is what has to hold that line.
   Meanwhile the `accounts` additions in §2 are declared **`varchar` with no length at all**, which is
@@ -445,62 +462,88 @@ Frontend intercepts `403 PREMIUM_REQUIRED` and shows upgrade CTA instead of gene
 
 ## 5. Module Structure
 
+⚠️ **CORRECTED (2026-08-12).** Earlier revisions of this section drew a single tree in which the Stripe webhook
+(`billing/webhook/webhook.controller.ts`, `webhook.service.ts`, `handlers/*`) lived inside the identity
+**service**'s `BillingModule`, and made `main.ts` pass `{ rawBody: true }` globally to feed it. That contradicts
+§3.0 and [ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md),
+which put the webhook in `@kitchensink/identity-webhooks` for four reasons stated at length above. The tree is now
+split the way the deployables actually are.
+
+### 5a. `@kitchensink/identity-service` (ECS API) — the authenticated `/api/v1/billing/*` surface
+
 ```
-src/
+packages/services/identity/src/
 ├── billing/
 │   ├── billing.module.ts
-│   ├── billing.controller.ts      -- checkout, portal, subscription endpoints
+│   ├── billing.controller.ts       -- checkout, portal, subscription endpoints (behind Clerk AuthMiddleware)
 │   ├── billing.service.ts          -- Stripe checkout/portal session creation
-│   ├── webhook/
-│   │   ├── webhook.controller.ts   -- /api/v1/billing/webhook (Stripe signature verified)
-│   │   ├── webhook.service.ts     -- routes events to handlers, idempotency check
-│   │   └── handlers/
-│   │       ├── checkout.handler.ts
-│   │       ├── invoice.handler.ts
-│   │       ├── subscription.handler.ts
-│   │       └── trial-ending.handler.ts
-│   ├── decorators/
-│   │   └── require-plan.decorator.ts   -- @RequirePremium()
-│   └── guards/
-│       └── plan.guard.ts
+│   └── billing.schema.ts           -- the AUTHORED zod (GR-015); copied into @kitchensink/schema-identity
 │
-├── auth/
-│   └── jwt-auth.guard.ts          -- from 002; composed with PlanGuard
+└── auth/                            -- from 002; unchanged by 010
 ```
+
+There is **no `webhook/` directory here, and no `rawBody: true` on this process.** Nothing in this deployable
+needs the raw request body, so the API keeps its normal body parsing and its normal single `400` path.
+
+### 5b. `@kitchensink/identity-webhooks` (Lambda) — the unauthenticated Stripe callback
+
+```
+packages/services/identity-webhooks/src/
+├── handlers/
+│   └── stripeWebhook.ts             -- the handler; mirrors handlers/identityWebhook.ts (Clerk/svix)
+└── common/
+    ├── stripe.ts                    -- signature verification; mirrors common/svix.ts
+    └── stripeEvent.schema.ts        -- zod over the raw Stripe shapes, applied AFTER signature verification
+```
+
+⛔ **`@golevelup/nestjs-stripe` cannot host this handler, and §1's stack table has been corrected accordingly.**
+That package's value is NestJS DI plus `@StripeWebhookHandler` decorator routing — and
+`@kitchensink/identity-webhooks` has **no NestJS at all** (verify: its `package.json` declares zero `@nestjs/*`
+dependencies; every handler is a raw Lambda entry point). Once ADR-0017 moved the webhook into that deployable,
+the library's decorator routing became unusable there. The webhook verifies signatures with the `stripe` SDK
+directly — `stripe.webhooks.constructEvent(rawBody, signatureHeader, secret)` — which is exactly the shape
+`common/svix.ts` already uses for Clerk (`new Webhook(secret).verify(...)`), and which for the same reason must
+return **`unknown`**: a signature proves Stripe **sent** the payload and says nothing about what is inside it.
+Event routing is a discriminated-union `switch` over the validated `type`, which IS the Visitor the decorators
+were providing.
+
+The API half (5a) needs only a Stripe client to create checkout/portal sessions. A plain
+`new Stripe(secretKey)` behind a Nest provider is enough; adding `@golevelup/nestjs-stripe` for DI alone, now that
+its webhook half is unused, buys a dependency for a constructor call. Revisit only if the API later grows several
+Stripe-touching modules that would each otherwise construct their own client.
 
 ### BillingModule Setup
 
 ```typescript
-// billing/billing.module.ts
+// packages/services/identity/src/billing/billing.module.ts
 @Module({
-    imports: [
-        StripeModule.forRootAsync({
-            useFactory: (config: ConfigService) => ({
-                apiKey: config.get('STRIPE_SECRET_KEY'),
-                webhookConfig: {
-                    stripeSecrets: {
-                        account: config.get('STRIPE_WEBHOOK_SECRET'),
-                    },
-                    requestBodyProperty: 'rawBody',
-                },
-            }),
+    providers: [
+        {
+            // A plain SDK client. No webhookConfig and no `requestBodyProperty`: this process serves no webhook.
+            provide: STRIPE_CLIENT,
+            useFactory: (config: ConfigService) => new Stripe(config.getOrThrow('STRIPE_SECRET_KEY')),
             inject: [ConfigService],
-        }),
+        },
+        BillingService,
     ],
-    controllers: [BillingController, WebhookController],
-    providers: [BillingService, WebhookService, PlanGuard],
+    controllers: [BillingController],
     exports: [BillingService],
 })
 export class BillingModule {}
 ```
 
-### main.ts Requirement
+⚠️ `PlanGuard` / `@RequirePremium()` are deliberately **absent** from this module's providers. Per ADR-0017 they
+live in a shared `packages/shared/*` package and read the entitlement as a claim from the signed Clerk session
+token, because every gated route is in some **other** service. Registering them here would be the
+`@kitchensink/identity-service` import that `app-service-dependency.test.ts` already forbids.
 
-```typescript
-// src/main.ts
-const app = await NestFactory.create(AppModule, { rawBody: true });
-// Enables raw body for Stripe webhook signature verification
-```
+### `main.ts` — no change required
+
+010 adds **nothing** to `packages/services/identity/src/main.ts`. Earlier revisions specified
+`NestFactory.create(AppModule, { rawBody: true })` to feed a webhook controller that §5 no longer places here;
+raw-body handling belongs to the Lambda in §5b, which receives the body as a string from API Gateway and needs no
+Nest bootstrap flag at all. Setting `rawBody: true` globally for a route this process does not serve would change
+body handling for **every** identity endpoint to no purpose.
 
 ---
 

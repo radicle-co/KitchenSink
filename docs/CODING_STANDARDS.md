@@ -4,7 +4,17 @@ Tactical conventions for the KitchenSink monorepo. This document is the authorit
 reference for day-to-day coding decisions. The [Constitution](../.specify/memory/constitution.md)
 defines immutable principles; this document translates them into enforceable rules.
 
-**Version**: 1.5.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-12
+**Version**: 1.6.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-12
+
+> **1.6.0** — **§16 added**: persistent-schema and task-identifier uniqueness. A table name has exactly ONE
+> declarer (across features, between a feature and shipped code, and between two shipped packages — including
+> across different logical databases), a spec declares a table by writing fenced DDL rather than prose, an
+> unshipped feature must not `CREATE TABLE` a name that already ships, and a `tasks.md` defines each task ID once.
+> Written because feature 010 planned a `webhook_events` table that already ships for Clerk/svix dedup with a
+> disjoint column set (resolved by ADR-0018 — one dedup table per sender), feature 011 planned a second
+> `recipe_versions` while the recipe service already ships one, and feature 007 defined eight task IDs twice.
+> §16.3 requires the gates to **parse rather than grep** and to **discover rather than enumerate**, with the four
+> measured reasons tabulated, and makes an exemption's `why` mandatory and its owner set exact.
 
 > **1.5.0** — **§15.5 added**, making §15.2/§15.4 binding on code that does not exist yet and deciding the
 > **failure** side of the boundary parse. A new service owes its authored zod, `contract:generate`, a committed
@@ -1360,3 +1370,69 @@ controls is the same problem one layer in.
 13. An identifier MUST NEVER be a sentinel, and MUST be required everywhere it is consumed except on a
     create/upsert, where it is generated (§15.5.5). Where two principals are asserted, **both** are required
     and a mismatch is a rejection (§15.5.6).
+
+---
+
+## 16. Persistent-Schema and Task-Identifier Uniqueness
+
+**Normative rule**: [`specs/governance-rules.md` GR-021](../specs/governance-rules.md#gr-021-one-declarer-per-table-name-and-one-definition-per-task-id).
+**Reasoning and rejected alternatives**: [ADR-0018](architecture/decisions/0018-per-sender-webhook-dedup-tables.md).
+
+Two identifiers in this repository are joined on by other documents and by migrations, so a duplicate is a wrong
+answer that reads like a right one. Both were found by accident on 2026-08-12, and both are now gated.
+
+### 16.1 A table name has exactly ONE declarer
+
+Feature 010 planned a `webhook_events` table for Stripe dedup. That name already ships in the same database, for
+Clerk/svix dedup, keyed `svix_id text PRIMARY KEY` with `identity_id text NOT NULL` and a disjoint column set. Two
+tables under one name is a migration that fails at deploy — or one that succeeds and corrupts dedup for **both**
+senders. The same sweep found feature 011 planning a second `recipe_versions` while the recipe service already ships
+one, forking a `(recipe_id, version_number)` sequence that has a single writer.
+
+1. A table name is declared by **one** owner: one feature, or one shipped package. This binds across features,
+   between a feature and shipped code, and between two shipped packages — **including when the two live in
+   different logical databases**, because the name is how humans and tools identify the table.
+2. A spec **declares** a table by writing its DDL in a fenced ` ```sql ` (`CREATE TABLE`) or ` ```ts `
+   (`pgTable('…')`) block. Prose naming a table is a **reference**, which is normal and correct — a feature that
+   reads another's table is not claiming it. A prose-only declaration is **invisible to the gate**, so writing the
+   DDL is the author's obligation, not the tool's problem.
+3. A **not-yet-implemented** feature MUST NOT `CREATE TABLE` a name that already ships: the statement can only fail
+   or clobber. To reuse the table, the **owning service** writes it and the feature calls that service.
+4. A table with more than one writer is a design smell to resolve, not to document. The three ways out, in
+   preference order: **rename** one, **namespace per writer**, or model **one shared table with a discriminator** —
+   and the last is a real migration of a live table, so it needs the constraint analysis ADR-0018 works through,
+   not a hunch.
+
+### 16.2 A task identifier is DEFINED once per `tasks.md`
+
+Feature 007 defined eight IDs twice — 60 checkbox lines for 52 IDs — so a traceability row could be closed by the
+wrong task and `Depends on: T-043` had no single referent.
+
+1. A **definition** is the line carrying the done-state: a checkbox item, or (in a file using no checkboxes at all)
+   a heading. Every other appearance — a `Depends on:` continuation, a matrix row, a node in a fenced dependency
+   graph, prose — is a **reference**, and repeating a reference is correct.
+2. One task serving two user stories is **defined once**, tagged with every story it serves, its second site a
+   **non-checkbox pointer**. Two different deliverables get two identifiers.
+3. An identifier's suffix is part of it: `T001`, `T001a` and `T001-alb` are three different tasks.
+
+### 16.3 The gates PARSE, they do not grep — and they DISCOVER, they do not enumerate
+
+A text-matching gate written in this repository passed against deliberately broken code because the docstring above
+it contained the words the gate searched for. Four more measured reasons, all from this tree:
+
+| A text gate would…                               | Because                                                              |
+| ------------------------------------------------ | -------------------------------------------------------------------- |
+| report ~30 phantom duplicate task IDs in 007     | its dependency graph is a fenced block full of `[T-001]` nodes       |
+| manufacture ~50 more in 001                      | a `T\d+` match truncates `T001-alb` and `T005-core` to `T001`/`T005` |
+| see **3** of this repo's tables, not all of them | drizzle writes `pgTable(` and the name on different lines            |
+| count a commented-out `CREATE TABLE`             | SQL comments and string literals name tables constantly              |
+
+So: markdown is scanned with a CommonMark-correct fence tracker, SQL with comments and literals stripped, and
+TypeScript with the compiler's own parser. Subjects are discovered via `git ls-files` — a hardcoded list of features
+is itself the defect, because the next feature arrives unguarded.
+
+**Exemptions carry a mandatory, substantive `why`** and pin the **exact** owner set, per the precedent of
+`contract-gen`'s `AllowedPackageImport.why` and `ColumnAccount.why`. A blank or one-word reason fails, and a third
+declarer joining an exempted pair fails. Gates:
+`packages/infra/global/__tests__/spec-task-ids.test.ts` and `.../spec-table-collisions.test.ts`, over the shared
+parser `.../spec-declarations.ts`.

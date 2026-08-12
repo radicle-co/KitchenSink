@@ -2,7 +2,7 @@
 
 **Feature Branch**: `007-grocery-lists`
 **Created**: 2026-04-14
-**Last Updated**: 2026-05-10
+**Last Updated**: 2026-08-12
 **Status**: Pre-handoff (open questions resolved — see revision log in review.md)
 **Input**: Split from `001-commise-recipe-app` — grocery list generation from meal plans with ingredient aggregation, deduplication, and online ordering integration.
 
@@ -106,10 +106,17 @@ the contract; GR-016 decides where that zod **runs**.
 recipe service. 007's coupling to recipes is weaker than 006's or 009's — generation is a **one-shot read** of a
 plan and its recipes — and the genuinely separate part, the **retailer integration, is a worker plus scoped
 secrets, not a service**. **No new deployable is created**, and a **schema package is per SERVICE, not per
-feature** — there is no `@kitchensink/schema-grocery`. ⚠️ **007's own `tasks.md` is now WRONG**: it names
-`packages/services/grocery-service/…` throughout (57 occurrences, measured 2026-08-12), a package that does not
-exist and, per ADR-0017, will not. Those paths become `packages/services/recipe-service/src/grocery-lists/…`,
-and the retailer adapters plus order-status polling move to `@kitchensink/recipe-workers`.
+feature** — there is no `@kitchensink/schema-grocery`.
+
+✅ **The `tasks.md` repoint is DONE** (commit `b9221bb3`, 2026-08-12 — the same commit that ratified ADR-0017;
+183 insertions / 82 deletions in that file). All **57** `packages/services/grocery-service` references (counted
+against the pre-repoint revision, `b9221bb3^`) were repointed: task paths now read
+`packages/services/recipe-service/src/grocery-lists/…`, with the retailer adapters and the order-status polling
+under `packages/services/recipe-workers/src/grocery/…`, and the file carries its own `Was → Now` mapping table
+in its _Cross-Cutting_ section. Measured 2026-08-12: the **8** `grocery-service` strings still in that file are
+all historical record — five in the mapping table's `Was` column, one in its count statement, one in a
+superseded-task note, and one naming the hypothetical `@kitchensink/grocery-service` in ADR-0017's flip
+condition. **No prescribed path names a package that does not exist.**
 
 **The service MUST** author every grocery-list, item, pantry-flag and order request/response shape as **zod in
 the service** at `src/grocery-lists/*.schema.ts`, **beside the controller it serves**; validate its own requests

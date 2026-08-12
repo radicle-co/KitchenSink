@@ -128,8 +128,10 @@ per feature** — there is no `@kitchensink/schema-billing`.
 
 ⛔ **The Stripe webhook belongs in `@kitchensink/identity-webhooks`**: it is an **unauthenticated third-party
 callback** that must **not** sit behind Clerk's `AuthMiddleware`, needs the **raw request body**, must **answer while
-the API is scaled down**, and needs the `webhook_events` idempotency table that **already exists in that database**
-for Clerk's svix callback. ⛔ **`@RequirePremium()` / `PlanGuard` live in a SHARED package** reading the entitlement
+the API is scaled down**, and writes its idempotency rows into **that** database, alongside Clerk's. ⚠️ Into its
+**own** table: per [ADR-0018](../../docs/architecture/decisions/0018-per-sender-webhook-dedup-tables.md) Stripe gets
+`stripe_webhook_events` and the shipped svix `webhook_events` is untouched — same name, different columns, different
+sender, and one shared table would have to relax the `identity_id text NOT NULL` that GR-019 leans on. ⛔ **`@RequirePremium()` / `PlanGuard` live in a SHARED package** reading the entitlement
 as a **claim from the signed Clerk session token** — every gated route lives in some _other_ service, and
 `packages/infra/global/__tests__/app-service-dependency.test.ts` already forbids an app importing a service package.
 
@@ -209,14 +211,14 @@ boundary schema is a security and correctness regression**, because this is the 
       splits signature failure from shape failure into two behaviours. Both are violations (GR-018 §18-c and §18-a).
       That file is owned elsewhere and is not corrected here; this is the record that it contradicts the rule.
     - **A rejected event is NOT recorded as a row** (GR-018 §18-d / GR-019). An invalid payload has **no trustworthy
-      identifier**, and `webhook_events.identity_id` is `text NOT NULL` in this very database — so recording it would
+      identifier** — not even a `stripe_event_id` worth keying on — so recording it would
       force the writer to invent an id, which is precisely the sentinel GR-019 forbids. The **log line and the
       counter are load-bearing**, not a consolation prize.
 - **Requests are validated in the service; responses are validated ON RECEIPT by the consumer.** ⛔ Server-side
   **response** validation is **DEFERRED by owner decision** (GR-016 §16-g) and **MUST NOT be "completed"**. The
   Stripe-side parse is **input to us** and is unaffected — do not conflate them.
 - **⛔ The storage floor — an ASSERTION, never a derivation — and 010 has the TIGHTEST real bounds of these five
-  features, with a thin margin.** `webhook_events.stripe_event_id` is `VARCHAR(255)`, `event_type` is
+  features, with a thin margin.** `stripe_webhook_events.stripe_event_id` is `VARCHAR(255)`, `event_type` is
   `VARCHAR(100)`, and `status` is `VARCHAR(20)` — ⚠️ **`'processing'` is 10 characters, so the margin is thin** and
   a longer status string is a failed `INSERT` on the money path. Meanwhile the `accounts` additions are declared
   **`varchar` with no length**, which is unbounded in PostgreSQL and therefore **not yet a floor**: ⚠️ **a length
@@ -224,7 +226,7 @@ boundary schema is a security and correctness regression**, because this is the 
   type enters a wire schema**, and **no Stripe SDK type enters one either**; enforcement is the per-service parity
   test of GR-017 §17-d, its mapping asserted complete **in both directions**.
     - ⚠️ **010's data model uses TypeORM-style `@Column()` decorators while the rest of the portfolio — including the
-      `accounts` and `webhook_events` tables it extends — is Drizzle.** That inconsistency is **flagged, not
+      `accounts` table it extends and the `webhook_events` table it sits beside — is Drizzle.** That inconsistency is **flagged, not
       silently resolved**: it is a data-model decision for the owner, and it changes what the parity test reads.
 - **Non-HTTP ingress.** Beyond the webhook, any retry queue, DLQ replay or reconciliation job this feature adds
   parses its payload against an authored zod **before acting on it** — a pipe reaches none of them, and these are

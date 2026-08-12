@@ -34,3 +34,4 @@ Without those two layers the ADR is invisible at the moment it matters.
 - [0015 — Input is parsed once at the boundary against the service's own zod; the DB schema is the floor; response validation deferred](0015-input-validation-at-every-boundary.md)
 - [0016 — A notification is retained until acked or 3 days, deduplicated by canonical payload while pending, in ElastiCache Serverless for Valkey](0016-notification-retention-payload-dedup-and-valkey.md)
 - [0017 — Features 006/007/009 land in the recipe service, 010 in the identity service; no new deployable](0017-service-ownership-for-features-006-007-009-010.md)
+- [0018 — Webhook delivery dedup is one table per sender: Stripe gets `stripe_webhook_events`, Clerk keeps `webhook_events`](0018-per-sender-webhook-dedup-tables.md)

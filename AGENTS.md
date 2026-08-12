@@ -240,6 +240,62 @@ yet** — the case prose in a feature spec has repeatedly failed to cover.
   outcomes are "agrees" and "rejected". Same lesson as PR #39 deleting the forgeable `x-authorizer-context`
   header: a value the sender controls cannot authorise what the sender may do.
 
+## One declarer per TABLE NAME, one definition per TASK ID (GR-021 / ADR-0018, ruled 2026-08-12)
+
+Inline, because a review bot cannot follow a link — and because both of these were found **by accident**, in
+documents that had already been reviewed.
+
+- ⛔ **A table name has exactly ONE declarer, portfolio-wide** — one feature, or one shipped package. This binds
+  across features, between a feature and shipped code, and between two shipped packages, **including when the two
+  live in different logical databases**, because the name is how humans and tools identify the table.
+- **The collision that produced the rule:** feature 010 declared a `webhook_events` table for Stripe idempotency.
+  That name **already ships** in the very database ADR-0017 puts 010's webhook in —
+  `packages/shared/identity-db/src/schema/webhookEvents.ts`, Clerk/svix delivery dedup, keyed
+  `svix_id text PRIMARY KEY` with `identity_id text NOT NULL` — with an otherwise **disjoint** column set. Two
+  tables under one name is a migration that fails at deploy, or one that succeeds and corrupts dedup for **both**
+  senders. ✅ **Ruled: ONE DEDUP TABLE PER SENDER.** Stripe gets **`stripe_webhook_events`**; the shipped table is
+  **not touched**. ⛔ Do **not** "simplify" this by adding a `source` discriminator to the shipped table: that
+  means dropping its PRIMARY KEY and **relaxing `identity_id` to nullable** — the very constraint that makes
+  GR-019's no-sentinel rule schema-enforced — on a live table on the user-provisioning path, and it lets a
+  billing-side dedup or retention defect **evict Clerk's dedup rows**. `stripe_webhook_events` deliberately has
+  **no `identity_id`**: a Stripe event is attributed to a `stripe_customer_id`, and attribution is a lookup
+  against `accounts.stripe_customer_id` where a miss is allowed to be a miss.
+- **The second collision, found in the same sweep:** feature 011 planned a **second** `recipe_versions` table in
+  `digitization-service`'s database while `recipe_versions` already ships in the recipe service — two independent
+  `(recipe_id, version_number)` sequences over one recipe's history, so "version 4" would stop identifying
+  anything. ✅ **Ruled: 011 does NOT create it.** A digitization correction is a version created **through
+  `@kitchensink/recipe-service-client`**. For the same single-writer reason, 011's `recipes.audience` DDL ships as
+  a **recipe-service** migration, not a `digitization-service` one — a second service issuing DDL against another's
+  table forks schema ownership and races the owner's migration ordering.
+- **A spec DECLARES a table by writing fenced DDL** (` ```sql ` `CREATE TABLE`, or ` ```ts ` `pgTable('…')`).
+  Prose naming a table is a **reference**, which is normal and correct — 007 reads 001's `recipe_ingredients`, and
+  that is not a claim of ownership. ⚠️ A prose-only declaration is **invisible to the gate**: that is exactly how
+  011's `recipe_versions` escaped the first automated pass. Writing the DDL is the author's obligation.
+- **A not-yet-implemented feature MUST NOT `CREATE TABLE` a name that already ships** — the statement can only
+  fail or clobber. To reuse the table, the **owning service** writes it and the feature calls that service.
+- ⛔ **A `tasks.md` defines each task ID exactly once.** Feature 007 defined **eight** twice (T-004, T-025, T-027,
+  T-028, T-041, T-043, T-044, T-046) — 60 checkbox lines for 52 IDs — so a traceability row could be closed by the
+  **wrong** task and `Depends on: T-043` had no single referent. A **definition** is the line carrying the
+  done-state: a checkbox, or (in a file using no checkboxes at all, as feature 004 does) a heading. One task
+  serving two stories is **defined once**, tagged with every story it serves, its second site a **non-checkbox
+  pointer**; two different deliverables get two IDs (007's T-046 UI vs its E2E test, now **T-053**).
+- ⚠️ **The gates PARSE, they do not grep, and they DISCOVER, they do not enumerate.** A text gate in this repo once
+  passed against deliberately broken code because the docstring above it contained the words it searched for. Four
+  measured reasons here: 007's fenced dependency graph makes a line-wise task-ID regex report **~30 phantom**
+  duplicates; 001's suffixed IDs (`T001`, `T001a`, `T001-alb` are three different tasks) make a `T\d+` match
+  manufacture **~50 more**; drizzle writes `pgTable(` and the table name on **different lines**, so a single-line
+  regex sees **3** of this repo's tables instead of all of them; and SQL comments name tables constantly. Gates:
+  `packages/infra/global/__tests__/spec-task-ids.test.ts` and `.../spec-table-collisions.test.ts` over
+  `.../spec-declarations.ts`.
+- **An exemption needs a substantive written `why`, and pins the owner set EXACTLY** (precedent:
+  `contract-gen`'s `AllowedPackageImport.why`, `ColumnAccount.why`). A blank or one-word reason is a hard failure,
+  and a **third** declarer joining an exempted pair fails — "two of these were ruled acceptable" says nothing
+  about a third. ⚠️ Three current exemptions record a **shipped DEFECT, not an approval**:
+  `packages/services/identity/src/types/schema/{users,accounts,profiles}.ts` are **drifted** duplicates of the
+  authoritative `packages/shared/identity-db/src/schema/*` — `id` is `varchar(255) COLLATE "C"` vs `text`, `email`
+  is `varchar(320)` vs case-insensitive `citext`, `profiles.user_id` is **`uuid` vs `text`** — under a comment
+  claiming the two are "kept in lockstep". Nothing in production imports them; the only consumer is a test.
+
 ## Cross-platform rule (enforced)
 
 Every user-facing feature ships to **both** web and mobile in the same release. Platform-specific

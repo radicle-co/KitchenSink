@@ -44,12 +44,12 @@ This document captures portfolio-level monetization and operational outcomes for
 
 ## 3. Operational SLOs (Billing Reliability)
 
-| SLO                                     | Target                                                  | Measurement                               |
-| --------------------------------------- | ------------------------------------------------------- | ----------------------------------------- |
-| Webhook processing success              | >= 99.9% non-transient success after retries            | webhook event processing logs             |
-| Duplicate webhook side effects          | 0 duplicate state mutations per event ID                | `webhook_events` idempotency table audits |
-| Entitlement propagation delay           | <= 60s from billing event to account state sync         | event timestamp delta                     |
-| `PREMIUM_REQUIRED` contract consistency | 100% of gated denials include stable code + upgrade URL | API integration tests                     |
+| SLO                                     | Target                                                  | Measurement                                                 |
+| --------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------- |
+| Webhook processing success              | >= 99.9% non-transient success after retries            | webhook event processing logs                               |
+| Duplicate webhook side effects          | 0 duplicate state mutations per event ID                | `stripe_webhook_events` idempotency table audits (ADR-0018) |
+| Entitlement propagation delay           | <= 60s from billing event to account state sync         | event timestamp delta                                       |
+| `PREMIUM_REQUIRED` contract consistency | 100% of gated denials include stable code + upgrade URL | API integration tests                                       |
 
 ---
 

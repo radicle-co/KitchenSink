@@ -3,13 +3,27 @@
 **Feature**: `007-grocery-lists`
 **Generated**: 2026-06-02
 **Source Artifacts**: spec.md, plan.md, product-spec/product-spec.md
-**Total Tasks**: 52 (T-001…T-046, plus T-047…T-052 added 2026-08-12 for contract ownership, validation and the
-client half)
+**Total Tasks**: 53 (T-001…T-046 the original set, T-047…T-052 added 2026-08-12 for contract ownership, validation and the
+client half, T-053 split out of a duplicated T-046 on 2026-08-12)
 
-> ⚠️ **Pre-existing defect, flagged not fixed**: eight task IDs are **defined twice** in this file — T-004,
-> T-025, T-027, T-028, T-041, T-043, T-044, T-046 — so there are 54 checkbox lines for 46 IDs (60 lines / 52 IDs
-> after this revision). A duplicated ID makes "done" ambiguous and breaks the dependency graph's referents.
-> Renumbering touches the graph and every table row, so it is left for the file's owner rather than bundled here.
+> ✅ **RESOLVED (2026-08-12) — the eight duplicated task IDs are gone; every ID is now defined exactly once.**
+> T-004, T-025, T-027, T-028, T-041, T-043, T-044 and T-046 were each **defined twice**, giving 60 checkbox lines
+> for 52 IDs. A duplicated ID makes "done" ambiguous: a traceability row can be closed by the wrong task, and the
+> dependency graph's referents stop being unique.
+>
+> The eight split into two different defects, and they got two different fixes:
+>
+> - **Seven were the same task cross-listed under a second user story** (`_(shared with US-00X)_`, same file path,
+>   same work). Those are now **defined once**, tagged with every story they serve — matching what the Summary
+>   Table already asserted (`T-025 | US-002/004`) — with the second story's acceptance criterion folded into the
+>   definition. Each second site is now a **non-checkbox pointer**: one task, one checkbox, one done-state.
+> - **T-046 was a genuine mis-numbering**: two different deliverables shared it — the mobile cross-link **UI**
+>   (`mobile/app/meal-plan.tsx`) and the mobile cross-link **E2E test** (`mobile/e2e/shopping-lists.test.js`).
+>   The E2E half is now **T-053**, and depends on T-046 rather than restating it.
+>
+> Enforced from now on by `packages/infra/global/__tests__/spec-task-ids.test.ts`, which discovers every
+> `specs/*/tasks.md` and fails on any identifier defined twice. It parses fenced blocks out first, so the ASCII
+> dependency graph below — full of `[T-001]` tokens — is correctly read as references, not definitions.
 
 ---
 
@@ -67,7 +81,9 @@ client half)
     ↓                                         ↓
 [T-041..T-044] Mobile UI (Expo/RN)       [T-040] Meal Plan Cross-Links (Web + 006 view)
     ↓
-[T-045..T-046] Mobile E2E Tests
+[T-045..T-046] Mobile Shopping-Lists Page & Cross-Links (UI)
+    ↓
+[T-053] Mobile cross-link E2E
     ↓
 [T-029..T-038] Tests & Validation
 ```
@@ -93,10 +109,11 @@ client half)
     - Implements: FR-028
     - Acceptance: Unit tests pass for volume↔mass conversions (flour, sugar, butter, oil, milk); strict mode, JSDoc on all exports.
 
-- [ ] **T-004** [P1] [US-001] Implement IngredientAggregatorService (aggregate, normalizeUnit, deduplicate) — `packages/services/recipe-service/src/grocery-lists/ingredient-aggregator.service.ts`
+- [ ] **T-004** [P1] [US-001, US-002] Implement IngredientAggregatorService (aggregate, normalizeUnit, deduplicate) — `packages/services/recipe-service/src/grocery-lists/ingredient-aggregator.service.ts`
     - Depends on: T-003
     - Implements: FR-028
     - Acceptance: "2 cups flour" + "100g flour" = ~315g flour in test; deduplication collapses same fdc_id to single line.
+    - Acceptance (US-002): Same fdc_id from multiple recipes collapses to a single line with summed grams; unit display is grocery-friendly.
 
 - [ ] **T-005** [P1] [US-001] Implement PantryService (add/remove/get/subtractFromList/pruneExpired) — `packages/services/recipe-service/src/grocery-lists/pantry.service.ts`
     - Depends on: T-002
@@ -122,21 +139,21 @@ client half)
 
 ## US-002 — Deduplicate and Sum Ingredient Quantities
 
-- [ ] **T-004** [P1] [US-002] _(shared with US-001)_ IngredientAggregatorService deduplication — `packages/services/recipe-service/src/grocery-lists/ingredient-aggregator.service.ts`
-    - Depends on: T-003
-    - Implements: FR-028
-    - Acceptance: Same fdc_id from multiple recipes collapses to single line with summed grams; unit display is grocery-friendly.
+- **T-004** — serves this story; **defined once under US-001 above**, where its US-002 acceptance criterion also lives. Not a
+  second task and not a second checkbox.
 
-- [ ] **T-025** [P2] [US-002] Web UI: grocery list page with category-grouped items — `packages/apps/commise/web/app/meal-plans/[id]/grocery-list/page.tsx`
+- [ ] **T-025** [P2] [US-002, US-004] Web UI: grocery list page with category-grouped items — `packages/apps/commise/web/app/meal-plans/[id]/grocery-list/page.tsx`
     - Depends on: T-006, T-008
-    - Implements: FR-028
+    - Implements: FR-028, FR-029
     - Acceptance: Items grouped by category; each item shows display name + quantity display + category badge; accessible (NFR-003, NFR-004).
+    - Acceptance (US-004, aisle grouping): Items grouped by aisle/category; the full workflow is completable in under 10 minutes for a 7-day plan (SC-008).
 
-- [ ] **T-041** [P2] [US-002] Mobile UI: grocery list screen with category-grouped items — `packages/apps/commise/mobile/app/grocery-list.tsx`
+- [ ] **T-041** [P2] [US-002, US-004] Mobile UI: grocery list screen with category-grouped items — `packages/apps/commise/mobile/app/grocery-list.tsx`
     - Depends on: T-006, T-008
     - Mirrors: T-025
-    - Implements: FR-028
+    - Implements: FR-028, FR-029
     - Acceptance: Items grouped by category; each item shows display name + quantity display + category badge; accessible.
+    - Acceptance (US-004, aisle grouping): Items grouped by aisle/category; one-handed check-off interactions supported.
 
 ---
 
@@ -172,16 +189,11 @@ client half)
 
 ## US-004 — Review List in Aisle-Oriented Grouping
 
-- [ ] **T-025** [P2] [US-004] _(shared with US-002)_ Web grocery list page with aisle grouping — `packages/apps/commise/web/app/meal-plans/[id]/grocery-list/page.tsx`
-    - Depends on: T-006, T-008
-    - Implements: FR-028, FR-029
-    - Acceptance: Items grouped by category; full workflow completable in under 10 minutes for 7-day plan (SC-008).
+- **T-025** — serves this story; **defined once under US-002 above**, where its US-004 aisle-grouping acceptance criterion also
+  lives. Not a second task, and deliberately not a second checkbox.
 
-- [ ] **T-041** [P2] [US-004] _(shared with US-002)_ Mobile grocery list screen with aisle grouping — `packages/apps/commise/mobile/app/grocery-list.tsx`
-    - Depends on: T-006, T-008
-    - Mirrors: T-025
-    - Implements: FR-028, FR-029
-    - Acceptance: Items grouped by category; one-handed check-off interactions supported.
+- **T-041** — serves this story; **defined once under US-002 above**, where its US-004 aisle-grouping acceptance criterion also
+  lives. Not a second task, and deliberately not a second checkbox.
 
 ---
 
@@ -202,31 +214,28 @@ client half)
     - Implements: FR-030
     - Acceptance: Adapter unit tests pass with mocks; OAuth flow mocked; 10s timeout. _⚠️ Cannot complete integration testing without sandbox credentials._
 
-- [ ] **T-027** [P2] [US-005] Web UI: store connection section (Walmart API key entry, Instacart OAuth, disconnect) — `packages/apps/commise/web/app/meal-plans/[id]/grocery-list/page.tsx`
+- [ ] **T-027** [P2] [US-005, US-006] Web UI: store connection section (Walmart API key entry, Instacart OAuth, disconnect) — `packages/apps/commise/web/app/meal-plans/[id]/grocery-list/page.tsx`
     - Depends on: T-016, T-025
     - Implements: FR-030
     - Acceptance: Connected state shows store name + "Disconnect" option; unconnected state shows setup prompt.
+    - Acceptance (US-006, guided setup): Scenario 5 from the spec passes — a user without a connected store sees setup guidance on order attempt.
 
-- [ ] **T-043** [P2] [US-005] Mobile UI: store connection screen (bottom sheet/modal with Walmart key entry, Instacart OAuth) — `packages/apps/commise/mobile/app/store-connection.tsx`
+- [ ] **T-043** [P2] [US-005, US-006] Mobile UI: store connection screen (bottom sheet/modal with Walmart key entry, Instacart OAuth) — `packages/apps/commise/mobile/app/store-connection.tsx`
     - Depends on: T-016, T-041
     - Mirrors: T-027
     - Implements: FR-030
     - Acceptance: OAuth redirect and callback work end-to-end on mobile. _⚠️ Instacart path cannot be fully accepted without sandbox credentials._
+    - Acceptance (US-006, guided setup): Scenario 5 passes on mobile.
 
 ---
 
 ## US-006 — Guided Setup on Order Attempt
 
-- [ ] **T-027** [P2] [US-006] _(shared with US-005)_ Web UI shows guided setup when user attempts order without configured store — `packages/apps/commise/web/app/meal-plans/[id]/grocery-list/page.tsx`
-    - Depends on: T-016, T-025
-    - Implements: FR-030
-    - Acceptance: Scenario 5 from spec passes: user without connected store sees setup guidance on order attempt.
+- **T-027** — serves this story; **defined once under US-005 above**, where its US-006 guided-setup acceptance criterion also
+  lives. Not a second task, and deliberately not a second checkbox.
 
-- [ ] **T-043** [P2] [US-006] _(shared with US-005)_ Mobile UI shows guided setup when user attempts order without configured store — `packages/apps/commise/mobile/app/store-connection.tsx`
-    - Depends on: T-016, T-041
-    - Mirrors: T-027
-    - Implements: FR-030
-    - Acceptance: Scenario 5 passes on mobile.
+- **T-043** — serves this story; **defined once under US-005 above**, where its US-006 guided-setup acceptance criterion also
+  lives. Not a second task, and deliberately not a second checkbox.
 
 ---
 
@@ -257,31 +266,28 @@ client half)
     - Implements: FR-031
     - Acceptance: Free users receive 403 with upgrade message; premium users pass through.
 
-- [ ] **T-028** [P2] [US-007] Web UI: "Order Groceries" button (disabled + upgrade prompt for free users), pre-order review, checkout URL, status polling — `packages/apps/commise/web/app/meal-plans/[id]/grocery-list/page.tsx`
+- [ ] **T-028** [P2] [US-007, US-008] Web UI: "Order Groceries" button (disabled + upgrade prompt for free users), pre-order review, checkout URL, status polling — `packages/apps/commise/web/app/meal-plans/[id]/grocery-list/page.tsx`
     - Depends on: T-015, T-018, T-019, T-020, T-027
     - Implements: FR-031
     - Acceptance: Scenario 4 from spec passes in Playwright; premium gate shows upgrade prompt for free users.
+    - Acceptance (US-008, pre-order review): Mapped items shown with store price; unmapped items shown for manual selection or skip.
 
-- [ ] **T-044** [P2] [US-007] Mobile UI: "Order Groceries" button (disabled + upgrade prompt), pre-order review bottom sheet, checkout URL in system browser, status polling — `packages/apps/commise/mobile/app/grocery-list.tsx`
+- [ ] **T-044** [P2] [US-007, US-008] Mobile UI: "Order Groceries" button (disabled + upgrade prompt), pre-order review bottom sheet, checkout URL in system browser, status polling — `packages/apps/commise/mobile/app/grocery-list.tsx`
     - Depends on: T-015, T-018, T-019, T-020, T-043
     - Mirrors: T-028
     - Implements: FR-031
     - Acceptance: Scenario 4 passes on mobile; premium gate shows upgrade prompt for free users.
+    - Acceptance (US-008, pre-order review): Mapped vs unmapped shown in a scrollable bottom sheet — mapped with store price, unmapped for manual selection or skip.
 
 ---
 
 ## US-008 — Pre-Order Review for Mapped vs Unmapped Items
 
-- [ ] **T-028** [P2] [US-008] _(shared with US-007)_ Web pre-order review: mapped vs unmapped items with manual selection — `packages/apps/commise/web/app/meal-plans/[id]/grocery-list/page.tsx`
-    - Depends on: T-015, T-018, T-019, T-020, T-027
-    - Implements: FR-031
-    - Acceptance: Mapped items shown with store price; unmapped items shown for manual selection or skip.
+- **T-028** — serves this story; **defined once under US-007 above**, where its US-008 pre-order-review acceptance criterion also
+  lives. Not a second task, and deliberately not a second checkbox.
 
-- [ ] **T-044** [P2] [US-008] _(shared with US-007)_ Mobile pre-order review: mapped vs unmapped in scrollable bottom sheet — `packages/apps/commise/mobile/app/grocery-list.tsx`
-    - Depends on: T-015, T-018, T-019, T-020, T-043
-    - Mirrors: T-028
-    - Implements: FR-031
-    - Acceptance: Mapped items shown with store price; unmapped items shown for manual selection or skip.
+- **T-044** — serves this story; **defined once under US-007 above**, where its US-008 pre-order-review acceptance criterion also
+  lives. Not a second task, and deliberately not a second checkbox.
 
 ---
 
@@ -384,9 +390,13 @@ client half)
     - Depends on: T-041, T-042
     - Acceptance: Scenario 1, 2, 3 from spec pass on mobile; one-handed interactions verified.
 
-- [ ] **T-046** [P2] [US-012] _(also listed above)_ Mobile: meal plan / shopping list cross-links E2E — `packages/apps/commise/mobile/e2e/shopping-lists.test.js`
-    - Depends on: T-045
+- [ ] **T-053** [P2] [US-012] Mobile E2E: meal plan / shopping list cross-link navigation — `packages/apps/commise/mobile/e2e/shopping-lists.test.js`
+    - Depends on: T-045, T-046
+    - Implements: FR-033
     - Acceptance: Cross-link navigation works on mobile; meal plan shows associated lists.
+    - ⚠️ Renumbered from `T-046` on 2026-08-12. This is the **E2E test** for the cross-links; `T-046` is the **UI** that
+      implements them, in a different package path. They were two different deliverables sharing one identifier, which is
+      why this one depends on the other rather than restating it.
 
 ---
 
@@ -535,3 +545,4 @@ client half)
 | T-050 | P2       | US-005/007 | FR-030/031  | `packages/services/recipe-workers/src/grocery/adapters/`                          | T-013, T-015                      |
 | T-051 | P1       | all        | FR-028..033 | `packages/clients/recipe-service/`, web + mobile                                  | T-047                             |
 | T-052 | P2       | all        | all         | `packages/tools/loadtest/`                                                        | T-024, T-047                      |
+| T-053 | P2       | US-012     | FR-033      | `packages/apps/commise/mobile/e2e/`                                               | T-045, T-046                      |

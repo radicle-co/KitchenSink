@@ -1,285 +1,271 @@
 {
-  "meta": {
-    "feature": "007-grocery-lists",
-    "scanDate": "2026-06-02",
-    "basePath": "specs/007-grocery-lists/",
-    "mode": "READ-ONLY",
-    "layersScanned": [
-      "L1",
-      "L2",
-      "L3",
-      "L4",
-      "L6",
-      "L7"
+    "meta": {
+        "feature": "007-grocery-lists",
+        "scanDate": "2026-06-02",
+        "basePath": "specs/007-grocery-lists/",
+        "mode": "READ-ONLY",
+        "layersScanned": ["L1", "L2", "L3", "L4", "L6", "L7"],
+        "layersSkipped": ["L5"]
+    },
+    "summary": {
+        "criticalCount": 0,
+        "warningCount": 3,
+        "passCount": 4,
+        "infoCount": 2,
+        "overallVerdict": "PASS"
+    },
+    "layers": [
+        {
+            "id": "L1",
+            "name": "Product Specification & Research",
+            "status": "PASS",
+            "evidence": [
+                "product-spec/product-spec.md (175 lines, Pre-handoff)",
+                "product-spec/user-journey.md (5 journeys A–E)",
+                "product-spec/metrics.md (12 story-level metrics)",
+                "research/competitors.md, ux-patterns.md, codebase-analysis.md, tech-stack.md, metrics-roi.md"
+            ],
+            "mustHaveCount": 6,
+            "mustHaveTracked": ["US-001", "US-002", "US-003", "US-004", "US-011", "US-012"]
+        },
+        {
+            "id": "L2",
+            "name": "Feature Specification (spec.md)",
+            "status": "PASS",
+            "evidence": [
+                "spec.md (92 lines, last updated 2026-05-10)",
+                "FRs: FR-028..FR-033",
+                "NFRs: NFR-001..NFR-004",
+                "Scenarios: SC-004, SC-008, SC-009"
+            ],
+            "mustHaveCoverage": "6/6",
+            "edgeCaseCoverage": [
+                "Empty meal plan",
+                "Store API outage",
+                "Standalone list",
+                "Meal plan deleted after generation"
+            ]
+        },
+        {
+            "id": "L3",
+            "name": "Technical Plan (plan.md)",
+            "status": "PASS",
+            "evidence": [
+                "plan.md (338 lines, 8 sections)",
+                "4 core tables: grocery_lists, grocery_list_items, user_pantry_items, grocery_product_map",
+                "6 API endpoints defined",
+                "Section 8: 6 resolved questions"
+            ]
+        },
+        {
+            "id": "L4",
+            "name": "Tasks & V-Model Traceability",
+            "status": "PASS",
+            "evidence": [
+                "tasks.md: 46 tasks (T-001..T-046)",
+                "v-model/requirements.md: 16 REQ entries + NF/IF/CN",
+                "v-model/acceptance-plan.md, architecture-design.md, system-design.md, module-design.md",
+                "v-model/integration-test.md, unit-test.md, system-test.md, hazard-analysis.md, trace.md"
+            ],
+            "taskCompleteness": {
+                "total": 46,
+                "present": 46,
+                "missing": 0
+            }
+        },
+        {
+            "id": "L5",
+            "name": "Implementation Traceability",
+            "status": "SKIPPED",
+            "reason": "Skipped per directive (Pre-implement scan)."
+        },
+        {
+            "id": "L6",
+            "name": "Code-Level Traceability",
+            "status": "INFO",
+            "evidence": [
+                "Zero .ts/.tsx/.sql files found matching grocery|pantry|culinary|aggregator",
+                "packages/api/ is an empty leftover directory and is NOT a workspace root; backend services live under packages/services/*",
+                "No Drizzle schema, migrations, or NestJS modules found for this feature"
+            ],
+            "implementationState": "not-started",
+            "expectedPaths": [
+                "DB migration file (T-001)",
+                "Drizzle schema (T-002)",
+                "culinary-units.ts (T-003)",
+                "aggregator.service.ts (T-004)",
+                "pantry.service.ts (T-005)",
+                "GroceryListsModule (T-021)",
+                "GroceryListScreen.tsx (T-041)",
+                "pages/shopping-lists/index.tsx (T-039)"
+            ]
+        },
+        {
+            "id": "L7",
+            "name": "Cross-Cutting Consistency",
+            "status": "PASS",
+            "evidence": [
+                "All 5 dependency specs (001, 002, 003, 006, 010) exist on disk",
+                "FR-028..FR-033 consistent across all layers",
+                "NFR-001..NFR-004 consistent across all layers",
+                "SC-004, SC-008, SC-009 consistent across all layers"
+            ]
+        }
     ],
-    "layersSkipped": [
-      "L5"
+    "findings": [
+        {
+            "id": "W-001",
+            "severity": "WARNING",
+            "layer": "L1",
+            "title": "Sharing narrative exists without explicit FR in spec.md",
+            "evidence": "product-spec/product-spec.md US-009 (Household List Sharing) and sharing wireframe are present, but no explicit FR covering sharing exists in spec.md.",
+            "recommendation": "Add FR-034 or defer sharing to post-MVP if not in scope."
+        },
+        {
+            "id": "W-002",
+            "severity": "WARNING",
+            "layer": "L3",
+            "title": "STORE_INTEGRATION_ENABLED feature flag referenced but not in env schema",
+            "evidence": "plan.md Section 8 references a feature flag for store adapters, but no env variable schema exists yet.",
+            "recommendation": "Add env validation (e.g., .env.example, Zod schema) before T-013 begins."
+        },
+        {
+            "id": "W-003",
+            "severity": "WARNING",
+            "layer": "L4",
+            "title": "Minor task ordering inconsistency in tasks.md",
+            "evidence": "T-039 and T-040 appear after T-045 in tasks.md body but are shown in the dependency diagram as parallel to T-025..T-028.",
+            "recommendation": "Re-order tasks.md body to match dependency diagram (T-039/T-040 before T-041). Cosmetic fix."
+        },
+        {
+            "id": "I-001",
+            "severity": "INFO",
+            "layer": "L6",
+            "title": "Zero implementation code found for feature 007",
+            "evidence": "Full directory scan of packages/ returned no .ts/.tsx files containing grocery, pantry, culinary, aggregator, or GroceryListScreen.",
+            "recommendation": "Expected pre-handoff; no action needed until implement phase begins."
+        },
+        {
+            "id": "I-002",
+            "severity": "RESOLVED",
+            "layer": "L7",
+            "title": "Monorepo path drift: assumed API path does not exist — RESOLVED 2026-08-02, SUPERSEDED 2026-08-12 by ADR-0017",
+            "evidence": "Originally: research/codebase-analysis.md referenced packages/apps/commise/api/src/grocery-lists/, which does not exist. SUPERSEDED 2026-08-02 ruling (kept for the audit trail): canonical backend location is packages/services/grocery-service/, matching shipped packages/services/<domain>-service (food-service, recipe-service) and 005's ai-service. CURRENT ANSWER (ADR-0017, 2026-08-12): 007 creates NO service; it lands in the existing packages/services/recipe-service (GroceryListsModule beside RecipesModule, sharing @kitchensink/schema-recipe), with retailer adapters and order-status polling in packages/services/recipe-workers. Still true: packages/api/ is an empty leftover, not a workspace root.",
+            "supersededBy": "docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md",
+            "supersededOn": "2026-08-12",
+            "recommendation": "Closed. The 2026-08-02 claim that all paths in plan.md, tasks.md and research/ were updated was FALSE for research/: research/codebase-analysis.md still prescribed packages/apps/commise/api/src/grocery-lists/ until 2026-08-12. plan.md, spec.md and tasks.md were repointed to packages/services/recipe-service by commit b9221bb3 (2026-08-12); research/codebase-analysis.md was corrected separately the same day."
+        }
+    ],
+    "idConsistencyMatrix": [
+        {
+            "id": "FR-028",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        },
+        {
+            "id": "FR-029",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        },
+        {
+            "id": "FR-030",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        },
+        {
+            "id": "FR-031",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        },
+        {
+            "id": "FR-032",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        },
+        {
+            "id": "FR-033",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        },
+        {
+            "id": "NFR-001",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        },
+        {
+            "id": "NFR-002",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        },
+        {
+            "id": "NFR-003",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        },
+        {
+            "id": "NFR-004",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        },
+        {
+            "id": "SC-004",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        },
+        {
+            "id": "SC-008",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        },
+        {
+            "id": "SC-009",
+            "specMd": true,
+            "productSpecMd": true,
+            "planMd": true,
+            "tasksMd": true,
+            "vModelRequirementsMd": true
+        }
+    ],
+    "recommendations": [
+        "Before implementation: Ensure 006-meal-planning grocery-list generation hook exists (T-006 depends on meal plan APIs).",
+        "Post-implementation re-scan: Re-run L5 and L6 after T-001..T-012 complete to validate code-to-tasks traceability.",
+        "Store adapter caution: Walmart API key and Instacart partner agreement are still external blockers. Keep store tasks mock-only until credentials available.",
+        "CLOSED 2026-08-02 — canonical API location is packages/services/grocery-service/. SUPERSEDED 2026-08-12 by ADR-0017 (docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md): the canonical location is packages/services/recipe-service/src/grocery-lists/, with retailer adapters in packages/services/recipe-workers/src/grocery/. No new deployable service is created for 007."
     ]
-  },
-  "summary": {
-    "criticalCount": 0,
-    "warningCount": 3,
-    "passCount": 4,
-    "infoCount": 2,
-    "overallVerdict": "PASS"
-  },
-  "layers": [
-    {
-      "id": "L1",
-      "name": "Product Specification & Research",
-      "status": "PASS",
-      "evidence": [
-        "product-spec/product-spec.md (175 lines, Pre-handoff)",
-        "product-spec/user-journey.md (5 journeys A–E)",
-        "product-spec/metrics.md (12 story-level metrics)",
-        "research/competitors.md, ux-patterns.md, codebase-analysis.md, tech-stack.md, metrics-roi.md"
-      ],
-      "mustHaveCount": 6,
-      "mustHaveTracked": [
-        "US-001",
-        "US-002",
-        "US-003",
-        "US-004",
-        "US-011",
-        "US-012"
-      ]
-    },
-    {
-      "id": "L2",
-      "name": "Feature Specification (spec.md)",
-      "status": "PASS",
-      "evidence": [
-        "spec.md (92 lines, last updated 2026-05-10)",
-        "FRs: FR-028..FR-033",
-        "NFRs: NFR-001..NFR-004",
-        "Scenarios: SC-004, SC-008, SC-009"
-      ],
-      "mustHaveCoverage": "6/6",
-      "edgeCaseCoverage": [
-        "Empty meal plan",
-        "Store API outage",
-        "Standalone list",
-        "Meal plan deleted after generation"
-      ]
-    },
-    {
-      "id": "L3",
-      "name": "Technical Plan (plan.md)",
-      "status": "PASS",
-      "evidence": [
-        "plan.md (338 lines, 8 sections)",
-        "4 core tables: grocery_lists, grocery_list_items, user_pantry_items, grocery_product_map",
-        "6 API endpoints defined",
-        "Section 8: 6 resolved questions"
-      ]
-    },
-    {
-      "id": "L4",
-      "name": "Tasks & V-Model Traceability",
-      "status": "PASS",
-      "evidence": [
-        "tasks.md: 46 tasks (T-001..T-046)",
-        "v-model/requirements.md: 16 REQ entries + NF/IF/CN",
-        "v-model/acceptance-plan.md, architecture-design.md, system-design.md, module-design.md",
-        "v-model/integration-test.md, unit-test.md, system-test.md, hazard-analysis.md, trace.md"
-      ],
-      "taskCompleteness": {
-        "total": 46,
-        "present": 46,
-        "missing": 0
-      }
-    },
-    {
-      "id": "L5",
-      "name": "Implementation Traceability",
-      "status": "SKIPPED",
-      "reason": "Skipped per directive (Pre-implement scan)."
-    },
-    {
-      "id": "L6",
-      "name": "Code-Level Traceability",
-      "status": "INFO",
-      "evidence": [
-        "Zero .ts/.tsx/.sql files found matching grocery|pantry|culinary|aggregator",
-        "packages/api/ is an empty leftover directory and is NOT a workspace root; backend services live under packages/services/*",
-        "No Drizzle schema, migrations, or NestJS modules found for this feature"
-      ],
-      "implementationState": "not-started",
-      "expectedPaths": [
-        "DB migration file (T-001)",
-        "Drizzle schema (T-002)",
-        "culinary-units.ts (T-003)",
-        "aggregator.service.ts (T-004)",
-        "pantry.service.ts (T-005)",
-        "GroceryListsModule (T-021)",
-        "GroceryListScreen.tsx (T-041)",
-        "pages/shopping-lists/index.tsx (T-039)"
-      ]
-    },
-    {
-      "id": "L7",
-      "name": "Cross-Cutting Consistency",
-      "status": "PASS",
-      "evidence": [
-        "All 5 dependency specs (001, 002, 003, 006, 010) exist on disk",
-        "FR-028..FR-033 consistent across all layers",
-        "NFR-001..NFR-004 consistent across all layers",
-        "SC-004, SC-008, SC-009 consistent across all layers"
-      ]
-    }
-  ],
-  "findings": [
-    {
-      "id": "W-001",
-      "severity": "WARNING",
-      "layer": "L1",
-      "title": "Sharing narrative exists without explicit FR in spec.md",
-      "evidence": "product-spec/product-spec.md US-009 (Household List Sharing) and sharing wireframe are present, but no explicit FR covering sharing exists in spec.md.",
-      "recommendation": "Add FR-034 or defer sharing to post-MVP if not in scope."
-    },
-    {
-      "id": "W-002",
-      "severity": "WARNING",
-      "layer": "L3",
-      "title": "STORE_INTEGRATION_ENABLED feature flag referenced but not in env schema",
-      "evidence": "plan.md Section 8 references a feature flag for store adapters, but no env variable schema exists yet.",
-      "recommendation": "Add env validation (e.g., .env.example, Zod schema) before T-013 begins."
-    },
-    {
-      "id": "W-003",
-      "severity": "WARNING",
-      "layer": "L4",
-      "title": "Minor task ordering inconsistency in tasks.md",
-      "evidence": "T-039 and T-040 appear after T-045 in tasks.md body but are shown in the dependency diagram as parallel to T-025..T-028.",
-      "recommendation": "Re-order tasks.md body to match dependency diagram (T-039/T-040 before T-041). Cosmetic fix."
-    },
-    {
-      "id": "I-001",
-      "severity": "INFO",
-      "layer": "L6",
-      "title": "Zero implementation code found for feature 007",
-      "evidence": "Full directory scan of packages/ returned no .ts/.tsx files containing grocery, pantry, culinary, aggregator, or GroceryListScreen.",
-      "recommendation": "Expected pre-handoff; no action needed until implement phase begins."
-    },
-    {
-      "id": "I-002",
-      "severity": "RESOLVED",
-      "layer": "L7",
-      "title": "Monorepo path drift: assumed API path does not exist — RESOLVED 2026-08-02",
-      "evidence": "Originally: research/codebase-analysis.md referenced packages/apps/commise/api/src/grocery-lists/, which does not exist. Resolved: canonical backend location is packages/services/grocery-service/, matching shipped packages/services/<domain>-service (food-service, recipe-service) and 005's ai-service. packages/api/ is an empty leftover, not a workspace root.",
-      "recommendation": "Closed. All paths updated in plan.md, tasks.md, and research/."
-    }
-  ],
-  "idConsistencyMatrix": [
-    {
-      "id": "FR-028",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    },
-    {
-      "id": "FR-029",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    },
-    {
-      "id": "FR-030",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    },
-    {
-      "id": "FR-031",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    },
-    {
-      "id": "FR-032",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    },
-    {
-      "id": "FR-033",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    },
-    {
-      "id": "NFR-001",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    },
-    {
-      "id": "NFR-002",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    },
-    {
-      "id": "NFR-003",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    },
-    {
-      "id": "NFR-004",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    },
-    {
-      "id": "SC-004",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    },
-    {
-      "id": "SC-008",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    },
-    {
-      "id": "SC-009",
-      "specMd": true,
-      "productSpecMd": true,
-      "planMd": true,
-      "tasksMd": true,
-      "vModelRequirementsMd": true
-    }
-  ],
-  "recommendations": [
-    "Before implementation: Ensure 006-meal-planning grocery-list generation hook exists (T-006 depends on meal plan APIs).",
-    "Post-implementation re-scan: Re-run L5 and L6 after T-001..T-012 complete to validate code-to-tasks traceability.",
-    "Store adapter caution: Walmart API key and Instacart partner agreement are still external blockers. Keep store tasks mock-only until credentials available.",
-    "CLOSED 2026-08-02 — canonical API location is packages/services/grocery-service/."
-  ]
 }

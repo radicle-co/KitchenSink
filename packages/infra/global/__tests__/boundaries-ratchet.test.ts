@@ -4,17 +4,19 @@
  * `turbo boundaries` reports every import of a package that the importing workspace does not declare.
  * Fixing the three production phantoms (`@commise/i18n` and `@commise/features-core` in web,
  * `@commise/features-core` in mobile) took the count from 210 to 135, but the remainder is a real
- * backlog: 135 diagnostics — 127 of the undeclared-dependency rule plus 8 of the type-only-import rule.
- * By dependency that is 77 `@testing-library/*` devDependency gaps, 34 `k6` (26 undeclared + the 8
- * type-only ones in `@kitchensink/loadtest`, where `@types/k6` IS declared but the imports are real
- * runtime imports the k6 binary resolves, so they cannot become `import type`), one genuine package
- * cycle (`ui` test → `test-utils` → `ui`), and at least one outright false positive (an `import`
- * statement inside a regex literal in `cffShape.test.ts`).
+ * backlog. Measured 2026-08-12 on turbo 2.9.18: 187 diagnostics across 3102 files in 34 packages — 175
+ * of the undeclared-dependency rule, 8 type-only-import, and 4 imports-outside-package. By dependency
+ * that is 77 `@testing-library/*` devDependency gaps, 56 `k6` (including the 8 type-only ones in
+ * `@kitchensink/loadtest`, where `@types/k6` IS declared but the imports are real runtime imports the k6
+ * binary resolves, so they cannot become `import type`), 14 `yaml`, one genuine package cycle (`ui` test
+ * → `test-utils` → `ui`), and at least one outright false positive (an `import` statement inside a regex
+ * literal in `cffShape.test.ts`). Roughly 3 of the total are the local-only `cdk.out` phantoms the
+ * script's own docblock warns about, and never appear on a clean checkout.
  *
  * So the gate cannot simply fail on a non-zero count yet. The tempting alternative — run it with
  * `continue-on-error` — is precisely the defect class this repo lost four weeks of production to: a step
- * that is green because nobody reads its result. The ratchet is the honest middle: those 135 diagnostics
- * collapse to 26 distinct (package, dependency, rule) triples, that set is checked in, and the build
+ * that is green because nobody reads its result. The ratchet is the honest middle: those diagnostics
+ * collapse to 31 distinct (package, dependency, rule) triples, that set is checked in, and the build
  * fails the moment a triple appears that is NOT in it. Burning the baseline down is follow-up work;
  * letting it grow is a build failure.
  *
@@ -405,5 +407,217 @@ describe('checkout-root independence', () => {
 
         expect(result.out).not.toContain('could not be attributed');
         expect(result.code).toBe(0);
+    });
+});
+
+/**
+ * turbo's THIRD rule kind: a relative import that escapes its own package. It looks nothing like the other
+ * two — it names no package at all, only the specifier — so the parser classified all four occurrences as
+ * `unrecognized` and the gate refused to report, taking `ci / Lint` red with NO actionable list of findings.
+ *
+ * That refusal is the correct behaviour for an unparseable diagnostic (better a hard stop than a silent
+ * under-count), but it makes the gate brittle in a specific way: ANY rule turbo adds in a future release
+ * converts this step from "reports violations" into "reports nothing, exits 1". So the shape is now parsed
+ * rather than merely tolerated, and these cases pin it.
+ */
+describe('escaping-import rule (a relative import that leaves its package)', () => {
+    /**
+     * The real shape, measured against turbo 2.9.18. Note there is no package name anywhere in the
+     * message — the only identifying token is the specifier, which is why this needed its own branch.
+     */
+    function escapes(specifier: string, file: string, root: string = repoRoot): string {
+        return [
+            `  x import \`${specifier}\` leaves the package`,
+            `    ,-[${root}/${file}:19:54]`,
+            ' 18 | ',
+            ` 19 | import { rewriteExports } from '${specifier}';`,
+            '    `----',
+            '',
+        ].join('\n');
+    }
+
+    it('parses the shape instead of refusing the whole report', () => {
+        const result = run(
+            escapes('../../../../scripts/prepareProdManifest.mjs', 'packages/infra/global/__tests__/a.test.ts') +
+                summary(1),
+            { pairs: [] },
+        );
+
+        expect(result.out).not.toContain('matched no known rule shape');
+    });
+
+    /**
+     * The baseline key is the target resolved REPO-RELATIVE, not the raw specifier. The same escaping
+     * import written from two different directory depths produces two different `../` strings for one
+     * target, so keying on the raw specifier would let a move between sibling dirs read as a brand-new
+     * violation while silencing the old entry forever.
+     */
+    it('keys the finding on the resolved target, so the depth of the importer does not matter', () => {
+        const baseline = {
+            pairs: [
+                {
+                    package: '@kitchensink/infra-global',
+                    dependency: 'scripts/prepareProdManifest.mjs',
+                    rule: 'imports-outside-package',
+                },
+            ],
+        };
+
+        const deep = run(
+            escapes('../../../../scripts/prepareProdManifest.mjs', 'packages/infra/global/__tests__/a.test.ts') +
+                summary(1),
+            baseline,
+        );
+        const shallow = run(
+            escapes('../../../scripts/prepareProdManifest.mjs', 'packages/infra/global/a.test.ts') + summary(1),
+            baseline,
+        );
+
+        expect(deep.code).toBe(0);
+        expect(shallow.code).toBe(0);
+    });
+
+    it('fails and names the target when a NEW escaping import appears', () => {
+        const result = run(
+            escapes('../../../../scripts/contractGenerate.mjs', 'packages/infra/global/__tests__/a.test.ts') +
+                summary(1),
+            { pairs: [] },
+        );
+
+        expect(result.code).toBe(1);
+        expect(result.out).toContain('scripts/contractGenerate.mjs');
+        expect(result.out).toContain('imports-outside-package');
+    });
+
+    /**
+     * The rule is part of the KEY, not decoration. An escaping import of `x` and an undeclared dependency
+     * on `x` are different violations with different fixes, so baselining one must never silence the other.
+     */
+    it('does not let a baselined escaping import silence an undeclared dependency of the same name', () => {
+        const result = run(
+            block('scripts/contractOwners.mjs', 'packages/infra/global/__tests__/a.test.ts') + summary(1),
+            {
+                pairs: [
+                    {
+                        package: '@kitchensink/infra-global',
+                        dependency: 'scripts/contractOwners.mjs',
+                        rule: 'imports-outside-package',
+                    },
+                ],
+            },
+        );
+
+        expect(result.code).toBe(1);
+        expect(result.out).toContain('undeclared-dependency');
+    });
+
+    /**
+     * A baselined entry may carry a `why`, because these four are a DELIBERATE exception rather than
+     * debt to burn down (see the baseline itself), and this repo's other exemption gate — the
+     * storage-capacity check in `@kitchensink/contract-gen` — already requires a written reason to
+     * opt out. `--update` rewrites the baseline from the parsed report, which knows nothing about
+     * reasons, so without this the first `boundaries:update` after any unrelated change would silently
+     * strip every explanation and leave four bare entries nobody could account for.
+     */
+    it('--update preserves the `why` on an entry that is still reported', () => {
+        const dir = mkdtempSync(path.join(tmpdir(), 'boundaries-ratchet-why-'));
+        const baselinePath = path.join(dir, 'baseline.json');
+        writeFileSync(
+            baselinePath,
+            JSON.stringify({
+                pairs: [
+                    {
+                        package: '@kitchensink/infra-global',
+                        dependency: 'scripts/prepareProdManifest.mjs',
+                        rule: 'imports-outside-package',
+                        why: 'repo-root tooling is never packaged; the test needs its pure functions',
+                    },
+                    {
+                        package: '@commise/web',
+                        dependency: '@testing-library/react',
+                        rule: 'undeclared-dependency',
+                        why: 'this one is FIXED and must not survive the rewrite',
+                    },
+                ],
+            }),
+        );
+
+        execFileSync(process.execPath, [script, '--stdin', '--baseline', baselinePath, '--update'], {
+            input:
+                escapes('../../../../scripts/prepareProdManifest.mjs', 'packages/infra/global/__tests__/a.test.ts') +
+                summary(1),
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        const rewritten = JSON.parse(readFileSync(baselinePath, 'utf8')) as {
+            pairs: ReadonlyArray<{ dependency: string; why?: string }>;
+        };
+
+        expect(rewritten.pairs).toHaveLength(1);
+        expect(rewritten.pairs[0]?.dependency).toBe('scripts/prepareProdManifest.mjs');
+        expect(rewritten.pairs[0]?.why).toContain('never packaged');
+    });
+
+    it('still refuses the report for a genuinely unknown rule shape', () => {
+        const invented = [
+            '  x something turbo has not invented yet',
+            `    ,-[${repoRoot}/packages/infra/global/a.ts:1:1]`,
+            '    `----',
+            '',
+        ].join('\n');
+
+        const result = run(invented + summary(1), { pairs: [] });
+
+        expect(result.code).toBe(1);
+        expect(result.out).toContain('matched no known rule shape');
+    });
+});
+
+/**
+ * turbo also emits a diagnostic that is NOT a boundary violation at all: it could not parse a file. It
+ * carries no source location, so it fell through to "matched no known rule shape" — which fails the run
+ * (right) while telling the reader to go hunting for an unhandled RULE (wrong). Observed for real while
+ * another process was mid-write on `packages/utils/identity/src/provisioning.ts`: `tsc --noEmit` on that
+ * exact file was clean, and the next run was clean too.
+ *
+ * So this is its own class, reported as the toolchain failure it is and naming the file, because the two
+ * causes have completely different fixes — a genuinely malformed file must be fixed, whereas a file being
+ * written underneath the run just needs the run repeated.
+ */
+describe('unparseable-file diagnostic (a toolchain failure, not a violation)', () => {
+    const panic = (file: string): string => `  x failed to parse file ${repoRoot}/${file}: parser panicked\n  | \n\n`;
+
+    it('names the file and calls it a parse failure, not an unknown rule', () => {
+        const result = run(panic('packages/utils/identity/src/provisioning.ts') + summary(1), { pairs: [] });
+
+        expect(result.code).toBe(1);
+        expect(result.out).toContain('provisioning.ts');
+        expect(result.out).not.toContain('matched no known rule shape');
+    });
+
+    /**
+     * It must never be mistaken for a clean run. A file turbo could not read is a file whose imports were
+     * never checked, so passing here would be the silent-success class this whole gate exists to prevent.
+     */
+    it('fails rather than passing over the file it could not read', () => {
+        const result = run(panic('packages/utils/identity/src/provisioning.ts') + summary(1), {
+            pairs: [{ package: '@kitchensink/infra-global', dependency: 'yaml', rule: 'undeclared-dependency' }],
+        });
+
+        expect(result.code).toBe(1);
+    });
+
+    it('still reports real violations found alongside an unparseable file', () => {
+        const result = run(
+            panic('packages/utils/identity/src/provisioning.ts') +
+                block('@testing-library/react', 'packages/apps/commise/web/src/x.test.tsx') +
+                summary(2),
+            { pairs: [] },
+        );
+
+        expect(result.code).toBe(1);
+        expect(result.out).toContain('provisioning.ts');
+        expect(result.out).toContain('@testing-library/react');
     });
 });

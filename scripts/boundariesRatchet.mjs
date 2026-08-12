@@ -6,13 +6,20 @@
  * tolerated; new ones are a build failure.
  *
  * WHY A RATCHET AND NOT A PLAIN GATE. `turbo boundaries` exits non-zero on any finding, and the tree
- * currently has 135 (127 undeclared-dependency + 8 type-only-import) — by dependency that is 77
- * `@testing-library/*` devDependency gaps, 34 k6 runtime imports, one genuine package cycle (`ui` test
- * -> `test-utils` -> `ui`), and at least one false positive (an `import` statement inside a regex
- * literal in `cffShape.test.ts`). Gating outright would block every PR. The
+ * currently has 187 across 3102 files in 34 packages (175 undeclared-dependency + 8 type-only-import +
+ * 4 imports-outside-package; measured 2026-08-12, turbo 2.9.18, and ~3 of those are the local `cdk.out`
+ * phantoms described below) — by dependency that is 77 `@testing-library/*` devDependency gaps, 56 k6
+ * runtime imports, 14 `yaml`, one genuine package cycle (`ui` test -> `test-utils` -> `ui`), and at
+ * least one false positive (an `import` statement inside a regex literal in `cffShape.test.ts`). Gating
+ * outright would block every PR. The
  * obvious alternative — `continue-on-error` — is the exact defect class that cost this repository four
  * weeks of production: a step that is green because nobody reads its result. So the baseline is explicit
  * and checked in, and growth is a failure.
+ *
+ * A baselined entry may also carry a `why`, for the case where a finding is a DELIBERATE exception rather
+ * than debt queued for burn-down. `--update` preserves it across a rewrite for every entry still reported,
+ * and drops it with the entry when the finding is gone, so a stale exemption cannot outlive what it
+ * excused. The `why` is the difference between recording a decision and silencing a gate.
  *
  * WHY IT SPAWNS TURBO ITSELF (changed 2026-08-10 — PR #91 review). The npm scripts used to be
  * `turbo boundaries 2>&1 | node scripts/boundariesRatchet.mjs`, and a shell pipeline exits with the
@@ -112,23 +119,43 @@ function workspaceDirs() {
  *
  * @param {string} report
  * @param {ReadonlyArray<{dir: string, name: string}>} dirs
- * @returns {{pairs: ReadonlyArray<{package: string, dependency: string, rule: string}>, parsed: number, unmapped: ReadonlyArray<string>, unrecognized: ReadonlyArray<string>}}
+ * @returns {{pairs: ReadonlyArray<{package: string, dependency: string, rule: string}>, parsed: number, unmapped: ReadonlyArray<string>, unrecognized: ReadonlyArray<string>, unparseable: ReadonlyArray<string>}}
  */
 export function parseReport(report, dirs) {
     const seen = new Map();
     const unmapped = [];
     const unrecognized = [];
+    const unparseable = [];
 
-    // Split on the diagnostic marker rather than matching one message shape. turbo emits at least two
-    // rule kinds and hard-wraps each message at an unpredictable column, so classifying per BLOCK is
-    // what keeps the parsed total equal to turbo's own summary. The two kinds seen here are
-    // "cannot import package X because it is not a dependency", and "importing from a type declaration
+    // Split on the diagnostic marker rather than matching one message shape. turbo emits several rule
+    // kinds and hard-wraps each message at an unpredictable column, so classifying per BLOCK is
+    // what keeps the parsed total equal to turbo's own summary. The three kinds seen here are
+    // "cannot import package X because it is not a dependency"; "importing from a type declaration
     // package, but import is not declared as a type-only import" — the latter currently only the k6 load
     // scripts, where @types/k6 IS declared but the imports are real runtime imports resolved by the k6
-    // binary and so cannot become `import type`.
+    // binary and so cannot become `import type`; and "import `X` leaves the package", a RELATIVE import
+    // that escapes its own workspace.
+    //
+    // That third kind names no package at all — only the specifier — so it matches neither of the other
+    // two branches and, until it was given its own, sent every occurrence to `unrecognized`. The gate then
+    // (correctly) refused to report a partial result, which took `ci / Lint` red while printing NO
+    // actionable list. Parsing it keeps the refusal for genuinely unknown shapes without letting a rule
+    // turbo already ships disable the whole step.
     const blocks = report.split(/^\s{2}x\s/m).slice(1);
 
     for (const block of blocks) {
+        // Not a boundary finding at all: turbo could not READ the file. It carries no source location, so
+        // it used to fall through to "matched no known rule shape" — failing the run (right) while pointing
+        // the reader at an unhandled RULE (wrong). Its own class, because the two causes have opposite
+        // fixes: a genuinely malformed file must be repaired, whereas a file being written underneath the
+        // run (observed live on `provisioning.ts` while another process held it — `tsc --noEmit` on that
+        // exact file was clean, and the next run was too) just needs the run repeated.
+        const unreadable = block.match(/^failed to parse file\s+([^\n]*?)(?::\s*[^\n]*)?$/m);
+        if (unreadable !== null) {
+            unparseable.push(unreadable[1].trim());
+            continue;
+        }
+
         const location = block.match(/,-\[([^:\]]+)/);
         if (location === null) {
             unrecognized.push(block.split('\n')[0]?.trim() ?? '(empty)');
@@ -169,6 +196,22 @@ export function parseReport(report, dirs) {
             const spec = specifier[1];
             dependency = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : (spec.split('/')[0] ?? spec);
             rule = 'type-only-import';
+        } else if (/leaves the package/.test(block)) {
+            const escaping = block.match(/import\s+.([^`'"]+). leaves the package/);
+            if (escaping === null) {
+                unrecognized.push(block.split('\n')[0]?.trim() ?? '(empty)');
+                continue;
+            }
+            // Key on the target resolved REPO-RELATIVE, not on the raw specifier. One target imported from
+            // two directory depths yields two different `../` strings (`../../../../scripts/x.mjs` and
+            // `../../../scripts/x.mjs` are the same file), so a raw-specifier key would read a file move
+            // between sibling directories as a brand-new violation while silencing the old entry forever.
+            // The repo root is derived from the owner's own directory rather than a checkout-root constant,
+            // for the same reason the attribution above is: nothing here may depend on where the repo lives.
+            const root = absolute.slice(0, absolute.indexOf(`/${owner.dir}/`) + 1);
+            const resolved = path.resolve(path.dirname(absolute), escaping[1]);
+            dependency = resolved.startsWith(root) ? resolved.slice(root.length) : resolved;
+            rule = 'imports-outside-package';
         } else {
             unrecognized.push(block.split('\n')[0]?.trim() ?? '(empty)');
             continue;
@@ -183,7 +226,7 @@ export function parseReport(report, dirs) {
             a.dependency.localeCompare(b.dependency) ||
             a.rule.localeCompare(b.rule),
     );
-    return { pairs, parsed: blocks.length, unmapped, unrecognized };
+    return { pairs, parsed: blocks.length, unmapped, unrecognized, unparseable };
 }
 
 /**
@@ -330,7 +373,7 @@ if (fromStdin) {
     ({ report, reportedCount } = runTurboBoundaries(turboBin));
 }
 
-const { pairs, parsed, unmapped, unrecognized } = parseReport(report, workspaceDirs());
+const { pairs, parsed, unmapped, unrecognized, unparseable } = parseReport(report, workspaceDirs());
 
 // If the parser and turbo disagree on how many findings there were, the parser has drifted from the
 // output format. A smaller, quieter number would silently shrink the ratchet's coverage.
@@ -350,6 +393,25 @@ if (unrecognized.length > 0) {
     process.exit(1);
 }
 
+// A file turbo could not read is a file whose imports were never checked, so this can never pass — that
+// would be the silent-success class the whole gate exists to prevent. It is reported and then falls
+// THROUGH to the normal violation report rather than exiting here, because the findings turbo did manage
+// to produce are still worth printing: exiting early would hide every real violation behind one unreadable
+// file, and make a transient mid-write collision look like the only problem in the tree.
+if (unparseable.length > 0) {
+    console.error(
+        `boundaries-ratchet: turbo could not parse ${unparseable.length} file(s), so their imports were ` +
+            'NOT checked. This is a toolchain failure, not a boundary violation:',
+    );
+    for (const file of unparseable) {
+        console.error(`  - ${file}`);
+    }
+    console.error(
+        'If the file is being written by another process, re-run. If it is genuinely malformed, fix it — ' +
+            'do not baseline it, as there is nothing here to baseline.',
+    );
+}
+
 if (unmapped.length > 0) {
     console.error(
         `boundaries-ratchet: ${unmapped.length} finding(s) could not be attributed to a workspace ` +
@@ -359,8 +421,32 @@ if (unmapped.length > 0) {
 }
 
 if (update) {
-    writeFileSync(baselinePath, `${JSON.stringify({ pairs }, null, 4)}\n`);
-    console.log(`boundaries-ratchet: baseline updated — ${pairs.length} triple(s) recorded.`);
+    // Carry each surviving entry's `why` across the rewrite. An entry may document WHY it is a deliberate
+    // exception rather than debt to burn down, and `--update` regenerates the file from the parsed report,
+    // which knows nothing about reasons. Without this merge the first `boundaries:update` after any
+    // unrelated change would silently strip every explanation, leaving bare entries that read as
+    // unexplained debt — and the next engineer would either "fix" a deliberate exception or re-silence a
+    // real violation. A `why` on an entry that is NO LONGER reported is dropped along with the entry,
+    // which is the point: a stale exemption should not outlive the thing it excused.
+    let reasons = new Map();
+    try {
+        const existing = JSON.parse(readFileSync(baselinePath, 'utf8')).pairs ?? [];
+        reasons = new Map(
+            existing
+                .filter((entry) => typeof entry.why === 'string' && entry.why.length > 0)
+                .map((entry) => [`${entry.package} ${entry.dependency} ${entry.rule ?? DEFAULT_RULE}`, entry.why]),
+        );
+    } catch {
+        // No readable baseline yet — `--update` is also how the file is first created.
+    }
+
+    const merged = pairs.map((pair) => {
+        const why = reasons.get(`${pair.package} ${pair.dependency} ${pair.rule}`);
+        return why === undefined ? pair : { ...pair, why };
+    });
+
+    writeFileSync(baselinePath, `${JSON.stringify({ pairs: merged }, null, 4)}\n`);
+    console.log(`boundaries-ratchet: baseline updated — ${merged.length} triple(s) recorded.`);
     process.exit(0);
 }
 
@@ -394,6 +480,12 @@ if (added.length > 0) {
             'devDependencies for tests/tooling). Do not add it to the baseline to silence this — the ' +
             'baseline exists for the pre-existing backlog, not for new violations.',
     );
+    process.exit(1);
+}
+
+// Reported above, but the exit is deferred to here so real violations print first. An unreadable file means
+// part of the tree went unchecked, so "OK" would be a lie even with an otherwise clean report.
+if (unparseable.length > 0) {
     process.exit(1);
 }
 

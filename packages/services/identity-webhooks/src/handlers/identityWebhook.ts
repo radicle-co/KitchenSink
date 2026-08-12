@@ -23,14 +23,18 @@ import {
 } from '../common/handler-pipeline.js';
 import { captureProvisioningFailure, emitMetric, logger, withObservability } from '../common/observability.js';
 import { traceAuth } from '../common/auth-trace.js';
+import type { IdentityUserData as ValidatedIdentityUserData } from '../common/idp-payload.schema.js';
 
-interface IdentityUserData {
-    id: string;
-    email_addresses: Array<{ id: string; email_address: string }>;
-    first_name: string;
-    last_name: string;
-    image_url: string;
-}
+/**
+ * The user payload of a `user.created` / `user.updated` event.
+ *
+ * DERIVED from the boundary schema, replacing a hand-written `interface` that declared `first_name`,
+ * `last_name` and `image_url` as plain required `string`s. That was not what Clerk sends — all three are
+ * routinely `null` — so the interface simultaneously OVER-claimed (the compiler believed the fields were
+ * always present strings, which is why `data.first_name ?? ''` looked redundant) and UNDER-described the real
+ * payload. Deriving it means the type says exactly what the validator accepts.
+ */
+type IdentityUserData = ValidatedIdentityUserData;
 
 const getPrimaryEmail = (data: IdentityUserData): string | undefined => data.email_addresses?.[0]?.email_address;
 
@@ -227,7 +231,12 @@ const idpWebhookHandlerCore = async (
     const { db } = dbCtx;
     const svixId = event.headers?.['svix-id'] ?? '';
 
-    const identityId = (payload.data as { id?: string }).id ?? 'unknown';
+    // No `?? 'unknown'`. The id is REQUIRED and non-empty in `idpWebhookEventSchema`, so by the time this core
+    // runs it is guaranteed present — the fallback is not merely unnecessary, it was actively harmful: a
+    // payload with no id was logged and traced as though `'unknown'` were an identity, and `recordOnce` below
+    // persisted that string into `webhook_events.identity_id`. An id identifies the user whose row is about to
+    // be written or deleted; its absence makes the payload invalid, not defaultable.
+    const identityId = payload.data.id;
     traceAuth('webhook.received', { sub: identityId, type: payload.type, svixId });
 
     // Confirm-after-process dedup: the svix-id is recorded only AFTER its handler succeeds (below),
@@ -244,27 +253,28 @@ const idpWebhookHandlerCore = async (
     // on users.identity_id; idempotent soft-delete), so a retry overlapping an in-flight delivery is
     // safe. A permanently-failing payload retries until svix exhausts, surfacing the failure each
     // time rather than being silently dropped (the original A2 event-loss mode).
+    // The `as unknown as IdentityUserData` casts are GONE from all three arms. After
+    // `idpWebhookEventSchema.parse` the payload is a discriminated union, so each arm's `payload.data` is
+    // already the validated shape that arm's handler needs — narrowed by the compiler rather than asserted
+    // past it. The double cast was what silenced the compiler completely and let an unchecked shape reach
+    // `db.update(users)`, an outbound Clerk `setExternalId` call, and an SNS publish another service consumes.
+    //
+    // `user.deleted` needed its own separate cast for a real reason: Clerk sends only an id for a deletion, not
+    // a full user. That distinction is now expressed in the union instead of in a second cast.
     switch (payload.type) {
         case 'user.created': {
-            await handleUserCreated(payload.data as unknown as IdentityUserData, db, requestId);
+            await handleUserCreated(payload.data, db, requestId);
             break;
         }
 
         case 'user.updated': {
-            await handleUserUpdated(payload.data as unknown as IdentityUserData, dbCtx, requestId);
+            await handleUserUpdated(payload.data, dbCtx, requestId);
             break;
         }
 
         case 'user.deleted': {
-            await handleUserDeleted(payload.data as unknown as { id: string }, requestId);
+            await handleUserDeleted(payload.data, requestId);
             break;
-        }
-
-        default: {
-            logger.warn('identity-webhook: unhandled event type', {
-                requestId,
-                type: (payload as { type: string }).type,
-            });
         }
     }
 

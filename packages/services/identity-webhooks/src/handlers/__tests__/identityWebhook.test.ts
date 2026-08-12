@@ -590,14 +590,21 @@ describe('identity-webhook handler', () => {
         expect(mockRecordOnce).toHaveBeenCalledWith(db, 'msg_ok', 'user_abc123', 'user.created');
     });
 
-    it('invalid signature -> returns 401', async () => {
+    it('invalid signature -> ACKNOWLEDGES (200) without processing, so svix stops redelivering', async () => {
+        // Was a 401. Changed deliberately, per the owner's ruling that a signature failure and a shape failure
+        // are equally invalid and neither can be fixed by a retry: svix retries on any non-2xx, so the 401 put
+        // an unprocessable delivery on the full retry schedule to fail identically each time. It is now
+        // acknowledged and alarmed instead (the ERROR log + per-reason metric are asserted in
+        // `common/__tests__/handler-pipeline.test.ts`, which owns that path).
         mockVerifyWebhook.mockImplementation(() => {
             throw new Error('Invalid signature');
         });
 
         const result = await handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext());
 
-        expect(result.statusCode).toBe(401);
+        expect(result.statusCode).toBe(200);
+        expect(JSON.parse(result.body)).toEqual({ ok: false, rejected: 'signature' });
+        // Still never processed, and still never recorded — acknowledging is not the same as accepting.
         expect(mockRecordOnce).not.toHaveBeenCalled();
     });
 

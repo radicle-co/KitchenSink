@@ -29,6 +29,7 @@ import {
     pendingFoodStatusSchema,
     pendingResponseSchema,
     resolveFoodRequestSchema,
+    resolveResponseSchema,
     terminalFoodStatusSchema,
 } from '../foods.schema.js';
 
@@ -114,6 +115,45 @@ describe('pendingResponseSchema', () => {
             estimatedWaitSeconds: 30,
         });
         expect(pendingResponseSchema.parse({ id: 'x', status: 'UNRESOLVED' }).status).toBe('UNRESOLVED');
+    });
+});
+
+describe('resolveResponseSchema', () => {
+    /*
+     * ⚠️ THE DEFECT THIS PINS — the same shape as `pendingResponseSchema`'s, one endpoint over. `status`
+     * published the FULL five-value lifecycle while `PATCH /api/v1/foods/{id}` can answer `200` with `RESOLVED`
+     * and nothing else: both `return` statements in `FoodsService.patchResolve` are the literal (one the
+     * idempotent no-op, one the post-merge success), and every other outcome throws to a 404, 409 or 503.
+     *
+     * The field's own docstring already said "The resulting status (`RESOLVED`)", so the prose and the type
+     * disagreed and the TYPE was the looser of the two — which is the direction that matters, because the type is
+     * what the client parses with and what `openapi.yaml` publishes to integrators.
+     */
+    it('rejects every status a resolve cannot answer with', () => {
+        for (const status of ['PENDING', 'UNRESOLVED', 'NOT_FOUND', 'FAILED']) {
+            expect(resolveResponseSchema.safeParse({ id: 'x', status }).success).toBe(false);
+        }
+    });
+
+    it('accepts the one status a resolve answers with', () => {
+        expect(resolveResponseSchema.parse({ id: 'x', status: 'RESOLVED' })).toStrictEqual({
+            id: 'x',
+            status: 'RESOLVED',
+        });
+    });
+
+    // Ties the narrowing to the lifecycle partition rather than to a hard-coded string: `RESOLVED` is exactly the
+    // status that is neither pending (202) nor terminal (404), so a migration adding a sixth value cannot quietly
+    // land here either.
+    it('carries precisely the status that answers neither 202 nor 404', () => {
+        const notResolved: readonly string[] = [
+            ...pendingFoodStatusSchema.options,
+            ...terminalFoodStatusSchema.options,
+        ];
+        const resolved = foodStatusSchema.options.filter((status) => !notResolved.includes(status));
+
+        expect(resolved).toStrictEqual(['RESOLVED']);
+        expect(resolveResponseSchema.parse({ id: 'x', status: resolved[0] }).status).toBe('RESOLVED');
     });
 });
 

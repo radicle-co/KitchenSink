@@ -261,12 +261,20 @@ export const batchResponseSchema = z.object({
 /** Body for `POST /api/v1/foods/batch`. */
 export type BatchResponse = z.infer<typeof batchResponseSchema>;
 
-/** Body for `PATCH /api/v1/foods/{id}` (FR-RES-2). */
+/**
+ * Body for `PATCH /api/v1/foods/{id}` (FR-RES-2).
+ *
+ * `status` is the LITERAL `'RESOLVED'`, not the five-value lifecycle. A resolve answers `200` with that status and
+ * nothing else — both returns in `FoodsService.patchResolve` are the literal (the idempotent no-op and the
+ * post-merge success), and every other outcome throws to a `404`, `409` or `503`. Publishing the wide enum here
+ * described three statuses this body can never carry, and left the field's own docstring — which already said
+ * `RESOLVED` — disagreeing with its type. The same narrowing `pendingResponseSchema` got for the `202` body.
+ */
 export const resolveResponseSchema = z.object({
     /** Internal food id. */
     id: z.string(),
-    /** The resulting status (`RESOLVED`). */
-    status: foodStatusSchema,
+    /** Always `RESOLVED`; any other lifecycle status is a different status code, not a different body. */
+    status: z.literal('RESOLVED'),
 });
 
 /** Body for `PATCH /api/v1/foods/{id}`. */

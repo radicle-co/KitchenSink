@@ -1008,11 +1008,7 @@ components:
         status:
           type: string
           enum:
-            - PENDING
-            - UNRESOLVED
             - RESOLVED
-            - NOT_FOUND
-            - FAILED
       required:
         - id
         - status

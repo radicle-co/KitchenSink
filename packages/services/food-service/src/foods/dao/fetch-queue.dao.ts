@@ -280,7 +280,10 @@ export class FetchQueueDao {
      * runner intermittently stalls for 30-170ms — visible in the same run as `adversarial` @1,000 at p50
      * 3.55ms with p95 29.37ms, and in run 31537195430 as `mixed` @100 at p50 2.31ms with p95 **56.51ms**, at a
      * depth where this statement does ~2ms of work. The probe now samples 300 per series, so p95 is the
-     * 16th-largest observation; `FOOD_DRAIN_CLAIM_P95_MS`, the fixture and both plan gates are untouched. The
+     * 16th-largest observation; `FOOD_DRAIN_CLAIM_P95_MS`, the fixture and both plan gates are untouched. (A
+     * ±15% variance allowance on perf metrics was granted separately — owner ruling 2026-08-12 — putting the
+     * ENFORCED ceiling at 69ms. It is not what fixed this: 90.23ms is 50% over the budget, not 15%. The
+     * sample-count change is the fix and the allowance is a margin on top of it.) The
      * stall was reproduced locally (62.63ms and 73.78ms samples against 8-10ms medians) and its most plausible
      * innocent explanation was measured and REJECTED (300 samples either side of an explicit `VACUUM
      * (ANALYZE)` moved p50 by 0.2-0.4ms, and `autovacuum_count` never advanced). **What is NOT diagnosed, and

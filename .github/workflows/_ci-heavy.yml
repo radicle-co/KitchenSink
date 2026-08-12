@@ -884,6 +884,10 @@ jobs:
             #         binds and where the statement does ~2ms of work. T-203 raised the sample default to 300
             #         (p95 is now the 16th-largest observation) and corrected the reporting, changing NO SQL,
             #         NO budget and NO fixture. The stall SOURCE on GitHub's runners is not diagnosed.
+            #         The owner then granted a ±15% variance allowance on perf metrics (ruling 2026-08-12), so
+            #         the ENFORCED ceiling is 60ms + 15% = 69ms, printed on every series. ⛔ That allowance is
+            #         NOT what fixed this case and must not be read as the safety net: 90.23ms is 50% over the
+            #         budget, not 15%. The n=300 estimator is the fix; the allowance is a margin on top of it.
             #
             #     WHEN IT BREACHES, DIAGNOSE BEFORE CHANGING ANYTHING — the step's own failure output leads
             #     with the host-stall signature for this reason. Compare MEDIANS against the table in

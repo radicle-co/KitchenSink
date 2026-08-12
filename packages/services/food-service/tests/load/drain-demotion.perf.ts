@@ -73,6 +73,11 @@
  *   2. **The reported framing said SC-003.** A depth-10,000 breach was printed as a share of "SC-003's 60s
  *      budget", which is a promise conditioned on a depth under 100. See {@link SC003_MAX_DEPTH}.
  *
+ * A ±15% variance allowance on perf metrics was granted separately (owner ruling 2026-08-12,
+ * {@link CLAIM_P95_VARIANCE_ALLOWANCE}) and is **not** what fixed this: it puts the enforced ceiling at 69ms,
+ * and the failing run measured 90.23ms — 50% over the budget, not 15%. The sample-count change is the fix; the
+ * allowance is a stated margin on top of it. Do not read the two as interchangeable.
+ *
  * The stall mechanism was reproduced on a quiet workstation, so it is not specific to CI: with medians of
  * 8-10ms at depth 10,000, single samples of **62.63ms and 73.78ms** were observed, and two 300-sample
  * measurements of the IDENTICAL fixture minutes apart returned p95 32.28ms and 7.60ms. It was also measured
@@ -89,8 +94,10 @@
  *   DATABASE_URL=postgres://postgres:postgres@localhost:5432/food_load npm run test:load:drain
  *   FOOD_DRAIN_DEPTHS=100,1000,10000 FOOD_DRAIN_SAMPLES=50 DATABASE_URL=… npm run test:load:drain
  *
- * Exits NON-ZERO on a budget breach with the DSN-11 escalation spelled out. It never widens the budget and
- * never reports a skip as a pass.
+ * Exits NON-ZERO when a series exceeds {@link EFFECTIVE_CEILING_MS} — the SC-003-derived budget plus the
+ * owner-granted variance allowance — with the DSN-11 escalation spelled out. Both numbers are printed for
+ * every series, pass or fail, because a tolerance nobody can see is indistinguishable from a raised
+ * threshold. It never widens the budget and never reports a skip as a pass.
  *
  * @sideEffect DELETES and rewrites the `queue`-kind fixture rows in `fetch_queue` / `fetch_requesters` /
  *            `food` on `DATABASE_URL`, and leases rows during measurement. Refuses any database not named
@@ -182,17 +189,61 @@ const WARMUP = Math.max(1, Number(process.env['FOOD_DRAIN_WARMUP'] ?? 3));
  *
  *  => 60ms p95 per claim. Env-overridable for exploration, but a run that only passes with a raised budget
  *     has NOT satisfied SC-003 — see the DSN-11 escalation this script prints.
+ *
+ * This number is the CONTRACT arithmetic and stays 60. The separate, owner-granted variance allowance that
+ * turns it into the enforced ceiling is {@link CLAIM_P95_VARIANCE_ALLOWANCE} — deliberately a second number,
+ * so a reader can always see what SC-003 derives and what the runner is being forgiven.
  */
 const CLAIM_P95_BUDGET_MS = Number(process.env['FOOD_DRAIN_CLAIM_P95_MS'] ?? 60);
+
+/**
+ * Variance allowance on the measured p95, as a fraction of {@link CLAIM_P95_BUDGET_MS} (15%).
+ *
+ * **Owner ruling, 2026-08-12:** _"I think we have to account for and allow variations with plus/minus 15% on
+ * perf metrics."_ It is the general form of the SC-007 ruling of 2026-08-10, which widened that budget to
+ * 250ms ±15% because "a p95 measured on shared CI hardware needs a stated allowance for run-to-run variance,
+ * and a gate that reds on hardware noise trains everyone to ignore red gates" (spec.md SC-007). Recorded
+ * beside SC-003 and SC-007 in `specs/003-usda-food-data/spec.md`, not only here.
+ *
+ * **Kept as a separate constant on purpose, and NOT folded into the 60.** The 60 is derived from SC-003's own
+ * arithmetic and must stay visibly derived; the 15% is a judgement about measurement noise and must stay
+ * visibly a judgement. A single 69 would lose both facts and read as a quietly raised budget — the exact move
+ * this script's own warning forbids. It is also deliberately NOT env-overridable: `FOOD_DRAIN_CLAIM_P95_MS`
+ * already exists for exploration, and a second knob that loosens the gate is a second way to lose the number.
+ *
+ * ⚠️ **What this allowance does and does not buy — state it accurately or the next reader will misdiagnose.**
+ * It does NOT rescue the run this was granted after: 60 × 1.15 = **69ms**, and run 31608073724 measured
+ * **90.23ms**, i.e. 50% over the budget, not 15%. What removed that false red is the {@link SAMPLES} change
+ * (30 → 300), which makes the reported p95 the 16th-largest observation rather than the second-largest: the
+ * worst contaminated p95 measured at n=300 was **32.28ms**, comfortably inside 60ms, let alone 69ms. The
+ * allowance is a stated safety margin ON TOP of an honest estimator — never the mechanism that makes the
+ * estimator honest.
+ *
+ * **Residual, accepted rather than closed:** a contamination episode large enough to move the 16th-largest of
+ * 300 samples past 69ms would still red the job. That is now a deliberately accepted risk with a number on
+ * it, instead of an unexamined one.
+ */
+const CLAIM_P95_VARIANCE_ALLOWANCE = 0.15;
+
+/**
+ * The ceiling actually enforced: {@link CLAIM_P95_BUDGET_MS} plus its {@link CLAIM_P95_VARIANCE_ALLOWANCE}.
+ *
+ * Derived in ONE place and printed on EVERY series, pass or fail. A tolerance a reader cannot see in the
+ * output is indistinguishable from a raised threshold, which is precisely what this script warns against.
+ */
+const EFFECTIVE_CEILING_MS = CLAIM_P95_BUDGET_MS * (1 + CLAIM_P95_VARIANCE_ALLOWANCE);
 
 /**
  * The queue depth below which SC-003's promise binds: it is conditioned on "when the `fetch_queue`
  * pending-row depth is **under 100 rows**" (spec.md SC-003), which is also where
  * {@link CLAIM_P95_BUDGET_MS} is derived from.
  *
- * Above this depth the SAME 60ms bar still applies and still fails the run — it is the depth-independent
- * engineering intent that the queue machinery must not be what sets the drain rate — but a breach there is
- * an **FR-046 ceiling / DSN-11 scaling** finding, NOT a breach of SC-003. The distinction is not pedantry: a
+ * Above this depth the SAME bar ({@link EFFECTIVE_CEILING_MS}) still applies and still fails the run — it is
+ * the depth-independent engineering intent that the queue machinery must not be what sets the drain rate —
+ * but a breach there is an **FR-046 ceiling / DSN-11 scaling** finding, NOT a breach of SC-003. The
+ * variance allowance applies at EVERY depth including this one, which is a small, deliberate loosening of a
+ * contract gate and is recorded next to SC-003 in the spec rather than only here. The distinction is not
+ * pedantry: a
  * breach above this depth was reported as "15.0% of SC-003's 60s budget", which reads as a product-promise
  * emergency and sent a reader after the wrong mechanism entirely.
  */
@@ -568,8 +619,10 @@ try {
 
     console.log(
         `\ndrain-demotion: FetchQueueDao.leaseNext() — ${SAMPLES} measured claims per series ` +
-            `(+${WARMUP} discarded warm-up), budget p95 <= ${CLAIM_P95_BUDGET_MS}ms (10% of SC-003's ` +
-            `600ms-per-item drain slot at depth 100, single drainer).\n`,
+            `(+${WARMUP} discarded warm-up). Budget p95 <= ${CLAIM_P95_BUDGET_MS}ms (10% of SC-003's ` +
+            `600ms-per-item drain slot at depth ${SC003_MAX_DEPTH}, single drainer), plus a ` +
+            `${(CLAIM_P95_VARIANCE_ALLOWANCE * 100).toFixed(0)}% variance allowance on perf metrics (owner ` +
+            `ruling 2026-08-12) => ENFORCED CEILING ${ms(EFFECTIVE_CEILING_MS)}.\n`,
     );
     console.log('profile      depth   requesters  demoted  n        p50        p95        p99        max');
 
@@ -591,6 +644,19 @@ try {
     // 10,000 produced "draining a 100-item backlog … 15.0% of SC-003's 60s budget", which is a category
     // error twice over: at that depth the backlog is 10,000 items, not 100, and enqueues are already failing
     // closed with 503 (FR-046). It read as an SC-003 emergency that the spec does not describe.
+    // Every series states its verdict against BOTH numbers, pass or fail: the measured p95, the SC-003-derived
+    // budget, the owner-granted allowance, and the ceiling the two produce. A tolerance that only appears when
+    // it is needed is indistinguishable from a threshold someone raised quietly.
+    for (const entry of measurements) {
+        console.log(
+            `drain-demotion: ${entry.profile} @ depth ${entry.depth}: p95 ${ms(entry.p95)} vs ceiling ` +
+                `${ms(EFFECTIVE_CEILING_MS)} (${CLAIM_P95_BUDGET_MS}ms budget + ` +
+                `${(CLAIM_P95_VARIANCE_ALLOWANCE * 100).toFixed(0)}% variance allowance) — ` +
+                `${entry.p95 > EFFECTIVE_CEILING_MS ? 'OVER' : 'WITHIN'}, ` +
+                `${((entry.p95 / EFFECTIVE_CEILING_MS) * 100).toFixed(1)}% of ceiling.`,
+        );
+    }
+
     for (const entry of measurements) {
         const backlogSeconds = (entry.p95 * entry.depth) / 1000;
 
@@ -610,7 +676,7 @@ try {
         }
     }
 
-    const breaches = measurements.filter((entry) => entry.p95 > CLAIM_P95_BUDGET_MS);
+    const breaches = measurements.filter((entry) => entry.p95 > EFFECTIVE_CEILING_MS);
 
     if (breaches.length > 0) {
         console.error('');
@@ -620,8 +686,9 @@ try {
 
             console.error(
                 `drain-demotion: BREACH (${kind}) — ${entry.profile} @ depth ${entry.depth}: claim p95 ` +
-                    `${ms(entry.p95)} > ${CLAIM_P95_BUDGET_MS}ms (p50 ${ms(entry.p50)}, p99 ${ms(entry.p99)}, ` +
-                    `max ${ms(entry.max)} over ${entry.samples} samples).`,
+                    `${ms(entry.p95)} > ${ms(EFFECTIVE_CEILING_MS)} (${CLAIM_P95_BUDGET_MS}ms budget + ` +
+                    `${(CLAIM_P95_VARIANCE_ALLOWANCE * 100).toFixed(0)}% variance allowance; p50 ` +
+                    `${ms(entry.p50)}, p99 ${ms(entry.p99)}, max ${ms(entry.max)} over ${entry.samples} samples).`,
             );
         }
 
@@ -639,6 +706,10 @@ try {
 
         fail(
             headline +
+                `Note the ceiling breached ALREADY INCLUDES the ${(CLAIM_P95_VARIANCE_ALLOWANCE * 100).toFixed(0)}% ` +
+                'variance allowance (owner ruling 2026-08-12), so run-to-run noise of that size has already ' +
+                'been forgiven. The allowance is a margin on top of an honest estimator, not a substitute for ' +
+                'one — it is NOT what keeps a host stall from reddening this gate; the 300-sample p95 is.\n' +
                 'DIAGNOSE BEFORE CHANGING ANYTHING — three mechanisms produce this red and they need ' +
                 'different fixes (all recorded in tests/load/README.md "Finding 2"):\n' +
                 '  • FIRST, rule out a HOST STALL on the runner, because it is the cheapest to check and the ' +
@@ -656,9 +727,10 @@ try {
                 '  • if only `adversarial` breaches, the promoted branch is being WALKED instead of skipped: ' +
                 "`promoted_ready`'s gate has regressed. `drain-claim-scaling.integration.test.ts` asserts " +
                 'that from the real EXPLAIN plan and will say so precisely.\n' +
-                'Do NOT raise FOOD_DRAIN_CLAIM_P95_MS to make this pass, do NOT add continue-on-error, and ' +
-                "do NOT narrow the fixture: the budget is derived from SC-003's own 60s promise, and " +
-                'widening it changes the reported number, not the drain rate.',
+                'Do NOT raise FOOD_DRAIN_CLAIM_P95_MS to make this pass, do NOT widen the 15% variance ' +
+                'allowance (it is an owner ruling, and changing it needs another one), do NOT add ' +
+                "continue-on-error, and do NOT narrow the fixture: the budget is derived from SC-003's own 60s " +
+                'promise, and widening either number changes the reported figure, not the drain rate.',
         );
     }
 
@@ -669,7 +741,8 @@ try {
     const sc003Verdict =
         sc003Depths.length > 0
             ? ` At depth ${sc003Depths.join(', ')} — where SC-003's 60s promise binds — FR-043's fairness ` +
-              `demotion is within the SC-003 backfill budget.`
+              `demotion is within the SC-003 backfill budget (${CLAIM_P95_BUDGET_MS}ms + ` +
+              `${(CLAIM_P95_VARIANCE_ALLOWANCE * 100).toFixed(0)}% allowance).`
             : '';
     const scalingVerdict =
         scalingDepths.length > 0
@@ -678,8 +751,8 @@ try {
             : '';
 
     console.log(
-        `\ndrain-demotion: PASS — every series stayed within ${CLAIM_P95_BUDGET_MS}ms p95.${sc003Verdict}` +
-            `${scalingVerdict}`,
+        `\ndrain-demotion: PASS — every series stayed within the ${ms(EFFECTIVE_CEILING_MS)} enforced ceiling ` +
+            `at p95.${sc003Verdict}${scalingVerdict}`,
     );
 } finally {
     await pool.end();

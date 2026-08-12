@@ -78,10 +78,12 @@ function synthFoodTemplate(stage: string, baseStage: string): Template {
     return Template.fromStack(stack);
 }
 
-// These MUST stay byte-identical to `src/observability/emf-metrics.ts` `FOOD_METRIC` (the worker emits
-// them) and to the stack's local `FOOD_METRIC` (the alarms/dashboard chart them). They are duplicated
-// here rather than imported because the infra tsconfig `rootDir` forbids importing across the
-// src↔infra boundary (TS6059); this asserts the synthesized template uses exactly those literals.
+// A THIRD copy of the metric names, after `src/observability/emf-metrics.ts` and the stack's own — the
+// infra tsconfig's `rootDir` forbids importing across the src↔infra boundary (TS6059), so none of the
+// three can reference another. Be clear about what this buys: asserting the synthesized template uses
+// these literals proves the template matches THIS file, not that the worker emits them. The
+// emitter↔alarm agreement is enforced repo-wide by
+// `packages/infra/global/__tests__/service-infra-wiring-invariants.test.ts` W3.
 const FOOD_METRIC_NAMESPACE = 'Commise/Food';
 const FOOD_METRIC = {
     fetchQueueDepth: 'food-fetch-queue-depth',

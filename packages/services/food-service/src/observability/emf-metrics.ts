@@ -2,10 +2,21 @@
  * CloudWatch Embedded Metric Format (EMF) emitter for the food service (T-181; extended to the API by
  * T-199b for the SC-004/SC-005 local-store serve rate). The emitter
  * writes a single EMF JSON line to stdout per metric; CloudWatch auto-extracts the metric from the
- * Fargate log group with NO extra IAM (no `cloudwatch:PutMetricData` call, no SDK). The metric-name
- * constants exported here are the single source of truth for the worker emission AND the CDK dashboard
- * (T-182) + alarms (T-183) — keep both sides referencing {@link FOOD_METRIC} so the emitted name and
- * the alarmed/charted name can never drift.
+ * Fargate log group with NO extra IAM (no `cloudwatch:PutMetricData` call, no SDK).
+ *
+ * ⚠️ {@link FOOD_METRIC} IS NOT THE ONLY COPY, whatever the previous version of this comment said. It
+ * claimed to be "the single source of truth for the worker emission AND the CDK dashboard + alarms —
+ * keep both sides referencing {@link FOOD_METRIC}", and `infra/lib/food-service-stack.ts` claimed in
+ * turn that "a CDK test cross-checks these against the exported source constants so the two cannot
+ * drift". Neither is true. There are THREE independent declarations — here, in the stack, and in
+ * `infra/__tests__/food-service-stack.test.ts` — none importing another, because the infra tsconfig's
+ * `rootDir` forbids reaching across the `src`↔`infra` boundary (TS6059). No test compares this block
+ * to either of the others.
+ *
+ * What DOES protect the contract is `packages/infra/global/__tests__/service-infra-wiring-invariants.test.ts`
+ * W3, repo-wide: an alarm on a custom metric must watch a name that appears as a string literal in the
+ * service's runtime sources. Rename one here and the alarm watching the old name reds. It is coarse but
+ * unfakeable, and it is the guard to keep working — do not restore a claim about a local cross-check.
  *
  * @implements SC-002 SC-006 US-10
  */
@@ -14,8 +25,14 @@
 export const FOOD_METRIC_NAMESPACE = 'Commise/Food';
 
 /**
- * Canonical EMF metric names (the worker ↔ dashboard/alarm contract). The CDK references these exact
- * literals for the dashboard widgets and the food-specific alarms.
+ * Canonical EMF metric names (the worker ↔ dashboard/alarm contract). The CDK re-declares these exact
+ * literals for its dashboard widgets and the food-specific alarms (see the module docstring for why, and
+ * for what actually stops the two drifting).
+ *
+ * ⛔ TWO OF THESE ARE DECLARED BUT EMITTED BY NOTHING — `sourceApiSuccessRate` and `auth401Rate`. Named
+ * constants and a test that restated them made an unimplemented requirement look finished; `__tests__/
+ * emf-metrics.test.ts` now measures the emitted set instead and pins the gap, with the spec references.
+ * A constant here is a NAME, not an implementation.
  */
 export const FOOD_METRIC = {
     /** Pending `fetch_queue` depth (FR-046 backpressure alarm at > 10,000). */
@@ -24,7 +41,7 @@ export const FOOD_METRIC = {
     resolutionLatencySeconds: 'food-resolution-latency-seconds',
     /** Per-source rolling-60-min windowed call count (dimension: `source`). */
     sourceRollingWindowCount: 'source-rolling-window-count',
-    /** Per-source API success rate as a percentage (dimension: `source`). */
+    /** ⛔ NOT EMITTED. Per-source API success rate as a percentage (dimension: `source`) — US-10. */
     sourceApiSuccessRate: 'source-api-success-rate',
     /** Count of foods awaiting human disambiguation (UNRESOLVED). */
     unresolvedBacklog: 'food-unresolved-backlog',
@@ -32,7 +49,7 @@ export const FOOD_METRIC = {
     tombstoneCount: 'food-tombstone-count',
     /** Share of reads served from the local store with no source call, as a percentage (SC-005). */
     localStoreServeRate: 'food-local-store-serve-rate',
-    /** Share of API requests rejected `401`, as a percentage. */
+    /** ⛔ NOT EMITTED. Share of API requests rejected `401` — FR-052, and the misconfigured-key signal. */
     auth401Rate: 'auth-401-rate',
     /** Age in seconds of the OLDEST pending `fetch_queue` row (freshness alarm at > 5 min). */
     pendingAgeSeconds: 'food-fetch-pending-age-seconds',

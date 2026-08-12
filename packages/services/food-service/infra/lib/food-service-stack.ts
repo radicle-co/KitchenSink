@@ -32,7 +32,15 @@ import { AcceptedNagFindings, NODE_LAMBDA_RUNTIME, acceptNagFindings } from '@ki
 /**
  * Canonical food worker metric names — MUST stay byte-identical to `src/observability/emf-metrics.ts`
  * `FOOD_METRIC` (the worker emits these EMF metric names; the dashboard charts and the alarms alarm on
- * them). A CDK test cross-checks these against the exported source constants so the two cannot drift.
+ * them). Re-declared rather than imported because the infra tsconfig's `rootDir` forbids reaching into
+ * `src` (TS6059).
+ *
+ * ⚠️ NO CDK TEST CROSS-CHECKS THIS AGAINST THE SOURCE CONSTANTS, whatever this comment used to say.
+ * `infra/__tests__/food-service-stack.test.ts` declares a THIRD copy of its own, so it only proves the
+ * synthesized template matches itself. The real guard is repo-wide and lives in
+ * `packages/infra/global/__tests__/service-infra-wiring-invariants.test.ts` W3: an alarm on a custom
+ * metric must watch a name that appears as a string literal in the service's runtime sources, so an
+ * alarm on a renamed or never-implemented metric reds there. Do not re-add the claim about a local one.
  */
 const FOOD_METRIC_NAMESPACE = 'Commise/Food';
 const FOOD_METRIC = {

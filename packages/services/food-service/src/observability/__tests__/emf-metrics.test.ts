@@ -35,6 +35,61 @@ describe('emf-metrics', () => {
                 workerErrorCount: 'food-worker-error-count',
             });
         });
+
+        /**
+         * ⛔ THE ASSERTION ABOVE IS A TAUTOLOGY ON ITS OWN — it restates the declaration it reads, so a name
+         * declared and never published passes it forever. That is not hypothetical: T-181 is marked `[x]` done
+         * and says all of these are "emitted via CloudWatch EMF to stdout", while TWO of them are emitted by
+         * nothing. This test drives every recorder and reads the names back off the real EMF lines, so the
+         * emitted set is measured rather than asserted from the constant block.
+         *
+         * `source-api-success-rate` (US-10 / `spec.md` "per-source success rate", `plan.md`) and
+         * `auth-401-rate` (FR-052 auth load-shed signal, and the thing that surfaces a misconfigured
+         * `CLERK_JWT_KEY`) have NO recorder and NO call site. They are listed here so the gap is visible
+         * instead of disguised by a named constant, and the CDK does not chart or alarm either one — so
+         * `service-infra-wiring-invariants.test.ts`'s W3 (alarm name must be emitted somewhere) cannot see
+         * this direction of the drift.
+         *
+         * ⚠️ Implementing one means MOVING its name from `pending` to `emitted` here. Both need a call site,
+         * not just a recorder: a rate needs its denominator, so each must be emitted on every request /
+         * every source call the way `recordLocalStoreServe` is, and each needs its dashboard widget.
+         */
+        it('emits every metric name it declares, except the two that are declared and unimplemented', () => {
+            const lines: string[] = [];
+            const metrics = new FoodMetrics((line) => lines.push(line));
+
+            metrics.recordResolutionLatencySeconds(1);
+            metrics.recordQueueDepth(1);
+            metrics.recordUnresolvedBacklog(1);
+            metrics.recordTombstoneCount(1);
+            metrics.recordPendingAgeSeconds(1);
+            metrics.recordInFlightLeases(1);
+            metrics.recordWorkerError(1);
+            metrics.recordLocalStoreServe(true);
+            metrics.recordSourceWindowCount('usda', 1);
+
+            const emitted = new Set(
+                lines.flatMap((line) =>
+                    (JSON.parse(line) as EmfPayload)._aws.CloudWatchMetrics.flatMap((directive) =>
+                        directive.Metrics.map((metric) => metric.Name),
+                    ),
+                ),
+            );
+            const pending = Object.values(FOOD_METRIC).filter((name) => !emitted.has(name));
+
+            expect([...emitted].sort()).toEqual([
+                'food-fetch-pending-age-seconds',
+                'food-fetch-queue-depth',
+                'food-in-flight-leases',
+                'food-local-store-serve-rate',
+                'food-resolution-latency-seconds',
+                'food-tombstone-count',
+                'food-unresolved-backlog',
+                'food-worker-error-count',
+                'source-rolling-window-count',
+            ]);
+            expect(pending).toEqual([FOOD_METRIC.sourceApiSuccessRate, FOOD_METRIC.auth401Rate]);
+        });
     });
 
     describe('buildEmf', () => {

@@ -633,7 +633,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: The rater is always the bearer token’s subject; a body `userId` is stripped.
+      description: "The rater is always the bearer token’s subject. The body is strict: a `userId` is rejected with a 400, not
+        stripped."
       parameters:
         - name: id
           in: path
@@ -2066,7 +2067,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
       description: Visibility defaults to `private` (FR-010). `ownerId` is not an accepted field — ownership comes from the
-        verified token, and an `ownerId` in the body is stripped.
+        verified token, and the body is strict, so an `ownerId` is rejected with a 400 rather than stripped.
       requestBody:
         description: The collection to create.
         required: true
@@ -2881,11 +2882,13 @@ paths:
       description: "IRREVERSIBLE. `confirmationPhrase` is the intent gate and is REQUIRED; its VALUE is checked by the
         service, not by request validation, so the accepted literal is deliberately NOT published as an enum here — a
         `400` reports a mismatch without echoing what was expected. There is no `ownerId` field: the owner comes from
-        the verified token, and a smuggled one is stripped. Idempotent per C-007 — an in-flight job is RETURNED rather
-        than a second one started, and there is no `409`, because a duplicate erasure request is the same request again.
-        `publishRecipeIds` is the optional per-recipe DONATE election (CR-002 / U3b): a listed recipe is published and
-        KEPT under a pseudonymous handle the erased owner no longer controls, instead of being removed; absent or empty
-        means donate nothing."
+        the verified token, and the body is strict, so a smuggled one is rejected with a 400 rather than stripped —
+        which matters here because the operation is irreversible, and it applies equally to a misspelled
+        `publishRecipeIds`, whose silent loss would have removed recipes the caller elected to donate. Idempotent per
+        C-007 — an in-flight job is RETURNED rather than a second one started, and there is no `409`, because a
+        duplicate erasure request is the same request again. `publishRecipeIds` is the optional per-recipe DONATE
+        election (CR-002 / U3b): a listed recipe is published and KEPT under a pseudonymous handle the erased owner no
+        longer controls, instead of being removed; absent or empty means donate nothing."
       requestBody:
         description: The confirmation phrase, plus the optional donate election.
         required: true

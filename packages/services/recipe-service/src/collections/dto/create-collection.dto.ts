@@ -4,7 +4,8 @@
  * A thin `nestjs-zod` adapter over the AUTHORED contract in `../collections.schema.ts`
  * (CODING_STANDARDS §15.2), so the shape the pipe enforces and the shape `@kitchensink/schema-recipe`
  * publishes are ONE object rather than two that happen to agree. `ownerId` is not a field: ownership comes
- * from the verified principal, and zod strips the key if a caller sends one anyway.
+ * from the verified principal, and the STRICT schema answers `400` if a caller sends one anyway (it used to be
+ * stripped silently — see `collections.schema.ts`).
  */
 import { createZodDto } from 'nestjs-zod';
 

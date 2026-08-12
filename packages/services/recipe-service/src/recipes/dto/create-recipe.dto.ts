@@ -4,7 +4,7 @@
  * A thin `nestjs-zod` adapter over the AUTHORED contract in `../recipes.schema.ts` (CODING_STANDARDS §15.2),
  * so the shape the pipe enforces and the shape `@kitchensink/schema-recipe` publishes are ONE object rather
  * than two that happen to agree. `ownerId` is not a field: ownership comes from the verified principal, and
- * zod strips the key if a caller sends one anyway.
+ * the STRICT schema answers `400` if a caller sends one anyway (it used to be stripped silently).
  *
  * ⚠️ A `createZodDto` class carries NO `class-validator` metadata. It is therefore validated ONLY by
  * `nestjs-zod`'s `ZodValidationPipe`, which `RecipesController` binds with `@UsePipes` — under Nest's own

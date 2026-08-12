@@ -5,7 +5,8 @@
  * A clone deterministically copies the source recipe's content + attribution and derives the new recipe's
  * visibility from the C-004 clone-default rule, so the body carries NO client-supplied content: every field is
  * server-derived from the source. The schema is an empty object with `.default({})`, which is what makes a
- * BODYLESS `POST` legal, and zod's key-stripping is what makes a stray field harmless rather than trusted.
+ * BODYLESS `POST` legal — a default applies to an ABSENT body, while `strictObject`'s catchall judges the keys
+ * of a body that IS present, so a stray field is a `400` rather than silently dropped.
  *
  * ⚠️ A `createZodDto` class carries NO `class-validator` metadata; see `create-recipe.dto.ts`.
  */

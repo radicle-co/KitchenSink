@@ -14,10 +14,11 @@
  *  - **A body that omits or empties `confirmationPhrase` is still a `400`**, from the pipe; and a request with
  *    NO BODY at all — which bypasses the pipe entirely — is still a `400` from {@link ErasureService}. Belt
  *    AND braces, unchanged.
- *  - **An `ownerId` a client tries to smuggle in is still dropped.** The old pipe's `whitelist: true` stripped
- *    it; zod strips unknown keys by default. It could never have redirected the erasure anyway (the owner comes
- *    from the verified token and the body's is simply not read), but the stripping is defence in depth and it
- *    survives.
+ *  - **An `ownerId` a client tries to smuggle in is REFUSED.** Three behaviours in sequence: the old pipe's
+ *    `whitelist: true` stripped it, zod's default `z.object` also stripped it, and `z.strictObject` (GR-017
+ *    §17-c) now answers `400`. It could never have redirected the erasure under any of them (the owner comes
+ *    from the verified token and the body's is simply not read) — but erasure is IRREVERSIBLE, so a caller who
+ *    misunderstood the field must be told, not given a `202`.
  *
  * The `export` route has no body or query, so the pipe is inert on it: `nestjs-zod`'s pipe returns the value
  * untouched for any parameter whose metatype is not a `createZodDto` class.
@@ -71,8 +72,8 @@ export class AccountController {
      *
      * Returns `202` (not the POST default `201`) per the contract: the work is asynchronous and no
      * resource is created at this URL. The owner is taken from the verified token and never from the
-     * body — an `ownerId` a client tried to smuggle in is stripped by the `whitelist` pipe and would be
-     * ignored regardless, because it is simply not read.
+     * body — an `ownerId` a client tried to smuggle in is REFUSED with a `400` by the strict schema, and would
+     * be ignored regardless, because it is simply not read.
      *
      * The body is optional; Express yields `{}` when none is sent, which the DTO accepts.
      *

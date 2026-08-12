@@ -232,7 +232,8 @@ export class IngredientsController {
      * @param _ownerId - The verified caller ULID (auth assertion only; see {@link IngredientsController.search}).
      * @param caller - The caller's own bearer, forwarded to the food service (see the class doc).
      * @param body - `{ foodId }` (non-blank, ≤64 chars), validated by {@link AddIngredientByFoodDto}. Any
-     *   caller-supplied `name` is stripped by the whitelist — the display name comes from the food service.
+     *   caller-supplied `name` is REFUSED with a `400` (it was stripped before GR-017 §17-c) — the display name
+     *   comes from the food service, so a client that supplied one must learn it was not used.
      * @returns The food-backed ingredient with its golden-record nutrition.
      * @throws {RecipeError} `UNKNOWN_INGREDIENT` (→ 400) when the food cannot back an ingredient (unknown,
      *   terminal, mid-resolution, or nameless) and no row exists to advance.

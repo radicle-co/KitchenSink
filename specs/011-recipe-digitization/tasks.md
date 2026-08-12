@@ -31,16 +31,22 @@
 Workspace (T-001..T-007, T-093, T-094, T-097, T-099)
   -> Schema / Migrations (T-008..T-018)
     -> Shared Audience (T-019..T-025)
-      -> Circles API (T-026..T-036, T-098)
-      -> Digitization API (T-037..T-048)
-        -> OCR Lambda (T-049..T-056)
-          -> Frontend (T-057..T-067, T-096)
-            -> Integration Tests (T-068..T-073)
-              -> E2E Tests (T-074..T-076)
+      -> Wire Contracts (T-101..T-104)          <- BOTH services, before their first endpoint
+        -> Circles API (T-026..T-036, T-098)
+        -> Digitization API (T-037..T-048)
+          -> OCR Lambda (T-049..T-056)
+            -> Typed Clients (T-105..T-108)
+              -> Frontend (T-057..T-067, T-096)
+                -> Integration Tests (T-068..T-073)
+                  -> E2E Tests (T-074..T-076)
     -> Observability (T-077..T-081)
     -> Privacy / Cleanup (T-082..T-084)
 Workspace + Schema + APIs + OCR + Frontend -> Deployment / CDK (T-085..T-092)
 ```
+
+⛔ **T-101…T-104 gate T-027 and T-038** (each service's first endpoint). A new deployable that lands without its
+schema package, its `CONTRACT_HASH` boot assertion or `nestjs-zod`'s pipe is **in violation on day one** —
+GR-017 §17-a's obligations are not deferred to "when it has clients".
 
 ---
 
@@ -198,16 +204,22 @@ Workspace + Schema + APIs + OCR + Frontend -> Deployment / CDK (T-085..T-092)
 
 ## Cross-Validation (Product Forge Step 4)
 
-| Check                                                  | Status | Notes                                                                                                                     |
-| ------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------- |
-| Every Must Have US-NNN has ≥1 implementation task?     | ✅     | US-001..US-006 all mapped in tasks and coverage matrix.                                                                   |
-| Every FR-NNN has ≥1 corresponding task?                | ✅     | FR-001..FR-036 each mapped to at least one task ID.                                                                       |
-| Every NFR has ≥1 corresponding task?                   | ✅     | NFR-001..NFR-008 each mapped.                                                                                             |
-| Clarifications C-001..C-005 have explicit tasks?       | ✅     | C-001: T030/T031/T070; C-002: T014/T033/T071; C-003: T035/T081/T091; C-004: T015/T034/T072; C-005: T016/T082/T084/T091.   |
-| Test / validation tasks included per task group?       | ✅     | Unit/integration/E2E/contract/migration/infra tests included (T018, T036, T048, T055, T056, T067, T068-T076, T084, T092). |
-| No orphan tasks (tasks without traceable requirement)? | ✅     | All tasks include requirement brackets.                                                                                   |
-| Task granularity appropriate (≤1-2h each)?             | ✅     | Large vertical slices split into API/DB/UI/test/infra sub-tasks.                                                          |
-| Dependency order sensible?                             | ✅     | Setup → schema/shared → APIs/OCR → frontend → testing/observability/privacy/deploy.                                       |
+| Check                                                   | Status | Notes                                                                                                                                |
+| ------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Every Must Have US-NNN has ≥1 implementation task?      | ✅     | US-001..US-006 all mapped in tasks and coverage matrix.                                                                              |
+| Every FR-NNN has ≥1 corresponding task?                 | ✅     | FR-001..FR-036 each mapped to at least one task ID.                                                                                  |
+| Every NFR has ≥1 corresponding task?                    | ✅     | NFR-001..NFR-008 each mapped.                                                                                                        |
+| Clarifications C-001..C-005 have explicit tasks?        | ✅     | C-001: T030/T031/T070; C-002: T014/T033/T071; C-003: T035/T081/T091; C-004: T015/T034/T072; C-005: T016/T082/T084/T091.              |
+| Test / validation tasks included per task group?        | ✅     | Unit/integration/E2E/contract/migration/infra tests included (T018, T036, T048, T055, T056, T067, T068-T076, T084, T092, T101-T108). |
+| No orphan tasks (tasks without traceable requirement)?  | ✅     | All tasks include requirement brackets.                                                                                              |
+| Task granularity appropriate (≤1-2h each)?              | ✅     | Large vertical slices split into API/DB/UI/test/infra sub-tasks.                                                                     |
+| Dependency order sensible?                              | ✅     | Setup → schema/shared → **wire contracts** → APIs/OCR → **typed clients** → frontend → testing/observability/privacy/deploy.         |
+| Wire contract owned per service (GR-015 §15-a)?         | ✅     | T101 (circles), T102 (digitization) — zod authored in each service, copied to `packages/schemas/{circles,digitization}`.             |
+| All three drift gates wired per service (GR-015 §15-c)? | ✅     | T103 — `contract:generate`, turbo `$TURBO_ROOT$` `inputs`, `CONTRACT_HASH` boot assertion.                                           |
+| Client half TASKED, not just stated (GR-017 §17-e.12)?  | ✅     | T105, T106 (typed clients + skew guards), T108 (consumers derive, never re-declare). **Was ❌ before 2026-08-12.**                   |
+| Third-party boundary preserved (GR-015 §15-d)?          | ✅     | T107 — the OCR provider is boundary-validated with its own zod and is **never** converged.                                           |
+| k6 tier for each deployable (§7.1, GR-017 §17-a.8)?     | ✅     | T104 — both services are deployables and owe unit + integration + e2e + k6.                                                          |
+| Maestro flow per mobile story (§14.1)?                  | ❌     | **GAP.** T057–T065 build mobile surfaces; no Maestro flow is specified in this file. Flagged in T108.                                |
 
 ---
 
@@ -215,68 +227,68 @@ Workspace + Schema + APIs + OCR + Frontend -> Deployment / CDK (T-085..T-092)
 
 ### User Stories
 
-| ID     | Task IDs                                                               |
-| ------ | ---------------------------------------------------------------------- |
-| US-001 | T002, T037, T038, T040, T042, T049, T051, T057, T067, T068, T074       |
-| US-002 | T012, T041, T045, T059, T060, T062, T066, T067, T069, T074             |
-| US-003 | T003, T008, T027, T028, T030, T036, T063, T067, T070, T075             |
-| US-004 | T009, T031, T036, T064, T067, T070, T075                               |
-| US-005 | T013, T014, T019, T033, T042, T047, T065, T071, T073                   |
-| US-006 | T009, T019, T021, T026, T028, T032, T034, T047, T063, T065, T072, T073 |
+| ID     | Task IDs                                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------- |
+| US-001 | T002, T037, T038, T040, T042, T049, T051, T057, T067, T068, T074, T102, T104, T106, T107       |
+| US-002 | T012, T041, T045, T059, T060, T062, T066, T067, T069, T074, T102, T104, T106                   |
+| US-003 | T003, T008, T027, T028, T030, T036, T063, T067, T070, T075, T101, T103, T105, T108             |
+| US-004 | T009, T031, T036, T064, T067, T070, T075, T101, T105, T108                                     |
+| US-005 | T013, T014, T019, T033, T042, T047, T065, T071, T073, T101, T108                               |
+| US-006 | T009, T019, T021, T026, T028, T032, T034, T047, T063, T065, T072, T073, T101, T103, T105, T108 |
 
 ### Functional Requirements
 
-| ID     | Task IDs                     |
-| ------ | ---------------------------- |
-| FR-001 | T038, T088                   |
-| FR-002 | T057                         |
-| FR-003 | T044, T058                   |
-| FR-004 | T038, T057                   |
-| FR-005 | T044, T058                   |
-| FR-006 | T050, T068, T086             |
-| FR-007 | T051                         |
-| FR-008 | T052                         |
-| FR-009 | T052                         |
-| FR-010 | T052                         |
-| FR-011 | T052, T053, T080             |
-| FR-012 | T052                         |
-| FR-013 | T040, T049, T056, T068, T087 |
-| FR-014 | T059, T074                   |
-| FR-015 | T041, T060, T074             |
-| FR-016 | T045, T062                   |
-| FR-017 | T041, T053, T061             |
-| FR-018 | T059                         |
-| FR-019 | T038, T088, T089             |
-| FR-020 | T011, T054                   |
-| FR-021 | T042, T069, T074             |
-| FR-022 | T043                         |
-| FR-023 | T066, T076                   |
-| FR-024 | T066, T076                   |
-| FR-025 | T061, T076                   |
-| FR-026 | T064, T066, T076             |
-| FR-027 | T038, T046, T048, T063, T090 |
-| FR-028 | T039                         |
-| FR-029 | T037, T040, T054, T068       |
-| FR-030 | T046, T048, T036, T079       |
-| FR-031 | T010, T027, T030, T070, T073 |
-| FR-032 | T031, T064, T070, T075       |
-| FR-033 | T014, T033, T071, T073       |
-| FR-034 | T032, T035, T081             |
-| FR-035 | T015, T034, T072             |
-| FR-036 | T016, T082, T083, T084, T091 |
+| ID     | Task IDs                                             |
+| ------ | ---------------------------------------------------- |
+| FR-001 | T038, T088                                           |
+| FR-002 | T057                                                 |
+| FR-003 | T044, T058                                           |
+| FR-004 | T038, T057                                           |
+| FR-005 | T044, T058                                           |
+| FR-006 | T050, T068, T086, T107                               |
+| FR-007 | T051, T107                                           |
+| FR-008 | T052, T107                                           |
+| FR-009 | T052                                                 |
+| FR-010 | T052                                                 |
+| FR-011 | T052, T053, T080                                     |
+| FR-012 | T052                                                 |
+| FR-013 | T040, T049, T056, T068, T087, T104                   |
+| FR-014 | T059, T074                                           |
+| FR-015 | T041, T060, T074                                     |
+| FR-016 | T045, T062                                           |
+| FR-017 | T041, T053, T061                                     |
+| FR-018 | T059                                                 |
+| FR-019 | T038, T088, T089                                     |
+| FR-020 | T011, T054                                           |
+| FR-021 | T042, T069, T074                                     |
+| FR-022 | T043                                                 |
+| FR-023 | T066, T076                                           |
+| FR-024 | T066, T076                                           |
+| FR-025 | T061, T076                                           |
+| FR-026 | T064, T066, T076                                     |
+| FR-027 | T038, T046, T048, T063, T090, T101, T102, T105, T106 |
+| FR-028 | T039, T102                                           |
+| FR-029 | T037, T040, T054, T068, T102                         |
+| FR-030 | T046, T048, T036, T079, T102, T104                   |
+| FR-031 | T010, T027, T030, T070, T073, T101, T105, T108       |
+| FR-032 | T031, T064, T070, T075, T101, T105                   |
+| FR-033 | T014, T033, T071, T073, T108                         |
+| FR-034 | T032, T035, T081                                     |
+| FR-035 | T015, T034, T072                                     |
+| FR-036 | T016, T082, T083, T084, T091                         |
 
 ### Non-Functional Requirements
 
-| ID      | Task IDs                                 |
-| ------- | ---------------------------------------- |
-| NFR-001 | T050, T056, T077, T078, T080, T086, T092 |
-| NFR-002 | T038, T088                               |
-| NFR-003 | T029, T033, T034, T071, T072, T077, T079 |
-| NFR-004 | T061, T066, T076                         |
-| NFR-005 | T001, T006, T018, T090                   |
-| NFR-006 | T049, T056, T078, T087, T092             |
-| NFR-007 | T035, T081, T091                         |
-| NFR-008 | T016, T082, T083, T091                   |
+| ID      | Task IDs                                       |
+| ------- | ---------------------------------------------- |
+| NFR-001 | T050, T056, T077, T078, T080, T086, T092, T107 |
+| NFR-002 | T038, T088                                     |
+| NFR-003 | T029, T033, T034, T071, T072, T077, T079       |
+| NFR-004 | T061, T066, T076                               |
+| NFR-005 | T001, T006, T018, T090, T103, T104             |
+| NFR-006 | T049, T056, T078, T087, T092                   |
+| NFR-007 | T035, T081, T091                               |
+| NFR-008 | T016, T082, T083, T091                         |
 
 ### Clarifications
 
@@ -302,6 +314,75 @@ Workspace + Schema + APIs + OCR + Frontend -> Deployment / CDK (T-085..T-092)
 - [ ] **T-098\*\*** Implement Circle soft-delete with default 30-day retention window (`circles.deleted_at` already migrated in T008): hard-delete worker + restore endpoint, audit event on both transitions, and integration test exercising soft-deleted Circle behavior (audience revert deferred until hard-delete); **Files**: `packages/services/circles-service/src/circles/lifecycle/soft-delete.service.ts`, `packages/services/circles-service/src/circles/lifecycle/hard-delete.job.ts`, `packages/services/circles-service/tests/circle-soft-delete.integration.test.ts`. **Depends on**: T008, T033. **Augments**: T036, T070. [FR-033, NFR-003, R-008, C-R-001]
 - [ ] **T-099\*\*** Add LaunchDarkly-style feature flags `digitization.enabled` and `circles.enabled` with config wiring in `digitization-api` + `circles-api` + web/mobile clients; gate `/api/v1/recipes/digitize/*`, `/api/v1/circles/*`, upload UI entry, and audience-picker Circle options behind these flags. Default OFF in production; ON in dev/preview. **Files**: `packages/services/digitization-service/src/config/feature-flags.ts`, `packages/services/circles-service/src/config/feature-flags.ts`, web/mobile flag wiring, CDK env binding. **Depends on**: T007. **Augments**: T088, T090. [NFR-005, R-001, R-002, R-005, R-008, C-R-002]
 - [ ] **T-100\*\*** Document canary promotion gates (1% → 10% → 50% → 100%) and rollback runbook in release-readiness artifact: per-ring gates = (NFR-001 p95 OCR latency met, DLQ depth = 0 sustained over ring window, zero P0/P1 a11y findings, manual accuracy benchmark ≥ SC-001 on canary photo set); **Files**: `specs/011-recipe-digitization/release-readiness.md` (created at release-readiness phase) — placeholder note in `plan.md` Risks until then. **Depends on**: T099. [NFR-001, NFR-004, R-001, R-002, R-005, R-008, C-R-002]
+
+---
+
+## Phase 14 — Wire Contracts, Validation & Typed Clients (GR-015, GR-016, GR-017)
+
+> ⛔ **011 creates TWO new deployable services, so GR-017 §17-a binds each of them separately.** Before this
+> revision this file had **no** task for `packages/schemas/digitization`, `packages/schemas/circles`,
+> `packages/clients/digitization`, `packages/clients/circles`, or a `CONTRACT_HASH` boot assertion — GR-017
+> §17-e.12's failure mode, and the portfolio's most common violation.
+>
+> ⚠️ **A schema package is per SERVICE, not per feature**, so 011 gets **two**:
+> `@kitchensink/schema-digitization` and `@kitchensink/schema-circles`. `@kitchensink/audience` is **unaffected**
+> and stays exactly as specified (T-019…T-025) — it is a **type-only domain** package on the GR-007 axis, not a
+> wire contract. A schema package **reuses it `import type`** and never re-declares its types.
+>
+> ⚠️ **ADR-0017 does NOT ratify these two services.** It decided 006/007/009/010 only, and explicitly declines to
+> decide 011's `digitization-service` / `circles-service`. The question _does this need its own deployable, given
+> that a per-PR ECS task measures ≈ $8.25/month per open PR (ADR-0010) on a $300/month account budget?_ is worth
+> asking before either is built. Nothing here should be read as ratification.
+>
+> **Task count: 108** (T-001…T-100, plus T-101…T-108 added 2026-08-12).
+
+- [ ] **T-101\*\*** Author `circles-service`'s wire contract as zod and generate `@kitchensink/schema-circles`; **Files**: `packages/services/circles-service/src/circles/circles.schema.ts`, `src/invitations/invitations.schema.ts`, `src/members/members.schema.ts`, `packages/schemas/circles/*`. **Depends on**: T003, T019. **Blocks**: T027, T028, T029, T030, T031, T032, T033. [US-003, US-004, US-006, FR-027, FR-031, FR-032, GR-015 §15-a, GR-017 §17-a.1/§17-a.3]
+    - **Acceptance**: Circle, member and invitation request/response shapes authored **beside the controller each serves** (⛔ **not** in the "service/DTO files" T-027 mentions — §15.2 requires `src/**/*.schema.ts` beside the controller, never a `dto/` directory); every `*.schema.ts` imports **only `zod`, other `*.schema.ts` files, and `@kitchensink/audience` `import type`**. `packages/schemas/circles` (`@kitchensink/schema-circles`) exports `src/schemas.ts`, `src/types.ts` (`z.infer` only), `src/contract-hash.ts`, `src/index.ts` and a **derived** `openapi.yaml`, with **no** runtime dependency on NestJS/drizzle/aws-sdk. Reference shape: `packages/schemas/recipe`.
+    - **⛔ Three things that look wrong and are not**: the schema package is a literal file **COPY** (zod are runtime values and cannot be derived from themselves); `openapi.yaml` is **DERIVED** output for `oasdiff`/docs/integrators and is **NEVER a codegen input**; the copy is wired with turbo `$TURBO_ROOT$` **`inputs`**, never `dependsOn` (that edge closes the cycle `client → schema → service → client`).
+    - **⚠️ The invite token is the sharpest shape here.** `POST /api/v1/circles/join/:token` takes an attacker-supplied path segment that decides membership. It is parsed **before** it is looked up, bounded to the token's real format, and an unresolvable or revoked token is a **rejection** (`410` per T-031), never a fallback to a default circle — GR-019 forbids the sentinel that would make it one.
+    - **Tests**: unit (each schema accepts a valid fixture and rejects every malformed variant) **AND** integration (regenerate-and-diff clean; the generated package's exports resolve and its `CONTRACT_HASH` equals the service's).
+
+- [ ] **T-102\*\*** Author `digitization-service`'s wire contract as zod and generate `@kitchensink/schema-digitization`; **Files**: `packages/services/digitization-service/src/digitization/digitization.schema.ts`, `src/digitization/jobs.schema.ts`, `packages/schemas/digitization/*`. **Depends on**: T002, T019. **Blocks**: T038, T039, T040, T041, T042, T043. [US-001, US-002, US-007, FR-027, FR-028, FR-029, GR-015 §15-a, GR-017 §17-a.1/§17-a.3]
+    - **Acceptance**: Job creation, cursor-paginated list, status/result retrieval, correction PATCH, save and discard shapes authored **beside their controllers**, with the same import constraint and the same generated package shape as T-101. The **`parsed_json` correction payload** and the **job-status projection** are the load-bearing shapes: both cross the API↔worker↔UI boundary, and a per-surface re-declaration drifts silently.
+    - **⛔ `raw_ocr_json` is the OCR provider's raw shape and does NOT belong in the schema package** as though we owned it — see T-104. Only our own job/correction/save envelopes are ours.
+    - **⚠️ RFC7807 problem-details (T-046) is a response contract**, so its shape is authored here once and shared with `circles-service` rather than re-typed per service. ⛔ But authoring it does **not** license **server-side response validation**, which GR-016 §16-g **defers** — a producing service parsing what it emits is an owner decision, not an unfinished task. Do not add it.
+    - **Tests**: unit (each schema accepts a valid fixture and rejects every malformed variant; the correction payload rejects an unknown field) **AND** integration (regenerate-and-diff clean; `CONTRACT_HASH` parity).
+
+- [ ] **T-103\*\*** Wire all three drift gates for BOTH services — `contract:generate`, turbo `$TURBO_ROOT$` `inputs`, and a `CONTRACT_HASH` boot assertion; **Files**: `packages/services/circles-service/package.json`, `packages/services/digitization-service/package.json`, `turbo.json`, both services' `src/main.ts`. **Depends on**: T101, T102. [FR-027, NFR-005, GR-015 §15-c, GR-017 §17-a.2/§17-a.4]
+    - **Acceptance**: Each service declares `contract:generate` so `scripts/contractOwners.mjs` `discoverContractOwners` finds it **with no list edit** (a hardcoded list of services is itself the defect GR-017 names), and `npm run contract:verify` regenerates and fails on any diff. `turbo.json` gives each `schema-*#build` `$TURBO_ROOT$`-anchored **`inputs`** covering that service's `src/**/*.schema.ts`. Each service asserts `CONTRACT_HASH` equality against its schema package **at boot** and **refuses to start** on mismatch, **before** the HTTP listener binds.
+    - **⛔ NOT `dependsOn`** — `schema-<service>#build` `dependsOn` `<service>#build` closes the cycle `client → schema → service → client` and turbo rejects the graph. The generated files are committed, so ordering was never the requirement; content-hashed `inputs` are.
+    - **⚠️ The boot assertion is the gate that matters most for 011**, because `circles-service` ships **independently of** 001/006/007 — the consumers of its `circle` audience scope — so it is the layer that catches circles deploying ahead of a consumer's pinned schema, including a released mobile binary.
+    - **Tests**: unit (per service: `src/__tests__/build-inputs.test.ts` asserting every authored `*.schema.ts` is covered by the declared glob, and `src/__tests__/main-boot-order.test.ts` asserting the hash check precedes `listen()` and a skewed hash throws — modelled on `packages/services/recipe-service/src/__tests__/{build-inputs,main-boot-order}.test.ts`) **AND** integration (`scripts/contractDriftGate.mjs` clean on a fresh checkout, red on a hand-edited schema package; boot with a skewed hash binds no port).
+
+- [ ] **T-104\*\*** Register **`nestjs-zod`'s** `ZodValidationPipe` on both services with `z.strictObject()` mutating bodies, add the storage-floor parity tests, and parse every non-HTTP ingress; **Files**: both services' `src/app.module.ts`, `src/**/__tests__/storage-capacity.test.ts`, `packages/services/digitization-workers/src/handlers/sqs-ocr.handler.ts`, `packages/services/digitization-workers/src/providers/*.schema.ts`. **Depends on**: T101, T102, T017, T049, T050. [FR-030, NFR-005, GR-016, GR-017 §17-a.5/§17-c/§17-d, GR-018, GR-019]
+    - ⛔ **DO NOT BUILD A NEW GATE — the mechanism already EXISTS.** `@kitchensink/contract-gen` exports `auditStorageCapacity` / `collectBoundedColumns` / `formatStorageCapacityFindings` (`packages/tools/contract-gen/src/storage-capacity.ts`), and a `storage-capacity.test.ts` already wires it in **all three** shipped services (recipe `src/database/__tests__/`, food `src/db/schema/__tests__/`, identity `src/types/schema/__tests__/`). Copy that pattern; do not hand-roll a second one — a second mechanism for one invariant is the failure GR-016 §16-a.2 forbids, one layer up. It reads drizzle **structurally** via `Symbol.for('drizzle:Columns')` (so `contract-gen` needs no `drizzle-orm` dependency) and zod bounds via the **public** `z.toJSONSchema`; it is already **exhaustive over columns**, with `stale-account` / `duplicate-account` findings as the reverse-direction check. The work here is the **mapping**: every bounded column bound to the wire fields that write it, or declared not-client-writable **with a reason** (GR-017 §17-d).
+    - **Acceptance (pipe)**: Each service binds **`nestjs-zod`'s** `ZodValidationPipe` via `APP_PIPE` and every route takes a `createZodDto` DTO for body, path params and query params. **One** mechanism per service; **no `class-validator` DTO** anywhere in either — a new service starts with one mechanism, and recipe-service's **19 residual `class-validator` files** (measured 2026-08-12) are the two-mechanism state these must not reproduce. Every mutating body uses **`z.strictObject()`**.
+    - **⚠️ Invisible-by-construction failure**: under Nest's **own** `ValidationPipe` a `createZodDto` DTO **validates nothing while looking correctly wired** — schema present, DTO referenced, route reads as validated, no input checked. This already bit identity's `PATCH /users/me`. The **only** observation is a test that posts a known-bad body to a **real** route and asserts the `400`.
+    - **Acceptance (storage floor)**: One parity test **per service**, living **in the service**, importing **both** the drizzle schema and the authored zod (a test is not a wire schema, so §16-d's ban on the _production_ coupling is untouched), **deriving** the bounded-column enumeration from the drizzle schema, and asserting each writing wire field **rejects** a value the column cannot hold — circle `name` length, member role and job-state enum domains (`pending|processing|awaiting-correction|saved|discarded`), `batch_id` and the **20-photos-per-session** cap, cursor page size (default 20), confidence numeric range, `language_code`, nullability. Mapping completeness asserted in **BOTH** directions: every bounded column has an entry or an explicit reasoned exemption, and every entry names a column that exists. **⛔ Asserted, never derived** — no zod from drizzle, no storage type in a `*.schema.ts`.
+    - **Acceptance (non-HTTP ingress, enumerated)**: (1) the **SQS OCR queue consumer** (T-049); (2) the **OCR provider's response** — see the third-party note below; (3) the **owner-account-deletion** lifecycle event (T-034); (4) the **scheduled** raw-OCR purge (T-082) and outlier-monitor runs (T-081). Each parses its payload against an authored zod before it becomes work — **including the scheduled ones**, because "the payload is ours" is an assumption about a deploy that has already drifted once. Rejections take **one** path per ingress with the cause in a **`reason`** field; a shape failure and a credential failure are **equally invalid** and differ only in `reason`.
+    - **⚠️ GR-018 vs T-049's partial-batch-failure reporting — these interact, and getting it wrong is the defect.** An **invalid** payload is **NEVER retried**: it is recorded and the message **completed** (or dead-lettered **once** with the `reason`), so it must **not** be reported in `batchItemFailures`, which is a request for redrive. A **transient** failure — provider timeout, DB error, a `5xx` — is a **different** `reason` and **is** legitimately reported for redrive. T-056's DLQ-redrive test must distinguish the two rather than treating every failure as retryable. **⛔ A rejected event is NOT recorded as a row**, and an unresolvable `job_id`/`user_id` is a **rejection**, never `'unknown'`/`''`/`0` — including as a metrics dimension, where a sentinel fuses every unattributable job into one fictitious subject (GR-019).
+    - **Tests**: unit (per-DTO accept/reject and unknown-key rejection; each ingress envelope rejects every malformed variant; the rejection shape differs only in `reason`; the parity assertions) **AND** integration (a known-bad body on a **real** route yields `400` naming the field, modelled on `packages/services/identity/tests/app-validation.test.ts`; a ceiling-exceeding value yields `400` not a failed `INSERT`; an **invalid** queue payload is asserted **not** redriven while a **transient** failure **is**, **and** a valid payload still succeeds — both halves) **AND** e2e (each service's `tests/e2e/*.e2e.test.ts` over HTTP against real Postgres + LocalStack) **AND** k6 (`packages/tools/loadtest/` — both services are deployables and owe the tier per §7.1/GR-017 §17-a.8).
+
+- [ ] **T-105\*\*** Create `packages/clients/circles` — typed, declaring no wire shape, validating responses on receipt and bodies before send; **Files**: `packages/clients/circles/*`. **Depends on**: T101, T027, T028. **Blocks**: T063, T064, T065. [US-003, US-004, US-006, FR-027, GR-015 §15-b, GR-016 §16-c.2/§16-c.3, GR-017 §17-b.1–§17-b.4]
+    - **Acceptance**: Imports wire **types and runtime zod** from `@kitchensink/schema-circles`; its own `types.ts` holds only config, options and its own error shapes — **no** wire shape, including type-only. **Every response is parsed the moment it arrives**; **every outbound body is validated against the callee's schema-package zod before the call**, so a malformed payload fails in the caller with a usable stack rather than as a remote `400`. RFC7807 problem-details responses are parsed too, not just happy paths. Reference: `packages/clients/recipe-service`.
+    - **⛔ Do NOT add server-side response validation** — GR-016 §16-g defers a **producing service** parsing what it **emits**. This task is the **consumer** parsing what it **received** (GR-017 §17-f); only this half is required.
+    - **Tests**: unit (each method's happy path and every mapped error status, including the revoked-token `410`; a response with a missing, renamed or wrong-typed field raises the typed parse error; an invalid outbound body is rejected before any fetch) **AND** integration (`src/__integration__/*.integration.test.ts` against a booted service, modelled on `packages/clients/recipe-service/src/__integration__/client.integration.test.ts`).
+
+- [ ] **T-106\*\*** Create `packages/clients/digitization` on the same terms, plus contract-skew guards for BOTH clients; **Files**: `packages/clients/digitization/*`, `packages/clients/circles/src/contractSkew.ts`, `packages/clients/digitization/src/contractSkew.ts`. **Depends on**: T102, T105, T038, T040. **Blocks**: T057, T058, T059, T060, T062. [US-001, US-002, US-007, GR-015 §15-b/§15-c, GR-017 §17-b.1–§17-b.5]
+    - **Acceptance**: Same obligations as T-105 for the digitization endpoints. **Each** client carries a **contract-skew guard** so a pinned-stale schema package is **detected rather than inferred** from a runtime parse failure, modelled on `packages/clients/food-service/src/contractSkew.ts` and `packages/clients/recipe-service/src/contractSkew.ts`. Each guard reports only what it actually compared — it must not overclaim.
+    - **Tests**: unit (`src/__tests__/contractSkew.test.ts` per client, modelled on the two existing ones: matching hash passes, skewed hash is reported, the report names both hashes; plus each method's happy path and mapped errors) **AND** integration (each guard run against its live service's advertised hash).
+
+- [ ] **T-107\*\*** ⛔ Boundary-validate the OCR provider — the §15-d OPPOSITE case — and never converge it; **Files**: `packages/services/digitization-workers/src/providers/textract-response.schema.ts`, `src/providers/textract.adapter.ts`. **Depends on**: T050, T093. **Augments**: T050, T051, T052. [FR-006, FR-007, FR-008, NFR-001, GR-015 §15-d, GR-016 §16-b, GR-017 §17-b.6]
+    - **⛔ Textract (and any provider swapped in behind T-093's `OcrProvider` seam) is an API we do NOT serve.** There is no service of ours to own its types and its contract can change without telling us.
+    - **Acceptance**: The adapter **validates the raw upstream shape at the boundary with its own zod**, the moment a body arrives — blocks, geometry, per-token confidences, detected language. It **MAY declare its own types**, and the normalized `parsed_json` it produces (T-051, T-052) **deliberately differs** from the raw provider shape: that difference **is** the normalization, not drift. **NO OpenAPI document is written** for the provider. Rules 17-b.1–17-b.5 do **not** apply to this adapter, and `raw_ocr_json` is stored as the provider's shape rather than pretending to be ours.
+    - **⛔ "Converging" this adapter under §15-b DELETES a validation boundary — a security regression, not a consistency win.** `packages/clients/usda/src/schemas.ts` is the reference implementation and must **NEVER** be touched in this rule's name. ⚠️ **OCR output is INPUT to us**: it is attacker-influenced (the user supplies the photo), it drives the confidence gate that decides `awaiting-correction + low_quality` (T-053), and its boundary parse is **required** by GR-016 — not merely permitted by §15-d.
+    - **Tests**: unit (the boundary schema rejects a renamed, missing, wrong-typed and null-valued upstream field; an absent confidence is a rejection, never a defaulted `0` — a sentinel confidence would silently pass the quality gate; the normalized output is asserted **independent** of the raw shape) **AND** integration (recorded real provider payloads parse clean; a mutated payload is rejected at the boundary and drives **no** writeback).
+
+- [ ] **T-108\*\*** Make every consumer depend on the schema/client LEAF — never on `@kitchensink/circles-service` — and derive divergent shapes; **Files**: `packages/apps/commise/web/src/features/{digitization,circles}/*`, `packages/apps/commise/mobile/src/features/{digitization,circles}/*`, `packages/services/digitization-service/src/audience/*`, consumer packages in 001/006/007. **Depends on**: T105, T106. **Augments**: T047, T063, T064, T065, T073. [US-005, US-006, FR-031, FR-033, GR-015 §15-b.2/§15-b.3/§15-b.4, GR-017 §17-b.1, CODING_STANDARDS §14.1]
+    - **⛔ A consumer MUST NOT depend on `@kitchensink/circles-service` itself**, per `plan.md` L346 and `spec.md` L353. The `CirclesService` interface those documents sketch describes the **capability**, not the dependency edge. Importing the deployable is ADR-0014's **rejected alternative 2**: it drags NestJS, Drizzle and the AWS SDK into web, mobile and every consuming service, and **inverts the build order**. Consumers depend on **`packages/clients/circles` + `@kitchensink/schema-circles`**, and `packages/infra/global/__tests__/app-service-dependency.test.ts` already forbids the app→service edge.
+    - **⚠️ FLAGGED, NOT FIXED HERE — a contradicting acceptance criterion survives upstream.** 011's **`spec.md` _Acceptance Criteria_ item 2 still says 001 "imports `@kitchensink/circles-service`"**, which `spec.md` L353 itself then corrects. `spec.md` is **not** editable from this task list; this note is the record that the criterion contradicts the ratified rule and must be amended by that document's owner. **Do not implement item 2 as written.**
+    - **Acceptance**: No file in `packages/clients/*`, `@commise/web`, `@commise/mobile`, any feature package, or any _other_ service declares a circles or digitization request/response body type. Divergent consumer shapes — the correction workspace's token view model, the job-queue list item, the audience picker's circle option — are **DERIVED** with `Pick`/`Omit`/`Partial`/mapped types. Reference implementation: `packages/apps/commise/features/recipes/src/filters/model.ts`. Web and mobile ship in the **same release** (§14.1), with `.native.ts(x)` for platform-specific files, and all copy goes through the localization path.
+    - **Tests**: unit (each derived model asserted **assignable from** its wire parent, so a wire change breaks the derivation instead of drifting past it) **AND** integration (a parser-based guard over `git ls-files` asserting no client/app/consumer file declares one of these wire shapes, modelled on `packages/infra/global/__tests__/app-service-dependency.test.ts` — ⚠️ this repo-wide guard **does not exist yet**; see GR-017's enforcement table) **AND** **vitest component tests for EVERY path/state on BOTH platforms** (extending T-067) **AND** **Playwright** (extending T-074, T-075) **AND** a **Maestro** flow per story — ⚠️ 011 currently specifies **no** Maestro flow at all, which §14.1 requires for every mobile surface T-057…T-065 builds.
 
 ### Condition → Task Map
 

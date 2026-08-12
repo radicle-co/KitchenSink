@@ -19,8 +19,12 @@ Clerk **session token** themselves via `@clerk/backend` `verifyToken` — networ
 enforcement. There is deliberately no API Gateway JWT authorizer and no trusted-header path.
 
 **Backend.** NestJS 11, Drizzle ORM 0.45, `pg` 8 (node-postgres), RDS PostgreSQL 16 (`pg_trgm`, JSONB,
-`tsvector` FTS), `class-validator` + `class-transformer` (DTO validation), `@nestjs/config` with a Zod
-env schema, `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (photo objects),
+`tsvector` FTS), **`nestjs-zod` (`createZodDto` + its OWN `ZodValidationPipe`) is the ONE validation
+mechanism per service** — `class-validator` + `class-transformer` are still installed, but exactly **ONE**
+service file still imports them (`recipe-service/src/search/dto/search-recipes.query.dto.ts`; the "19 files"
+figure in older docs is a **mention** count, mostly JSDoc about migrating away). That one file is residue, not
+the pattern: do not propose `class-validator` for new code (ADR-0015 / GR-016). `@nestjs/config` with a Zod env
+schema, `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (photo objects),
 `@aws-sdk/client-sqs` (deletion + version-archive queues), `sharp` 0.34 (Lambda photo processor),
 `@sentry/aws-serverless`, `@aws-lambda-powertools/logger`.
 
@@ -130,6 +134,111 @@ ADR under `docs/architecture/decisions/` and confirm you are not reintroducing t
   not serve. Also: `createZodDto` classes carry NO `class-validator` metadata, so a service using them
   MUST bind `nestjs-zod`'s `ZodValidationPipe` — under Nest's own `ValidationPipe` such a DTO validates
   **nothing** while looking correctly wired.
+- **ADR-0015 — every input is parsed ONCE at the boundary against the service's OWN authored zod, and the
+  database schema is the FLOOR.** One mechanism per service (`createZodDto` + **`nestjs-zod`'s**
+  `ZodValidationPipe`), one `400` path naming the offending field. `@Body() body: unknown` is banned — it moves
+  the parse into the method body where it is optional by construction. **Non-HTTP ingress is in scope**: queue
+  and event consumers parse their payload before it becomes a job, and a webhook verifies the signature **and
+  then** validates the schema, because **a signature proves ORIGIN, not SHAPE**. Every input field writing a
+  **bounded column** is validated at least as strictly as that column can store — `servings: 9999999999`
+  passed validation and failed at the `INSERT`, a **500 that owed a 400** — but that floor is an **ASSERTION
+  between two independently authored artifacts, NEVER a derivation**: zod is never generated from drizzle and a
+  wire type never imports a storage type. And a floor is not a target — PostgreSQL `text()` is unbounded, so a
+  length limit on user-typed prose is a product decision with nothing to derive from. No request-derived value
+  may reach `sql.raw()`; a request supplies a validated enum key that maps to a closed allowlist of literals,
+  never a SQL fragment. ⛔ **Server-side RESPONSE validation is DEFERRED by owner decision — do NOT "complete"
+  it.** A **consumer** parsing what it received is required and is a different thing; do not conflate them.
+- **ADR-0016 — a notification is retained until the client ACKS it or 3 days pass, deduplicated by CANONICAL
+  PAYLOAD while pending, in ElastiCache Serverless for Valkey (feature 014).** Retention is `ack OR 72h,
+whichever first`, and **nothing refreshes the clock** — not a duplicate publish, not a delivery attempt.
+  Dedup uses **two indexes over one verdict**: a SHA-256 over the **RFC 8785 (JCS)** canonical JSON of
+  `{ schemaVersion, recipient, messageType, producer, payload }`, released on ack (so the same payload after a
+  consumption is a **NEW** notification — deliberate), plus a `(producer, idempotencyKey)` claim that
+  **survives** the ack to suppress transport redelivery. `occurredAt` is excluded on purpose (it changes on a
+  retry). On a duplicate: **drop it, return the ORIGINAL id, and change nothing about the original** — never
+  extend its TTL, or a retrying producer holds a notification pending forever. Ack is **batched, idempotent,
+  and per USER not per device**; an unknown/expired/other-user id returns success as "already settled" so the
+  endpoint is not an existence oracle. Canonicalization comes from a **maintained RFC 8785 library, not
+  hand-rolled**; array order is preserved, absent ≠ explicit `null`, strings are byte-exact (no Unicode
+  normalization), and a number that cannot survive an IEEE-754 round trip is **rejected** rather than silently
+  collapsed. ⛔ **Accepted residual risk, not an oversight:** ElastiCache durability is **opt-in and OFF by
+  default in both flavours**, so a node replacement can drop retained notifications the service already
+  accepted — the owner chose Redis knowing DynamoDB-with-TTL would be durable and cheaper. Mitigation is
+  synchronous ElastiCache durability if available on Serverless Valkey; escalation is MemoryDB or DynamoDB.
+  One cache **per stage** with a `pr-{N}:` key prefix — **not** one per PR.
+- **ADR-0017 — features 006, 007 and 009 land in `@kitchensink/recipe-service`; 010 lands in
+  `@kitchensink/identity-service` (its Stripe webhook in `@kitchensink/identity-webhooks`). NO new deployable
+  service is created.** A **schema package is per SERVICE, not per feature**, so meal plans, grocery lists and
+  nutrition plans all add `*.schema.ts` files to recipe-service and are copied into the existing
+  `@kitchensink/schema-recipe` — there is no `@kitchensink/schema-meal-planning`, `-grocery`, `-nutrition` or
+  `-billing`. Do **not** propose splitting them out: a new deployable here is an ECS service per stage **plus
+  ≈ $8.25/month per open PR**, on an account with a $300 budget that runs a `t4g.nano` NAT instance to save
+  $28/month — and it would put a network boundary through `meal_plan_entries → recipes`, where an in-database
+  `ON DELETE CASCADE` deletes 006's orphan handler and its `is_orphaned` column outright. `recipe-service`'s
+  name will understate what it holds, exactly as `food-service` is really the ingredient service; **do not
+  propose a rename or a split to make the name true.** The NestJS module (`MealPlansModule`,
+  `GroceryListsModule`, `NutritionPlansModule`) is the internal boundary and is where a future extraction would
+  cut. Recorded flip conditions: a DPIA requiring physical isolation of 009's GDPR Article 9 health data
+  (the likeliest), inbound retailer surface for 007, planner write volume for 006, marketplace payouts for 010.
+
+## Contract & validation conformance for NEW code (GR-017 – GR-020, ruled 2026-08-12)
+
+These are inline because a review bot cannot follow a link, and because they bind code that **does not exist
+yet** — the case prose in a feature spec has repeatedly failed to cover.
+
+- **A new deployable service owes all of this on its FIRST commit**, not "when it has clients": authored zod at
+  `src/**/*.schema.ts`; a `contract:generate` script; a committed `packages/schemas/<svc>` exporting zod +
+  `z.infer` types + `CONTRACT_HASH` + a barrel + a **derived** `openapi.yaml`; a `CONTRACT_HASH` assertion at
+  **boot**; **`nestjs-zod`'s** `ZodValidationPipe`; `z.strictObject()` on mutating bodies; a zod parse on every
+  queue/event/webhook/scheduled ingress; and unit + integration + e2e + k6 tests.
+- **A new client or app package owes:** **zero** declared wire shapes of any of our services (type-only counts),
+  wire types **and** zod imported from the schema package, **response validation on receipt**, outbound bodies
+  validated against the **callee's** zod, and a contract-skew guard. Divergent consumer shapes are
+  `Pick`/`Omit`/`Partial` derivations, never independent declarations.
+- ⚠️ **A conformance test that enumerates services or clients from a HARDCODED LIST is itself the defect** — it
+  cannot see the next package. Discover them from `packages/services/*/package.json`,
+  `packages/clients/*/package.json` or `git ls-files`, as
+  `packages/infra/global/__tests__/app-service-dependency.test.ts` and `scripts/contractOwners.mjs` already do.
+- **`z.strictObject()` is the portfolio default for every MUTATING request body.** Plain `z.object()` needs a
+  forward-compatibility reason documented at the schema, which in practice means a read surface. On a mutating
+  body a silently stripped unknown key is a `200` **plus a partial write the caller was told succeeded**.
+- **The storage floor is enforced by a per-service parity TEST**, in the service, which **may** import both the
+  drizzle schema and the zod — **a test is not a wire schema**, so the ban on the _production_ coupling stands
+  unweakened — enumerating bounded columns **derived from** the drizzle schema, with the field→column mapping
+  asserted complete **in both directions**.
+- **ONE rejection path per ingress: one code path, one shape, one `reason`, one counter, one alarm.** A
+  signature failure and a shape failure are **equally invalid** and must not be two code paths or two error
+  contracts. An **invalid payload is never retried** (a transient dependency failure is a different `reason` and
+  may). ⚠️ **For svix (Clerk) and Stripe, "not retried" means answering `2xx` — but ONLY on a SHAPE failure**:
+  they retry on **any** non-2xx (Stripe for 72 hours), and a body that cannot parse never will. Record the
+  rejection in the response body, in structured logs, in a per-`reason` counter, and **alarm** on it: **reject
+  the content, accept the delivery.**
+- ⛔ **But a SIGNATURE failure on that same endpoint answers NON-2xx, and this is incident-grounded.** Two causes,
+  both arguing against `2xx`: the caller may not be the real sender (on a public endpoint the signature is the
+  **only** trust boundary, so a `2xx` tells a forger the forgery landed), or the caller IS the real sender and
+  **our** signing secret is stale — a **transient, operator-fixable** condition where the sender's retry window
+  is the recovery mechanism. `2xx` there says "delivered" and discards every queued real event permanently behind
+  a green check. An earlier revision of
+  `packages/services/identity-webhooks/src/common/handler-pipeline.ts` did exactly that and dropped a real
+  `user.created`. So the **status comes from ONE complete `reason`→status lookup**
+  (`WEBHOOK_REJECTION_STATUS`: `shape → 200`, `signature → 401`), never a second branch — the question a status
+  answers is **"would a redelivery ever succeed?"**. Do **not** "simplify" the two onto one status; it breaks
+  something in either direction. None of this generalises to our own callers — an endpoint called by our own
+  services returns the `400`/`403`, and an ingress with no caller dead-letters once and alarms on DLQ depth.
+- ⛔ **A rejected event is NOT recorded as a row.** An invalid payload has no trustworthy id, and
+  `webhook_events.identity_id` is `text NOT NULL`, so "just record it" forces a sentinel. The log line, the
+  counter and the DLQ entry **are** the record.
+- **No identifier may EVER be a sentinel** — not `'unknown'`, `'none'`, `''`, `'n/a'` or `0` — anywhere it is
+  stored, wired, used as a map/cache key, used as a metrics dimension, or compared in a branch. An id is
+  **REQUIRED** wherever it is consumed; the sole exception is a **create/upsert**, where an absent id is
+  **generated** (ULID). An unresolvable id is a **rejection**, never a placeholder. A legitimately absent
+  relationship is `NULL` / `| null`, which is checkable; a magic string is not.
+- **Where a request asserts a principal TWICE — once by transport (a token `sub`, an EventBridge `source`) and
+  once in the payload — BOTH are required and a mismatch is a REJECTION.** The transport signal resolves through
+  a **committed, version-controlled** registry (not a table) to a **name**, the mapping is **injective and
+  asserted at boot**, and the payload-asserted value is **never** trusted on its own — its only permitted
+  outcomes are "agrees" and "rejected". Same lesson as PR #39 deleting the forgeable `x-authorizer-context`
+  header: a value the sender controls cannot authorise what the sender may do.
 
 ## Cross-platform rule (enforced)
 

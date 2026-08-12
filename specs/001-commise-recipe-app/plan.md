@@ -213,15 +213,25 @@ party's JSON. See 003 for the full statement.
 
 ### Status — IN PROGRESS, and 001's hand-written contract is not yet replaced
 
-- ✅ `packages/schemas/recipe` exists with `schemas.ts`, `types.ts`, `contract-hash.ts` and a barrel.
-  **Converged so far: the search / photos / ratings vertical only.**
-- ❌ **`openapi.yaml` has not been generated for recipe.** The package's `package.json` already declares the
-  `./openapi.yaml` export, so that export currently names a file that does not exist.
-- ❌ [`contracts/api.openapi.yaml`](./contracts/api.openapi.yaml) — 2810 hand-written lines that **57 source
-  files cite as their authority**, verified by nothing — is **superseded in principle** by recipe's generated
-  document per §15.2(6). The generated document does not exist yet, so the citations have **not** been
-  repointed and the file has not been deleted. Do not treat it as normative for a shape the service's zod
-  also describes: where they disagree, **the service's `*.schema.ts` wins.**
+> ⚠️ **Refreshed 2026-08-12. The previous three bullets were stale within a day of being written** — they said
+> recipe had converged "the search / photos / ratings vertical only", that `openapi.yaml` did not exist, and
+> that 57 source files cited the hand-written document. All three are corrected below, re-measured against the
+> tree. Two of the errors are the same error: a count taken from the **worktree** (including `.next/standalone/`
+> and `dist/`) instead of from **`git ls-files`**.
+
+- ✅ `packages/schemas/recipe` exists with `schemas.ts`, `types.ts`, `contract-hash.ts` and a barrel, and now
+  publishes **8** wire-schema files — `recipes`, `collections`, `ingredients`, `search`, `photos`, `ratings`,
+  `account`, `health`. The "search / photos / ratings vertical only" note is superseded.
+- ✅ **`openapi.yaml` HAS been generated for recipe** — `packages/schemas/recipe/openapi.yaml`, **4,945 lines,
+  34 paths**. The `./openapi.yaml` export now names a real file.
+- 🔄 [`contracts/api.openapi.yaml`](./contracts/api.openapi.yaml) — 2,827 lines (2,810 of body plus a 17-line
+  superseded-notice header), verified by nothing — is now **genuinely superseded**, not merely superseded in
+  principle: the generated document exists and covers **34 paths against this file's 32**. Citations, counted
+  over **`git ls-files` only**: **12 files under `packages/`**, 26 under `specs/`, 5 under `docs/` — **not the
+  "57 source files" previously claimed**, which counted build output. They have **not** been repointed and the
+  file has not been deleted, so two OpenAPI documents describe the recipe service and only one is verified.
+  Where they disagree, **the service's `*.schema.ts` wins.** ⚠️ This file's own header still says "the
+  replacement has NOT been generated yet" and is stale.
 
 ## Input validation — where the authored zod RUNS (GR-016)
 

@@ -1,17 +1,25 @@
-# ⚠️ SUPERSEDED IN PRINCIPLE — HAND-WRITTEN, VERIFIED BY NOTHING. NOT THE CONTRACT AUTHORITY.
+# ⛔ SUPERSEDED — HAND-WRITTEN, VERIFIED BY NOTHING. NOT THE CONTRACT AUTHORITY.
 #
 # Per GR-015 / docs/CODING_STANDARDS.md §15 / ADR-0014, the recipe service AUTHORS its wire contract as
 # zod in packages/services/recipe-service/src/**/*.schema.ts, and the normative document is the
 # openapi.yaml DERIVED into packages/schemas/recipe (@kitchensink/schema-recipe).
 #
-# These 2810 lines are hand-maintained and cited as authority by ~57 source files, while nothing verifies
-# them against the running service. Where this file and the service's *.schema.ts disagree, THE SERVICE'S
-# ZOD WINS.
+# These 2810 lines of body are hand-maintained and nothing verifies them against the running service.
+# Where this file and the service's *.schema.ts disagree, THE SERVICE'S ZOD WINS.
 #
-# STATUS (2026-08-11): the replacement has NOT been generated yet — recipe's openapi.yaml does not exist,
-# and these citations have NOT been repointed. So this file is still the only OpenAPI document for recipe,
-# and it is retained for that reason ONLY. Do not extend it with a new endpoint: author the zod in the
-# service instead. Two documents both claiming to be normative is the state §15 exists to end.
+# STATUS (2026-08-12) — CORRECTS THE 2026-08-11 NOTE THIS REPLACES, WHICH IS NOW WRONG TWICE OVER:
+#
+#   1. The replacement EXISTS. packages/schemas/recipe/openapi.yaml is generated, 4,945 lines, 34 paths,
+#      against this file's 32. It is no longer "superseded in principle" — it is superseded.
+#   2. The old note said "~57 source files" cite this document. That count included BUILD OUTPUT
+#      (.next/standalone/, dist/). Counted over `git ls-files` only: 12 files under packages/, 26 under
+#      specs/, 5 under docs/. Count citations with `git ls-files | xargs grep -l`, not a worktree glob.
+#
+# The citations have NOT been repointed, which is the only reason this file is still here. Two documents
+# both claiming to be normative is the state §15 exists to end.
+#
+# ⛔ DO NOT extend this file with a new endpoint, and do not "fix" a disagreement by editing it. Author the
+#    zod in the service and regenerate; `npm run contract:verify` is what makes the generated one true.
 #
 # See: docs/architecture/decisions/0014-service-owned-api-contracts.md
 #      specs/001-commise-recipe-app/plan.md → "API Contracts — ownership and drift (GR-015)"

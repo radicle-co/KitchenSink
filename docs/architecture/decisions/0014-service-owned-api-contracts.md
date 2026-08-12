@@ -189,20 +189,32 @@ under time pressure. Authoring lives beside the controller it serves.
 
 **Known-incomplete work (as of 2026-08-11) — do not read this ADR as a description of a finished state.**
 
-- `@kitchensink/schema-recipe` exists at `packages/schemas/recipe` with `schemas.ts`, `types.ts`,
-  `contract-hash.ts` and a barrel. **Converged so far: the search/photos/ratings vertical only.**
-- **Food and identity are being converged now.** Neither has a schema package yet.
-- **`openapi.yaml` does not exist for any service yet.** `@kitchensink/schema-recipe`'s `package.json`
-  already declares the `./openapi.yaml` export, so the export currently points at a file that has not been
-  generated.
-- `specs/001-commise-recipe-app/contracts/api.openapi.yaml` — 2810 hand-written lines that **57 source
-  files cite as their authority**, verified by nothing — is **superseded** by recipe's generated document
-  once it exists. Citations get repointed; the old file gets marked superseded.
+> ⚠️ **Refreshed 2026-08-12 — the four bullets below were written on 2026-08-11 and THREE of them were stale
+> within a day.** Keeping the original text visible, because the pattern matters more than the numbers: a
+> "known-incomplete" list is the part of an ADR most likely to rot, and two of these errors were the same error —
+> a count taken from the **worktree** (including `.next/standalone/` and `dist/`) rather than from
+> **`git ls-files`**.
+
+- ✅ **Three schema packages now exist**, each with `schemas.ts`, `types.ts`, `contract-hash.ts`, a barrel and a
+  generated `openapi.yaml`: `packages/schemas/recipe` (**8** published wire-schema files, `openapi.yaml` 4,945
+  lines / 34 paths), `packages/schemas/food` (5, 922 / 12), `packages/schemas/identity` (5, 716 / 10).
+  ~~"Converged so far: the search/photos/ratings vertical only"~~ and ~~"Food and identity … neither has a schema
+  package yet"~~ are both superseded.
+- ✅ **`openapi.yaml` now exists for all three services.** ~~"does not exist for any service yet"~~ is superseded;
+  `@kitchensink/schema-recipe`'s `./openapi.yaml` export names a real file.
+- 🔄 `specs/001-commise-recipe-app/contracts/api.openapi.yaml` — 2,827 lines (2,810 of body plus a superseded
+  header), verified by nothing — is now **genuinely superseded**: the generated document exists and covers **34
+  paths against its 32**. ⚠️ The ~~"57 source files cite as their authority"~~ figure was **wrong**: counted over
+  `git ls-files` only, it is **12 files under `packages/`**, 26 under `specs/`, 5 under `docs/`. The citations
+  have **not** been repointed, so two documents still describe the recipe service.
+- ⚠️ **`@kitchensink/schema-notifications` (014) does not exist**, and neither does any 005 / 011 / 012 / 013
+  schema package. Those features are specs.
 - **A `CLAUDE.md` pointer is still owed.** Per this directory's README, an ADR that governs code needs an
   always-in-context tripwire. `docs/CODING_STANDARDS.md` §15 is the normative rule and is already reachable
-  from the engineering-quality-bar mandate, but the root-`CLAUDE.md` "looks wrong, isn't" pointer and the
-  co-located `// ⚠️ DELIBERATE` guard comments at the generator and at `packages/clients/usda/src/schemas.ts`
-  have **not** been added.
+  from the engineering-quality-bar mandate, and **`AGENTS.md` now carries the ruling INLINE** (added 2026-08-12,
+  alongside ADR-0015/0016/0017), which is what the review bots ingest. Still missing: the root-`CLAUDE.md`
+  "looks wrong, isn't" pointer, and the co-located `// ⚠️ DELIBERATE` guard comments at the generator and at
+  `packages/clients/usda/src/schemas.ts`.
 
 **Where this ADR and an existing hand-written client type conflict, this ADR wins — the client is the one
 that changes.**

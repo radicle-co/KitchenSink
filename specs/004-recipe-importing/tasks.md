@@ -54,8 +54,8 @@
 ## Dependency graph
 
 ```
-T-001 contract ──┬─► T-002 schema/migrations ──► T-003 error codes
-                 └─► T-004 shared types (recipe-core)
+T-001 zod contract + schema-recipe regen ──┬─► T-002 schema/migrations ──► T-003 error codes
+                                           └─► T-004 shared DOMAIN types (recipe-core; wire types stay in schema-recipe)
 T-004 ──► T-005 CanonicalSourceUrl ──┐
 T-004 ──► T-006 ProvenancePolicy     ├─► T-011 ImportsService (facade)
 T-004 ──► T-007 normalizers          │
@@ -79,28 +79,74 @@ ALL ──► T-025 e2e · T-026 k6 · T-027 accuracy corpus
 
 ## Phase 1 — Contract and foundations
 
-### T-001 · OpenAPI contract additions
+### T-001 · Author the import wire contract as zod in the service, and regenerate `@kitchensink/schema-recipe`
 
-**Priority** P1 · **Effort** M · **Depends on** — · **Implements** REQ-IF-006
+**Priority** P1 · **Effort** M · **Depends on** — · **Implements** REQ-IF-006, GR-015 §15-a, GR-016 §16-a, GR-017 §17-a.1/§17-a.3/§17-a.5/§17-c
 
 **Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-IF-006-A`
 
-Contract-first: the contract is written **before** any handler.
+Contract-first: the contract is authored **before** any handler.
 
-> **Contract location.** The recipe service has ONE OpenAPI document, and it lives at
-> `specs/001-commise-recipe-app/contracts/api.openapi.yaml` (~120 KB) because 001 created it; service code
-> refers to it relatively as `contracts/api.openapi.yaml`. 004 **extends that same document** rather than
-> starting a second one — one service, one contract. Do not create
-> `specs/004-recipe-importing/contracts/api.openapi.yaml`.
+> ⛔ **REPOINTED 2026-08-12 — the target document changed, and the old one is superseded.** This task previously
+> said "All 12 import endpoints added to `specs/001-commise-recipe-app/contracts/api.openapi.yaml`", extending a
+> **2,827-line hand-written** document that is **verified by nothing**. The recipe service's **derived** document
+> now exists at **`packages/schemas/recipe/openapi.yaml`** (**4,945 lines, 34 paths** — against the hand-written
+> file's 32 — measured 2026-08-12), generated from the zod the service authors.
+>
+> **⛔ Do NOT extend the hand-written document.** Per `docs/CODING_STANDARDS.md` §15.2(6) and GR-015 §15-a.7 there
+> is **one contract document per service and it REPLACES its hand-written predecessor**; adding 12 endpoints to
+> the superseded file would make the problem strictly worse, because two artifacts would then both claim to be
+> normative and only one is verified. Where the two disagree, **the service's zod wins**. Marking the old file
+> superseded and repointing its citations is **001's T-186/T-187**.
+>
+> **The "one service, one contract" instinct was right; the artifact was wrong.** 004 still does not create
+> `specs/004-recipe-importing/contracts/api.openapi.yaml`, and still adds to the **existing**
+> `@kitchensink/schema-recipe` rather than forking a new schema package — a schema package is per **SERVICE**, not
+> per feature.
 
-- [ ] All 12 import endpoints added to `specs/001-commise-recipe-app/contracts/api.openapi.yaml`
+- [ ] All 12 import endpoints authored as zod at `packages/services/recipe-service/src/imports/imports.schema.ts`,
+      **beside the controller they serve** (§15.2) — never in a `dto/` directory
 - [ ] Request/response schemas: `ImportDraft`, `ImportJob`, `ExtractedRecipe`, `ParsedIngredient`, `PaywalledDomain`
-- [ ] `Idempotency-Key` documented as required on `/import/{url,instagram,photo}`
+- [ ] Every `*.schema.ts` imports **only `zod` and other `*.schema.ts` files** (§15.2's load-bearing constraint) —
+      no DAL type, no drizzle schema, no Nest symbol, or the copied package breaks and drags the server graph into
+      every client
+- [ ] Routes consume that zod through **`createZodDto`** under **`nestjs-zod`'s** `ZodValidationPipe` — ⚠️ never
+      Nest's own `ValidationPipe`, under which a `createZodDto` DTO **validates nothing while looking correctly
+      wired** (this already bit identity's `PATCH /users/me`). ⛔ **No `class-validator` DTO** is added: recipe-service
+      is mid-removal of 19 such files (001 T-188), and a second mechanism is a GR-016 §16-a.2 violation
+- [ ] **Every mutating body uses `z.strictObject()`** (GR-017 §17-c) — `z.object()` strips unknown keys silently,
+      so a misspelled field on an import request yields a `200` and a partial write the caller was told succeeded
+- [ ] `Idempotency-Key` required on `/api/v1/import/{url,instagram,photo}` — modelled in the schema (a required
+      header, parsed, not merely documented) so it cannot be omitted by a handler
 - [ ] Every error response references the shipped `ErrorResponse` envelope, with the new codes enumerated
 - [ ] Status codes match `plan.md §3` exactly (422 for policy/extraction failures, not 400)
-- [ ] Contract lints clean; a schema round-trip test asserts the documented shapes match the DTOs
+- [ ] `npm run contract:verify` regenerates `packages/schemas/recipe` — `schemas.ts`, `types.ts` (`z.infer` only),
+      `contract-hash.ts`, barrel, and the **derived** `openapi.yaml` — with **no diff**; nothing in it is hand-edited
+- [ ] `packages/services/recipe-service/src/__tests__/build-inputs.test.ts` covers the new schema file, so turbo's
+      `$TURBO_ROOT$` **`inputs`** glob rebuilds the copy on a content change; the `CONTRACT_HASH` boot assertion
+      still holds
 
-**Files** `specs/001-commise-recipe-app/contracts/api.openapi.yaml`
+⛔ **Three things that look wrong and are not.** The schema package is a literal file **COPY**, not a
+transformation — zod schemas are runtime values, so they cannot be derived from themselves. `openapi.yaml` is
+**DERIVED** output for `oasdiff`/docs/integrators and is **NEVER a codegen input** — deriving types through JSON
+Schema loses `readonly`, branded and template-literal types and flattens discriminated unions, which matters here
+because `ImportChannel` **is** a discriminated union (T-004). And the copy is wired with `$TURBO_ROOT$` **`inputs`**,
+**never `dependsOn`** — that edge closes the cycle `client → schema → service → client`, because `recipe-service`
+devDepends on its own client for the contract tier.
+
+⛔ **Do NOT add server-side response validation.** GR-016 §16-g **defers** a producing service parsing what it
+**emits** — an owner decision, not an unfinished task. Consumer-side receipt validation (T-020) is the required
+half (GR-017 §17-f).
+
+- [ ] Contract lints clean; a schema round-trip test asserts the generated package's types match the authored zod
+- [ ] **Unit tests**: each schema accepts a valid fixture and rejects every malformed variant — wrong-typed field,
+      missing field, unknown key, absent `Idempotency-Key`
+- [ ] **Integration test**: a known-bad body posted to a **real** import route on a booted app returns `400`
+      naming the offending field (modelled on `packages/services/identity/tests/app-validation.test.ts`) — this is
+      the **only** thing that can observe the wrong-pipe failure; plus regenerate-and-diff clean
+
+**Files** `packages/services/recipe-service/src/imports/imports.schema.ts`, `packages/schemas/recipe/*` (generated),
+`packages/services/recipe-service/src/imports/__tests__/`
 
 ---
 
@@ -149,10 +195,23 @@ Contract-first: the contract is written **before** any handler.
 **Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-034-A`
 
 - [ ] `importTypes.ts`, `importDraft.ts` in `@kitchensink/recipe-core` (camelCase — §1b)
-- [ ] `ImportChannel`, `ExtractedRecipe`, `ParsedIngredient`, `NormalizedDraft`, `ImportDraft`, `ImportJobState`
-- [ ] `ImportChannel` is a discriminated union enabling exhaustive switching (Visitor intent — no class hierarchy)
+- [ ] `ImportChannel`, `ImportJobState` and the **domain** vocabulary live here (GR-007 axis)
+- [ ] ⛔ **`ExtractedRecipe`, `ParsedIngredient`, `NormalizedDraft` and `ImportDraft` are WIRE shapes and belong to
+      `@kitchensink/schema-recipe`** (T-001), not to `recipe-core`. GR-007 governs **domain** types; GR-015 governs
+      **wire** types — the endpoint envelopes — and these four are request/response bodies of the import endpoints.
+      Declaring them here as well would create the two-independent-representations drift GR-015 exists to prevent.
+      A schema package **reuses `recipe-core` `import type`** and never re-declares its types; the reverse is
+      equally true
+- [ ] `ImportChannel` is a discriminated union enabling exhaustive switching (Visitor intent — no class hierarchy).
+      ⚠️ This is also why `openapi.yaml` must never be a codegen input: JSON Schema flattens a discriminated union
+      without explicit `oneOf`/`discriminator`, and a generated schema that silently flattens it is a contract that
+      lies
 - [ ] JSDoc on every export; zero `any`
 - [ ] **Unit tests** assert exhaustiveness: adding a channel fails compilation at every switch
+- [ ] **Unit tests** assert each `recipe-core` domain type used by a wire schema is consumed `import type` only, so
+      no runtime dependency leaks into the copied schema package
+- [ ] **Integration test**: a `git ls-files`-based assertion that no wire shape of the import endpoints is declared
+      outside `@kitchensink/schema-recipe`
 
 **Files** `packages/shared/recipe-core/src/{importTypes,importDraft}.ts`, `src/__tests__/`
 
@@ -495,8 +554,24 @@ Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` beha
 - [ ] Extracted text flows through the **same** normalize → classify → draft pipeline (`imported_physical`, private)
 - [ ] Source image deleted on confirm, discard, or expiry — whichever is first (REQ-026); S3 lifecycle rule as backstop
 - [ ] OCR text is **never logged** (REQ-NF-012)
-- [ ] **Unit tests** with a faked provider: clear print, handwriting, low confidence, empty result, timeout
-- [ ] **Integration tests** against LocalStack S3 asserting the object is deleted on every terminal path
+- [ ] ⛔ **The OCR provider is the §15-d OPPOSITE case — boundary-validate it, and NEVER "converge" it.** Textract
+      (and anything swapped in behind `ocr-provider.port.ts`) is an API the platform does **not** serve: there is no
+      service of ours to own its types and its contract can change without telling us. `textract.adapter.ts`
+      **validates the raw upstream shape at the boundary with its own zod** the moment a body arrives — blocks,
+      geometry, per-token confidences — **MAY declare its own types**, and **gets NO OpenAPI document**. Rules
+      17-b.1–17-b.5 do **not** apply to it, and Textract's shapes **must not enter `@kitchensink/schema-recipe`**;
+      our `ExtractedRecipe` **deliberately differs**, and that difference is the normalization, not drift
+- [ ] ⚠️ **OCR output is INPUT to us** and its boundary parse is **required** by GR-016, not merely permitted by
+      §15-d: the photo is user-supplied, and the confidence value drives the low-confidence branch. **An absent
+      confidence must REJECT, never default to `0`** — a sentinel confidence silently passes the quality gate
+- [ ] ⛔ **Deleting that boundary schema in this rule's name DELETES a validation boundary — a security regression,
+      not a cleanup.** `packages/clients/usda/src/schemas.ts` is the reference implementation and must **NEVER** be
+      touched under GR-015 §15-b
+- [ ] **Unit tests** with a faked provider: clear print, handwriting, low confidence, empty result, timeout; plus the
+      boundary schema rejecting a renamed, missing, wrong-typed and null-valued upstream field, and the normalized
+      output asserted **independent** of the raw provider shape
+- [ ] **Integration tests** against LocalStack S3 asserting the object is deleted on every terminal path; plus
+      recorded real provider payloads parsing clean and a mutated one being rejected at the boundary
 - [ ] **e2e** `import-ocr.e2e.test.ts`
 
 **Files** `src/imports/ocr/*.ts`, tests alongside, `tests/e2e/import-ocr.e2e.test.ts`
@@ -514,8 +589,19 @@ Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` beha
       `GET /import/sources`, and neither UI offers it — no dead affordance
 - [ ] `429` classified explicitly as throttled, not a generic failure (HAZ-010); response shape validated (HAZ-012)
 - [ ] No caption / no recipe text ⇒ `422 IMPORT_NO_CAPTION`
+- [ ] ⛔ **Instagram/Meta oEmbed is the §15-d OPPOSITE case — boundary-validate it, and NEVER "converge" it.** It is
+      an API the platform does **not** serve. The adapter **validates the raw upstream oEmbed shape at the boundary
+      with its own zod** the moment a body arrives, **MAY declare its own types**, and **gets NO OpenAPI document**.
+      Rules 17-b.1–17-b.5 do **not** apply to it, and Meta's shapes **must not enter `@kitchensink/schema-recipe`**.
+      HAZ-012's "response shape validated" **is** this obligation — it is required by GR-016, not optional hardening,
+      because the caption is untrusted third-party text that becomes a user's recipe
+- [ ] ⛔ **Deleting that boundary schema in GR-015 §15-b's name is a security regression, not a cleanup.**
+      `packages/clients/usda/src/schemas.ts` is the reference implementation and must **NEVER** be touched for it
 - [ ] **Developed and tested against a contract fake** — CI must be green without a Meta credential
-- [ ] **Unit + integration tests** via the fake; a contract test pins the expected oEmbed response shape
+- [ ] **Unit + integration tests** via the fake; a contract test pins the expected oEmbed response shape, and the
+      boundary schema is asserted to reject a renamed, missing, wrong-typed and null-valued upstream field. ⚠️ The
+      fake must be **generated from the same zod** the adapter validates against, or the fake and the parser can
+      agree with each other while both disagree with Meta
 - [ ] **e2e** runs with the flag on against the fake, and with the flag off asserting `404`
 
 **Files** `src/imports/instagram/*.ts`, tests alongside
@@ -532,9 +618,26 @@ Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` beha
 
 - [ ] `importQueries.ts` / `importHooks.ts` added to `@kitchensink/recipe-service-client`
 - [ ] New error codes discriminable via `is*` guards; job polling with bounded backoff
-- [ ] **Unit + integration tests** (the client package already has an `__integration__` suite)
+- [ ] ⛔ **The client declares NO wire shape of its own** (GR-015 §15-b.2, GR-017 §17-b.1). It imports wire **types
+      and runtime zod** from `@kitchensink/schema-recipe`; `types.ts` keeps only genuinely client-side types — base
+      URL and fetch config, request options, its own error shapes — **including type-only** declarations
+- [ ] **Every response is parsed with that zod at the moment the body arrives** (GR-016 §16-c.3, GR-017 §17-b.3).
+      ⚠️ **The `ImportJob` poll response is the load-bearing case**: a drifted `state` field read without parsing
+      either polls forever or reports success on a job that failed
+- [ ] **Every outbound body is validated against the schema-package zod before the call** (§16-c.2), so a malformed
+      import request fails in the caller with a usable stack rather than as a remote `400`/`422`
+- [ ] A parse failure is a typed client error naming the field — never a silent cast
+- [ ] The existing `packages/clients/recipe-service/src/contractSkew.ts` guard covers these endpoints once the hash
+      changes — **extend `src/__tests__/contractSkew.test.ts`; do NOT add a second guard**
+- [ ] ⛔ **Do NOT add server-side response validation** — GR-016 §16-g defers a producing service parsing what it
+      **emits**. This is the **consumer** parsing what it **received** (GR-017 §17-f); only this half is required
+- [ ] **Unit tests**: each method's happy path and every mapped error status; a response with a missing, renamed and
+      wrong-typed field each raise the typed parse error; an invalid outbound body is rejected **before** any fetch
+- [ ] **Integration tests** (the client package already has an `__integration__` suite): a live import response
+      parses clean, and a hand-skewed fixture does not
 
-**Files** `packages/clients/recipe-service/src/{importQueries,importHooks,client,types,errors}.ts`
+**Files** `packages/clients/recipe-service/src/{importQueries,importHooks,client,types,errors,contractSkew}.ts`,
+`packages/clients/recipe-service/src/__tests__/contractSkew.test.ts`
 
 ---
 
@@ -688,35 +791,35 @@ SC-002 is unverifiable without this; the number is meaningless until the corpus 
 
 ## Task summary
 
-| ID    | Title                     | Pri  | Effort | Depends      | Web+mobile paired |
-| ----- | ------------------------- | ---- | ------ | ------------ | ----------------- |
-| T-001 | OpenAPI contract          | P1   | M      | —            | n/a               |
-| T-002 | Schema + migrations       | P1   | M      | T-001        | n/a               |
-| T-003 | Import error codes        | P1   | S      | T-002        | n/a               |
-| T-004 | Shared import contracts   | P1   | S      | T-001        | n/a               |
-| T-005 | CanonicalSourceUrl        | P1   | S      | T-004        | n/a               |
-| T-006 | ProvenancePolicy          | P1   | S      | T-004        | n/a               |
-| T-007 | Normalizers               | P1   | L      | T-004        | n/a               |
-| T-008 | Extractor chain           | P1   | L      | T-004        | n/a               |
-| T-009 | Blocklist store           | P1   | M      | T-002        | n/a               |
-| T-010 | SourceFetcher + SSRF ⚠️   | P1   | L      | T-005        | n/a               |
-| T-011 | ImportsService facade     | P1   | M      | T-005..010   | n/a               |
-| T-012 | Import drafts             | P1   | M      | T-011        | n/a               |
-| T-013 | Jobs + worker             | P1   | M      | T-012        | n/a               |
-| T-014 | URL channel               | P1   | M      | T-013        | n/a               |
-| T-015 | File channel              | P1   | M      | T-011        | n/a               |
-| T-016 | Confirmation bridge       | P1   | M      | T-012        | n/a               |
-| T-017 | Admin blocklist endpoints | P1   | S      | T-009        | n/a               |
-| T-018 | OCR channel               | P1   | L      | T-013        | n/a               |
-| T-019 | Instagram channel (gated) | P1\* | M      | T-013        | n/a               |
-| T-020 | Typed client              | P1   | M      | T-014, T-016 | n/a               |
-| T-021 | Import entry UI           | P1   | L      | T-020        | ✅ yes            |
-| T-022 | Draft review UI           | P1   | L      | T-021        | ✅ yes            |
-| T-023 | Attribution display       | P1   | S      | T-020        | ✅ yes            |
-| T-024 | Error-state UI            | P1   | M      | T-021, T-022 | ✅ yes            |
-| T-025 | e2e suite                 | P1   | M      | T-014..024   | ✅ both           |
-| T-026 | k6 load + soak            | P1   | M      | T-025        | n/a               |
-| T-027 | SC-002 accuracy corpus    | P1   | M      | T-008        | n/a               |
+| ID    | Title                            | Pri  | Effort | Depends      | Web+mobile paired |
+| ----- | -------------------------------- | ---- | ------ | ------------ | ----------------- |
+| T-001 | Wire zod + `schema-recipe` regen | P1   | M      | —            | n/a               |
+| T-002 | Schema + migrations              | P1   | M      | T-001        | n/a               |
+| T-003 | Import error codes               | P1   | S      | T-002        | n/a               |
+| T-004 | Shared import contracts          | P1   | S      | T-001        | n/a               |
+| T-005 | CanonicalSourceUrl               | P1   | S      | T-004        | n/a               |
+| T-006 | ProvenancePolicy                 | P1   | S      | T-004        | n/a               |
+| T-007 | Normalizers                      | P1   | L      | T-004        | n/a               |
+| T-008 | Extractor chain                  | P1   | L      | T-004        | n/a               |
+| T-009 | Blocklist store                  | P1   | M      | T-002        | n/a               |
+| T-010 | SourceFetcher + SSRF ⚠️          | P1   | L      | T-005        | n/a               |
+| T-011 | ImportsService facade            | P1   | M      | T-005..010   | n/a               |
+| T-012 | Import drafts                    | P1   | M      | T-011        | n/a               |
+| T-013 | Jobs + worker                    | P1   | M      | T-012        | n/a               |
+| T-014 | URL channel                      | P1   | M      | T-013        | n/a               |
+| T-015 | File channel                     | P1   | M      | T-011        | n/a               |
+| T-016 | Confirmation bridge              | P1   | M      | T-012        | n/a               |
+| T-017 | Admin blocklist endpoints        | P1   | S      | T-009        | n/a               |
+| T-018 | OCR channel                      | P1   | L      | T-013        | n/a               |
+| T-019 | Instagram channel (gated)        | P1\* | M      | T-013        | n/a               |
+| T-020 | Typed client                     | P1   | M      | T-014, T-016 | n/a               |
+| T-021 | Import entry UI                  | P1   | L      | T-020        | ✅ yes            |
+| T-022 | Draft review UI                  | P1   | L      | T-021        | ✅ yes            |
+| T-023 | Attribution display              | P1   | S      | T-020        | ✅ yes            |
+| T-024 | Error-state UI                   | P1   | M      | T-021, T-022 | ✅ yes            |
+| T-025 | e2e suite                        | P1   | M      | T-014..024   | ✅ both           |
+| T-026 | k6 load + soak                   | P1   | M      | T-025        | n/a               |
+| T-027 | SC-002 accuracy corpus           | P1   | M      | T-008        | n/a               |
 
 `P1*` = gated on the external Meta credential (D-002); ships disabled, does not block release.
 

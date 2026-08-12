@@ -7,15 +7,15 @@
 
 ## Dependencies
 
-| Spec                                                            | Relationship                                                                         |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Spec                                                        | Relationship                                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — meal plans assign Recipe entities from the user's collection          |
-| [003-usda-food-data](../003-usda-food-data/spec.md)             | **Required** — nutritional summaries depend on food data                             |
-| [002-user-auth](../002-user-auth/spec.md)           | **Required** — all meal planning requires authentication                             |
-| [005-ai-integration](../005-ai-integration/spec.md)             | **Referenced** — AI meal suggestions and auto-generation use AI provider config      |
-| [007-grocery-lists](../007-grocery-lists/spec.md)               | **Downstream** — grocery lists are generated from meal plans                         |
-| [009-nutrition-planning](../009-nutrition-planning/spec.md)     | **Downstream** — nutrition plans link to meal plans for compliance                   |
-| [010-subscriptions](../010-subscriptions/spec.md)               | **Referenced** — AI suggestions, auto-generation, and waste optimization are premium |
+| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — nutritional summaries depend on food data                             |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all meal planning requires authentication                             |
+| [005-ai-integration](../005-ai-integration/spec.md)         | **Referenced** — AI meal suggestions and auto-generation use AI provider config      |
+| [007-grocery-lists](../007-grocery-lists/spec.md)           | **Downstream** — grocery lists are generated from meal plans                         |
+| [009-nutrition-planning](../009-nutrition-planning/spec.md) | **Downstream** — nutrition plans link to meal plans for compliance                   |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — AI suggestions, auto-generation, and waste optimization are premium |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -64,6 +64,113 @@ A user creates a meal plan for a configurable time period (e.g., 1 week, 2 weeks
 ### Key Entities
 
 - **Meal Plan**: A collection of meal slots organized by date and meal type (breakfast, lunch, dinner, snack). Spans a configurable date range. Can be linked to a nutrition plan. _(See [009-nutrition-planning](../009-nutrition-planning/spec.md))_
+
+## API Contract & Input Validation (GR-015 / GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15 / §15.4 / §15.5](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md) ·
+[ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md). Full
+bindings: [`plan.md` §3.0](./plan.md#30-contract-ownership-and-drift-gr-015) and
+[`plan.md` §3.0a](./plan.md#30a-input-validation-gr-016), which this section summarises and must not
+contradict. **This section applies existing portfolio rules and mints NO new FR** (GR-003). GR-015 decides who
+**authors** the contract; GR-016 decides where that zod **runs**.
+
+### Contract ownership (GR-015)
+
+| Role                                        | Binding for 006                                                                               |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)        | `@kitchensink/recipe-service` — `packages/services/recipe-service/src/meal-plans/*.schema.ts` |
+| Schema package (**generated**, committed)   | `@kitchensink/schema-recipe` — `packages/schemas/recipe`, extended, **never hand-edited**     |
+| Consuming client                            | `@kitchensink/recipe-service-client` — `packages/clients/recipe-service`                      |
+| Consuming apps / feature packages           | `@commise/web`, `@commise/mobile`, and a `packages/apps/commise/features/*` package           |
+| Domain types (a **different** axis, GR-007) | `@kitchensink/recipe-core` — reused `import type`, never re-declared in the schema package    |
+
+✅ **Ownership is decided, not TBD** (ADR-0017, 2026-08-12): 006's paths are **`/api/v1/meal-plans/*`** and they
+land in the existing recipe service. **No new deployable is created**, and a **schema package is per SERVICE,
+not per feature** — so there is no `@kitchensink/schema-meal-planning`. Adopting the recipe service also means
+adopting its prefix, which closes 006's bare-`/v1/*` GR-002 holdout.
+
+**The service MUST** author every meal-plan, entry, nutrition-summary and suggestion request/response shape as
+**zod in the service** at `src/meal-plans/*.schema.ts`, **beside the controller it serves**; validate its own
+requests with **that same zod**; and keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts`
+files**. `@kitchensink/schema-recipe` exports the **zod**, the **`z.infer` types**, a **`CONTRACT_HASH`**, a
+**barrel**, and a **DERIVED `openapi.yaml`**.
+
+⛔ **Three properties of that package that look wrong and are not** — do not "correct" them:
+
+- The schema package is a literal file **COPY**, not a transformation. Zod schemas are **runtime values**, so
+  they cannot be derived from themselves, and every package exports raw `./src/*.ts` — there is no
+  bundle-into-`dist` path to derive through.
+- Turbo wires the copy with `$TURBO_ROOT$` **`inputs`**, **NOT** `dependsOn`. That edge is what closes the cycle
+  `client → schema → service → client`, and ordering was never the requirement, because the generated files are
+  **committed**.
+- `openapi.yaml` is **DERIVED OUTPUT** for `oasdiff`, docs and external integrators. It is **NEVER a codegen
+  input**: through JSON Schema you lose `readonly`, branded and template-literal types, and discriminated unions
+  flatten.
+
+**The CLIENT's obligation — separately mandatory.** Mandating only the service half is exactly how the client
+half got skipped portfolio-wide (276 + 144 lines of independently declared client wire types, agreeing with
+nothing, survived behind green builds).
+
+- **No meal-plan wire shape is declared anywhere outside the schema package** — including **type-only**
+  declarations, and including `packages/apps/**` feature packages (GR-015 §15-b.4).
+- Both the **type and the runtime zod** are imported from `@kitchensink/schema-recipe`.
+- A genuinely divergent consumer shape — the calendar grid's per-slot view model, a drag-payload model — is
+  **DERIVED** with `Pick` / `Omit` / `Partial`, never independently declared. Reference:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **006 is also a CLIENT of other services** and is bound identically there: recipe reads via
+  `@kitchensink/recipe-service-client` → `@kitchensink/schema-recipe`, nutrition via
+  `@kitchensink/food-service-client` → `@kitchensink/schema-food`, AI suggestions via 005. 006 declares no wire
+  type belonging to 001, 003, 005, 007 or 009.
+- ⚠️ **CLIENT WORK IS ITS OWN DELIVERABLE, with its own tasks** (GR-017 §17-e.12): the schema-package additions,
+  the typed client methods, **response validation on receipt**, and the **contract-skew guard**. "The calendar UI
+  will add the type" is a **contract fork, not a task** — and measured 2026-08-12, not one `tasks.md` in the
+  portfolio carried these tasks while nine `plan.md` files stated the obligation in prose.
+
+**Drift gates** — inherited from GR-015 §15-c, all three, not reinvented here: the turbo `inputs` rebuild, the
+**regenerate-and-diff CI gate**, and the **`CONTRACT_HASH` boot assertion** (the only layer that catches a
+deployed service running ahead of a released mobile binary).
+
+⚠️ **Third-party APIs (GR-015 §15-d) — forward-looking for 006.** 006 consumes **no** third-party API directly:
+USDA reaches it **transitively** through the food service, and the AI provider sits behind 005. If 006 ever calls
+an external API itself, that client is the **OPPOSITE** case — it **validates the raw upstream shape at the
+boundary with its own zod**, **MAY declare its own types**, and gets **NO** OpenAPI document.
+`packages/clients/usda` is the reference implementation and must never be "converged"; deleting a boundary schema
+in the name of this section removes a validation boundary rather than tidying one.
+
+### Input validation — where that zod RUNS (GR-016)
+
+- **One mechanism, one `400`.** Every input above — body, path params (`{id}`, `{entryId}`), query params — is
+  parsed by the recipe service's own authored zod via `createZodDto` plus **`nestjs-zod`'s**
+  `ZodValidationPipe`. ⚠️ Under Nest's **OWN** `ValidationPipe` a `createZodDto` DTO validates **NOTHING while
+  looking correctly wired** — the schema is present, the DTO is referenced, the route reads as validated, and no
+  input is checked. It already bit identity's `PATCH /users/me`, and **the only way to observe it is a test that
+  posts a known-bad body to a real route and asserts the `400`**.
+- **`z.strictObject()` for every mutating body** (GR-017 §17-c, ruled 2026-08-12). Plain `z.object()` needs a
+  documented forward-compatibility reason at the schema, which in practice means a **read** surface. On
+  `PUT /api/v1/meal-plans/{id}` a silently stripped unknown key is a `200` for an edit that did not happen.
+- **Requests are validated in the service; responses are validated ON RECEIPT by the consumer.** ⛔ Server-side
+  **response** validation is **DEFERRED by owner decision** (GR-016 §16-g) and **MUST NOT be "completed"** — a
+  contributor who adds an emission-side parse is undoing a decision, not closing a gap.
+- **⛔ The storage floor — an ASSERTION, never a derivation.** `meal_plan_entries.servings` is `int4`, ceiling
+  **2,147,483,647**: this is the live class of defect that made `servings: 9999999999` **a 500 that owed a 400**
+  in the recipe service. `plan_type` and `meal_type` are **enum-by-comment `TEXT`**, so the column enforces
+  nothing and the domain must be written into the zod. No zod is generated from the storage schema and **no
+  storage type enters a wire schema**. **A floor is not a target**: `meal_plans.name` is unbounded `text()` —
+  PostgreSQL imposes no limit — so a length cap on user prose is a **product decision 006 owns**. Enforcement is
+  the per-service parity test specified in GR-017 §17-d, whose field→column mapping is asserted complete **in
+  both directions**.
+- **Non-HTTP ingress.** 006 owns **no queue, event or webhook CONSUMER**. Its SQS use for the 005 AI call is
+  **outbound / producer** — governed by GR-016 §16-c.2, which validates the outbound body against the callee's
+  schema zod **before the send**. If 006 ever consumes (an AI reply, a plan-rollover job), that handler parses
+  its payload against an authored zod, because a pipe reaches neither, and an invalid payload is rejected once
+  and **never redriven** (GR-018 §18-b).
+- **No request-derived value reaches `sql.raw()`.** A request-selected sort or grouping maps through a validated
+  enum to a **closed allowlist of literals** in code — the request supplies the key, never the SQL fragment.
 
 ## Success Criteria _(mandatory)_
 

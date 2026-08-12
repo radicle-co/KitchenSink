@@ -29,7 +29,7 @@
 > | `@kitchensink/usda-client` (typed USDA HTTP client + zod wire validation) | **REUSE** as the first adapter; **NEW** task wraps it in `FoodSourceAdapter` |
 > | Auth: in-process `AuthMiddleware` + shared `ClerkAuthService`             | **REUSE / wire** (mostly wiring, not from-scratch)                           |
 > | OLD DB schema (`foods` + `fdcId` PK + denormalized nutrient cols)         | **REBUILD** → the 13 normalized tables                                       |
-> | OLD REST API (`/v1/foods/{fdcId}` read/batch, denormalized DTOs)          | **REBUILD** → add-by-name + id-read + candidates + PATCH-resolve + search    |
+> | OLD REST API (`/api/v1/foods/{fdcId}` read/batch, denormalized DTOs)      | **REBUILD** → add-by-name + id-read + candidates + PATCH-resolve + search    |
 > | OLD DAO/repository layer                                                  | **REBUILD** → per-aggregate DAOs over the new schema                         |
 > | OLD worker (single-source fetch)                                          | **REBUILD** → fan-out + merge                                                |
 >
@@ -63,12 +63,21 @@
 
 ## Package Layout & Database (locked 2026-06-19; re-baselined 2026-06-21)
 
-| Package                            | Path                             | Role                                                                                                                                                                                                                                                                                                           |
-| ---------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on ECS/Fargate behind the shared per-stage ALB (host rule, priority 200). Canonical Drizzle schema/DAOs, `/v1/foods/*` API, in-process `FoodAuthGuard`, source-adapter interface + fan-out/merge worker, own CDK. **Built (old design); schema/API/worker rebuilt under this plan.** |
-| `@kitchensink/usda-client`         | `packages/clients/usda`          | The **USDA source adapter** — typed wrapper over USDA FoodData Central. The **only** place `fdcId` / USDA terms appear; maps `fdcId → external_key` inbound. **Built + zod-validated; wrapped in `FoodSourceAdapter` as a new task.**                                                                          |
-| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for **our** `/v1/foods/*` API (web/mobile + 001/006/007/009 M2M callers). Exposes only canonical `id`-keyed shapes. **Placeholder built; surface rebuilt to the new API.**                                                                                                                        |
-| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification (`verifyToken` + `azp`), extracted from the identity service.                                                                                                                                                                                                            |
+> ⚠️ **URL prefix normalized 2026-08-12 (GR-002 AC-002-a).** This file previously carried **19** bare
+> `/v1/foods/*` references. The canonical path is **`/api/v1/foods/*`** and that is what all three services serve.
+> ⛔ This is **not** a claim that the bare form was removed from the running service: `FoodsController` deliberately
+> registers `@Controller(['api/v1/foods', 'v1/foods'])`, because the bare path is a **DEPRECATED ALIAS** kept for
+> consumers outside this repository (already-shipped mobile builds, cached web bundles with build-time-inlined
+> endpoints). Retiring the alias has an ordered prerequisite list — see
+> [ADR-0011](../../docs/architecture/decisions/0011-api-version-prefix.md). Specs cite the canonical path; the alias
+> stays in code until ADR-0011 s list is worked through.
+
+| Package                            | Path                             | Role                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@kitchensink/food-service`        | `packages/services/food-service` | Deployable NestJS service on ECS/Fargate behind the shared per-stage ALB (host rule, priority 200). Canonical Drizzle schema/DAOs, `/api/v1/foods/*` API, in-process `FoodAuthGuard`, source-adapter interface + fan-out/merge worker, own CDK. **Built (old design); schema/API/worker rebuilt under this plan.** |
+| `@kitchensink/usda-client`         | `packages/clients/usda`          | The **USDA source adapter** — typed wrapper over USDA FoodData Central. The **only** place `fdcId` / USDA terms appear; maps `fdcId → external_key` inbound. **Built + zod-validated; wrapped in `FoodSourceAdapter` as a new task.**                                                                              |
+| `@kitchensink/food-service-client` | `packages/clients/food-service`  | Typed client for **our** `/api/v1/foods/*` API (web/mobile + 001/006/007/009 M2M callers). Exposes only canonical `id`-keyed shapes. **Placeholder built; surface rebuilt to the new API.**                                                                                                                        |
+| `@kitchensink/clerk-verify`        | `packages/shared/clerk-verify`   | Shared networkless Clerk verification (`verifyToken` + `azp`), extracted from the identity service.                                                                                                                                                                                                                |
 
 **Database (no new RDS, no cluster):** the food tables live in the **separate logical database
 `kitchensink_food`** on the existing shared instance `kitchensink-data-{stage}` (db.t4g.small, global
@@ -113,8 +122,9 @@ PACKAGES + WORKSPACE (T-060 ✓) ─► FOOD-SERVICE CDK (T-001 ✓) ─► GLOB
               ├─► PHASE 2: FoodSourceAdapter iface + USDA adapter wrap (T-120..T-122)
               ├─► PHASE 8: AUTH WIRING (T-046 ✓dep, T-033, T-047..T-056)  [US-0]
               │     └─► gates ▼
+              ├─► VALIDATION + CONTRACT CONFORMANCE (T-204..T-208) [GR-016/017: pipe, floor, ingress, client]
               ├─► PHASE 3: READ API  GET /{id} · /status · /candidates · /search (T-130..T-134)
-              │     └─► PHASE 4: CREATE/RESOLVE API  POST /v1/foods · PATCH /{id} · /batch (T-140..T-145)
+              │     └─► PHASE 4: CREATE/RESOLVE API  POST /api/v1/foods · PATCH /{id} · /batch (T-140..T-145)
               │           └─► PHASE 5: QUEUE + FARGATE FAN-OUT WORKER + LIMITER (T-150..T-159)
               │                 └─► PHASE 6: MERGE ENGINE + GOLDEN RECORD + PROVENANCE (T-160..T-165)
               │                       └─► PHASE 7: CHANGE-DRIVEN REFRESH + UNRESOLVED TTL (T-170..T-172)
@@ -325,10 +335,10 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 
 ## Phase 3 — Read API (id-read, status, candidates, search, key lookup)
 
-> **REBUILD.** Replaces the old `fdcId`-keyed `GET /v1/foods/{fdcId}` read/`/nutrients`/`/autocomplete`.
+> **REBUILD.** Replaces the old `fdcId`-keyed `GET /api/v1/foods/{fdcId}` read/`/nutrients`/`/autocomplete`.
 > All routes are auth-gated by `FoodAuthGuard` (Phase 8) and obey the FR-051 precedence
 > (`401`→`403`→`400`→`404`/`202`/`200`).
-> ⚠️ **Deploy gate (US-0 launch-blocking, FR-035).** No `/v1/foods/*` endpoint from Phases 3–4 may be
+> ⚠️ **Deploy gate (US-0 launch-blocking, FR-035).** No `/api/v1/foods/*` endpoint from Phases 3–4 may be
 > exposed publicly until T-033 (Phase 8 `FoodAuthGuard`) is mounted. Phases 3–7 build/test the routes
 > behind the unmerged auth wiring; the service is not deployed to a public ALB target until auth lands.
 
@@ -338,18 +348,18 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **Acceptance**: module bootstraps; controller/service/DAOs injectable; no `UsdaApiModule` import leaks USDA
       types into the controller layer.
 
-- [x] **T-131** [M] [Test-first: true] `GET /v1/foods/{id}` — golden-record read + lifecycle status codes (`200` only `RESOLVED`; `202` `PENDING`/`UNRESOLVED`; `404` `NOT_FOUND`/`FAILED`/no row, status retrievable); ULID validation `400` — `—` (FR-002, FR-003, FR-004, FR-006)
+- [x] **T-131** [M] [Test-first: true] `GET /api/v1/foods/{id}` — golden-record read + lifecycle status codes (`200` only `RESOLVED`; `202` `PENDING`/`UNRESOLVED`; `404` `NOT_FOUND`/`FAILED`/no row, status retrievable); ULID validation `400` — `—` (FR-002, FR-003, FR-004, FR-006)
       **Acceptance**: covers US-1 scenarios 1–4 and US-8 — `RESOLVED` → `200` golden record < 50ms, no source call;
       `PENDING`/`UNRESOLVED` → `202`; `NOT_FOUND`/`FAILED` → `404` with `status` in body; malformed `id` → `400`.
 
-- [x] **T-132** [S] [Test-first: false] `GET /v1/foods/{id}/status` — lifecycle poll (+ golden record when `RESOLVED`) — `—` (FR-007, FR-033)
+- [x] **T-132** [S] [Test-first: false] `GET /api/v1/foods/{id}/status` — lifecycle poll (+ golden record when `RESOLVED`) — `—` (FR-007, FR-033)
       **Acceptance**: returns the correct shape per status (US-8 scenarios 1–4).
 
-- [x] **T-133** [M] [Test-first: true] `GET /v1/foods/{id}/candidates` — list the persisted cross-source candidates (from `food_candidates`, T-111) for an `UNRESOLVED` food (each carries `source` + that source's `external_key`) — `—` (FR-RES-1)
+- [x] **T-133** [M] [Test-first: true] `GET /api/v1/foods/{id}/candidates` — list the persisted cross-source candidates (from `food_candidates`, T-111) for an `UNRESOLVED` food (each carries `source` + that source's `external_key`) — `—` (FR-RES-1)
       **Acceptance**: an `UNRESOLVED` food returns its `food_candidates` rows; a `RESOLVED`/`PENDING` food returns an
       empty/appropriate response (US-2a scenario 1); no `fdcId` appears in the response shape.
 
-- [x] **T-134** [M] [Test-first: true] `GET /v1/foods/search?query=` — local `pg_trgm` fuzzy/substring/partial search → `id`s ranked by relevance; barcode/`external_key` lookup via `food_sources` crosswalk; never calls a source — `—` (FR-008, FR-009, FR-010)
+- [x] **T-134** [M] [Test-first: true] `GET /api/v1/foods/search?query=` — local `pg_trgm` fuzzy/substring/partial search → `id`s ranked by relevance; barcode/`external_key` lookup via `food_sources` crosswalk; never calls a source — `—` (FR-008, FR-009, FR-010)
       **Acceptance**: covers US-6 — "chicken breast" ranked hits; "avacado" fuzzy-matches "Avocado, raw"; no local
       match → empty set (no source call); a known barcode/external_key resolves to the food `id`; ≤200ms at 10k
       foods.
@@ -362,7 +372,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 > ⚠️ **Deploy gate (US-0 launch-blocking, FR-035).** Same rule as Phase 3 — these create/resolve routes
 > must not be publicly exposed until T-033 (Phase 8 `FoodAuthGuard`) is mounted.
 
-- [x] **T-140** [M] [Test-first: true] `POST /v1/foods` — add-by-name: create canonical row + `id` (normalized-name dedup under a Postgres advisory lock so concurrent adds collapse to one row; a terminal-state past-TTL row for the same normalized name is **reactivated** → `PENDING` + re-enqueue via T-105, never a `23505`, FR-028a), enqueue (`INSERT … ON CONFLICT` + `pg_notify`), return `202` + `id`; empty/whitespace name → `400` — `—` (FR-005, FR-006, FR-011, FR-013, FR-025, FR-028a, FR-IDN-1)
+- [x] **T-140** [M] [Test-first: true] `POST /api/v1/foods` — add-by-name: create canonical row + `id` (normalized-name dedup under a Postgres advisory lock so concurrent adds collapse to one row; a terminal-state past-TTL row for the same normalized name is **reactivated** → `PENDING` + re-enqueue via T-105, never a `23505`, FR-028a), enqueue (`INSERT … ON CONFLICT` + `pg_notify`), return `202` + `id`; empty/whitespace name → `400` — `—` (FR-005, FR-006, FR-011, FR-013, FR-025, FR-028a, FR-IDN-1)
       **Acceptance**: covers US-2 scenarios 1 & 4 — first add → `202` + `id` < 100ms with one `fetch_queue` row;
       a concurrent second add for the same normalized name collapses to the same `id` (no duplicate canonical or
       queue row); an add for a terminal-state past-TTL row reactivates it to `PENDING` (no `23505`); two **concurrent**
@@ -373,7 +383,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **Acceptance**: each enqueue fires exactly one `pg_notify` with the `food_id`; duplicate enqueue increments
       distinct-requester demand, not a raw counter.
 
-- [x] **T-142** [M] [Test-first: true] `PATCH /v1/foods/{id}` — resolve from the user's candidate pick: **UNRESOLVED-only + idempotent** (a PATCH on an already-`RESOLVED` food is a no-op `200`); validate each chosen candidate is a member of this food's `food_candidates` set (else `CandidateMismatchError` → **`409 Conflict`** — `400` is reserved for a malformed body, DSN-14 — status unchanged); drive the merge (Phase 6) → `RESOLVED` and **clear the `food_candidates` set** (T-111); manual pick stored as ordinary provenance — `—` (FR-RES-2, FR-RES-3, FR-028a)
+- [x] **T-142** [M] [Test-first: true] `PATCH /api/v1/foods/{id}` — resolve from the user's candidate pick: **UNRESOLVED-only + idempotent** (a PATCH on an already-`RESOLVED` food is a no-op `200`); validate each chosen candidate is a member of this food's `food_candidates` set (else `CandidateMismatchError` → **`409 Conflict`** — `400` is reserved for a malformed body, DSN-14 — status unchanged); drive the merge (Phase 6) → `RESOLVED` and **clear the `food_candidates` set** (T-111); manual pick stored as ordinary provenance — `—` (FR-RES-2, FR-RES-3, FR-028a)
       **Acceptance**: covers US-2a scenarios 2 & 3 — a valid pick merges → `RESOLVED` and clears the candidate set;
       a candidate not in the food's set → `CandidateMismatchError` **`409`** with `status` unchanged; a PATCH on an
       already-`RESOLVED` food is an idempotent no-op; a valid pick whose `fetchByKey` re-fetch throws
@@ -381,15 +391,15 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       write (TST-2); with the source window at/over cap (`shouldPauseDraining` true), a PATCH-resolve still proceeds
       per the settled DSN-6 cap semantics (TST-4).
 
-- [x] **T-143** [M] [Test-first: true] `POST /v1/foods/batch` — ≤100 names (`400` over), per-item partial response (locally-`RESOLVED` inline + `PENDING` per add-by-name miss, each row created + enqueued), distinct-requester demand — `—` (FR-012, FR-045)
+- [x] **T-143** [M] [Test-first: true] `POST /api/v1/foods/batch` — ≤100 names (`400` over), per-item partial response (locally-`RESOLVED` inline + `PENDING` per add-by-name miss, each row created + enqueued), distinct-requester demand — `—` (FR-012, FR-045)
       **Acceptance**: covers US-4 scenarios 1, 2, 4 — 15 names (10 locally `RESOLVED`, 5 add-by-name miss) → 10 inline + 5 `PENDING` `id`s in one body; 3-of-5 in flight collapse to existing `id`s; a single batch body containing the
       same name twice collapses to one row (intra-batch dedup, TST-8); >100 names → `400`, nothing enqueued.
 
 - [x] **T-144** [S] [Test-first: true] Queue backpressure + circuit breaker + near-ceiling flood-shed on enqueue (`fetch_queue` depth ceiling 10,000 or open source breaker → `503`, jittered recovery; near the global rolling-window ceiling, **NEW** enqueues from the highest-pending `sub` are shed first with `503` + `Retry-After` to preserve headroom — reads and `PATCH`-resolves are never shed and never `429`) — `—` (FR-046, FR-043b)
-      **Acceptance**: at max depth / breaker-open, `POST /v1/foods` and `/batch` return `503`; near the ceiling a
+      **Acceptance**: at max depth / breaker-open, `POST /api/v1/foods` and `/batch` return `503`; near the ceiling a
       flooding `sub`'s NEW enqueue gets `503` while other users are unaffected; recovery drains without a burst spike.
 
-- [x] **T-145** [S] [Test-first: false] Operational `POST /v1/foods/{id}/refetch` (admin-scoped manual re-enqueue) — `—` (FR-039, FR-051)
+- [x] **T-145** [S] [Test-first: false] Operational `POST /api/v1/foods/{id}/refetch` (admin-scoped manual re-enqueue) — `—` (FR-039, FR-051)
       **Acceptance**: a valid token without the elevated `public_metadata` scope → `403`; with scope → re-enqueues.
 
 ---
@@ -494,7 +504,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **(reuse: lifts existing identity-service verification — refactor/extract, not new logic.)**
       **Acceptance**: identity + food-service both import it; verification makes zero outbound network calls.
 
-- [x] **T-033** [M] [Test-first: true] `FoodAuthGuard` — in-process NestJS `AuthMiddleware` on every `/v1/foods/*` route; networkless `verifyToken` (`CLERK_JWT_KEY` + `azp`); identity from verified `sub` only (no client header); fail-closed — `packages/services/food-service/src/auth/` (FR-035, FR-036, FR-037, FR-038, FR-040, FR-042, FR-053)
+- [x] **T-033** [M] [Test-first: true] `FoodAuthGuard` — in-process NestJS `AuthMiddleware` on every `/api/v1/foods/*` route; networkless `verifyToken` (`CLERK_JWT_KEY` + `azp`); identity from verified `sub` only (no client header); fail-closed — `packages/services/food-service/src/auth/` (FR-035, FR-036, FR-037, FR-038, FR-040, FR-042, FR-053)
       **(reuse: mirrors identity `AuthMiddleware`.)**
       **Acceptance**: covers US-0 scenarios 1–6 + SC-010 — no/invalid/expired/wrong-`azp` token → `401`, no row,
       no enqueue, no source call; valid token → `req.user.sub` set (from the verified Clerk `sub` only); a forged
@@ -519,7 +529,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
       **Acceptance**: a single `sub` repeatedly adding one name cannot pin it ahead of genuine distinct-requester
       demand.
 
-- [x] **T-051** [S] [Test-first: true] Max batch size enforcement — `POST /v1/foods/batch` + recipe-import sets ≤100 names → `400` over, nothing enqueued; accepted misses feed demotion (not a quota) — `—` (FR-045)
+- [x] **T-051** [S] [Test-first: true] Max batch size enforcement — `POST /api/v1/foods/batch` + recipe-import sets ≤100 names → `400` over, nothing enqueued; accepted misses feed demotion (not a quota) — `—` (FR-045)
       **(shares the endpoint with T-143; this is the auth-side cap + test.)**
       **Acceptance**: US-0 scenario 12 — oversized batch → `400`, nothing enqueued.
 
@@ -570,7 +580,7 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 - [x] **T-183** [S] [Test-first: false] CloudWatch alarms — tombstone-row count > 0; API error rate > 5% (target-group 5xx per ADR-0003); `fetch_queue` depth > 10,000 (FR-046); pending `first_requested` age > 5 min; all → SNS topic + `SnsAction` — `packages/services/food-service/infra/lib/food-service-stack.ts` (SC-006, US-10)
       **Acceptance**: each alarm created in synth and fires on its condition (US-10 scenarios 2–3).
 
-- [x] **T-184** [S] [Test-first: false] Operational query endpoints (admin-scoped) — `GET /v1/foods/admin/metrics` (queue depths + UNRESOLVED backlog + NOT*FOUND/FAILED tombstone counts + per-source trailing-60-min window utilization) and `GET /v1/foods/admin/queue` (depths); both gated by `food:admin` (401 unauth / 403 unscoped). The read-only operational-query slice of FR-039/US-10 — `packages/services/food-service/src/foods/admin/`. *(The mutating `POST /ops/retry/{id}` tombstone→pending action is deferred: out of this read-only operational-query slice; `FetchQueueDao.reactivate` already backs it.)\_ (FR-039, FR-016, FR-018)
+- [x] **T-184** [S] [Test-first: false] Operational query endpoints (admin-scoped) — `GET /api/v1/foods/admin/metrics` (queue depths + UNRESOLVED backlog + NOT*FOUND/FAILED tombstone counts + per-source trailing-60-min window utilization) and `GET /api/v1/foods/admin/queue` (depths); both gated by `food:admin` (401 unauth / 403 unscoped). The read-only operational-query slice of FR-039/US-10 — `packages/services/food-service/src/foods/admin/`. *(The mutating `POST /ops/retry/{id}` tombstone→pending action is deferred: out of this read-only operational-query slice; `FetchQueueDao.reactivate` already backs it.)\_ (FR-039, FR-016, FR-018)
       **Acceptance**: counts accurate; retry re-queues a tombstone; all require the elevated scope (`403` without).
 
 - [x] **T-185** **[CLOSED — WON'T DO as specified, superseded by feature 014, 2026-08-10]** API Gateway WebSocket API + `$connect` Lambda authorizer — **NOT BUILT.** The `$connect` authorizer, the query-param/subprotocol token hand-off and the FR-050 cache rules all describe plumbing for a socket this service will not host.
@@ -628,79 +638,79 @@ fetchByKey(externalKey): Promise<CanonicalCandidate>; }`. A static config-ordere
 
 ## FR Coverage Audit (stabilized — all 71 FRs: 53 numbered + FR-025a/FR-028a/FR-043a/FR-043b + FR-IDN-1..3 + FR-RES-1..3 + FR-MRG-1..5 + FR-ADP-1..3)
 
-| FR       | Covered By                                     | Status                                            |
-| -------- | ---------------------------------------------- | ------------------------------------------------- |
-| FR-IDN-1 | T-100, T-105, T-140                            | ✅                                                |
-| FR-IDN-2 | T-121                                          | ✅                                                |
-| FR-IDN-3 | T-100, T-101                                   | ✅                                                |
-| FR-001   | T-130, T-131                                   | ✅                                                |
-| FR-002   | T-105, T-131                                   | ✅                                                |
-| FR-003   | T-131                                          | ✅                                                |
-| FR-004   | T-131                                          | ✅                                                |
-| FR-005   | T-105, T-140                                   | ✅                                                |
-| FR-006   | T-131, T-140                                   | ✅                                                |
-| FR-007   | T-132                                          | ✅                                                |
-| FR-RES-1 | T-111, T-133                                   | ✅                                                |
-| FR-RES-2 | T-111, T-142, T-163                            | ✅                                                |
-| FR-RES-3 | T-142, T-162                                   | ✅                                                |
-| FR-008   | T-104, T-106, T-134, T-180                     | ✅                                                |
-| FR-009   | T-134                                          | ✅                                                |
-| FR-010   | T-104, T-134                                   | ✅                                                |
-| FR-011   | T-140, T-141                                   | ✅                                                |
-| FR-012   | T-143, T-047                                   | ✅                                                |
-| FR-013   | T-105, T-140                                   | ✅                                                |
-| FR-014   | T-101, T-109, T-141                            | ✅                                                |
-| FR-015   | T-104, T-109, T-151                            | ✅                                                |
-| FR-016   | T-153, T-184                                   | ✅                                                |
-| FR-017   | T-141, T-150                                   | ✅                                                |
-| FR-018   | T-109, T-122, T-150, T-153                     | ✅                                                |
-| FR-019   | T-002, T-110, T-122, T-152                     | ✅                                                |
-| FR-020   | T-110, T-122                                   | ✅                                                |
-| FR-021   | T-122                                          | ✅                                                |
-| FR-022   | T-150                                          | ✅                                                |
-| FR-023   | T-003, T-121, T-155                            | ✅                                                |
-| FR-024   | T-121, T-154                                   | ✅                                                |
-| FR-025   | T-002, T-105, T-140, T-153                     | ✅ (30d NOT_FOUND TTL → reactivation)             |
-| FR-025a  | T-002, T-111, T-172                            | ✅ (UNRESOLVED candidate-set 30d expiry)          |
-| FR-026   | T-122, T-153                                   | ✅                                                |
-| FR-027   | T-153                                          | ✅                                                |
-| FR-028   | T-100, T-101, T-102, T-105–T-108, T-111, T-161 | ✅                                                |
-| FR-028a  | T-105, T-131, T-140, T-142, T-153              | ✅ (legal lifecycle transition set)               |
-| FR-029   | T-104, T-108, T-161                            | ✅                                                |
-| FR-030   | T-186 (deferred Redis variant) / in-proc LRU   | ⚠️ deferred (no Redis at launch; in-process only) |
-| FR-031   | T-163, T-171                                   | ✅ (change-driven, not age-based)                 |
-| FR-032   | T-001c, T-170, T-171                           | ✅                                                |
-| FR-033   | T-131, T-132                                   | ✅                                                |
-| FR-034   | T-165, T-185, T-186                            | ✅ (deferred)                                     |
-| FR-MRG-1 | T-152, T-154, T-162                            | ✅                                                |
-| FR-MRG-2 | T-120, T-160                                   | ✅                                                |
-| FR-MRG-3 | T-107, T-160                                   | ✅                                                |
-| FR-MRG-4 | T-120, T-152                                   | ✅                                                |
-| FR-MRG-5 | T-111, T-162                                   | ✅ (auto-resolve survivor-count boundary)         |
-| FR-ADP-1 | T-120, T-121, T-152                            | ✅                                                |
-| FR-ADP-2 | T-121, T-164, T-171                            | ✅                                                |
-| FR-ADP-3 | T-003, T-121, T-164                            | ✅                                                |
-| FR-035   | T-033                                          | ✅                                                |
-| FR-036   | T-033, T-046                                   | ✅                                                |
-| FR-037   | T-033                                          | ✅                                                |
-| FR-038   | T-033                                          | ✅                                                |
-| FR-039   | T-048, T-145, T-184                            | ✅                                                |
-| FR-040   | T-033                                          | ✅                                                |
-| FR-041   | T-185, T-186                                   | ✅ (deferred)                                     |
-| FR-042   | T-002, T-033                                   | ✅                                                |
-| FR-043   | T-049, T-151                                   | ✅                                                |
-| FR-043a  | T-049, T-151                                   | ✅ (multi-requester demotion)                     |
-| FR-043b  | T-052, T-144                                   | ✅ (near-ceiling flood-shed, 503)                 |
-| FR-044   | T-050, T-109, T-151                            | ✅                                                |
-| FR-045   | T-051, T-143                                   | ✅                                                |
-| FR-046   | T-052, T-144, T-183                            | ✅                                                |
-| FR-047   | T-047, T-057                                   | ✅                                                |
-| FR-048   | T-053, T-141                                   | ✅                                                |
-| FR-049   | T-185                                          | ✅ (deferred)                                     |
-| FR-050   | T-033, T-185                                   | ✅                                                |
-| FR-051   | T-048, T-131, T-142                            | ✅                                                |
-| FR-052   | T-054                                          | ✅                                                |
-| FR-053   | T-033, T-046                                   | ✅                                                |
+| FR       | Covered By                                      | Status                                            |
+| -------- | ----------------------------------------------- | ------------------------------------------------- |
+| FR-IDN-1 | T-100, T-105, T-140                             | ✅                                                |
+| FR-IDN-2 | T-121                                           | ✅                                                |
+| FR-IDN-3 | T-100, T-101                                    | ✅                                                |
+| FR-001   | T-130, T-131                                    | ✅                                                |
+| FR-002   | T-105, T-131                                    | ✅                                                |
+| FR-003   | T-131                                           | ✅                                                |
+| FR-004   | T-131                                           | ✅                                                |
+| FR-005   | T-105, T-140                                    | ✅                                                |
+| FR-006   | T-131, T-140                                    | ✅                                                |
+| FR-007   | T-132                                           | ✅                                                |
+| FR-RES-1 | T-111, T-133                                    | ✅                                                |
+| FR-RES-2 | T-111, T-142, T-163                             | ✅                                                |
+| FR-RES-3 | T-142, T-162                                    | ✅                                                |
+| FR-008   | T-104, T-106, T-134, T-180, T-204, T-205, T-208 | ✅                                                |
+| FR-009   | T-134                                           | ✅                                                |
+| FR-010   | T-104, T-134, T-204                             | ✅                                                |
+| FR-011   | T-140, T-141                                    | ✅                                                |
+| FR-012   | T-143, T-047                                    | ✅                                                |
+| FR-013   | T-105, T-140                                    | ✅                                                |
+| FR-014   | T-101, T-109, T-141                             | ✅                                                |
+| FR-015   | T-104, T-109, T-151                             | ✅                                                |
+| FR-016   | T-153, T-184                                    | ✅                                                |
+| FR-017   | T-141, T-150                                    | ✅                                                |
+| FR-018   | T-109, T-122, T-150, T-153                      | ✅                                                |
+| FR-019   | T-002, T-110, T-122, T-152                      | ✅                                                |
+| FR-020   | T-110, T-122                                    | ✅                                                |
+| FR-021   | T-122                                           | ✅                                                |
+| FR-022   | T-150                                           | ✅                                                |
+| FR-023   | T-003, T-121, T-155                             | ✅                                                |
+| FR-024   | T-121, T-154                                    | ✅                                                |
+| FR-025   | T-002, T-105, T-140, T-153                      | ✅ (30d NOT_FOUND TTL → reactivation)             |
+| FR-025a  | T-002, T-111, T-172                             | ✅ (UNRESOLVED candidate-set 30d expiry)          |
+| FR-026   | T-122, T-153                                    | ✅                                                |
+| FR-027   | T-153                                           | ✅                                                |
+| FR-028   | T-100, T-101, T-102, T-105–T-108, T-111, T-161  | ✅                                                |
+| FR-028a  | T-105, T-131, T-140, T-142, T-153               | ✅ (legal lifecycle transition set)               |
+| FR-029   | T-104, T-108, T-161                             | ✅                                                |
+| FR-030   | T-186 (deferred Redis variant) / in-proc LRU    | ⚠️ deferred (no Redis at launch; in-process only) |
+| FR-031   | T-163, T-171                                    | ✅ (change-driven, not age-based)                 |
+| FR-032   | T-001c, T-170, T-171                            | ✅                                                |
+| FR-033   | T-131, T-132                                    | ✅                                                |
+| FR-034   | T-165, T-185, T-186                             | ✅ (deferred)                                     |
+| FR-MRG-1 | T-152, T-154, T-162                             | ✅                                                |
+| FR-MRG-2 | T-120, T-160                                    | ✅                                                |
+| FR-MRG-3 | T-107, T-160                                    | ✅                                                |
+| FR-MRG-4 | T-120, T-152                                    | ✅                                                |
+| FR-MRG-5 | T-111, T-162                                    | ✅ (auto-resolve survivor-count boundary)         |
+| FR-ADP-1 | T-120, T-121, T-152                             | ✅                                                |
+| FR-ADP-2 | T-121, T-164, T-171                             | ✅                                                |
+| FR-ADP-3 | T-003, T-121, T-164                             | ✅                                                |
+| FR-035   | T-033                                           | ✅                                                |
+| FR-036   | T-033, T-046                                    | ✅                                                |
+| FR-037   | T-033                                           | ✅                                                |
+| FR-038   | T-033                                           | ✅                                                |
+| FR-039   | T-048, T-145, T-184                             | ✅                                                |
+| FR-040   | T-033                                           | ✅                                                |
+| FR-041   | T-185, T-186                                    | ✅ (deferred)                                     |
+| FR-042   | T-002, T-033                                    | ✅                                                |
+| FR-043   | T-049, T-151                                    | ✅                                                |
+| FR-043a  | T-049, T-151                                    | ✅ (multi-requester demotion)                     |
+| FR-043b  | T-052, T-144                                    | ✅ (near-ceiling flood-shed, 503)                 |
+| FR-044   | T-050, T-109, T-151                             | ✅                                                |
+| FR-045   | T-051, T-143                                    | ✅                                                |
+| FR-046   | T-052, T-144, T-183                             | ✅                                                |
+| FR-047   | T-047, T-057                                    | ✅                                                |
+| FR-048   | T-053, T-141                                    | ✅                                                |
+| FR-049   | T-185                                           | ✅ (deferred)                                     |
+| FR-050   | T-033, T-185                                    | ✅                                                |
+| FR-051   | T-048, T-131, T-142                             | ✅                                                |
+| FR-052   | T-054                                           | ✅                                                |
+| FR-053   | T-033, T-046                                    | ✅                                                |
 
 **Gap**: None. All functional requirements trace to ≥1 task. **FR-030** is intentionally not built as
 ElastiCache Redis at launch (A-002) — the new architecture removes Redis; the cache-acceleration intent is met
@@ -785,6 +795,68 @@ T-172, T-185.
       (b) `FOOD_METRIC.localStoreServeRate` was not one missing call site — `FoodMetrics` was wired ONLY into the Fargate worker, so **the API emitted no EMF at all**. Now emitted from the golden-record read (`FoodsService.getFood`), before the status branch, so 200/202/404 each contribute exactly one observation. Unit `Percent` 100/0, one observation per read: CloudWatch's `Average` IS SC-004's serve-rate with no conversion, `SampleCount` is total reads, `Sum / 100` is the served-read count SC-005 is written in. A service-computed ratio is not even expressible — SC-004 spans a rolling 24h window no single task can see. Also charted on the T-182 dashboard (emitted makes it queryable; charted makes it observable). **No alarm, deliberately:** SC-004's ">80%" only holds once the store holds 5,000+ unique RESOLVED foods, so a cold prod store or any per-PR preview sits legitimately below it.
       **Still unemitted for the same root cause, NOT fixed here:** `FOOD_METRIC.sourceApiSuccessRate` and `FOOD_METRIC.auth401Rate`.
       (c) The unlinted tree was **51 errors across 16 files**, not two. The old glob (`src/**/*.ts` minus `*.test.ts`) excluded the whole `tests/` tree AND every co-located `src/**/__tests__/**` spec. Now `'src/**/*.ts' 'tests/**/*.ts'`; no rule loosened, no override added, no inline disable. `tests/load/*.load.js` stays unlinted — those run under k6's runtime, are outside the tsconfig `include`, and the typed parser rejects them; linting them needs a separate untyped config block plus k6 globals (follow-up, and they were equally unlinted before).
+
+### Escalated by the GR-016 / GR-017 conformance sweep (2026-08-12)
+
+> ⛔ **Food is the live proof that GR-015 and GR-016 are SEPARATE obligations.** It satisfies GR-015 in full — 6
+> authored `*.schema.ts` files, a committed `@kitchensink/schema-food`, a **922-line / 12-path** derived
+> `openapi.yaml` — and, as measured on **2026-08-11 and re-measured 2026-08-12**, it registered **ZERO**
+> `ZodValidationPipe` and **ZERO** `createZodDto`: `FoodsController` took **`@Body() body: unknown`** and
+> re-derived validation per method with `safeParse`. **A reviewer reading only the contract artifacts would see a
+> conformant service.** That is why 17-a.5 is its own numbered obligation.
+>
+> ⚠️ **CONVERGENCE IS IN FLIGHT IN THE WORKING TREE (uncommitted, verified 2026-08-12).** `app.module.ts` now binds
+> `ZodValidationPipe` through `APP_PIPE`, a new untracked `src/foods/dto/foods.dto.ts` declares `createZodDto` DTOs,
+> and `foods.controller.ts` no longer contains a single `safeParse`. **T-204 is therefore partly landed, not
+> unstarted** — do not re-do the parts that exist, and do not assume the parts that do not. Every claim below names
+> what was measured so the next reader can re-measure rather than trust.
+>
+> ⛔ **Do NOT touch `packages/clients/usda/src/schemas.ts` in this work.** Those boundary schemas are **correct**
+> and are the portfolio's reference implementation for GR-015 §15-d.
+
+- [ ] **T-204** [M] [Test-first: true] **Register `nestjs-zod`'s `ZodValidationPipe` and convert EVERY food route to `createZodDto`, deleting the per-method `safeParse`** — `packages/services/food-service/src/app.module.ts`, `src/foods/foods.controller.ts`, `src/foods/admin/foods-admin.controller.ts`, `src/foods/service-erasure.controller.ts` (FR-008, FR-010, FR-035–FR-053, GR-016 §16-a, GR-017 §17-a.5)
+      **The defect this closes, stated as measured:** with `@Body() body: unknown` plus hand-written per-method `safeParse`, validation failure had **no single path** — so a **wrong-typed field**, a **missing field** and an **unknown key** _all_ reported `{ error: 'Empty name' }`. Three distinct failures, one misleading message, and the parse living **inside** the method body where it is optional by construction and gets skipped on the next endpoint. `unknown` is not a validation strategy (GR-016 §16-a.4).
+      **State verified 2026-08-12 (uncommitted working tree):** `app.module.ts` binds `ZodValidationPipe` via `APP_PIPE`; `src/foods/dto/foods.dto.ts` exists (untracked) with `createZodDto` DTOs; `foods.controller.ts` has **zero** `safeParse` remaining across its 8 routes (`GET search`, `POST /`, `POST batch`, `GET :id/status`, `GET :id/candidates`, `POST :id/refetch`, `PATCH :id`, `GET :id`). **Still to verify/convert:** `foods-admin.controller.ts` and `service-erasure.controller.ts` — neither showed a `@Body`/`@Query`/`Dto`/`safeParse` match, so each must be confirmed as genuinely bodyless rather than assumed.
+      **⚠️ Bind `nestjs-zod`'s pipe, never Nest's own, and never to the bare class token.** Under Nest's built-in `ValidationPipe` a `createZodDto` DTO **validates nothing while looking correctly wired** — schema present, DTO referenced, route reads as validated, no input checked. Food's own `src/foods/dto/foods.dto.ts` header already documents this hazard for both wrong-pipe forms; identity shipped it live on `PATCH /users/me`.
+      **⚠️ ONE mechanism only** (§16-a.2): no `class-validator` DTO is introduced, and no `safeParse` is left behind "as a belt and braces" — a second mechanism is a second error contract, and the whole point is that the parse **cannot** be skipped.
+      **⛔ `z.strictObject()` on every mutating body** (GR-017 §17-c): `POST /`, `POST batch`, `POST :id/refetch`, `PATCH :id`. Plain `z.object()` **strips unknown keys silently**, so a client misspelling a field on `PATCH :id` (the resolve route) would get a `200` and a write that did not do what it was told.
+      **⚠️ Path params are the internal food `id` (ULID), never a source key** — so `:id` is parsed as a ULID, not as a bare string, on every one of the five routes that takes it.
+      **⛔ File placement:** `src/foods/dto/foods.dto.ts` and `src/foods/dto/service-erasure.schema.ts` sit under a **`dto/` directory**, which §15.2 does not use — the contract is authored as `src/**/*.schema.ts` **beside the controller it serves**. Flagged rather than churned in this task: moving them changes the `contract:generate` input set and the `CONTRACT_HASH`, so it belongs in one deliberate move (T-206) with the regenerate-and-diff gate green either side.
+      **Tests: unit AND integration, both required.** Unit: per-DTO accept/reject, and specifically that a **wrong-typed field**, a **missing field** and an **unknown key** now produce **three distinguishable** `400`s rather than one `'Empty name'`. Integration: post a **known-bad body to a REAL route** on a booted app and assert the `400` and its field name — ⚠️ **this is the ONLY thing that can observe the wrong-pipe failure**, so a unit test over the DTO in isolation does not discharge it (modelled on `packages/services/identity/tests/app-validation.test.ts`). Plus **e2e** (`tests/e2e/*.e2e.test.ts`, LocalStack + Docker Postgres) and **k6** — food is a deployable and owes all four tiers (§7.1, GR-017 §17-a.8); the existing SC-007 search budget must hold across the pipe change.
+
+- [ ] **T-205** [M] [Test-first: true] **Storage-floor boundary-parity test with bidirectional mapping completeness** — `packages/services/food-service/src/foods/__tests__/storage-capacity.test.ts` (FR-008, FR-IDN-1..3, GR-016 §16-d, GR-017 §17-d)
+    - ⛔ **DO NOT BUILD A NEW GATE — the mechanism already EXISTS.** `@kitchensink/contract-gen` exports `auditStorageCapacity` / `collectBoundedColumns` / `formatStorageCapacityFindings` (`packages/tools/contract-gen/src/storage-capacity.ts`), and a `storage-capacity.test.ts` already wires it in **all three** shipped services (recipe `src/database/__tests__/`, food `src/db/schema/__tests__/`, identity `src/types/schema/__tests__/`). Copy that pattern; do not hand-roll a second one — a second mechanism for one invariant is the failure GR-016 §16-a.2 forbids, one layer up. It reads drizzle **structurally** via `Symbol.for('drizzle:Columns')` (so `contract-gen` needs no `drizzle-orm` dependency) and zod bounds via the **public** `z.toJSONSchema`; it is already **exhaustive over columns**, with `stale-account` / `duplicate-account` findings as the reverse-direction check. The work here is the **mapping**: every bounded column bound to the wire fields that write it, or declared not-client-writable **with a reason** (GR-017 §17-d).
+      Lives **in the service** (never in `packages/schemas/food`, never in a wire schema) and imports **both** the Drizzle schema and the authored zod — **a test is not a wire schema**, so §16-d's ban on the _production_ coupling is not weakened; this is precisely the "assertion between two independently authored artifacts" §16-d asks for.
+      **Derives** the enumeration of bounded columns from the Drizzle schema rather than typing it out, and asserts for each writing wire field that the zod **rejects** a value the column cannot hold: `name` / `description` lengths, the food-status enum domain (`RESOLVED` / `UNRESOLVED` / `NOT_FOUND` / pending), nutrient `numeric(p,s)` precision **and scale**, `item_version`, batch size, `requester_id` nullability, and any integer column against the `int4` ceiling **2,147,483,647**.
+      **Mapping completeness asserted in BOTH directions**: every bounded column has an entry or an **explicit, reasoned exemption**, and every entry names a column that **exists**. ⚠️ Without the bidirectional check the test silently shrinks to the fields someone remembered and passes — the review-checklist failure with a green tick on it. A deliberately unmapped bounded column must **fail** the test, and an entry naming a nonexistent column must **fail** it too.
+      **⛔ Asserted, never derived** — no zod generated from Drizzle, no storage type imported into a `*.schema.ts`.
+      **⚠️ Nutrient precision is the live risk here**, not string length: a nutrient value that overflows `numeric(p,s)` raises `22003` at the `INSERT` — **a 500 where the contract owed a 400** — and food's write path is fed by USDA data whose magnitudes we do not control. The upstream boundary (`packages/clients/usda/src/schemas.ts`) is the **first** guard and stays exactly as it is; this test proves our **own** wire bound is no looser than our own column.
+      **⚠️ Limitation, stated not papered over:** this proves the floor only for the columns it maps. Only the "every bounded column has an entry" direction can catch a **new** column, and only if the enumeration is derived. Derive it.
+      **Tests:** unit (the parity assertions, both completeness directions) **AND** integration (a precision-overflowing nutrient and a ceiling+1 integer each posted to a real route yield `400`, not a failed `INSERT` surfacing as `500`).
+
+- [ ] **T-206** [S] [Test-first: true] **Move food's wire schemas out of `dto/` to `*.schema.ts` beside their controllers, and re-verify all three drift gates** — `packages/services/food-service/src/foods/`, `turbo.json` (GR-015 §15-a.1/§15-c, GR-017 §17-a.2/§17-a.4, CODING_STANDARDS §15.2)
+      **Depends on** T-204.
+      §15.2 places the authored contract at `src/**/*.schema.ts` **beside the controller it serves**. Food currently has `src/foods/foods.schema.ts` (correct) alongside `src/foods/dto/foods.dto.ts` and `src/foods/dto/service-erasure.schema.ts` (a `dto/` directory). Consolidate onto the `*.schema.ts` form; the `createZodDto` classes may live beside the zod they wrap, but the **zod** is the authored artifact and its location is what `contract:generate` reads.
+      **Re-verify all three drift gates after the move — a file rename changes the input set, so every gate must be re-proven, not assumed:** **(1) Rebuild** — `turbo.json`'s `@kitchensink/schema-food#build` `$TURBO_ROOT$`-anchored **`inputs`** still cover every authored schema file. **(2) Correctness** — `npm run contract:verify` regenerates `packages/schemas/food` with **no diff**. **(3) Skew** — the `CONTRACT_HASH` boot assertion still fires: the service refuses to start on mismatch, **before** the HTTP listener binds.
+      **⛔ NOT `dependsOn`** — `schema-food#build` `dependsOn` `food-service#build` must not be re-proposed; that edge closes the cycle `client → schema → service → client`. The generated files are committed, so ordering was never the requirement; content-hashed `inputs` are.
+      **⛔ The schema package is a literal file COPY** (zod are runtime values and cannot be derived from themselves), and its **`openapi.yaml` is DERIVED** output for `oasdiff`/docs/integrators — **NEVER a codegen input**.
+      **⚠️ Expect the `CONTRACT_HASH` to change** (the hash covers the service's schema sources), so `@kitchensink/food-service-client`'s existing `src/contractSkew.ts` guard and `src/__tests__/contractSkew.test.ts` must be re-run, not just re-compiled. That is the guard working, not a regression.
+      **Tests:** unit (`src/__tests__/build-inputs.test.ts` covers every relocated file; a `main-boot-order` test asserts the hash check precedes `listen()`) **AND** integration (`scripts/contractDriftGate.mjs` clean on a fresh checkout and red on a hand-edited schema package; boot with a skewed hash binds no port).
+
+- [ ] **T-207** [S] [Test-first: true] **Parse food's non-HTTP ingress against authored zod, with one rejection path and no retry of invalid payloads** — `packages/services/food-service/src/worker/`, `src/events/` (FR-043, FR-046, FR-MRG-1..5, GR-016 §16-b, GR-018 §18-a/§18-b/§18-d, GR-019)
+      **Food's non-HTTP ingress, enumerated** (GR-016 §16-b requires the list, or an explicit "none"): (1) the **Fargate fan-out worker**'s claimed queue items (T-155/T-197/T-201); (2) the **`FoodFetchCompleted`** EventBridge consumer (FU-EVENTNAME); (3) the **change-driven refresh** scheduled task (T-170, D-REFRESH); (4) the **service-erasure** internal callback from identity's fan-out Lambda. Food has **no third-party webhook** — the USDA integration is **outbound polling** — so GR-018 §18-c's `2xx` inversion does **not** apply here.
+      Each parses its payload against an authored zod **before it becomes work** — **including the scheduled refresh**, because "the payload is ours" is an assumption about a deploy that has already drifted once. Rejections take **ONE** path per ingress with the cause in a **`reason`** field; a shape failure and a credential failure are **equally invalid** and differ **only** in `reason`.
+      **An invalid payload is NEVER retried** — record it and **complete** the item, or dead-letter it **once** with the `reason`, and alarm DLQ/queue depth. ⚠️ **This interacts with `attempts` and the lapsed-lease reclaim (DSN-5, T-197):** an **invalid** payload must **not** consume retry budget or be re-claimed, whereas a **transient** failure (USDA `5xx`, rate limit, DB timeout) is a **different** `reason` and legitimately retries. Conflating the two is the defect — it converts a producer's bug into sustained load against a rate-limited upstream and buries the signal that would have found it.
+      **⛔ No sentinel identifiers, and no row for a rejected payload** (GR-019): an unresolvable `food_id` or `requester_id` is a **rejection**, never `'unknown'`/`''`/`0` — not in storage, not on a wire, not as a map key, and **not as a metrics dimension**, where it would fuse every unattributable fetch into one fictitious subject that cannot be told apart from a real id afterwards. ⚠️ `requester_id` is `NOT NULL` and T-197's `NOT IN` exclusion is **NULL-safe only because of that**, so a sentinel here would also silently change queue-ranking semantics.
+      **Tests:** unit (each envelope zod rejects every malformed variant; the rejection shape differs only in `reason`; an unresolvable id rejects rather than defaults; `attempts` is untouched on an invalid payload) **AND** integration (an **invalid** payload is asserted **not** re-claimed or redriven and its per-`reason` counter increments, while a **transient** failure **is** retried, **and** a valid payload still succeeds — all three, or the suite passes on a handler that never fails).
+
+- [ ] **T-208** [S] [Test-first: true] **Confirm the food client's consumer half, and record the USDA boundary as the §15-d OPPOSITE case** — `packages/clients/food-service/src/`, `packages/clients/usda/src/schemas.ts` (read-only) (FR-008, GR-015 §15-b/§15-d, GR-016 §16-c.2/§16-c.3, GR-017 §17-b.1–§17-b.6, §17-f)
+      **The consumer half is largely LANDED and this task is its standing guard, not a rewrite.** Verified 2026-08-12: `packages/clients/food-service/src/contractSkew.ts` exists with `src/__tests__/contractSkew.test.ts` and an `src/__integration__/contractSkew.integration.test.ts`, and the client validates responses on receipt.
+      Confirm and keep: the client imports wire **types and runtime zod** from `@kitchensink/schema-food` and declares **no** wire shape of its own (its `types.ts` holds only config, options and its own error shapes — **including type-only** declarations); **every response is parsed the moment it arrives**; **every outbound body is validated against `@kitchensink/schema-food`'s zod before the call**, so a malformed payload fails in the caller with a usable stack rather than as a remote `400`. The **recipe → food** edge (`@kitchensink/food-service-client`, the ingredient/catalog reads) is named in GR-016 §16-c.4 so it is not treated as internal-and-therefore-trusted.
+      **⛔ Do NOT add server-side response validation** — GR-016 §16-g **defers** a producing service parsing what it **emits**; that is an owner decision, not an unfinished task. This task is the **consumer** parsing what it **received** (GR-017 §17-f). Conflating the two is how contributors either skip the required half or add the forbidden one.
+      **⛔ USDA is the OPPOSITE case, and this is the record that says so.** USDA FoodData Central is an API the platform does **not** serve: there is no service of ours to own its types and its contract can change without telling us. `packages/clients/usda` **validates the raw upstream wire shape at the boundary with zod**, **MAY declare its own types**, deliberately returns a **normalized** type that differs from the raw shape, and **gets NO OpenAPI document**. Rules 17-b.1–17-b.5 do **not** apply to it.
+      **⛔ `packages/clients/usda/src/schemas.ts` must NEVER be "converged" under GR-015 §15-b — it is the portfolio's REFERENCE IMPLEMENTATION.** Deleting or merging those schemas replaces a **checked parse** of a remote party's JSON with **unchecked trust**, on the pipeline that is the single writer of every nutrient value in the food database. That is a **security and correctness regression, not a cleanup**, and this task adds **no** change to that file — it exists so a contributor applying §15-b mechanically is stopped before deleting a boundary.
+      **Tests:** unit (a response with a missing, renamed and wrong-typed field each raise the typed parse error; an invalid outbound body is rejected **before** any fetch; `contractSkew.test.ts` reports a skewed hash and names both hashes without overclaiming) **AND** integration (`src/__integration__/` against a booted food service; recorded real USDA payloads parse clean at the boundary and a mutated one is rejected there) — ⚠️ plus a `git ls-files`-based assertion that **no** file in `packages/clients/food-service` or any consuming app declares a food wire shape, and that `packages/clients/usda/src/schemas.ts` is **excluded by an explicit, reasoned allowlist** rather than by silence (AC-017-b).
 
 ### T-202 — measured evidence (2026-08-11)
 

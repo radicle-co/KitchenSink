@@ -74,9 +74,21 @@ This feature owns that infrastructure.
 
 **Planning complete and reconciled. No code has been written.**
 
+> **Amended 2026-08-12 (owner rulings on retention, deduplication, producer identity and quotas).** `spec.md`
+> gained a `Clarifications → Session 2026-08-12` block, **US-012** (client acknowledges consumption) and
+> **US-013** (identical pending payloads collapse), **FR-034 – FR-044**, **SC-012 – SC-016**, amendments to
+> FR-012 / FR-018 / FR-019 / FR-023 / FR-026 / FR-027 / FR-033 and to SC-003 / SC-011, and its
+> _Open Questions_ section is now **_Resolved Questions_** — **OPEN-014-A, OPEN-014-B and OPEN-014-C are all
+> ruled**, as is the `messageType`-registry question that sat in _Wire Contract Ownership_. Design record:
+> [ADR-0016](../../docs/architecture/decisions/0016-notification-retention-payload-dedup-and-valkey.md).
+> Two portfolio rules were also ratified out of these rulings — `specs/governance-rules.md` **GR-018** (one
+> rejection path, invalid input never retried) and **GR-020** (dual-signal principal binding) — plus **GR-017**
+> and **GR-019**. The counts below are updated; the `sync-report`/`verify-report` staleness note still stands
+> and is now further out of date, not less.
+
 Present:
 
-- `spec.md` — 33 FR, 8 NFR, 11 SC, 11 user stories
+- `spec.md` — **44 FR**, 8 NFR, **16 SC**, **13 user stories**
 - `plan.md` — dual-ingress contract, ordering/partitioning, data model, group model, NFR budgets
 - `tasks.md` — 48 dependency-ordered tasks, **1 complete** (T-048)
 - `v-model/` — 21 artifacts incl. peer reviews; 41 `REQ-NNN` mapped, **all scenarios untested**
@@ -98,6 +110,17 @@ Still thin or outstanding:
 One open question blocks implementation start: the realtime subscribe protocol, SSE vs WebSocket (blocks
 T-012). **Q-004 producer authentication is now closed** — FR-032 names the platform Ed25519
 service-principal token, verified networklessly. Q-001, Q-002, Q-003, Q-005, Q-007 and Q-008 are resolved.
+**Q-003's retention value is now fixed at 72 hours with consumption as the primary terminator** (FR-012).
+
+Two items remain genuinely open after the 2026-08-12 rulings, and both are recorded in `spec.md` →
+_Resolved Questions_ → _Still open_ rather than hidden:
+
+- 🟠 whether **ElastiCache durability is available on Serverless Valkey** at the engine version provisioned —
+  a factual question about AWS that must be answered **before the cache is provisioned**, and which decides a
+  ≈ $3.21/month trade between a durable node and a non-durable serverless cache;
+- 🟠 the concrete **`payload` and envelope SIZE bounds** — product decisions with no storage floor to derive
+  from, which set both the fan-out cost and the metered-memory profile, and which must be numbers in the schema
+  before the envelope zod is generated.
 
 ---
 

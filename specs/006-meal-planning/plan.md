@@ -87,29 +87,56 @@ meal_plan_nutrition (
 [ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). This section states the
 bindings for this feature; the rule lives there and wins on any detail.
 
-🟠 **OPEN — which service owns `/api/v1/meal-plans/*`?** This plan does not say, and it is not derivable from
-§15 or any existing ADR. There is no meal-planning service package in `packages/services/`, and 006 does not
-declare one. **Question for the owner: does the meal-plan surface land in `@kitchensink/recipe-service`, or in
-a new `@kitchensink/meal-planning-service`?** The answer picks the schema package name
-(`@kitchensink/schema-recipe` vs a new `@kitchensink/schema-meal-planning`), so nothing below can name it.
-**The obligation itself does not wait on that answer** — it binds whichever service ends up owning the paths.
+✅ **RESOLVED (2026-08-12) — `/api/v1/meal-plans/*` is owned by `@kitchensink/recipe-service`**, per
+[ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md).
+**No new deployable service is created for 006.**
 
-**The owning service MUST**:
+| Role                                  | Binding for 006                                                                               |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)  | `@kitchensink/recipe-service` — `packages/services/recipe-service/src/meal-plans/*.schema.ts` |
+| Schema package (generated, committed) | `@kitchensink/schema-recipe` — `packages/schemas/recipe`, **extended, never forked**          |
+| Consuming client                      | `@kitchensink/recipe-service-client` — `packages/clients/recipe-service`                      |
+| Consuming apps                        | `@commise/web`, `@commise/mobile`, and a `packages/apps/commise/features/*` package           |
+| NestJS module (internal boundary)     | `MealPlansModule`, a sibling of the shipped `RecipesModule` / `SearchModule`                  |
 
-- Author every meal-plan, entry, nutrition-summary and suggestion request/response shape as **zod in that
-  service** at `src/**/*.schema.ts`, beside the controller it serves.
+**The one-line reason, specific to 006**: every join this feature has is against `recipes`
+(`meal_plan_entries.recipe_id`, §2), and in **one** database `ON DELETE CASCADE` deletes 006's
+recipe-deletion orphan handler and its `is_orphaned` column outright — so this decision **removes** a task, a
+column and a background job rather than adding them. 006 ↔ 009 are additionally **two halves of one
+calculation**: 009's `meal_plan_nutrition_link` joins a 006 table to a 009 table.
+
+**A schema package is per SERVICE, not per feature.** 006 adds `*.schema.ts` files under
+`packages/services/recipe-service/src/meal-plans/`, beside the controller they serve, and the **existing**
+generator copies them into the **existing** `@kitchensink/schema-recipe` (8 authored schema files today, a
+4,945-line derived `openapi.yaml`). There is **no** `@kitchensink/schema-meal-planning`, and 006 does not get
+one. 004 already set this precedent for the recipe service — add to `packages/schemas/recipe`, never fork it.
+
+**The NestJS module is the internal boundary, and it is mandatory now even though the service boundary is
+not.** `MealPlansModule` sits beside `RecipesModule` with its own DAL and its own `*.schema.ts` beside its
+controller. A future extraction cuts at **that module edge**, and its cost is a new schema package plus a
+client base-URL change — which is exactly why the module edge cannot be skipped today.
+
+**Flip condition (ADR-0017)**: extract 006 into its own service when meal planning grows a **write volume or
+a scaling profile that competes with recipe search** — i.e. when the planner becomes the hot path rather than
+a premium side feature.
+
+**`@kitchensink/recipe-service` MUST**:
+
+- Author every meal-plan, entry, nutrition-summary and suggestion request/response shape as **zod in the
+  service** at `src/meal-plans/*.schema.ts`, beside the controller it serves.
 - **Validate its own requests with that same zod** via `nestjs-zod`'s `createZodDto` — not a separate
-  `class-validator` DTO that agrees with the schema by convention.
-- Generate and commit `packages/schemas/<service>` (`@kitchensink/schema-<service>`) exporting the zod,
-  `z.infer` types, `contract-hash.ts`, a barrel, and a **derived** `openapi.yaml` (outbound only — for
-  `oasdiff`, docs and integrators, **never a codegen input**).
+  `class-validator` DTO that agrees with the schema by convention. ⚠️ 006 adds **no** `class-validator` DTO to
+  the 19 files already being removed from that service (re-measured 2026-08-12).
+- Extend the committed `@kitchensink/schema-recipe`, which exports the zod, `z.infer` types,
+  `contract-hash.ts`, a barrel, and a **derived** `openapi.yaml` (outbound only — for `oasdiff`, docs and
+  integrators, **never a codegen input**).
 - Keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts` files**.
 
 **Every client MUST** — separately mandatory, because mandating only the service half is exactly how the
 client half got skipped portfolio-wide (276 + 144 lines of redeclared wire types survived behind green
 builds):
 
-- Import its wire **types and zod** from that service's schema package.
+- Import its wire **types and zod** from `@kitchensink/schema-recipe`.
 - **Declare no meal-plan request or response body type of its own** — not in `packages/clients/*`, and not in
   `@commise/web` / `@commise/mobile` / a feature package either (GR-015 §15-b.4).
 - **Derive** any divergent consumer shape with `Pick` / `Omit` / `Partial` over the wire type. The calendar
@@ -131,23 +158,28 @@ the **opposite** case: we do not serve it, so its client **validates the raw ups
 with zod**, **may declare its own types**, and **gets no OpenAPI document**. `packages/clients/usda` is the
 reference implementation and its `schemas.ts` must never be "converged".
 
-> **Note on paths below**: the endpoint table still uses bare `/v1/*`. That is a **GR-002 violation** —
-> canonical is `/api/v1/*`, and GR-002's Current State records 006 as the last holdout. Fixing it is out of
-> scope for this GR-015 amendment but remains required before 006 merges.
+> ✅ **Paths below are FIXED (2026-08-12).** Adopting `@kitchensink/recipe-service` means adopting its prefix,
+> so every path in this plan moved from bare `/v1/meal-plans/*` to canonical **`/api/v1/meal-plans/*`**. That
+> closes the GR-002 holdout this plan previously flagged (GR-002 Current State recorded 006 as the last one).
+> The shipped recipe-service controllers additionally answer the bare `/v1/*` form as a **deprecated alias**,
+> for URLs external consumers already hold ([ADR-0011](../../docs/architecture/decisions/0011-api-version-prefix.md)) —
+> 006's paths are new, so they get **no** alias.
 
 ### 3.0a Input validation (GR-016)
 
 **Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
 [`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
 [ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). §3.0 decides **who
-authors** the zod; GR-016 decides **where it runs**. **The OPEN ownership question above does not defer this
-obligation** — it binds whichever service ends up owning `/api/v1/meal-plans/*`.
+authors** the zod; GR-016 decides **where it runs**. ✅ **§3.0 now names the owner** —
+`@kitchensink/recipe-service` (ADR-0017) — so every obligation below binds a package that exists.
 
 - **One mechanism, one `400`.** Every meal-plan, entry, nutrition-summary and suggestion input — body, path
-  params (`{id}`, `{entryId}`), query params — is parsed by that service's own `*.schema.ts` zod via
-  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. If the paths land in `@kitchensink/recipe-service`,
-  006 adds **no** `class-validator` DTO to the 19 files already being removed there (measured 2026-08-11).
-- **⛔ THE FLOOR — 006's own bodies reach it.** `POST /v1/meal-plans/{id}/entries` carries **`servings`**,
+  params (`{id}`, `{entryId}`), query params — is parsed by `@kitchensink/recipe-service`'s own `*.schema.ts`
+  zod via `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. 006 adds **no** `class-validator` DTO to the
+  19 files already being removed there (re-measured 2026-08-12: 18 `ZodValidationPipe`, 26 `createZodDto`, 19
+  `class-validator` files — two mechanisms in one service, mid-convergence).
+- **⛔ THE FLOOR — 006's own bodies reach it.** `POST /api/v1/meal-plans/{id}/entries` carries **`servings`**,
   which is one of the five int-backed fields measured with **no upper bound** against an `integer` (`int4`)
   column capped at **2,147,483,647**. Every input field writing a bounded column is validated at least as
   strictly as the column can store — `servings`, entry counts, `mealType` / `planType` enums, nullability,
@@ -155,44 +187,61 @@ obligation** — it binds whichever service ends up owning `/api/v1/meal-plans/*
   plausible range**, not just "a string").
     - ⚠️ **Asserted, never derived**: no zod generated from Drizzle, no storage type imported into a
       `*.schema.ts`. §3.0's import constraint is unchanged by GR-016.
-    - ⚠️ **The floor is a floor.** A plan `name` writing an unbounded `text()` column has **no storage bound
-      to derive from**, so its length limit is a product decision 006 owns.
+    - ⚠️ **The floor is a floor.** A `meal_plans.name` writing an unbounded `text()` column has **no storage
+      bound to derive from**, so its length limit is a product decision 006 owns.
+    - ✅ **OPEN-GR-016-A is CLOSED (ruled 2026-08-12, GR-017 §17-d):**
+      the floor is enforced by a **per-service boundary-parity test**, not a review checklist. It lives in
+      `@kitchensink/recipe-service` (beside `recipes/dto/__tests__/numeric-bounds.dto.test.ts`, the existing
+      example); it **may import both** the Drizzle schema and the authored zod, because **a test is not a wire
+      schema**; it **derives** the bounded-column enumeration from the Drizzle schema rather than typing it
+      out; and it asserts the field→column mapping complete **in both directions** — every bounded column has
+      an entry or a reasoned exemption, and every entry names a column that exists. Without the second
+      direction the test silently shrinks to the fields someone remembered and stays green.
 - **Range inputs are inputs.** A plan window (`startDate`/`endDate`) and any calendar range query bound the
   work the request can ask for: a reversed or absurd range is rejected at the boundary rather than becoming a
   query that scans a year of entries. Cross-field rules like `endDate >= startDate` live **in the schema**
   (a zod refinement), so the client sees the same rule the server enforces.
-- **Non-HTTP ingress**: 006 declares **no** queue, event or webhook consumer today. If it adds one (a
-  plan-rollover job is the obvious candidate), that handler **parses its payload against an authored zod
-  before acting on it** — a pipe reaches none of those surfaces.
+- **Non-HTTP ingress — 006 is a queue PRODUCER, not a consumer.** §7 _Resilience_ specifies an **async SQS
+  pattern for the outbound 005 AI call**; that is 006 **publishing** a message, which GR-016 §16-c.2 governs
+  (the outbound body is validated against the callee's schema-package zod **before** the send), not §16-b.
+  006 declares **no queue, event or webhook CONSUMER** today. ⚠️ The two claims previously stood side by side
+  in this plan and read as a contradiction; they are not one — the direction is what differs. **If 006 ever
+  consumes** (an AI-suggestion **reply** off a queue, or a plan-rollover job — both plausible), that handler
+  **parses its payload against an authored zod before acting on it**, because a pipe reaches neither, and an
+  invalid payload is rejected once and **never redriven**
+  ([GR-018](../governance-rules.md#gr-018-one-rejection-path-and-invalid-input-is-never-retried) §18-b).
 - **006 is a CLIENT of several services**, and GR-016 §16-c binds both directions: outbound bodies validated
   against the callee's schema-package zod **before the call** — nutrition via `@kitchensink/schema-food`,
   recipe reads via `@kitchensink/schema-recipe`, AI suggestions via `@kitchensink/schema-ai` — and each
   **response validated on receipt**.
-- **Unknown keys are a stated choice per surface.** `PUT /v1/meal-plans/{id}` is the load-bearing case: a
-  silently stripped unknown key returns `200` for an edit that did not happen. (Portfolio default is **OPEN**,
-  GR-016 OPEN-GR-016-B.)
+- ✅ **Unknown keys — OPEN-GR-016-B is CLOSED (ruled 2026-08-12, GR-017 §17-c):**
+  **`z.strictObject()` is the portfolio default for every mutating request body**, so 006's `POST`/`PUT`/`DELETE`
+  bodies reject unknown keys. Plain `z.object()` is permitted only with a **documented forward-compatibility
+  reason at the schema**, which in practice means a **read** surface (a calendar-range query string an older
+  service may receive from a newer client). `PUT /api/v1/meal-plans/{id}` is the case the ruling protects: a
+  silently stripped key returns `200` for an edit that did not happen, and silence is the worse failure.
 - **No request-derived value reaches `sql.raw()`**; a request-selected sort or grouping maps through a
   validated enum to a closed allowlist of literals in code.
 - **⛔ Response validation is DEFERRED (GR-016 §16-g).** Do not plan or task server-side response parsing.
 
 ### Endpoints
 
-| Method | Path                                      | Auth     | Description                           |
-| ------ | ----------------------------------------- | -------- | ------------------------------------- |
-| GET    | `/v1/meal-plans`                          | Required | List user's meal plans                |
-| POST   | `/v1/meal-plans`                          | Required | Create new meal plan                  |
-| GET    | `/v1/meal-plans/{id}`                     | Required | Get meal plan with entries            |
-| PUT    | `/v1/meal-plans/{id}`                     | Required | Update meal plan (add/remove entries) |
-| DELETE | `/v1/meal-plans/{id}`                     | Required | Delete meal plan                      |
-| POST   | `/v1/meal-plans/{id}/entries`             | Required | Add recipe to meal plan               |
-| DELETE | `/v1/meal-plans/{id}/entries/{entryId}`   | Required | Remove entry                          |
-| GET    | `/v1/meal-plans/{id}/nutrition`           | Required | Get aggregated nutrition summary      |
-| POST   | `/v1/meal-plans/{id}/recipes/suggestions` | Required | Get AI suggestions (005)              |
+| Method | Path                                          | Auth     | Description                           |
+| ------ | --------------------------------------------- | -------- | ------------------------------------- |
+| GET    | `/api/v1/meal-plans`                          | Required | List user's meal plans                |
+| POST   | `/api/v1/meal-plans`                          | Required | Create new meal plan                  |
+| GET    | `/api/v1/meal-plans/{id}`                     | Required | Get meal plan with entries            |
+| PUT    | `/api/v1/meal-plans/{id}`                     | Required | Update meal plan (add/remove entries) |
+| DELETE | `/api/v1/meal-plans/{id}`                     | Required | Delete meal plan                      |
+| POST   | `/api/v1/meal-plans/{id}/entries`             | Required | Add recipe to meal plan               |
+| DELETE | `/api/v1/meal-plans/{id}/entries/{entryId}`   | Required | Remove entry                          |
+| GET    | `/api/v1/meal-plans/{id}/nutrition`           | Required | Get aggregated nutrition summary      |
+| POST   | `/api/v1/meal-plans/{id}/recipes/suggestions` | Required | Get AI suggestions (005)              |
 
 ### Request/Response Shapes
 
 ```typescript
-// POST /v1/meal-plans
+// POST /api/v1/meal-plans
 Request:
 {
   "name": "Week of May 12",
@@ -203,7 +252,7 @@ Request:
 
 Response: MealPlan with id, entries: [], nutrition summary empty
 
-// POST /v1/meal-plans/{id}/entries
+// POST /api/v1/meal-plans/{id}/entries
 Request:
 {
   "recipeId": "rec_abc123",
@@ -212,7 +261,7 @@ Request:
   "servings": 2
 }
 
-// GET /v1/meal-plans/{id}/nutrition
+// GET /api/v1/meal-plans/{id}/nutrition
 Response:
 {
   "planId": "mp_xyz",
@@ -276,7 +325,7 @@ interface NutritionCalculator {
 ### Grocery List Generation (triggers 007)
 
 ```typescript
-// POST /v1/meal-plans/{id}/grocery-list
+// POST /api/v1/meal-plans/{id}/grocery-list
 // → fetches all entries for the plan
 // → aggregates ingredients across recipes (dedup via 007)
 // → returns grocery list manifest (leaves actual 007 creation to user)
@@ -289,7 +338,7 @@ interface NutritionCalculator {
 ### Meal Suggestion Flow
 
 ```typescript
-// POST /v1/meal-plans/{id}/recipes/suggestions
+// POST /api/v1/meal-plans/{id}/recipes/suggestions
 // → calls 005 AI service
 // → passes: user preferences, dietary restrictions, existing recipes, target macros
 

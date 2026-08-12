@@ -1,6 +1,5 @@
 # Feature Specification: User Authentication
 
-
 **Feature Branch**: `002-user-auth`
 **Created**: 2026-04-14
 **Updated**: 2026-06-01
@@ -11,12 +10,12 @@
 
 ## Dependencies
 
-| Spec                                                            | Relationship                                                                             |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Spec                                                        | Relationship                                                                             |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Downstream** — 001 FR-045 requires authentication provided by this spec                |
-| [003-usda-food-data](../003-usda-food-data/spec.md)             | **Downstream** — 003 FR-035 uses the shared API Gateway authorizer provided by this spec |
-| [005-ai-integration](../005-ai-integration/spec.md)             | **Downstream** — external agent OAuth (FR-018) builds on the auth layer                  |
-| [010-subscriptions](../010-subscriptions/spec.md)               | **Downstream** — subscription tier is stored on the Account entity (FR-040–043)          |
+| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Downstream** — 003 FR-035 uses the shared API Gateway authorizer provided by this spec |
+| [005-ai-integration](../005-ai-integration/spec.md)         | **Downstream** — external agent OAuth (FR-018) builds on the auth layer                  |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Downstream** — subscription tier is stored on the Account entity (FR-040–043)          |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -199,10 +198,10 @@ The authentication layer consists of:
 
 **Session Management**
 
-- **FR-006**: System MUST store access tokens and session tokens securely: Keychain (iOS) / Keystore (Android) on mobile; httpOnly, Secure, SameSite cookies on web. *(See also NFR-003 for OAuth 2.1 token storage compliance.)*
+- **FR-006**: System MUST store access tokens and session tokens securely: Keychain (iOS) / Keystore (Android) on mobile; httpOnly, Secure, SameSite cookies on web. _(See also NFR-003 for OAuth 2.1 token storage compliance.)_
 - **FR-007**: System MUST silently refresh the access token using the session token when an API call returns `401 Unauthorized` due to token expiry, without requiring user interaction. The client request interceptor MUST automatically retry the original failed request after successful refresh. Proactive refresh before expiry is NOT required.
 - **FR-008**: System MUST show a non-blocking session expiry warning banner when the session token is within 5 minutes of expiry, with a "Keep me signed in" button that triggers a silent token refresh. If the user ignores the warning and the session expires, the system MUST preserve any unsaved form state in `localStorage` as a draft, redirect to the IdP login screen, and automatically restore the draft after successful re-authentication.
-- **FR-009**: System MUST attach a valid access token to all API requests as a Bearer token in the Authorization header. *(See also NFR-003 for OAuth 2.1 compliance.)*
+- **FR-009**: System MUST attach a valid access token to all API requests as a Bearer token in the Authorization header. _(See also NFR-003 for OAuth 2.1 compliance.)_
 
 **Logout**
 
@@ -302,6 +301,226 @@ The authentication layer consists of:
 - **AuthSession**: Represents the client-side authentication state (not a database entity). Key attributes: `accessToken` (JWT), `sessionToken` (opaque string for silent renewal), `expiresAt` (ISO 8601 — when the access token expires), `userId` (the app-generated ULID, extracted from the `app_user_id` custom claim by the server/API layer). Stored in platform-specific secure storage (Keychain/Keystore on mobile, httpOnly cookies on web). Lifecycle: created on login, refreshed transparently on access token expiry, destroyed on logout or session token expiry.
 
 - **WebhookEvent**: Idempotency record for processed IdP webhook events. Key attributes: `svixId` (Svix delivery ID — primary key, used to deduplicate retried webhook deliveries), `receivedAt` (ISO 8601).
+
+## API Contract & Input Validation (GR-015 / GR-016)
+
+> This section **applies existing portfolio rules to 002's own packages** and **mints no new FR numbers**
+> (GR-003), the way 011/012/013/014 do. 002 already carries GR-016-adjacent requirements — **FR-016a** (webhook
+> payload zod validation), **FR-021** (account-edit validation), **FR-039** (authorizer token validation) — so
+> this section **cites** them rather than duplicating them. Where [`plan.md`](./plan.md) already decided
+> something, the decision is cited, not re-made; where the plan carries an unresolved 🟠 OPEN, it is **carried
+> forward unanswered**. Every count was measured against the tree on **2026-08-12**.
+
+### Contract ownership (GR-015)
+
+_The service authors it; clients declare nothing._
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). Full bindings:
+[`plan.md` → _API Contracts — ownership and drift_](./plan.md#api-contracts--ownership-and-drift-gr-015).
+
+| Role                                                            | Binding for 002                                                                                                                                                                                                 |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)                            | `@kitchensink/identity-service` — `packages/services/identity/src/**/*.schema.ts` (5 wire files: users, avatar, admin, api-error, health)                                                                       |
+| Second deployable in scope                                      | `@kitchensink/identity-webhooks` — the Lambda handlers; the **inbound** Clerk payload is third-party (§15-d below), the webhook's own **response** is ours                                                      |
+| Schema package (**GENERATED and committed; never hand-edited**) | `@kitchensink/schema-identity` — `packages/schemas/identity`. ⚠️ **It now EXISTS** (5 copied schema files; `openapi.yaml` **716 lines, 10 paths**), so the plan's "does not exist yet" status note is **stale** |
+| Consuming app / feature packages                                | `ProfileServiceClient` in `@commise/features-account` (`src/profileServiceClient.ts`); `@commise/web` (`src/lib/identityServiceClient.ts`); `@commise/mobile` (`src/services/api.ts`)                           |
+| Domain types (a **different** axis, GR-007)                     | `@kitchensink/identity-core` — reused `import type`, **never re-declared** inside the schema package                                                                                                            |
+
+**The service MUST** author every request/response shape of `/api/v1/users/*`, `/api/v1/profile/*`,
+`/api/v1/accounts/*` and `/api/v1/admin/*` as **zod in the identity service**, at `src/**/*.schema.ts` beside
+the controller it serves; **validate its own requests with that same zod** via `nestjs-zod`'s `createZodDto`;
+and keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts` files** — no drizzle schema, no DAO
+type, no Nest symbol. `@kitchensink/schema-identity` is a committed **COPY** of that zod — not a
+transformation, because zod schemas are runtime values and cannot be derived from themselves, and every package
+here exports raw `./src/*.ts` so there is no bundle-into-`dist` path. It exports the **zod**, the **`z.infer`
+types**, a **`CONTRACT_HASH`**, a **barrel**, and a **DERIVED `openapi.yaml`** — outbound only, for `oasdiff`,
+docs and integrators, and **never a codegen input** (routing types through JSON Schema loses `readonly`,
+branded and template-literal types and flattens discriminated unions).
+
+⚠️ **`packages/services/identity/src/types` is NOT the contract package and must not become one.** A consumer
+reaching into the service package is ADR-0014's rejected alternative 2 — it drags NestJS, drizzle and the AWS
+SDK into web and mobile, inverts the build order, and hands a client a legitimate-looking path to a DAO type.
+
+**The CLIENT's obligation — separately mandatory.** Mandating only the service half is exactly how the client
+half got skipped portfolio-wide, behind green builds. 002's consumer is an **app-feature** package rather than
+a `packages/clients/*` leaf, and GR-015 §15-b.4 binds it **identically** — the rule is about who authors a wire
+shape, not which directory it lives in.
+
+- Every consumer imports its wire **types AND its runtime zod** from `@kitchensink/schema-identity` and
+  **declares no request or response body shape of the identity service** — including **type-only**, and
+  including inside `packages/apps/**` (GR-017 §17-b.1). `DeleteAccountResult` and every profile/account
+  response shape are **wire** shapes and belong to the schema package; what may remain in the consumer is
+  genuinely client-side — base URL and fetch config, `TokenSource`, request options, its own error shapes.
+- A divergent consumer shape (a settings form model, a redacted profile view) is **DERIVED** with
+  `Pick` / `Omit` / `Partial`, never independently declared. Reference implementation:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **Responses are validated ON RECEIPT by the consumer**, at the moment the body arrives (GR-016 §16-c.3).
+- **A new identity endpoint is not complete until its types are reachable from the schema package.** "The
+  settings screen will add the type" is a **contract fork**, not a task.
+
+🟠 **OPEN — carried forward from [`plan.md`](./plan.md), NOT answered here: where does the identity consumer
+live?** GR-015 assumes a `packages/clients/<service>` leaf and 002 has none (verified 2026-08-12:
+`packages/clients/` holds `food-service`, `recipe-service`, `usda` only). Two shapes satisfy §15-b:
+**(a)** introduce `packages/clients/identity` and have `@commise/features-account` wrap it, or
+**(b)** have the app-feature packages import `@kitchensink/schema-identity` directly and remain the only
+consumers. Neither §15 nor an ADR decides it and it is not derivable, so it stays an owner question. Note the
+measured consequence of leaving it open: the consumer surface is currently **three packages**, not one, so
+option (b) is the status quo by default rather than by decision.
+
+**CLIENT WORK IS ITS OWN DELIVERABLE, with its own tasks** (GR-017 §17-e.12): the schema package, the typed
+consumer, response validation **on receipt**, and a **contract-skew guard** are tasks in
+[`tasks.md`](./tasks.md) — not consequences of finishing the service. ⚠️ Measured 2026-08-12, identity's skew
+guard lives on the **service** side (`src/contract/contract-skew.ts`); the **client-side** guard pattern exists
+only at `packages/clients/{food-service,recipe-service}/src/contractSkew.ts`, so 002's consumer half of §17-b.5
+is unbuilt and depends on the OPEN above.
+
+**Drift gates** — inherited from GR-015 §15-c, all three required, none reinvented here:
+
+1. **Rebuild (turbo):** `$TURBO_ROOT$`-anchored **`inputs`** covering
+   `packages/services/identity/src/**/*.schema.ts`. ⚠️ **`inputs`, NOT `dependsOn`** — a `dependsOn` edge closes
+   the cycle `client → schema → service → client` (`recipe-service` devDepends on its own client) and turbo
+   rejects the graph. Ordering was never the requirement: the generated files are committed, so `build` only
+   compiles what is on disk. What is needed is **cache invalidation** when an authored schema changes.
+2. **Correctness (CI):** regenerate and fail on any diff against the committed artifacts — the strong gate, and
+   the only one that catches a hand-edited generated file.
+3. **Skew (runtime):** the `CONTRACT_HASH` **boot assertion** (`src/main.ts` + `src/contract/contract-skew.ts`,
+   ordered by `src/contract/__tests__/main-boot-order.test.ts`). This is the gate that matters most on 002:
+   identity is the one service every **already-shipped mobile binary** must keep talking to, and neither the
+   turbo layer nor CI can see a deployed service running ahead of a released binary's pinned schema.
+
+⚠️ `oasdiff breaking` is worth adding with its blind spot stated: `@nestjs/swagger` emits **no response
+schema** for a handler returning an `interface`, so until every response type is zod-derived that check cannot
+see response changes — most of what actually breaks a client.
+
+⛔ **THE THIRD-PARTY EXCEPTION (GR-015 §15-d) — Clerk is the opposite case, and converging it deletes 002's
+most exposed boundary.** Clerk is **not one of ours**: we do not serve its API, we cannot author its types, and
+its contract can change without telling us. So **all four** of these are governed by §15-d, not §15-b:
+
+- **Session-token claims** verified in `@kitchensink/clerk-verify` / `ClerkAuthService` (FR-039's surface).
+- **`azp`**, checked against `CLERK_AUTHORIZED_PARTIES` / the anchored `CLERK_AZP_PATTERN`.
+- **`public_metadata`** scope/permission extraction, which feeds **authorization** decisions.
+- **The inbound svix-verified webhook payload** at `POST /api/v1/webhooks/users`
+  (`user.created` / `user.updated` / `user.deleted`) — **Clerk's** shape, not ours.
+
+Each **validates the raw upstream shape at the boundary with its own zod** (identity-webhooks authors
+`src/common/idp-payload.schema.ts` for exactly this), **MAY declare its own types**, and **gets NO OpenAPI
+document**. None of those shapes enters `@kitchensink/schema-identity` as though we owned it. `packages/clients/usda`
+is the portfolio's reference implementation and its `schemas.ts` must **never** be "converged" — doing so
+replaces a checked parse with unchecked trust in a remote party's JSON, which is a **security regression, not a
+cleanup**. On this feature that parse stands between an **unauthenticated public endpoint** and the identity
+database.
+
+### Input validation — where that zod RUNS (GR-016 / GR-018 / GR-019)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[`GR-018`](../governance-rules.md#gr-018-one-rejection-path-and-invalid-input-is-never-retried) ·
+[`GR-019`](../governance-rules.md#gr-019-identifier-integrity--no-sentinels) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Full bindings:
+[`plan.md` → _Input validation_](./plan.md#input-validation--where-the-authored-zod-runs-gr-016). The section
+above decides **who authors** the contract; this one is where it **runs**. It adds no FR (GR-003) — FR-016a,
+FR-021 and FR-039 already state the requirements; GR-016 states where they execute.
+
+- **⛔ 002 holds the case that proves why this rule exists: a route that looked validated and validated
+  nothing.** Under Nest's **own** built-in `ValidationPipe`, a `createZodDto` DTO **validates nothing while every
+  visible signal says it does** — the schema is present, the DTO is referenced, the route reads as validated. It
+  happened on **`PATCH /users/me`**, a route that **writes user data** (FR-021's surface). The identity service
+  registers **`nestjs-zod`'s** pipe, and because the failure is invisible in review the **only** proof is a test
+  that posts a **known-bad body to the real route** and asserts the `400`.
+- **One mechanism, one `400`.** Measured 2026-08-12: identity has **6 files referencing `ZodValidationPipe`, 6
+  referencing `createZodDto` (8 `extends createZodDto(` sites), and ZERO remaining `class-validator`
+  imports** — up from 3/4 on 2026-08-11, so identity is genuinely on **one** mechanism (`recipe-service` still
+  has one `class-validator` importer). Every `/api/v1/users/*`, `/api/v1/profile/*`, `/api/v1/accounts/*` and
+  `/api/v1/admin/*` input —
+  body, path params, query params and any header a handler reads — goes through it. No second DTO framework, no
+  per-method `safeParse`.
+- **`z.strictObject()` for every mutating request body** — the portfolio default, ruled 2026-08-12 in GR-017
+  §17-c, which **closes OPEN-GR-016-B** (the plan still records it as OPEN; it is not). Plain `z.object()`
+  survives only on a **read** surface with a **documented forward-compatibility reason at the schema**. The
+  ruling picks the failure that is **visible**: on a profile update, a silently stripped misspelled field
+  returns `200` for a write that never happened. ✅ Measured 2026-08-12 this is already true where it matters —
+  `patchUserMeRequestSchema` (`src/users/users.schema.ts`) is `z.strictObject`, and it is the one mutating body
+  identity serves.
+- **⛔ THE STORAGE FLOOR.** Every input field writing a bounded column is validated at least as strictly as that
+  column can store — FR-021's 1–50-character display name, the avatar's JPEG/PNG/WebP + 5 MB limits,
+  `status` (`active` | `suspended`) as an enum domain, and nullability on `name` / `picture` / `bio`.
+    - ⚠️ **This is an ASSERTION between two independently authored artifacts, NEVER a derivation.** Zod is
+      **not** generated from drizzle and a `*.schema.ts` **never imports a storage type** — GR-015 §15-a.5 is
+      unchanged by this rule. Enforcement is the per-service parity test GR-017 §17-d requires, and it **exists**:
+      `packages/services/identity/src/types/schema/__tests__/storage-capacity.test.ts`, over shared machinery in
+      `@kitchensink/contract-gen` (`src/storage-capacity.ts`). It **may** import both artifacts because a test is
+      not a wire schema; it **derives** the bounded-column set from the drizzle tables via
+      `collectBoundedColumns` rather than typing it out, and requires a stated `why` for each exemption — which is
+      what makes it exhaustive over **columns** rather than over today's known defects.
+    - ⚠️ **A floor is not a target.** Identity's one bounded column is `users.email` (`varchar(320)`), and it is
+      populated from a **verified** token claim or the signed webhook, never from a request body — so it is
+      exempted **with that reason recorded**, not silently. Everything else is PostgreSQL `text()`, i.e.
+      **unbounded**, so FR-021's 1–50 display-name limit is a **product decision 002 owns** with no floor to
+      derive from. "The column allows it" is not an argument.
+- **Non-HTTP ingress this feature owns, enumerated** (a Nest pipe reaches none of them): the **svix webhook**
+  `POST /api/v1/webhooks/users`, plus `deletion-worker` (SQS retry payload, authored zod at
+  `src/common/deletion-queue.schema.ts`), `reconciliation`, `erasure-reconciliation`, `tombstone-sweep`,
+  `log-forwarder` and `migrate`. Each parses its event against an authored zod before acting on it — a
+  **scheduled** invocation included, because "ours" is an assumption about a deploy that has already drifted
+  once.
+- **⚠️ The svix signature proves ORIGIN, not SHAPE — both checks, in that order, never one instead of the
+  other.** FR-016a already requires the payload parse; GR-016 §16-b is why the signature does not substitute for
+  it. A correctly signed Clerk payload whose fields moved, went null, or gained a member is still an
+  **unvalidated body being written to the identity database**.
+- **⛔ ONE rejection path, and an invalid payload is NEVER retried (GR-018) — and for svix that means answering
+  `2xx`.** This is the half a contributor gets backwards on instinct, so it is stated explicitly rather than
+  left to FR-016a's `400`:
+    - **One path, one shape, the cause in a `reason` field.** A signature failure and a shape failure are
+      **equally invalid**; they differ only in `reason`. Two behaviours means two error contracts and — measured
+      repeatedly in this repo — one of the two ends up without a counter. ✅ Implemented:
+      `rejectInvalidWebhook` in `packages/services/identity-webhooks/src/common/handler-pipeline.ts` is a single
+      function taking `reason: 'shape' | 'signature'`, with a per-`reason` metric dimension
+      (`IdentityWebhookRejected`).
+    - **svix retries on ANY non-2xx**, so returning `400` for an invalid body **requests** exactly the retry
+      storm GR-018 §18-b forbids: each attempt fails identically, forever. A **shape** rejection is therefore
+      answered **`2xx`**, with the rejection recorded in the **response body**, in **structured logs** with its
+      `reason`, in a **per-`reason` counter**, and **alarmed** on that counter — because a rejection nobody sees
+      is indistinguishable from success. **Reject the content, accept the delivery.**
+    - ⚠️ **This does NOT generalize to our own callers.** Identity's own HTTP API returns the `400`/`403` GR-016
+      §16-a.3 requires, and the erasure fan-out's callees do too: those callers do not blind-retry, and a `2xx`
+      would hide a real integration bug from the party able to fix it.
+    - ⚠️ **Two measured gaps, recorded rather than glossed.** (i) `WEBHOOK_REJECTION_STATUS` maps
+      `shape → 200` but `signature → 401`, i.e. the status **does** differ by reason, on a documented and
+      incident-grounded rationale — a stale signing secret is **transient and operator-fixable**, and svix's
+      retry window is the mechanism that rescues it, whereas answering `2xx` would discard every real event
+      permanently (a dropped `user.created` is already on record). That is a genuine tension with GR-018 §18-a's
+      "differ only in `reason`" and needs an **owner ruling**, not a silent alignment in either direction.
+      (ii) The `IdentityWebhookRejected` **counter is emitted but no alarm is defined on it** — measured
+      2026-08-12, `packages/services/identity-webhooks/infra/lib/webhooks-stack.ts` alarms only on
+      `ErasureIncomplete`. §18-c.4 is therefore **unmet**.
+- **⛔ A rejected event is NOT recorded as a row (GR-018 §18-d), and that is GR-019's doing.** An invalid payload
+  has **no trustworthy identifier**, and `webhook_events.identity_id` is `text NOT NULL` (migration
+  `0006_webhook_idempotency.sql`, made `NOT NULL` by `0007_webhook_events_ttl.sql` after backfilling
+  `'unknown'`). Recording a rejected event there would force a **sentinel** — which **GR-019 forbids
+  outright**. This is not hypothetical on this feature: a former `?? 'unknown'` **did** write that string into
+  `identity_id`, a column other code joins on. The rejection lives in **logs, counters and the DLQ**, which are
+  therefore **load-bearing**, not a consolation prize.
+- **Identifiers are never sentinels (GR-019).** `id` (ULID), `identity_id` (Clerk `sub`) and `svixId` are typed
+  **required** wherever consumed — never optional-with-a-default, never `'unknown'`, `''`, `'none'` or `0`,
+  including as a map key, a metrics dimension or a branch condition. The **only** paths where an absent id is
+  permitted are **create/upsert**: signup's read-through provisioning and the `user.updated` upsert (FR-017a),
+  where the app `id` is **generated** as a ULID. An unresolvable principal is a **rejection**, never a default —
+  and when the id is a principal, defaulting it means the **authorization decision was made by a string
+  literal**.
+- **Service-to-service, both directions — identity is the CALLER on the erasure fan-out.**
+  `packages/services/identity-webhooks/src/common/erasure-fanout.ts` posts
+  `POST /api/v1/internal/account/erasure` to **recipe and food**. The outbound body is validated against the
+  **callee's** schema-package zod **before the call** (GR-016 §16-c.2), and each response is validated **on
+  receipt** — a fan-out that silently mis-reads a partial failure is how an erasure is reported complete when it
+  is not.
+- **⛔ Server-side RESPONSE validation is DEFERRED by owner decision (GR-016 §16-g) and MUST NOT be
+  "completed".** Identity validates none of the bodies it **emits**, deliberately. Say which one you mean
+  (GR-017 §17-f): a **consumer** parsing what it **received** is REQUIRED and is what the client half above
+  mandates; a **producing service** parsing what it **emits** is the deferred one. Reversing the deferral needs
+  its own proposal under the governance amendment process.
 
 ## Success Criteria _(mandatory)_
 

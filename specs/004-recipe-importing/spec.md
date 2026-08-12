@@ -284,6 +284,203 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
 
 ---
 
+## API Contract & Input Validation (GR-015 / GR-016)
+
+> This section **applies existing portfolio rules to 004's own surface** and **mints no new FR numbers**
+> (GR-003), the way 011/012/013/014 do. Where [`plan.md`](./plan.md) already decided something, the decision is
+> cited rather than re-made. Every count was measured against the tree on **2026-08-12**.
+>
+> ⛔ **004 creates NO service and NO schema package.** It **extends** an existing service and **adds to** an
+> existing schema package. There is no `@kitchensink/schema-recipe-importing` (verified 2026-08-12: no such
+> directory), and there must not be — a schema package is per **SERVICE**, not per feature.
+
+### Contract ownership (GR-015)
+
+_The service authors it; clients declare nothing — and 004's untrusted input side is the inverted case._
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). Full bindings:
+[`plan.md` → _3.0 Contract ownership and drift_](./plan.md#30-contract-ownership-and-drift-gr-015).
+
+| Role                                                            | Binding for 004                                                                                                                                  |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Owning service (**authors** the zod)                            | `@kitchensink/recipe-service` — the import endpoints' `*.schema.ts` live **beside the import controller**, alongside 001's 8 existing wire files |
+| Schema package (**GENERATED and committed; never hand-edited**) | `@kitchensink/schema-recipe` — `packages/schemas/recipe`. **Shared with 001: 004 ADDS to it, never forks it.**                                   |
+| Consuming client                                                | `@kitchensink/recipe-service-client` — `packages/clients/recipe-service`                                                                         |
+| Consuming apps / feature packages                               | `@commise/web`, `@commise/mobile`, `@commise/features-recipes`                                                                                   |
+| 004 as a **client** of one of ours (§15-b)                      | `@kitchensink/food-service-client` for ingredient resolution → wire types from `@kitchensink/schema-food`, and **no food wire shape declared**   |
+| Non-HTTP deployable in scope                                    | `@kitchensink/recipe-workers` — the async import job envelope is authored **once** and validated on receipt                                      |
+| **Third-party boundaries (§15-d — EXEMPT, inverted)**           | every extraction adapter: scraped HTML, schema.org / JSON-LD, Instagram/Meta oEmbed, the OCR vendor, uploaded files                              |
+
+**The service MUST** author every import / job / draft request and response shape — and the admin
+paywalled-domain surface — as **zod in the recipe service** beside its controller; **validate its own requests
+with that same zod** via `nestjs-zod`'s `createZodDto`; **regenerate `@kitchensink/schema-recipe`** so the new
+shapes are exported; and keep those `*.schema.ts` files importing **only `zod` and other `*.schema.ts` files** —
+no extractor type, no drizzle schema, no Nest symbol.
+
+`@kitchensink/schema-recipe` is a committed **COPY** of that zod — not a transformation, because zod schemas are
+runtime values and cannot be derived from themselves, and every package here exports raw `./src/*.ts` so there
+is no bundle-into-`dist` path. It exports the **zod**, the **`z.infer` types**, a **`CONTRACT_HASH`**, a
+**barrel**, and a **DERIVED `openapi.yaml`** — outbound only, for `oasdiff`, docs and integrators, and **never a
+codegen input** (routing types through JSON Schema loses `readonly`, branded and template-literal types and
+flattens discriminated unions).
+
+⚠️ **`specs/001-commise-recipe-app/contracts/api.openapi.yaml` is SUPERSEDED and MUST NOT be extended with
+004's endpoints.** This **supersedes D-016 in place** — see the amended decision under _Owner decisions_ below.
+Recipe's derived document now
+**exists** at `packages/schemas/recipe/openapi.yaml` (**4,945 lines, 34 paths**) against the hand-written file's
+**2,827 lines, 32 paths**, so "the replacement has not been generated yet" — which the hand-written file's own
+header still says — is no longer true. Where the two disagree, **the service's zod wins**.
+
+**The CLIENT's obligation — separately mandatory.** Mandating only the service half is exactly how the client
+half got skipped portfolio-wide, behind green builds.
+
+- Every consumer imports its import-job, draft and error wire **types AND runtime zod** from
+  `@kitchensink/schema-recipe` and **declares none of its own** — including **type-only**, and including inside
+  `packages/apps/**` feature packages (GR-015 §15-b.4, GR-017 §17-b.1).
+- **The draft-review UI is 004's load-bearing case.** A review screen's editable model is a **DERIVATION** of
+  the draft wire type via `Pick` / `Omit` / `Partial` — never a hand-written parallel interface — and it is
+  derived **once and shared**, not re-typed on web and again on mobile. Reference implementation:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **Responses are validated ON RECEIPT by the consumer**, at the moment the body arrives (GR-016 §16-c.3).
+- **An import endpoint is not complete until its types are reachable from `@kitchensink/schema-recipe`.** "The
+  review screen will add the type" is a **contract fork**, not a task.
+
+**CLIENT WORK IS ITS OWN DELIVERABLE, with its own tasks** (GR-017 §17-e.12): regenerating the schema package,
+extending the typed client, receipt validation, and the **contract-skew guard** are tasks in
+[`tasks.md`](./tasks.md) — not consequences of finishing the service. ✅ The guard exists at
+`packages/clients/recipe-service/src/contractSkew.ts`, so 004 inherits it rather than inventing one.
+
+**Drift gates** — inherited from GR-015 §15-c, all three required, none reinvented here:
+
+1. **Rebuild (turbo):** `$TURBO_ROOT$`-anchored **`inputs`** covering
+   `packages/services/recipe-service/src/**/*.schema.ts`. ⚠️ **`inputs`, NOT `dependsOn`** — `recipe-service`
+   devDepends on its own client for the contract test tier, so a `dependsOn` edge closes the cycle
+   `client → schema → service → client` and turbo rejects the graph. Ordering was never the requirement: the
+   generated files are committed, so `build` only compiles what is on disk. What is needed is **cache
+   invalidation** when an authored schema changes.
+2. **Correctness (CI):** regenerate and fail on any diff against the committed artifacts — the strong gate, and
+   the only one that catches a hand-edited generated file.
+3. **Skew (runtime):** the `CONTRACT_HASH` **boot assertion**, the only layer that can catch a deployed recipe
+   service running ahead of a released mobile binary's pinned schema.
+
+⚠️ `oasdiff breaking` is worth adding with its blind spot stated: `@nestjs/swagger` emits **no response
+schema** for a handler returning an `interface`, so until every response type is zod-derived that check cannot
+see response changes — most of what actually breaks a client.
+
+⛔ **THE THIRD-PARTY EXCEPTION (GR-015 §15-d) — on 004 this is the LOAD-BEARING half.** Every other feature
+validates input a user typed; **004 validates input a stranger's web page emitted.** Its entire input side is
+untrusted external data and **none of it is a contract we own**:
+
+- **Scraped web pages, schema.org / JSON-LD recipe blobs, Instagram/Meta oEmbed payloads, uploaded files, and
+  OCR output.** A publisher's JSON-LD is not an API we serve; it is arbitrary, attacker-influenceable input, and
+  the same is true of a photograph of an arbitrary page.
+- Every extraction adapter therefore **validates the raw upstream shape at the boundary with its own zod**
+  before any field reaches a draft, and **MAY declare its own types**. The normalized draft shape **deliberately
+  differs** from whatever the page emitted — that difference is the **normalization, not drift**.
+- **No OpenAPI document is written for any upstream source**, and **none of those shapes enters
+  `@kitchensink/schema-recipe`** as though we owned it. Only 004's **own** endpoints do.
+- `packages/clients/usda` is the reference implementation and its `schemas.ts` must **never** be "converged".
+  **Do not "converge" a boundary schema away here either:** on this feature it is the parse standing between a
+  **hostile page** and the **recipe write path**. Doing so replaces a checked parse with unchecked trust in a
+  remote party's data — a **security regression, not a cleanup**. §15-b's reasoning does not reach this case at
+  all: duplication is only wrong when one side could have been derived from the other, and this side belongs to
+  someone else.
+
+### Input validation — where that zod RUNS (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
+[`GR-018`](../governance-rules.md#gr-018-one-rejection-path-and-invalid-input-is-never-retried) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Full bindings:
+[`plan.md` → _3.1 Input validation_](./plan.md#31-input-validation-gr-016--004s-input-is-hostile-by-definition).
+The section above decides **who authors** the contract; this one is where it **runs**. It adds no FR (GR-003) —
+`FR-025`'s provenance whitelist and the error-code table already state the requirements.
+
+- **One mechanism, one `400`.** Every import / job / draft / admin-domain input — body, path params, query
+  params, and the required `Idempotency-Key` header — is parsed by the recipe service's own `*.schema.ts` zod via
+  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. **004 adds NO `class-validator` DTO.** ⚠️ Measured
+  2026-08-12, the residue in `recipe-service` is **one file**, not the 19 recorded elsewhere — 19 files _mention_
+  the string, almost all in JSDoc about the migration away from it, while exactly one still **imports** it
+  (`src/search/dto/search-recipes.query.dto.ts`). That file is removed, not extended.
+- **⚠️ The pipe hazard is invisible in review.** Under Nest's **own** built-in `ValidationPipe`, a
+  `createZodDto` DTO **validates nothing while looking correctly wired** — the schema is present, the DTO is
+  referenced, the route reads as validated, and no input is checked. It already bit identity's
+  `PATCH /users/me`. The service registers **`nestjs-zod`'s** pipe, and the **only** thing that catches the
+  failure is a test that posts a **known-bad body to a real route** and asserts the `400`.
+- **`z.strictObject()` for every mutating request body** — the portfolio default, ruled 2026-08-12 in GR-017
+  §17-c, which **closes OPEN-GR-016-B** (the plan still records it as OPEN; it is not). Plain `z.object()`
+  survives only on a **read** surface with a **documented forward-compatibility reason at the schema**. On
+  `PATCH /api/v1/recipes/import/drafts/{id}` — a **user correcting an extraction** — a silently stripped unknown
+  key returns `200` for a correction that was never applied, which is the worst possible place for `z.object`'s
+  default. ⛔ Measured 2026-08-12, `recipe-service` has **zero** `z.strictObject()` against **36** `z.object()`
+  occurrences, so 004's mutating bodies must be authored strict from the start rather than matching the
+  neighbours.
+- **⛔ THE STORAGE FLOOR — and 004 is the channel that reaches it from data we did not author.** 001's five
+  int-backed fields — **`servings`, `prepTimeMinutes`, `cookTimeMinutes`, `totalTimeMinutes`, `timerSeconds`** —
+  write `integer` (`int4`) columns capped at **2,147,483,647**. A publisher's JSON-LD claiming
+  `"recipeYield": 9999999999` must be rejected **when the draft is created**, not discovered at the `INSERT`
+  behind `confirm` — that is the `500`-that-owed-a-`400` shape GR-016 exists to end. Every extracted numeric is
+  bounded **at the extraction boundary AND at the draft/confirm wire boundary**: two different inputs from two
+  different parties.
+    - ⚠️ **This is an ASSERTION between two independently authored artifacts, NEVER a derivation.** Zod is
+      **not** generated from drizzle and a `*.schema.ts` **never imports a storage type** — GR-015 §15-a.5 is
+      unchanged. Enforcement is 001's per-service parity test, which 004 **extends rather than duplicates**:
+      `packages/services/recipe-service/src/database/__tests__/storage-capacity.test.ts`, over shared machinery in
+      `@kitchensink/contract-gen` (`src/storage-capacity.ts`). It **may** import both artifacts because a test is
+      not a wire schema; it **derives** the bounded-column set from the drizzle tables, so a new import-draft
+      column fails the test until it is bound to the wire field that writes it or **exempted with a stated
+      `why`**, and its field→column mapping completeness is asserted **in both directions**.
+    - ⚠️ **A floor is not a target — and here it is also a DoS control.** Recipe's text columns are PostgreSQL
+      `text()`, i.e. **unbounded**, so limits on an extracted title, step, note or ingredient string are
+      **product decisions**, with the added property that on 004 **the upstream author chooses the length**.
+      "The column allows it" is not a reason to persist a 2 MB step.
+- **✅ The extraction adapters' boundary parse is REQUIRED by GR-016, not merely PERMITTED by §15-d.** The
+  section above permits the adapters to own their types; GR-016 makes the parse **mandatory before any field
+  reaches a draft**, and forbids converging it away.
+- **The provenance whitelist is the pattern GR-016 wants everywhere.** `FR-025` / HAZ-057 makes
+  `imported_public` / `imported_physical` **not representable** in the `POST /api/v1/recipes` DTO — the rule
+  lives **in the type, not in a validation branch someone can forget.** That is "make illegal states
+  unrepresentable" applied to a wire schema; prefer it over a refinement wherever the shape allows.
+- **Non-HTTP ingress this feature owns, enumerated** (a Nest pipe reaches none of them): the async import path —
+  `POST .../import/url`, `.../import/instagram` and `.../import/photo`, each answering `202` — enqueues a job,
+  and the worker **parses its job payload against an authored zod before acting on it**. The job envelope is
+  shared between the service and `@kitchensink/recipe-workers`, **authored once** and validated **on receipt**,
+  because the two deployables version independently. **An invalid payload is NEVER retried** (GR-018 §18-b):
+  there is no caller to answer, so a shape rejection is recorded with its `reason` and the message is
+  **completed or dead-lettered once**, with an alarm on DLQ depth. The legitimate retry is a **transient
+  dependency** failure — `IMPORT_PROVIDER_UNAVAILABLE` (`503`, circuit open) is that condition, with its own
+  `reason`, and it MAY retry. `POST .../import/file` is **synchronous** (local parse, no outbound call) and has
+  no queue ingress.
+- **⚠️ For 004's own callers, an invalid body is a `400` — NOT the `2xx` GR-018 §18-c reserves for
+  signature-verifying third-party webhook senders.** 004 exposes no third-party webhook: the OCR vendor is
+  called **outbound** and its result is parsed on receipt. If a provider completion **callback** is ever added,
+  it needs **both** controls in order — **authenticate it, then validate its schema** — because a signature
+  proves **origin, not shape**, and that payload would decide whether a draft becomes a recipe.
+- **004 is a client of food** (ingredient resolution): outbound bodies validated against
+  `@kitchensink/schema-food` **before the call** — including the ≤100-name batch bound (`003-FR-045`) — and
+  responses validated **on receipt**.
+- **Identifiers are never sentinels (GR-019).** `jobId`, `draftId`, the owner `sub` and the created `recipeId`
+  are typed **required** wherever consumed — never optional-with-a-default, never `'unknown'`, `''` or `0`,
+  including as a map key, a metrics dimension or a branch condition. The **only** paths where an absent id is
+  permitted are the **create** paths (a job/draft id and the confirmed recipe's id are **generated** as ULIDs).
+  An unresolvable or foreign id is a **rejection** — and per the object-level authorization rule it is a `404`,
+  never a `403`, so a draft belonging to another user is indistinguishable from one that does not exist.
+- **⚠️ Validation is NOT SSRF defence, and neither substitutes for the other.** A URL that **parses** is not a
+  URL that is **safe to fetch**: the SSRF controls (`REQ-NF-009` / HAZ-003, a Catastrophic hazard whose
+  procedures are non-waivable per D-018) still apply **after** the schema accepts the input. Likewise
+  `IMPORT_UNSUPPORTED_FORMAT` is decided by **magic bytes**, not by a declared content type.
+- **⛔ Server-side RESPONSE validation is DEFERRED by owner decision (GR-016 §16-g) and MUST NOT be
+  "completed".** Do not add server-side response parsing to the import endpoints. Say which one you mean
+  (GR-017 §17-f): a **consumer** parsing what it **received** — including every extraction adapter parsing what
+  a page sent — is REQUIRED; a **producing service** parsing what it **emits** is the deferred one. Reversing the
+  deferral needs its own proposal under the governance amendment process.
+
+---
+
 ## Success Criteria _(mandatory)_
 
 - **SC-002**: For a fixture corpus of public recipe URLs carrying structured markup, extraction MUST populate
@@ -327,12 +524,26 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   fence, and an architecture test to stop anyone bypassing a wrapper — machinery guarding a hypothetical future
   mistake, on top of a method that could not do the job anyway. Fixing the method is the smaller and more
   honest change; the required-argument signature is the control.
-- **D-016 (OpenAPI contract location, 2026-08-02)**: The service's single contract stays at
-  `specs/001-commise-recipe-app/contracts/api.openapi.yaml` for this feature; 004 extends it rather than
-  starting a second document. Relocating a 120 KB contract into the service package mid-feature adds risk for
-  tidiness, and it gets worse with every feature that extends it — so the move stays its own change. Note the
-  ADR-0011 migration rewrote that contract's paths in place **without** relocating it, so the location
-  question is still open and this decision still stands.
+- **D-016 (OpenAPI contract location, 2026-08-02) — ⛔ SUPERSEDED 2026-08-12 by GR-015 / ADR-0014. Do NOT
+  follow the original text.** The decision below was correct when the only contract artifact for the recipe
+  service was a hand-written document and no generated one existed. Both premises are now false.
+    - **The authority is the zod authored in the recipe service** at
+      `packages/services/recipe-service/src/**/*.schema.ts`, copied into `@kitchensink/schema-recipe`, from which
+      `openapi.yaml` is **DERIVED** for `oasdiff`, docs and integrators — never as a codegen input. See
+      _API Contract & Input Validation (GR-015 / GR-016)_ above.
+    - **"One service, one contract" still holds; the contract moved to where it can be enforced.** The derived
+      document **exists** at `packages/schemas/recipe/openapi.yaml` (4,945 lines, 34 paths, measured 2026-08-12)
+      against the hand-written file's 2,827 lines and 32 paths, so the "the move stays its own change" reasoning
+      has been overtaken: the move happened. **Where the two disagree, the service's zod wins.**
+    - ⛔ **`specs/001-commise-recipe-app/contracts/api.openapi.yaml` MUST NOT be extended with 004's endpoints**
+      (GR-015 §15-a.7 / AC-015-f). Its citations have not yet been repointed — measured 2026-08-12 via
+      `git ls-files`, 12 committed files under `packages/`, 19 under `specs/` and 5 under `docs/` still cite it —
+      which is why this decision is marked superseded **in place** rather than deleted.
+    - **What survives from the original reasoning:** 004 still starts **no second document** and creates **no
+      schema package of its own**. _(Original text: "The service's single contract stays at
+      `specs/001-commise-recipe-app/contracts/api.openapi.yaml` for this feature; 004 extends it rather than
+      starting a second document. Relocating a 120 KB contract into the service package mid-feature adds risk for
+      tidiness … so the move stays its own change.")_
 - **D-017 (FR numbering, 2026-08-02)**: 004 keeps `FR-008`..`FR-014a` and relies on the mandatory `004-`
   prefix for cross-feature references. A clean renumber would break existing links and the cross-feature index
   for a cosmetic gain, and 004 is the last feature carrying this collision now the prefix convention is

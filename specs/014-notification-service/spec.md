@@ -27,6 +27,47 @@ Resolves `specs/cross-feature-consistency-report.md` §5.3 / **WA-004** (no owne
 - Q: Are launch transports limited to in-app? → A: **Yes** — email and mobile push are explicitly out of scope for this release.
 - Q: Does this service own the meaning of any specific `messageType`? → A: **No** — producers own their own keyword namespaces and document them in their own feature specs. This service only owns transport, routing, and the registry mechanics.
 
+### Session 2026-08-12 — retention, deduplication and producer identity (owner rulings)
+
+These rulings **close** the three items previously recorded under _Open Questions_ and one further open item
+in _Wire Contract Ownership_. Design reasoning and the rejected alternatives are in
+[ADR-0016](../../docs/architecture/decisions/0016-notification-retention-payload-dedup-and-valkey.md);
+this section records **what** was decided, and the FRs below make it normative.
+
+- Q: How long is a notification retained, and what ends the retention? → A (verbatim): **"Keep the
+  notification until the client indicates that it has been consumed or three days have passed."** So
+  retention is `ack OR 72h, whichever first`, replacing the previous 24-hour clock (FR-012, FR-034 – FR-036).
+- Q: What is the deduplication identity? → A (verbatim): **"Dedup messages based on payload so we don't have
+  messages with identical payload waiting to be consumed."** Dedup is on a **canonical hash of the payload**
+  (plus the fields that make it routable), and it applies **only while a notification is waiting to be
+  consumed** — a payload re-sent after its predecessor was consumed is a **new** notification (FR-037,
+  FR-038).
+- Q: What store holds retained notifications? → A (verbatim): **"use redis"** — implemented as **ElastiCache
+  Serverless for Valkey** (Redis-compatible, 100 MB metered floor, ≈ $6.13/mo idle). ⛔ The **durability
+  caveat is accepted knowingly**: ElastiCache is not durable by default in either flavour, so a node
+  replacement can drop retained notifications, and DynamoDB-with-TTL was flagged as both durable and cheaper
+  for this shape before Redis was chosen. Recorded as a residual risk with mitigations and an escalation path
+  in FR-040 and in ADR-0016 → _Durability_.
+- Q (OPEN-014-A): Which producer identity is authoritative — the transport signal or the envelope's
+  `producer`? → A: **BOTH are required and a mismatch is a rejection.** `producer` stays REQUIRED, on **both**
+  ingress paths, and the transport signal (the HTTP token principal, or the EventBridge `source`) must resolve
+  through the **producer registry** to the same name (FR-041, FR-026 amended).
+- Q: Where does the registry live? → A: **authored in the notification service** as version-controlled data
+  beside its zod, and **copied into the schema package by the same generator**. It is not a database table,
+  and it is not assembled from the producers it constrains (FR-041).
+- Q (OPEN-014-B): Is delivery exactly-once? → A: **No.** The contract is **at most one notification per
+  `(producer, idempotencyKey)` within the claim window, and never zero** — effectively-once. SC-011 is
+  narrowed accordingly; US-010's idempotent-handler obligation stands and is now load-bearing (FR-039).
+- Q (OPEN-014-C): What is the quota's unit? → A: **A token bucket with a service-FIXED unit** — a sustained
+  rate in publishes/second plus a burst allowance in publishes. The producer declares magnitudes only, one
+  budget spans both ingress paths, and `global` broadcasts carry a separate service-owned bound (FR-044,
+  FR-033 amended).
+- Q: How is an invalid publish handled? → A: **Invalid payloads are not retried.** A signature failure and a
+  shape failure are **equally invalid** and take **ONE rejection path** carrying the cause as a `reason`
+  field, and a rejected event is **not recorded as a row** (FR-042).
+- Q: May an identifier ever be a sentinel such as `'unknown'`? → A: **Never.** An id is REQUIRED except on
+  create/upsert, where it is generated if absent (FR-043).
+
 ## User Scenarios & Testing _(mandatory)_
 
 <!--
@@ -210,6 +251,74 @@ A producer feature can be rate-limited independently to protect the shared infra
 
 ---
 
+### User Story 12 — The Client Acknowledges Consumption, and Retention Ends (Priority: P1)
+
+A client receives a notification, runs its `messageType` handler to completion, and **acknowledges** it. The
+notification stops being pending: it is not delivered again on the next reconnect, and it does not wait out
+the retention window. A notification that is **never** acknowledged stays pending — redelivered on every
+reconnect — until **72 hours** after it was published, at which point it is dropped and counted.
+
+**Why this priority**: Without an acknowledgement the service cannot tell "delivered" from "consumed", so
+either it drops notifications the user never saw (the 24-hour-clock behaviour this replaces) or it redelivers
+them forever. The owner's directive makes consumption the primary end of retention, so this is P1 with
+US-001, not an enhancement to it.
+
+**Independent Test**: Publish two notifications to user U. Deliver both. Ack **one**. Reconnect: verify only
+the un-acked one is redelivered. Ack it twice in a row: verify both calls succeed. Advance a notification's
+clock past 72 h without an ack: verify it is not redelivered and the undelivered-after-retention counter moved.
+
+**Acceptance Scenarios**:
+
+1. **Given** notification N delivered to user U, **When** U's client acks N and then reconnects, **Then** N is
+   **not** redelivered.
+2. **Given** N delivered but **not** acked, **When** U's client reconnects, **Then** N **is** redelivered, in
+   `sequence` order relative to other pending notifications.
+3. **Given** U's client acks N **twice** (a retried ack after a dropped response), **Then** both calls succeed;
+   the second reports N as already settled and is **not** an error.
+4. **Given** an ack naming an id that does not exist, has expired, or belongs to **another** user, **Then** the
+   call succeeds and reports that id as already settled — it never reveals whether the id exists.
+5. **Given** N is unacked at `publishedAt + 72h`, **Then** N is dropped, the undelivered-after-retention
+   counter increments **before** the drop, and N is never redelivered.
+6. **Given** U acks N on mobile, **When** U later opens a web client, **Then** N is **not** delivered there.
+   (Ack is per **user**, not per device — an accepted consequence, not a defect.)
+
+---
+
+### User Story 13 — Two Identical Pending Payloads Collapse to One (Priority: P1)
+
+A producer publishes an envelope; before the recipient has consumed it, the producer publishes the **same
+payload** to the **same recipient** again — a retry, a duplicated bus delivery, or a re-run of the job that
+produced it. The recipient sees **one** notification, not two. Once the first has been consumed, the same
+payload published again is a **new** notification and is delivered.
+
+**Why this priority**: Duplicate-suppression that depends on the producer having derived a correct
+`idempotencyKey` (US-010) is a guarantee outsourced to the least-supervised party, and a producer that derives
+its key from a clock deduplicates nothing while looking correct. Payload identity is derived by this service
+from what it was actually sent, so it holds regardless of producer discipline.
+
+**Independent Test**: Publish the same envelope twice, back to back, with **no** `idempotencyKey`. Verify the
+recipient observes one notification and the second publish returns the **first** notification's id with a
+deduplicated marker. Verify the first notification's expiry did **not** move. Then ack it, publish the same
+payload a third time, and verify a **new** notification is delivered.
+
+**Acceptance Scenarios**:
+
+1. **Given** envelope E published to recipient R and still pending, **When** the identical payload is
+   published to R again, **Then** the recipient observes **one** notification and the second publish succeeds,
+   returning the original's id marked as deduplicated.
+2. **Given** the two publishes differ **only** in key order inside `payload` (`{"a":1,"b":2}` vs
+   `{"b":2,"a":1}`), **Then** they are treated as identical and collapse.
+3. **Given** the two publishes differ in any payload value, in `messageType`, in `producer`, or in the
+   recipient, **Then** they are **two** notifications.
+4. **Given** a duplicate is dropped, **Then** the original's `expiresAt`, `sequence` and delivery state are
+   **unchanged** — a duplicate can never extend the original's retention.
+5. **Given** E has been **acked**, **When** the identical payload is published again, **Then** it is a **new**
+   notification and is delivered.
+6. **Given** the same payload is published to two **different** recipients, **Then** both recipients receive
+   it — dedup is per recipient.
+
+---
+
 ### Edge Cases
 
 - **Recipient does not exist**: Publishing to `recipient = { kind: "user", id: <unknown> }` succeeds at the API boundary (decoupled from identity lookup) and increments an "undeliverable, unknown recipient" counter. No exception is raised to the producer.
@@ -220,6 +329,11 @@ A producer feature can be rate-limited independently to protect the shared infra
 - **`messageType` with same keyword used by two producers**: Caught by the registry (US-009); without enforcement, the keyword collision is reported via the "unregistered" counter once a producer registers it later.
 - **Subscriber's group membership changes mid-flight**: Membership is resolved at delivery time, not publish time; a user removed from a group between publish and delivery does not receive the message.
 - **Service restart**: In-flight publishes accepted before the restart are not lost (durability is required by US-001's "publish call returns success when the message is durably accepted"). In-flight subscriptions reconnect and use catch-up (US-005).
+- **A notification no client can consume ("poison")**: A payload whose handler throws is never acked, so it is redelivered on every reconnect for the full 72 hours. This is **counted and alarmed** on the per-notification delivery-attempt count, not capped — dropping it early would discard a notification the service promised to keep, and the retention clock is already the backstop (FR-039).
+- **A group notification acked by one member**: The ack settles it for **that member only**. Each member has their own pending entry over one stored envelope, so member A's ack has no effect on member B (FR-035).
+- **A payload containing a number that does not survive an IEEE-754 round trip** (e.g. `10000000000000001`): rejected at ingress with a `reason` naming the offending path, because canonicalizing it would make two **different** payloads hash identically and silently collapse them (FR-037).
+- **The retained-notification store loses data**: A cache failover or node replacement can drop pending notifications the producer was already told were accepted, and producers keep no copy (FR-031). This is a **known residual risk** with mitigations and an escalation path, not an edge case with a code fix — see FR-040 and ADR-0016 → _Durability_.
+- **A publish arrives while its recipient's group has just been deleted**: unchanged from "recipient does not exist" — the publish succeeds at the boundary and the undeliverable counter increments; no exception reaches the producer.
 
 ## Requirements _(mandatory)_
 
@@ -242,18 +356,18 @@ A producer feature can be rate-limited independently to protect the shared infra
 - **FR-009**: The system MUST treat global broadcast ordering as best-effort. The product contract MUST NOT promise FIFO across global broadcasts.
 - **FR-010**: The system MUST expose a subscription API under `/api/v1/notifications/subscribe` (or transport-equivalent under the same path prefix) that requires authentication. Recipient identity MUST be derived from the authenticated session, not from client-supplied claims.
 - **FR-011**: The system MUST tolerate unknown `messageType` values on the client side: clients MUST log and ignore them rather than crash.
-- **FR-012**: The system MUST retain undelivered messages addressed to `user` and `group` recipients for a defined retention window so that a reconnecting client can catch up. Default retention window value is an open implementation parameter (Q-003) but MUST be ≥ 24 hours.
+- **FR-012** _(amended 2026-08-12 — owner ruling)_: The system MUST retain a message addressed to a `user` or `group` recipient **until the recipient's client acknowledges consumption (FR-034) OR 72 hours have elapsed since it was published, whichever happens first**. The clock is absolute and starts at publish acceptance. **Superseded**: this requirement previously specified "a defined retention window … MUST be ≥ 24 hours" with the value left open as Q-003; the value is now fixed at **72 hours** and the terminating condition is now **consumption**, not the clock alone. `global` recipients are **not** retained (FR-009 — live-only, best-effort).
 - **FR-013**: The system MUST emit operational counters for: per-producer publish count, per-recipient-kind delivered count, undelivered-after-retention count, active subscriber gauge, and per-`messageType` publish count.
 - **FR-014**: The system MUST emit a separate operational counter for global broadcast publishes, distinguishable from `user` and `group` publishes.
 - **FR-015**: The system MUST validate the publish envelope schema **before** durable storage and reject malformed envelopes with a structured error.
 - **FR-016**: The system MUST maintain a version-controlled registry of `messageType` keywords. Registered keywords succeed without flag; unregistered keywords increment a separate "unregistered messageType" counter.
 - **FR-017**: The system MUST support an enforcement mode in which unregistered `messageType` publishes are rejected with a structured error. Enforcement state MUST be configurable per environment.
-- **FR-018**: The system MUST support an optional `idempotencyKey` on the publish envelope. Duplicate publishes from the same producer with the same key inside a configured dedup window MUST collapse to one delivery per recipient.
-- **FR-019**: The system MUST support per-producer publish quotas. Publishes exceeding the configured quota MUST be rejected with a structured rate-limit error and counted in a per-producer throttled-publish counter. 🟠 **OPEN-014-C — the quota has no unit.** See [Open Questions](#open-questions-owner-resolution-required).
+- **FR-018** _(clarified 2026-08-12)_: The system MUST support an optional `idempotencyKey` on the publish envelope. Duplicate publishes from the same producer with the same key inside a configured claim window MUST collapse to one notification per recipient. This is the **second** of two deduplication indexes and it is **not** the primary one — payload identity (FR-037) is always on and does not depend on a producer supplying a key. The `idempotencyKey` claim exists because it **outlives an acknowledgement**, which payload identity deliberately does not (FR-038).
+- **FR-019** _(unit fixed 2026-08-12 — OPEN-014-C closed)_: The system MUST support per-producer publish quotas. Publishes exceeding the quota MUST be rejected with a structured rate-limit error and counted in a per-producer throttled-publish counter. The quota's **unit is a token bucket fixed by this service** — see FR-044.
 - **FR-020**: The system MUST NOT deliver any message to an unauthenticated client.
 - **FR-021**: The system MUST NOT permit a subscriber to receive messages addressed to a user identity other than the subscriber's authenticated identity.
 - **FR-022**: The system MUST resolve group membership at delivery time, not at publish time.
-- **FR-023**: The system MUST treat `payload` as opaque and MUST NOT validate, inspect, or transform it beyond size limits.
+- **FR-023** _(amended 2026-08-12 — narrowed so FR-037 is not a violation of it)_: The system MUST treat `payload` as **opaque as to MEANING and SCHEMA**: it MUST NOT interpret it, MUST NOT impose a per-`messageType` schema on it, and MUST NOT transform the value it stores or delivers. It MAY do exactly two things to it: **bound its size**, and **compute a canonical structural hash of it for deduplication** (FR-037). Hashing establishes no knowledge of meaning and imposes no schema, so it does not make this service the author of a producer's contract — which is what this requirement exists to prevent. Two consequences follow and are deliberate: the payload MUST be well-formed JSON, and a payload the service **cannot canonically serialize** (FR-037's number-representability rule) is rejected at ingress. **Superseded**: the previous wording — "MUST NOT validate, inspect, or transform it beyond size limits" — forbids the hash the owner's dedup ruling requires, and reading it uncorrected would make FR-037 look like a violation of FR-023.
 
 **Dual ingress — EventBridge and HTTP (added 2026-08-10, owner decision)**
 
@@ -270,22 +384,30 @@ The paths differ only in how a request arrives.
   only**, on a `detailType` reserved by this service. It MUST NOT subscribe to producers' domain events. A
   domain event carries no recipient, and deriving one would require inspecting `payload` (forbidden by
   FR-023) or calling back into the producer — reintroducing the coupling this path exists to remove.
-- **FR-026** _(minimum envelope — normative wire contract)_: Every envelope, on either path, MUST carry
-  `schemaVersion` (integer), `recipient` (FR-004), `messageType`, `occurredAt` (ISO-8601, producer-assigned),
-  and `payload`. Two further fields are REQUIRED on the EventBridge path and optional on HTTP:
-  `idempotencyKey`, because EventBridge delivery is at-least-once and redelivery would otherwise duplicate a
-  user-visible notification; and `producer`, because that path has no bearer token to derive identity from
-  (FR-027). An envelope missing any required field MUST be rejected — never partially routed, never defaulted.
-  🟠 **OPEN-014-A — this contradicts FR-027 on producer identity.** See
-  [Open Questions](#open-questions-owner-resolution-required).
+- **FR-026** _(minimum envelope — normative wire contract; amended 2026-08-12, OPEN-014-A closed)_: Every
+  envelope, on either path, MUST carry `schemaVersion` (integer), `recipient` (FR-004), `messageType`,
+  `occurredAt` (ISO-8601, producer-assigned), `payload`, and **`producer`**. An envelope missing any required
+  field MUST be rejected — never partially routed, never defaulted, never defaulted to a sentinel (FR-043).
+  `idempotencyKey` remains REQUIRED on the EventBridge path (delivery there is at-least-once, and the claim is
+  what survives an acknowledgement — FR-018, FR-038) and optional on HTTP.
+    - **`producer` is REQUIRED on BOTH paths**, which is the amendment. It was previously required only on
+      EventBridge, justified as "that path has no bearer token to derive identity from" — a rationale FR-027
+      contradicted, since `source` does derive identity without a bearer token. The ruling (FR-041) is that
+      **both signals are required and a mismatch is a rejection**, so the field is required wherever an
+      envelope is accepted. This also makes one envelope shape valid on both paths, which is what lets FR-024's
+      "one core, two adapters" be served by literally **one** zod (SC-008's paired tests would otherwise be
+      comparing two different shapes).
 - **FR-027** _(event-path authorization — the trust boundary)_: The HTTP path derives producer identity from
   an authenticated credential (FR-002). The EventBridge path has **no credential**, so its trust boundary MUST
   be (a) an EventBridge resource policy restricting which principals may put events on the notification bus,
   AND (b) validation of the event's `source` against an allowlist of registered producers. Both are required:
   without them the event path is an unauthenticated publish channel through which any principal with bus
   access could address a notification to any user, defeating FR-005, FR-020 and FR-021.
-  🟠 **OPEN-014-A — this contradicts FR-026 on producer identity.** See
-  [Open Questions](#open-questions-owner-resolution-required).
+    - _(amended 2026-08-12, OPEN-014-A closed)_ The `source` allowlist is the **producer registry** (FR-041),
+      and `source` is not merely allowlisted — it MUST **resolve to a producer name** which MUST equal the
+      envelope's `producer`. A resolution failure or a mismatch is a rejection (FR-042). The same rule applies
+      on the HTTP path with the token principal in place of `source`, so neither path has a weaker identity
+      story than the other.
 - **FR-028** _(event-path failure handling)_: An envelope rejected on the EventBridge path — malformed
   (FR-015), unregistered under enforcement (FR-017), quota-exceeded (FR-019), or failing FR-027 — MUST be
   dead-lettered and counted. There is no caller to receive a structured error, so a rejection that is merely
@@ -315,11 +437,196 @@ The paths differ only in how a request arrives.
   platform's **Ed25519 service-principal token**, verified **networklessly** against a public key (the scheme
   already deployed as `FOOD_SERVICE_PRINCIPAL_JWT_KEY`). Verification MUST perform no outbound network call,
   so any mechanism requiring a third-party API round trip per publish is disqualified.
-- **FR-033** _(quota is declared, not inferred)_: The per-producer quota of FR-019 MUST be **configurable per
-  registered producer**, and the value MUST be declared by that producer at registration. This service MUST
-  NOT infer a bound from a producer's internals. A quota rejection MUST be alarmed rather than silent.
-  🟠 **OPEN-014-C — "the value" has no unit, so a producer cannot declare one.** See
-  [Open Questions](#open-questions-owner-resolution-required).
+- **FR-033** _(quota is declared, not inferred; unit fixed 2026-08-12 — OPEN-014-C closed)_: The per-producer
+  quota of FR-019 MUST be **configurable per registered producer**, and its **magnitudes** MUST be declared by
+  that producer in its registry entry (FR-041). This service MUST NOT infer a bound from a producer's
+  internals. The **unit is fixed by this service**, not declared by the producer — see FR-044 for why, and for
+  the unit. A quota rejection MUST be alarmed rather than silent.
+
+**Retention, consumption and payload deduplication (added 2026-08-12, owner directive)**
+
+Design reasoning and the rejected alternatives — DynamoDB-with-TTL, the three PostgreSQL tables this
+replaces, raw-byte hashing, SQS FIFO's own dedup, TTL extension on a duplicate, per-device ack, and a
+per-PR cache — are in
+[ADR-0016](../../docs/architecture/decisions/0016-notification-retention-payload-dedup-and-valkey.md).
+
+- **FR-034** _(the consumption signal is on the wire)_: The system MUST expose an acknowledgement endpoint
+  `POST /api/v1/notifications/ack` accepting `{ notificationIds: string[] }` (1–100 ids per call),
+  authenticated as the subscriber. A successful ack MUST end retention for each named notification **for that
+  user** (FR-012). "The client indicates it has been consumed" means **this call**, made **after** the client's
+  `messageType` handler has run to completion (US-004) — not on receipt, because a client that crashes between
+  receipt and handling would otherwise lose a notification the service believes landed. Ack MUST be batched
+  because a reconnecting client drains many notifications at once (US-005).
+    - **The response MUST report a per-id outcome, and the outcome vocabulary is part of the contract**:
+      `settled` (this call ended its retention) or `alreadySettled` (it was already acked, has expired, does not
+      exist, or is not this user's — FR-035 deliberately makes those four indistinguishable). A bare `204` is
+      **not** sufficient: a client that cannot tell which ids it still owes an ack for has to guess, and the
+      guess is either a lost ack or an unbounded retry. These two literals are normative because a client and a
+      service inventing them independently is the drift GR-015 exists to prevent.
+- **FR-035** _(ack is idempotent, and user-scoped)_: A second ack for the same id, an ack for an expired or
+  unknown id, and an ack for an id belonging to **another** user MUST all return success, reporting that id as
+  already settled. Ack MUST NOT have an error path for a repeated call — a client retrying after a dropped
+  response must not be punished — and MUST NOT reveal whether an id exists, or an ack endpoint becomes an
+  existence oracle for other users' notifications. **Ack settles a notification per USER, not per device or
+  per connection.** An accepted consequence: a user who acks on one device will not see that notification on
+  another device opened later. Group notifications are settled **per member** (each member has their own
+  pending entry over one stored envelope).
+- **FR-036** _(the retention clock is never refreshed)_: `expiresAt` MUST be assigned once, at publish
+  acceptance, as `publishedAt + 72h`, and MUST NOT be extended by anything — not a duplicate publish (FR-038),
+  not a delivery attempt, not a reconnect, not a partial ack. A producer MUST NOT be able to lengthen how long
+  a notification waits for a user, or a retrying producer could hold one notification pending indefinitely.
+    - ⚠️ **Expiry MUST be effected by a SWEEP, not only by a store TTL, because FR-013's counter needs code to
+      run.** A key reclaimed passively by the store fires no application logic, so the
+      undelivered-after-retention counter cannot be emitted for it. The sweep is therefore the mechanism and a
+      store TTL is a **growth backstop** for anything the sweep misses. **Accepted consequence, recorded rather
+      than hidden:** a notification reclaimed by the backstop rather than the sweep is one uncounted expiry — so
+      a persistent gap between the sweep's tally and the pending set's shrinkage is itself a signal worth
+      alarming, not noise.
+- **FR-037** _(dedup identity — canonical payload hash)_: While a notification is **pending**, the system MUST
+  deduplicate on a **SHA-256 hash of the RFC 8785 (JSON Canonicalization Scheme) canonical serialization** of
+  `{ schemaVersion, recipient, messageType, producer, payload }`. Two structurally identical payloads MUST
+  collide; two different ones MUST NOT. The following are normative, because each is a way a naive
+  implementation silently gets it wrong:
+    - The canonicalizer MUST be a **stable, maintained library implementing RFC 8785** — not a hand-rolled
+      serializer (the repo's library-first rule; writing an exhaustive test for a reinvention does not redeem
+      the reinvention). The intended dependency is **`canonicalize`** — verified 2026-08-12 via `npm view`:
+      v4.0.0, **Apache-2.0**, zero runtime dependencies, authored by RFC 8785's own authors, ESM-only (fine,
+      the services are already `"type": "module"`). ⚠️ Re-verify the licence against `npm view` before adding
+      it, not against this sentence. Object keys are sorted lexicographically by UTF-16 code unit at every
+      depth, and numbers use
+      ECMAScript shortest-round-trip form, so `1`, `1.0` and `1e0` all serialize identically.
+    - **Array order MUST be preserved.** An array is ordered data; sorting it would collide two different
+      payloads.
+    - **An absent key and an explicit `null` MUST remain different.** Normalizing `{"a":null}` to `{}` would
+      collide two payloads whose difference belongs to a producer this service does not speak for.
+    - **Strings MUST be byte-exact — no Unicode normalization.** NFC folding would decide that two different
+      producer strings mean the same thing.
+    - A payload containing a number that does **not** survive an IEEE-754 round trip MUST be **rejected** at
+      ingress with a `reason` naming the offending path — never silently canonicalized, which would make two
+      different payloads hash alike.
+    - `occurredAt` and `idempotencyKey` MUST be **excluded** from the identity. `occurredAt` changes on a
+      producer retry, which is precisely the case dedup exists to collapse.
+    - The identity MUST include the **recipient**, so the same payload addressed to two users produces two
+      notifications.
+- **FR-038** _(what happens on a collision)_: A publish whose payload identity (FR-037) or `(producer,
+idempotencyKey)` claim (FR-018) already exists MUST be treated as a **duplicate**: the new envelope is
+  **dropped**, the call **succeeds** returning the **original** notification's id with a `deduplicated`
+  indicator naming which index matched, and **nothing about the original changes** — not its `expiresAt`
+  (FR-036), not its `sequence`, not its delivery state. A duplicate MUST NOT be reported as an error, or a
+  producer will treat a normal condition as a failure and retry into it. **Dedup is scoped to the pending
+  window**: once a notification is acked or expired, its payload-identity claim is released, and the same
+  payload published afterwards is a **new** notification. The `(producer, idempotencyKey)` claim is the
+  exception — it **survives an acknowledgement** for its own configured window, because suppressing a
+  transport redelivery that arrives after a fast ack is the one thing payload identity cannot do.
+- **FR-039** _(unacked notifications are redelivered; a notification nobody can consume is an alarm)_: Every
+  notification still pending for a user MUST be redelivered on reconnect or replay, in `sequence` order.
+  Delivery therefore remains **at-least-once** and US-010's requirement that handlers be idempotent is
+  structural, not defensive. Each delivery attempt MUST increment a per-notification attempt count, and a
+  notification with a high attempt count and no ack MUST be **counted and alarmed** as a poison notification
+  rather than dropped early — the 72-hour clock (FR-012) is the backstop.
+- **FR-040** _(the store, and its accepted residual risk)_: The pending set MUST be held in **ElastiCache
+  Serverless for Valkey** — Redis-compatible, one cache per **stage**, with a `pr-{N}:` key prefix isolating
+  each preview (ADR-0006's shared-data-plane pattern, not a cache per PR). All pending-set access MUST sit
+  behind **one** repository module, so the store can be replaced without touching handlers.
+    - ⛔ **Accepted residual risk, recorded as a risk:** ElastiCache is a cache service and **durability is
+      opt-in, off by default in both the node-based and the serverless flavour**. With it off, a node
+      replacement or failover can **drop retained notifications this service already told a producer it had
+      accepted** (FR-003), and producers keep no copy (FR-031) — so the loss is unrecoverable and silent.
+      **The owner chose Redis knowing DynamoDB-with-TTL would be both durable and cheaper for this shape.**
+    - **Mitigations, in order:** (1) enable ElastiCache **synchronous** durability if it is available for
+      Serverless Valkey at the engine version provisioned — AWS added a Multi-AZ transactional-log durability
+      option for ElastiCache for Valkey on 2026-06-02, with synchronous (designed for zero loss) and
+      asynchronous (up to ~10 s of acknowledged writes lost) modes; ⚠️ **its availability on _Serverless_ is
+      UNVERIFIED and MUST be confirmed before the cache is provisioned**; (2) if unavailable, alarm on cache
+      failover and on an unexplained drop in pending-set cardinality, so a loss is at least known;
+      (3) **escalate** to **Amazon MemoryDB** (same API, durable by design) or **DynamoDB with TTL** if a loss
+      is ever judged unacceptable.
+
+**Producer identity, rejection handling, identifiers and quotas (rulings, 2026-08-12)**
+
+- **FR-041** _(the producer registry, and dual-signal identity)_: The system MUST maintain a
+  **version-controlled producer registry**, and MUST resolve every publish's producer identity through it on
+  **both** ingress paths.
+    - **Where it lives:** the registry is **authored in the notification service**, as version-controlled data
+      beside the zod it is validated by (`src/registry/*.registry.ts`, validated at load by a `*.schema.ts` in
+      the same service), and it is **copied into `@kitchensink/schema-notifications` by the same generator that
+      copies the zod** — so producers and clients read it from the leaf package without depending on the
+      service. It MUST NOT be hand-edited **in** the schema package (that package is generated — GR-015 §15-a),
+      it MUST NOT be a database table (a runtime write would change a trust boundary with no review and no
+      deploy), and it MUST NOT be assembled from the producer packages it constrains (that inverts the
+      dependency and lets a producer widen its own allowlist and its own quota).
+    - **Entry shape:** one entry per producer, carrying the authoritative `producer` name, the set of HTTP
+      token principals that map to it, the set of EventBridge `source` values that map to it, its quota
+      magnitudes (FR-044), its registered `messageType` keywords (FR-016), and its owning feature.
+    - **Injectivity is a security property and MUST be asserted at boot:** a principal or a `source` MUST map
+      to **at most one** producer. Overlapping mappings make attribution ambiguous, which makes quota
+      accounting (FR-019) and the per-producer counter (FR-013) unattributable.
+    - **Both signals are REQUIRED, and a mismatch is a REJECTION.** The transport signal (the Ed25519 token
+      principal on HTTP, the validated `source` on the bus) MUST resolve through the registry to a producer
+      name, the envelope MUST carry `producer` (FR-026), and the two MUST be equal. A resolution failure, a
+      missing `producer`, or a mismatch MUST be rejected via FR-042's single path with the reason recorded —
+      it MUST NOT be resolved by preferring one signal, and the envelope's self-asserted `producer` MUST NOT
+      be trusted on its own.
+    - **Why both, when the transport signal alone would identify the producer:** the transport signal proves
+      **origin** and the envelope field states **intent**, and a disagreement is real evidence — a
+      misconfigured producer, an envelope copied between environments, or a replay onto the wrong bus. It also
+      keeps **one** envelope shape valid on both paths (FR-026), which is what lets FR-024's two adapters share
+      literally one zod. The self-asserted field is never the authority: it is a **cross-check** whose only
+      permitted outcomes are "agrees" and "rejected".
+- **FR-042** _(ONE rejection path; an invalid payload is NOT retried)_: Every rejection at ingress MUST take
+  **one** path per adapter, carrying the cause as a **`reason`** field on a single structured rejection shape.
+  **A signature/credential failure and a shape failure are equally invalid and MUST NOT have two different
+  behaviours** — they differ only in their `reason`.
+    - **An invalid payload MUST NOT be retried.** It cannot become valid by being sent again, so retrying it
+      converts a producer bug into sustained load and buries the real signal.
+    - ⚠️ **For a signed third-party webhook, "not retried" means answering `2xx` on a SHAPE failure — and
+      **non-2xx** on a SIGNATURE failure.** Signature-verifying senders (svix, Stripe) **retry on any non-2xx**,
+      so a `4xx` for a body that cannot parse requests exactly the retry storm this rule forbids: answer `2xx`,
+      record the rejection in the response body and in structured logs, count it per `reason`, and **alarm**.
+      But a **signature** failure may be **our own stale secret** — transient and operator-fixable, with the
+      sender's retry window as the recovery — and on a public endpoint a `2xx` also tells a forger the forgery
+      landed. So the status comes from **one complete `reason`→status lookup**, never a second code path. The
+      question a status answers is _"would a redelivery ever succeed?"_ See
+      [GR-018 §18-a](../governance-rules.md#gr-018-one-rejection-path-and-invalid-input-is-never-retried) and
+      `packages/services/identity-webhooks/src/common/handler-pipeline.ts`, where returning `2xx` for **both**
+      once dropped a real `user.created`. A contributor will get one of the two backwards on instinct.
+    - **This service has no signature-verifying ingress today**, so the clause above is forward-looking here.
+      014's live cases are the HTTP publish path — called by our own producers, which do not blind-retry, so it
+      returns the `400`/`403` GR-016 §16-a.3 requires — and the EventBridge path, which has **no caller at all**
+      and therefore dead-letters (FR-028).
+    - **A rejected event MUST NOT be recorded as a row.** An invalid payload has **no trustworthy identifier**
+      to key such a row on, and a store whose identity column is `NOT NULL` would force the writer to invent
+      one — which is exactly the sentinel FR-043 forbids. The **log line, the counter and (on the bus) the DLQ
+      entry are the record**; the DLQ's depth is what is alarmed.
+- **FR-043** _(identifiers are never sentinels)_: No identifier — `producer`, `recipient.id`, a notification
+  id, a subscriber id — may ever be written, logged as data, or compared as a **sentinel string** such as
+  `'unknown'`, `'none'`, `''` or `'n/a'`. An id is **REQUIRED** on every path that consumes one; the sole
+  exception is a **create/upsert**, where an absent id is **generated** by the system (ULID). A value that
+  cannot be resolved is a **rejection** (FR-042), never a placeholder: a sentinel makes every subsequent
+  aggregate — the per-producer counter, the quota bucket, the recipient's pending set — silently wrong, and it
+  cannot be distinguished later from a real value.
+- **FR-044** _(quota unit — token bucket, fixed by the service; OPEN-014-C closed)_: The FR-019/FR-033 quota
+  MUST be a **token bucket** whose unit is fixed by this service: a **sustained rate in publishes per second**
+  plus a **burst allowance in publishes**. A producer's registry entry declares only the two magnitudes, and
+  this service MUST cap both.
+    - **Why a token bucket rather than a fixed window:** NFR-006 bounds the degradation a misbehaving producer
+      may inflict on unrelated producers, which is a statement about **instantaneous** contention. A fixed
+      window permits the entire budget in its first millisecond and therefore cannot bound it. A bucket bounds
+      the sustained rate **and** the burst, which is also what the SQS FIFO account-level TPS ceiling requires
+      us to bound against.
+    - **Why the unit is fixed by the service and not declared:** two registry entries declaring different units
+      are not comparable, and the registry's schema could not type the value (a `z.strictObject` needs one
+      dimension). FR-033's intent — the producer declares its own bound rather than having one inferred — is
+      satisfied by declaring **magnitudes**.
+    - **One budget per producer, shared across BOTH ingress paths.** FR-024 gives the two adapters one core;
+      two budgets would let a producer double its allowance by splitting traffic, and FR-013's counter is
+      per producer, not per path.
+    - **`global` broadcasts carry a SEPARATE bound owned by this service, not by the producer.** One `global`
+      publish fans out to every subscriber, so it is not commensurable with a `user`-addressed publish, and a
+      producer permitted to declare its own global quota could declare a large one. Global publishing is an
+      operator action (US-003) and its bound is a service constant.
+    - The bucket MUST be **shared state, not per-task memory**: N API tasks each holding a local bucket grant
+      N× the quota. It lives in the same store as FR-040's pending set.
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -334,10 +641,16 @@ The paths differ only in how a request arrives.
 
 ### Key Entities
 
-- **PublishEnvelope**: Producer-supplied input. Fields: `schemaVersion`, `recipient`, `messageType`, `payload`, `occurredAt`, plus `idempotencyKey` and `producer` — both REQUIRED on the EventBridge path, optional on HTTP. `payload` is opaque. **FR-026 is the normative field set**; this entry previously listed the pre-amendment fields and omitted `schemaVersion` and `producer` entirely. FR-001's inline shape carries the same omission and is superseded by FR-026 on both paths.
+- **PublishEnvelope**: Producer-supplied input. Fields: `schemaVersion`, `recipient`, `messageType`, `payload`, `occurredAt`, `producer` — all REQUIRED on both paths — plus `idempotencyKey`, REQUIRED on the EventBridge path and optional on HTTP. `payload` is opaque as to meaning (FR-023). **FR-026 is the normative field set**; this entry previously listed the pre-amendment fields, omitted `schemaVersion` and `producer` entirely, and then described `producer` as EventBridge-only — corrected 2026-08-12 when OPEN-014-A closed. FR-001's inline shape carries the same omission and is superseded by FR-026 on both paths.
+- **PendingNotification**: The retained, not-yet-consumed record for **one recipient user**. Fields: notification `id` (ULID), the stored envelope, `sequence`, `publishedAt`, `expiresAt` (`publishedAt + 72h`, never refreshed — FR-036), `attempts` (delivery-attempt count, FR-039). One stored envelope may be referenced by many `PendingNotification`s (a group's members). Held in the FR-040 store, not in a relational table.
+    - ⚠️ **`sequence` is monotonic per DELIVERING USER, not per `recipient.id`** — a distinction FR-035 forces and which the pre-2026-08-12 wording ("per-recipient monotonic") did not capture. Because an ack settles a group notification **per member**, the pending set and therefore the sequence counter are per **user**; a user who belongs to two groups and also receives direct notifications has **one** ordered pending set, not three. FR-008's per-recipient FIFO is still delivered by the SQS FIFO queue keyed on `MessageGroupId = recipient.id` — the queue is the **ordering authority** and the store **records its verdict** (see `plan.md` → _Ordering & Partitioning_). What changes is only where the counter lives, and it changes so that a client can order and de-duplicate **the one stream it actually receives**.
+- **PayloadIdentityClaim**: The pending-scoped dedup index — a canonical-payload hash (FR-037) per recipient, released on ack or expiry. Not a user-visible entity; named here because FR-038's "the same payload after an ack is a NEW notification" is a property of its **lifetime**, not of the payload.
+- **IdempotencyClaim**: The publish-scoped dedup index — `(producer, idempotencyKey)` with its own configured window, which **survives an ack** (FR-018, FR-038). Distinct from `PayloadIdentityClaim` on purpose; see ADR-0016 decision 3 before merging them.
+- **Acknowledgement**: A subscriber's statement that a notification was consumed. `{ notificationIds }` in, per-id settled/already-settled out. Idempotent and **user-scoped** (FR-034, FR-035); there is no per-device acknowledgement entity, deliberately.
+- **ProducerRegistryEntry**: `{ producer, httpPrincipals[], eventSources[], quota: { sustainedPublishesPerSecond, burstPublishes }, messageTypes[], ownerFeature, registeredAt }`. Version-controlled, authored in the notification service and copied into the schema package (FR-041). It is the allowlist for FR-027, the principal→producer map for both paths, the FR-016 keyword registry, and the FR-044 quota source — one artifact, because splitting them would let a producer be authorized in one and unknown in another.
 - **RecipientDescriptor**: `{ kind: "user" | "group" | "global", id?: string }`. `id` required for `user` / `group`; absent for `global`.
 - **DeliveryEnvelope**: Service-output to clients. Fields: service-assigned `id`, `messageType`, `payload`, `occurredAt`, `publishedAt`. The service-assigned `id` MUST be unique and MAY encode per-recipient ordering (e.g., monotonically increasing per recipient).
-- **MessageTypeRegistryEntry**: `{ messageType: string, ownerFeature: string, description: string, registeredAt: ISO-8601 }`. Lives in version control.
+- **MessageTypeRegistryEntry**: `{ messageType: string, ownerFeature: string, description: string, registeredAt: ISO-8601 }`. Lives in version control — specifically, **nested under its owning `ProducerRegistryEntry`** (FR-041), not in a second file. Two registries would let a keyword be registered to a producer that is not itself registered, and the FR-016 registry check and the FR-027 allowlist would then disagree about who exists.
 - **Subscriber**: An authenticated session for a single user identity. A user MAY have multiple concurrent Subscribers (multi-device, multi-tab).
 - **GroupMembership**: Resolution-time mapping from `groupId` → set of user identities. Source-of-truth ownership of group membership is **out of scope** for this feature (Q-002).
 
@@ -367,7 +680,11 @@ representations that were never compared. That is the failure GR-015 exists to m
 
 - **The envelope is authored ONCE, as zod, in the notification service** at `src/**/*.schema.ts` — the
   `PublishEnvelope` (FR-026's normative field set), the `RecipientDescriptor` (FR-004), the `DeliveryEnvelope`,
-  and the `MessageTypeRegistryEntry`.
+  the **`AckRequest` / `AckResponse`** (FR-034), the single **rejection shape with its `reason`** (FR-042), and
+  the `ProducerRegistryEntry` / `MessageTypeRegistryEntry` (FR-041).
+- **The registry is DATA authored beside the zod and copied out by the same generator** (FR-041). It is not
+  hand-edited in the schema package (that package is generated), not a database table, and not assembled from
+  the producer packages it constrains. The regenerate-and-diff gate therefore covers the registry for free.
 - **That same zod is what performs FR-015's pre-durability validation**, via `nestjs-zod`'s `createZodDto` on
   the HTTP path. There is no second DTO that "agrees with" the schema by convention — FR-015 and the published
   contract are the same artifact, so a producer cannot be surprised by a rule it could not see.
@@ -376,9 +693,10 @@ representations that were never compared. That is the failure GR-015 exists to m
   literal mechanism by which "a rule enforced in only one adapter" (an FR-024 defect) happens, so the shared
   zod is how FR-024 is _made true_ rather than merely asserted.
 - **`payload` stays opaque in the schema, and that is a requirement of the schema, not an omission.** FR-023
-  forbids inspecting, validating or transforming it beyond size limits, so the envelope's zod models `payload`
-  as unknown/opaque with a size bound only. A schema that grew per-`messageType` payload validation would put
-  014 in violation of its own FR-023 — do not "improve" it that way.
+  forbids interpreting it or imposing a per-`messageType` schema on it, so the envelope's zod models `payload`
+  as unknown/opaque with a **size bound** only. A schema that grew per-`messageType` payload validation would
+  put 014 in violation of its own FR-023 — do not "improve" it that way. FR-037's canonical hash is **not** such
+  a schema: it treats every payload identically and asserts nothing about its shape.
 - `@kitchensink/schema-notifications` is **generated and committed** — the zod, `z.infer` types,
   `contract-hash.ts`, a barrel, and a **derived** `openapi.yaml` (for `oasdiff`, docs and integrators;
   **never a codegen input**). Nothing in it is hand-edited.
@@ -396,6 +714,15 @@ redeclared wire types survived behind green builds). For 014 there are **two** c
   of their own** — including in feature packages (GR-015 §15-b.4). US-004's dispatch-by-`messageType` handler
   map is keyed off the imported type; a hand-written "notification" interface in the web app and another in the
   mobile app is two independent beliefs about one contract on two platforms that ship on different schedules.
+    - **The ACK is a client obligation, not just a client convenience** (FR-034, US-012). `packages/clients/notifications`
+      owns the ack call — its request body typed and validated by the schema package's `AckRequest` zod, its
+      response parsed on receipt (GR-016 §16-c.3) — and **both** web and mobile issue it through **one shared
+      command** rather than each calling the endpoint. That is the same lesson ADR-0009 records for sign-out: two
+      platforms independently implementing a post-condition is how one of them ships without it, and here the
+      failure mode is silent (retention simply never ends, so notifications reappear on every reconnect for three
+      days and nothing is red).
+    - **A client MUST NOT ack on receipt.** Ack means the `messageType` handler ran to completion; acking earlier
+      converts a client-side crash into a lost notification with the service believing it landed.
 - **Producers** are clients of this service and are bound identically. A producer feature **imports the
   `PublishEnvelope` and its zod** and **does not declare its own publish body** — on **either** ingress path.
   A producer that hand-writes the envelope to put an event on the bus is the same violation as a client that
@@ -444,24 +771,50 @@ reason the two adapters must share one schema.
   Deleting a boundary schema in the name of §15-b replaces a checked parse with unchecked trust in a remote
   party's JSON — a security regression, not a cleanup.
 
-🟠 **OPEN — where does the `messageType` registry (FR-016) live?** It must be version-controlled (FR-016) and is
-read by the service for the registry check, by producers to register a keyword, and arguably by clients for
-dispatch. `@kitchensink/schema-notifications` is the obvious candidate, but that package is **generated and
-never hand-edited**, while a registry entry is **authored by a producer feature** — so putting it there
-requires deciding whether registry entries are authored in the notification service (like the zod, and copied
-out) or in a separate hand-maintained artifact that the schema package re-exports. **Question for the owner:
-which?** Neither §15 nor an existing ADR decides it, and the answer changes how a producer onboards.
+### ✅ RESOLVED (2026-08-12) — where the registry lives, and why it is the same file as the producer registry
+
+The previous revision recorded this as OPEN: the `messageType` registry must be version-controlled (FR-016), is
+read by the service for the registry check and by producers to register a keyword, and
+`@kitchensink/schema-notifications` was the obvious home — except that package is **generated and never
+hand-edited**, while a registry entry is **authored by a producer feature**.
+
+**Ruling: registry entries are AUTHORED IN THE NOTIFICATION SERVICE, beside the zod, and COPIED OUT by the same
+generator** (FR-041). Concretely: `packages/services/notification-service/src/registry/producers.registry.ts`
+is version-controlled data, validated at module load by a `*.schema.ts` in the same service, and the existing
+`@kitchensink/contract-gen` copy step publishes it into `@kitchensink/schema-notifications` alongside the zod.
+
+Three things this ruling settles, each of which the OPEN wording left ambiguous:
+
+- **It resolves the "generated package is never hand-edited" tension without exception.** The registry is
+  hand-authored **in the service** and generated **into** the schema package, which is exactly the flow §15.2
+  already prescribes for the zod. No new distribution mechanism, and the regenerate-and-diff gate covers the
+  registry for free.
+- **It is ONE registry, not two.** The `messageType` keyword registry (FR-016), the `source`/principal
+  allowlist (FR-027), the principal→producer map (FR-041) and the quota magnitudes (FR-033, FR-044) are all
+  fields of one `ProducerRegistryEntry`. Split across files, a keyword could be registered to a producer that
+  the allowlist does not know, and the FR-016 check and the FR-027 check would disagree about who exists.
+- **A producer onboards by opening a PR against the notification service.** That is the point rather than
+  friction: the registry is where a producer's **quota** and its **authority to address any user** are
+  declared, so both are cross-producer concerns that must be reviewed by the owners of the shared service. A
+  registry each producer wrote for itself would let a producer raise its own quota and widen its own allowlist.
+- ⛔ **Not a database table, and not assembled from the producers.** A table means a runtime write can change a
+  trust boundary with no review and no deploy; assembling it from producer packages inverts the dependency
+  (this service would depend on every producer) and hands the constrained party the constraint.
 
 ## Input Validation (GR-016)
 
 **Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
 [`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[`GR-018`](../governance-rules.md#gr-018-one-rejection-path-and-invalid-input-is-never-retried) ·
+[`GR-019`](../governance-rules.md#gr-019-identifier-integrity--no-sentinels) ·
 [ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). The section above
 applies GR-015 (**who authors** the envelope). This one applies GR-016 (**where that envelope is enforced**).
 It introduces **no new requirement** and mints no FR (GR-003): FR-015 already requires pre-durability
 validation, FR-024 already requires one core with two adapters, FR-027 already makes `source` a trust decision,
-and FR-023 already makes `payload` opaque. GR-016 states what those requirements jointly oblige, in one place,
-so no adapter can satisfy them individually.
+and FR-023 already scopes `payload` to opaque-as-to-meaning. GR-016 states what those requirements jointly
+oblige, in one place, so no adapter can satisfy them individually. The 2026-08-12 rulings that **are** new
+requirements are minted as FRs — FR-034 – FR-044 — and are portfolio-wide as GR-018 (one rejection path,
+invalid input is never retried) and GR-019 (no sentinel identifiers).
 
 ### ONE authored zod validates BOTH ingress paths
 
@@ -477,14 +830,39 @@ so no adapter can satisfy them individually.
   store** with every visible signal saying they were checked. The proof is a test that publishes a known-bad
   envelope over HTTP and asserts the rejection, paired (per SC-008) with the same envelope over the bus.
 
-### Two rejection behaviours, one verdict
+### ONE rejection path, the cause in a `reason`, and an invalid payload is NEVER retried (FR-042, GR-018)
 
-**"One validation-failure path per service" (GR-016 §16-a.3) means one _verdict_ per ingress, not a `400` on
-the bus.** The HTTP path returns a `400` naming the offending field. The event path has no caller to receive a
-structured error, so a rejection **dead-letters and alarms** with a counter per reason — malformed (FR-015),
-unregistered under enforcement (FR-017), quota-exceeded (FR-019), `source` not allowlisted (FR-027), per
-FR-028. An envelope missing a required field is **rejected outright — never partially routed, never
-defaulted**, on either path.
+**"One validation-failure path per service" (GR-016 §16-a.3) means one _verdict_ and one _rejection shape_ per
+ingress — not a `400` on the bus.** The HTTP path returns a `400` naming the offending field (or `403` when the
+failure is producer attribution, FR-041). The event path has no caller to receive a structured error, so a
+rejection **dead-letters and alarms**. Both carry the cause in a **`reason`** field on one shape: malformed
+(FR-015), unregistered under enforcement (FR-017), quota-exceeded (FR-019, FR-044), `source` unresolvable or
+producer-mismatched (FR-027, FR-041), payload not canonically serializable (FR-037), per FR-028. An envelope
+missing a required field is **rejected outright — never partially routed, never defaulted, never defaulted to a
+sentinel** (FR-043), on either path.
+
+Three properties of that single path are load-bearing, and each one is a thing a plausible implementation gets
+backwards:
+
+- **A credential/signature failure and a shape failure are EQUALLY invalid and share ONE path, ONE shape, ONE
+  `reason`, ONE counter, ONE alarm.** Two rejection **code paths** means two places to keep in step, and the
+  credential path is the one that ends up without a counter.
+- **An invalid payload is not retried**, because it cannot become valid by being sent again. ⚠️ **For a
+  signature-verifying third-party sender (svix, Stripe) that means `2xx` on a SHAPE failure and non-2xx on a
+  SIGNATURE failure** — those senders retry on **any** non-2xx, so a `4xx` for a body that cannot parse requests
+  the retry storm the rule forbids; but a signature failure may be **our** stale secret, which is transient and
+  operator-fixable, and the sender's retry is the recovery. So the **status is derived from the `reason` by one
+  complete lookup**, never a second branch, and the question it answers is _"would a redelivery ever succeed?"_
+  This service has no such ingress today: its HTTP publish path is called by our own producers (which do not
+  blind-retry) so it keeps GR-016's `400`/`403`, and the bus path has no caller and dead-letters. **Reject the
+  content, accept the delivery** — see
+  [GR-018 §18-a](../governance-rules.md#gr-018-one-rejection-path-and-invalid-input-is-never-retried) for the
+  portfolio rule and the incident behind it.
+- **A rejected event is NOT recorded as a row.** An invalid payload has **no trustworthy identifier**, and a
+  table whose identity column is `NOT NULL` would force the writer to invent one — the exact sentinel FR-043
+  and GR-019 forbid. The log line, the counter, and (on the bus) the DLQ entry **are** the record; the DLQ's
+  depth is what is alarmed. This is not hypothetical elsewhere in the portfolio: identity's
+  `webhook_events.identity_id` is `text NOT NULL`, so "record the rejection" there means inventing an id.
 
 ### The AWS wrapper is parsed BEFORE `source` becomes a trust decision
 
@@ -495,34 +873,59 @@ a trust decision**, so reading `source` off an unvalidated payload means trustin
 record that carries it. The wrapper's shape is **not** added to `@kitchensink/schema-notifications` as though we
 owned it; GR-016 is what makes the parse **mandatory** rather than merely permitted.
 
-### ⛔ `payload` stays opaque — GR-016 does NOT reach inside it
+### ⛔ `payload` stays opaque AS TO MEANING — GR-016 does NOT reach inside it, and neither does dedup
 
-FR-023 forbids inspecting, validating or transforming `payload` beyond size limits, and the 2026-05-10
-clarification puts the meaning of every `messageType` with its **producer**. So the envelope's zod models
-`payload` as unknown/opaque **with a size bound only**, and that is a requirement of the schema rather than an
-omission in it. **A contributor citing GR-016 to add per-`messageType` payload validation would put this
-service in violation of its own FR-023** and make it the author of knowledge it explicitly disclaims. A
-producer's payload type belongs to **that producer's** schema package, and the producer validates it there.
+FR-023 (as amended 2026-08-12) forbids **interpreting** `payload`, imposing a per-`messageType` schema on it, or
+transforming the value stored or delivered; the 2026-05-10 clarification puts the meaning of every
+`messageType` with its **producer**. So the envelope's zod models `payload` as unknown/opaque **with a size
+bound only**, and that is a requirement of the schema rather than an omission in it. **A contributor citing
+GR-016 to add per-`messageType` payload validation would put this service in violation of its own FR-023** and
+make it the author of knowledge it explicitly disclaims. A producer's payload type belongs to **that
+producer's** schema package, and the producer validates it there.
+
+⚠️ **FR-037's dedup hash is not an exception to this, and it is not "validating the payload".** Canonicalizing
+and hashing establishes **no knowledge of meaning** and imposes **no schema** — it is the same operation on
+every payload from every producer. Two consequences of the hash are nevertheless real constraints on the
+payload, and they are stated in FR-023 rather than smuggled in: the payload must be **well-formed JSON**, and a
+payload carrying a number that cannot survive an IEEE-754 round trip is **rejected** (because canonicalizing it
+would collapse two different payloads into one hash). Do **not** "fix" the tension by reverting FR-023's
+narrower wording — the pre-amendment text forbade the hash the owner's dedup directive requires, and reading
+it uncorrected makes FR-037 look like a violation.
 
 ### The storage floor, and the subscriber surface
 
-- **Every envelope field that writes a bounded column is validated at least as strictly as that column can
-  store** — `messageType`, `groupId`, `idempotencyKey`, `schemaVersion` and `producer` lengths, the recipient
-  descriptor's enum, nullability, and the envelope/`payload` **size** bound against whatever column persists it
-  for the retention window. A value the column cannot hold must be a rejection at ingress, never a failed
-  durable write — a publish that fails **after** the caller was told it succeeded is worse here than in a plain
-  CRUD service, because the producer has no other record of the notification.
+- **Every envelope field that writes a bounded store is validated at least as strictly as that store can hold**
+  — `messageType`, `groupId`, `idempotencyKey`, `schemaVersion` and `producer` lengths, the recipient
+  descriptor's enum, nullability, and a hard **size** bound on the envelope and on `payload`. A value the store
+  cannot hold must be a rejection at ingress, never a failed durable write — a publish that fails **after** the
+  caller was told it succeeded is worse here than in a plain CRUD service, because the producer has no other
+  record of the notification (FR-031).
+    - ⚠️ **The retained set is a metered cache, not a table (FR-040), so "the column" is not the floor here —
+      the SIZE BOUND is.** ElastiCache Serverless for Valkey meters stored bytes above a 100 MB floor, so an
+      unbounded `payload` is not a `500`, it is a **bill** and a fan-out amplifier. The bound is a product
+      decision with no storage floor to derive from — exactly GR-016 §16-d's "a floor is not a target" case, and
+      the reason it must be an explicit number in the schema rather than left to the engine.
     - ⚠️ **Asserted, never derived.** No zod is generated from Drizzle, and the envelope schema imports **no
-      storage type, no SQS/EventBridge SDK type and no Nest symbol** — the constraint the section above already
-      states, and it matters doubly here because this schema is imported by **web and mobile**.
+      storage type, no cache-client type, no SQS/EventBridge SDK type and no Nest symbol** — the constraint the
+      section above already states, and it matters doubly here because this schema is imported by **web and
+      mobile**.
 - **`GET /api/v1/notifications/subscribe` and `/replay` validate their inputs too** — the replay cursor/window
   and any subscription filter are parsed at the boundary. FR-020/FR-021/FR-022 scope a subscription to the
   **authenticated** identity, so a request-supplied identity or group is **never** the authority for what is
   delivered; parsing it does not make it trusted, and US-007's cross-user rejection (SC-005) stands
   independently of the parse.
-- **Unknown keys are a stated choice per surface** — `z.object()` **strips** silently while `z.strictObject()`
-  **rejects**. On the publish envelope this decides whether a producer's typo'd field is a rejection or a
-  silently dropped one; the portfolio default is **OPEN** (GR-016 OPEN-GR-016-B).
+- **`POST /api/v1/notifications/ack` is a mutating body and validates as one** (FR-034): `notificationIds` is
+  a `z.strictObject` body with a non-empty, length-capped array of well-formed ids, parsed by the same authored
+  zod, published in the schema package, and imported by web and mobile. The **cap matters** — an unbounded ack
+  array is an unbounded multi-key store operation from an authenticated client. Note what parsing does **not**
+  do: it does not authorize. FR-035 makes an id belonging to another user return "already settled" **as an
+  authorization outcome**, not as a validation one, so the two must not be collapsed into one check.
+- **Unknown keys: `z.strictObject()` on every mutating body, including the publish envelope and the ack body**
+  (the portfolio default, ruled 2026-08-12 — GR-016 OPEN-GR-016-B closed; see GR-017 §17-c). A producer's typo'd
+  envelope field is a **rejection**, not a silently dropped one: on this surface a silently stripped key means a
+  notification that was accepted and is subtly not the one the producer sent, with a `200` in the producer's
+  logs. Plain `z.object` is permitted only on a **read** surface (a query string) and only with the
+  forward-compatibility reason documented at the schema.
 
 ### ⛔ Response validation is DEFERRED (GR-016 §16-g) — and note what that means here
 
@@ -534,10 +937,11 @@ consistent with `schemaVersion`'s purpose (letting a receiver handle an envelope
 with a released mobile binary that cannot be redeployed in step with this service. Do not "complete" the rule by
 adding an emission-side parse.
 
-🟠 **GR-016 resolves none of the three open items below**, and does not narrow them: a quota bound whose **unit**
-is undecided (OPEN-014-C) cannot be expressed as a schema constraint, a producer-identity field whose authority
-is contested (OPEN-014-A) cannot be marked authoritative in a schema, and a dedup guarantee (OPEN-014-B) is a
-transport-and-state property that no boundary parse establishes.
+✅ **All three items that previously blocked generating the schema package are now ruled** (2026-08-12) — see
+[Resolved Questions](#resolved-questions-owner-rulings-2026-08-12). The envelope's zod can now be authored:
+`producer` is REQUIRED on both paths and cross-checked against the transport signal (FR-041), the quota carries
+a service-fixed unit the registry entry can type (FR-044), and the delivery guarantee is stated as
+effectively-once within a window rather than exactly-once (SC-011).
 
 ## Success Criteria _(mandatory)_
 
@@ -545,7 +949,7 @@ transport-and-state property that no boundary parse establishes.
 
 - **SC-001**: A publish reaches a subscribed client end-to-end, over BOTH ingress paths, with the client dispatching by `messageType`. Verified in CI against a **synthetic reference producer owned by this feature** — not against another feature's pipeline, so this criterion never waits on a consumer's schedule. (Amended 2026-08-10: previously required feature 003 specifically, and cited `US-005` / `FR-NOTIF` requirements that do not exist in 003. Note this removes the _consumer_ coupling only — this feature still has an upstream dependency it builds itself, the identity groups model of T-023..T-025, so it is not shippable ahead of that.)
 - **SC-002**: Per-recipient FIFO is observed in tests: 100 messages addressed to one user are delivered in publish order to a connected client (zero out-of-order deliveries across 10 test runs).
-- **SC-003**: Catch-up window works: a client offline for ≤ retention window receives 100% of messages addressed to it during the offline interval; 0% redelivery beyond the window.
+- **SC-003** _(window fixed 2026-08-12)_: Catch-up works: a client offline for ≤ **72 hours** receives 100% of the messages addressed to it during the offline interval that it had not already acked; 0% redelivery beyond the window (FR-012).
 - **SC-004**: Operational counters reflect ground truth: synthetic load of K publishes results in counters reading ≥ K within 1 minute (NFR-005).
 - **SC-005**: Subscription identity binding is verified: 100% of attempted cross-user subscriptions are rejected (US-007).
 - **SC-006**: At least 5 distinct `messageType` keywords are registered in the central registry by launch, covering the launch consumer feature (003) plus reserved namespaces for 001 / 005 / 008 / 009.
@@ -553,88 +957,122 @@ transport-and-state property that no boundary parse establishes.
 - **SC-008**: Both ingress paths are proven equivalent: the same envelope published over HTTP and over EventBridge produces an identical delivered message, and a rule violated on one path is rejected identically on the other. Verified by a paired test per rule (FR-024).
 - **SC-009**: The event path rejects spoofing: 100% of envelopes whose `source` is not an allowlisted producer are rejected and dead-lettered, and none is ever delivered (FR-027, FR-028).
 - **SC-010**: The no-aggregation contract is observable: N envelopes published for one recipient arrive as N deliveries, and this service never merges them (FR-031).
-- **SC-011**: An EventBridge envelope redelivered by the transport is delivered exactly once, proven by replaying the same event with an unchanged `idempotencyKey` (FR-026, FR-030). 🟠 **OPEN-014-B — "exactly once" is a stronger claim than this feature's own transport and US-010 allow.** See [Open Questions](#open-questions-owner-resolution-required).
+- **SC-011** _(narrowed 2026-08-12 — OPEN-014-B closed)_: An EventBridge envelope redelivered by the transport produces **at most one notification per `(producer, idempotencyKey)` within the claim window, and never zero** — proven by replaying the same event with an unchanged `idempotencyKey`, before and **after** an ack, and asserting one notification in both cases (FR-018, FR-026, FR-030, FR-038). **Superseded**: this criterion previously claimed delivery "exactly once", which the design cannot satisfy in general and which three of this feature's own artifacts contradict (US-010's at-least-once handler contract, FR-018's bounded window, FR-026's "EventBridge delivery is at-least-once"). The guarantee is **effectively-once within the window**; consumers still write idempotent handlers (FR-039).
+- **SC-012**: Retention ends on consumption: of 100 delivered notifications, the acked ones are **0%** redelivered after reconnect and the unacked ones are **100%** redelivered, in `sequence` order (US-012, FR-012, FR-034, FR-039).
+- **SC-013**: Ack is idempotent and non-disclosing: acking the same id twice, an expired id, an unknown id, and an id owned by another user all return success reporting "already settled", and **none** reveals whether the id exists (FR-035). Verified per case, not in aggregate.
+- **SC-014**: Payload dedup holds without producer cooperation: two publishes of the same payload with **no** `idempotencyKey`, differing only in `payload` key order and in `occurredAt`, produce **one** notification; the original's `expiresAt` is byte-identical before and after; and the same payload published **after** an ack produces a **second** notification (US-013, FR-037, FR-038, FR-036).
+- **SC-015**: Producer identity is dual-signal: 100% of publishes whose transport signal does not resolve through the registry, or resolves to a producer other than the envelope's `producer`, are rejected on **both** paths with the mismatch `reason` recorded, and none is ever delivered (FR-041, FR-042).
+- **SC-016**: An invalid publish is never retried and never stored: a malformed envelope and a credential failure produce the **same** rejection shape differing only in `reason`, no row is written for either, and the counters move per reason **and are alarmed** (FR-042). Should this feature ever accept a signature-verifying third-party sender, the criterion is that **all three** dispositions are asserted — a shape failure answers `2xx`, a signature failure answers non-2xx, and a valid body still succeeds — because asserting any two of the three passes on a handler that always returns the same status.
 
-## Open Questions (owner resolution required)
+## Resolved Questions (owner rulings 2026-08-12)
 
-These three are **genuinely open**: each is an internal contradiction or a missing value in this spec, and
-**none is derivable** from `docs/CODING_STANDARDS.md` §15, GR-015, or any existing ADR. They are recorded here
-rather than resolved, because resolving them would be inventing a requirement. **No ruling has been made on any
-of them.** All three bear directly on the wire contract, so they should be settled before
-`@kitchensink/schema-notifications` is generated — the envelope's zod cannot express a field whose authority or
-unit is undecided.
+All three items previously recorded here as **genuinely open** — each an internal contradiction or a missing
+value that could not be derived from `docs/CODING_STANDARDS.md` §15, GR-015 or any existing ADR — have been
+**ruled by the owner**. The rulings are normative as the FRs cited below; the reasoning and rejected
+alternatives are in
+[ADR-0016](../../docs/architecture/decisions/0016-notification-retention-payload-dedup-and-valkey.md). Each
+question is retained with its analysis, because a ruling read without the conflict it settles invites the
+conflict back.
 
-### OPEN-014-A — FR-026 and FR-027 contradict each other on producer identity
+### ✅ OPEN-014-A — producer identity: BOTH signals are required, and a mismatch is a rejection
 
-**The conflict.** FR-026 makes `producer` a **REQUIRED envelope field** on the EventBridge path, justified as
-"that path has no bearer token to derive identity from (FR-027)". FR-027 says the event path's trust boundary
-**is** (a) the bus resource policy and (b) **validation of the event's `source` against an allowlist of
-registered producers**. So the same request carries **two** producer identities: one **self-asserted inside the
-envelope** (`producer`) and one **transport-asserted outside it** (`source`) — and FR-026's stated rationale is
-contradicted by FR-027, which does derive identity without a bearer token.
+**The conflict (unchanged, recorded so the ruling is legible).** FR-026 made `producer` a REQUIRED envelope
+field on the EventBridge path, justified as "that path has no bearer token to derive identity from (FR-027)".
+FR-027 says the event path's trust boundary **is** the bus resource policy plus **validation of the event's
+`source` against an allowlist of registered producers** — which does derive identity without a bearer token. So
+the same request carried **two** producer identities, one self-asserted inside the envelope and one
+transport-asserted outside it, and FR-026's stated rationale was contradicted by FR-027. Downstream behaviour
+hung on the answer: the FR-016/FR-017 registry lookup, FR-019/FR-033 quota accounting and the FR-013
+per-producer counter each need exactly one authoritative producer id.
 
-**Why it cannot be deferred to implementation.** `plan.md`'s _Producer ingress_ table says event-path producer
-identity comes from "validated event `source` + bus resource policy", while its envelope block keeps `producer`
-REQUIRED. Downstream behaviour hangs on which one wins: the FR-016/FR-017 registry lookup, the FR-019/FR-033
-quota accounting, and the FR-013 per-producer publish counter each need exactly one authoritative producer id.
-If `producer` is authoritative, a principal with bus access can attribute its publishes to another producer and
-spend that producer's quota. If `source` is authoritative, `producer` is redundant self-assertion.
+**Ruling.**
 
-**Questions for the owner:**
+1. **Neither field alone is the authority. BOTH are required and they must agree.** The transport signal — the
+   Ed25519 token principal on HTTP, the validated `source` on the bus — is resolved **through the producer
+   registry** to a producer name; the envelope's `producer` is compared to it.
+2. **A mismatch, or a transport signal that resolves to nothing, is a REJECTION** on FR-042's single path with
+   the cause in `reason` (`403` on HTTP, dead-letter on the bus). It is **not** resolved by preferring one
+   signal, and the envelope's `producer` is **never** trusted on its own — which is what closes the
+   "a principal with bus access could spend another producer's quota" hole the OPEN identified.
+3. **`producer` is NOT dropped; it becomes REQUIRED on both paths** (FR-026 amended). It is a cross-check, not
+   advisory metadata: its only permitted outcomes are "agrees" and "rejected". Keeping it also keeps **one**
+   envelope shape valid on both ingresses, which is what lets FR-024's two adapters share literally one zod —
+   SC-008's paired tests would otherwise be comparing two different shapes.
+4. **The registry is where the mapping lives** — one `ProducerRegistryEntry` per producer carrying its HTTP
+   principals and its `source` values, with the mapping asserted **injective at boot** so attribution can never
+   be ambiguous. Authored in the notification service, copied into the schema package, never a table (FR-041).
 
-1. Which field is **authoritative** for the registry check, quota accounting, and the per-producer counter —
-   `source`, or the envelope's `producer`?
-2. What happens when they **disagree**? Reject and dead-letter (FR-028), or accept and ignore the envelope
-   field?
-3. If `source` is authoritative, should `producer` be **dropped** from the required set on the EventBridge path
-   (which would amend FR-026), or retained as advisory metadata that MUST NOT be trusted?
+**Why both rather than the cheaper single signal:** the transport signal proves **origin**, the envelope field
+states **intent**, and a disagreement is real evidence of a real fault — a misconfigured producer, an envelope
+copied between environments, a replay onto the wrong bus. Requiring agreement costs one comparison and removes
+a class of silent misattribution that would otherwise surface as another producer's quota exhaustion.
 
-### OPEN-014-B — SC-011 claims "delivered exactly once", which is stronger than the transport allows
+### ✅ OPEN-014-B — the guarantee is effectively-once within a window, not exactly-once
 
-**The conflict.** SC-011 says a redelivered EventBridge envelope is "delivered **exactly once**". This
-feature's own artifacts say otherwise, in three places:
+**The conflict (unchanged).** SC-011 claimed a redelivered EventBridge envelope is "delivered **exactly
+once**", which three of this feature's own artifacts contradict: US-010 states plainly that exactly-once is
+**not** promised and that handlers may run more than once; FR-018 scopes collapse to a **window**, with
+US-010's own scenario 2 saying the same key **after** the window delivers twice; and FR-026 justifies requiring
+`idempotencyKey` precisely because "EventBridge delivery is **at-least-once**".
 
-- **US-010** states plainly: _"Strong 'exactly-once' semantics are **not** promised by the chosen ordering
-  model"_, and _"Consumers MUST still treat handlers as idempotent (handlers may run more than once across
-  reconnects in degenerate cases)"_ — and calls `idempotencyKey` "a producer-side affordance to deduplicate
-  retries, **not** an 'exactly-once' guarantee".
-- **FR-018** is scoped to a **window**: duplicates collapse to one delivery "inside a configured dedup window",
-  and US-010's own acceptance scenario 2 says the same key **after** the window **delivers twice**.
-- **FR-026** justifies requiring `idempotencyKey` precisely because "EventBridge delivery is **at-least-once**".
+**Ruling.**
 
-An at-least-once transport plus a bounded dedup window yields **effectively-once within the window**, not
-exactly-once. As written, SC-011 is a success criterion that the design cannot satisfy in general — and it is
-the kind of claim a consumer will build on.
+1. **SC-011 is narrowed** to what the design provides: **at most one notification per
+   `(producer, idempotencyKey)` within the claim window, and never zero.** An at-least-once transport plus a
+   bounded claim is **effectively-once within the window** — that is the phrase to use in any client-facing
+   material, and "exactly-once" is not to be reinstated.
+2. **US-010's contract stands and is now structural**: unacked notifications are **redelivered by design**
+   (FR-039), because redelivery is the retention mechanism. Idempotent handlers are a requirement, not a
+   defensive nicety.
+3. **The dedup design is what makes the narrowed claim strong in practice**, and it is worth stating why the
+   answer is not simply "we promise less": payload-identity dedup (FR-037) is **always on** and needs no
+   producer cooperation, so the common duplicate — the same notification published twice — collapses whether or
+   not the producer derived a key correctly. The `idempotencyKey` claim adds the one case payload identity
+   cannot cover, a transport redelivery arriving **after** a fast ack (FR-038).
+4. **The client-facing contract therefore says:** a notification may be delivered more than once, will not be
+   delivered zero times inside its retention window, and is settled by an ack. Handlers are idempotent; clients
+   also dedupe and order by `(recipient, sequence)`.
 
-**Questions for the owner:**
+### ✅ OPEN-014-C — the quota is a token bucket with a service-fixed unit
 
-1. Should SC-011 be **narrowed** to what FR-018 actually provides — e.g. "at most one delivery per
-   `(producer, idempotencyKey)` **within the configured dedup window**, and never zero" — leaving US-010's
-   at-least-once/idempotent-handler contract intact?
-2. Or is exactly-once genuinely being promised, and if so **on what mechanism**, and what does that make of
-   US-010 and of FR-018's window?
-3. Either way: what does the **client-facing** contract say? US-010 currently obliges consumers to write
-   idempotent handlers, which is incompatible with advertising exactly-once.
+**The gap (unchanged).** FR-019 required "per-producer publish quotas" and FR-033 required the value to be
+"declared by that producer at registration", but neither stated a **unit or a window**. The only unit anywhere
+was US-011's narrative "K/sec", and a user story is not the normative requirement — so FR-033 asked a producer
+to declare a value with no dimension, and the registry contract could not type it.
 
-### OPEN-014-C — FR-019 / FR-033 specify a quota with no unit
+**Ruling** (normative as **FR-044**), answering the four questions in order:
 
-**The gap.** FR-019 requires "per-producer publish quotas" and FR-033 requires the value to be "declared by
-that producer at registration" — but **neither states a unit or a window**. The only unit anywhere in the spec
-is in **US-011**'s narrative ("a publish quota of K/sec"), and a user story is not the normative requirement.
-FR-033 therefore asks a producer to declare a value it has no defined dimension for, and the envelope/registry
-contract cannot type it.
+1. **Unit and window: a token bucket** — a sustained rate in **publishes per second** plus a **burst allowance
+   in publishes**. Not a fixed window: NFR-006 bounds the degradation one producer may inflict on unrelated
+   producers, which is a statement about **instantaneous** contention, and a fixed window permits the whole
+   budget in its first millisecond. The bucket also bounds against the SQS FIFO account-level TPS ceiling the
+   ordering design already accepts as a hard cap.
+2. **Scope: one budget per producer, shared across BOTH ingress paths.** FR-024 gives the adapters one core;
+   two budgets would let a producer double its allowance by splitting traffic, and FR-013's counter is per
+   producer, not per path.
+3. **Not per `recipient.kind` — but `global` carries a SEPARATE bound owned by this service.** One `global`
+   publish fans out to every subscriber and is not commensurable with a `user`-addressed publish, and a
+   producer allowed to declare its own global quota could declare a large one. Global publishing is an operator
+   action (US-003), so its bound is a service constant, not a registry field.
+4. **The unit is fixed by the service; the producer declares magnitudes only** — and this service **caps**
+   them. Two registry entries declaring different units are not comparable, and the registry's
+   `z.strictObject` could not type a value whose dimension varies. FR-033's intent (the producer declares its
+   own bound rather than having one inferred) is satisfied by declaring the magnitudes.
+5. **The bucket is shared state, not per-task memory.** N API tasks each holding a local bucket grant N× the
+   quota; the bucket lives in the FR-040 store alongside the pending set.
 
-**Questions for the owner:**
+### Still open — and honestly so
 
-1. What is the **unit and window** — publishes per second, per minute, per hour? A **token bucket** with a
-   sustained rate plus a burst allowance (which is what NFR-006's "must not degrade unrelated producers by more
-   than 10%" implies) or a fixed window?
-2. Is the quota **global per producer**, or per producer **per `recipient.kind`** (a `global` broadcast fans out
-   far wider than a `user`-addressed publish, so one unit may not bound both meaningfully)?
-3. Does the **registration** value carry its own unit, or is the unit **fixed by the service** and the producer
-   declares only a magnitude?
-4. Does the quota apply **per ingress path or across both**? FR-024 says both adapters run the same rules, which
-   implies one shared budget — worth confirming, since a producer using both paths could otherwise get double.
+- 🟠 **Whether ElastiCache durability is available on Serverless Valkey at the engine version we get**
+  (FR-040 mitigation 1). This is a **factual question about AWS**, not a design question, and it must be
+  answered against the AWS documentation **before the cache is provisioned**; the answer decides a $3.21/month
+  trade between a durable node and a non-durable serverless cache. Recorded in
+  [ADR-0016](../../docs/architecture/decisions/0016-notification-retention-payload-dedup-and-valkey.md) →
+  _Durability_.
+- 🟠 **The concrete `payload` size bound and envelope size bound** (FR-037, FR-040). These are product decisions
+  with no storage floor to derive from, and they set both the fan-out cost and the metered-memory profile. They
+  must be **numbers in the schema** before the envelope zod is generated; a default inherited from a transport
+  limit is not a decision.
 
 ## Assumptions
 
@@ -658,3 +1096,5 @@ contract cannot type it.
 - **A-006**: Read/delivery receipts back to producers are out of scope. Producers observe success/failure of _publish_, not of _delivery_.
 - **A-007**: A long-term inbox UI (notification history beyond the catch-up window) is out of scope for this release.
 - **A-008**: All API paths owned by this feature live under `/api/v1/notifications/*`.
+- **A-009** _(added 2026-08-12)_: The retained-notification store is **infrastructure this feature provisions**, not a dependency to wait on: one ElastiCache Serverless for Valkey cache per stage, `pr-{N}:`-prefixed per preview (FR-040, ADR-0006's shared-data-plane pattern). It is **not** durable by default and that is an accepted, recorded risk with a named escalation — see FR-040 and ADR-0016 → _Durability_. Do not read the ≈ $6.13/month figure as the whole decision: the durable options cost more or change the data model.
+- **A-010** _(added 2026-08-12)_: A client is assumed to be able to **acknowledge** (FR-034). A consumer that cannot — a surface with no way to run a handler to completion and call back — is out of scope for this release, and its notifications would simply wait out the 72 hours. If such a consumer is ever required, it needs its own decision; it is **not** a reason to add a server-side "assume consumed on send" rule, which would restore the exact behaviour FR-012's amendment removed.

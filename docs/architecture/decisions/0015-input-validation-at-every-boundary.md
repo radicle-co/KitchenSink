@@ -174,8 +174,17 @@ proof of what they sent.
 
 **Known-incomplete work (as of 2026-08-12) — do not read this ADR as a description of a finished state.**
 
-- Recipe's **19 `class-validator` files** and food's **missing pipe** are both mid-convergence. Two efforts
-  were editing this code the day this ADR was written.
+- Recipe's `class-validator` residue and food's **missing pipe** are both mid-convergence. Two efforts were
+  editing this code the day this ADR was written.
+    - ⚠️ **Correction to the "19 files" figure used above and in `docs/CODING_STANDARDS.md` §15.4.** Re-measured
+      2026-08-12 with `grep -rl "from 'class-validator'"` over service sources (excluding `dist`): **exactly ONE
+      file imports it** — `packages/services/recipe-service/src/search/dto/search-recipes.query.dto.ts`. The 19
+      is a **mention** count, and 18 of those mentions are JSDoc _about migrating away from it_. Recipe is one
+      file from a single mechanism, not nineteen — a difference that changes whether this is a task or a project.
+      **Count importers, not mentions.** The rest of this ADR's reasoning is unaffected; only the size of the
+      remaining work was overstated.
+    - 🔄 Food's pipe fix was **in the working tree and uncommitted** on 2026-08-12 (5 `ZodValidationPipe` /
+      3 `createZodDto` sites). Committed `main` was still 0 / 0, which is what the _Context_ table describes.
 - No service validates responses (decision 9 / alternative 1) — that is the intended state.
 - Features **006–010** do not yet name an owning service package for their endpoints (GR-015 Current State),
   so GR-016 binds them prospectively.

@@ -132,9 +132,9 @@
       Size: M
 
 - [ ] **T016** `ByokController` + `ByokModule`
-      Paths: `packages/services/ai-service/src/byok/byok.controller.ts, packages/services/ai-service/src/byok/byok.module.ts, packages/services/ai-service/src/byok/dto/store-byok-key.dto.ts`
-      Implements: FR-015
-      Notes: `/api/v1/ai/byok/keys`. `201` / `204` / `400`.
+      Paths: `packages/services/ai-service/src/byok/byok.controller.ts, packages/services/ai-service/src/byok/byok.module.ts, packages/services/ai-service/src/byok/byok.schema.ts`
+      Implements: FR-015 · GR-015 §15-a.1 · GR-016 §16-a
+      Notes: `/api/v1/ai/byok/keys`. `201` / `204` / `400`. ⛔ **No `dto/` directory** — this task previously named `src/byok/dto/store-byok-key.dto.ts`, but §15.2 requires the contract to be authored as `src/**/*.schema.ts` **beside the controller it serves** (T099). The `createZodDto` class may live beside that zod; the **zod** is the authored artifact and its location is what `contract:generate` reads.
       Size: M
 
 - [ ] **T017** E2E: BYOK over HTTP
@@ -331,7 +331,7 @@
       Size: M
 
 - [ ] **T046** Generation intake service + controller
-      Paths: `packages/services/ai-service/src/generation/generation.service.ts, packages/services/ai-service/src/generation/generation.controller.ts, packages/services/ai-service/src/generation/dto/generate-recipe.dto.ts`
+      Paths: `packages/services/ai-service/src/generation/generation.service.ts, packages/services/ai-service/src/generation/generation.controller.ts, packages/services/ai-service/src/generation/generation.schema.ts` ⛔ (**not** a `dto/` directory — §15.2; see T099)
       Implements: FR-016, FR-017
       Size: M
 
@@ -697,25 +697,128 @@ interception glob is now `**/api/v1/**`, so Clerk requests no longer enter the h
 awaiting a token. The pass-through reasoning is recorded in
 `packages/apps/commise/web/tests/e2e/utils/recipeApi.ts` — restore it if you ever widen the glob.
 
+## Phase 5H — Contract ownership, validation & the client half (GR-015, GR-016, GR-017)
+
+> ⚠️ **`plan.md` §3.0 states all of this in prose and NOT ONE TASK existed for it** — GR-017 §17-e.12's failure
+> mode, and the portfolio's most common violation. `@kitchensink/schema-ai` **does not exist**, and neither did a
+> task to create it, wire `CONTRACT_HASH`, or validate a response on receipt.
+>
+> ⚠️ **`@kitchensink/ai-service` is a NEW deployable, so GR-017 §17-a binds it on the day its package is created**
+> (T001) — the obligations are **not** deferred to "when it has clients". A new service that lands without its
+> schema package, its `CONTRACT_HASH` boot assertion or `nestjs-zod`'s pipe is **in violation on day one**.
+>
+> ⚠️ **ADR-0017 does NOT ratify `ai-service` or `ai-workers`.** It decided 006/007/009/010 only and explicitly
+> declines to decide 005's services. The question _does this need its own deployable, given that a per-PR ECS task
+> measures ≈ $8.25/month per open PR (ADR-0010) on a $300/month account budget?_ is worth asking before either is
+> built. ⚠️ **But note the counterweight specific to 005**: `plan.md` §1.2 / ADR-0012 make the
+> `ai-service`/`ai-workers` split a **security boundary** (only `ai-service` may mint a Clerk actor token, and
+> `ai-workers` never holds the Clerk secret key), not packaging taste. A cost-driven merge would collapse that
+> boundary, so this is an owner decision with a real trade on both sides — not a rubber stamp either way.
+
+- [ ] **T099** Author every AI wire shape as zod in the service, and generate `@kitchensink/schema-ai`
+      Paths: `packages/services/ai-service/src/byok/byok.schema.ts, packages/services/ai-service/src/generation/generation.schema.ts, packages/services/ai-service/src/grants/grants.schema.ts, packages/services/ai-service/src/prompts/prompts.schema.ts, packages/schemas/ai/**`
+      Test-first: true
+      Implements: FR-015, FR-016, FR-017, FR-018, FR-019 · GR-015 §15-a · GR-017 §17-a.1/§17-a.3
+      Notes: BYOK, generation-intake, job-status, **streaming-chunk** and optimize-preview shapes authored **beside the controller each serves** (§15.2) — never in a `dto/` directory. Every `*.schema.ts` imports **only `zod` and other `*.schema.ts` files**: ⛔ **no Nest symbol, no Secrets Manager type, and NO provider SDK type**. `packages/schemas/ai` (`@kitchensink/schema-ai`) exports `src/schemas.ts`, `src/types.ts` (`z.infer` only), `src/contract-hash.ts`, `src/index.ts` and a **derived** `openapi.yaml`, with no runtime dependency on NestJS/drizzle/aws-sdk. Reference shape: `packages/schemas/recipe`.
+      ⚠️ **The streaming surface is the shape most likely to drift.** `POST /api/v1/ai/generate/recipe/stream` emits partial objects then `{ done: true }`. **The partial/chunk envelope IS a wire shape** and belongs in the schema package; the partial's zod is a `.partial()` **derivation** of the full shape, **never a second declaration**. Hand-writing it in the web and mobile stream readers is how one chunk shape drifts on two platforms independently.
+      ⛔ **Three things that look wrong and are not**: the schema package is a literal file **COPY** (zod are runtime values and cannot be derived from themselves); `openapi.yaml` is **DERIVED** output for `oasdiff`/docs/integrators and is **NEVER a codegen input**; the copy is wired with turbo `$TURBO_ROOT$` **`inputs`**, never `dependsOn`.
+      ⛔ **A BYOK key is never a wire shape's plaintext field on the way back out**, and no schema may echo a stored key — the response carries provider identity and configured-state only.
+      Tests: unit (each schema accepts a valid fixture and rejects every malformed variant; the partial chunk zod is asserted to be a derivation of the full shape, so a full-shape change propagates) **AND** integration (the generated package's exports resolve and its `CONTRACT_HASH` equals the service's).
+      Size: L
+
+- [ ] **T100** Declare `contract:generate`, wire the turbo `$TURBO_ROOT$` `inputs`, and assert `CONTRACT_HASH` at boot
+      Paths: `packages/services/ai-service/package.json, turbo.json, packages/services/ai-service/src/main.ts, packages/services/ai-service/src/__tests__/build-inputs.test.ts, packages/services/ai-service/src/__tests__/main-boot-order.test.ts`
+      Test-first: true
+      Implements: NFR-001 · GR-015 §15-c · GR-017 §17-a.2/§17-a.4
+      Notes: All three drift gates, each catching what the others cannot. **(1) Rebuild** — `@kitchensink/schema-ai#build` gets `$TURBO_ROOT$`-anchored **`inputs`** covering the service's `src/**/*.schema.ts`. **(2) Correctness** — `contract:generate` is declared so `scripts/contractOwners.mjs` `discoverContractOwners` finds the service **with no list edit** (a hardcoded list is itself the defect GR-017 names), and `npm run contract:verify` regenerates and fails on any diff. **(3) Skew** — the service compares its `CONTRACT_HASH` against `@kitchensink/schema-ai`'s at boot and **refuses to start** on mismatch, **before** the HTTP listener binds.
+      ⛔ **NOT `dependsOn`** — `schema-<service>#build` `dependsOn` `<service>#build` closes the cycle `client → schema → service → client` and turbo rejects the graph. The generated files are committed, so ordering was never the requirement; content-hashed `inputs` are.
+      Tests: unit (`build-inputs.test.ts` covers every authored schema file; `main-boot-order.test.ts` asserts the hash check precedes `listen()` and a skewed hash throws — both modelled on `packages/services/recipe-service/src/__tests__/`) **AND** integration (`scripts/contractDriftGate.mjs` clean on a fresh checkout, red on a hand-edited package; boot with a skewed hash binds no port).
+      Size: M
+
+- [ ] **T101** Register **`nestjs-zod`'s** `ZodValidationPipe` and use `z.strictObject()` on every mutating body
+      Paths: `packages/services/ai-service/src/app.module.ts, packages/services/ai-service/src/**/__tests__/, packages/services/ai-service/tests/app-validation.integration.test.ts`
+      Test-first: true
+      Implements: FR-015, FR-016, FR-018 · GR-016 §16-a/§16-e · GR-017 §17-a.5/§17-c
+      Notes: Bind **`nestjs-zod`'s** pipe through `APP_PIPE` — ⚠️ **never Nest's own `ValidationPipe`, and never to the bare class token**. Under Nest's own pipe a `createZodDto` DTO **validates nothing while looking correctly wired**: schema present, DTO referenced, route reads as validated, no input checked. This already bit identity's `PATCH /users/me`, a route that writes user data. **One** mechanism in the service; **no `class-validator` DTO** alongside it — a new service starts with one, and recipe-service's 19 residual `class-validator` files are the two-mechanism state this avoids. One `400` path naming the offending field.
+      ⛔ **Every mutating body uses `z.strictObject()`** — BYOK store/replace/delete, generation intake, grant create/revoke, prompt-template admin writes. `z.object()` **strips unknown keys silently**, so a misspelled field on a **BYOK key write** or a **grant scope** would yield a `200` and a partial write the caller was told succeeded. On a grant, a silently-dropped scope field is a **security** failure, not a data-quality one.
+      ⚠️ **Parse before you authorise.** A grant id, scope or actor claim that reaches an authorization decision unparsed can **fail open** — and 005's authorization decision mints a Clerk **actor token** (ADR-0012).
+      Tests: unit (per-DTO accept/reject and unknown-key rejection) **AND** integration (post a **known-bad body to a REAL route** on a booted app and assert the `400` + field name — the **only** way to observe the wrong-pipe failure; modelled on `packages/services/identity/tests/app-validation.test.ts`) **AND** e2e (`tests/e2e/*.e2e.test.ts`) **AND** k6 (`packages/tools/loadtest/`) — `ai-service` is a deployable and owes all four tiers (§7.1, GR-017 §17-a.8).
+      Size: M
+
+- [ ] **T102** Storage-floor boundary-parity test with bidirectional mapping completeness
+      Paths: `packages/services/ai-service/src/__tests__/storage-capacity.test.ts`
+    - ⛔ **DO NOT BUILD A NEW GATE — the mechanism already EXISTS.** `@kitchensink/contract-gen` exports `auditStorageCapacity` / `collectBoundedColumns` / `formatStorageCapacityFindings` (`packages/tools/contract-gen/src/storage-capacity.ts`), and a `storage-capacity.test.ts` already wires it in **all three** shipped services (recipe `src/database/__tests__/`, food `src/db/schema/__tests__/`, identity `src/types/schema/__tests__/`). Copy that pattern; do not hand-roll a second one — a second mechanism for one invariant is the failure GR-016 §16-a.2 forbids, one layer up. It reads drizzle **structurally** via `Symbol.for('drizzle:Columns')` (so `contract-gen` needs no `drizzle-orm` dependency) and zod bounds via the **public** `z.toJSONSchema`; it is already **exhaustive over columns**, with `stale-account` / `duplicate-account` findings as the reverse-direction check. The work here is the **mapping**: every bounded column bound to the wire fields that write it, or declared not-client-writable **with a reason** (GR-017 §17-d).
+      Test-first: true
+      Implements: FR-015, FR-016, FR-019 · GR-016 §16-d · GR-017 §17-d
+      Notes: Lives **in the service**, imports **both** the Drizzle schema and the authored zod — **a test is not a wire schema**, so §16-d's ban on the _production_ coupling is not weakened. **Derives** the bounded-column enumeration from the Drizzle schema rather than typing it out, and asserts each writing wire field **rejects** a value the column cannot hold: provider enum domain (`openai | anthropic | gemini`), `template_key` / `version` bounds, generation-record status enum, prompt and instruction lengths, token/usage counters against the `int4` ceiling **2,147,483,647**, grant scope domain, `revoked_at` nullability. Mapping completeness asserted in **BOTH** directions — every bounded column has an entry or an **explicit, reasoned exemption**, and every entry names a column that **exists**.
+      ⛔ **Asserted, never derived** — no zod generated from Drizzle, no storage type imported into a `*.schema.ts`.
+      ⚠️ **Token/usage counters are the live risk**: they are populated from **provider-reported** numbers we do not control, so an unbounded counter writing an `int4` column is a `500` where the contract owed a `400`. ⚠️ **Prompt/instruction text columns are unbounded `text()`**, so their limits are **product decisions 005 owns** with no storage floor to derive from — "the column allows it" is not an argument for accepting a megabyte of prompt.
+      ⚠️ **Limitation**: this proves the floor only for the columns it maps. Only the "every bounded column has an entry" direction catches a **new** column, and only if the enumeration is derived. Derive it.
+      Tests: unit (the parity assertions, both completeness directions — an unmapped bounded column must **fail**, and an entry naming a nonexistent column must **fail**) **AND** integration (a ceiling+1 counter and an over-long instruction each yield `400`, not a failed `INSERT`).
+      Size: M
+
+- [ ] **T103** Parse every non-HTTP ingress, with one rejection path and no retry of invalid payloads
+      Paths: `packages/services/ai-workers/src/handlers/generation.handler.ts, packages/services/ai-workers/src/**/*.schema.ts`
+      Test-first: true
+      Implements: FR-016 · GR-016 §16-b · GR-018 §18-a/§18-b/§18-d · GR-019
+      Notes: **005's non-HTTP ingress, enumerated** (GR-016 §16-b requires the list, or an explicit "none"): (1) the **generation job queue** consumed by `ai-workers` (T048); (2) the **provider streaming response** — governed by T104, since it is third-party; (3) any scheduled retention/cleanup invocation. 005 has **no third-party webhook**, so GR-018 §18-c's `2xx` inversion does **not** apply.
+      ⛔ **The job/intake envelope is authored ONCE as zod and imported by BOTH deployables** — `ai-workers` is a **consumer** of `@kitchensink/schema-ai`, not a second author. Re-declaring the envelope per deployable is the drift GR-015 exists to prevent, and here the two deployables sit either side of a **security** boundary (§1.2 / ADR-0012), so a shape disagreement is a control disagreement.
+      **An invalid payload is NEVER retried** — record it and **complete** the message, or dead-letter it **once** with the `reason`, and alarm DLQ depth. ⚠️ **This must not fight T048's idempotency**: a redelivered job (same key) must not call the provider twice — that is dedup, and a dedup hit gets its own counter. An **invalid** payload is a different condition again, and a **transient** failure (provider `5xx`, timeout, rate limit) is a **third** with its own `reason` that **MAY** retry. Three conditions, one rejection **shape**, distinguished by `reason`. ⚠️ **Retrying an invalid payload against a metered LLM provider spends the user's BYOK quota on a request that can never succeed.**
+      ⛔ **No sentinel identifiers, and no row for a rejected payload** (GR-019): an unresolvable `user_id`, `grant_id` or `job_id` is a **rejection**, never `'unknown'`/`''`/`0` — not in storage, not on a wire, not as a map key, and **not as a metrics dimension**. ⚠️ A sentinel `user_id` here would attribute one user's generation cost and BYOK usage to a fictitious subject, and would put an **attribution** decision behind a string literal.
+      Tests: unit (each envelope zod rejects every malformed variant; the three conditions produce the same shape differing only in `reason`; an unresolvable id rejects rather than defaults) **AND** integration (an **invalid** payload is asserted **not** redriven and never calls the provider, a **redelivered** payload is deduped, a **transient** failure **is** retried, **and** a valid payload still succeeds — all four, or the suite passes on a handler that never fails).
+      Size: M
+
+- [ ] **T104** ⛔ Boundary-validate LLM provider output and Clerk's OAuth surface — the SHARPEST §15-d case in the portfolio
+      Paths: `packages/services/ai-workers/src/providers/provider-response.schema.ts, packages/services/ai-workers/src/providers/provider.resolver.ts, packages/services/ai-service/src/mcp/clerk-oauth.schema.ts`
+      Test-first: true
+      Implements: FR-016, FR-018, FR-022 · GR-015 §15-d · GR-016 §16-b · GR-017 §17-b.6
+      Notes: ⛔ **We do not serve these APIs.** LLM providers (via the Vercel AI SDK — Anthropic, OpenAI, Gemini, and any future one) and **Clerk's OAuth 2.1 / dynamic-client-registration surface** (ADR-0012) are third-party: there is no service of ours to own their types and they change without telling us. Each is **validated at the boundary with its own zod** the moment a body arrives, **MAY declare its own types**, and **gets NO OpenAPI document**. Their shapes are **not** folded into `@kitchensink/schema-ai`, and the normalized shape we hand onward **deliberately differs** from the raw payload. Rules 17-b.1–17-b.5 do **not** apply.
+      ⛔ **On THIS feature the boundary parse is not a style question — it is the control `plan.md` §1.2 is built on.** Model output is **untrusted input** by that section's own security boundary, and `ai-service` can mint a **Clerk actor token**. "Converging" these schemas away would delete the exact parse that stops **prompt-injected or malformed model output** from reaching that capability. It is a **security regression, not a consistency win**. `packages/clients/usda/src/schemas.ts` is the reference implementation and must **NEVER** be touched in this rule's name.
+      ⚠️ **Structured generation output is INPUT and its parse is REQUIRED by GR-016**, not merely permitted by §15-d — validated **before any field is used, logged, or persisted**. ⚠️ **A streamed response must be validated per chunk AND on completion**: a partial that parses is not a whole that parses, and the terminal `{ done: true }` is itself a shape to check rather than assume.
+      ⚠️ **Note the asymmetry, because it is easy to get backwards** (`plan.md` §3.0): a generated recipe 005 **saves** goes out through `recipeServiceClient.createRecipe()`, whose shape **is ours** and **is** governed by §15-b — imported from `@kitchensink/schema-recipe`, never re-declared. The model's raw output on the way **in** is §15-d. **Same request path, opposite rules.**
+      ⚠️ T050's "thin resolver over the Vercel AI SDK — do not build a second adapter layer" still holds: **a boundary schema is not an adapter layer.** Adding zod validation at the SDK's edge does not reintroduce the abstraction §4 rejected.
+      Tests: unit (each boundary schema rejects a renamed, missing, wrong-typed and null-valued upstream field; an absent confidence/usage figure **rejects** rather than defaulting to `0` — a sentinel would silently pass the T063–T066 confidence surface; the normalized output is asserted **independent** of the raw provider shape; a mid-stream malformed chunk aborts the generation rather than being skipped) **AND** integration (recorded real provider payloads parse clean; a mutated payload is rejected at the boundary and **no** `ai_generation_records` row and **no** recipe are written; a prompt-injection fixture cannot produce a field the schema does not allow).
+      Size: L
+
+- [ ] **T105** The CLIENT half — typed client, receipt validation, skew guard, and web/mobile derivation in lockstep
+      Paths: `packages/clients/ai-service/src/client.ts, packages/clients/ai-service/src/contractSkew.ts, packages/clients/ai-service/src/__tests__/contractSkew.test.ts, packages/apps/commise/features/ai/src/**`
+      Test-first: true
+      Implements: FR-015, FR-016, FR-017, FR-019, FR-022 · GR-015 §15-b · GR-016 §16-c.2/§16-c.3 · GR-017 §17-b.1–§17-b.5, §17-f · §14.1
+      Notes: `@kitchensink/ai-service-client` (T003) imports wire **types and runtime zod** from `@kitchensink/schema-ai` and declares **no** wire shape of its own — its `types.ts` holds only config, options and its own error shapes, **including type-only** declarations. It depends on that **leaf**, never on `@kitchensink/ai-service` (`packages/infra/global/__tests__/app-service-dependency.test.ts` enforces the boundary). **Every response is parsed the moment it arrives**; **every outbound body is validated against the callee's schema-package zod before the call**, so a malformed payload fails in the caller with a usable stack rather than as a remote `400`. A **contract-skew guard** detects a pinned-stale schema package rather than leaving it inferred from a runtime parse failure, modelled on `packages/clients/{food-service,recipe-service}/src/contractSkew.ts`, and reports only what it actually compared.
+      ⚠️ **The streaming reader is the load-bearing case.** Web and mobile both consume the chunk envelope, so both use the **schema package's** partial zod — ⛔ **never a hand-written chunk type per platform**, which is how one contract drifts into two with `typecheck` green.
+      Notes (005 as a client of others): 005 calls recipe and food, so §15-b binds it there too — `@kitchensink/recipe-service-client` → `@kitchensink/schema-recipe`, `@kitchensink/food-service-client` → `@kitchensink/schema-food`. 005 declares **no** wire type belonging to 001 or 003.
+      ⛔ **Do NOT add server-side response validation** — GR-016 §16-g **defers** a producing service parsing what it **emits**. This task is the **consumer** parsing what it **received** (GR-017 §17-f). ⚠️ **Do not conflate it with T104's provider-boundary parse**, which is input and is required — the two are different obligations and only one is deferred.
+      Tests: unit (each method's happy path and every mapped error status; a response with a missing, renamed and wrong-typed field raises the typed parse error; an invalid outbound body is rejected **before** any fetch; `contractSkew.test.ts` reports a skewed hash and names both hashes; each derived view model asserted **assignable from** its wire parent) **AND** integration (`vitest.integration.config.ts` — already scaffolded in T003 — against a booted service; a hand-skewed fixture must fail) **AND** **vitest component tests for EVERY path/state on BOTH platforms** (extending T063–T077: idle, submitting, streaming-partial, stream-aborted, chunk-unparseable, done, saved, provider-unconfigured, invalid-key, quota-exceeded, grant-revoked, premium-gated, confidence-warned) **AND** **Playwright** (web) **AND** a **Maestro** flow per story (mobile) matching one-for-one (§14.1).
+      Size: L
+
+---
+
 ## Coverage
 
-| Requirement | Tasks                                                |
-| ----------- | ---------------------------------------------------- |
-| FR-015      | T005–T017, T067, T068, T074, T075, T076, T077        |
-| FR-016      | T041–T056, T078–T081, T084                           |
-| FR-017      | T045, T046, T053–T056, T074, T075                    |
-| FR-018      | T018–T040, T059, T060, T069, T070                    |
-| FR-019      | T061, T062, T080, T081                               |
-| FR-020      | T020, T021, T030, T031, T038                         |
-| FR-021      | T034, T035, T071, T072                               |
-| FR-022      | T063–T066, T073, T082, T083                          |
-| NFR-001     | T001–T003, T006, T010 (+ strict mode repo-wide)      |
-| NFR-002     | T006, T010, T012, T019, T027, T083                   |
-| NFR-003/004 | T063, T065, T067, T069, T071, T074, T075, T076, T077 |
-| SC-003      | T084                                                 |
-| DG-001..004 | T057–T062                                            |
+| Requirement | Tasks                                                   |
+| ----------- | ------------------------------------------------------- |
+| FR-015      | T005–T017, T067, T068, T074–T077, T099, T101–T103, T105 |
+| FR-016      | T041–T056, T078–T081, T084, T099, T101–T105             |
+| FR-017      | T045, T046, T053–T056, T074, T075, T099, T105           |
+| FR-018      | T018–T040, T059, T060, T069, T070, T099, T101, T104     |
+| FR-019      | T061, T062, T080, T081, T099, T102, T105                |
+| FR-020      | T020, T021, T030, T031, T038                            |
+| FR-021      | T034, T035, T071, T072                                  |
+| FR-022      | T063–T066, T073, T082, T083, T104, T105                 |
+| NFR-001     | T001–T003, T006, T010, T100 (+ strict mode repo-wide)   |
+| NFR-002     | T006, T010, T012, T019, T027, T083                      |
+| NFR-003/004 | T063, T065, T067, T069, T071, T074, T075, T076, T077    |
+| SC-003      | T084                                                    |
+| DG-001..004 | T057–T062                                               |
 
-**Test-first tasks**: 46 · **Implementation tasks**: 48 · **Total**: 94
+**Test-first tasks**: 53 · **Implementation tasks**: 48 · **Total**: 101
+
+> **Updated 2026-08-12.** T099–T105 (Phase 5H) add the GR-015/016/017 obligations `plan.md` §3.0 stated in
+> prose while **no task existed for any of them** — the schema package, the three drift gates, `nestjs-zod`'s
+> pipe, the storage floor, non-HTTP ingress parsing, the §15-d provider boundary, and the client half. All
+> seven are `Test-first: true`, which is why the test-first count moves 46 → 53. The header still reads **98**
+> because it counts T001–T098 including the four superseded by `main` (T088–T091); the reconciled figure is
+> **101 live tasks** (98 − 4 superseded + 7 new).
 
 > Counts recomputed 2026-08-02. The previous footer (41 / 45) predated the final task list and did not
 > match it. T088–T091 are excluded as superseded by `main` (see Phase 5G).

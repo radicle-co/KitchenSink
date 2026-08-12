@@ -4,7 +4,27 @@ Tactical conventions for the KitchenSink monorepo. This document is the authorit
 reference for day-to-day coding decisions. The [Constitution](../.specify/memory/constitution.md)
 defines immutable principles; this document translates them into enforceable rules.
 
-**Version**: 1.4.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-12
+**Version**: 1.5.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-12
+
+> **1.5.0** — **§15.5 added**, making §15.2/§15.4 binding on code that does not exist yet and deciding the
+> **failure** side of the boundary parse. A new service owes its authored zod, `contract:generate`, a committed
+> schema package with a derived `openapi.yaml`, a `CONTRACT_HASH` boot assertion, **`nestjs-zod`'s**
+> `ZodValidationPipe`, `z.strictObject()` and validated non-HTTP ingress **from its first commit**; a new client
+> owes zero wire types, receipt validation, outbound validation against the callee's zod, and a contract-skew
+> guard. Every conformance gate must **discover** its subjects from the filesystem — a hardcoded list is the
+> defect. **§15.5.2 closes GR-016 OPEN-GR-016-B** (`z.strictObject()` is the default for mutating bodies) and
+> **§15.5.3 closes OPEN-GR-016-A** (the storage floor is a per-service parity test — and the mechanism,
+> `@kitchensink/contract-gen`'s `auditStorageCapacity`, is **already wired in all three services**, exhaustive
+> over bounded columns in both directions).
+> **§15.5.4**: one rejection path, one shape, one `reason`, one counter, one alarm — with the response **status
+> derived from the `reason` by a single complete lookup**, because "would a redelivery ever succeed?" genuinely
+> differs: a **shape** failure behind a valid signature answers **`2xx`** (svix/Stripe retry on any non-2xx, and
+> a body that cannot parse never will), while a **signature** failure answers **non-2xx** (it may be OUR stale
+> secret, and the sender's retry is the recovery — answering `2xx` there discarded a real `user.created` once
+> already). A rejected event is never written as a row. **§15.5.5**: no sentinel identifiers, id required
+> except on create/upsert. **§15.5.6**: where two principals are asserted, require both and reject on mismatch.
+> Also corrected §15.4(5), which still described the `strictObject` default as OPEN. Portfolio rules: GR-017 –
+> GR-020.
 
 > **1.4.0** — **§15.4 Input validation** added: one boundary parse per service against the service's own
 > authored zod (one mechanism, one `400` path), extended to queue/event consumers and webhooks (a signature
@@ -1084,6 +1104,17 @@ service has none:
 | `@kitchensink/food-service`     | **0**               | **0**          | **no pipe at all** — `@Body() body: unknown` + per-method `safeParse`     |
 | `@kitchensink/identity-service` | 3                   | 4              | smallest surface; `PATCH /users/me` is the wrong-pipe case (15.4.4 below) |
 
+> ⚠️ **Two corrections to that table, measured 2026-08-12 — read these before using its numbers.**
+>
+> 1. **"19 files still on `class-validator`" is a MENTION count, not an importer count.** `grep -rl "from
+'class-validator'"` over service sources (excluding `dist`) returns **one** file:
+>    `packages/services/recipe-service/src/search/dto/search-recipes.query.dto.ts`. The other 18 mention the
+>    string in JSDoc **about migrating away from it**. Recipe is **one file** from one mechanism, not nineteen —
+>    a difference that changes whether this is a task or a project. **Count importers, not mentions.**
+> 2. **Identity is now 6 / 6**, and **food's fix is in the working tree but uncommitted** (5 / 3). Committed
+>    `main` still has food at 0 / 0, which is what makes food the standing proof that §15.2 and §15.4 are
+>    independent: it has a schema package, a derived `openapi.yaml`, and no validation.
+
 Food's shape is the instructive one: because each method hand-writes its own `safeParse` and its own message,
 a **wrong-typed field**, a **missing field** and an **unknown key** all come back as
 `{ error: 'Empty name' }`. Three different failures, one wrong answer — the caller cannot fix any of them.
@@ -1102,10 +1133,12 @@ a **wrong-typed field**, a **missing field** and an **unknown key** all come bac
    **`PATCH /users/me`** — a route that writes user data. It is invisible in review by construction, so the
    only thing that catches it is a test that posts a **known-bad body to a real route** and asserts the
    `400`. Write that test per controller.
-5. ⚠️ **`z.object()` strips unknown keys silently; `z.strictObject()` rejects them.** Pick one **explicitly**
-   per request surface — inheriting zod's default by accident means a client that misspells a field gets a
-   `200` and no write. (Whether `strictObject` is the portfolio default for mutating bodies is **OPEN** —
-   GR-016 OPEN-GR-016-B.)
+5. ⚠️ **`z.object()` strips unknown keys silently; `z.strictObject()` rejects them.** **`z.strictObject()` is the
+   portfolio default for every MUTATING request body** (`POST`/`PUT`/`PATCH`/`DELETE`-with-a-body), ruled
+   2026-08-12 — see **§15.5.2**, which closed GR-016 OPEN-GR-016-B. Plain `z.object()` is permitted only where a
+   forward-compatibility reason is **documented at the schema**, which in practice means a **read** surface such
+   as a query string. Inheriting zod's default by accident means a client that misspells a field gets a `200`
+   and no write.
 6. **The surfaces a pipe never sees are in scope.** A Nest pipe covers HTTP only:
     - **Queue and event consumers** — `packages/services/recipe-workers/src/handlers/*`, food's
       change-refresh / SQS consumers. An SQS body is a string the producer chose; parse it against an
@@ -1159,6 +1192,139 @@ a **wrong-typed field**, a **missing field** and an **unknown key** all come bac
 > received is defending itself and can do so unilaterally. A **producer** validating what it emits is a
 > different, deferred obligation. Requiring the first does not quietly enact the second.
 
+### 15.5 Conformance for every NEW service, client and app — and what happens when input is REJECTED
+
+§15.2 and §15.4 are written as obligations on **existing** code. This subsection is what makes them binding on
+code that does not exist yet, and it is where the **failure** side of the boundary parse is decided. Portfolio
+obligations: [`specs/governance-rules.md`](../specs/governance-rules.md) **GR-017** (conformance), **GR-018**
+(rejection), **GR-019** (identifiers), **GR-020** (dual-signal principals). GR-017 §17-e carries the fourteen
+things a feature spec must state and marks which of them are mechanically checkable.
+
+#### 15.5.1 A new package owes its obligations on the day it is created, and the gate must DISCOVER it
+
+A **new deployable HTTP service** owes, from its first commit: authored zod at `src/**/*.schema.ts`; a
+`contract:generate` script; a committed `packages/schemas/<service>` with the derived `openapi.yaml`; a
+`CONTRACT_HASH` assertion **at boot**; **`nestjs-zod`'s** `ZodValidationPipe` registered; `z.strictObject()` on
+mutating bodies; a parse on every non-HTTP ingress it owns; and the four test tiers §7.1 requires of a
+deployable. A **new client or app package** owes: zero declared wire shapes, imports of type **and** zod from
+the schema package, **response validation on receipt**, outbound bodies validated against the **callee's** zod,
+and a contract-skew guard (`packages/clients/{food-service,recipe-service}/src/contractSkew.ts` is the pattern).
+
+⚠️ **A conformance test that enumerates services or clients from a hardcoded list is itself the defect.** A list
+is a thing to forget, and the package created next week will not be on it. Every gate discovers its subjects
+from `packages/services/*/package.json`, `packages/clients/*/package.json`, `packages/schemas/*/package.json`
+or `git ls-files` — the pattern already used by
+`packages/infra/global/__tests__/app-service-dependency.test.ts` (discovers services, scans `git ls-files`,
+counts type-only imports as violations) and by `scripts/contractOwners.mjs` `discoverContractOwners`.
+
+⚠️ **`*.schema.ts` is an overloaded suffix — a globbing gate must not treat every match as a wire contract.**
+Each service also has `src/config/env.schema.ts`, its Zod **environment** schema, which is deliberately not
+published. `@kitchensink/contract-gen`'s `discoverAuthoredSchemas` already owns the exclusion (exact relative
+paths, each with a reason, failing on a **stale** entry, and separately rejecting an authored wire schema that
+imports an excluded sibling). A new gate reuses that list rather than inventing a second one.
+
+**The honest state of enforcement is recorded in GR-017 → _Enforcement_, including the gates that do NOT exist**
+(clients-declare-no-wire-types, `z.strictObject()`, and the storage-floor mapping-completeness assertion). Read
+it before assuming a rule here is checked.
+
+#### 15.5.2 `z.strictObject()` for mutating bodies (closes GR-016 OPEN-GR-016-B)
+
+Every mutating request body uses `z.strictObject()`. Plain `z.object()` needs a documented
+forward-compatibility reason at the schema. The trade is genuine in both directions — rejecting unknown keys
+catches a client's typo, accepting them lets a newer client talk to an older service — and the ruling picks the
+direction whose failure is **visible**: on a mutating body a stripped unknown key is a `200` **plus a silent
+partial write**, so the caller is told it succeeded and the stored data is not what it sent.
+
+#### 15.5.3 The storage floor is a per-service parity TEST — and it is ALREADY BUILT (closes GR-016 OPEN-GR-016-A)
+
+§15.4(8)'s floor is enforced by a test, not a review checklist — a checklist cannot survive a migration six
+months from now. ✅ **The mechanism exists**: `@kitchensink/contract-gen`'s `auditStorageCapacity` /
+`collectBoundedColumns` / `formatStorageCapacityFindings`
+(`packages/tools/contract-gen/src/storage-capacity.ts`), wired by a `storage-capacity.test.ts` in **all three**
+services (`recipe-service/src/database/__tests__/`, `food-service/src/db/schema/__tests__/`,
+`identity/src/types/schema/__tests__/`). **A new service copies that pattern; it does not invent one.** Four
+properties are load-bearing:
+
+1. It lives in the **service**, not in the schema package and not in the wire schemas.
+2. **It is an assertion over two independently parsed models, never a derivation.** It takes the drizzle tables
+   as `unknown` and reads them **structurally** through drizzle's registered symbols
+   (`Symbol.for('drizzle:Columns')`), so `contract-gen` carries **no `drizzle-orm` dependency** — it is imported
+   by all three services and must not drag an ORM behind it. It reads zod bounds through the **public**
+   `z.toJSONSchema`, not zod internals, which is what makes `.optional()`/`.nullable()`/`.default()`/`z.coerce`
+   unwrap without a hand-rolled walker. ⛔ Do **not** "tidy" this by adding a `drizzle-orm` dependency or by
+   reaching into zod's internals.
+3. The field→column **mapping is supplied per service by the caller**, because two wire fields may write one
+   column and a column may be written by none — that knowledge is genuinely the service's.
+4. **The audit is exhaustive over COLUMNS.** Every bounded column is either bound to the fields that write it or
+   declared not-client-writable **with a reason**, so a new `varchar(n)` or `smallint` fails the gate the day it
+   is added. `stale-account` and `duplicate-account` findings keep the bookkeeping honest in the other direction.
+
+#### 15.5.4 ONE rejection path, the cause in a `reason`, and an invalid payload is NEVER retried
+
+Every boundary rejection takes **one** code path per ingress and produces **one** structured shape whose
+`reason` names the cause. **A credential/signature failure and a shape failure are equally invalid and MUST NOT
+have two different behaviours** — they differ only in `reason`. An invalid payload is **never retried**: it
+cannot become valid by being sent again, so retrying converts a producer's bug into sustained load. (A
+**transient dependency** failure is a different condition with a different `reason` and MAY retry.)
+
+⚠️ **For a signature-verifying third-party sender, "not retried" means answering `2xx` — but ONLY for a SHAPE
+failure.** svix (Clerk) and Stripe retry on **any** non-2xx (Stripe for 72 hours), so returning `400` for a body
+that cannot parse _requests_ the retry storm this rule forbids. Answer `2xx`, and record the rejection in the
+response body, in structured logs with its `reason`, in a per-`reason` counter, and **alarm on that counter**.
+**Reject the content, accept the delivery.**
+
+⛔ **A SIGNATURE failure on the same endpoint is answered NON-2xx, and collapsing the two onto one status breaks
+something either way.** "Not retried" applies to input that **cannot become valid**. A signature failure has two
+possible causes and both argue against `2xx`: the caller may not be the real sender (and on a public endpoint the
+signature is the _only_ trust boundary, so a `2xx` tells a forger the forgery landed), or the caller **is** the
+real sender and **our** signing secret is stale — a **transient, operator-fixable** condition where the sender's
+retry window is exactly the recovery mechanism. Answering `2xx` there says "delivered" and discards every queued
+real event permanently, behind a green check. **That incident is on record in this repository** (a dropped
+`user.created` left Clerk holding a user the database did not), and an earlier revision of
+`packages/services/identity-webhooks/src/common/handler-pipeline.ts` caused it by returning `2xx` for both.
+
+So the rule is **one path, one shape, one `reason`, one counter** — with the **status derived from the `reason`
+by a single complete lookup**, so adding a reason fails to compile until its retry disposition is decided.
+`WEBHOOK_REJECTION_STATUS` (`shape → 200`, `signature → 401`) in that same file is the reference. The question a
+status answers is **"would a redelivery ever succeed?"**
+
+None of this generalises to our own callers: an endpoint called by our own services or clients returns the
+`400`/`403` §15.4(1) requires (they do not blind-retry, and a `2xx` would hide a fixable bug from the party able
+to fix it), and an ingress with no caller at all (SQS, EventBridge) dead-letters once with the `reason` and
+alarms on DLQ depth.
+
+⛔ **A rejected event is NOT recorded as a row.** An invalid payload has no trustworthy identifier, and a table
+whose identity column is `NOT NULL` forces the writer to invent one — the sentinel §15.5.5 forbids. This is
+live: `webhook_events.identity_id` in the identity database is `text NOT NULL`. The log line, the counter and
+(where applicable) the DLQ entry **are** the record, which makes them load-bearing rather than decorative — a
+rejection nobody can see is indistinguishable from a success.
+
+#### 15.5.5 Identifiers are never sentinels
+
+No identifier — a user id, a producer name, a tenant, a principal — may be `'unknown'`, `'none'`, `''`, `'n/a'`
+or `0`, anywhere it is **stored**, **put on a wire**, used as a **map/cache key**, used as a **metrics
+dimension**, or **compared in a branch**. (A sentinel in a log _message_ is prose; in a structured log _field_
+it is data.) An id is **REQUIRED** wherever one is consumed and is typed as required, never
+optional-with-a-default. The sole exception is a **create/upsert**, where an absent id is **generated** (ULID).
+An identifier that cannot be resolved is a **rejection** (§15.5.4), never a placeholder — a sentinel is silently
+wrong in every aggregate it touches, is indistinguishable from a real value afterwards, and when the id is a
+principal it means an authorization decision was made by a string literal. A legitimately absent relationship
+is `NULL` and `| null`, which is checkable; a magic string is not.
+
+#### 15.5.6 Where two principals are asserted, require BOTH and reject on mismatch
+
+Where a request carries both a **transport-asserted** principal (a token `sub`, an EventBridge `source`) and a
+**payload-asserted** one, both are REQUIRED, the transport signal must **resolve through a version-controlled
+registry to a name** (an allowlist that only answers yes/no cannot attribute a counter or a quota), the two must
+be **equal**, and a mismatch is a **rejection** — never resolved by preferring one signal, and the
+payload-asserted value is **never** trusted on its own. The registry mapping must be **injective, asserted at
+boot**, and must be committed data rather than a table: a runtime write would change a trust boundary with no
+review and no deploy. The transport signal proves **origin**, the payload field states **intent**, and a
+disagreement is real evidence — a misconfigured producer, a payload copied between environments, an attempt to
+spend another principal's quota. Precedent: PR #39 removed the trusted `x-authorizer-context` header from the
+identity service because a client-suppliable header behind a public ALB is forgeable; a payload field the sender
+controls is the same problem one layer in.
+
 ### Rules
 
 1. A `packages/clients/*` package MUST NOT declare a type describing a request or response body of a
@@ -1178,4 +1344,19 @@ a **wrong-typed field**, a **missing field** and an **unknown key** all come bac
    store, **asserted** — never by generating zod from drizzle or importing a storage type into a wire schema.
 8. A request-derived value MUST NOT reach `sql.raw()`. Request-selected identifiers map through a validated
    enum to a closed allowlist of literals.
-9. Server-side **response** validation MUST NOT be added while §15.4(10)'s deferral stands.
+9. Server-side **response** validation MUST NOT be added while §15.4(10)'s deferral stands. Consumer-side
+   validation **on receipt** is required and is a different obligation — do not conflate them.
+10. A **new** service or client package MUST satisfy §15.5.1 from its first commit, and every conformance gate
+    MUST **discover** its subjects from the filesystem. A hardcoded list of services or clients in a
+    conformance test is itself a violation, because it cannot see the next package.
+11. Every **mutating** request body MUST use `z.strictObject()` (§15.5.2). Plain `z.object()` requires a
+    forward-compatibility reason documented at the schema.
+12. Every boundary rejection MUST take **one** path per ingress carrying the cause in a `reason` field, and an
+    **invalid** payload MUST NOT be retried — which for a signature-verifying third-party sender means
+    answering **`2xx`** on a **shape** failure, with the rejection recorded, counted **and alarmed**. A
+    **signature** failure on that same ingress MUST answer **non-2xx**, because it may be our own stale secret
+    and the sender's retry is the recovery (§15.5.4). The status MUST come from **one complete reason→status
+    lookup**, never a second branch. A rejected payload MUST NOT be written as a row.
+13. An identifier MUST NEVER be a sentinel, and MUST be required everywhere it is consumed except on a
+    create/upsert, where it is generated (§15.5.5). Where two principals are asserted, **both** are required
+    and a mismatch is a rejection (§15.5.6).

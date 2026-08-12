@@ -536,6 +536,228 @@ Operations teams can monitor the health of the food data pipeline via CloudWatch
 
 - **AuthenticatedCaller**: The verified principal behind a request. Derived per-request from the validated Clerk session token — never persisted by this service and never sourced from a client-supplied header. Key attributes: `sub` (Clerk user identifier), `azp` (authorized party / originating Commise client, checked against `CLERK_AUTHORIZED_PARTIES`), and `scopes`/`permissions` (read from the token's `public_metadata`, used only to gate operational/admin endpoints per FR-039). Produced by the NestJS `FoodAuthGuard` (in-process, on ECS/Fargate behind the ALB) and surfaced to handlers via `req.user`. For the deferred WebSocket notifier (US-9), the equivalent principal is produced by the API Gateway WebSocket `$connect` REQUEST authorizer and surfaced via the trusted `$context.authorizer`; that `$context.authorizer` path applies only to the WebSocket `$connect`, not to the HTTP read API.
 
+## API Contract & Input Validation (GR-015 / GR-016)
+
+> This section **applies existing portfolio rules to 003's own packages** and **mints no new FR numbers**
+> (GR-003), the way 011/012/013/014 do. Where [`plan.md`](./plan.md) already decided something, the decision is
+> cited rather than re-made. Every count was measured against the tree on **2026-08-12**; where the plan's
+> status notes have gone stale, the measured state is given and the staleness is named.
+>
+> \_(Read every `food__`identifier here as`ingredient\__`— the service holds ingredients, not dishes. The name
+> is a deliberate non-rename; see`CLAUDE.md`.)\_
+
+**003 sits on BOTH sides of GR-015 at once, and confusing them is the failure mode to avoid.** Our food
+service's own API is governed by §15-a/§15-b — converge it. **USDA FoodData Central's API is governed by §15-d
+— never converge it.** One feature, two opposite obligations, and 003 owns the portfolio's reference
+implementation of the second.
+
+### Contract ownership (GR-015)
+
+_The service authors it; clients declare nothing — except at the USDA boundary, where the rule inverts._
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md). Full bindings:
+[`plan.md` → _3.0 Contract ownership and drift_](./plan.md#30-contract-ownership-and-drift-gr-015--and-the-third-party-exception-this-feature-owns).
+
+| Role                                                            | Binding for 003                                                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)                            | `@kitchensink/food-service` — `packages/services/food-service/src/**/*.schema.ts` (5 wire files: foods, admin-metrics, service-erasure, api-error, health)                                                                                                                                                                   |
+| Schema package (**GENERATED and committed; never hand-edited**) | `@kitchensink/schema-food` — `packages/schemas/food`. ⚠️ **It now EXISTS** (5 copied schema files; `openapi.yaml` **922 lines, 12 paths**), so the plan's "does not exist yet" status note is **stale**                                                                                                                      |
+| Consuming client                                                | `@kitchensink/food-service-client` — `packages/clients/food-service`                                                                                                                                                                                                                                                         |
+| Consuming service                                               | `@kitchensink/recipe-service` — ingredient resolution, via that client. **A service consuming another service is bound by §15-b identically.**                                                                                                                                                                               |
+| Bound identically, **no dependency declared yet**               | `@commise/web`, `@commise/mobile`. ⚠️ Measured 2026-08-12 the **only** dependents of `@kitchensink/food-service-client` are `recipe-service` and food's own contract tier — the apps reach the catalog **through** recipe. The plan's role table lists them as consumers; correct that to "bound the day they depend on it". |
+| **Third-party boundary (§15-d — EXEMPT, inverted)**             | `@kitchensink/usda-client` — `packages/clients/usda`, whose `src/schemas.ts` is the **portfolio's reference implementation** and must never be "converged"                                                                                                                                                                   |
+
+**The service MUST** author every request/response shape of `/api/v1/foods/*` — add-by-name, read, status,
+candidates, resolve, search, batch, refetch — plus the admin metrics surface and the inbound
+`POST /api/v1/internal/account/erasure`, as **zod in the food service** at `src/**/*.schema.ts` beside the
+controller it serves; **validate its own requests with that same zod** via `nestjs-zod`'s `createZodDto`, so the
+batch endpoint's ≤100-name bound (FR-045) and the candidate-set membership check (FR-RES-2) are visible to the
+caller instead of buried in a service method; and keep every `*.schema.ts` importing **only `zod` and other
+`*.schema.ts` files** — no drizzle schema, no DAO type, no Nest symbol, and **nothing from
+`@kitchensink/usda-client`**. The upstream USDA shape and our wire shape are **different contracts** and must
+not be joined by an import.
+
+`@kitchensink/schema-food` is a committed **COPY** of that zod — not a transformation, because zod schemas are
+runtime values and cannot be derived from themselves, and every package here exports raw `./src/*.ts` so there
+is no bundle-into-`dist` path. It exports the **zod**, the **`z.infer` types**, a **`CONTRACT_HASH`**, a
+**barrel**, and a **DERIVED `openapi.yaml`** — outbound only, for `oasdiff`, docs and integrators, and **never a
+codegen input** (routing types through JSON Schema loses `readonly`, branded and template-literal types and
+flattens discriminated unions).
+
+**The CLIENT's obligation — separately mandatory.** Mandating only the service half is exactly how the client
+half got skipped portfolio-wide: `@kitchensink/food-service-client` shipped **144 lines** of independently
+declared wire types and imported nothing from the food service, behind green builds.
+
+- Every consumer imports its wire **types AND its runtime zod** from `@kitchensink/schema-food` and **declares
+  no request or response body shape of the food service** — including **type-only**, and including inside
+  `packages/apps/**` feature packages (GR-015 §15-b.4, GR-017 §17-b.1). The client's own `types.ts` keeps only
+  genuinely client-side concerns: base URL and fetch config, retry and polling options, its own error shapes.
+- A divergent consumer shape (an ingredient-picker view model, a resolution-status badge model) is **DERIVED**
+  with `Pick` / `Omit` / `Partial`, never independently declared. Reference implementation:
+  `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- **Responses are validated ON RECEIPT by the consumer**, at the moment the body arrives (GR-016 §16-c.3).
+- **A new food endpoint is not complete until its types are reachable from `@kitchensink/schema-food`.** "Recipe
+  will add the type" is a **contract fork**, not a task.
+
+**CLIENT WORK IS ITS OWN DELIVERABLE, with its own tasks** (GR-017 §17-e.12): the schema package, the typed
+client, receipt validation, and a **contract-skew guard** are tasks in [`tasks.md`](./tasks.md) — not
+consequences of finishing the service. ✅ Measured 2026-08-12 the guard exists:
+`packages/clients/food-service/src/contractSkew.ts`.
+
+**Drift gates** — inherited from GR-015 §15-c, all three required, none reinvented here:
+
+1. **Rebuild (turbo):** `$TURBO_ROOT$`-anchored **`inputs`** covering
+   `packages/services/food-service/src/**/*.schema.ts`. ⚠️ **`inputs`, NOT `dependsOn`** — a `dependsOn` edge
+   closes the cycle `client → schema → service → client` (`recipe-service` devDepends on its own client) and
+   turbo rejects the graph. Ordering was never the requirement: the generated files are committed, so `build`
+   only compiles what is on disk. What is needed is **cache invalidation** when an authored schema changes.
+2. **Correctness (CI):** regenerate and fail on any diff against the committed artifacts — the strong gate, and
+   the only one that catches a hand-edited generated file.
+3. **Skew (runtime):** the `CONTRACT_HASH` **boot assertion** (`src/main.ts` + `src/contract/contract-skew.ts`,
+   ordered by `src/contract/__tests__/main-boot-order.test.ts`). This is load-bearing for 003 specifically
+   because the food service is consumed by a **separately deployed** recipe service — the one skew case neither
+   the turbo layer nor CI can see.
+
+⚠️ `oasdiff breaking` is worth adding with its blind spot stated: `@nestjs/swagger` emits **no response
+schema** for a handler returning an `interface`, so until every response type is zod-derived that check cannot
+see response changes — most of what actually breaks a client.
+
+⛔ **THE THIRD-PARTY EXCEPTION (GR-015 §15-d) — 003 OWNS the exemplar, and converging it is a security
+regression.** `packages/clients/usda` is the reference implementation for the whole portfolio, and
+`packages/clients/usda/src/schemas.ts` **must never be "converged"** under §15-b.
+
+- We do **not** serve USDA's API. There is **no service of ours to own its type**, and its contract can change
+  without telling us.
+- So `@kitchensink/usda-client` **validates the raw upstream wire shape at the boundary with its own zod**, the
+  moment a body arrives, and **legitimately declares its own types**. The normalized public type it returns
+  **deliberately differs** from the raw upstream shape — that difference is the **normalization, not drift**.
+- The same holds for **every other source adapter** this feature adds: each gets its own boundary schema, and
+  **none** is folded into `@kitchensink/schema-food`.
+- **No OpenAPI document is written for USDA or any other upstream source**, and none for **Clerk**, whose
+  session-token claims, `azp` and `public_metadata` scopes gate this service's endpoints (FR-039) and are
+  likewise validated at the boundary under §15-d rather than modelled as ours.
+- **Why deletion would be a security regression, not a cleanup:** that parse is what stands between an external
+  party's JSON and our golden-record write path, provenance fields and nutrient values. §15-b's reasoning does
+  not reach here at all — duplication is only wrong when **one side could have been derived from the other**,
+  and this side belongs to someone else. Applying §15-b mechanically replaces a **checked parse** with
+  **unchecked trust**.
+
+✅ `packages/clients/usda`'s boundary schemas are **correct as-is**, need no change under GR-015, and **must not
+be touched** by convergence work.
+
+### Input validation — where that zod RUNS (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
+[`GR-018`](../governance-rules.md#gr-018-one-rejection-path-and-invalid-input-is-never-retried) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Full bindings:
+[`plan.md` → _3.0a Input validation_](./plan.md#30a-input-validation-gr-016--and-003s-service-is-the-portfolios-worst-case).
+The section above decides **who authors** the contract; this one is where it **runs**. It adds no FR (GR-003).
+
+- **⛔ 003 IS THE PROOF THAT GR-015 AND GR-016 ARE SEPARATE OBLIGATIONS.** Measured 2026-08-11 and re-measured
+  in GR-016's own status table, `@kitchensink/food-service` had **`ZodValidationPipe` = 0 and
+  `createZodDto` = 0** — **no validation pipe at all** — while satisfying GR-015 **in full** (5 authored schema
+  files, a committed `@kitchensink/schema-food`, a 922-line derived `openapi.yaml`). It took
+  `@Body() body: unknown` and hand-wrote a `safeParse` per method, and the consequence was neither hypothetical
+  nor cosmetic: a **wrong-typed field**, a **missing field** and an **unknown key** all reported
+  `{ error: 'Empty name' }` — three different caller mistakes, one answer that fixes none of them — and
+  `/foods/search` was not validated at all. **A reviewer looking only at the contract artifacts would have seen
+  a conformant service.**
+- 🔄 **Status, re-measured 2026-08-12 at 14:39 EDT: that has been remediated in the WORKING TREE and is NOT YET
+  COMMITTED.** `AppModule` now binds **`nestjs-zod`'s** `ZodValidationPipe` through the **`APP_PIPE`** token;
+  `src/foods/dto/foods.dto.ts` declares **4 `createZodDto` DTOs** (`AddFoodBodyDto`, `BatchAddFoodBodyDto`,
+  `ResolveFoodBodyDto`, `SearchFoodQueryDto`) over **4 `z.strictObject` schemas** in `foods.schema.ts`; all three
+  `@Body() body: unknown` parameters are gone; and the controller's per-method `safeParse` count is **0**. Until
+  that work lands, **the committed state is still the violation** — do not read this bullet as a closed item.
+- **One mechanism, one `400`.** Every `/api/v1/foods/*` input — add-by-name, read, status, candidates, resolve,
+  search, **batch**, refetch, plus the admin surface — is parsed by the service's own `*.schema.ts` zod via
+  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. **`@Body() body: unknown` is removed, not wrapped**:
+  it relocates the parse into the method body, where it is **optional by construction** and gets skipped on the
+  next endpoint. Validation failure takes **one** path producing a `400` that names the offending field.
+- **⚠️ Three binding details, each with a failure attached, and none visible from the route.** (i) The pipe must
+  be registered on **`APP_PIPE`**, not the bare class token — bound to the class token nothing injects it and
+  validation never runs. (ii) It must be **`nestjs-zod`'s** pipe: a `createZodDto` class carries **no
+  `class-validator` metadata**, so under Nest's **own** `ValidationPipe` every body passes straight through —
+  **validating nothing while looking correctly wired**, on routes that enqueue source fetches and spend a
+  rate-limit budget. (iii) The pipe is left **non-strict** on purpose, so it passes through any parameter whose
+  metatype is not a zod DTO — every `@Param('id')` here is a bare `string` narrowed by the controller's ULID
+  check, and turning strictness on would `500` all of them. The **only** thing that catches (i) and (ii) is a
+  test that posts a **known-bad body to a real route** and asserts the `400`.
+- **`z.strictObject()` for every mutating request body** — the portfolio default, ruled 2026-08-12 in GR-017
+  §17-c, which **closes OPEN-GR-016-B** (the plan still records it as OPEN; it is not). Plain `z.object()`
+  survives only on a **read** surface with a **documented forward-compatibility reason at the schema**. The
+  ruling picks the failure that is **visible**: on add-by-name, a silently stripped misspelled field is how a
+  caller gets a `202` for a request that did not say what they meant. ⚠️ **Unknown-key rejection rides on
+  `z.strictObject` in the schema, not on a pipe option** — there is no such flag here, so the strictness must
+  live with the rule rather than be assumed from the binding.
+- **⛔ THE STORAGE FLOOR.** Every input field writing a bounded column is validated at least as strictly as that
+  column can store — id/name lengths, the `status` enum domain
+  (`PENDING | UNRESOLVED | RESOLVED | NOT_FOUND | FAILED`), the `source` enum, and nullability. A value the
+  column cannot hold is a **`400` at the boundary**, never a failed `INSERT`.
+    - ⚠️ **This is an ASSERTION between two independently authored artifacts, NEVER a derivation.** Zod is
+      **not** generated from drizzle, and a `*.schema.ts` imports **no drizzle schema, no DAO type, and nothing
+      from `@kitchensink/usda-client`** — GR-015 §15-a.5 is unchanged by this rule. The two artifacts agree in
+      **one direction only**: the wire bound is at least as tight as the column. Enforcement is the per-service
+      parity test GR-017 §17-d requires, and it **exists**:
+      `packages/services/food-service/src/db/schema/__tests__/storage-capacity.test.ts`, over shared machinery in
+      `@kitchensink/contract-gen` (`src/storage-capacity.ts`). It **may** import both artifacts because a test is
+      not a wire schema; it **derives** the bounded-column set from the drizzle tables via
+      `collectBoundedColumns`, so a `varchar(n)` / `smallint` / `numeric(p,s)` column added tomorrow fails the
+      test until it is either bound to the wire field that writes it or **exempted with a stated `why`**.
+    - ⚠️ **A floor is not a target, and 003's nutrient columns prove it.** Measured 2026-08-12, food's only
+      bounded columns are three **server-managed** ones (`fetch_queue.request_count`, `fetch_queue.attempts` and
+      a `bigserial` key) — all exempted with recorded reasons, because no wire field writes them. Meanwhile
+      `food_nutrients.amount` and `food_portions.gram_weight` are declared `numeric(...)` **without precision or
+      scale**, i.e. PostgreSQL **arbitrary precision** — so there is **no floor to derive** for a nutrient amount
+      or a gram weight, and any bound on them is a **product decision 003 owns**. The plan's "where a nutrient
+      writes a `numeric(p,s)` column, its precision and scale" phrasing anticipates a constraint the schema does
+      not currently declare.
+- **Non-HTTP ingress this feature owns, enumerated** (a Nest pipe reaches none of them):
+    - the **Postgres-as-queue demand path** — a `fetch_queue` row plus `pg_notify('fetch_queued')` (FR-011 /
+      FR-014 / FR-017), drained by the Fargate consumer (`src/worker/**`);
+    - the **change-refresh** consumer (`src/worker/change-refresh/change-refresh.consumer.ts`, FR-032);
+    - **EventBridge events** — `IngestionScheduled`, `FoodFetchCompleted`, `FetchFailed`
+      (`src/events/food-event-emitter.ts`, FR-034); a **scheduled** producer parses its event too, because "ours"
+      is an assumption about a deploy;
+    - the **API-Gateway WebSocket `$connect` REQUEST authorizer** (FR-049, US-9 — **deferred P3 and retired as
+      specified**, so this binds when it is built, not today).
+
+    Each parses its payload against an **authored zod** before it becomes a job, because the resolution pipeline
+    writes **golden records**. **An invalid payload is NEVER retried** (GR-018 §18-b): these consumers have no
+    caller to answer, so a shape rejection is recorded with its `reason` and the message is **completed or
+    dead-lettered once**, with an alarm on DLQ depth. The legitimate retry is a **transient dependency** failure —
+    a database timeout, a source `5xx` — which is a different condition with a different `reason`.
+
+- **003 is CALLED by another service and by identity's Lambdas.** `@kitchensink/recipe-service` resolves
+  ingredients here, and identity's fan-out posts `POST /api/v1/internal/account/erasure`
+  (`packages/services/identity-webhooks/src/common/erasure-fanout.ts`) into
+  `src/foods/service-erasure.controller.ts`. Both inbound bodies are validated like any other — **"internal" is
+  not a synonym for "trusted"**, and because these are **our own** callers an invalid body gets the `400`/`403`
+  GR-016 §16-a.3 requires, **not** the `2xx` GR-018 §18-c reserves for signature-verifying third-party webhook
+  senders.
+- **✅ The USDA boundary parse is REQUIRED by GR-016, not merely PERMITTED by §15-d — the two rules agree.**
+  §15-d says the client **may** declare its own types and **must** validate the raw upstream shape; GR-016 is
+  what makes that parse **mandatory** for every source adapter, because a USDA response is **input to a write
+  path**. Nothing in GR-016 licenses converging those schemas away.
+- **Identifiers are never sentinels (GR-019).** The internal food `id` (ULID), `externalKey`, `source` and the
+  requester `sub` are typed **required** wherever consumed — never optional-with-a-default, never `'unknown'`,
+  `''` or `0`, including as a map key, a metrics dimension or a branch condition. **All path params are the
+  internal food `id`, never a source key.** The **only** path where an absent id is permitted is
+  **create/upsert** — `POST /api/v1/foods` add-by-name, where the canonical row and its **ULID are generated up
+  front** — and the idempotent `INSERT … ON CONFLICT` enqueue. An unresolvable id is a **rejection**, never a
+  placeholder row.
+- **No request-derived value reaches `sql.raw()`.** A request-selected sort or filter maps through a validated
+  enum to a **closed allowlist of literals in code** — the request supplies the key, never the SQL fragment.
+- **⛔ Server-side RESPONSE validation is DEFERRED by owner decision (GR-016 §16-g) and MUST NOT be
+  "completed".** The food service validates none of the bodies it **emits**, deliberately. Say which one you
+  mean (GR-017 §17-f): a **consumer** parsing what it **received** — recipe, and the apps behind it — is
+  REQUIRED and is what the client half above mandates; a **producing service** parsing what it **emits** is the
+  deferred one. Reversing the deferral needs its own proposal under the governance amendment process.
+
 ## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes

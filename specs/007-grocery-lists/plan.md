@@ -102,21 +102,61 @@ interface IngredientAggregator {
 [`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
 [ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md).
 
-🟠 **OPEN — which service owns `/api/v1/grocery-lists/*`?** This plan does not say, and it is not derivable
-from §15 or any existing ADR. **Question for the owner: `@kitchensink/recipe-service`, or a new
-`@kitchensink/grocery-service`?** The answer picks the schema package name, so nothing below names it. **The
-obligation binds whichever service ends up owning the paths.**
+✅ **RESOLVED (2026-08-12) — `/api/v1/grocery-lists/*` is owned by `@kitchensink/recipe-service`**, per
+[ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md).
+**No new deployable service is created for 007.**
 
-**The owning service MUST** author every grocery-list, item, pantry-flag and order request/response shape as
-**zod in that service** at `src/**/*.schema.ts` beside its controller; **validate its own requests with that
-same zod** via `nestjs-zod`'s `createZodDto`; generate and commit `packages/schemas/<service>` exporting the
-zod, `z.infer` types, `contract-hash.ts`, a barrel and a **derived** `openapi.yaml` (outbound only — never a
-codegen input); and keep every `*.schema.ts` importing **only `zod` and other `*.schema.ts` files**.
+| Role                                  | Binding for 007                                                                                  |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Owning service (**authors** the zod)  | `@kitchensink/recipe-service` — `packages/services/recipe-service/src/grocery-lists/*.schema.ts` |
+| Schema package (generated, committed) | `@kitchensink/schema-recipe` — `packages/schemas/recipe`, **extended, never forked**             |
+| Consuming client                      | `@kitchensink/recipe-service-client` — `packages/clients/recipe-service`                         |
+| Consuming apps                        | `@commise/web`, `@commise/mobile`, and a `packages/apps/commise/features/*` package              |
+| NestJS module (internal boundary)     | `GroceryListsModule`, a sibling of the shipped `RecipesModule` / `SearchModule`                  |
+| Retailer adapters + polling           | `@kitchensink/recipe-workers` — a **worker plus scoped secrets**, deliberately **not** a service |
+
+**The one-line reason, specific to 007**: 007's coupling to recipes is **weaker** than 006's or 009's — list
+generation is a **one-shot read** of a plan and its recipes at generation time — but the genuinely separate
+part, the **retailer integration, is a worker plus a set of scoped secrets, not a service**. There is nothing
+left over that needs its own deployable, and a deployable costs an ECS service per stage plus one more task
+per open pull request (ADR-0010 measured food's single per-PR API task at ≈ $8.25/month).
+
+**A schema package is per SERVICE, not per feature.** 007 adds `*.schema.ts` files under
+`packages/services/recipe-service/src/grocery-lists/`, beside the controller they serve, and the **existing**
+generator copies them into the **existing** `@kitchensink/schema-recipe` (8 authored schema files today, a
+4,945-line derived `openapi.yaml`). There is **no** `@kitchensink/schema-grocery`. 004 already set this
+precedent for the recipe service — add to `packages/schemas/recipe`, never fork it.
+
+**The NestJS module is the internal boundary, and it is mandatory now even though the service boundary is
+not.** `GroceryListsModule` sits beside `RecipesModule` with its own DAL and its own `*.schema.ts` beside its
+controller. A future extraction cuts at **that module edge**, and its cost is a new schema package plus a
+client base-URL change — which is why the module edge cannot be skipped today.
+
+**Flip condition (ADR-0017)**: extract `@kitchensink/grocery-service` when the retailer integration grows
+**inbound** surface — a Walmart/Instacart webhook, a marketplace callback, or **per-user OAuth token storage**
+at a volume that wants its own secret rotation and its own blast radius.
+
+⚠️ **This feature's `tasks.md` is now WRONG and needs repointing.** It names
+`packages/services/grocery-service/**` throughout (57 occurrences, measured 2026-08-12) — a package that does
+not exist and, per ADR-0017, will not. Every one of those paths becomes
+`packages/services/recipe-service/src/grocery-lists/**`, and the retailer adapters plus the order-status
+polling move to `@kitchensink/recipe-workers`. That file is owned elsewhere and is **not** edited by this
+amendment; this note is the record that it diverges from the ratified decision. It is
+[GR-017 §17-e.12](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app)'s
+failure mode — the plan was amended and the task list was not — and a task list is where the package a
+contributor actually creates gets chosen.
+
+**`@kitchensink/recipe-service` MUST** author every grocery-list, item, pantry-flag and order request/response
+shape as **zod in the service** at `src/grocery-lists/*.schema.ts` beside its controller; **validate its own
+requests with that same zod** via `nestjs-zod`'s `createZodDto`; extend the committed
+`@kitchensink/schema-recipe`, which exports the zod, `z.infer` types, `contract-hash.ts`, a barrel and a
+**derived** `openapi.yaml` (outbound only — never a codegen input); and keep every `*.schema.ts` importing
+**only `zod` and other `*.schema.ts` files**.
 
 **Every client MUST** — separately mandatory, because mandating only the service half is exactly how the
 client half got skipped portfolio-wide:
 
-- Import its wire **types and zod** from that service's schema package, and **declare no grocery-list request
+- Import its wire **types and zod** from `@kitchensink/schema-recipe`, and **declare no grocery-list request
   or response body type of its own** — including in `@commise/web`, `@commise/mobile` and feature packages
   (GR-015 §15-b.4).
 - **Derive** any divergent consumer shape with `Pick` / `Omit` / `Partial`. The check-off list view model and
@@ -131,8 +171,8 @@ client half got skipped portfolio-wide:
 regenerate-and-diff CI gate, and the `CONTRACT_HASH` boot assertion.
 
 ⚠️ **`storeMapping` is NOT a wire type we may invent from a retailer's shape.** The `storeMapping` field and
-the `status` enum in the response below are **ours** — 007 authors them as zod in the owning service. What
-comes back from the retailer is not.
+the `status` enum in the response below are **ours** — 007 authors them as zod in `@kitchensink/recipe-service`.
+What comes back from the retailer is not.
 
 ### ⛔ THE EXCEPTION — Walmart and Instacart are third-party APIs. NEVER converge them. (GR-015 §15-d)
 
@@ -158,20 +198,35 @@ change without telling us. So §5 _Store Integration_'s adapters are governed by
 
 **Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
 [`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
 [ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). §3.0 decides **who
-authors** the zod; GR-016 decides **where it runs**. **The OPEN ownership question above does not defer this
-obligation** — it binds whichever service ends up owning `/api/v1/grocery-lists/*`.
+authors** the zod; GR-016 decides **where it runs**. ✅ **§3.0 now names the owner** —
+`@kitchensink/recipe-service` (ADR-0017) — so every obligation below binds a package that exists.
 
 - **One mechanism, one `400`.** Every grocery-list, item, pantry-flag and order input — body, path params
-  (`{id}`, `{itemId}`), query params — is parsed by that service's own `*.schema.ts` zod via `createZodDto` +
-  **`nestjs-zod`'s** `ZodValidationPipe`. One mechanism, and one `400` path that names the offending field.
+  (`{id}`, `{itemId}`), query params — is parsed by `@kitchensink/recipe-service`'s own `*.schema.ts` zod via
+  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. One mechanism, and one `400` path that names the
+  offending field. 007 adds **no** `class-validator` DTO to the 19 files still being removed from that service
+  (re-measured 2026-08-12).
 - **⛔ THE FLOOR.** Every input field writing a bounded column is validated at least as strictly as the column
-  can store: item **quantities** (numeric range, and `numeric(p,s)` precision/scale where the column has one),
-  unit and `store` enums, nullability, and list/item id formats. A quantity the column cannot hold is a `400`
-  at the boundary, never a failed `INSERT`.
+  can store. Naming 007's actual bounded columns from §2 rather than gesturing at them:
+  `grocery_list_items.usda_fdc_id` and `sort_order` are `INT` (`int4`, ceiling **2,147,483,647**);
+  `grocery_list_items.quantity_g` and `user_pantry_items.quantity_g` are `DECIMAL` **with no declared
+  `(p,s)`** — ⚠️ **the precision and scale must be declared before either can be a floor at all**, because
+  bare `numeric` in PostgreSQL is effectively unbounded and yields nothing to assert against; and `status`,
+  `store` and `category` are **enum-by-comment `TEXT`**, so their domain is a product decision that must be
+  written into the zod, since the column enforces nothing. A quantity the column cannot hold is a `400` at the
+  boundary, never a failed `INSERT`.
     - ⚠️ **Asserted, never derived**: no zod generated from Drizzle, no storage type in a `*.schema.ts`.
-    - ⚠️ A list `name` writing an unbounded `text()` column has **no storage floor** — its limit is a product
-      decision 007 owns.
+    - ⚠️ A `grocery_lists.name` writing an unbounded `text()` column has **no storage floor** — its limit is a
+      product decision 007 owns.
+    - ✅ **OPEN-GR-016-A is CLOSED (ruled 2026-08-12, GR-017 §17-d):**
+      the floor is enforced by a **per-service boundary-parity test**, not a review checklist. It lives in
+      `@kitchensink/recipe-service`; it **may import both** the Drizzle schema and the authored zod, because
+      **a test is not a wire schema**; it **derives** the bounded-column enumeration from the Drizzle schema
+      rather than typing it out; and it asserts the field→column mapping complete **in both directions** —
+      every bounded column has an entry or a reasoned exemption, and every entry names a column that exists.
+      Without the second direction the test silently shrinks to the fields someone remembered and stays green.
 - **⚠️ The ORDER path spends real money, so its input bounds are a financial control.** `POST
 /api/v1/grocery-lists/{id}/order` and its quantities are validated at the boundary before any retailer call:
   an unbounded quantity, a duplicated item, or an out-of-enum store is rejected here rather than becoming a
@@ -180,15 +235,29 @@ obligation** — it binds whichever service ends up owning `/api/v1/grocery-list
 - **✅ The Walmart/Instacart boundary parse is REQUIRED by GR-016, not merely permitted by §15-d.** Order-status
   polling is the sharpest case, exactly as §15-d says: an unvalidated status string decides whether we tell a
   user their groceries are coming. Nothing in GR-016 licenses converging those adapter schemas away.
-- **Non-HTTP ingress is in scope.** Any queue/event consumer this feature adds — list generation from a meal
-  plan, order-status polling, a retailer webhook or callback — **parses its payload against an authored zod
-  before acting on it.** For a signed retailer callback: **verify the signature, then validate the schema** —
-  a signature proves **origin, not shape** (GR-016 §16-b).
+- **Non-HTTP ingress is in scope, and 007 has two named ones.** (1) The **`@Cron` pantry-expiry prune** implied
+  by `user_pantry_items.expires_at` and its 7-day TTL (§8 _Resolved Questions_ 6; its acceptance criterion
+  already says "expired items pruned on `@Cron` schedule"), and (2) the **order-status polling** loop that
+  reads each retailer (§8 _Resolved Questions_ 2 — **polling, not webhooks**). A scheduled invocation still
+  parses its own event, because "the payload is ours" is an assumption about a deploy that has already drifted
+  once. Both run in `@kitchensink/recipe-workers`, not in the API process (ADR-0017 decision 5).
+    - ⚠️ **No retailer webhook exists today** — 007 chose polling deliberately. **If one is ever added**, it
+      gets **signature THEN schema**, in that order, never one instead of the other: a signature proves
+      **origin, not shape** (GR-016 §16-b). And per
+      [GR-018 §18-c](../governance-rules.md#gr-018-one-rejection-path-and-invalid-input-is-never-retried) a
+      signature-verifying third-party sender that retries on any non-2xx is answered **`2xx`** with the
+      rejection recorded in the body, the logs, a per-`reason` counter and an alarm — the retailer's shape
+      failure and its signature failure are **equally invalid** and differ only in `reason`.
 - **007 is a CLIENT of our other services**, both directions: outbound bodies validated against
   `@kitchensink/schema-recipe` / `@kitchensink/schema-food` before the call, responses validated on receipt.
-- **Unknown keys are a stated choice per surface.** `PUT /api/v1/grocery-lists/{id}` (mark have/need) is the
-  load-bearing case — a silently stripped key returns `200` for a check-off that did not persist, on a screen
-  the user is standing in a shop reading. (Portfolio default is **OPEN**, GR-016 OPEN-GR-016-B.)
+- ✅ **Unknown keys — OPEN-GR-016-B is CLOSED (ruled 2026-08-12, GR-017 §17-c):**
+  **`z.strictObject()` is the portfolio default for every mutating request body**, so 007's `POST`/`PUT`/`DELETE`
+  bodies reject unknown keys. Plain `z.object()` is permitted only with a **documented forward-compatibility
+  reason at the schema**, which in practice means a **read** surface. `PUT /api/v1/grocery-lists/{id}` (mark
+  have/need) is the case the ruling protects — a silently stripped key returns `200` for a check-off that did
+  not persist, on a screen the user is standing in a shop reading. ⚠️ **The retailer's inbound bodies are the
+  opposite case and are NOT covered by this default**: they are Walmart's and Instacart's shapes, they gain
+  fields without telling us, and their boundary schemas tolerate unknown keys **deliberately** (§15-d).
 - **⛔ Response validation is DEFERRED (GR-016 §16-g)** for our own responses. The retailer-side parse above is
   **input** to us and is unaffected by that deferral.
 

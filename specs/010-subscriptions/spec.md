@@ -82,6 +82,156 @@ New users start on a free tier that provides core functionality: creating, viewi
 
 - **Subscription**: Tracks a user's plan (free/premium), billing cycle, and feature access permissions.
 
+## API Contract & Input Validation (GR-015 / GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15 / §15.4 / §15.5](../../docs/CODING_STANDARDS.md) ·
+[`GR-015`](../governance-rules.md#gr-015-api-contract-ownership) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[`GR-017`](../governance-rules.md#gr-017-contract--validation-conformance-for-every-new-service-client-and-app) ·
+[`GR-018`](../governance-rules.md#gr-018-one-rejection-path-and-invalid-input-is-never-retried) ·
+[`GR-019`](../governance-rules.md#gr-019-identifier-integrity--no-sentinels) ·
+[ADR-0014](../../docs/architecture/decisions/0014-service-owned-api-contracts.md) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md) ·
+[ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md). Full
+bindings: [`plan.md` §3.0](./plan.md#30-contract-ownership-and-drift-gr-015) and
+[`plan.md` §3.0a](./plan.md#30a-input-validation-gr-016--this-plan-already-stated-the-rules-sharpest-case), which
+this section summarises and must not contradict. **This section applies existing portfolio rules and mints NO new
+FR** (GR-003). GR-015 decides who **authors** the contract; GR-016 decides where that zod **runs**.
+
+⛔ **010 straddles the rule, and getting the two halves backwards is the expensive mistake in this feature.** The
+inbound Stripe webhook body is **STRIPE's** shape — validated at our boundary with **our own** zod, allowed its own
+types, and given **NO** OpenAPI document. Our `/api/v1/billing/*` request and response shapes are **OURS** and live
+in `@kitchensink/schema-identity`. One request carries one of each.
+
+### Contract ownership (GR-015)
+
+| Role                                      | Binding for 010                                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)      | `@kitchensink/identity-service` — `packages/services/identity/src/billing/*.schema.ts`        |
+| Stripe webhook handler                    | `@kitchensink/identity-webhooks` — **not** the ECS API                                        |
+| Schema package (**generated**, committed) | `@kitchensink/schema-identity` — `packages/schemas/identity`, extended, **never hand-edited** |
+| Consuming client                          | the identity consumer named by **002's own OPEN item** — see the note below                   |
+| Consuming apps                            | `@commise/web` (the primary billing surface), `@commise/mobile` (deep-links to web checkout)  |
+| Entitlement guard                         | a **shared** package under `packages/shared/*` — never an import of the identity service      |
+
+⚠️ **The consuming client is still 002's question, and 010 does not pre-empt it.** 002's plan carries its own 🟠
+**OPEN**: either introduce `packages/clients/identity`, or have `@commise/features-account` import
+`@kitchensink/schema-identity` directly and remain the only consumer. **No `packages/clients/identity` exists
+today.** Whichever lands, the client obligation below is unchanged — it is about who **authors** a wire shape, not
+which directory it lives in.
+
+✅ **Ownership is decided, not TBD** (ADR-0017, 2026-08-12): the entitlement is a **column on identity's `accounts`
+row** (`subscription_tier` already ships), so a separate billing service would be a **second writer** to it — the
+single-writer discipline the food service holds for USDA data, inverted. The Clerk `public_metadata` claim path
+`FR-044` depends on is identity's too. **No new deployable is created**, and a **schema package is per SERVICE, not
+per feature** — there is no `@kitchensink/schema-billing`.
+
+⛔ **The Stripe webhook belongs in `@kitchensink/identity-webhooks`**: it is an **unauthenticated third-party
+callback** that must **not** sit behind Clerk's `AuthMiddleware`, needs the **raw request body**, must **answer while
+the API is scaled down**, and needs the `webhook_events` idempotency table that **already exists in that database**
+for Clerk's svix callback. ⛔ **`@RequirePremium()` / `PlanGuard` live in a SHARED package** reading the entitlement
+as a **claim from the signed Clerk session token** — every gated route lives in some _other_ service, and
+`packages/infra/global/__tests__/app-service-dependency.test.ts` already forbids an app importing a service package.
+
+**The service MUST** author every checkout, portal and subscription-status request/response shape — **and the
+webhook endpoint's own response** — as **zod in the service** at `src/billing/*.schema.ts`, **beside the controller
+it serves**; validate its own requests with **that same zod**; and keep every `*.schema.ts` importing **only `zod`
+and other `*.schema.ts` files** — notably **no Stripe SDK type**, which would drag a third-party shape into a
+contract we publish. `@kitchensink/schema-identity` exports the **zod**, the **`z.infer` types**, a
+**`CONTRACT_HASH`**, a **barrel**, and a **DERIVED `openapi.yaml`**.
+
+⛔ **Three properties of that package that look wrong and are not** — do not "correct" them: it is a literal file
+**COPY** (zod are **runtime values**, so they cannot be derived from themselves, and every package exports raw
+`./src/*.ts`, so there is no bundle-into-`dist` path); turbo wires it with `$TURBO_ROOT$` **`inputs`**, **NOT**
+`dependsOn` (that edge closes the cycle `client → schema → service → client`, and ordering was never the requirement
+because the generated files are **committed**); and `openapi.yaml` is **DERIVED OUTPUT** for `oasdiff`, docs and
+integrators, **NEVER a codegen input** — through JSON Schema you lose `readonly`, branded and template-literal
+types, and discriminated unions flatten.
+
+**The CLIENT's obligation — separately mandatory.** Mandating only the service half is exactly how the client half
+got skipped portfolio-wide (276 + 144 lines of independently declared client wire types, agreeing with nothing).
+
+- **No billing wire shape is declared anywhere outside the schema package** — including **type-only** declarations,
+  and including `packages/apps/**` feature packages (GR-015 §15-b.4). Both the **type and the runtime zod** come
+  from `@kitchensink/schema-identity`.
+- ⚠️ **The `SubscriptionStatus` shape and the plan/entitlement enum are the load-bearing case.** Every gated surface
+  across 001, 004, 005, 006, 007, 009, 012 and 013 branches on them; a client that re-declares that enum can drift
+  by one member and **fail open** — showing a premium feature to a free user, or the reverse — with `typecheck`
+  green. Imported, never re-declared.
+- A divergent consumer shape (a paywall banner model, a plan-comparison row) is **DERIVED** with
+  `Pick` / `Omit` / `Partial`. Reference: `packages/apps/commise/features/recipes/src/filters/model.ts`.
+- ⚠️ **CLIENT WORK IS ITS OWN DELIVERABLE, with its own tasks** (GR-017 §17-e.12): schema-package additions, typed
+  client methods, **response validation on receipt**, and the **contract-skew guard**. "The paywall will add the
+  type" is a **contract fork, not a task**.
+
+**Drift gates** — inherited from GR-015 §15-c, all three: the turbo `inputs` rebuild, the **regenerate-and-diff CI
+gate**, and the **`CONTRACT_HASH` boot assertion** — the last one especially load-bearing here, since a released
+mobile binary pinned to an older entitlement shape is exactly how a paywall silently misbehaves in production.
+
+⛔ **THE THIRD-PARTY EXCEPTION (GR-015 §15-d) — Stripe is an API we do NOT serve. NEVER converge it.** Its inbound
+webhook body **MUST** be validated at our boundary with **our own** zod, **after** signature verification and
+**before** any field drives a write; the adapter **MAY declare its own types**, and our normalized
+`SubscriptionStatus` **deliberately differs** from Stripe's subscription object; and **NO OpenAPI document is
+written for Stripe**. Its shapes are **never** folded into `@kitchensink/schema-identity` as though we owned them.
+`packages/clients/usda` is the reference implementation and must never be "converged" — **deleting a Stripe
+boundary schema is a security and correctness regression**, because this is the path that decides who has paid.
+
+### Input validation — where that zod RUNS (GR-016)
+
+- **One mechanism, one `400`.** Every checkout, portal and subscription-status input — body, path params, query
+  params — is parsed by identity's own authored zod via `createZodDto` plus **`nestjs-zod`'s** `ZodValidationPipe`.
+  ⚠️ **Billing lands in the one service where this has already gone wrong**: under Nest's **OWN** `ValidationPipe` a
+  `createZodDto` DTO validates **NOTHING while looking correctly wired**, which is exactly what happened to
+  identity's `PATCH /users/me`. **The only way to observe it is a test that posts a known-bad body to a real billing
+  route and asserts the `400`.**
+- **`z.strictObject()` for every mutating body** (GR-017 §17-c, ruled 2026-08-12) — `POST /api/v1/billing/checkout`
+  and `/portal` reject unknown keys. ⚠️ **Stripe's inbound body is the opposite case**: it is **their** shape, it
+  gains fields without telling us, so its boundary schema tolerates unknown keys **deliberately** while still
+  rejecting a missing or wrong-typed field it depends on.
+- **Signature-verified is NOT shape-verified.** Signature verification authenticates the **sender** and says nothing
+  about the **shape**, so each of the six routed events — `checkout.session.completed`, `invoice.paid`,
+  `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`,
+  `customer.subscription.trial_will_end` — is schema-validated **after** the signature check and **before** any
+  field drives a write. Both controls, in that order, never one instead of the other.
+- **⚠️ An entitlement decision must never branch on an unparsed field.** A webhook body whose `status` was never
+  checked against the enum can **fail open** and grant premium with `typecheck` green. The enum is validated at the
+  boundary and mapped **explicitly**; an unrecognised value is a **rejection plus an alarm**, never a default. Every
+  consumer **fails closed** — an absent or unreadable entitlement claim is `free` (`FR-044`).
+- **⛔ GR-018 IN FULL, for the Stripe webhook — and instinct gets this backwards.** There is **ONE rejection path**
+  producing **one** structured shape whose **`reason`** names the cause. A **signature failure and a shape failure
+  are EQUALLY invalid** and MUST NOT have two behaviours — they differ **only** in `reason`. An invalid payload is
+  **NEVER retried**. And because **Stripe retries on ANY non-2xx, for 72 hours**, "not retried" means answering
+  **`2xx`**, with the rejection recorded in **(1)** the response body, **(2)** structured logs with its `reason`,
+  **(3)** a **per-`reason` counter**, and **(4)** an **alarm** on that counter. **Reject the content, accept the
+  delivery.** ⚠️ This does **not** generalize to our own callers: `/api/v1/billing/*` returns the `400`/`403`
+  GR-016 §16-a.3 requires, because our clients do not blind-retry and a `2xx` would hide a fixable bug.
+    - ⛔ **010's `tasks.md` currently asserts "invalid signatures return `400`" — the exact inversion**, and it also
+      splits signature failure from shape failure into two behaviours. Both are violations (GR-018 §18-c and §18-a).
+      That file is owned elsewhere and is not corrected here; this is the record that it contradicts the rule.
+    - **A rejected event is NOT recorded as a row** (GR-018 §18-d / GR-019). An invalid payload has **no trustworthy
+      identifier**, and `webhook_events.identity_id` is `text NOT NULL` in this very database — so recording it would
+      force the writer to invent an id, which is precisely the sentinel GR-019 forbids. The **log line and the
+      counter are load-bearing**, not a consolation prize.
+- **Requests are validated in the service; responses are validated ON RECEIPT by the consumer.** ⛔ Server-side
+  **response** validation is **DEFERRED by owner decision** (GR-016 §16-g) and **MUST NOT be "completed"**. The
+  Stripe-side parse is **input to us** and is unaffected — do not conflate them.
+- **⛔ The storage floor — an ASSERTION, never a derivation — and 010 has the TIGHTEST real bounds of these five
+  features, with a thin margin.** `webhook_events.stripe_event_id` is `VARCHAR(255)`, `event_type` is
+  `VARCHAR(100)`, and `status` is `VARCHAR(20)` — ⚠️ **`'processing'` is 10 characters, so the margin is thin** and
+  a longer status string is a failed `INSERT` on the money path. Meanwhile the `accounts` additions are declared
+  **`varchar` with no length**, which is unbounded in PostgreSQL and therefore **not yet a floor**: ⚠️ **a length
+  must be declared before it can be asserted against**. No zod is generated from the storage schema, **no storage
+  type enters a wire schema**, and **no Stripe SDK type enters one either**; enforcement is the per-service parity
+  test of GR-017 §17-d, its mapping asserted complete **in both directions**.
+    - ⚠️ **010's data model uses TypeORM-style `@Column()` decorators while the rest of the portfolio — including the
+      `accounts` and `webhook_events` tables it extends — is Drizzle.** That inconsistency is **flagged, not
+      silently resolved**: it is a data-model decision for the owner, and it changes what the parity test reads.
+- **Non-HTTP ingress.** Beyond the webhook, any retry queue, DLQ replay or reconciliation job this feature adds
+  parses its payload against an authored zod **before acting on it** — a pipe reaches none of them, and these are
+  the paths that re-drive money-relevant writes. An invalid payload is completed or dead-lettered **once**, with its
+  `reason`, and the DLQ depth is alarmed (GR-018 §18-c).
+- **No request-derived value reaches `sql.raw()`.**
+
 ## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes

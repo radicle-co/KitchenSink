@@ -1,6 +1,6 @@
 # KitchenSink Cross-Feature Governance Rules
 
-**Version**: 3.2.0
+**Version**: 3.3.0
 **Ratified**: 2026-05-10 | **Last amended**: 2026-08-12
 **Authority**: Senior Product Owner, cross-feature governance
 **Scope**: All features 001–014 and any future feature in this portfolio
@@ -30,7 +30,11 @@ Engineering handoff is blocked until every CRITICAL rule is satisfied for the fe
 14. [Audience and Sharing Model (GR-014)](#gr-014-audience-and-sharing-model)
 15. [API Contract Ownership (GR-015)](#gr-015-api-contract-ownership)
 16. [Input Validation at Every Boundary (GR-016)](#gr-016-input-validation-at-every-boundary)
-17. [Governance Amendment Process](#governance-amendment-process)
+17. [Contract & Validation Conformance for Every NEW Service, Client and App (GR-017)](#gr-017-contract--validation-conformance-for-every-new-service-client-and-app)
+18. [One Rejection Path, and Invalid Input Is Never Retried (GR-018)](#gr-018-one-rejection-path-and-invalid-input-is-never-retried)
+19. [Identifier Integrity — No Sentinels (GR-019)](#gr-019-identifier-integrity--no-sentinels)
+20. [Dual-Signal Principal Binding (GR-020)](#gr-020-dual-signal-principal-binding)
+21. [Governance Amendment Process](#governance-amendment-process)
 
 ---
 
@@ -757,23 +761,50 @@ manufacture the exact drift GR-015 exists to prevent.
   is treated as a security regression rather than a style disagreement.
 - Hand-editing a generated schema package is a violation; CI discards it rather than shipping it.
 
-### Current State (2026-08-11) — IN PROGRESS, NOT SATISFIED
+### Current State (refreshed 2026-08-12) — IN PROGRESS, NOT SATISFIED
 
 This rule is being propagated into the specs at the same time the code is being converged. Nothing below
-should be read as a completed migration.
+should be read as a completed migration. **Every figure here was re-measured against the tree on 2026-08-12**;
+the previous revision's claims about `openapi.yaml` and about food/identity had gone stale within a day.
 
-- ✅ `@kitchensink/schema-recipe` exists at `packages/schemas/recipe` with `schemas.ts`, `types.ts`,
-  `contract-hash.ts` and a barrel. **Converged so far: the search / photos / ratings vertical only.**
-- 🔄 **Food and identity are being converged now.** Neither has a schema package yet.
-- ❌ **`openapi.yaml` does not exist for any service.** `@kitchensink/schema-recipe`'s `package.json` already
-  declares the `./openapi.yaml` export, so that export currently names a file that has not been generated.
-- ❌ `specs/001-commise-recipe-app/contracts/api.openapi.yaml` — 2810 hand-written lines cited as authority
-  by 57 source files, verified by nothing — is **superseded in principle** by recipe's generated document,
-  but the generated document does not exist yet, so the citations have **not** been repointed.
-- ⚠️ Features **006–010** do not identify an owning service package for their endpoints at all. Each carries
-  an **OPEN** marker to that effect; the obligation applies to whichever service ends up owning the paths.
-- ⚠️ **Feature 013** specified `packages/shared/cooking-school-contracts`, which predates this rule.
-  Corrected in its plan to `packages/schemas/cooking-school`.
+- ✅ **Three schema packages exist**, each with `schemas.ts`, `types.ts`, `contract-hash.ts`, a barrel **and a
+  generated `openapi.yaml`**: `packages/schemas/recipe` (**8** published wire-schema files, `openapi.yaml`
+  4,945 lines, 34 paths), `packages/schemas/food` (**5**, 922 lines, 12 paths), `packages/schemas/identity`
+  (**5**, 716 lines, 10 paths) — all measured 2026-08-12.
+    - ⚠️ **Note for anyone re-counting**: food and identity each hold **6** files matching `*.schema.ts` in the
+      service, but only **5** are wire schemas. The sixth is `src/config/env.schema.ts`, the Zod **environment**
+      schema, which is correctly **not** published. The `*.schema.ts` suffix is therefore overloaded — it does
+      not by itself mean "wire contract". This is already handled deliberately rather than by accident:
+      `@kitchensink/contract-gen`'s `discoverAuthoredSchemas` takes an `excludeFiles` list of **exact** relative
+      paths each carrying a reason, fails on a **stale** exclusion, and separately rejects an authored wire
+      schema that imports an excluded sibling — which would otherwise generate cleanly and ship a leaf package
+      with a dangling import. **A new gate that globs the suffix must use that same exclusion list**, not its own.
+- ✅ **`openapi.yaml` now exists for all three services.** The previous revision recorded "does not exist for
+  any service"; that is **no longer true**, and `@kitchensink/schema-recipe`'s `./openapi.yaml` export now
+  names a real file.
+- 🔄 `specs/001-commise-recipe-app/contracts/api.openapi.yaml` — 2,827 hand-written lines (2,810 of body plus a
+  17-line superseded-notice header) — is now **genuinely superseded**: recipe's derived document exists and
+  covers **34 paths against the hand-written 32**. Citations, counted over **`git ls-files` only**: **12 files
+  under `packages/`**, 26 under `specs/`, 5 under `docs/`. The **citations have not been repointed**, so two
+  OpenAPI documents describe the recipe service and only one of them is verified. The hand-written file's own
+  header still says "the replacement has NOT been generated yet" and is stale.
+    - ⚠️ **Correction to an earlier figure in this document, and to ADR-0014.** A previous revision said "57
+      source files" and a first pass at this refresh said "31 files under `packages/`". Both counted **build
+      output** — `.next/standalone/`, `dist/` — because they globbed the worktree instead of the index. **Count
+      citations with `git ls-files | xargs grep -l`.** An inflated count here is not harmless: it is the number
+      someone will use to decide whether repointing is a small job or a large one.
+- ✅ **Features 006–010 now identify an owning service package.**
+  [ADR-0017](../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md) rules
+  006 / 007 / 009 into `@kitchensink/recipe-service` (`@kitchensink/schema-recipe`) and 010 into
+  `@kitchensink/identity-service` (`@kitchensink/schema-identity`), with 010's Stripe webhook in
+  `@kitchensink/identity-webhooks`. **No new deployable service is created.** The four 🟠 OPEN markers are
+  closed; a **schema package is per SERVICE, not per feature**, so none of these four gets its own.
+- ⚠️ **Feature 013** specified `packages/shared/cooking-school-contracts`, which predates this rule. Corrected
+  in its plan to `packages/schemas/cooking-school` — but its `tasks.md` **still creates the rejected location**
+  (T-002, and T-015 which points event schemas at it), which is the 17-e.12 failure mode: the plan was amended
+  and the task list was not.
+- ⚠️ **`@kitchensink/schema-notifications` (014) does not exist and cannot yet be generated** — it is now
+  unblocked, though: 014's three OPEN contract items were ruled on 2026-08-12 (see its _Resolved Questions_).
 
 ---
 
@@ -962,25 +993,633 @@ finished migration.**
 | `@kitchensink/food-service`     | **0**               | **0**          | **no validation pipe at all**; `@Body() body: unknown` + per-method `safeParse`, which is why three distinct failures report `{ error: 'Empty name' }` |
 | `@kitchensink/identity-service` | 3                   | 4              | smallest surface; `PATCH /users/me` is the `createZodDto`-under-the-wrong-pipe case (16-e.1)                                                           |
 
+**Re-measured 2026-08-12** — two of those three rows have moved, and the one that has not is the one that
+matters most:
+
+| Service                         | `ZodValidationPipe` | `createZodDto`  | Change since 2026-08-11                                                                                    |
+| ------------------------------- | ------------------- | --------------- | ---------------------------------------------------------------------------------------------------------- |
+| `@kitchensink/recipe-service`   | 18                  | 26              | pipe counts unchanged, but the `class-validator` figure was **wrong by an order of magnitude** — see below |
+| `@kitchensink/food-service`     | **0** committed     | **0** committed | 🔄 **5 / 3 in the working tree, uncommitted.** The committed state is still the violation                  |
+| `@kitchensink/identity-service` | **6**               | **6**           | ✅ up from 3 / 4                                                                                           |
+
+⛔ **CORRECTION — "19 `class-validator` files" was a MENTION count, not an importer count.** Measured
+2026-08-12 with `grep -rl "from 'class-validator'"` over service sources, excluding `dist`: **exactly ONE file
+imports it** — `packages/services/recipe-service/src/search/dto/search-recipes.query.dto.ts`. The 19 is the
+number of files that mention the string, and almost all of those mentions are JSDoc **about migrating away from
+it**. This figure appears in ADR-0015, in §15.4 and in earlier revisions of this rule, and it materially
+misstates the size of the remaining work: recipe is **one file** away from one mechanism, not nineteen. Count
+importers, not mentions.
+
+⛔ **Food is still the live proof that GR-015 and GR-016 are separate obligations** — with a caveat that must be
+stated rather than smoothed over. In **committed** `main` it satisfies GR-015 in full (5 published wire-schema
+files, a committed `@kitchensink/schema-food`, a 922-line derived `openapi.yaml`) and **validates nothing**: a
+reviewer looking only at the contract artifacts would see a conformant service. A fix is **in the working tree
+and not yet committed** (5 `ZodValidationPipe` / 3 `createZodDto` sites, plus an untracked `foods.dto.ts`), so
+this row will need one more pass once it lands. The argument the row makes does not depend on the fix being
+absent — it depends on the two obligations having been independently satisfiable, which they were.
+
 - ❌ **Response validation: none, in any service — and that is the deferred state (16-g), not a gap to close.**
-- 🔄 Recipe's `class-validator` residue and food's missing pipe are both being converged now.
-- ⚠️ Features **006–010** still do not identify an owning service package for their endpoints (GR-015 Current
-  State). GR-016 binds whichever service ends up owning those paths; the obligation does not wait on the
-  answer.
+- 🔄 Recipe's `class-validator` residue and food's missing pipe are both mid-convergence.
+- ✅ Features **006–010** now identify an owning service package
+  ([ADR-0017](../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md)); GR-016
+  binds `@kitchensink/recipe-service` (006, 007, 009) and `@kitchensink/identity-service` +
+  `@kitchensink/identity-webhooks` (010).
+- ⚠️ **006's and 009's `tasks.md` still specify `class-validator` DTOs**, which their own plans forbid. A task
+  list is where a validation mechanism actually gets chosen, so a plan that says `nestjs-zod` while the tasks
+  say `class-validator` will ship `class-validator`.
 
-**OPEN items — recorded, not resolved. No ruling has been made on either.**
+**OPEN items — BOTH RULED 2026-08-12.**
 
-- 🟠 **OPEN-GR-016-A — what mechanically enforces the storage floor (16-d)?** The obligation is clear; the
-  thing that keeps it from rotting is not. **Question for the owner: is the floor enforced by a per-service
-  parity test that enumerates bounded columns and asserts each writing wire field rejects an out-of-range
-  value, or is it a review-checklist item?** A test is the only option that survives a later migration
-  widening or narrowing a column, but it must not be built by importing drizzle types into the wire schemas,
-  which 16-d forbids — so the shape of a conforming test is itself part of the question.
-- 🟠 **OPEN-GR-016-B — is `z.strictObject()` the portfolio default for request bodies?** 16-e.2 requires the
-  choice to be explicit per surface; it does not pick one, because the trade-off is real in both directions
-  (rejecting unknown keys catches client typos; accepting them lets a newer client talk to an older
-  service). **Question for the owner: is `strictObject` required for all mutating request bodies, with plain
-  `z.object` permitted only where a forward-compatibility reason is documented at the schema?**
+- ✅ **OPEN-GR-016-A — the storage floor is enforced by a per-service parity TEST**, not a review-checklist
+  item, because a checklist cannot survive a later migration that widens or narrows a column. ✅ **And it is
+  already BUILT**: `@kitchensink/contract-gen`'s `auditStorageCapacity` is wired by a `storage-capacity.test.ts`
+  in **all three** services. The shape — which was itself part of the question, since 16-d forbids importing a
+  storage type into a wire schema — is recorded in
+  [GR-017 §17-d](#gr-017-contract--validation-conformance-for-every-new-service-client-and-app): it reads
+  drizzle **structurally** via `Symbol.for('drizzle:Columns')` (so `contract-gen` needs no `drizzle-orm`
+  dependency) and reads zod bounds via the **public** `z.toJSONSchema`; the field→column mapping is supplied per
+  service; and the audit is **exhaustive over columns**, with `stale-account` and `duplicate-account` findings
+  keeping the bookkeeping honest in the other direction. A new bounded column therefore fails the gate the day
+  it is added.
+- ✅ **OPEN-GR-016-B — `z.strictObject()` IS the portfolio default for mutating request bodies**, ruled in
+  [GR-017 §17-c](#gr-017-contract--validation-conformance-for-every-new-service-client-and-app). Plain
+  `z.object()` is permitted only where a forward-compatibility reason is documented at the schema, which in
+  practice means a **read** surface. The trade is real in both directions and the ruling picks the one whose
+  failure is **visible**: on a mutating body a silently stripped unknown key is a `200` plus a partial write the
+  caller was told succeeded.
+
+---
+
+## GR-017: Contract & Validation Conformance for Every NEW Service, Client and App
+
+**Severity**: CRITICAL
+**Ratified**: 2026-08-12
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15](../docs/CODING_STANDARDS.md) (contract ownership),
+**§15.4** (input validation), **§15.5** (this rule's mechanical conformance list).
+Reasoning: [ADR-0014](../docs/architecture/decisions/0014-service-owned-api-contracts.md),
+[ADR-0015](../docs/architecture/decisions/0015-input-validation-at-every-boundary.md).
+**Relates to**: [GR-015](#gr-015-api-contract-ownership) (who authors the contract),
+[GR-016](#gr-016-input-validation-at-every-boundary) (where it runs). GR-017 adds **nothing new about what is
+required** — it makes the two existing rules **checkable on a package that does not exist yet**.
+**Resolves**: owner directive 2026-08-12 — the conformance posture must hold _"on all existing servers and
+future servers as well as existing clients and future clients"_, and prose in fourteen feature specs will not
+hold it.
+
+### Why this rule exists separately from GR-015 and GR-016
+
+GR-015 and GR-016 are stated as obligations on **features**. A feature is a document; a document cannot be
+green. Every propagation of those two rules so far has been a paragraph added to a spec — which is necessary
+(a contributor who never reads the rule cannot follow it) and **insufficient**, because the next service will
+be created by someone who did not read the spec, or by an agent working from a task list.
+
+The measured evidence that prose alone fails is in this repository's own history: GR-015 §15-b exists at all
+because **mandating only the service side is how the client half got skipped**, and it got skipped behind green
+builds. The same mechanism will skip a **new** service's obligations unless the gate is **discovery-based** —
+enumerating packages from the filesystem rather than from a list someone must remember to extend.
+
+**A hardcoded list of services in a conformance test is itself the defect.** A list is a thing to forget. Every
+gate this rule cites discovers its subjects from `packages/services/*/package.json`,
+`packages/clients/*/package.json`, `packages/schemas/*/package.json` or `git ls-files`, so a package created
+tomorrow is in scope the day it is created — not the day someone remembers to add it.
+
+### Rule
+
+#### 17-a. Every NEW deployable HTTP service, on the day its package is created
+
+1. Authors its wire contract as zod at `src/**/*.schema.ts`, beside the controller it serves (GR-015 §15-a.1).
+2. Declares a `contract:generate` script, so `npm run contract:verify` regenerates it (GR-015 §15-c).
+3. Has a committed `packages/schemas/<service>` (`@kitchensink/schema-<service>`) exporting the zod, the
+   `z.infer` types, a `CONTRACT_HASH`, a barrel, **and a derived `openapi.yaml`**.
+4. Asserts `CONTRACT_HASH` equality **at boot** against its schema package, and fails to boot on mismatch.
+5. Registers **`nestjs-zod`'s** `ZodValidationPipe` — never Nest's own `ValidationPipe` — and states so in its
+   feature spec (GR-016 §16-e.1).
+6. Uses **`z.strictObject()` for every mutating request body** (see 17-c).
+7. Validates every non-HTTP ingress it owns — queue, event, webhook, scheduled invocation — against an authored
+   zod, and its feature spec **enumerates** them or states that it has none (GR-016 §16-b).
+8. Wires the **storage-capacity audit** (`@kitchensink/contract-gen`'s `auditStorageCapacity`) in its own
+   `storage-capacity.test.ts`, copying the pattern the three existing services already use — see 17-d. This is
+   not optional for a service with a bounded column, and it is not something to reinvent.
+9. Carries the four test tiers a deployable owes (`docs/CODING_STANDARDS.md` §7.1): unit, integration, e2e, k6.
+
+#### 17-b. Every NEW client and app package
+
+1. Declares **no** request or response shape of any `packages/services/*` service, in any file, including
+   type-only (GR-015 §15-b.2). Divergent consumer shapes are `Pick`/`Omit`/`Partial` derivations.
+2. Imports its wire types **and** its runtime zod from `@kitchensink/schema-<service>`.
+3. **Validates every response on receipt** with that zod, at the moment the body arrives (GR-016 §16-c.3).
+4. **Validates every outbound body against the callee's schema-package zod before the call** (GR-016 §16-c.2).
+5. Carries a **contract-skew guard** so a client pinned to a stale schema package is detected rather than
+   inferred (`packages/clients/{food-service,recipe-service}/src/contractSkew.ts` is the reference pattern).
+6. ⛔ **Is the OPPOSITE case if it speaks to an API we do not serve.** A third-party client (USDA, Clerk,
+   Vercel, Stripe, an OCR provider, an LLM provider, a grocery-retailer API) **validates the raw upstream shape
+   at the boundary with its own zod**, **MAY declare its own types**, and **gets no OpenAPI document**. Rules
+   17-b.1–17-b.5 do **not** apply to it, and applying them **deletes a validation boundary** — a security
+   regression, not a consistency win (GR-015 §15-d). `packages/clients/usda` is the reference implementation
+   and must never be "converged".
+
+#### 17-c. `z.strictObject()` is the portfolio default for mutating request bodies — OPEN-GR-016-B CLOSED
+
+**Ruled 2026-08-12.** Every **mutating** request body (`POST`, `PUT`, `PATCH`, `DELETE` with a body) uses
+`z.strictObject()`. Plain `z.object()` is permitted only where a **forward-compatibility reason is documented
+at the schema**, and in practice that means a **read** surface — a query string an older service may receive
+from a newer client.
+
+The trade is real in both directions and the ruling picks the one whose failure is **visible**: rejecting
+unknown keys turns a client's misspelled field into a `400` the client can fix, while stripping them turns it
+into a `200` and a **silent partial write**. On a mutating body, silence is the worse failure — the caller is
+told it succeeded and the data is not what it sent. GR-016 §16-e.2 required the choice to be explicit; this
+makes it explicit **once**, portfolio-wide, instead of per endpoint.
+
+#### 17-d. The storage floor is enforced by a per-service parity test — OPEN-GR-016-A CLOSED, and ALREADY BUILT
+
+**Ruled 2026-08-12: a per-service parity TEST, not a review-checklist item.** A checklist rots; a migration
+that widens or narrows a column six months from now will not consult it.
+
+✅ **This is the one obligation in GR-017 that is already implemented, and the implementation is the
+specification.** `@kitchensink/contract-gen`'s `auditStorageCapacity` / `collectBoundedColumns` /
+`formatStorageCapacityFindings` (`packages/tools/contract-gen/src/storage-capacity.ts`) are wired by a
+`storage-capacity.test.ts` in **all three** services:
+`packages/services/recipe-service/src/database/__tests__/`,
+`packages/services/food-service/src/db/schema/__tests__/`,
+`packages/services/identity/src/types/schema/__tests__/`. A new service copies that pattern; it does not invent
+one. Four properties of it are load-bearing and must not be "simplified":
+
+1. **It lives in the SERVICE**, not in the schema package and not in the wire schemas.
+2. **It is an assertion over two independently parsed models, not a derivation.** It takes the drizzle tables as
+   `unknown` and reads them **structurally**, through drizzle's own registered symbols
+   (`Symbol.for('drizzle:Columns')`), so `@kitchensink/contract-gen` needs **no `drizzle-orm` dependency** —
+   which matters because that package is imported by all three services and must not drag an ORM behind it. It
+   reads the zod bounds through the **public** `z.toJSONSchema` rather than zod internals, which is also what
+   makes `.optional()` / `.nullable()` / `.default()` / `z.coerce` unwrap without a hand-rolled walker. ⛔ Do
+   **not** "clean this up" by adding a `drizzle-orm` dependency or by reaching into zod's internals.
+3. **The field→column mapping is supplied per service by the caller**, because that knowledge genuinely is the
+   service's and cannot be inferred: two wire fields may write one column, and a column may be written by none.
+4. **The audit is EXHAUSTIVE OVER COLUMNS, which is where its teeth are.** Every bounded column must be either
+   bound to the wire fields that write it or declared not-client-writable **with a reason**, so a new
+   `varchar(n)` or `smallint` fails the gate the day it is added — the only version of this check that catches
+   the **next** instance instead of re-litigating the last one. Two symmetrical failures keep the bookkeeping
+   honest in the other direction: a **`stale-account`** entry (a column that is no longer bounded, was renamed,
+   or never existed) and a **`duplicate-account`** entry (two entries that could disagree about one column).
+
+The defect class it exists for, measured: `servings: 9999999999` passed request validation, Postgres answered
+`22003 value "9999999999" is out of range for type integer`, and `ApiExceptionFilter` collapsed the
+unrecognised throwable into a **500 that owed a 400**. Five int-backed recipe fields shared that shape and four
+`numeric(8,2)` nutrition overrides had it too — and the same `22003` reaches a `WHERE` clause, not only an
+`INSERT`.
+
+#### 17-e. What a feature spec must say — the checkable list
+
+Every feature spec that introduces or extends a service, a client, or an app states, in its own words but
+covering every item:
+
+| #   | The spec must state                                                                                                                        | Mechanically checkable?                                     |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| 1   | the **owning service package** by name (no "TBD", no OPEN marker)                                                                          | ✅ (grep for the package name; the package resolves)        |
+| 2   | the **schema package** by name, and that it is GENERATED and never hand-edited                                                             | ✅                                                          |
+| 3   | that zod is **authored in the service** at `src/**/*.schema.ts`, beside its controller                                                     | ✅ (file glob)                                              |
+| 4   | that the schema package exports zod + `z.infer` types + `CONTRACT_HASH` + a **derived** `openapi.yaml`                                     | ✅                                                          |
+| 5   | **every** consuming client / app / feature package by name                                                                                 | ⚠️ partly — the list can be short without being wrong       |
+| 6   | that clients declare **no** wire types and derive divergent shapes with `Pick`/`Omit`/`Partial`                                            | ✅ (17-b.1's parser-based guard)                            |
+| 7   | that **requests AND responses** are validated with that zod (requests in the service, responses **on receipt in the consumer** — see 17-f) | ⚠️ partly                                                   |
+| 8   | that **`z.strictObject()`** is used for mutating bodies (17-c)                                                                             | ✅ (grep the authored schemas)                              |
+| 9   | the **single** validation mechanism and that the registered pipe is **`nestjs-zod`'s**                                                     | ✅ (a bad-body route test)                                  |
+| 10  | every **non-HTTP ingress**, or an explicit "this feature has none"                                                                         | ❌ — a spec cannot be proven to have enumerated all of them |
+| 11  | the **storage floor** obligation, as an assertion never a derivation (17-d)                                                                | ✅ (the parity test)                                        |
+| 12  | **CLIENT WORK AS ITS OWN DELIVERABLE, with tasks** — schema package, typed client, receipt validation, contract-skew guard                 | ✅ (the tasks exist or they do not)                         |
+| 13  | the **third-party exception** (17-b.6) wherever an external API is consumed                                                                | ⚠️ partly                                                   |
+| 14  | that server-side **response validation is DEFERRED** and must not be "completed" (GR-016 §16-g)                                            | ✅ (grep)                                                   |
+
+**Item 12 is the one that has been skipped every time.** Measured 2026-08-12 across all fourteen feature
+specs: **not one `tasks.md` in the portfolio contained a task to create a schema package, wire `CONTRACT_HASH`,
+or validate a response on receipt** — while nine `plan.md` files stated the client obligation in prose. An
+obligation with no task is an obligation that does not ship.
+
+#### 17-f. Response validation — say which one you mean
+
+Two different things are both called "response validation", and conflating them causes a contributor to either
+skip the required one or add the forbidden one:
+
+- **Required (17-b.3, GR-016 §16-c.3):** a **consumer** parses what it **received**. It is defending itself and
+  may do so unilaterally.
+- ⛔ **Deferred (GR-016 §16-g):** a **producing service** parses what it **emits**. This is an owner decision,
+  not an unfinished task. **Do not add it.**
+
+### Acceptance Criteria
+
+- **AC-017-a**: For every directory under `packages/services/`, a discovery-based test asserts 17-a.1–17-a.5.
+- **AC-017-b**: For every directory under `packages/clients/` and every app/feature package, a parser-based
+  test asserts 17-b.1 (type-only imports count as violations), with third-party clients (17-b.6) excluded by an
+  **explicit, reasoned allowlist** — not by silence.
+- **AC-017-c**: Every mutating request body in every authored `*.schema.ts` uses `z.strictObject()`, or carries
+  a documented forward-compatibility exemption at the schema (17-c).
+- **AC-017-d**: Every service with a bounded column has a storage-floor parity test whose mapping completeness
+  is asserted in both directions (17-d).
+- **AC-017-e**: Every feature spec that introduces or extends a service, client or app covers all fourteen
+  items in 17-e, and its `tasks.md` contains the item-12 client tasks.
+- **AC-017-f**: No feature adds server-side response validation while GR-016 §16-g stands (17-f).
+
+### Violation
+
+- **A new service package that lands without its schema package, its `CONTRACT_HASH` boot assertion, or
+  `nestjs-zod`'s pipe is in violation on day one** — the obligation is not deferred to "when it has clients".
+- A conformance test that enumerates services or clients from a **hardcoded list** is in violation of this rule
+  even when its assertions are correct, because it will not see the next package.
+- A feature spec whose `plan.md` states the client obligation while its `tasks.md` has no client task is in
+  violation of 17-e.12. This is the portfolio's most common violation, not a hypothetical.
+- "Converging" a third-party client under 17-b is a violation of **17-b.6** and is treated as a security
+  regression.
+- A `z.object()` on a mutating body with no documented reason is a violation of 17-c.
+
+### Enforcement — what actually exists, and what does not
+
+⚠️ **This table is the honest state on 2026-08-12, not an aspiration.** A rule that implies coverage it does
+not have is worse than an unenforced rule, because it stops people looking.
+
+| Obligation                                                  | Enforced by                                                                                                           | Discovery-based?                                                                                                   | State                                                                                                                                                                              |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schema package shape, scripts, lint/format posture (17-a.3) | `packages/infra/global/__tests__/generated-schema-packages.test.ts`                                                   | ✅ reads `packages/schemas/*`                                                                                      | **exists**                                                                                                                                                                         |
+| Regenerate-and-diff drift gate (GR-015 §15-c layer 2)       | `scripts/contractDriftGate.mjs` + `packages/infra/global/__tests__/contract-drift-gate.test.ts`                       | ✅                                                                                                                 | **exists**                                                                                                                                                                         |
+| Every contract owner is actually regenerated (17-a.2)       | `scripts/contractOwners.mjs` `discoverContractOwners` + `contract-generation-runner.test.ts`                          | ✅ reads `packages/services/*/package.json`                                                                        | **exists**                                                                                                                                                                         |
+| No app depends on a service package                         | `packages/infra/global/__tests__/app-service-dependency.test.ts`                                                      | ✅ discovers services + `git ls-files`                                                                             | **exists**                                                                                                                                                                         |
+| Turbo `inputs` wiring for the copy (GR-015 §15-c layer 1)   | `packages/infra/global/__tests__/turbo-build-graph.test.ts`, `packages/services/*/src/__tests__/build-inputs.test.ts` | ✅ / per-service                                                                                                   | **exists**                                                                                                                                                                         |
+| `CONTRACT_HASH` boot assertion (17-a.4)                     | `packages/services/*/src/__tests__/main-boot-order.test.ts`; client side `packages/clients/*/src/contractSkew.ts`     | per-service / per-client                                                                                           | **partial** — present for identity, food, recipe; **not** a repo-wide discovery gate                                                                                               |
+| `nestjs-zod` pipe registered, bad body ⇒ `400` (17-a.5)     | `packages/services/identity/tests/app-validation.test.ts`                                                             | ❌ per-service only                                                                                                | **partial** — identity has it; **no repo-wide gate**                                                                                                                               |
+| Contract test tier per service                              | `packages/services/{identity,food-service}/contract/__tests__/contract.test.ts`                                       | ❌                                                                                                                 | **partial** — `recipe-service` has **no** such tier                                                                                                                                |
+| Clients declare no wire types (17-b.1)                      | `packages/infra/global/__tests__/wire-contract-consumers.{ts,test.ts}`                                                | ✅ AST-based                                                                                                       | 🔄 **LANDING — present in the working tree, UNTRACKED as of 2026-08-12.** Until it is committed, treat 17-b.1 as ungated; do not cite it as coverage in a feature spec before then |
+| `z.strictObject()` on mutating bodies (17-c)                | —                                                                                                                     | —                                                                                                                  | ❌ **no gate yet** — greppable, so cheap to add                                                                                                                                    |
+| Storage-floor parity (17-d)                                 | `@kitchensink/contract-gen` `auditStorageCapacity` + `storage-capacity.test.ts` in **all three** services             | per-service, but **exhaustive over columns** within each — a new bounded column fails the gate the day it is added | ✅ **exists, and is the strongest gate in this table.** Bidirectional bookkeeping via `stale-account` / `duplicate-account` findings                                               |
+| Non-HTTP ingress enumerated (17-e.10)                       | —                                                                                                                     | —                                                                                                                  | ❌ **NOT MECHANIZABLE.** Nothing can prove a spec listed every consumer it will ever have; this one rests on review, and saying so is more useful than pretending otherwise        |
+| Spec content (17-e items 1–14)                              | —                                                                                                                     | —                                                                                                                  | ❌ **not mechanized.** Items 1, 2, 8 and 14 are greppable per spec and worth a gate; the rest are judgement                                                                        |
+
+### Current State (2026-08-12) — the rule is NEW; conformance is PARTIAL
+
+- ✅ **Three schema packages exist and are complete in shape**: `packages/schemas/{recipe,food,identity}`, each
+  with `schemas.ts`, `types.ts`, `contract-hash.ts`, a barrel — **and `openapi.yaml`, which now exists for all
+  three** (4,945 / 922 / 716 lines). GR-015's Current State previously recorded "`openapi.yaml` does not exist
+  for any service"; that is **no longer true** and has been corrected.
+- ✅ **`packages/clients/{food-service,recipe-service}` carry contract-skew guards** and validate responses on
+  receipt.
+- 🔄 **`@kitchensink/recipe-service` is ONE file away from one mechanism** — `src/search/dto/search-recipes.query.dto.ts`
+  is the only remaining `class-validator` **importer** (measured 2026-08-12). The "19 files" figure repeated
+  elsewhere in this document, in ADR-0015 and in §15.4 is a **mention** count and overstates the work by ~19×.
+- ❌ **`@kitchensink/food-service` registers no validation pipe in committed `main`** (`ZodValidationPipe`: 0,
+  `createZodDto`: 0), despite having a schema package and a derived OpenAPI document. **A service can satisfy
+  GR-015 in full and still accept anything** — that is the sharpest argument for 17-a.5 being its own numbered
+  obligation. 🔄 A fix is **uncommitted in the working tree** (5 / 3 sites); this bullet describes `HEAD`.
+- ✅ **`@kitchensink/identity-service`** now has 6 `ZodValidationPipe` and 6 `createZodDto` sites, up from 3/4.
+- ✅ **17-d is already fully enforced** — `@kitchensink/contract-gen`'s `auditStorageCapacity` is wired by a
+  `storage-capacity.test.ts` in **all three** services, exhaustive over bounded columns in both directions. The
+  ruling that closed OPEN-GR-016-A describes shipped code, not a plan.
+- 🔄 **A gate for 17-b.1 is LANDING**: `packages/infra/global/__tests__/wire-contract-consumers.{ts,test.ts}`
+  (AST-based) exists in the working tree but is **untracked**. It is not coverage until it is committed.
+- ❌ **No gate exists for 17-c (`z.strictObject()` on mutating bodies)** — and it is the cheapest one left, since
+  it is greppable over the authored schemas. The gap it would close is measurable right now: **`recipe-service`
+  declares ZERO `z.strictObject()` against 36 `z.object()`** (identity 1, food 4, measured 2026-08-12), so the
+  portfolio default ruled in 17-c is currently unmet in the largest service. `PATCH /api/v1/recipes/:id` is the
+  case that matters — a misspelled field there is a `200` plus a partial write.
+
+---
+
+## GR-018: One Rejection Path, and Invalid Input Is Never Retried
+
+**Severity**: CRITICAL
+**Ratified**: 2026-08-12
+**Normative source**: [`docs/CODING_STANDARDS.md` §15.4](../docs/CODING_STANDARDS.md) (the boundary parse this
+rule governs the **failure** side of) and **§15.5**.
+**Relates to**: [GR-016](#gr-016-input-validation-at-every-boundary) — GR-016 says every input is parsed;
+GR-018 says what happens when the parse fails. [GR-019](#gr-019-identifier-integrity--no-sentinels) — the
+reason a rejected payload is not recorded as a row.
+**Resolves**: owner rulings 2026-08-12 — _"invalid payloads are not retried"_, and signature failure and shape
+failure are _"equally invalid"_ with the cause carried as a `reason` field, one rejection path, and the
+rejected event **not** recorded.
+
+### Rule
+
+#### 18-a. One rejection path per ingress, with the cause in a `reason` field
+
+Every boundary rejection — malformed shape, failed signature, unresolvable principal, quota exceeded,
+unregistered type, un-canonicalizable payload — takes **one** code path per ingress and produces **one**
+structured rejection shape whose `reason` names the cause.
+
+**A credential/signature failure and a shape failure are EQUALLY invalid: one path, one shape, one `reason`, one
+counter, one alarm.** Two _code paths_ means two places to keep in step, two error contracts, and — measured
+repeatedly in this repo — one of the two ends up without a counter.
+
+⚠️ **"One behaviour" means one PATH, not necessarily one response STATUS — and this distinction is
+incident-grounded, not a loophole.** The status is derived from the `reason` by a **single complete lookup**
+(so adding a reason fails to compile until its retry disposition is decided, with no silent default), because
+the question a status must answer is **"would a redelivery ever succeed?"** and for a signed webhook the two
+reasons genuinely answer it differently:
+
+| `reason`    | Status  | Would a redelivery ever succeed?                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shape`     | `2xx`   | **No.** The signature already verified, so the sender is who it claims and the payload is what they sent. A body we cannot parse parses identically forever; retrying replays one permanent failure on a schedule.                                                                                                                                                                                          |
+| `signature` | non-2xx | **Yes, possibly.** Two causes, and both argue against `2xx`: a `2xx` tells a forger their forgery was accepted on an endpoint where the signature is the _only_ trust boundary; and if the caller **is** the real sender and **our** signing secret is stale (a rotation not yet propagated), the condition is **transient and operator-fixable** — the sender's retry window is precisely what rescues it. |
+
+**Reference implementation:** `packages/services/identity-webhooks/src/common/handler-pipeline.ts` —
+`rejectInvalidWebhook` is one function with a `reason: 'shape' | 'signature'`, one `IdentityWebhookRejected`
+metric dimensioned by `reason`, and `WEBHOOK_REJECTION_STATUS` as the complete `Record` that maps reason to
+status. An earlier revision of that module returned `2xx` for **both**, reasoning that a wrong secret
+"reproduces on every retry". **That was the half that was wrong**: it treats an operator-fixable
+misconfiguration as permanent and pays for the mistake with irrecoverable data loss instead of a retry. The
+incident is on record — a dropped `user.created` left Clerk holding a user the database did not have.
+
+⚠️ **This refines the 2026-08-12 ruling as literally worded** ("signature failure and shape failure are equally
+invalid … not two different behaviours"), and the refinement is flagged rather than applied silently:
+**collapsing the two onto one status breaks something in either direction** — `2xx` for both discards real
+events during a secret rotation, and non-2xx for both requests an endless retry of an unparseable body. The
+ruling's intent (no second code path, no second error contract, no uncounted rejection) is satisfied in full.
+**If the owner intends one literal status for both, that is a different decision and needs to be stated as
+one**, because it reverses a fix made in response to a production incident.
+
+#### 18-b. An invalid payload is NEVER retried
+
+An invalid payload cannot become valid by being sent again. Retrying it converts a producer's bug into
+sustained load and buries the signal that would have found it.
+
+- **A queue/event consumer** that rejects a payload on shape does **not** return it to the queue for redrive.
+  It records the rejection and **completes** the message (or dead-letters it once, with the `reason`).
+- **A scheduled or self-triggered invocation** that rejects its event does not reschedule itself.
+- **The retry that IS legitimate** is a **transient-dependency** failure — a database timeout, a 5xx from a
+  callee. That is a different condition with a different `reason` and it MAY retry. The rule is about
+  **invalidity**, not about failure.
+
+#### 18-c. ⚠️ For a signature-verifying third-party sender, "not retried" means answering `2xx`
+
+This is the half a contributor gets backwards on instinct, so it is stated as its own numbered rule.
+
+**svix (Clerk) and Stripe — and webhook senders generally — retry on ANY non-2xx.** Returning `400` for an
+invalid body therefore **requests** exactly the retry storm 18-b forbids: Stripe retries for 72 hours, svix on
+its own schedule, and each attempt fails identically.
+
+So for such a sender, a payload that is **invalid in a way no redelivery can fix — a SHAPE failure behind a
+valid signature** — is answered **`2xx`**, with:
+
+1. the rejection recorded in the **response body** (so the sender's dashboard shows what was wrong),
+2. the rejection recorded in **structured logs** with its `reason`,
+3. a **per-`reason` counter**, and
+4. an **alarm** on that counter — because a rejection nobody sees is indistinguishable from success.
+
+**Reject the content, accept the delivery.**
+
+⚠️ **But a SIGNATURE failure is answered non-2xx, deliberately** (18-a's table). "Not retried" applies to input
+that **cannot become valid**; a stale signing secret on our side **can** be fixed, and the sender's retry window
+is the recovery mechanism. Answering `2xx` there says "delivered" and discards every real event permanently,
+behind a green check — and on a public endpoint it also tells a forger their forgery was accepted. Getting this
+backwards in **either** direction has already cost this repository a dropped `user.created`.
+
+⚠️ **This does NOT generalize to our own callers.** An endpoint called by our own services or our own clients
+returns the `400`/`403` GR-016 §16-a.3 requires: those callers do not blind-retry, and a `2xx` would hide a
+real integration bug from the party able to fix it. An ingress with **no caller at all** (an EventBridge or SQS
+consumer) dead-letters. So the decision is: **who is on the other end, and do they retry on status?**
+
+| Ingress                                                                                               | Invalid payload ⇒                                                    | Why                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Our HTTP API, called by our own service/client                                                        | `400` (shape) / `403` (attribution)                                  | the caller can fix it and does not blind-retry                                                                                                                                   |
+| A signature-verifying third-party webhook (svix, Stripe) — **shape** failure behind a valid signature | **`2xx`** + recorded rejection + counter + alarm                     | any non-2xx triggers vendor retries of a body that can never parse                                                                                                               |
+| The same webhook — **signature** failure                                                              | **non-2xx** + recorded rejection + counter + alarm                   | the cause may be OUR stale secret, which is transient and operator-fixable; the retry window is the recovery. And on a public endpoint a `2xx` tells a forger the forgery landed |
+| A queue / event / bus consumer (no caller)                                                            | complete or dead-letter **once**, with the `reason`; alarm DLQ depth | there is nobody to receive a status                                                                                                                                              |
+
+#### 18-d. A rejected event is NOT recorded as a row
+
+The rejection is recorded in **logs, counters and (where applicable) the DLQ** — not as a row in a domain or
+audit table.
+
+**An invalid payload has no trustworthy identifier.** A table whose identity column is `NOT NULL` forces the
+writer to invent one, which is exactly the sentinel [GR-019](#gr-019-identifier-integrity--no-sentinels)
+forbids. This is not hypothetical: `webhook_events.identity_id` in the identity database is `text NOT NULL`, so
+"just record the rejected event" there means writing `'unknown'` into a column other code joins on.
+
+The corollary is that **the log line and the counter are load-bearing**, not a consolation prize. A rejection
+that is merely dropped is indistinguishable from a successful delivery — which is the failure mode 014's FR-028
+exists to prevent on its credential-less ingress.
+
+### Acceptance Criteria
+
+- **AC-018-a**: Each service has **one** rejection path producing **one** shape carrying a `reason`, and a test
+  asserts that a shape failure and a credential failure produce that same shape differing only in `reason` (and,
+  where the statuses differ, that the status comes from **one complete lookup** rather than a second branch).
+- **AC-018-b**: For every queue/event consumer, a test asserts an invalid payload is **not** redriven.
+- **AC-018-c**: For every third-party webhook, tests assert **all three** dispositions, because any two of them
+  pass on a handler that always returns the same thing: a **shape** failure behind a valid signature yields
+  **`2xx`** with the rejection in the body, a `reason` in the log and the counter incremented; a **signature**
+  failure yields **non-2xx** with the same shape and counter; and a **valid** body still yields its normal
+  success.
+- **AC-018-d**: No code path writes a row keyed on an identifier taken from a payload that failed validation.
+- **AC-018-e**: Every feature spec with a third-party webhook states the 18-c disposition table explicitly —
+  **both** rows — because a contributor reading only GR-016 will return a `400` for everything, and a
+  contributor reading only 18-c's headline will return `2xx` for everything.
+- **AC-018-f**: Every per-`reason` rejection counter has an **alarm**. A counter with no alarm satisfies the
+  letter of 18-c.3 and none of its purpose.
+
+### Violation
+
+- Two rejection **code paths** in one service — typically a signature check and a schema check that can drift
+  apart, with only one of them counted — is a violation of 18-a. Two **statuses** derived from one complete
+  reason→status lookup is **not** a violation; it is 18-a's required shape for a signed webhook.
+- Returning a non-2xx for a **shape** failure behind a valid signature is a violation of 18-c: no redelivery can
+  parse a body that does not parse.
+- Returning **`2xx`** for a **signature** failure is also a violation of 18-c, and the more expensive one — it
+  discards every real event during a signing-secret rotation, behind a green check, and on a public endpoint it
+  confirms a forgery to its author.
+- Returning `2xx` to **our own** caller for an invalid payload is a violation of 18-c — over-applying the webhook
+  rule hides a fixable bug from the party able to fix it.
+- Persisting a rejected payload's synthesized id is a violation of 18-d **and** of GR-019.
+- Emitting a rejection counter with no alarm is a violation of AC-018-f.
+
+### Current State (2026-08-12) — NEW rule, PARTIALLY conformant in one service
+
+- ✅ **The reference implementation exists and is better than the rule's first draft.**
+  `packages/services/identity-webhooks/src/common/handler-pipeline.ts` verifies the svix signature **and** then
+  validates the Clerk payload shape (`be0530a1`, hardened for an unrecognised deletion event by `c18a1765`), and
+  it already has: **one** `rejectInvalidWebhook` function, **one** rejection shape, a
+  `reason: 'shape' | 'signature'`, an `IdentityWebhookRejected` metric dimensioned by `reason`, and
+  `WEBHOOK_REJECTION_STATUS` as a **complete `Record`** mapping `shape → 200`, `signature → 401`. 18-a's
+  refinement was written **from** that code rather than against it.
+- ❌ **`IdentityWebhookRejected` has NO ALARM.** The counter is emitted; `identity-webhooks/infra/lib/webhooks-stack.ts`
+  alarms only on `ErasureIncomplete`. So **AC-018-f is unmet on the one ingress that implements everything else**,
+  which is precisely the "a rejection nobody sees is indistinguishable from success" failure. This is the
+  cheapest outstanding item in this rule and it is a **code** change, not a doc one.
+- ❌ **No repo-wide gate exists for any part of GR-018.** Every acceptance criterion above is a review obligation
+  today. Stated plainly rather than implied: AC-018-c is a single handler test per webhook and AC-018-f is one
+  CDK alarm, so the cost of closing this is low — the rule is documentation until they land.
+- ⚠️ 014's FR-042 is the first **feature** to specify this rule end to end. 014 has no signature-verifying
+  ingress today, so its `2xx` clause is forward-looking; its live cases are the HTTP `400`/`403` and the bus
+  dead-letter.
+- ⚠️ **010's `tasks.md` currently asserts "invalid signatures return `400`"** — which is neither disposition: it
+  splits signature from shape into two behaviours **and** picks the wrong status for a shape failure. Flagged for
+  repointing.
+
+---
+
+## GR-019: Identifier Integrity — No Sentinels
+
+**Severity**: CRITICAL
+**Ratified**: 2026-08-12
+**Normative source**: [`docs/CODING_STANDARDS.md` §15.5](../docs/CODING_STANDARDS.md).
+**Relates to**: [GR-004](#gr-004-data-model-naming-convention) (how identifiers are named),
+[GR-018](#gr-018-one-rejection-path-and-invalid-input-is-never-retried) (why a rejected payload is not stored).
+**Resolves**: owner ruling 2026-08-12 — _"Ids: never a sentinel string like `'unknown'`. An id is REQUIRED
+except on create/upsert, where it is generated if absent."_
+
+### Rule
+
+1. **No identifier may ever be a sentinel.** Not `'unknown'`, not `'none'`, not `''`, not `'n/a'`, not `'-'`,
+   not `0`, not a synthesized `'pending-…'`. This binds identifiers **written to storage**, **placed on a
+   wire**, **used as a map or cache key**, **used as a metrics dimension**, and **compared in a branch**. A
+   sentinel in a log _message_ (`user not found`) is prose and is fine; a sentinel in a structured log _field_
+   is data and is not.
+2. **An id is REQUIRED wherever one is consumed.** Its schema types it as required — not optional-with-a-default.
+3. **The sole exception is a create or upsert**, where an absent id is **generated by the system** (a ULID, per
+   this repo's convention) rather than defaulted to a placeholder.
+4. **An identifier that cannot be resolved is a REJECTION** (GR-018 §18-a), never a placeholder. "Reject" may
+   mean a `4xx`, a dead-letter, or a recorded-and-completed message — never a written row.
+5. **A nullable relationship is modelled as NULL, not as a sentinel row or a sentinel string.** If "no owner" is
+   a legitimate state, the column is nullable and the wire type is `| null` — which is checkable. A magic string
+   is not.
+
+### Why this is CRITICAL rather than a style preference
+
+A sentinel identifier is **silently wrong in every aggregate it touches, and it cannot be undone later**:
+
+- **Aggregates fuse.** Every unattributable event lands in one bucket, so a per-producer counter, a per-user
+  quota and a per-tenant rate limit all report one large fictitious subject. Worse, they _look_ populated.
+- **It is indistinguishable from a real value after the fact.** A `NOT NULL` column holding `'unknown'` cannot
+  be told apart from a column holding a genuine id, so the repair requires knowledge that no longer exists.
+- **It defeats joins and foreign keys.** A sentinel either has no matching row (a broken join that returns
+  nothing, quietly) or acquires one (a sentinel row that every orphan now belongs to).
+- **It converts a rejection into a write.** The whole point of the boundary parse (GR-016) is that bad input
+  does not reach storage. A sentinel is the code path that lets it reach storage anyway, wearing a valid shape.
+- **It is a security control failure when the id is a principal.** An identity that resolves to `'unknown'` and
+  is then used for attribution, quota, or authorization has had its authorization decision made by a string
+  literal. 014's FR-041 dual-signal binding rejects rather than defaults for exactly this reason.
+
+### Acceptance Criteria
+
+- **AC-019-a**: No `*.schema.ts` gives an identifier field a default, and no identifier field is optional
+  except on a create/upsert body.
+- **AC-019-b**: A repo-wide grep-level gate rejects the sentinel literals in identifier positions
+  (`'unknown'`, `'none'`, `'n/a'`, `''`) in service and client sources. ⚠️ Grep is **necessary and not
+  sufficient** — it cannot see a sentinel built at runtime (`id ?? \`unknown-${Date.now()}\``), so it is a
+  tripwire, not a proof.
+- **AC-019-c**: Every create/upsert path that generates an id has a test asserting the generated id is a valid
+  ULID and that no two calls collide.
+- **AC-019-d**: Every feature spec that models an identifier states this rule, and states which of its paths
+  are create/upsert (i.e. where generation is permitted).
+
+### Violation
+
+- Writing, wiring, keying or branching on a sentinel identifier is a violation, **including** when it is done
+  to satisfy a `NOT NULL` constraint. The constraint is not the justification; it is the trap.
+- Typing an identifier as optional on a non-create path is a violation even if every current caller supplies
+  it — the obligation is that it _cannot_ be omitted.
+- Defaulting an unresolvable principal to a sentinel and continuing is a violation of this rule **and** of
+  GR-018 §18-a, and is treated as a security defect rather than a data-quality one.
+
+### Current State (2026-08-12) — NEW rule, conformance UNMEASURED
+
+- ⚠️ **`webhook_events.identity_id` is `text NOT NULL` in the identity database**, which is precisely the shape
+  that pressures a writer into a sentinel when it wants to record a rejected event. GR-018 §18-d resolves that
+  pressure by **not recording the row**; the column itself is unchanged and is not a violation on its own.
+- ❌ **No gate exists.** AC-019-b's grep tripwire does not exist yet and is the cheapest of the four to add.
+- ✅ 014's FR-043 is the first feature to state the rule normatively.
+
+---
+
+## GR-020: Dual-Signal Principal Binding
+
+**Severity**: CRITICAL
+**Ratified**: 2026-08-12
+**Normative source**: [`docs/CODING_STANDARDS.md` §15.5](../docs/CODING_STANDARDS.md).
+**Relates to**: [GR-016](#gr-016-input-validation-at-every-boundary) §16-b (a signature proves origin, not
+shape), [GR-018](#gr-018-one-rejection-path-and-invalid-input-is-never-retried) (the rejection path a mismatch
+takes), [GR-019](#gr-019-identifier-integrity--no-sentinels) (why the mismatch is not resolved by defaulting).
+**Resolves**: owner ruling 2026-08-12 on 014's OPEN-014-A — require **both** the transport signal and the
+payload's self-asserted principal, and **reject on mismatch**.
+
+### Rule
+
+Where a request carries **both** a transport-asserted principal and a payload-asserted principal:
+
+1. **Both are REQUIRED.** Neither may be dropped as redundant, and the payload field stays required.
+2. **The transport signal MUST resolve, through a version-controlled registry, to a principal name.** An
+   allowlist that only answers yes/no is insufficient — attribution needs a _name_, because the per-principal
+   counter, quota and audit trail all key on one.
+3. **The two MUST be equal, and a mismatch is a REJECTION** on the single rejection path (GR-018 §18-a) with
+   the cause in `reason`. A mismatch is **never** resolved by preferring one signal, and the payload-asserted
+   value is **never** trusted on its own.
+4. **The registry mapping MUST be injective and that MUST be asserted at boot**: a transport signal maps to
+   **at most one** principal. Overlapping mappings make attribution ambiguous, which silently misattributes
+   quota and counters.
+5. **The registry is version-controlled data, not a table**, and it is **not** assembled from the packages it
+   constrains. A runtime write to a table would change a trust boundary with no review and no deploy;
+   assembling it from the constrained party hands them the constraint.
+6. **An unresolvable transport signal is a rejection, not a default** (GR-019).
+
+### Why require both, when the transport signal alone identifies the caller
+
+The two signals answer different questions and the disagreement is the value:
+
+- The **transport signal** proves **origin** — who the infrastructure says sent this.
+- The **payload field** states **intent** — who the sender says it is acting as.
+- A **disagreement is real evidence of a real fault**: a misconfigured producer, a payload copied between
+  environments, a replay onto the wrong bus, or an attempt to spend another principal's quota. Silently
+  preferring one signal discards that evidence and converts a detectable misconfiguration into a subtle,
+  long-lived misattribution.
+
+There is also a contract reason, which is what makes the rule cheap rather than merely careful: requiring the
+field on **every** ingress keeps **one** payload shape valid on all of them. 014's two adapters can share
+literally one zod (GR-015 §15-a) only because `producer` is required on both paths; had it been
+transport-path-only, the "one core, two adapters" equivalence tests would have been comparing two shapes.
+
+**The payload field is never the authority.** Its only two permitted outcomes are **"agrees"** and
+**"rejected"**. That is what closes the hole a self-asserted principal otherwise opens: without the
+cross-check, any party with transport access can attribute its traffic to another principal and spend that
+principal's budget.
+
+### Where this rule applies today
+
+| Edge                                                                             | Transport signal                               | Payload signal                | Status                                                                                                                                                                      |
+| -------------------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 014 HTTP publish                                                                 | Ed25519 service-principal token `sub`          | envelope `producer`           | **specified** (014 FR-041)                                                                                                                                                  |
+| 014 EventBridge publish                                                          | validated event `source` + bus resource policy | envelope `producer`           | **specified** (014 FR-027, FR-041)                                                                                                                                          |
+| identity's erasure fan-out → recipe/food `POST /api/v1/internal/account/erasure` | Ed25519 service-principal token                | the body's account identifier | ⚠️ **not currently a dual-signal binding** — the body names the _subject_, not the _caller_, so this rule does not bind it as written. Recorded so nobody assumes coverage. |
+| Clerk svix webhook → identity                                                    | svix signature                                 | payload `data.id`             | ⚠️ **not a dual-signal binding either** — one principal (Clerk) with no second assertion of _who is calling_. GR-016 §16-b already binds it (signature **then** shape).     |
+
+**So GR-020 binds one feature today.** It is ratified now rather than later because the next
+service-to-service or bus ingress will face the same choice, and the wrong answer — "the envelope says who it
+is, so use that" — is the intuitive one.
+
+### Acceptance Criteria
+
+- **AC-020-a**: For every ingress carrying two principal assertions, a test asserts that a **mismatch** is
+  rejected on **every** path that ingress supports, with the mismatch `reason` recorded.
+- **AC-020-b**: A test asserts the registry mapping is **injective**, and that a duplicate mapping fails at
+  boot rather than at first use.
+- **AC-020-c**: A test asserts an **unresolvable** transport signal is rejected and never defaulted.
+- **AC-020-d**: The registry is a committed file, reviewed in the pull request that changes it; no runtime write
+  path to it exists.
+
+### Violation
+
+- Accepting the payload-asserted principal because the transport signal is absent, unresolvable, or
+  inconvenient is a violation, and is a **security** violation rather than a correctness one.
+- Dropping the payload field as "redundant self-assertion" is a violation of 20-a.1 — it also breaks the
+  one-shape property in the reasoning above.
+- Storing the registry in a database table is a violation of 20-a.5.
+- Resolving a mismatch by logging a warning and continuing is a violation of 20-a.3. A warning is not a
+  rejection.
+
+### Current State (2026-08-12) — NEW rule, one feature bound
+
+- ✅ 014 FR-041 specifies the rule in full: both signals, registry resolution, injectivity asserted at boot,
+  rejection on mismatch, registry authored in the service and copied to the schema package.
+- ❌ **No implementation exists** — 014 is a spec, and no other edge in the portfolio is currently a
+  dual-signal binding (see the table above). Nothing is enforced yet.
+- ⚠️ Historical precedent worth citing when this rule is questioned: PR #39 removed a trusted
+  `x-authorizer-context` header from the identity service because a client-suppliable header behind a public
+  ALB is forgeable. GR-020 is the same lesson applied to a payload field — a value the sender controls cannot
+  be the authority for what the sender is allowed to do.
 
 ---
 
@@ -1002,10 +1641,11 @@ Downgrading a CRITICAL rule to WARNING requires explicit product owner approval 
 
 ## Change Log
 
-| Version | Date       | Author                                          | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ------- | ---------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3.2.0   | 2026-08-12 | Repository owner                                | **GR-016 added** (MINOR — new rule): Input Validation at Every Boundary. Every input is parsed at the boundary against the service's own authored zod (the GR-015 zod), through **one** mechanism per service with **one** `400` path — measured state was three mechanisms across three services and `@kitchensink/food-service` with **no pipe at all** (`@Body() body: unknown` + per-method `safeParse`, so a bad type, a missing field and an unknown key all report `{ error: 'Empty name' }`). Extends the obligation to the surfaces a pipe never sees — **queue/event consumers and webhooks**, where a svix signature proves **origin, not shape** — and to the service-to-service edges (recipe → food; identity's erasure fan-out → recipe/food `POST /api/v1/internal/account/erasure`): outbound validated before send, inbound validated on receipt. Makes **the database schema the validation FLOOR** (grounded in five int-backed recipe fields with no upper bound writing `int4`, so `servings: 9999999999` was a **500 that owed a 400**) while stating that the floor is an **assertion, never a derivation** — no zod generated from drizzle, no wire type importing a storage type, GR-015 §15-a.5 unchanged. Records the two invisible hazards (`createZodDto` under Nest's own `ValidationPipe` validates nothing while looking wired — it already bit identity's `PATCH /users/me`; `z.object` strips unknown keys where `z.strictObject` rejects) and forbids a request-derived value reaching `sql.raw()`. **Response validation is explicitly DEFERRED** by owner decision and must not be "completed". Normative source `docs/CODING_STANDARDS.md` §15.4; reasoning and rejected alternatives in ADR-0015. Two OPEN items recorded unresolved (GR-016-A floor enforcement mechanism, GR-016-B `strictObject` default). |
-| 3.1.0   | 2026-08-11 | Repository owner                                | **GR-015 added** (MINOR — new rule): API Contract Ownership. The service authors its wire contract in zod at `src/**/*.schema.ts`, validates its own requests with it, and generates a committed `packages/schemas/<service>` package that clients import; `openapi.yaml` is derived and outbound-only, never a codegen input. **The client half (15-b) is separately mandatory** — a client declares no wire types and derives divergent consumer shapes with `Pick`/`Omit`/`Partial` — because mandating only the service side is how the client half got skipped. Records the three drift gates (15-c) and, prominently, the third-party exception (15-d): USDA/Clerk/Vercel/Stripe/OCR/LLM clients validate the raw upstream shape at the boundary and MAY declare their own types, so "converging" them deletes a security boundary. Normative source is `docs/CODING_STANDARDS.md` §15; reasoning and rejected alternatives in ADR-0014.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| 1.0.0   | 2026-05-10 | Senior Product Owner (cross-feature governance) | Initial ratification. Converts all CRITICAL and WARNING findings from `cross-feature-consistency-report.md` into enforceable rules with acceptance criteria. Corrects all release audit reports to BLOCKED status. Establishes release readiness gate (GR-001) as the primary blocker for engineering handoff.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| 3.0.0   | 2026-08-02 | Repository owner                                | **GR-014 amended** (MAJOR — incompatible redefinition): recipe visibility declared **binary** (`private` \| `public`); the missing `public` scope added, and `public-profile` demoted to a surfacing concern rather than a third visibility state; `circle` clarified as read-only; `price_cents` removed from the audience shape and restricted to `published-lesson`; ingestion-provenance and attribution criteria added (AC-014-d/e/f). Withdraws the premium-recipe and paid-follow model portfolio-wide. `cross-feature-consistency-report.md` S-004 amended to match.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 2.0.0   | 2026-08-02 | Repository owner                                | **GR-009 amended** (MAJOR — incompatible redefinition): the `@kitchensink/{group}-{name}` pattern was ratified when no packages existed and none of the 26 shipped packages follow it. Restated to the two scopes actually in use, `@kitchensink/{name}` and `@commise/{name}`, with role suffixes (`-service`, `-workers`, `-service-client`) replacing group prefixes. Superseded pattern preserved in-section. **GR-002/GR-003/GR-007 Current State** refreshed against shipped `main`; GR-002 confirmed portfolio-wide with no exceptions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Version | Date       | Author                                          | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------- | ---------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.3.0   | 2026-08-12 | Repository owner                                | **GR-017, GR-018, GR-019, GR-020 added** (MINOR — four new rules) and **both GR-016 OPEN items ruled**. **GR-017** makes GR-015/GR-016 checkable on a package that does not exist yet: a NEW service owes its authored zod, a `contract:generate` script, a committed schema package with a derived `openapi.yaml`, a `CONTRACT_HASH` boot assertion, **`nestjs-zod`'s** `ZodValidationPipe`, `z.strictObject()` on mutating bodies, and validated non-HTTP ingress **on the day its package is created**; a NEW client owes zero wire types, receipt validation, outbound validation against the callee's zod, and a contract-skew guard — with the third-party inverse (17-b.6) preserved. Every conformance gate must be **discovery-based** (`packages/services/*`, `packages/clients/*`, `git ls-files`), because a hardcoded list is the defect. **17-c closes OPEN-GR-016-B**: `z.strictObject()` is the portfolio default for mutating bodies. **17-d closes OPEN-GR-016-A**: the storage floor is a per-service parity test — and, uniquely among these obligations, it is **already built and wired in all three services** (`@kitchensink/contract-gen`'s `auditStorageCapacity`, reading drizzle **structurally** via `Symbol.for('drizzle:Columns')` so `contract-gen` needs no ORM dependency, reading zod bounds via the **public** `z.toJSONSchema`, and **exhaustive over bounded columns** with `stale-account`/`duplicate-account` findings in the other direction), so the ruling records shipped code rather than a plan. 17-e lists the fourteen things a feature spec must state and marks which are mechanically checkable; **17-e.12 (client work as its own deliverable, with tasks)** is recorded as the portfolio's most common violation — measured 2026-08-12, **not one of the fourteen `tasks.md` files contained a schema-package, `CONTRACT_HASH` or receipt-validation task** while nine plans stated the obligation in prose. **GR-018** — one rejection path per ingress with the cause in a `reason`, signature failure and shape failure equally invalid, an invalid payload **never retried**, and ⚠️ for a signature-verifying third-party sender (svix, Stripe) that means answering **`2xx`** because any non-2xx triggers vendor retries; a rejected event is **not recorded as a row** (an invalid payload has no trustworthy id, and `webhook_events.identity_id` is `text NOT NULL`). **GR-019** — no sentinel identifiers (`'unknown'`, `''`, `0`) anywhere an id is stored, wired, keyed, dimensioned or branched; an id is REQUIRED except on create/upsert, where it is generated. **GR-020** — where a request carries both a transport-asserted and a payload-asserted principal, both are required, the transport signal resolves through a version-controlled registry, the mapping is injective and asserted at boot, and a mismatch is a **rejection**. GR-015's Current State refreshed against the tree (three schema packages **and** `openapi.yaml` now exist; food still has **zero** validation sites); GR-016's re-measured. Reasoning: ADR-0014, ADR-0015, and the new **ADR-0016** (014's retention/dedup/Valkey) and **ADR-0017** (service ownership for 006/007/009/010 — no new deployable). |
+| 3.2.0   | 2026-08-12 | Repository owner                                | **GR-016 added** (MINOR — new rule): Input Validation at Every Boundary. Every input is parsed at the boundary against the service's own authored zod (the GR-015 zod), through **one** mechanism per service with **one** `400` path — measured state was three mechanisms across three services and `@kitchensink/food-service` with **no pipe at all** (`@Body() body: unknown` + per-method `safeParse`, so a bad type, a missing field and an unknown key all report `{ error: 'Empty name' }`). Extends the obligation to the surfaces a pipe never sees — **queue/event consumers and webhooks**, where a svix signature proves **origin, not shape** — and to the service-to-service edges (recipe → food; identity's erasure fan-out → recipe/food `POST /api/v1/internal/account/erasure`): outbound validated before send, inbound validated on receipt. Makes **the database schema the validation FLOOR** (grounded in five int-backed recipe fields with no upper bound writing `int4`, so `servings: 9999999999` was a **500 that owed a 400**) while stating that the floor is an **assertion, never a derivation** — no zod generated from drizzle, no wire type importing a storage type, GR-015 §15-a.5 unchanged. Records the two invisible hazards (`createZodDto` under Nest's own `ValidationPipe` validates nothing while looking wired — it already bit identity's `PATCH /users/me`; `z.object` strips unknown keys where `z.strictObject` rejects) and forbids a request-derived value reaching `sql.raw()`. **Response validation is explicitly DEFERRED** by owner decision and must not be "completed". Normative source `docs/CODING_STANDARDS.md` §15.4; reasoning and rejected alternatives in ADR-0015. Two OPEN items recorded unresolved (GR-016-A floor enforcement mechanism, GR-016-B `strictObject` default).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 3.1.0   | 2026-08-11 | Repository owner                                | **GR-015 added** (MINOR — new rule): API Contract Ownership. The service authors its wire contract in zod at `src/**/*.schema.ts`, validates its own requests with it, and generates a committed `packages/schemas/<service>` package that clients import; `openapi.yaml` is derived and outbound-only, never a codegen input. **The client half (15-b) is separately mandatory** — a client declares no wire types and derives divergent consumer shapes with `Pick`/`Omit`/`Partial` — because mandating only the service side is how the client half got skipped. Records the three drift gates (15-c) and, prominently, the third-party exception (15-d): USDA/Clerk/Vercel/Stripe/OCR/LLM clients validate the raw upstream shape at the boundary and MAY declare their own types, so "converging" them deletes a security boundary. Normative source is `docs/CODING_STANDARDS.md` §15; reasoning and rejected alternatives in ADR-0014.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 1.0.0   | 2026-05-10 | Senior Product Owner (cross-feature governance) | Initial ratification. Converts all CRITICAL and WARNING findings from `cross-feature-consistency-report.md` into enforceable rules with acceptance criteria. Corrects all release audit reports to BLOCKED status. Establishes release readiness gate (GR-001) as the primary blocker for engineering handoff.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 3.0.0   | 2026-08-02 | Repository owner                                | **GR-014 amended** (MAJOR — incompatible redefinition): recipe visibility declared **binary** (`private` \| `public`); the missing `public` scope added, and `public-profile` demoted to a surfacing concern rather than a third visibility state; `circle` clarified as read-only; `price_cents` removed from the audience shape and restricted to `published-lesson`; ingestion-provenance and attribution criteria added (AC-014-d/e/f). Withdraws the premium-recipe and paid-follow model portfolio-wide. `cross-feature-consistency-report.md` S-004 amended to match.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 2.0.0   | 2026-08-02 | Repository owner                                | **GR-009 amended** (MAJOR — incompatible redefinition): the `@kitchensink/{group}-{name}` pattern was ratified when no packages existed and none of the 26 shipped packages follow it. Restated to the two scopes actually in use, `@kitchensink/{name}` and `@commise/{name}`, with role suffixes (`-service`, `-workers`, `-service-client`) replacing group prefixes. Superseded pattern preserved in-section. **GR-002/GR-003/GR-007 Current State** refreshed against shipped `main`; GR-002 confirmed portfolio-wide with no exceptions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |

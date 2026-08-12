@@ -1,38 +1,30 @@
 /**
- * CloudWatch Embedded Metric Format (EMF) emitter for the food service (T-181; extended to the API by
- * T-199b for the SC-004/SC-005 local-store serve rate). The emitter
- * writes a single EMF JSON line to stdout per metric; CloudWatch auto-extracts the metric from the
- * Fargate log group with NO extra IAM (no `cloudwatch:PutMetricData` call, no SDK).
+ * CloudWatch Embedded Metric Format (EMF) emitter for the food service (T-181; extended to the API by T-199b
+ * for the SC-004/SC-005 local-store serve rate). One EMF JSON line per metric to stdout; CloudWatch
+ * auto-extracts it from the Fargate log group with NO extra IAM (no `cloudwatch:PutMetricData` call, no SDK).
  *
- * ⚠️ {@link FOOD_METRIC} IS NOT THE ONLY COPY, whatever the previous version of this comment said. It
- * claimed to be "the single source of truth for the worker emission AND the CDK dashboard + alarms —
- * keep both sides referencing {@link FOOD_METRIC}", and `infra/lib/food-service-stack.ts` claimed in
- * turn that "a CDK test cross-checks these against the exported source constants so the two cannot
- * drift". Neither is true. There are THREE independent declarations — here, in the stack, and in
- * `infra/__tests__/food-service-stack.test.ts` — none importing another, because the infra tsconfig's
- * `rootDir` forbids reaching across the `src`↔`infra` boundary (TS6059). No test compares this block
- * to either of the others.
+ * ⚠️ {@link FOOD_METRIC} IS NOT THE ONLY COPY. There are THREE independent declarations — here, in
+ * `infra/lib/food-service-stack.ts`, and in `infra/__tests__/food-service-stack.test.ts` — none importing
+ * another, because the infra tsconfig's `rootDir` forbids reaching across the `src`↔`infra` boundary (TS6059),
+ * and NO test compares this block to either of the others. Do not add a claim that one does.
  *
  * What DOES protect the contract is `packages/infra/global/__tests__/service-infra-wiring-invariants.test.ts`
  * W3, repo-wide: an alarm on a custom metric must watch a name that appears as a string literal in the
- * service's runtime sources. Rename one here and the alarm watching the old name reds. It is coarse but
- * unfakeable, and it is the guard to keep working — do not restore a claim about a local cross-check.
+ * service's runtime sources. Rename one here and the alarm watching the old name reds. Coarse but unfakeable,
+ * and it is the guard to keep working.
  *
  * @implements SC-002 SC-006 US-10
  */
 
-/** CloudWatch namespace every food worker metric is published under. */
 export const FOOD_METRIC_NAMESPACE = 'Commise/Food';
 
 /**
- * Canonical EMF metric names (the worker ↔ dashboard/alarm contract). The CDK re-declares these exact
- * literals for its dashboard widgets and the food-specific alarms (see the module docstring for why, and
- * for what actually stops the two drifting).
+ * Canonical EMF metric names (the worker ↔ dashboard/alarm contract). The CDK re-declares these exact literals
+ * for its dashboard widgets and alarms — see the module docstring for why, and for what stops them drifting.
  *
- * ⛔ TWO OF THESE ARE DECLARED BUT EMITTED BY NOTHING — `sourceApiSuccessRate` and `auth401Rate`. Named
- * constants and a test that restated them made an unimplemented requirement look finished; `__tests__/
- * emf-metrics.test.ts` now measures the emitted set instead and pins the gap, with the spec references.
- * A constant here is a NAME, not an implementation.
+ * ⛔ TWO OF THESE ARE DECLARED BUT EMITTED BY NOTHING — `sourceApiSuccessRate` and `auth401Rate`. A constant
+ * here is a NAME, not an implementation: `__tests__/emf-metrics.test.ts` measures the emitted set and pins the
+ * gap, with the spec references.
  */
 export const FOOD_METRIC = {
     /** Pending `fetch_queue` depth (FR-046 backpressure alarm at > 10,000). */
@@ -65,27 +57,23 @@ export type MetricUnit = 'Count' | 'Seconds' | 'Milliseconds' | 'Percent' | 'Non
 /**
  * The facets a food metric may be grouped BY — a CLOSED set, and that is the point.
  *
- * ⚠️ THIS USED TO BE `Record<string, string>`, i.e. an arbitrary dimension bag, and an arbitrary dimension bag
- * is a cost bomb with the safety catch off. In CloudWatch EMF every distinct combination of dimension VALUES is
- * a separately billed custom metric (~$0.30/month, 15-month retention), so one `dimensions: { userId }` turns
- * this namespace into one billed series per user — the defect `identity-webhooks` shipped at eight call sites
- * (`06107d97`: ≈ $3,000/month at 10k users, for series that each hold one datapoint and aggregate to nothing
- * chartable). Food was clean only by habit; nothing in the type stopped the next contributor.
- *
- * Naming the facets makes that unrepresentable rather than merely discouraged: `dimensions: { userId }` no
- * longer compiles. The repo-wide AST gate
- * (`packages/infra/global/__tests__/emf-identifier-dimension-repo-gate.test.ts`) is the second line — it holds
- * the same rule for every service, including the ones whose emitters cannot be closed this cheaply, and its
- * docstring carries the full arithmetic plus the PRIVACY reason an identifier does not belong in an unbilled
- * EMF property either.
+ * ⚠️ An arbitrary dimension bag (`Record<string, string>`, which this used to be) is a cost bomb: in EMF every
+ * distinct combination of dimension VALUES is a separately billed custom metric (~$0.30/month, 15-month
+ * retention), so one `dimensions: { userId }` turns this namespace into one billed series per user — the defect
+ * `identity-webhooks` shipped at eight call sites (`06107d97`: ≈ $3,000/month at 10k users, for series that each
+ * hold one datapoint and aggregate to nothing chartable). Naming the facets makes that not compile rather than
+ * merely discouraged; the repo-wide AST gate
+ * (`packages/infra/global/__tests__/emf-identifier-dimension-repo-gate.test.ts`) is the second line for every
+ * service, and its docstring carries the full arithmetic plus the PRIVACY reason an identifier does not belong
+ * in an unbilled EMF property either.
  *
  * ⛔ Widening this union is a deliberate decision, not a formality. A new facet multiplies the billed series
  * count by its own cardinality, so state the bound; and if the emitter starts attaching it UNCONDITIONALLY,
  * `service-infra-wiring-invariants.test.ts`'s W4 will require every `Commise/Food` alarm to select it, because
  * EMF publishes only the dimension sets the directive lists — there is no dimensionless rollup to fall back on.
  *
- * `source` qualifies because its value space is the registered source adapters (`usda`, …), which is bounded by
- * code rather than by traffic.
+ * `source` qualifies because its value space is the registered source adapters (`usda`, …), bounded by code
+ * rather than by traffic.
  */
 export type FoodMetricDimension = 'source';
 
@@ -99,9 +87,7 @@ export type FoodMetricDimensions = Readonly<Partial<Record<FoodMetricDimension, 
 export interface MetricDatum {
     /** The metric name (use a {@link FOOD_METRIC} value). */
     readonly name: string;
-    /** The metric value. */
     readonly value: number;
-    /** The CloudWatch unit. */
     readonly unit: MetricUnit;
 }
 
@@ -119,11 +105,9 @@ export interface EmfInput {
 
 /** The CloudWatch metric-directive block embedded under `_aws`. */
 export interface EmfMetricDirective {
-    /** CloudWatch namespace. */
     readonly Namespace: string;
     /** Dimension sets — a single set of the provided dimension keys (`[[]]` when none). */
     readonly Dimensions: readonly (readonly string[])[];
-    /** The metric definitions (name + unit). */
     readonly Metrics: ReadonlyArray<{ readonly Name: string; readonly Unit: MetricUnit }>;
 }
 
@@ -141,13 +125,13 @@ export interface EmfPayload {
 }
 
 /**
- * Build a CloudWatch EMF record from a set of metrics + optional dimensions. Pure given its
- * `timestamp` (defaults to `Date.now()`, the only impurity).
+ * Build a CloudWatch EMF record from a set of metrics + optional dimensions. Pure given its `timestamp`
+ * (defaults to `Date.now()`, the only impurity).
  *
- * A facet present with an `undefined` value is DROPPED rather than declared. `JSON.stringify` omits an
+ * A facet present with an `undefined` value is DROPPED rather than declared: `JSON.stringify` omits an
  * `undefined` field, so declaring the key anyway would ship a directive naming a dimension the line does not
- * carry — which CloudWatch rejects, discarding the whole record. Losing a metric silently is the worst failure
- * an emitter can have, since its entire job is to make a problem visible.
+ * carry, which CloudWatch rejects — discarding the whole record. Silently losing a metric is the worst failure
+ * an emitter can have.
  *
  * @param input - The metrics, optional dimensions, namespace, and timestamp.
  * @returns The serializable EMF payload.
@@ -185,10 +169,9 @@ export function buildEmf(input: EmfInput): EmfPayload {
 }
 
 /**
- * The default line sink: stdout via `console.log`, resolved on EVERY call rather than captured once.
- * The late binding is deliberate — a default of `console.log` itself freezes the reference at definition
- * time, which would bypass any `console` interception installed later in the process (the Sentry log
- * forwarder, a test spy). Same observable behaviour, one fewer footgun.
+ * The default line sink: stdout via `console.log`, resolved on EVERY call rather than captured once. The late
+ * binding is deliberate — a default of `console.log` itself freezes the reference at definition time, which
+ * would bypass any `console` interception installed later in the process (the Sentry log forwarder, a test spy).
  *
  * @param line - The line to write.
  * @sideEffect Writes one line to stdout.
@@ -291,16 +274,14 @@ export class FoodMetrics {
     }
 
     /**
-     * Record ONE local-store read outcome for the serve-rate metric (SC-004/SC-005): `100` when the read
-     * was answered from the local store with no source call, `0` when it was not.
+     * Record ONE local-store read outcome for the serve-rate metric (SC-004/SC-005): `100` when the local store
+     * answered the read with no source call, `0` when it did not.
      *
-     * Emitted as a per-request OBSERVATION rather than a pre-computed ratio. SC-004 is defined over a
-     * rolling 24-hour window that no single API task can see, and a horizontally scaled service would
-     * otherwise publish one private ratio per task — so CloudWatch does the aggregation: `Average` over any
-     * period IS the serve-rate percentage (the SC-004 bar reads directly as `> 80`), `SampleCount` is the
-     * total reads, and `Sum / 100` is the served-read count SC-005 is written in. `Percent` with a 100/0
-     * value keeps the unit honest for that `Average`, which a `Count` of 1/0 would not (its average is a
-     * fraction, and its `Sum` would be a count wearing a name that ends in `-rate`).
+     * A per-request OBSERVATION rather than a pre-computed ratio: SC-004 spans a rolling 24-hour window no
+     * single API task can see, so CloudWatch does the aggregation — `Average` over any period IS the serve-rate
+     * percentage (the SC-004 bar reads directly as `> 80`), `SampleCount` is total reads, and `Sum / 100` is the
+     * served-read count SC-005 is written in. `Percent` with a 100/0 value keeps that `Average` honest; a
+     * `Count` of 1/0 would not — its average is a fraction and its `Sum` a count named `-rate`.
      *
      * @param served - Whether the local store answered the read (no source call).
      * @sideEffect Emits one EMF line.

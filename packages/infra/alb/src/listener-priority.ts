@@ -1,61 +1,39 @@
 /**
- * THE allocation authority for shared-ALB listener-rule priorities (ADR-0003). One module, one registry,
- * one resolver — every service stack imports; none restates.
+ * THE allocation authority for shared-ALB listener-rule priorities (ADR-0003). One module, one registry, one
+ * resolver — every service stack imports; none restates.
  *
- * ## The namespace, and why it needs an owner
- *
- * Each stage has exactly ONE internet-facing ALB, and every service attaches a host-based
- * `ApplicationListenerRule` to its single HTTPS listener. A listener cannot hold two rules at the same
- * priority, so priority is a namespace SHARED across independently-deployed CloudFormation stacks — and
- * nothing in AWS or CDK arbitrates it. A collision surfaces only at deploy, as
- * `Priority 'N' is currently in use`, which does not name the other claimant.
- *
- * That namespace was previously allocated by a copy-pasted pair of constants plus a resolver in EACH service
- * stack, and it drifted exactly as duplicated knowledge does: recipe's resolver docstring described food's
- * bands, so following the prose put `recipe-pr-{N}` on `food-pr-{N}`'s priority. Five services would have
- * meant five copies. The knowledge "which priority does this service+stage get" has one reason to change, so
- * it gets one representation, here.
+ * It needs an owner because priority is a namespace SHARED across independently-deployed CloudFormation
+ * stacks and nothing in AWS or CDK arbitrates it: a listener cannot hold two rules at one priority, and a
+ * collision surfaces only at deploy, as `Priority 'N' is currently in use`, which does not name the other
+ * claimant. Allocating it per stack drifted exactly as duplicated knowledge does — recipe's resolver docstring
+ * described food's bands, so following the prose put `recipe-pr-{N}` on `food-pr-{N}`'s priority.
  *
  * ## The geometry
  *
- * AWS admits priorities **1–50000** (`ALB_MAX_LISTENER_PRIORITY`; verified against AWS's listener-rule
- * documentation). ⚠️ `aws-cdk-lib` validates only `priority >= 1` — the CEILING is NOT checked at synth — so
- * an overflow would otherwise reach CloudFormation. This module range-checks its own output instead.
+ * AWS admits priorities 1–50000, and ⚠️ CDK does NOT check the ceiling at synth — see
+ * {@link ALB_MAX_LISTENER_PRIORITY}. This module range-checks its own output instead. The range is
+ * partitioned into three adjacent spans, then each ephemeral span into one fixed-width BAND per reserved
+ * service slot:
  *
- * The range is partitioned into three adjacent spans, then each ephemeral span into one fixed-width BAND per
- * reserved service slot:
+ * | Span    | Range       | Allocated by                   | Per slot         |
+ * | ------- | ----------- | ------------------------------ | ---------------- |
+ * | base    | 1 – 999     | {@link BASE_LISTENER_PRIORITY} | one fixed number |
+ * | named   | 1000 – 1999 | registry index                 | 125 (`pr`-free)  |
+ * | per-PR  | 2000 – 49999| PR number                      | 6000             |
  *
- * | Span     | Range         | Allocated by                     | Per slot            |
- * | -------- | ------------- | -------------------------------- | ------------------- |
- * | base     | 1 – 999       | {@link BASE_LISTENER_PRIORITY}    | one fixed number    |
- * | named    | 1000 – 1999   | registry index                   | 125 (`pr`-free)     |
- * | per-PR   | 2000 – 49999  | PR number                        | 6000                |
- *
- * With {@link EPHEMERAL_SERVICE_SLOTS} = 8 the per-PR bands are 2000–7999, 8000–13999, 14000–19999, …,
- * 44000–49999 — so the 5-service near-term roster tops out at 31999 and the full 8-service roster lands
- * exactly on 49999. Slots 3–7 are unclaimed today; a new service appends itself to
+ * With {@link EPHEMERAL_SERVICE_SLOTS} = 8 the per-PR bands are 2000–7999, 8000–13999, …, 44000–49999, so the
+ * full roster lands exactly on 49999. Slots 3–7 are unclaimed; a new service appends itself to
  * {@link EPHEMERAL_SLOT_ORDER} and takes the next one, RENUMBERING NOTHING.
  *
- * ## Why bands rather than interleaving by stride
+ * ⛔ BANDS, not a stride scheme (`floor + N * stride + slot`), which holds identical capacity but fails
+ * silently: at `slot === stride` it ALIASES onto slot 0 of the next PR — a live priority belonging to another
+ * service. A band's ninth slot instead computes past 49999, out of range and therefore detectable absolutely,
+ * which is what {@link assertWithinAlbRange} does at synth. Bands also make a failed deploy's opaque number
+ * decodable by range (8073 → food's band → `food-pr-73`).
  *
- * A stride scheme (`floor + N * stride + slot`) holds the same total capacity — it is the arithmetic dual —
- * but its overflow behaviour is worse. At `slot === stride` a stride scheme SILENTLY ALIASES onto slot 0 of
- * the next PR (`floor + N*8 + 8 === floor + (N+1)*8 + 0`), i.e. a real, live priority belonging to another
- * service. The band scheme's ninth slot instead computes past 49999, which is out of range and therefore
- * *detectable absolutely* — which is what {@link assertWithinAlbRange} does, at synth. Bands also make a
- * failed deploy's opaque number decodable by range (8073 → food's band → `food-pr-73`) instead of by modular
- * arithmetic. Capacity is marginally better too: a 6000-wide band admits PRs up to 5999, where stride-8 over
- * the same span admits ~4875.
- *
- * ## The ceilings, stated honestly
- *
- * - **PR number < 6000.** At PR ~91 that is ~65× headroom, and it is a REDUCTION from the old 10000-wide
- *   band — the price of fitting more than two feature services at all. Past it, allocation THROWS; it never
- *   wraps, because a wrap is a silent collision. Raising it later means narrowing a band and renumbering the
- *   ephemeral bands — cheap, because per-PR rules are destroyed and recreated with their PR, and base
- *   priorities do not move.
- * - **8 services.** A 9th needs the geometry re-cut (fewer PRs per band, or a second listener). It fails at
- *   synth, loudly, rather than colliding.
+ * Two ceilings, stated honestly: a PR number must be < 6000 (~65× headroom at PR ~91), past which allocation
+ * THROWS rather than wraps, because a wrap is a silent collision; and 8 services, a 9th needing the geometry
+ * re-cut. Both fail at synth, loudly.
  *
  * @module
  */
@@ -66,9 +44,9 @@ export const ALB_MIN_LISTENER_PRIORITY = 1;
 /**
  * The highest priority an ALB listener rule may carry.
  *
- * AWS's documented range is 1–50000. `aws-cdk-lib`'s `ApplicationListenerRule` rejects `priority <= 0` and
- * says nothing about the upper bound, so exceeding this is a DEPLOY-time failure unless we catch it — see
- * {@link assertWithinAlbRange}.
+ * ⚠️ AWS documents 1–50000, but `aws-cdk-lib`'s `ApplicationListenerRule` validates only `priority >= 1` and
+ * says nothing about the upper bound — so exceeding this is a DEPLOY-time failure unless we catch it, which
+ * is what {@link assertWithinAlbRange} exists for.
  */
 export const ALB_MAX_LISTENER_PRIORITY = 50_000;
 
@@ -90,8 +68,7 @@ export const PER_PR_SPAN_CEILING = ALB_MAX_LISTENER_PRIORITY - 1;
 /**
  * How many services the ephemeral geometry reserves a band for.
  *
- * Sized for the near-term roster of five (identity + four feature services) with room to double it. Every
- * slot is reserved whether or not a service claims it, which is the point: services 4–8 arrive without
+ * Every slot is reserved whether or not a service claims it — that is the point: services 4–8 arrive without
  * renumbering anything already deployed.
  */
 export const EPHEMERAL_SERVICE_SLOTS = 8;
@@ -144,16 +121,15 @@ export const BASE_LISTENER_PRIORITY: Readonly<Record<SharedListenerService, numb
 /**
  * Every named (non-`pr-{N}`, non-base) stage that may be synthesized, in slot order.
  *
- * ⛔ THIS IS A REGISTRY, NOT A HASH, AND THAT IS THE POINT. The previous scheme hashed the stage string into
- * a band and documented its own residual: "two *distinct, concurrently deployed* named stages could still
- * collide". A hash collision cannot be detected at synth — each stack synthesizes alone and cannot know what
- * other stages exist — so it could only ever surface as an opaque `Priority 'N' is currently in use` at
- * deploy. An index into this list makes the collision IMPOSSIBLE instead of unlikely.
+ * ⛔ A REGISTRY, NOT A HASH, and that is the point: a hash collision cannot be detected at synth — each stack
+ * synthesizes alone and cannot know what other stages exist — so it could only surface as an opaque
+ * `Priority 'N' is currently in use` at deploy. An index into this list makes collision IMPOSSIBLE rather
+ * than unlikely. Accepted cost: a new named stage is a one-line edit here, and an unregistered name fails at
+ * synth saying so.
  *
- * The accepted cost: a genuinely new named stage is a one-line edit here, and an unregistered name fails at
- * synth with a message that says so. `dev` is load-bearing — it is the `?? 'dev'` fallback every service's
- * `infra/bin/app.ts` uses when no `STAGE` is given, so a bare local `cdk synth` lands on it. `test` and
- * `local` are the other non-deployed sentinels this repo already recognises.
+ * `dev` is load-bearing — the `?? 'dev'` fallback every service's `infra/bin/app.ts` uses when no `STAGE` is
+ * given, so a bare local `cdk synth` lands on it. `test` and `local` are this repo's other non-deployed
+ * sentinels.
  */
 export const NAMED_EPHEMERAL_STAGES = ['dev', 'test', 'local'] as const;
 

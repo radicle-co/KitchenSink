@@ -5,7 +5,7 @@
  * insert. The worker (Phase 3) consults {@link RollingWindowLimiter.isPaused} BEFORE a fetch (soft 90%
  * pause = headroom for reads/resolves), {@link RollingWindowLimiter.tryRecord} to atomically charge the
  * window at fetch time (hard cap), and {@link RollingWindowLimiter.markWindowFull} on a source `429`
- * (failsafe back-off). Per-source: each wired source gets its own window + caps.
+ * (failsafe back-off).
  *
  * @implements FR-019 FR-020 FR-021 FR-026
  */
@@ -25,21 +25,24 @@ export interface SourceCap {
 }
 
 /**
- * Build per-source caps from the source-agnostic env (`FOOD_SOURCE_RATE_LIMIT_PER_HOUR`, default 1,000 —
- * defined once in `config/env.schema.ts`); the pause threshold is 90% of the hard cap (FR-019). This is the
- * limiter's own default, so EVERY process that constructs one honors the configured cap: the API, the
- * fan-out worker (which is what consults `isPaused`), and the change-refresh task all charge the SAME
- * external quota, and a preview can lower the cap to exercise the pause without 900+ real USDA calls.
+ * Build per-source caps from the source-agnostic env (`FOOD_SOURCE_RATE_LIMIT_PER_HOUR`, default 1,000 — defined
+ * once in `config/env.schema.ts`); the pause threshold is 90% of the hard cap (FR-019).
+ *
+ * ⚠️ This is the LIMITER'S OWN default, resolved here rather than at each composition root, so every process
+ * that constructs one honors the configured cap — the API, the fan-out worker (which is what consults
+ * `isPaused`) and the change-refresh task all charge the SAME external quota. A caller who forgot to pass it
+ * would silently fall back to a built-in cap, which is how the change-refresh task spent its life charging
+ * USDA's shared quota at 1,000/hr while the operator had lowered the setting for the whole stage. It also lets a
+ * preview lower the cap to exercise the pause without 900+ real USDA calls.
  *
  * @returns The per-source hard cap + 90% pause threshold.
  * @throws {Error} when `FOOD_SOURCE_RATE_LIMIT_PER_HOUR` is not a positive integer.
  * @sideEffect Reads `process.env`.
  */
 export function sourceCapsFromEnv(): Record<FoodSourceId, SourceCap> {
-    // The ONE validated reader: the cap's default and its positive-integer rule live only in
-    // `config/env.schema.ts`, and a malformed value throws (naming the variable) instead of coercing to
-    // `NaN` — which would silently break pause AND admission, because every comparison against `NaN` is
-    // `false`, so the limiter would never pause and never consider the window full.
+    // A malformed value throws (naming the variable) instead of coercing to `NaN`, which would silently break
+    // pause AND admission: every comparison against `NaN` is `false`, so the limiter would never pause and never
+    // consider the window full.
     const hardCap = settingFromEnv('FOOD_SOURCE_RATE_LIMIT_PER_HOUR');
 
     return { usda: { hardCap, pauseThreshold: Math.floor(hardCap * PAUSE_FRACTION) } };
@@ -48,16 +51,10 @@ export function sourceCapsFromEnv(): Record<FoodSourceId, SourceCap> {
 /** Default 429-failsafe back-off (ms) the window is treated as full for after a source `429`. */
 const DEFAULT_BACKOFF_MS = 60_000;
 
-/** Options for {@link RollingWindowLimiter}. */
 export interface RollingWindowLimiterOptions {
     /**
-     * Override per-source caps (e.g. small caps for tests); merged over the CONFIGURED caps
-     * ({@link sourceCapsFromEnv}).
-     *
-     * The configured value is the default resolved HERE rather than at each composition root on purpose: a
-     * caller who forgets to pass it would silently fall back to a built-in cap, which is exactly how the
-     * change-refresh task spent its life charging USDA's shared quota at 1,000/hr while the operator had
-     * lowered `FOOD_SOURCE_RATE_LIMIT_PER_HOUR` for the whole stage.
+     * Override per-source caps (e.g. small caps for tests); merged over the CONFIGURED caps — see
+     * {@link sourceCapsFromEnv} for why those are the default.
      */
     readonly caps?: Partial<Record<FoodSourceId, SourceCap>>;
     /** 429-failsafe back-off in ms; defaults to {@link DEFAULT_BACKOFF_MS}. */
@@ -87,10 +84,9 @@ export class RollingWindowLimiter {
     }
 
     /**
-     * Atomically charge the window for `source` iff its trailing count is strictly under the hard cap
-     * (and the 429 failsafe is not active). Records nothing when the window is full.
+     * Atomically charge the window for `source` iff its trailing count is strictly under the hard cap (and the
+     * 429 failsafe is not active). Records nothing when the window is full.
      *
-     * @param source - The source to charge.
      * @returns Whether the call was recorded, plus the post-attempt trailing count.
      * @sideEffect Inserts into `source_call_log` via the DAO when allowed.
      */
@@ -103,22 +99,14 @@ export class RollingWindowLimiter {
         return this.dao.checkAndRecord({ source, cap: this.capFor(source).hardCap });
     }
 
-    /**
-     * The trailing-60-minute call count for a source.
-     *
-     * @param source - The source.
-     * @returns The windowed count.
-     * @sideEffect Reads `source_call_log` via the DAO.
-     */
+    /** The trailing-60-minute call count for a source. @sideEffect Reads `source_call_log` via the DAO. */
     public async count(source: FoodSourceId): Promise<number> {
         return this.dao.countInWindow(source);
     }
 
     /**
-     * The sources this limiter has caps configured for (the wired sources). Used by the admin
+     * The sources this limiter has caps configured for (the wired sources) — read by the admin
      * operational-metrics endpoint to report per-source window utilization (FR-039/US-10).
-     *
-     * @returns The configured source ids.
      */
     public knownSources(): FoodSourceId[] {
         return Object.keys(this.caps) as FoodSourceId[];
@@ -127,8 +115,6 @@ export class RollingWindowLimiter {
     /**
      * A source's configured caps (hard ceiling + 90% pause threshold).
      *
-     * @param source - The source.
-     * @returns The source's caps.
      * @throws {Error} when no caps are configured for the source.
      */
     public capsFor(source: FoodSourceId): SourceCap {
@@ -136,11 +122,9 @@ export class RollingWindowLimiter {
     }
 
     /**
-     * Whether draining `source` should pause — true once the trailing count reaches the 90% pause
-     * threshold, OR while the 429 failsafe back-off is active.
+     * Whether draining `source` should pause — true once the trailing count reaches the 90% pause threshold, OR
+     * while the 429 failsafe back-off is active.
      *
-     * @param source - The source.
-     * @returns `true` when the worker should pause draining this source.
      * @sideEffect Reads `source_call_log` via the DAO (unless short-circuited by the active failsafe).
      */
     public async isPaused(source: FoodSourceId): Promise<boolean> {
@@ -152,10 +136,9 @@ export class RollingWindowLimiter {
     }
 
     /**
-     * 429 failsafe: treat the source's window as full for the back-off interval so the worker backs off
-     * draining it, regardless of the recorded count (FR-026).
+     * 429 failsafe: treat the window of a source that returned `429` as full for the back-off interval, so the
+     * worker backs off draining it regardless of the recorded count (FR-026).
      *
-     * @param source - The source that returned `429`.
      * @sideEffect Mutates the in-process `windowFullUntil` map.
      */
     public markWindowFull(source: FoodSourceId): void {
@@ -165,7 +148,6 @@ export class RollingWindowLimiter {
     /**
      * Prune call rows older than the trailing window so the ledger stays bounded (FR-020).
      *
-     * @param source - The source whose aged rows to drop.
      * @returns The number of pruned rows.
      * @sideEffect Deletes from `source_call_log` via the DAO.
      */
@@ -173,12 +155,7 @@ export class RollingWindowLimiter {
         return this.dao.pruneAged(source);
     }
 
-    /**
-     * Whether the 429 failsafe back-off is currently active for a source.
-     *
-     * @param source - The source.
-     * @returns `true` while the failsafe back-off has not elapsed.
-     */
+    /** Whether the 429 failsafe back-off is currently active for a source (i.e. has not elapsed). */
     private isWindowFull(source: FoodSourceId): boolean {
         const until = this.windowFullUntil.get(source);
 
@@ -188,8 +165,6 @@ export class RollingWindowLimiter {
     /**
      * Resolve a source's caps.
      *
-     * @param source - The source.
-     * @returns The source's caps.
      * @throws {Error} when no caps are configured for the source.
      */
     private capFor(source: FoodSourceId): SourceCap {

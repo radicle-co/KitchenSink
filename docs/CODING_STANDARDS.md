@@ -4,7 +4,20 @@ Tactical conventions for the KitchenSink monorepo. This document is the authorit
 reference for day-to-day coding decisions. The [Constitution](../.specify/memory/constitution.md)
 defines immutable principles; this document translates them into enforceable rules.
 
-**Version**: 1.6.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-12
+**Version**: 1.7.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-12
+
+> **1.7.0** — **§8 rewritten** to be information-bearing rather than positional, by OWNER RULING 2026-08-12
+> ("don't comment on things that are self explanatory; if a variable isn't self explanatory it needs a good name").
+> "Every exported symbol MUST have a JSDoc block" mandated exactly the noise that ruling forbids — a
+> `/** Max length of a recipe title. */` over `MAX_RECIPE_TITLE_LENGTH = 200` — and floored a constants module at a
+> ~1:1 comment-to-code ratio however much of it was restatement. A block is now required where it carries what the
+> name does not; an exported constant whose name states its meaning takes none; and the ceilings are written down
+> (≤25-line file header, no docstring longer than its body, no historical narration, no near-duplicate comments in
+> one block). Measured driver: 58.9% of the production source lines added by the code-quality PR were comments
+> (12,752 comment / 8,882 code). A `z.infer` alias beside its authoring schema is named as taking no block,
+> because that pairing is how every service-owned contract is written (§15.2) and the schema is the one
+> authoritative description. No gate enforced the old rule — no `eslint-plugin-jsdoc`, no conformance test — so
+> this is prose-for-prose, and a future gate must encode the new shape rather than symbol presence.
 
 > **1.6.0** — **§16 added**: persistent-schema and task-identifier uniqueness. A table name has exactly ONE
 > declarer (across features, between a feature and shipped code, and between two shipped packages — including
@@ -622,8 +635,33 @@ This rule applies to all testing layers: unit tests (Testing Library), E2E tests
 
 ## 8. Documentation
 
-- Every exported symbol MUST have a JSDoc block.
-- Every source file MUST open with a module-level JSDoc summary.
+> **Amended 2026-08-12 (v1.7.0) by OWNER RULING**: _"don't be verbose with the comments and don't comment on things
+> that are self explanatory — i.e. variables should be self explanatory; if they aren't then they need to have good
+> names. Don't have slightly duplicated comments in the same code block."_ The rules below are therefore
+> **information-bearing, not positional**: a comment earns its place by carrying what the code does not say.
+
+- A JSDoc block is REQUIRED wherever it carries what the name does not — specifically on every exported
+  **function, method, class and type**; on every exported **constant whose unit, consequence or provenance is not
+  in its name**; and on anything **deliberate that looks wrong**, any **measured fact with a consequence**, any
+  **stated precondition**, and any **gate whose shape resists a naive simplification**.
+- An exported **constant whose name fully states its meaning takes NO block**. `MAX_RECIPE_TITLE_LENGTH = 200` is
+  complete, and `/** Max length of a recipe title. */` above it is noise. By contrast
+  `MIN_RECIPE_INGREDIENT_QUANTITY` keeps its block, because "a smaller value rounds to `0.000` and then violates
+  `CHECK (quantity > 0)`" is a consequence no name can carry.
+- ⛔ If a name needs a comment to be understood, **rename the identifier** — that is the fix, not prose.
+- A `z.infer` TYPE ALIAS adjacent to the schema that authors it takes NO block of its own. In the
+  service-owned-contract pattern (§15.2) the zod schema is the single authoritative description of the shape;
+  a second block on `export type X = z.infer<typeof xSchema>` two lines below it is the near-duplicate this
+  section forbids, not the type documentation it looks like.
+- Every source file MUST open with a module-level JSDoc summary, **≤ ~25 lines**. Longer rationale is design
+  material: it belongs in an ADR, with at most a one-line pointer from the code.
+- **No docstring longer than the body it documents.** This governs functions and methods; a one-line
+  `export const` cannot meet it, so the constants rule above governs there instead.
+- **No historical narration in code.** Benchmark changelogs, CI run IDs, "this said X until <date>", and
+  self-corrections of an earlier revision of the same comment belong in the ADR, the task record, or the commit
+  message. Git already stores history.
+- **No near-duplicate comments in one block.** Where the same reason is restated two or three ways, keep the
+  clearest and let the rest point at it.
 - Non-trivial functions: `@param`, `@returns`, `@throws` tags required.
 - Impure functions: `@sideEffect` tag required.
 - Inline comments explain _why_, never _what_.

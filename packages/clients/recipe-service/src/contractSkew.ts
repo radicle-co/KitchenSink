@@ -1,69 +1,45 @@
 /**
- * DRIFT LAYER 3 (Skew), CONSUMER HALF — `docs/CODING_STANDARDS.md` §15.2.5.
+ * DRIFT LAYER 3 (Skew), CONSUMER HALF — `docs/CODING_STANDARDS.md` §15.2.5. Holds the `CONTRACT_HASH` this
+ * client bundles from `@kitchensink/schema-recipe` against the `contractHash` the service publishes on
+ * `GET /health`, and reports a difference.
  *
- * The service publishes the wire-contract fingerprint it was built against on `GET /health`
- * (`contractHash`). This module holds it against the fingerprint THIS client was built against — the
- * `CONTRACT_HASH` bundled from `@kitchensink/schema-recipe` — and reports a difference.
+ * ⚠️ A MISMATCH WARNS, IT DOES NOT REFUSE (owner ruling, 2026-08-11). The asymmetry with the fail-closed
+ * SERVICE-side boot check (`recipe-service/src/contract/contract-skew.ts`) is deliberate: that one compares two
+ * stamps baked into ONE image, so refusing costs no availability, whereas this compares two INDEPENDENTLY
+ * DEPLOYED artifacts. THIS client is where a refusal would be worst: it ships inside the released MOBILE
+ * binary — the case §15.2.5 names as the reason drift layer 3 exists — so it could not be rolled back by
+ * redeploying anything, and would take an App Store release to clear with every installed app dark meanwhile.
+ * A diagnostic must never be able to do that. So it is engineered as one:
  *
- * ── THE RULING: A MISMATCH WARNS. IT DOES NOT REFUSE. (owner, 2026-08-11) ──
+ *   1. It never throws, blocks, retries, or alters a response the caller sees — not on mismatch, not on a
+ *      failed probe, not when the supplied `warn` itself throws.
+ *   2. ABSENCE IS SILENCE, never a mismatch: an absent `contractHash` (a service older than publication), a
+ *      malformed one, a non-`200`, or a non-JSON body (the shared ALB's HTML error page, ADR-0003) all mean
+ *      we do not know. Reporting those as skew would make every pre-publication deployment noisy, which is
+ *      how a real warning gets muted.
+ *   3. It warns ONCE per origin per process; log spam gets filtered, which equals having no warning at all.
  *
- * This is the one decision the layer was blocked on, and the asymmetry with the SERVICE-side boot check
- * (`packages/services/recipe-service/src/contract/contract-skew.ts`, which is fail-closed) is deliberate:
+ * `RecipeServiceClient` fires it from its transport funnel (`send`) AFTER a response, never from the
+ * constructor and never from a hook or render path. A client is built wherever the app composes one — a
+ * `<RecipeServiceProvider>` mount on web and mobile, and per-request on any server-rendered path — so probing
+ * in the constructor would make construction a network operation, and on the server a per-request one; the
+ * latch is keyed on ORIGIN at MODULE scope so any construction pattern collapses to one probe per process.
+ * Firing after a response also keeps the one-shot off an origin never reached, and off first paint.
+ * Fire-and-forget, never awaited, so it adds zero latency to a TanStack Query feeding a loading state.
  *
- *   - The boot check compares two stamps baked into ONE artifact. Its outcome is fully determined by the
- *     image, so refusing to start costs no availability — an image that boots once boots always.
- *   - This check compares two INDEPENDENTLY DEPLOYED artifacts. Its inputs change whenever either side ships.
- *     A refusal here would mean every backend deploy briefly bricks every client that had not shipped in
- *     lockstep. THIS client is the one where that is worst: it ships inside the released MOBILE binary — the
- *     exact case §15.2.5 names as the reason drift layer 3 exists — so a refusal could not be rolled back by
- *     redeploying anything. It would take an App Store release to clear, with every installed app dark in the
- *     meantime. A diagnostic must never be able to do that.
+ * ⚠️ Accepted consequence: the latch is claimed on ATTEMPT, so a probe that fails or races a deploy means no
+ * signal for that process's life — re-probing would reintroduce the per-request network call this design
+ * avoids, and the cost is bounded because the process is replaced on the next deploy.
  *
- * So this path is a DIAGNOSTIC, and it is engineered to behave like one:
- *
- *   1. **It never throws, never blocks, never retries, and never alters a response the caller sees.** Not on
- *      mismatch, not on a failed probe, not even when the supplied `warn` callback itself throws.
- *   2. **Absence is silence, not a mismatch.** A service deployed before publication existed serves no
- *      `contractHash` at all. Reporting that as skew would make every pre-publication deployment noisy, which
- *      is how a real warning gets muted. Same for a malformed value, and for a `contractHash` we cannot read
- *      because the probe returned a non-`200` or a non-JSON body (the shared ALB's HTML error page, ADR-0003).
- *      In all of those we do not know, so we say nothing.
- *   3. **It warns ONCE per origin per process.** A per-call warning on a hot path is log spam, and log spam
- *      gets filtered — which is operationally identical to having no warning at all. See
- *      {@link reportContractSkewOnce}.
- *
- * ── WHERE THE COMPARISON FIRES, AND WHY THERE ──
- *
- * `RecipeServiceClient` calls {@link reportContractSkewOnce} from its transport funnel (`send`) AFTER a response
- * has been received — never from its constructor, and never from a hook or a render path:
- *
- *   - **Not on construction.** A client is built wherever the app composes one — a `<RecipeServiceProvider>`
- *     mount on web and mobile, but also per-request on any server-rendered path. Probing in the constructor
- *     would make client construction a network operation, which is both surprising and, on the server, per
- *     request. The latch is keyed on the ORIGIN at module scope so any construction pattern collapses to one
- *     probe per process.
- *   - **After a response, not before it,** so the one-shot is not spent on an origin we never reached. If the
- *     transport is failing there is nothing to learn and no point asking. (This also means the probe never
- *     competes with the app's first paint: by the time it fires, a real request has already come back.)
- *   - **Fire-and-forget, never awaited,** so it adds exactly zero latency to the caller's request — which on
- *     these surfaces is a TanStack Query feeding a loading state.
- *
- * ⚠️ ACCEPTED CONSEQUENCE, recorded rather than hidden: because the latch is claimed on ATTEMPT, a probe that
- * fails (or races a deploy) means no skew signal for the remaining life of that process. That is the right
- * trade — the alternative is re-probing, which reintroduces the per-request network call this design exists to
- * avoid — and the cost is bounded, because the signal is diagnostic and the process is replaced on the next
- * deploy.
- *
- * ⚠️ SECOND COPY, RECORDED RATHER THAN HIDDEN. `packages/clients/recipe-service/src/contract-skew.ts` is the
- * equivalent for the recipe contract, and the three services each carry a copy of the sibling BOOT predicate.
- * The right home for all of it is ONE zero-dependency leaf package. It is not extracted here because this
- * module is bundled into the web app (`next.config.ts` `transpilePackages` is an explicit allowlist) and into
- * the released MOBILE binary via the recipe client, so introducing a new workspace package on this path is a
- * bundler-resolution change that cannot be verified without a real device/bundle build — an unacceptable risk
- * to take in service of a diagnostic. Extracting it belongs in a dedicated change that can prove the bundle.
+ * ⚠️ SECOND COPY, DEFERRED DELIBERATELY — do not "fix" it by extracting one here. `contractSkew.ts` in the
+ * food client is the equivalent, and each of the three services carries a copy of the sibling BOOT predicate.
+ * One zero-dependency leaf package is the right home, but this module is bundled into the web app
+ * (`next.config.ts` `transpilePackages` is an explicit allowlist) and into the released MOBILE binary, so
+ * introducing a workspace package on this path is a bundler-resolution change that cannot be verified without
+ * a real device/bundle build. Extraction belongs in a change that can prove the bundle.
  *
  * DESIGN PATTERN: Specification (a pure verdict predicate) + a fire-and-forget Command with an idempotence
- * latch. The verdict, the message, and the probe are separated so the DECISION is testable without a socket.
+ * latch — verdict, message and probe are separated so the DECISION is testable without a socket.
  */
 import { CONTRACT_HASH, healthStatusSchema } from '@kitchensink/schema-recipe';
 
@@ -74,8 +50,8 @@ const SHA256_HEX = /^[0-9a-f]{64}$/u;
 const HASH_PREVIEW_LENGTH = 12;
 
 /**
- * Upper bound (ms) on the skew probe. It is not the client's request timeout: this is a background diagnostic,
- * so it gets its own short leash and is abandoned rather than allowed to hold a socket open.
+ * Upper bound (ms) on the skew probe — deliberately NOT the client's request timeout: a background diagnostic
+ * gets its own short leash and is abandoned rather than allowed to hold a socket open.
  */
 const PROBE_TIMEOUT_MS = 5_000;
 
@@ -102,11 +78,9 @@ export interface ContractSkewProbeOptions {
 /**
  * Compare a pinned fingerprint against whatever the service served.
  *
- * Pure. Both sides must be a well-formed lower-case 64-hex SHA-256 for the comparison to mean anything: a bare
- * equality test would happily "match" two empty strings or two `undefined`s coerced to a string, and would
- * report a truncated or absent value as a MISMATCH — the exact false positive that would make every
- * pre-publication deployment noisy. Anything unusable on either side is {@link ContractSkewVerdict}
- * `indeterminate`.
+ * Pure. Both sides must be a well-formed lower-case 64-hex SHA-256: a bare equality test would "match" two
+ * empty strings and would report a truncated or absent value as a MISMATCH, the false positive rule 2 above
+ * exists to prevent. Anything unusable on either side is `indeterminate`.
  *
  * @param pinned - The fingerprint this client was built against.
  * @param served - The `contractHash` the service published, or whatever was found in its place.
@@ -127,9 +101,8 @@ export function compareContractHashes(pinned: string, served: unknown): Contract
 /**
  * Build the warning text.
  *
- * Pure. It names BOTH fingerprints and which side each belongs to, states that nothing is blocked, and gives
- * the remedy — a warning a reader cannot act on is noise, and one that reads like an outage sends someone
- * hunting a problem that is not happening.
+ * Pure. Names BOTH fingerprints and whose each is, says nothing is blocked, and gives the remedy: a warning a
+ * reader cannot act on is noise, and one that reads like an outage sends someone hunting a non-problem.
  *
  * @param pinned - The fingerprint this client was built against.
  * @param served - The fingerprint the service published.
@@ -154,11 +127,10 @@ export function formatContractSkewWarning(pinned: string, served: string, health
  * Awaitable, and NOT latched — {@link reportContractSkewOnce} is what production calls. This exists as its own
  * export so the probe's behaviour is testable without racing a fire-and-forget promise.
  *
- * Resolves — never rejects — on every path: a transport failure, a non-`200`, a non-JSON body, an absent or
- * malformed fingerprint, and a `warn` callback that throws all resolve to silence. That total containment is
- * the point: this is a diagnostic, and a diagnostic that can fail a caller is a defect.
+ * Resolves — never rejects — on every path (rule 1): transport failure, non-`200`, non-JSON body, absent or
+ * malformed fingerprint, and a throwing `warn` all resolve to silence.
  *
- * The probe is UNAUTHENTICATED. `/health` is public precisely so a consumer can ask about skew before it holds
+ * The probe is UNAUTHENTICATED: `/health` is public precisely so a consumer can ask about skew before it holds
  * a credential, and a background diagnostic has no business spending the caller's token.
  *
  * @param options - Origin, `fetch`, warning sink, and an optional deadline.
@@ -176,26 +148,15 @@ export async function checkContractSkew(options: ContractSkewProbeOptions): Prom
 
         options.warn(formatContractSkewWarning(CONTRACT_HASH, served as string, healthUrl));
     } catch {
-        // Deliberately total. Every failure mode above — DNS, refused connection, abort, a malformed body, a
-        // throwing `warn` — means "no usable skew signal", and a diagnostic reports that by saying nothing.
+        // Deliberately total (rule 1): every failure above means "no usable skew signal", reported by silence.
     }
 }
 
 /**
- * Origins whose fingerprint has already been probed in this process, keyed by origin + pinned hash.
+ * Origins already probed in this process, keyed by origin + pinned hash (module scope for the reason given
+ * above). The hash is in the key so an entry describes the comparison made, not merely the host asked.
  *
- * ── WHY MODULE SCOPE RATHER THAN PER CLIENT INSTANCE ──
- *
- * Because a `FoodServiceClient` instance is not the right unit. The recipe service's `FoodServiceClients`
- * factory mints one per request — and one PER KEYSTROKE for the typeahead — so a per-instance latch would put
- * a `/health` request on the per-keystroke path. Keying on the origin makes "once" mean once per process,
- * which is what the warning actually wants to be.
- *
- * The pinned hash is part of the key so the entry describes the comparison that was made, not merely the host
- * that was asked. (Within one process `CONTRACT_HASH` is a build-time constant, so this is documentation of
- * intent rather than live variation — but it is what makes the key honest about what has been decided.)
- *
- * Vitest gives each test FILE a fresh module registry, so this state does not leak between test files;
+ * Vitest gives each test FILE a fresh module registry, so this does not leak between files;
  * {@link resetContractSkewLatchForTests} clears it between CASES.
  */
 const probedOrigins = new Set<string>();
@@ -203,9 +164,8 @@ const probedOrigins = new Set<string>();
 /**
  * Clear the once-per-origin latch. **Test seam only** — never call this from production code.
  *
- * Without it, whichever test ran first would consume the latch and every later test in the file would
- * silently observe "no probe", passing for the wrong reason. Mirrors `resetConfigCacheForTests` in
- * `identity-webhooks`.
+ * Without it the first test consumes the latch and every later test in the file silently observes "no probe",
+ * passing for the wrong reason. Mirrors `resetConfigCacheForTests` in `identity-webhooks`.
  *
  * @sideEffect Empties the module-scope probed-origin set.
  */
@@ -216,12 +176,12 @@ export function resetContractSkewLatchForTests(): void {
 /**
  * Run the skew comparison for this origin at most once per process, off the caller's critical path.
  *
- * Synchronous and returns `void` BY DESIGN: there is no promise for a caller to accidentally `await`, so it
- * cannot add latency to a request even by mistake.
+ * Synchronous and returns `void` BY DESIGN: there is no promise a caller could accidentally `await`, so it
+ * cannot add latency even by mistake.
  *
- * The latch is claimed BEFORE the first `await` — that ordering is load-bearing. A burst of concurrent first
- * calls (again: one client per keystroke) would otherwise all pass the membership test before any of them had
- * yielded, and each would fire its own probe.
+ * ⚠️ The latch is claimed BEFORE the first `await`, and that ordering is load-bearing: a burst of concurrent
+ * first calls would otherwise all pass the membership test before any had yielded, and each would fire its
+ * own probe.
  *
  * @param options - Origin, `fetch`, warning sink, and an optional deadline.
  * @sideEffect Records the origin as probed and may issue one unauthenticated `GET {baseUrl}/health`.
@@ -235,13 +195,13 @@ export function reportContractSkewOnce(options: ContractSkewProbeOptions): void 
 
     probedOrigins.add(key);
 
-    // `checkContractSkew` cannot reject, but the `.catch` stays: it is what guarantees no unhandled rejection
-    // can ever escape this line, even if that invariant is broken later. `try` covers a `fetch` double that
-    // throws synchronously.
+    // The `.catch` stays even though `checkContractSkew` cannot reject: it guarantees no unhandled rejection
+    // escapes this line if that invariant is ever broken. `try` covers a `fetch` double that throws
+    // synchronously.
     try {
         void checkContractSkew(options).catch(() => undefined);
     } catch {
-        // Same containment as inside the probe: a diagnostic never propagates.
+        // Containment as above.
     }
 }
 
@@ -277,14 +237,9 @@ async function readPublishedContractHash(
             return undefined;
         }
 
-        // PARSED against the published `healthStatusSchema`, not cast. `.safeParse` (not `.parse`) because a
-        // skew PROBE must never throw or become a second failure mode: an unreachable or degraded origin, or one
-        // answering `/health` with something else entirely (the shared ALB's HTML error page, ADR-0003), simply
-        // yields "no fingerprint available" and the check stays silent — rule 2 of this module's contract.
-        //
-        // The cast this replaces (`body as { contractHash?: unknown }`) asserted the ONE field the whole of
-        // drift layer 3 depends on. Reading it through the service's own published envelope means the probe
-        // that detects contract drift is not itself an unchecked belief about the contract.
+        // PARSED against the published `healthStatusSchema`, never cast: the probe that detects contract drift
+        // must not itself be an unchecked belief about the contract. `.safeParse`, not `.parse`, so anything
+        // unusable yields "no fingerprint" and stays silent (rule 2) instead of becoming a second failure mode.
         const parsed = healthStatusSchema.safeParse(JSON.parse(await response.text()));
 
         return parsed.success ? parsed.data.contractHash : undefined;

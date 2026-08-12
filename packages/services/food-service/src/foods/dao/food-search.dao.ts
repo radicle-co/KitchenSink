@@ -1,105 +1,54 @@
 /**
- * `FoodSearchDao` (T-134/T-180/T-198, MOD-001) — the local-store search read path for
- * `GET /api/v1/foods/search`. It NEVER calls a source — search is local-only (FR-009), a single SQL read
- * with no adapter/registry seam. Only `RESOLVED` foods are surfaced (a served golden record has a golden
- * `name`); in-flight/terminal rows are excluded. Barcode / `external_key` crosswalk lookup is handled by
- * {@link FoodSourcesDao} in the service, not here.
+ * `FoodSearchDao` (T-134/T-180/T-198, MOD-001) — the local-store read path for
+ * `GET /api/v1/foods/search`. It NEVER calls a source: search is local-only (FR-009), one SQL read with no
+ * adapter/registry seam. Only `RESOLVED` foods are surfaced; barcode / `external_key` crosswalk lookup is
+ * `FoodSourcesDao`'s, not this module's.
  *
- * ## Two statements, selected by query LENGTH (T-198) — and one of them changed the semantics
+ * DESIGN PATTERN: Strategy, chosen by the pure, database-free {@link selectSearchStrategy} and dispatched
+ * exhaustively by {@link FoodSearchDao.search} — the exhaustive switch over the union tag IS the Visitor, so
+ * no class hierarchy is added for it. Two statements, selected by query LENGTH (T-198):
  *
- * Search is a **Strategy** chosen by {@link selectSearchStrategy}: a pure, database-free routing decision
- * returning a discriminated union that {@link FoodSearchDao.search} dispatches on exhaustively (the
- * exhaustive switch over the tag IS the Visitor — no polymorphic class hierarchy is added for it).
+ * - **3+ characters → `relevance`** (unchanged): ranked FTS over the stored generated `food.search_vector`
+ *   (`food_search_vector_idx` GIN, `ts_rank`, word-order-independent) OR'd with the `pg_trgm` GIN indexes as
+ *   the fuzzy/substring/typo fallback.
+ * - **1–2 characters → `wordInitialPrefix`** — NEW, and a DELIBERATE SEMANTIC CHANGE: word-initial prefix
+ *   matching over the same vector via `to_tsquery('simple', '<token>:*')`.
  *
- * - **3+ characters → `relevance` (UNCHANGED).** Ranked full-text search (the STORED generated
- *   `food.search_vector` + `food_search_vector_idx` GIN index, `ts_rank` relevance, word-order-independent
- *   lexeme matching) OR'd with the `pg_trgm` GIN indexes (`food_name_trgm_idx` /
- *   `food_description_trgm_idx`) as the fuzzy/substring/typo fallback.
- * - **1–2 characters → `wordInitialPrefix` (NEW, and a DELIBERATE SEMANTIC CHANGE).** Word-initial prefix
- *   matching over the SAME `food_search_vector_idx`, via `to_tsquery('simple', '<token>:*')`.
+ * ⚠️ The short path exists because below 3 characters `relevance` is a GUARANTEED sequential scan — every
+ * branch is dead at that length: `ILIKE '%ch%'` yields no complete trigram so `pg_trgm` has nothing to look
+ * up; `plainto_tsquery('english', 'ch')` is exact-lexeme-after-stemming so it matches nothing; `name % 'ch'`
+ * scores ~0.06 against the 0.3 threshold; and a 1–2 character English STOPWORD stems to an EMPTY tsquery,
+ * making that branch void rather than merely unhelpful. Measured at 50,000 foods: `b` 156.5ms → 13.6ms,
+ * `ch` 134.2ms → 6.2ms against SC-007's 200ms budget, on an index the schema already had.
  *
- * ### Why the short path exists at all (measured, T-195 → T-198)
+ * ⛔ `'simple'` on the QUERY side is deliberate — do not "fix" it to match the stored vector's `english`
+ * config. Prefix matching compares stored lexeme TEXT, so `'ch':*` still matches the english-stemmed
+ * `chicken`; what `simple` buys is that it does not discard stopwords, so `to_tsquery('simple', 'be:*')`
+ * finds `Beef, ground` where the `english` form is EMPTY. Swapping it back re-introduces the stopword hole.
  *
- * Below 3 characters the `relevance` statement is a **guaranteed sequential scan**, because every one of
- * its four branches is dead or unservable at that length:
+ * ⛔ The token is whitelisted to letters and digits in application code before the `:*` marker is appended,
+ * and still travels as a bound parameter, because `to_tsquery` PARSES its argument: a raw `&`, `|`, `!`, `:`,
+ * `(` or `'` raises `syntax error in tsquery` — a 500 on a keystroke. A tsquery-parsing library
+ * (`pg-tsquery` and friends) is the WRONG tool: those exist to give users boolean query SYNTAX, which is
+ * exactly the capability that must not reach `to_tsquery` from a search box.
  *
- *  1. `name ILIKE '%ch%'` / `description ILIKE '%ch%'` cannot use a trigram index — a pattern with fewer
- *     than 3 characters between the wildcards yields no complete trigram, so `pg_trgm` has nothing to
- *     look up and the planner falls back to a full scan.
- *  2. `search_vector @@ plainto_tsquery('english', 'ch')` matches NOTHING: the stored vector holds
- *     stemmed lexemes and `plainto_tsquery` is exact-lexeme-after-stemming, so `ch` never matches
- *     `chicken`. Measured: 0 rows for every 1–2 character query.
- *  3. `name % 'ch'` (trigram similarity) also matches nothing — a 2-character needle against a golden
- *     name scores ~0.06 against the 0.3 `pg_trgm` threshold. (Measured at 0.25 even for `chicken`
- *     against a 45-character name, i.e. this branch contributes nothing at ANY length on realistic
- *     names; that is a separate finding, deliberately NOT changed here.)
- *  4. Worse, a 1–2 character query that is an English **stopword** (`a`, `be`, `it`, `on`, `is`) stems to
- *     an EMPTY tsquery under the `english` config, so branch 2 is not merely unhelpful but void.
+ * Two branches are deliberately NOT removed (measurements and full reasoning in
+ * `specs/003-usda-food-data/tasks.md` T-198/T-202, where the 0004 migration's GIN → GiST trigram index cut
+ * the 3+ path roughly 3× without changing any SQL here — an index cannot change which rows match or their
+ * order):
  *
- * Measured on a 50,000-`RESOLVED`-food store shaped like the deployed one (see the numbers table in
- * `specs/003-usda-food-data/tasks.md` T-198): `b` → **156.5ms** sequential scan, `ch` → **134.2ms**,
- * against SC-007's 200ms p95 budget. After: **13.6ms** and **6.2ms**, on an index the schema already had.
+ *  - **`name % query` stays.** T-198's "contributes nothing at ANY length" was measured with single-WORD
+ *    needles; a multi-word needle clears the 0.3 threshold easily and this branch carries 335 of 364 matched
+ *    rows on its own for the `narrow` shape. Dropping it is a product call, not an optimisation.
+ *  - **`description ILIKE` stays** despite matching 0 rows that `name ILIKE` did not, because that
+ *    redundancy holds only while both ingestion paths set `description := name` — an invariant of the
+ *    WRITERS, not of the schema. The `IS DISTINCT FROM` rewrite is provably equivalent but measured no
+ *    faster.
  *
- * ### Why `'simple'` and not `'english'` (do not "fix" this to match the stored vector's config)
- *
- * The stored `search_vector` is built with `english`, but the QUERY side here MUST use `simple`. Prefix
- * matching compares stored lexeme TEXT, so `'ch':*` still matches the english-stemmed lexeme `chicken`;
- * what `simple` buys is that it does **not** discard stopwords, so `to_tsquery('simple', 'be:*')` is a
- * real query that finds `Beef, ground` while `to_tsquery('english', 'be:*')` is EMPTY and finds nothing.
- * Swapping the config back re-introduces failure mode 4 above for every short stopword query.
- *
- * ### Why the token is whitelisted in application code (never interpolated)
- *
- * `to_tsquery` PARSES its argument, so a raw `&`, `|`, `!`, `:`, `(` or `'` raises
- * `syntax error in tsquery` — a 500 on a keystroke. {@link selectSearchStrategy} therefore reduces the
- * query to letters and digits before appending the `:*` prefix marker, and the value still travels as a
- * bound parameter. A tsquery-parsing library (`pg-tsquery` and friends) is the wrong tool here: those
- * exist to give users boolean query SYNTAX, which is precisely the capability that must NOT reach
- * `to_tsquery` from a search box.
- *
- * ### What the 3+ character statement COSTS, and where that cost lives (T-202, measured)
- *
- * The statement's price is not the ranking and not the number of rows returned — it is the ACCESS PATH the
- * `name % query` branch gets. Measured on the 50,000-food store CI seeds (`EXPLAIN (ANALYZE, BUFFERS)`,
- * warm, best of seven):
- *
- * | part of the statement                                  | cost of a `raw chicken breast` search |
- * | ------------------------------------------------------ | ------------------------------------- |
- * | `name % query` — index scan + rechecking 9,754 rows    | **30.5ms**                            |
- * | `description ILIKE` — index scan + recheck             | 6.1ms                                 |
- * | FTS + `name ILIKE` — index scans + recheck             | 2.4ms                                 |
- * | `ORDER BY score DESC, name ASC` over all 364 matches   | **0.14ms**                            |
- *
- * So "stop ranking rows that cannot reach the `LIMIT 20`" — T-202's recorded candidate — would have bought
- * 0.3% of the statement. What actually cost 66% of it: `food_name_trgm_idx` (GIN) answers `%` by admitting
- * every row sharing `ceil(0.3 x n_query_trigrams)` trigrams, which returned **9,758 candidates for 368 true
- * matches**, and the bitmap heap scan then re-evaluated the predicate — a fresh `similarity()` call, 2.19µs
- * each — on the 9,754 it discarded, touching all 4,250 heap blocks of the table. The 0004 migration adds a
- * **GiST** trigram index on the same column, which answers the same operator with 368 candidates: the
- * `narrow` shape 45.8ms → 14.6ms, `phrase` 44.4ms → 11.1ms (CI's build order; 12.4/9.9ms when the index is
- * created after the rows instead of by them). **No SQL here changed**, because an index
- * cannot change which rows match or their order (`%` is rechecked from the heap) — which is exactly why
- * this was the fix available: per T-198, anything that moves rows or ranks is a product decision.
- *
- * Two things NOT done, deliberately, and both are recorded in `specs/003-usda-food-data/tasks.md` T-202:
- *
- *  - **`name % query` is NOT removed.** T-198's finding 4 said it "contributes nothing at ANY length"; that
- *    was measured with single-WORD needles against long names. A multi-word needle is a large fraction of
- *    the name, so it clears the 0.3 threshold easily — for `narrow` this branch carries **335 of the 364
- *    matched rows on its own**. Dropping it is a product call, not an optimisation.
- *  - **`description ILIKE` is NOT removed** even though it matched **0 rows** that `name ILIKE` did not, on
- *    both fixture shapes. That redundancy holds only because both ingestion paths set `description := name`
- *    — an invariant of the writers, not of the schema — so removing the branch would change results for any
- *    row where the two differ. `name ILIKE p OR (description IS DISTINCT FROM name AND description ILIKE p)`
- *    IS provably equivalent, but measured no faster: it does not let the planner skip the index scan.
- *
- * ### The semantic change, stated plainly (FR-008/FR-010)
- *
- * A 1–2 character query used to match **mid-word** (`ch` matched `ranch`, `spinach`, and `Salmon` for
- * `on`) ranked by trigram-similarity noise. It now matches **word-initially** (`ch` → `Chicken`,
- * `Cheddar cheese`, `ground chuck`) and no longer matches `ranch`. Word-initial matching is the intended
- * autocomplete behaviour; the accepted consequence is that a short query which only occurred mid-word now
- * returns nothing. 3+ character queries keep mid-word matching, unchanged.
+ * The semantic change, stated plainly (FR-008/FR-010): a 1–2 character query used to match MID-word (`ch`
+ * matched `ranch`; `on` matched `Salmon`) ranked by trigram noise, and now matches WORD-INITIALLY (`ch` →
+ * `Chicken`, `Cheddar cheese`, `ground chuck`). Accepted consequence: a short query that only occurred
+ * mid-word now returns nothing. 3+ character queries keep mid-word matching.
  *
  * @implements FR-008 FR-009 FR-010
  */
@@ -113,10 +62,9 @@ const SEARCH_LIMIT = 20;
 /**
  * Longest query, in characters, routed to the word-initial prefix statement.
  *
- * The boundary IS the trigram: `pg_trgm` extracts no complete trigram from a pattern with fewer than 3
- * characters between wildcards, so at 1–2 characters the `ILIKE` branches cannot be index-served at all
- * (they scan), while at 3 they can. Raising this would needlessly narrow working substring search;
- * lowering it re-opens the sequential scan for 2-character queries.
+ * ⚠️ The boundary IS the trigram: `pg_trgm` extracts no complete trigram from a pattern with fewer than 3
+ * characters between wildcards, so at 1–2 characters the `ILIKE` branches can only scan. Raising this
+ * narrows working substring search; lowering it re-opens the sequential scan for 2-character queries.
  */
 const SHORT_QUERY_MAX_CHARACTERS = 2;
 
@@ -136,38 +84,22 @@ const NAME_INITIAL_WEIGHT = 0.5;
 const LIKE_METACHARACTERS = /[\\%_]/gu;
 
 /**
- * Wrap a user query as a substring `ILIKE` pattern, with every LIKE metacharacter in it escaped.
+ * Wrap a user query as a substring `ILIKE` pattern, escaping every LIKE metacharacter in it.
  *
- * ## Why this exists
+ * Needed because the pattern is `%<query>%`, so a `%` or `_` the caller typed lands inside it as pattern
+ * SYNTAX, and a bound parameter does not help — the metacharacter sits in the parameter's VALUE, which is
+ * where `ILIKE` looks for wildcards. `?query=%` bound `'%%%'` and turned one bounded search into a full scan
+ * of `food`; `___` matched every 3+ character name. The class is bounded-work / availability, NOT SQL
+ * injection — nothing here can leave the string literal.
  *
- * The pattern is `%<query>%`, so a `%` or `_` the caller typed lands inside it as PATTERN SYNTAX. Bound
- * parameters do not help — the metacharacter sits in the parameter's VALUE, which is exactly where `ILIKE`
- * looks for wildcards. `?query=%` therefore bound `'%%%'`, a pattern matching every row that has a name, so
- * one request turned a bounded search into a full scan of `food`; `___` matched every 3+ character name; and
- * alternating `%_` multiplies the per-row recheck the GIN bitmap heap scan performs. The class is
- * bounded-work / availability, not SQL injection — nothing here can leave the string literal.
+ * ⛔ It escapes HERE rather than at validation because the validated query feeds three branches and only
+ * `ILIKE` takes a pattern: `plainto_tsquery` parses its input into lexemes, and `name % $n` compares a VALUE
+ * as text. Escaping at validation would corrupt both — a search for `50% cream` would hunt the literal
+ * `50\% cream` in the full-text and trigram branches and find nothing.
  *
- * ## Why it escapes HERE, and not at validation
- *
- * The validated query feeds three branches of one statement, and only one of them is a pattern:
- *
- *  - `name ILIKE $n` / `description ILIKE $n` — a PATTERN. Needs escaping.
- *  - `plainto_tsquery('english', $n)` — already safe by construction: it parses its input into lexemes and
- *    discards operator syntax rather than honouring it.
- *  - `name % $n` (pg_trgm similarity) — a VALUE, compared as text. Not a pattern at all.
- *
- * Escaping at validation time would corrupt the latter two: a search for `50% cream` would look for the
- * literal characters `50\% cream` in the full-text and trigram branches and find nothing. So the query stays
- * raw everywhere it is a value, and the escape belongs to the one place a pattern is constructed.
- *
- * ## Why ONE pass and not three replaces
- *
- * The obvious implementation is `\`, then `%`, then `_` — and that order is load-bearing only BECAUSE it is
- * sequential: escaping `%` before `\` re-escapes the backslashes just inserted, doubling them. A single
- * left-to-right regex pass cannot revisit its own output, so the hazard is not merely avoided, it is
- * unrepresentable. `$&` re-emits whichever metacharacter matched.
- *
- * The statements declare `ESCAPE '\'` explicitly rather than relying on Postgres' default, so a pattern's
+ * ⚠️ ONE regex pass, not three sequential replaces: escaping `%` before `\` re-escapes the backslashes just
+ * inserted, doubling them. A single left-to-right pass cannot revisit its own output, so the hazard is
+ * unrepresentable rather than merely avoided. The statements declare `ESCAPE '\'` explicitly so a pattern's
  * meaning does not depend on server configuration.
  *
  * @param query - The trimmed user query.

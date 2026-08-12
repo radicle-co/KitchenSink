@@ -29,7 +29,7 @@ import type { Recipe, RecipeFacetCount, RecipeSearchResult } from '@kitchensink/
 import type { RecipeSearchFacets } from '../search.schema.js';
 
 import type { RecipeDrizzle } from '../../database/client.js';
-import { clampPage, clampPageSize, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../../common/pagination.js';
+import { clampPage, clampPageSize, DEFAULT_PAGE_SIZE } from '../../common/pagination.js';
 import { activeRecipe, publishedOrOwnedBy, viewableBy } from '../../recipes/dal/recipe-predicates.js';
 import { recipeRowToDomain, type RecipeRowInput } from '../../recipes/mappers/recipe-row-to-domain.js';
 import { resolveCdnUrl } from '../../photos/photo-view.js';
@@ -37,12 +37,17 @@ import { resolveCdnUrl } from '../../photos/photo-view.js';
 /** Default page size when the caller does not specify one — the shared S-R8 default (20). */
 export const DEFAULT_SEARCH_PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
-/** Hard ceiling on page size (mirrors the OpenAPI `pageSize` maximum for search) — the shared S-R8 ceiling (50). */
-export const MAX_SEARCH_PAGE_SIZE = MAX_PAGE_SIZE;
+// ⛔ `MAX_SEARCH_PAGE_SIZE` IS NOT DECLARED HERE ANY MORE. It is a WIRE bound — `recipeSearchQuerySchema`
+// publishes it and rejects above it — and it lived here as `export const MAX_SEARCH_PAGE_SIZE = MAX_PAGE_SIZE`
+// with the query DTO importing it, which made a data-access module the source of a published constraint. That is
+// the same backwards dependency `../search.schema.ts`'s header records for `RecipeSearchFacets`, and the fix is
+// the same one: the bound lives in `@kitchensink/recipe-core` and this module consumes it like any other reader.
+// `MAX_PAGE_SIZE` below remains the INTERNAL clamp shared with the collections and recipes lists; the two are
+// asserted equal in `../__tests__/page-size-bound.test.ts`.
 
-// Re-exported so existing importers (this module's own `search()`, the query DTO, and this module's
-// tests) keep resolving `clampPage`/`clampPageSize` from `search.dal.js` unchanged — the S-R8 clamps
-// themselves now live once, in `../../common/pagination.js`.
+// Re-exported so existing importers (this module's own `search()` and this module's tests) keep resolving
+// `clampPage`/`clampPageSize` from `search.dal.js` unchanged — the S-R8 clamps themselves now live once, in
+// `../../common/pagination.js`.
 export { clampPage, clampPageSize };
 
 /**
@@ -86,9 +91,9 @@ export interface RecipeSearchFilters {
     /** Exact cuisine filter. */
     readonly cuisine?: string;
     /** Require ALL of these dietary flags (array containment). */
-    readonly dietaryFlags?: string[];
+    readonly dietaryFlags?: readonly string[];
     /** Require ALL of these tags (array containment). */
-    readonly tags?: string[];
+    readonly tags?: readonly string[];
     /** Upper bound on `prep_time_minutes` (rows with unknown prep time are excluded). */
     readonly maxPrepTime?: number;
     /** Upper bound on `cook_time_minutes` (rows with unknown cook time are excluded). */
@@ -96,10 +101,10 @@ export interface RecipeSearchFilters {
     /** Upper bound on `total_time_minutes` (rows with unknown total time are excluded). */
     readonly maxTotalTime?: number;
     /** Require the recipe to contain ANY of these ingredient ids (via `recipe_ingredients`). */
-    readonly ingredientIds?: string[];
+    readonly ingredientIds?: readonly string[];
     /** 1-based page number. */
     readonly page: number;
-    /** Page size (clamped to `[1, MAX_SEARCH_PAGE_SIZE]`). */
+    /** Page size (clamped to `[1, MAX_PAGE_SIZE]`). */
     readonly pageSize: number;
     /** Result ordering. */
     readonly sortBy: RecipeSearchSortBy;
@@ -231,7 +236,7 @@ export function rowToRecipe(row: RawRecipeSearchRow, cloudfrontUrl?: string): Re
 }
 
 /** Build a `text[]` array literal from JS strings, each bound as its own param. Pure. */
-function textArray(values: string[]): SQL {
+function textArray(values: readonly string[]): SQL {
     return sql`ARRAY[${sql.join(
         values.map((value) => sql`${value}`),
         sql`, `,
@@ -239,7 +244,7 @@ function textArray(values: string[]): SQL {
 }
 
 /** Build a comma-separated bound-param list (for an `IN (...)` clause). Pure. */
-function paramList(values: string[]): SQL {
+function paramList(values: readonly string[]): SQL {
     return sql.join(
         values.map((value) => sql`${value}`),
         sql`, `,

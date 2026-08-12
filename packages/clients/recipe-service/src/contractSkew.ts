@@ -187,7 +187,7 @@ export function resetContractSkewLatchForTests(): void {
  * @sideEffect Records the origin as probed and may issue one unauthenticated `GET {baseUrl}/health`.
  */
 export function reportContractSkewOnce(options: ContractSkewProbeOptions): void {
-    const key = `${options.baseUrl} ${CONTRACT_HASH}`;
+    const key = `${options.baseUrl}\u0000${CONTRACT_HASH}`;
 
     if (probedOrigins.has(key)) {
         return;

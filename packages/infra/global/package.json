@@ -22,8 +22,13 @@
         "@aws-sdk/client-ssm": "^3.935.0",
         "@kitchensink/eslint": "*",
         "@kitchensink/infra-security": "*",
+        "@kitchensink/nest-error-envelope": "*",
         "@kitchensink/prettier": "*",
+        "@kitchensink/schema-food": "*",
+        "@kitchensink/schema-identity": "*",
+        "@kitchensink/schema-recipe": "*",
         "@kitchensink/typescript": "*",
+        "@nestjs/common": "^11.0.0",
         "@types/node": "^24.0.0",
         "@types/pg": "^8.11.10",
         "aws-cdk": "^2.1134.0",
@@ -34,7 +39,8 @@
         "prettier": "^3.0.0",
         "tsx": "*",
         "typescript": "^5.9.3",
-        "vitest": "^4.0.0"
+        "vitest": "^4.0.0",
+        "zod": "^4.4.3"
     },
     "dependencies": {
         "aws-cdk-lib": "*",

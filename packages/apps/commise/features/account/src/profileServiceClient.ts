@@ -52,6 +52,7 @@ import {
     UnauthorizedError,
     UnexpectedResponseError,
 } from './errors.js';
+import { reportContractSkewOnce } from './contractSkew.js';
 
 /**
  * The single authoritative path for reading/updating/deleting the current user's profile.
@@ -104,6 +105,16 @@ export interface ProfileServiceClientOptions {
      * @sideEffect Whatever the caller's callback does (e.g. a client-side navigation).
      */
     readonly onUnauthorized?: () => void;
+    /**
+     * Where a CONTRACT SKEW warning goes; defaults to `console.warn`.
+     *
+     * Injectable for the same reason `fetch` is — a test must be able to observe the warning without a global spy —
+     * and because a host with structured logging (the web app's server runtime) may want it routed there. See
+     * `./contractSkew.ts` for why a skew WARNS rather than refusing.
+     *
+     * @sideEffect Whatever the caller's sink does.
+     */
+    readonly warn?: (message: string) => void;
 }
 
 export class ProfileServiceClient {
@@ -112,6 +123,7 @@ export class ProfileServiceClient {
     private readonly fetchImpl: typeof fetch;
     private readonly credentials: RequestCredentials | undefined;
     private readonly onUnauthorized: (() => void) | undefined;
+    private readonly warn: (message: string) => void;
 
     /** @param options - Base URL, optional token, an optional `fetch` double, credentials, and 401 hook. */
     public constructor(options: ProfileServiceClientOptions) {
@@ -120,6 +132,11 @@ export class ProfileServiceClient {
         this.fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
         this.credentials = options.credentials;
         this.onUnauthorized = options.onUnauthorized;
+        this.warn =
+            options.warn ??
+            ((message: string): void => {
+                console.warn(message);
+            });
     }
 
     /**
@@ -225,6 +242,16 @@ export class ProfileServiceClient {
             body: body !== undefined ? JSON.stringify(body) : undefined,
             ...(this.credentials !== undefined ? { credentials: this.credentials } : {}),
         });
+
+        // DRIFT LAYER 3, consumer half (GR-017 §17-b.5). Fired here — after a response, from the ONE funnel every
+        // method goes through — rather than from the constructor, because web mints a client per hook call and per
+        // server-rendered request, so a constructor probe would put `/health` on the sign-in path. Latched once per
+        // origin per process, fire-and-forget, and it cannot throw: see `./contractSkew.ts`.
+        //
+        // ⚠️ Deliberately NOT gated on `response.ok`. A skew is MORE likely to surface as a failing request than a
+        // succeeding one — a client sending a field the deployed service no longer accepts gets a 400 — so gating on
+        // success would mute the signal in exactly the case it is for.
+        reportContractSkewOnce({ baseUrl: this.baseUrl, fetch: this.fetchImpl, warn: this.warn });
 
         if (response.status === 401) {
             this.onUnauthorized?.();

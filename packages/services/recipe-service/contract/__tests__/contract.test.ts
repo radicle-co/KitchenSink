@@ -469,13 +469,68 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
     });
 
     /**
-     * The three FORWARD-COMPATIBILITY EXEMPTIONS §17-c permits, pinned by name so adding a fourth is a visible,
-     * reviewable edit rather than a quiet loosening.
+     * THE MIRROR SWEEP, over the read queries — and it exists because the exemption was an unenforced CLAIM.
      *
-     * Two are read queries (`listRecipesQuerySchema`, `listCollectionsQuerySchema`, `ingredientSearchQuerySchema`)
-     * and are not components at all — they are inlined as `parameters` — so the interesting one is `PullDiff`: it
-     * is BOTH a response body and a request FIELD, and a strict version would `400` a commit echoing back a
-     * document the server itself produced. See `collections.schema.ts` for the full argument.
+     * The `*RequestSchema` sweep above discovers mutating bodies by name and requires each to REJECT. The read
+     * queries are the documented exception to that rule, and until now nothing checked them at all: they are not
+     * published components, so the document-driven assertions cannot see them, and they do not match
+     * `*RequestSchema`, so the source-driven sweep skips them. The exemption therefore lived only in prose — which
+     * means a MUTATING body could have been named `*QuerySchema` and inherited the exemption silently, and a read
+     * query could have been tightened to `strictObject` (a breaking change for any caller with a tracking tag)
+     * with no test to notice.
+     *
+     * So both directions are now asserted: the exempt set is exactly these four names, and every one of them is
+     * genuinely non-strict. Adding a fifth is a visible, reviewable edit.
+     */
+    it('exempts EXACTLY the four read queries from strictness, and each of them really is open', async () => {
+        const modules = await Promise.all(
+            authored.map(
+                async (schema) =>
+                    import(join(SERVICE_ROOT, schema.servicePath.replace(/\.ts$/u, '.js'))) as Promise<
+                        Record<string, unknown>
+                    >,
+            ),
+        );
+
+        const querySchemas = modules.flatMap((module) =>
+            Object.entries(module).filter(([name]) => name.endsWith('QuerySchema')),
+        );
+
+        expect(querySchemas.map(([name]) => name).sort()).toStrictEqual([
+            'ingredientSearchQuerySchema',
+            'listCollectionsQuerySchema',
+            'listRecipesQuerySchema',
+            'recipeSearchQuerySchema',
+        ]);
+
+        const rejecting = querySchemas
+            .filter(([, schema]) => {
+                const parsed = (
+                    schema as {
+                        safeParse: (value: unknown) => { success: boolean; error?: { issues: { code: string }[] } };
+                    }
+                ).safeParse({ __unknownKeyProbe__: 'x' });
+
+                return (
+                    !parsed.success &&
+                    (parsed.error?.issues.some((issue) => issue.code === 'unrecognized_keys') ?? false)
+                );
+            })
+            .map(([name]) => name);
+
+        expect(rejecting).toStrictEqual([]);
+    });
+
+    /**
+     * The FORWARD-COMPATIBILITY EXEMPTIONS §17-c permits — now mechanically pinned rather than only described.
+     *
+     * FOUR are read queries: `listRecipesQuerySchema`, `listCollectionsQuerySchema`, `ingredientSearchQuerySchema`
+     * and `recipeSearchQuerySchema` (the fourth, added when search's query contract was authored as zod and its
+     * `class-validator` DTO retired). None is a published component — they are inlined as `parameters` — which is
+     * exactly why the assertion above could not see them, and why they were an unenforced prose claim.
+     *
+     * The fifth is `PullDiff`: BOTH a response body and a request FIELD, where a strict version would `400` a
+     * commit echoing back a document the server itself produced. See `collections.schema.ts` for the argument.
      *
      * The error envelopes are `.loose()` and stay OPEN for the mirror-image reason: an error body that grows a
      * field must not crash a client that has not been taught it.

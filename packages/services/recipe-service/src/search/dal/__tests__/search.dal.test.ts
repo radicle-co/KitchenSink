@@ -26,11 +26,14 @@ import {
     clampPageSize,
     clampPage,
     DEFAULT_SEARCH_PAGE_SIZE,
-    MAX_SEARCH_PAGE_SIZE,
     FACET_SAMPLE_SIZE,
     MAX_FACET_SAMPLE_SIZE,
     type RecipeSearchFilters,
 } from '../search.dal.js';
+// The clamp's own ceiling, from the clamp's own module. It used to be spelled `MAX_SEARCH_PAGE_SIZE` and
+// imported from `search.dal.js`; that name is now the WIRE bound in `@kitchensink/recipe-core` (which is a
+// different concern — see `../../__tests__/page-size-bound.test.ts`, which asserts the two agree).
+import { MAX_PAGE_SIZE } from '../../../common/pagination.js';
 
 /** A minimal `db.execute` mock. */
 function makeDb(): { db: RecipeDrizzle; execute: ReturnType<typeof vi.fn> } {
@@ -214,7 +217,7 @@ describe('clampPageSize / clampPage', () => {
 
     it('clamps page size into [1, MAX] and truncates fractions', () => {
         expect(clampPageSize(0)).toBe(1);
-        expect(clampPageSize(999)).toBe(MAX_SEARCH_PAGE_SIZE);
+        expect(clampPageSize(999)).toBe(MAX_PAGE_SIZE);
         expect(clampPageSize(7.9)).toBe(7);
     });
 

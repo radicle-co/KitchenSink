@@ -37,6 +37,15 @@ COPY packages/shared/identity-core/dist ./packages/shared/identity-core/dist
 COPY packages/schemas/identity/prod.package.json ./packages/schemas/identity/package.json
 COPY packages/schemas/identity/dist ./packages/schemas/identity/dist
 
+# Shared @kitchensink/nest-error-envelope — the ONE Nest->{ code, message, details? } normalization every
+# service's ApiExceptionFilter runs (it replaced ~100 lines copied into each of the three). Same pattern as the
+# shared leaves above: the root node_modules symlink resolves to this path, so its built dist + dist-pointing
+# prod manifest must be in the image or the bare-specifier import from common/filters crash-loops at boot with
+# ERR_MODULE_NOT_FOUND -- and it is on the request-failure path, so the first thing it would break is the
+# ability to report anything.
+COPY packages/shared/nest-error-envelope/prod.package.json ./packages/shared/nest-error-envelope/package.json
+COPY packages/shared/nest-error-envelope/dist ./packages/shared/nest-error-envelope/dist
+
 EXPOSE 3000
 # Preload Sentry instrumentation before app modules (native ESM — a top-level import is not a
 # reliable ordering guarantee for auto-instrumentation; KTD3 / U6).

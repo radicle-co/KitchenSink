@@ -37,7 +37,147 @@
  */
 import { z } from 'zod';
 
-import { recipeFacetCountSchema, recipeSearchResultSchema } from '@kitchensink/recipe-core';
+import {
+    INT4_CEILING,
+    MAX_SEARCH_PAGE_SIZE,
+    RecipeSearchSortBy,
+    recipeFacetCountSchema,
+    recipeSearchResultSchema,
+} from '@kitchensink/recipe-core';
+
+// ── The REQUEST half of the contract ──────────────────────────────────────────────────────────────
+//
+// ⚠️ THIS HALF DID NOT EXIST, and its absence had three consequences beyond the missing document text.
+//
+// `GET /api/v1/search/recipes` was served by a `class-validator` DTO — the LAST `class-validator` importer in
+// `packages/services/**`, i.e. a second DTO framework inside a service ADR-0015 §1 requires to have exactly
+// one. Because `class-validator` reports its constraints on `message[]` rather than on the `errors` key
+// `nestjs-zod` uses, this route's `400` missed `ApiExceptionFilter`'s validation branch and published
+// `BAD_REQUEST` — a code deliberately absent from `recipeErrorCodeSchema` (see `../common/api-error.ts`), so the
+// typed client's union rejected it and fell back to status-mapping, while the published document promised
+// `VALIDATION_FAILED` "from the boundary parser". One endpoint out of forty-one spoke a different dialect.
+//
+// It also inverted two dependencies: the page-size ceiling was imported from `dal/search.dal.js` (a data-access
+// module owning a published constraint — the same inversion the response half of this file was written to
+// correct for `RecipeSearchFacets`), and `INT4_CEILING` was re-declared locally while `recipe-core` exports it.
+
+/**
+ * Normalize a repeated-or-CSV query parameter into a trimmed, non-empty `string[]`, or `undefined` when nothing
+ * usable remains.
+ *
+ * A list filter arrives in two forms and both are supported on purpose: `?tags=a&tags=b` (which Express parses
+ * to an array) and `?tags=a,b` (one value). Pure.
+ *
+ * @param value - The raw query-bag entry.
+ * @returns The normalized list, or `undefined` for an absent/blank/entry-less parameter.
+ */
+function toStringArray(value: unknown): readonly string[] | undefined {
+    const raw = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [];
+    const normalized = raw
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+
+    return normalized.length > 0 ? normalized : undefined;
+}
+
+/**
+ * Read a BLANK query parameter as an ABSENT one.
+ *
+ * `?maxPrepTime=` is what a UI serializes for a cleared numeric input and `?query=` for an empty search box.
+ * Under the previous DTO the first coerced to `Number('') === 0` and passed `@Min(0)`, so the request meant
+ * "recipes taking zero minutes or less" and returned NOTHING — a wrong answer served as a `200`, from a
+ * parameter the caller believed they had left blank. The second reached the DAL as `''`, where
+ * `filters.query.trim().length > 0` re-derived the same decision three layers below the parser, for one of the
+ * eleven fields.
+ *
+ * Making it a property of the PARSER means it holds for every field and is stated once. Pure.
+ *
+ * @param value - The raw query-bag entry.
+ * @returns `undefined` for the empty string, the value unchanged otherwise.
+ */
+function blankAsAbsent(value: unknown): unknown {
+    return value === '' ? undefined : value;
+}
+
+/** An optional free-text filter: blank means absent, and a supplied value must be non-empty. */
+const textFilterSchema = z.preprocess(blankAsAbsent, z.string().min(1).optional());
+
+/** An optional repeated-or-CSV list filter, normalized to a trimmed non-empty `readonly string[]`. */
+const listFilterSchema = z.preprocess(toStringArray, z.array(z.string().min(1)).readonly().optional());
+
+/**
+ * An optional "at most N minutes" filter.
+ *
+ * `INT4_CEILING` is carried even though a filter WRITES nothing, because each becomes
+ * `WHERE <int4 column> <= $1` and an out-of-range parameter fails that comparison with the identical
+ * `22003 value "…" is out of range for type integer` an INSERT would — which `ApiExceptionFilter` collapses to a
+ * generic `500` for what is plainly a bad request. Verified against a live PostgreSQL 16.
+ */
+const minutesFilterSchema = z.preprocess(
+    blankAsAbsent,
+    z.coerce.number().int().nonnegative().max(INT4_CEILING).optional(),
+);
+
+/**
+ * The `sortBy` values accepted on the wire — derived from the shared {@link RecipeSearchSortBy} value object
+ * (single source), so a new search sort is admitted by adding it to that enum with no second list here.
+ */
+export const RECIPE_SEARCH_SORT_BY = Object.values(RecipeSearchSortBy);
+
+/**
+ * The `GET /api/v1/search/recipes` query — SOURCE OF TRUTH for what the endpoint accepts.
+ *
+ * Coerced, because a query bag is strings on the wire. `.int()` REJECTS `2.5` rather than truncating it: a
+ * silently-truncated page size is a contract that lies about what it did.
+ *
+ * `page`, `pageSize` and `sortBy` are left OPTIONAL rather than `.default()`-ed — unlike
+ * `listRecipesQuerySchema`, which defaults in the schema. The difference is deliberate and preserves existing
+ * behaviour: `SearchService` already owns these three defaults, and moving them here would change the parsed
+ * value the service sees mid-convergence. The published document describes them as optional, which is honest.
+ *
+ * ⚠️ FORWARD-COMPATIBILITY EXEMPTION from GR-017 §17-c's `z.strictObject()` default — the FOURTH, documented at
+ * the schema as that rule requires, and pinned by name in `contract/__tests__/contract.test.ts`. The reasoning
+ * is `listRecipesQuerySchema`'s, unchanged: Nest hands the pipe the WHOLE query string, so a strict object would
+ * `400` on a cache-buster, an analytics parameter or a pasted tracking tag — none of which changes what the
+ * endpoint returns — and a READ has no silent-partial-write for strictness to make visible.
+ */
+export const recipeSearchQuerySchema = z.object({
+    /** Free-text query over the weighted `search_vector`. Absent (or blank) degrades to a browse. */
+    query: textFilterSchema,
+    /** Exact cuisine filter. */
+    cuisine: textFilterSchema,
+    /** Dietary-flag filter (OR-narrowed). */
+    dietaryFlags: listFilterSchema,
+    /** Tag filter (OR-narrowed). */
+    tags: listFilterSchema,
+    /** Maximum prep minutes. */
+    maxPrepTime: minutesFilterSchema,
+    /** Maximum cook minutes. */
+    maxCookTime: minutesFilterSchema,
+    /** Maximum total minutes. */
+    maxTotalTime: minutesFilterSchema,
+    /** Ingredient filter, by opaque catalog id (ADR: recipes reference ingredients one-directionally). */
+    ingredientIds: listFilterSchema,
+    /** 1-based page number. Defaulted by `SearchService`, not here. */
+    page: z.preprocess(blankAsAbsent, z.coerce.number().int().positive().optional()),
+    /**
+     * Page size, capped at the published ceiling.
+     *
+     * The cap is load-bearing for ENVELOPE HONESTY rather than only for load: `SearchService` echoes the
+     * REQUESTED `pageSize` into the response envelope while `SearchDal` independently clamps the `LIMIT` it
+     * issues, so an accepted `pageSize=999` would report `pageSize: 999` beside 50 rows. The published document
+     * omitted this maximum entirely until the query contract was authored here.
+     */
+    pageSize: z.preprocess(blankAsAbsent, z.coerce.number().int().positive().max(MAX_SEARCH_PAGE_SIZE).optional()),
+    /** Sort key. Defaulted to `relevance` by `SearchService`, not here. */
+    sortBy: z.preprocess(blankAsAbsent, z.enum(RECIPE_SEARCH_SORT_BY).optional()),
+});
+
+/** The parsed `GET /api/v1/search/recipes` query. */
+export type RecipeSearchQuery = z.infer<typeof recipeSearchQuerySchema>;
+
+// ── The RESPONSE half of the contract ─────────────────────────────────────────────────────────────
 
 /**
  * Facet aggregations returned alongside a page of search hits.

@@ -14,6 +14,9 @@
  */
 
 export * from './profileServiceClient.js';
+// DRIFT LAYER 3's consumer half for identity (GR-017 §17-b.5). Exported so a host can reuse the pure verdict /
+// message helpers, and so the test seam is reachable the way the food client's is.
+export * from './contractSkew.js';
 export * from './errors.js';
 export * from './authState.js';
 export * from './queries.js';

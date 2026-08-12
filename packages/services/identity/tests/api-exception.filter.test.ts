@@ -20,7 +20,13 @@
  * NOTE: identity's vitest config only discovers the tests directory, so this unit test lives here
  * (rather than co-located under src) so it actually runs.
  */
-import { BadRequestException, ForbiddenException, HttpException, NotFoundException } from '@nestjs/common';
+import {
+    BadRequestException,
+    ForbiddenException,
+    HttpException,
+    NotFoundException,
+    ServiceUnavailableException,
+} from '@nestjs/common';
 import type { ArgumentMetadata, ArgumentsHost } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -190,6 +196,52 @@ describe('ApiExceptionFilter (identity)', () => {
             message: 'name must be a string, name should not be empty',
             details: { fields: ['name must be a string', 'name should not be empty'] },
         });
+    });
+
+    // ---- a DELIBERATE code in the thrown body must survive ----
+
+    /*
+     * ⚠️ REGRESSION. `HealthController.getReadiness` raises
+     * `new ServiceUnavailableException({ code: 'NOT_READY', message: 'Database not reachable' })`, and
+     * `contract/openapi.ts` publishes that `503` as "Database not reachable (`NOT_READY`)". The filter had no
+     * branch for a body that already NAMES its code, so it derived one from the status instead and put
+     * `SERVICE_UNAVAILABLE` on the wire — the published document described a code the service never sent.
+     *
+     * The case generalizes past this one route: a status-keyed derivation cannot distinguish two failures that
+     * share a status and need opposite handling, which is the entire reason the envelope carries a code. Food
+     * and recipe both had this branch already; identity's absence of it is what made the document wrong here.
+     */
+    it('keeps a code the thrown body already names, instead of deriving one from the status', () => {
+        const { host, captured } = makeHost();
+
+        filter.catch(new ServiceUnavailableException({ code: 'NOT_READY', message: 'Database not reachable' }), host);
+
+        expect(captured.status).toBe(503);
+        expect(captured.body).toEqual({ code: 'NOT_READY', message: 'Database not reachable' });
+    });
+
+    // The other half of the same branch: a body naming a code but NO message must keep the code and borrow the
+    // exception's message, rather than being rejected as "not an envelope" and falling back to a derived code.
+    it('keeps an explicit code even when the body carries no message of its own', () => {
+        const { host, captured } = makeHost();
+
+        filter.catch(new ForbiddenException({ code: 'ACCOUNT_SUSPENDED' }), host);
+
+        expect(captured.status).toBe(403);
+        // `'Forbidden Exception'` is what Nest itself puts on `exception.message` for an object-bodied
+        // `ForbiddenException`; the point of the case is the CODE, and that the message is borrowed rather than
+        // left empty.
+        expect(captured.body).toEqual({ code: 'ACCOUNT_SUSPENDED', message: 'Forbidden Exception' });
+    });
+
+    // ⛔ NOT the same case: a body whose `code` is absent, empty or non-string is NOT an envelope, and must
+    // still get a status-derived code. Without this, `asExplicitEnvelope` could "pass" by accepting anything.
+    it('still derives the code when the body has an empty or non-string code', () => {
+        const { host, captured } = makeHost();
+
+        filter.catch(new ForbiddenException({ code: '', message: 'nope' }), host);
+
+        expect(captured.body).toEqual({ code: 'FORBIDDEN', message: 'nope' });
     });
 
     it('derives HTTP_<status> for an unmapped status and reads a string body', () => {

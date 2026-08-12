@@ -45,8 +45,14 @@ describe('ProfileServiceClient — request shape', () => {
 
         const result = await client.getMe();
 
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit & { headers: Record<string, string> }];
+        // ⚠️ The API call is IDENTIFIED, not assumed to be the only one. The transport also fires the
+        // drift-layer-3 skew probe at `GET /health` (once per origin per process, fire-and-forget — see
+        // `../contractSkew.ts`), so a `toHaveBeenCalledTimes(1)` here would assert "no diagnostics exist" rather
+        // than anything about `getMe`. `profileServiceClientSkew.test.ts` owns the probe's own behaviour.
+        const apiCall = fetchMock.mock.calls.find(([called]) => !String(called).endsWith('/health'));
+
+        expect(apiCall).toBeDefined();
+        const [url, init] = apiCall as [string, RequestInit & { headers: Record<string, string> }];
         expect(url).toBe(`${BASE}${PROFILE_ME_PATH}`);
         expect(init.method).toBe('GET');
         expect(init.headers['authorization']).toBe('Bearer tok_123');

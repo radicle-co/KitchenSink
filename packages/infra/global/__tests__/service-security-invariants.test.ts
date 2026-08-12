@@ -476,23 +476,18 @@ const VIOLATING_SERVICE: DiscoveredService = {
 
 const services = discoverServices();
 
-/**
- * Controllers not yet converged onto a Zod pipe. A RATCHET, and it must only ever shrink.
+/*
+ * ⛔ THE `UNCONVERGED_CONTROLLERS` RATCHET IS GONE, BECAUSE ITS DEBT IS PAID.
  *
- * This list exists because a gate that cannot be green today gets weakened or deleted, and a weakened gate
- * protects nothing. Two files are named, and neither is a hypothetical:
+ * It held one name — `packages/services/recipe-service/src/search/search.controller.ts`, which bound Nest's own
+ * `ValidationPipe` over `SearchRecipesQueryDto`, the last `class-validator` DTO in `packages/services/**`. That
+ * controller now binds `ZodValidationPipe` over a `createZodDto` of the authored `recipeSearchQuerySchema`, so
+ * G5 below is asserted with NO exception list at all.
  *
- *  - `search.controller.ts` — binds Nest's `ValidationPipe` over a `class-validator` DTO
- *    (`SearchRecipesQueryDto`, the ONLY `class-validator` user left in `packages/services/**`). It DOES
- *    validate today, because that DTO carries real decorators — so this is convergence DEBT rather than a live
- *    hole, and the DTO's own docstring already says its bounds belong in `search.schema.ts` "when it does
- *    converge". Converging it is what lets `class-validator` leave the dependency tree, at which point this
- *    list is empty and this constant should be deleted rather than kept at zero entries.
- *
- * A NEW controller cannot join this list without a reviewer seeing the diff, which is precisely the property
- * the gate is for.
+ * Deleting the constant rather than keeping it at zero entries is what the ratchet's own docstring required, and
+ * it is the stronger shape: an empty allowlist is still an allowlist, and a future controller could be added to
+ * it as a one-line diff that reads like configuration. There is now no line to add.
  */
-const UNCONVERGED_CONTROLLERS: readonly string[] = ['packages/services/recipe-service/src/search/search.controller.ts'];
 
 describe('every deployable service satisfies the repo-wide security invariants', () => {
     // A guard on the guard: if discovery yields nothing, every assertion below passes vacuously.
@@ -512,18 +507,8 @@ describe('every deployable service satisfies the repo-wide security invariants',
         expect(services.flatMap((service) => check(service))).toEqual([]);
     });
 
-    it('G5 covers every HTTP controller with a ZodValidationPipe (ratchet: the exception list only shrinks)', () => {
-        const violations = services.flatMap((service) => unpipedControllerViolations(service));
-        const unexpected = violations.filter(
-            (violation) => !UNCONVERGED_CONTROLLERS.some((allowed) => violation.startsWith(`${allowed}:`)),
-        );
-
-        expect(unexpected).toEqual([]);
-        // The ratchet's other half: a name that no longer violates must be REMOVED from the list, so the
-        // allowlist cannot outlive the debt it documents and quietly grant a future controller an exemption.
-        expect(violations.map((violation) => violation.split(':')[0]).sort()).toEqual(
-            [...UNCONVERGED_CONTROLLERS].sort(),
-        );
+    it('G5 covers EVERY HTTP controller with a ZodValidationPipe, with no exceptions left', () => {
+        expect(services.flatMap((service) => unpipedControllerViolations(service))).toEqual([]);
     });
 
     /**

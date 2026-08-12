@@ -22,6 +22,7 @@
  * @see ./api-error.schema.ts — the envelope, the published code enum, and the typed per-code `details`.
  */
 import { HttpException, HttpStatus } from '@nestjs/common';
+import { GENERIC_STATUS_CODES, codeForStatus as sharedCodeForStatus } from '@kitchensink/nest-error-envelope';
 
 import { recipeErrorCodeSchema, type ApiErrorBody, type RecipeErrorCode } from './api-error.schema.js';
 
@@ -83,9 +84,11 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
 /**
  * The `code` to publish for a status that arrived with no code of its own.
  *
- * Deliberately the SAME table the food and identity services use, so the three speak one vocabulary for the
- * cases that are not about their domain. Kept explicit rather than derived from Nest's status text, so the wire
- * contract is decoupled from the framework's wording.
+ * ⚠️ IT IS NOW `GENERIC_STATUS_CODES` SPREAD, not a third hand-written copy of it. That shared table
+ * (`@kitchensink/nest-error-envelope`) holds the vocabulary the three services agree on for the cases that are not
+ * about any domain; the overrides below are the rows where THIS service has a PUBLISHED member of its own, so a
+ * `404` is spelled with `recipeErrorCodeSchema`'s value rather than a matching string literal. Identity's copy of
+ * the same table was missing `GONE` and `LOCKED`, which is what three hand-maintained copies buys you.
  *
  * ⚠️ NOT every value here is a PUBLISHED code, and that is deliberate rather than an oversight. `BAD_REQUEST`,
  * `METHOD_NOT_ALLOWED`, `CONFLICT`, `GONE`, `UNPROCESSABLE_ENTITY`, `LOCKED` and `SERVICE_UNAVAILABLE` are absent
@@ -95,33 +98,33 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
  * beside it. Food made the identical call.
  *
  * ⚠️ `NOT_FOUND` here is NOT `RECIPE_NOT_FOUND`: it is a request for a path this service does not route, which is
- * a different failure with a different fix. Keeping them distinct is the point of having a code at all.
+ * a different failure with a different fix. Keeping them distinct is the point of having a code at all. The
+ * override is what makes it this service's PUBLISHED `NOT_FOUND` rather than the shared literal — the strings are
+ * equal, and `__tests__/api-error.test.ts` asserts the mapping so the equality is checked rather than assumed.
  */
-const STATUS_CODE: Readonly<Record<number, string>> = {
-    [HttpStatus.BAD_REQUEST]: 'BAD_REQUEST',
+export const RECIPE_STATUS_CODE: Readonly<Record<number, string>> = {
+    ...GENERIC_STATUS_CODES,
     [HttpStatus.UNAUTHORIZED]: recipeErrorCodeSchema.enum.UNAUTHORIZED,
     [HttpStatus.FORBIDDEN]: recipeErrorCodeSchema.enum.FORBIDDEN,
     [HttpStatus.NOT_FOUND]: recipeErrorCodeSchema.enum.NOT_FOUND,
-    [HttpStatus.METHOD_NOT_ALLOWED]: 'METHOD_NOT_ALLOWED',
-    [HttpStatus.CONFLICT]: 'CONFLICT',
-    [HttpStatus.GONE]: 'GONE',
     [HttpStatus.PAYLOAD_TOO_LARGE]: recipeErrorCodeSchema.enum.PAYLOAD_TOO_LARGE,
     [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: recipeErrorCodeSchema.enum.UNSUPPORTED_MEDIA_TYPE,
-    [HttpStatus.UNPROCESSABLE_ENTITY]: 'UNPROCESSABLE_ENTITY',
     [HTTP_STATUS_LOCKED]: 'LOCKED',
     [HttpStatus.TOO_MANY_REQUESTS]: recipeErrorCodeSchema.enum.TOO_MANY_REQUESTS,
     [HttpStatus.INTERNAL_SERVER_ERROR]: recipeErrorCodeSchema.enum.INTERNAL_ERROR,
-    [HttpStatus.SERVICE_UNAVAILABLE]: 'SERVICE_UNAVAILABLE',
 };
 
 /**
  * The `code` to publish for a status with no code of its own.
  *
+ * A thin binding of the shared `codeForStatus` to THIS service's table, kept as a one-argument function because
+ * every call site in the service reads better without repeating the table.
+ *
  * @param status - The HTTP status being returned.
  * @returns A stable code — `HTTP_<status>` for anything unlisted, which is deterministic and leaks nothing. Pure.
  */
 export function codeForStatus(status: number): string {
-    return STATUS_CODE[status] ?? `HTTP_${status}`;
+    return sharedCodeForStatus(status, RECIPE_STATUS_CODE);
 }
 
 /**

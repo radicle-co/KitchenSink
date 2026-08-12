@@ -63,7 +63,9 @@ import {
     recipePhotoSchema,
     recipeSchema,
     recipeVersionSchema,
+    INT4_CEILING,
     MAX_RECIPE_LIST_PAGE_SIZE,
+    MAX_SEARCH_PAGE_SIZE,
 } from '@kitchensink/recipe-core';
 
 import {
@@ -108,7 +110,7 @@ import {
     setRecipeVisibilityRequestSchema,
     updateRecipeRequestSchema,
 } from '../src/recipes/recipes.schema.js';
-import { recipeSearchResponseSchema } from '../src/search/search.schema.js';
+import { RECIPE_SEARCH_SORT_BY, recipeSearchResponseSchema } from '../src/search/search.schema.js';
 import { restoreVersionResponseSchema } from '../src/versions/versions.schema.js';
 
 /**
@@ -602,43 +604,66 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             summary: 'Full-text and facet search over visible recipes.',
             description:
                 'Array filters accept either repeated params (`?tags=a&tags=b`) or one comma-separated value (`?tags=a,b`).',
+            // ⚠️ EVERY BOUND AND EVERY ENUM MEMBER BELOW IS COMPOSED, NEVER RETYPED — and that is a repair, not
+            // a tidy-up. These entries used to hand-inline `2_147_483_647` three times, hand-copy the five
+            // `sortBy` members, and — the one that actually mattered — declare `pageSize` as `min(1)` with NO
+            // maximum while the runtime rejected above 50. The published contract was LOOSER than the service on
+            // a bound the response envelope's honesty depends on (see `recipeSearchQuerySchema`), and nothing
+            // could see it because the ratchet in `__tests__/openapi.test.ts` was response-only.
+            //
+            // ⚠️ These describe the WIRE FORM a caller sends, which is deliberately NOT `recipeSearchQuerySchema`
+            // itself: the parse accepts a list filter as EITHER repeated params or one CSV value, so its input
+            // type is a union that no `in: query` parameter can express. What must not diverge is the bounds and
+            // the vocabulary, and `__tests__/openapi.test.ts` now asserts field-name and bound parity against the
+            // authored schema in both directions.
             parameters: [
-                { name: 'query', in: 'query', description: 'Free-text query.', schema: z.string() },
-                { name: 'cuisine', in: 'query', description: 'Exact cuisine filter.', schema: z.string() },
-                { name: 'dietaryFlags', in: 'query', description: 'Dietary-flag filter.', schema: z.array(z.string()) },
-                { name: 'tags', in: 'query', description: 'Tag filter.', schema: z.array(z.string()) },
-                { name: 'ingredientIds', in: 'query', description: 'Ingredient filter.', schema: z.array(z.string()) },
+                { name: 'query', in: 'query', description: 'Free-text query.', schema: z.string().min(1) },
+                { name: 'cuisine', in: 'query', description: 'Exact cuisine filter.', schema: z.string().min(1) },
+                {
+                    name: 'dietaryFlags',
+                    in: 'query',
+                    description: 'Dietary-flag filter.',
+                    schema: z.array(z.string().min(1)),
+                },
+                { name: 'tags', in: 'query', description: 'Tag filter.', schema: z.array(z.string().min(1)) },
+                {
+                    name: 'ingredientIds',
+                    in: 'query',
+                    description: 'Ingredient filter.',
+                    schema: z.array(z.string().min(1)),
+                },
                 {
                     name: 'maxPrepTime',
                     in: 'query',
                     // Capped at the int4 ceiling: the filter becomes `WHERE <int4 column> <= $1`, and an
                     // out-of-range parameter is a `22003` (a 500) rather than the 400 it should be.
                     description: 'Maximum prep minutes.',
-                    schema: z.number().int().min(0).max(2_147_483_647),
+                    schema: z.number().int().min(0).max(INT4_CEILING),
                 },
                 {
                     name: 'maxCookTime',
                     in: 'query',
-                    // Capped at the int4 ceiling: the filter becomes `WHERE <int4 column> <= $1`, and an
-                    // out-of-range parameter is a `22003` (a 500) rather than the 400 it should be.
                     description: 'Maximum cook minutes.',
-                    schema: z.number().int().min(0).max(2_147_483_647),
+                    schema: z.number().int().min(0).max(INT4_CEILING),
                 },
                 {
                     name: 'maxTotalTime',
                     in: 'query',
-                    // Capped at the int4 ceiling: the filter becomes `WHERE <int4 column> <= $1`, and an
-                    // out-of-range parameter is a `22003` (a 500) rather than the 400 it should be.
                     description: 'Maximum total minutes.',
-                    schema: z.number().int().min(0).max(2_147_483_647),
+                    schema: z.number().int().min(0).max(INT4_CEILING),
                 },
                 { name: 'page', in: 'query', description: '1-based page number.', schema: z.number().int().min(1) },
-                { name: 'pageSize', in: 'query', description: 'Page size.', schema: z.number().int().min(1) },
+                {
+                    name: 'pageSize',
+                    in: 'query',
+                    description: 'Page size.',
+                    schema: z.number().int().min(1).max(MAX_SEARCH_PAGE_SIZE),
+                },
                 {
                     name: 'sortBy',
                     in: 'query',
                     description: 'Sort key.',
-                    schema: z.enum(['relevance', 'newest', 'rating', 'most-cloned', 'quickest']),
+                    schema: z.enum(RECIPE_SEARCH_SORT_BY),
                 },
             ],
             responses: {

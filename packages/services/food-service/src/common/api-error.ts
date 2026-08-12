@@ -19,6 +19,7 @@
  *   `details` each one carries.
  */
 import { HttpException, HttpStatus } from '@nestjs/common';
+import { GENERIC_STATUS_CODES, codeForStatus as sharedCodeForStatus } from '@kitchensink/nest-error-envelope';
 
 import { foodErrorCodeSchema, type FoodErrorCode } from '../foods/foods.schema.js';
 import type { ApiErrorBody } from './api-error.schema.js';
@@ -50,36 +51,33 @@ export const FOOD_ERROR_STATUS: Readonly<Record<FoodErrorCode, number>> = {
  * The code for a failure that has NO published domain code — a framework or transport-level outcome no
  * documented route produces.
  *
- * Deliberately the SAME table the identity service uses (`packages/services/identity/src/common/filters/
- * api-exception.filter.ts`), so the three services speak one vocabulary for the generic cases. Kept explicit
- * rather than derived from Nest's status text, so the wire contract is decoupled from the framework's wording.
+ * ⚠️ IT IS NOW `GENERIC_STATUS_CODES` SPREAD, not one of three hand-written copies. That shared table
+ * (`@kitchensink/nest-error-envelope`) is the vocabulary the three services agree on for the generic cases; the
+ * overrides below are the rows where THIS service has a published member of its own. The three copies had already
+ * drifted — this one and identity's both lacked `GONE` (410) and `LOCKED` (423) while recipe's had them. Neither is
+ * reachable on a food route today, so it was latent; the point is that the drift existed at all.
  *
  * ⚠️ `NOT_FOUND` here is NOT `FOOD_NOT_FOUND`: it is a request for a path this service does not route, which is
  * a different failure with a different fix. Keeping them distinct is the point of having a code at all.
  */
-const STATUS_CODE: Readonly<Record<number, string>> = {
-    [HttpStatus.BAD_REQUEST]: 'BAD_REQUEST',
+export const FOOD_STATUS_CODE: Readonly<Record<number, string>> = {
+    ...GENERIC_STATUS_CODES,
     [HttpStatus.UNAUTHORIZED]: foodErrorCodeSchema.enum.UNAUTHORIZED,
     [HttpStatus.FORBIDDEN]: foodErrorCodeSchema.enum.FORBIDDEN,
-    [HttpStatus.NOT_FOUND]: 'NOT_FOUND',
-    [HttpStatus.METHOD_NOT_ALLOWED]: 'METHOD_NOT_ALLOWED',
-    [HttpStatus.CONFLICT]: 'CONFLICT',
-    [HttpStatus.PAYLOAD_TOO_LARGE]: 'PAYLOAD_TOO_LARGE',
-    [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: 'UNSUPPORTED_MEDIA_TYPE',
-    [HttpStatus.UNPROCESSABLE_ENTITY]: 'UNPROCESSABLE_ENTITY',
-    [HttpStatus.TOO_MANY_REQUESTS]: 'TOO_MANY_REQUESTS',
     [HttpStatus.INTERNAL_SERVER_ERROR]: foodErrorCodeSchema.enum.INTERNAL_ERROR,
-    [HttpStatus.SERVICE_UNAVAILABLE]: 'SERVICE_UNAVAILABLE',
 };
 
 /**
  * The `code` to publish for a status with no domain code of its own.
  *
+ * A thin binding of the shared `codeForStatus` to THIS service's table, kept one-argument because every call site
+ * in the service reads better without repeating the table.
+ *
  * @param status - The HTTP status being returned.
  * @returns A stable code — `HTTP_<status>` for anything unlisted, which is deterministic and leaks nothing. Pure.
  */
 export function codeForStatus(status: number): string {
-    return STATUS_CODE[status] ?? `HTTP_${status}`;
+    return sharedCodeForStatus(status, FOOD_STATUS_CODE);
 }
 
 /**

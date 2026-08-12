@@ -4,10 +4,16 @@
  * Thin controller: the `@OwnerId()` decorator reads the authenticated owner key from `req.principal`
  * (set by the fail-closed `AuthMiddleware` — the app-user ULID, never the Clerk `sub`) and the
  * controller delegates the validated query to {@link SearchService}. A controller-scoped
- * `ValidationPipe` (`transform: true`) coerces the query string into {@link SearchRecipesQueryDto}; the
- * app registers no global pipe.
+ * `ZodValidationPipe` coerces and validates the query string against {@link SearchRecipesQueryDto}; the app
+ * registers no global pipe.
+ *
+ * ⚠️ It was Nest's OWN `ValidationPipe` over a `class-validator` DTO until the query contract was authored as
+ * zod (ADR-0015 §1). Do NOT swap it back: a `createZodDto` class carries no `class-validator` metadata, so
+ * Nest's pipe would validate NOTHING while every visible signal said it did — ADR-0015's failure mode 3, which
+ * had already shipped once on identity's `PATCH /users/me`.
  */
-import { Controller, Get, Query, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Query, UsePipes } from '@nestjs/common';
+import { ZodValidationPipe } from 'nestjs-zod';
 
 import { SearchService } from './search.service.js';
 import { SearchRecipesQueryDto } from './dto/search-recipes.query.dto.js';
@@ -21,7 +27,7 @@ import { SearchRateLimit } from '../common/throttle/throttle.decorators.js';
 // inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
 @Controller(['api/v1/search', 'v1/search'])
 @SearchRateLimit()
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
+@UsePipes(ZodValidationPipe)
 export class SearchController {
     public constructor(private readonly searchService: SearchService) {}
 

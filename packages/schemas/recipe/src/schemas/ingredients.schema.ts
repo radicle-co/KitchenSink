@@ -12,62 +12,42 @@
 /**
  * AUTHORED WIRE CONTRACT for the ingredients vertical (`/api/v1/ingredients/**`).
  *
- * SOURCE OF TRUTH for these shapes. Copied verbatim into `@kitchensink/schema-recipe`, so it may import ONLY
- * `zod`, `@kitchensink/recipe-core`, and flat sibling `*.schema.js` modules — enforced by
- * `@kitchensink/contract-gen`'s import restriction (configured in `contract/generate.ts`).
+ * SOURCE OF TRUTH; copied verbatim into `@kitchensink/schema-recipe`, so it may import ONLY `zod`,
+ * `@kitchensink/recipe-core`, and flat sibling `*.schema.js` modules (allowlist in `contract/config.ts`).
  *
  * DESIGN PATTERN: single-source schema + inferred type, with a zod DISCRIMINATED UNION for the typeahead
- * suggestion. `z.discriminatedUnion` (rather than `z.union`) is deliberate: it emits a real `oneOf` with a
- * discriminator into the published document instead of flattening to an opaque `object`, which §15.2's
- * superseded-design note names as "a contract that lies", and it gives a `switch` on `provenance` the same
- * exhaustiveness the hand-written union had.
+ * suggestion. `z.discriminatedUnion` (not `z.union`) is deliberate: it emits a real `oneOf` + discriminator into
+ * the published document instead of flattening to an opaque `object` — §15.2's "a contract that lies" — and gives
+ * a `switch` on `provenance` real exhaustiveness.
  *
  * ── THE `CandidateView` OWNERSHIP DECISION (⚠️ FLAGGED FOR THE OWNER) ──
  *
- * `GET /api/v1/ingredients/{id}/candidates` used to be typed `readonly CandidateView[]`, where `CandidateView`
- * is imported from `@kitchensink/food-service-client`. So the RECIPE API's public response shape was defined by
- * ANOTHER SERVICE'S CLIENT LIBRARY — and the recipe client then re-declared it as `IngredientCandidate`
- * specifically to avoid taking that dependency. That is the same inversion `search.schema.ts` records fixing
- * for `RecipeSearchFacets`, where a DAL internal defined a public response: computing a value does not confer
- * ownership of its wire type.
+ * `GET /api/v1/ingredients/{id}/candidates` used to be typed with `@kitchensink/food-service-client`'s
+ * `CandidateView` — ANOTHER SERVICE'S CLIENT LIBRARY defining the RECIPE API's public response shape. RESOLVED:
+ * this API declares its OWN candidate shape and the service MAPS the food client's view into it at the gateway.
+ * Rejected — the recipe client depending on the food client (drags its transitive graph into `@commise/web` and
+ * `@commise/mobile` for one five-field interface); `schema-recipe` re-exporting `schema-food` (a food contract
+ * bump would move the recipe hash); promoting it into a shared package (needs a cross-service decision this
+ * change cannot make).
  *
- * RESOLVED HERE as: the recipe API declares its OWN candidate shape, and the service MAPS the food client's
- * view into it at the gateway boundary. Rationale — this is the option with the least coupling that still puts
- * the type where the responsibility is:
- *
- *  - the recipe client depending on `@kitchensink/food-service-client` would drag the food client (and its
- *    transitive graph) into `@commise/web` and `@commise/mobile` for one five-field interface;
- *  - `@kitchensink/schema-recipe` re-exporting from `@kitchensink/schema-food` would make one service's
- *    published contract depend on another's, so a food contract bump would move the recipe contract's hash;
- *  - promoting the shape into a shared package would need a cross-service decision this change cannot make.
- *
- * ── STRICT REQUESTS; THE SEARCH QUERY IS THE EXEMPTION ──
- *
- * The three request bodies (`create`, `by-food`, `resolve`) are `z.strictObject` per GR-017 §17-c.
- * {@link ingredientSearchQuerySchema} is deliberately NOT — it is a READ query, the exemption's named case, and
- * the reasoning is stated once at `recipes.schema.ts`'s `listRecipesQuerySchema`. It is also the one query bag
- * here that is SHARED by two routes (`/search` and `/suggest`), which makes the exemption load-bearing rather
- * than incidental: a parameter meaningful to one of them must not `400` the other.
- *
- * ACCEPTED CONSEQUENCE, stated rather than hidden: two structurally identical declarations exist, one per
- * service. That is not a DRY violation on the knowledge axis — they change for different reasons (food's is
- * what FOOD serves; this one is what RECIPE promises) — but it does mean a food-side field addition does not
- * automatically appear here, which is the correct behaviour for a contract we own and the wrong one if the
- * intent was a shared type. **The owner should confirm this direction**; if a shared type is wanted, the
- * follow-up is to move the shape into a package both services' contracts may compose, not to reinstate the
+ * ACCEPTED CONSEQUENCE: two structurally identical declarations, one per service. Not a DRY violation on the
+ * knowledge axis (they change for different reasons — food's is what FOOD serves, this is what RECIPE promises),
+ * but a food-side field addition does NOT appear here automatically. **The owner should confirm this direction**;
+ * if a shared type is wanted, move the shape into a package both contracts may compose, NOT back to the
  * client-library import.
+ *
+ * The three request bodies are `z.strictObject` (GR-017 §17-c). {@link ingredientSearchQuerySchema} is the
+ * READ-query exemption, reasoned once at `recipes.schema.ts`'s `listRecipesQuerySchema`; it is also the one bag
+ * SHARED by two routes (`/search`, `/suggest`), so a parameter meaningful to one must not `400` the other.
  */
 import { z } from 'zod';
 
 import { foodResolutionStatusSchema, ingredientSchema } from '@kitchensink/recipe-core';
 
-/** Longest accepted opaque food-service id — bounded so a hostile body cannot carry an unbounded string. */
 export const MAX_FOOD_ID_LENGTH = 64;
 
-/** Longest accepted user-entered ingredient name. */
 export const MAX_INGREDIENT_NAME_LENGTH = 120;
 
-/** Most candidates one `resolve` call may pick. */
 export const MAX_CANDIDATE_IDS = 20;
 
 /**
@@ -85,7 +65,6 @@ export const ingredientCandidateSchema = z
         source: z.string().min(1),
         /** That source's opaque key for the item (NOT a user-facing identifier). */
         externalKey: z.string().min(1),
-        /** Candidate display name. */
         name: z.string().min(1),
         /** One-line disambiguation hint, or `null` when the source offers none. */
         summary: z.string().nullable(),
@@ -116,8 +95,8 @@ export type CatalogAvailability = z.infer<typeof catalogAvailabilitySchema>;
 /**
  * One blended ingredient-typeahead suggestion (item of `GET /api/v1/ingredients/suggest`).
  *
- * A DISCRIMINATED UNION rather than a widened `Ingredient`, because the two kinds are structurally different
- * and only one is pickable without a round-trip: collapsing them would force a fabricated ingredient id onto a
+ * A DISCRIMINATED UNION rather than a widened `Ingredient`, because the two kinds are structurally different and
+ * only one is pickable without a round-trip: collapsing them would force a fabricated ingredient id onto a
  * catalog hit, which ends as a foreign-key violation or a nutrition-less recipe line. Narrow on `provenance`
  * before using a suggestion.
  */
@@ -136,7 +115,6 @@ export const ingredientSuggestionSchema = z.discriminatedUnion('provenance', [
             provenance: z.literal('catalog'),
             /** The opaque food id to admit via `POST /api/v1/ingredients/by-food`. Never a source-native key. */
             foodId: z.string().min(1),
-            /** The golden display name. */
             name: z.string().min(1),
             /** Relevance score from the food catalog (higher is better). */
             score: z.number(),
@@ -151,8 +129,8 @@ export type IngredientSuggestion = z.infer<typeof ingredientSuggestionSchema>;
  * Response envelope of `GET /api/v1/ingredients/suggest`.
  *
  * Sectioned, not interleaved: every `local` suggestion precedes every `catalog` one, and that order is stable.
- * Consumers render them as two labeled sections — the fast familiar list never reorders when the catalog
- * section appears or vanishes, which removes the layout-shift class of typeahead jank.
+ * Consumers render them as two labeled sections — the fast familiar list never reorders when the catalog section
+ * appears or vanishes, which removes the layout-shift class of typeahead jank.
  */
 export const ingredientSuggestionsResponseSchema = z
     .object({
@@ -172,7 +150,6 @@ export type IngredientSuggestionsResponse = z.infer<typeof ingredientSuggestions
  * Trimmed before validation, so `'  '` is a `400` rather than an ingredient literally named two spaces.
  */
 export const createIngredientRequestSchema = z.strictObject({
-    /** The user-entered ingredient name. */
     name: z
         .string()
         .transform((value) => value.trim())
@@ -237,9 +214,8 @@ export type IngredientListResponse = z.infer<typeof ingredientListResponseSchema
 
 /*
  * ⚠️ RE-EXPORT, NOT RE-DECLARATION. `recipe-core` remains the sole AUTHOR; this makes the shape reachable from
- * `@kitchensink/schema-recipe`, which is authoritative for everything on the recipe wire. The full reasoning
- * (and the `CONTRACT_HASH` residual it does not close) is stated ONCE, in `recipes.schema.ts`. ⛔ Do not
- * re-declare it here to make this file self-contained.
+ * `@kitchensink/schema-recipe`, which is authoritative for everything on the recipe wire. Full reasoning is
+ * stated ONCE, in `recipes.schema.ts`. ⛔ Do not re-declare it here to make this file self-contained.
  */
 export {
     /** The resolution-status enum a consumer branches on. */

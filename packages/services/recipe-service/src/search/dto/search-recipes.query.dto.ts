@@ -1,114 +1,28 @@
 /**
  * T043 — query DTO for `GET /api/v1/search/recipes`.
  *
- * Mirrors the shared `RecipeSearchParams` contract (`@kitchensink/recipe-core`). Query-string values
- * arrive as strings, so numeric fields are coerced with `@Type(() => Number)` and array fields
- * (`dietaryFlags` / `tags` / `ingredientIds`) accept EITHER repeated params (`?tags=a&tags=b`) OR a
- * single comma-separated value (`?tags=a,b`), normalized to a trimmed `string[]` by `@Transform`. The
- * controller-scoped `ValidationPipe` (`transform: true`) applies these. `page`/`pageSize`/`sortBy` are
- * left optional here and defaulted in {@link SearchService} so the wire contract stays a pure subset.
+ * A thin `nestjs-zod` adapter over the AUTHORED contract in `../search.schema.ts` (CODING_STANDARDS §15.2 /
+ * ADR-0015 §1), matching the sibling `recipes/dto/list-recipes.query.dto.ts`.
  *
- * ⚠️ The three `max*Time` filters carry {@link INT4_CEILING} for the SAME reason the create/update bodies do,
- * even though a filter writes nothing: each becomes `WHERE <int4 column> <= $1`, and an out-of-range parameter
- * fails that comparison with the identical `22003 value "…" is out of range for type integer` an INSERT would
- * — which the `ApiExceptionFilter` collapses to a generic `500` for what is plainly a bad request. Verified
- * against a live PostgreSQL 16. This vertical has NOT otherwise converged on §15.2 zod yet, so the bound is
- * expressed as `@Max` here; when it does converge it moves into `search.schema.ts`.
+ * ⚠️ THIS FILE WAS THE LAST `class-validator` IMPORTER IN `packages/services/**`. What it held — the
+ * repeated-or-CSV array normalization, the `INT4_CEILING` on the three time filters, the page-size ceiling and
+ * the `sortBy` enum — now lives in `../search.schema.ts`, which is where the wire contract belongs and which is
+ * what the published `openapi.yaml` derives its `parameters` from. Three things moved with it, none cosmetic:
+ * the rejection now travels the `errors` key so `ApiExceptionFilter` publishes `VALIDATION_FAILED` rather than
+ * the unpublished `BAD_REQUEST`; the page-size bound comes from `@kitchensink/recipe-core` rather than from
+ * `dal/search.dal.js`; and `INT4_CEILING` is composed rather than re-declared.
+ *
+ * ⚠️ A `createZodDto` class carries NO `class-validator` metadata; see `../../recipes/dto/create-recipe.dto.ts`.
  */
-import { Transform, Type } from 'class-transformer';
-import { IsArray, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
-import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
-import type { RecipeSearchParams, RecipeSearchSortBy as RecipeSearchSortByType } from '@kitchensink/recipe-core';
+import { createZodDto } from 'nestjs-zod';
 
-import { MAX_SEARCH_PAGE_SIZE } from '../dal/search.dal.js';
+import { recipeSearchQuerySchema } from '../search.schema.js';
 
-/**
- * The largest value a Postgres `integer` (int4) column accepts — the ceiling of the `prep_time_minutes` /
- * `cook_time_minutes` / `total_time_minutes` columns these filters compare against.
- */
-const INT4_CEILING = 2_147_483_647;
+/** Query parameters of `GET /api/v1/search/recipes`. */
+export class SearchRecipesQueryDto extends createZodDto(recipeSearchQuerySchema) {}
 
-/**
- * The `sortBy` values accepted on the wire — derived from the shared {@link RecipeSearchSortBy} value object
- * (single source), so a new search sort (W8-a.9 added `most-cloned` + `quickest`) is admitted by adding it to
- * the enum, with no second list to keep in lockstep here.
- */
-const SEARCH_SORT_BY = Object.values(RecipeSearchSortBy);
-
-/** Normalize a repeated-or-CSV query param into a trimmed, non-empty `string[]` (or `undefined`). Pure. */
-function toStringArray(value: unknown): string[] | undefined {
-    const raw = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [];
-    const normalized = raw
-        .filter((item): item is string => typeof item === 'string')
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0);
-
-    return normalized.length > 0 ? normalized : undefined;
-}
-
-/** Query parameters of `GET /api/v1/search/recipes` (a wire projection of `RecipeSearchParams`). */
-export class SearchRecipesQueryDto implements RecipeSearchParams {
-    @IsOptional()
-    @IsString()
-    query?: string;
-
-    @IsOptional()
-    @IsString()
-    cuisine?: string;
-
-    @IsOptional()
-    @Transform(({ value }) => toStringArray(value))
-    @IsArray()
-    @IsString({ each: true })
-    dietaryFlags?: string[];
-
-    @IsOptional()
-    @Transform(({ value }) => toStringArray(value))
-    @IsArray()
-    @IsString({ each: true })
-    tags?: string[];
-
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(0)
-    @Max(INT4_CEILING)
-    maxPrepTime?: number;
-
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(0)
-    @Max(INT4_CEILING)
-    maxCookTime?: number;
-
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(0)
-    @Max(INT4_CEILING)
-    maxTotalTime?: number;
-
-    @IsOptional()
-    @Transform(({ value }) => toStringArray(value))
-    @IsArray()
-    @IsString({ each: true })
-    ingredientIds?: string[];
-
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(1)
-    page?: number;
-
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(1)
-    @Max(MAX_SEARCH_PAGE_SIZE)
-    pageSize?: number;
-
-    @IsOptional()
-    @IsIn(SEARCH_SORT_BY)
-    sortBy?: RecipeSearchSortByType;
-}
+// `MAX_SEARCH_PAGE_SIZE` is NOT re-exported here — it is a bound, so it lives in `@kitchensink/recipe-core`.
+// `RECIPE_SEARCH_SORT_BY` is this endpoint's own wire enum, so it stays authored in `search.schema.ts` and is
+// re-exported for the OpenAPI route table.
+export { RECIPE_SEARCH_SORT_BY } from '../search.schema.js';
+export type { RecipeSearchQuery } from '../search.schema.js';

@@ -1446,12 +1446,14 @@ paths:
           description: Free-text query.
           schema:
             type: string
+            minLength: 1
         - name: cuisine
           in: query
           required: false
           description: Exact cuisine filter.
           schema:
             type: string
+            minLength: 1
         - name: dietaryFlags
           in: query
           required: false
@@ -1460,6 +1462,7 @@ paths:
             type: array
             items:
               type: string
+              minLength: 1
         - name: tags
           in: query
           required: false
@@ -1468,6 +1471,7 @@ paths:
             type: array
             items:
               type: string
+              minLength: 1
         - name: ingredientIds
           in: query
           required: false
@@ -1476,6 +1480,7 @@ paths:
             type: array
             items:
               type: string
+              minLength: 1
         - name: maxPrepTime
           in: query
           required: false
@@ -1514,6 +1519,7 @@ paths:
           schema:
             type: integer
             minimum: 1
+            maximum: 50
         - name: sortBy
           in: query
           required: false
@@ -1522,8 +1528,8 @@ paths:
             type: string
             enum:
               - relevance
-              - newest
-              - rating
+              - recent
+              - title
               - most-cloned
               - quickest
   /api/v1/ingredients/search:

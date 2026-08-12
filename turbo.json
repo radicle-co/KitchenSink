@@ -9,10 +9,10 @@
         "@kitchensink/schema-recipe#build": {
             // DRIFT LAYER 1 (Rebuild). This package is GENERATED OUTPUT: its zod, its `z.infer` types and its
             // derived `openapi.yaml` are copied from the recipe service's authored `src/**/*.schema.ts`.
-            // Declaring the SERVICE's build as a dependency — rather than relying on the default `^build`,
-            // which only walks this package's own package.json dependencies — is what puts the service's
-            // sources inside turbo's hash for this task, so touching an authored schema invalidates the
-            // generated package instead of serving a stale cache hit.
+            // The `$TURBO_ROOT$` INPUT below — not a `dependsOn` edge to the service — is what puts the
+            // service's authored sources inside turbo's hash for this task, so touching an authored schema
+            // invalidates the generated package instead of serving a stale cache hit. `dependsOn` is the
+            // intuitive spelling and it is UNAVAILABLE; see the paragraph below before reaching for it.
             //
             // NOTE THE DIRECTION: the service is the SOURCE and never imports this package.
             //
@@ -105,6 +105,42 @@
         "test": {
             "dependsOn": ["^build"],
             "outputs": []
+        },
+        // ⛔ THE CONFORMANCE LAYER MUST NOT CACHE ON ITS OWN PACKAGE ALONE.
+        //
+        // `infra-global`'s suite is not a unit suite over `lib/**` — it is the repo-wide guard layer. Its
+        // assertions read `.github/workflows/**` (workflow invariants, reclamation gating, deploy-gate,
+        // heavy-tier wiring), `specs/*/tasks.md` (task-id and table-collision sweeps), every
+        // `packages/services/*/**` source (the G1–G6 security invariants and W1–W5 infra wiring, both
+        // discovered from manifests) and the root `scripts/**` + `package.json`.
+        //
+        // The base `test` task above declares NO `inputs`, so turbo hashes only this package's own files.
+        // Measured 2026-08-12 with `--dry=json`: 104 inputs, ZERO from `.github/`, `specs/` or any other
+        // package, and two consecutive runs returned FULL TURBO. That silently degrades the layer's
+        // guarantee to "these gates ran on whichever commit last touched infra-global" — so adding a
+        // service that violates G1, or a workflow that re-gates a reclamation job, could serve a cache hit
+        // and report green. It is latent only because no `.turbo` cache is persisted between CI runs today;
+        // one `actions/cache` step, or a remote-cache token, makes it live.
+        //
+        // ⚠️ `inputs` CANNOT express this dependency, measured before choosing `cache: false`. With
+        // `$TURBO_ROOT$` globs declared for all of it, `--dry=json` resolved 993 files: `.github/**` → 151,
+        // `specs/*/tasks.md` → 14, `scripts/**` → 16 — but `packages/services/*/src/**`,
+        // `packages/services/*/infra/**` and `packages/clients/*/**` each resolved to **ZERO**. turbo does
+        // not hash files that belong to ANOTHER WORKSPACE PACKAGE into a task's inputs; those are meant to
+        // travel through `dependsOn` edges. And the edge is not available either — see the schema blocks
+        // above for why depending on the services from here is cycle-forming.
+        //
+        // So the guard layer's real input set is not expressible, and a PARTIAL input list is the worst
+        // outcome: it looks precise, hashes `.github` correctly, and stays blind to exactly the service
+        // sources that G1–G6 and W1–W5 assert on. An always-run task is honest. It costs ~8s for 865 tests,
+        // which is cheaper than one false green.
+        //
+        // A package-task entry REPLACES the base task rather than merging with it, so `^build` is repeated
+        // here deliberately — dropping it is the exact defect documented at length in the schema blocks above.
+        "@kitchensink/infra-global#test": {
+            "dependsOn": ["^build"],
+            "outputs": [],
+            "cache": false
         },
         "test:integration": {
             "dependsOn": ["^build"],

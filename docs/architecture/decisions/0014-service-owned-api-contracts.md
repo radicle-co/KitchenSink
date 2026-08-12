@@ -73,8 +73,15 @@ packages/clients/<service>  →  web + mobile      (depend on the leaf, never on
    independently declared. Reference implementation:
    `packages/apps/commise/features/recipes/src/filters/model.ts`.
 5. **Three drift layers, all required, each catching what the others cannot.**
-    - **Rebuild (turbo)** — `schema-<service>#build` `dependsOn` `<service>#build`, with `inputs` covering
-      the service's `*.schema.ts` sources, so content hashing rebuilds the package automatically.
+    - **Rebuild (turbo)** — `schema-<service>#build` declares `$TURBO_ROOT$` **`inputs`** covering the
+      service's `*.schema.ts` sources, so content hashing rebuilds the package automatically.
+      ⚠️ **`inputs`, NOT `dependsOn`** — see `docs/CODING_STANDARDS.md` §15 and the comment in `turbo.json`.
+      A `dependsOn` edge to the service closes the cycle `client -> schema -> service -> client` (the
+      service devDepends on its own client for a real contract-test tier) and turbo rejects it outright.
+      Ordering was never what this layer needed: the generated files are committed, so the package's
+      `build` only compiles files already on disk. What it needs is cache INVALIDATION, which `inputs`
+      delivers. This bullet said `dependsOn` until 2026-08-12 and pointed readers at a change that
+      cannot build.
     - **Correctness (CI)** — regenerate and fail on any diff against the committed artifacts. This is the
       strong gate; it is what catches generated output someone hand-edited.
     - **Skew (runtime)** — a `CONTRACT_HASH` over the service's `*.schema.ts` sources, embedded in both the
@@ -182,8 +189,9 @@ under time pressure. Authoring lives beside the controller it serves.
   there is no bundle-into-`dist` path that would let a build inline them instead. Naming it plainly matters:
   the "generation" of `schemas.ts`/`types.ts` is a **file copy**, not a transformation. The regenerate-and-diff
   CI gate is what makes a copy safe.
-- **The turbo edge points schema → service**, which is the reverse of the intuitive direction and must not
-  be "corrected".
+- **The turbo relationship points schema → service** (the generated package reaches back at the service's
+  sources), which is the reverse of the intuitive direction and must not be "corrected". It is expressed as
+  `$TURBO_ROOT$` **`inputs`**, never as a `dependsOn` edge — that edge is cycle-forming and turbo refuses it.
 - **Nothing in a schema package is hand-edited.** To change a contract you edit the service's `*.schema.ts`
   and regenerate; a hand-edit is discarded by CI rather than shipped.
 

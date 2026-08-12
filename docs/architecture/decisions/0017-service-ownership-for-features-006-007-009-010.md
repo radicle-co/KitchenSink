@@ -110,11 +110,16 @@ Consequences that follow immediately and are not separate decisions:
 - **The claim path is already identity's.** 010 FR-044 puts the entitlement in the Clerk session token's
   `public_metadata`, verified by `@kitchensink/clerk-verify`. Writing that metadata is identity's job.
 - **The Stripe webhook belongs in `identity-webhooks`, not in the API.** It is an unauthenticated
-  third-party callback that needs the raw request body, must not sit behind Clerk's `AuthMiddleware`, must
-  answer while the API is scaled down, and needs the idempotency table 010 calls `webhook_events` — all four
-  of which `identity-webhooks` already does for Clerk's svix callback, with a `webhook_events` table already
-  in that database. Putting a second webhook next to the first reuses a proven shape; putting it on the ECS
-  service reinvents one.
+  third-party callback that needs the raw request body, must not sit behind Clerk's `AuthMiddleware`, and
+  must answer while the API is scaled down — all of which `identity-webhooks` already does for Clerk's svix
+  callback. Putting a second webhook next to the first reuses a proven shape; putting it on the ECS service
+  reinvents one. - ⚠️ **AMENDED by [ADR-0018](./0018-per-sender-webhook-dedup-tables.md) (2026-08-12).** This bullet
+  originally also argued that 010 should reuse the **existing `webhook_events` table**. ADR-0018 rules
+  that out: svix's row proves a Clerk _identity_ event was applied and its `identity_id` is `text NOT
+NULL`, whereas a Stripe row keys on a customer that may resolve to no identity at all — so sharing the
+  table needs a nullable `identity_id`, i.e. deleting the constraint that makes GR-019's no-sentinel rule
+  schema-enforced. 010 therefore creates **`stripe_webhook_events`**. The service-ownership decision in
+  this bullet stands; only the table-reuse rationale fell.
 
 ### The naming consequence, stated rather than hidden
 

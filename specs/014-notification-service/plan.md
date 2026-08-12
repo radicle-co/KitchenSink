@@ -337,6 +337,37 @@ at-least-once + a bounded dedup window), and **OPEN-014-C** (FR-019/FR-033 quota
 cannot express a field whose authority or unit is undecided. See
 [`spec.md` → _Open Questions_](./spec.md#open-questions-owner-resolution-required).
 
+### Where that zod RUNS (GR-016) — one schema, two ingress paths, two rejection behaviours
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Full bindings:
+[`spec.md` → _Input Validation (GR-016)_](./spec.md#input-validation-gr-016). Four points bear on **this
+plan's** design:
+
+1. **The `createZodDto` + `nestjs-zod` `ZodValidationPipe` mechanism covers the HTTP adapter only — a pipe
+   reaches nothing on the bus.** The EventBridge adapter therefore **calls the same schema explicitly**. That
+   asymmetry is precisely why "one authored zod, both adapters" is load-bearing rather than tidy: the two
+   paths reach the schema by different mechanisms, so a **second** schema per adapter would be invisible until
+   a rule diverged (the FR-024 defect).
+2. **"One `400` path" (GR-016 §16-a.3) means one validation outcome per ingress, not a `400` on the bus.** The
+   HTTP path returns a `400` naming the offending field; the event path has no caller to receive it, so a
+   rejection **dead-letters and alarms** with the per-reason counter this plan already specifies (FR-015,
+   FR-017, FR-019, FR-027, FR-028). Same parse, same verdict, different delivery of the verdict — the
+   equivalence SC-008's paired tests assert.
+3. **⚠️ The AWS wrapper is parsed BEFORE `source` is trusted, and that ordering is the control.** FR-027 makes
+   the validated `source` a trust decision, so the adapter proves the wrapper is the shape it claims to be
+   **first**. Reading `source` off an unvalidated `PutEvents` payload is trusting a field to authorise the
+   record that carries it.
+4. **⛔ `payload` stays opaque, and GR-016 does NOT change that.** FR-023 forbids inspecting or validating the
+   payload beyond size limits, so the envelope's zod bounds its **size** and nothing else. GR-016 requires the
+   **envelope** to be validated, not its opaque contents; a contributor citing GR-016 to add per-`messageType`
+   payload validation here would put this service in violation of its own FR-023.
+
+🟠 **GR-016 answers none of the three OPEN items above**, and does not narrow them: a quota bound whose **unit**
+is undecided (OPEN-014-C) cannot be expressed as a schema constraint, and neither can a producer-identity field
+whose authority is contested (OPEN-014-A). They stay open.
+
 ### Event-path trust boundary (FR-027)
 
 The event path carries **no credential**. Its trust boundary is therefore two controls, both required:

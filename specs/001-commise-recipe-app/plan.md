@@ -223,6 +223,60 @@ party's JSON. See 003 for the full statement.
   repointed and the file has not been deleted. Do not treat it as normative for a shape the service's zod
   also describes: where they disagree, **the service's `*.schema.ts` wins.**
 
+## Input validation — where the authored zod RUNS (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). GR-015 (above)
+decides **who authors** the zod; GR-016 decides **where it runs**. Bindings for this feature only; the rule
+lives there and wins on any detail. **001 is where the measured defect was found, so this section is the
+sharpest in the portfolio.**
+
+- **One mechanism, one `400`.** Every recipe/collection/photo/rating/search input — body, path params, query
+  params, and any header a handler reads — is parsed by the service's own `*.schema.ts` zod via
+  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. Measured 2026-08-11: recipe-service is furthest
+  along (18 pipes / 26 DTOs) but **19 files are still on `class-validator`** — two mechanisms in one service,
+  which means two error contracts. The residue is removed, not extended; a new endpoint never adds a
+  `class-validator` DTO.
+- **⛔ THE FLOOR — this feature's own `500` that owed a `400`.** Five int-backed wire fields — **`servings`,
+  `prepTimeMinutes`, `cookTimeMinutes`, `totalTimeMinutes`, `timerSeconds`** — carried **no upper bound**
+  while writing `integer` (`int4`) columns capped at **2,147,483,647**. `servings: 9999999999` passed
+  validation and failed at the `INSERT`. Every input field writing a bounded column is validated at least as
+  strictly as that column can store.
+    - ⚠️ **Asserted, never derived.** Zod is **not** generated from drizzle and a `*.schema.ts` **never
+      imports a storage type** — that is the same leak GR-015 flags in `RecipeSearchResponse.facets`
+      (`../dal/search.dal.js`). The `*.schema.ts` import constraint is unchanged.
+    - ⚠️ **The floor is a floor.** Recipe's text columns are `text()` — **unbounded** — so limits on `title`,
+      step text, notes and ingredient names are **product decisions 001 owns**, with no storage bound to
+      derive from. "The column allows it" is not a reason to accept a 2 MB recipe title.
+- **Non-HTTP ingress is in scope.** `@kitchensink/recipe-workers` handlers — the version-archive worker, the
+  account-erasure worker, `archive-sweeper`, `erasure-sweeper`, `erasure-orphan-sweeper`, `handle-sync-worker`
+  — parse their SQS/event payload against an authored zod **before** it becomes a job. An enqueued body is a
+  string a producer chose; the archive job's own envelope is shared between the service and the worker and is
+  authored once (GR-015), then validated on receipt.
+- **Service-to-service, both directions.** 001 calls **food** via `@kitchensink/food-service-client`:
+  outbound bodies validated against `@kitchensink/schema-food` before the call, responses validated on
+  receipt. 001 is also **called** — `POST /api/v1/internal/account/erasure` from identity's fan-out
+  (`packages/services/identity-webhooks/src/common/erasure-fanout.ts`) — and that inbound body is validated
+  like any other. **"Internal" is not a synonym for "trusted"**: a caller inside our VPC can still send the
+  wrong shape after a one-sided deploy.
+- **⚠️ `createZodDto` under Nest's own `ValidationPipe` validates NOTHING while looking correctly wired.**
+  This service registers **`nestjs-zod`'s** pipe. The only way to see the difference is a test that posts a
+  **known-bad body to a real route** and asserts the `400` — write one per controller, and make one of them
+  the out-of-range `servings` case above so the fix cannot silently regress.
+- **Unknown keys are a stated choice per surface**, not zod's default by accident: `z.object()` **strips**
+  silently, `z.strictObject()` **rejects**. A recipe update that misspells a field must not return `200`
+  having written nothing. (The portfolio default is **OPEN** — GR-016 OPEN-GR-016-B.)
+- **No request-derived value reaches `sql.raw()`.** The recipe search DAL
+  (`packages/services/recipe-service/src/search/dal/search.dal.ts`) and the two sweepers
+  (`erasure-sweeper.ts`, `erasure-orphan-sweeper.ts`) are the only sites passing it a non-literal, and all
+  three take a config value or a module constant today. Search is the surface most likely to break that:
+  facet, sort and filter selections arrive **from the request**, so a validated enum maps to a **closed
+  allowlist of literals in code** — the request supplies the key, never the SQL fragment.
+- **⛔ Response validation is DEFERRED (GR-016 §16-g) — do not "complete" it.** No service validates its own
+  responses; TypeScript plus the client-side parse on receipt were judged sufficient for now. Adding
+  server-side response parsing to this service undoes an owner decision.
+
 ## Reliability Architecture (FR-001a, FR-007b-i, C-007, FR-011)
 
 ### Atomic Recipe Save with Independent Photo Uploads (FR-001a)

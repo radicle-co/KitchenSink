@@ -291,6 +291,56 @@ neither turbo nor CI can see.
 - **Deleting an OCR boundary schema under the convergence rule is a security regression**, not a cleanup: it is
   the parse standing between a hostile image's extracted text and the recipe write path.
 
+### Input validation (GR-016) — two services, so two of everything
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Contract ownership
+above decides **who authors** the zod; GR-016 decides **where it runs**. **011 introduces two deployables, so
+each one carries the obligation independently** — a mechanism converged in digitization proves nothing about
+circles.
+
+- **One mechanism per service, one `400` per service.** Every job, correction, save, circle, membership and
+  invitation input — body, path params (including **`/circles/join/:token`**, where the token is path data),
+  query params — is parsed by that service's own `*.schema.ts` zod via `createZodDto` + **`nestjs-zod`'s**
+  `ZodValidationPipe`. The **Problem Details envelope and the `error_code` enum** are already required to be
+  authored zod; the validation failure path is what emits them, and there is **one** such path per service.
+- **The payload constraints of FR-027 / FR-028 are schema constraints** (as the ownership section already
+  says): upload size and content-type bounds, cursor page size 20, correction payload bounds. A bound enforced
+  in a service method but absent from the published schema is a bound the client cannot design against.
+- **⛔ THE FLOOR.** Every input field writing a bounded column is validated at least as strictly as the column
+  can store — circle `name` length, member/invitation id formats, status enums, nullability, and any integer
+  page/count field against its `int4` ceiling (**2,147,483,647**). ⚠️ **And the save path reaches 001's
+  floor**: `POST /api/v1/recipes/digitize/jobs/:id/save` persists a recipe, so the five measured int-backed
+  fields — **`servings`, `prepTimeMinutes`, `cookTimeMinutes`, `totalTimeMinutes`, `timerSeconds`** — must be
+  bounded **before** the write, because on this feature their values came out of a **photograph of an arbitrary
+  page**. That is the `500`-that-owed-a-`400` shape, arriving through OCR.
+    - ⚠️ **Asserted, never derived**: no zod generated from Drizzle, no storage type imported into a
+      `*.schema.ts`. The import constraint above is unchanged by GR-016.
+    - ⚠️ **Text columns are unbounded**, so limits on extracted titles, steps and notes are **product decisions
+      011 owns** — and here they are also a DoS control, since a scanned page's text volume is chosen by
+      whoever printed the page.
+- **✅ The OCR boundary parse is REQUIRED by GR-016, not merely permitted by §15-d.** Textract's response is
+  **input** to us: every block, geometry and confidence value is parsed before it reaches a job result.
+  Nothing in GR-016 licenses converging that adapter schema away.
+- **Non-HTTP ingress is in scope.** The digitization pipeline is asynchronous: the **job worker** parses its
+  queue/event payload against an authored zod before acting on it, and an **S3 event or provider callback**
+  (a completion notification for a long-running OCR job) gets **signature/authorisation first, then schema** —
+  a signature proves **origin, not shape**.
+- **Pre-signed upload URLs do not validate content.** A pre-signed `PUT` (FR-001/FR-027) bypasses our service
+  entirely, so the object's real type and size are **not** established by the request that minted the URL. The
+  bytes are validated where they are first read — library-first magic-byte detection, not an extension check —
+  and the job is failed with a typed error rather than handed to the OCR provider.
+- **Circles is consumed by three separately deployed services** (001, 006, 007). Each of those callers is bound
+  by GR-016 §16-c in both directions: outbound bodies validated against `@kitchensink/schema-circles` before
+  the call, responses validated on receipt. **"Internal" is not a synonym for "trusted"** — that is the same
+  skew case the boot assertion exists for.
+- **Unknown keys are a stated choice per surface.** `PATCH .../jobs/:id/correction` is the load-bearing case: a
+  silently stripped unknown key returns `200` for a user correction that was never applied. (Portfolio default
+  is **OPEN** — GR-016 OPEN-GR-016-B.)
+- **⛔ Response validation is DEFERRED (GR-016 §16-g)** on both services. Do not add it; the OCR-side parse
+  above is input to us and is a different obligation.
+
 ---
 
 ## Frontend Components

@@ -166,6 +166,47 @@ declare its own types**, and **gets no OpenAPI document**. On health data that b
 control as well as a correctness one. `packages/clients/usda` is the reference implementation and its
 `schemas.ts` must never be "converged".
 
+### 3.0a Input validation (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). §3.0 decides **who
+authors** the zod; GR-016 decides **where it runs**. **The OPEN ownership question above does not defer this
+obligation** — it binds whichever service ends up owning `/api/v1/nutrition-plans/*`.
+
+- **One mechanism, one `400`.** Every plan, target, link and compliance-report input — body, path params,
+  query params — is parsed by that service's own `*.schema.ts` zod via `createZodDto` + **`nestjs-zod`'s**
+  `ZodValidationPipe`. One mechanism per service, one `400` path naming the offending field.
+- **⛔ THE FLOOR, and on this feature it doubles as a safety bound.** Every input field writing a bounded
+  column is validated at least as strictly as the column can store — macro and calorie **targets** (range,
+  and `numeric(p,s)` precision/scale where the column has one), unit and goal enums, date formats,
+  nullability. A target the column cannot hold is a `400` at the boundary, never a failed `INSERT`.
+    - ⚠️ **Asserted, never derived**: no zod generated from Drizzle, no storage type imported into a
+      `*.schema.ts`. §3.0's import constraint is unchanged by GR-016.
+    - ⚠️ **The floor is a floor, and here that matters more than usual.** A `numeric` column will happily store
+      a 50,000-calorie daily target; **what is medically implausible is a product decision this feature owns**,
+      and it is not derivable from storage. Bounds that exist to protect a user are authored deliberately, in
+      the schema, where the client sees them.
+- **⚠️ Unknown-key handling is a DATA-MINIMIZATION control here, not a style choice.** These bodies carry GDPR
+  Article 9 special-category health data (§1, §4). `z.object()` **strips unknown keys silently** — which means
+  a client sending an extra health field gets a `200` and no record of what it tried to send; `z.strictObject()`
+  **rejects** it. Naming the choice per surface is what makes "only necessary fields cross the wire" auditable
+  in one place. (Portfolio default is **OPEN** — GR-016 OPEN-GR-016-B — and 009 is the feature with the
+  strongest case for `strictObject`.)
+- **Validation errors must not echo health values.** A `400` names the offending **field**, not the rejected
+  value, and validation failures are logged without the payload — the same reasoning §4 applies to storage,
+  applied to the error path.
+- **Non-HTTP ingress**: 009 declares no queue, event or webhook consumer today. If it adds one (a nightly
+  compliance-rollup job, or a wearable/health-platform ingest — the obvious candidate), that handler **parses
+  its payload against an authored zod before acting on it**, and a signed third-party callback gets **signature
+  then schema** (a signature proves origin, not shape).
+- **009 is a CLIENT of our other services**, both directions: outbound bodies validated against
+  `@kitchensink/schema-food` (nutrients) and the recipe/meal-plan schema packages before the call; responses
+  validated on receipt.
+- **⛔ Response validation is DEFERRED (GR-016 §16-g).** Note the interaction and do not "fix" it: a redacted or
+  trainer-visible projection is enforced by being a `Pick`/`Omit` **derivation** of the wire type (§3.0), not by
+  a response-side parse.
+
 ### Endpoints
 
 | Method | Path                                      | Auth     | Description                      |

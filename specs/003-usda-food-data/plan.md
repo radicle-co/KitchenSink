@@ -604,6 +604,58 @@ paragraph exists to prevent.
 - ✅ `packages/clients/usda`'s boundary schemas already exist and are **correct as-is** — they need no change
   under GR-015 and must not be touched by the convergence work.
 
+### 3.0a Input validation (GR-016) — and 003's service is the portfolio's WORST case
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). GR-015 decides
+**who authors** the zod; GR-016 decides **where it runs**. Bindings for this feature only.
+
+⛔ **Measured 2026-08-11: `@kitchensink/food-service` has `ZodValidationPipe` = 0 and `createZodDto` = 0 — no
+validation pipe at all.** It takes `@Body() body: unknown` and hand-writes a `safeParse` per method. The
+consequence is not hypothetical and not cosmetic: a **wrong-typed field**, a **missing field** and an
+**unknown key** all report `{ error: 'Empty name' }`. Three different caller mistakes, one answer that fixes
+none of them.
+
+- **One mechanism, one `400`.** Every `/api/v1/foods/*` input — add-by-name, read, status, candidates,
+  resolve, search, **batch**, refetch, plus the admin surface — is parsed by the service's own `*.schema.ts`
+  zod via `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. **`@Body() body: unknown` is removed, not
+  wrapped**: it relocates the parse into the method body, where it is optional by construction. Validation
+  failure gets **one** path producing a `400` that names the offending field.
+- **The bounds already specified in this plan belong in that zod**, so the client sees the constraint the
+  server enforces: the batch endpoint's **≤100-name bound (FR-045)** and the candidate-set membership check
+  (FR-RES-2). A bound enforced in a service method but absent from the published schema is a bound the caller
+  cannot design against.
+- **Non-HTTP ingress is in scope.** The **change-refresh worker** and the SQS consumers
+  (`packages/services/food-service/src/worker/**`, `src/events/**`) parse their message payload against an
+  authored zod **before** it becomes a job — a queue body is a string the producer chose, and the resolution
+  pipeline writes golden records.
+- **003 is CALLED by another service, and by identity's Lambdas.** `@kitchensink/recipe-service` resolves
+  ingredients here, and identity's fan-out posts `POST /api/v1/internal/account/erasure`
+  (`packages/services/identity-webhooks/src/common/erasure-fanout.ts`). Both inbound bodies are validated like
+  any other — **"internal" is not a synonym for "trusted"**, and this service is the one whose 401/403 posture
+  is already load-bearing (§2A).
+- **The floor.** Every input field writing a bounded column is validated at least as strictly as the column
+  can store — id/name lengths, status enums, nullability, and **where a nutrient or amount writes a
+  `numeric(p,s)` column, its precision and scale**. A value the column cannot hold is a `400` at the
+  boundary, never a failed `INSERT`.
+    - ⚠️ **Asserted, never derived.** No zod generated from Drizzle, and a `*.schema.ts` imports **no Drizzle
+      schema, no DAO type, and nothing from `@kitchensink/usda-client`** — the constraint §3.0 already states
+      is unchanged by GR-016. The two artifacts agree in **one direction only**: the wire bound is at least as
+      tight as the column.
+- **✅ The USDA boundary parse is REQUIRED by GR-016 as well as permitted by §15-d — the two rules agree
+  here.** §15-d says `@kitchensink/usda-client` **may** declare its own types and must validate the raw
+  upstream shape; GR-016 is what makes that parse **mandatory** for every source adapter, because USDA
+  responses are input to a write path. Nothing in GR-016 licenses converging those schemas.
+- **Unknown keys are a stated choice per surface** (`z.object` strips silently, `z.strictObject` rejects).
+  On add-by-name, silently dropping a misspelled field is how a caller gets a `202` for a request that did
+  not say what they meant. Portfolio default is **OPEN** (GR-016 OPEN-GR-016-B).
+- **No request-derived value reaches `sql.raw()`**; a request-selected sort or filter maps through a validated
+  enum to a closed allowlist of literals in code.
+- **⛔ Response validation is DEFERRED (GR-016 §16-g) — do not "complete" it.** The food service validates no
+  responses, deliberately; the consumer-side parse (recipe, web, mobile) is where response checking lives for
+  now.
+
 ### Endpoints
 
 Auth column: **U** = user session token, **M** = M2M/service token, **scope** = additionally requires a

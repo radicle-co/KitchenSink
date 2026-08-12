@@ -7,7 +7,11 @@
   inherits)
 - **Relates to**: [ADR-0011](0011-api-version-prefix.md) (canonical `/api/{version}/*` — this ADR governs
   the _shapes_ at those paths, not the paths), `specs/governance-rules.md` GR-007 (shared **domain** types
-  in `@kitchensink/recipe-core` — a different axis; see _Relationship to GR-007_ below)
+  in `@kitchensink/recipe-core` — a different axis; see _Relationship to GR-007_ below),
+  [ADR-0015](0015-input-validation-at-every-boundary.md) (**where the authored zod must RUN** — one boundary
+  parse per service, the DB schema as the validation floor, response validation deferred; a service can
+  satisfy this ADR in full and still accept anything, so ADR-0015 is a separate obligation, and its
+  storage-floor rule is an **assertion** that does not weaken this ADR's `*.schema.ts` import constraint)
 
 ## Context
 

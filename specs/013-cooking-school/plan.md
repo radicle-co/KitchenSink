@@ -203,6 +203,52 @@ deploying ahead of a released mobile player).
   boundary schema under §15-b replaces a checked parse with unchecked trust in a remote party's JSON — a
   security regression, not a cleanup.
 
+### Input validation (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Contract ownership
+above decides **who authors** the zod; GR-016 decides **where it runs**.
+
+- **One mechanism, one `400`.** `cooking-school-service` validates every educator-authoring, catalog, playback,
+  enrollment, progress, AI-assist and analytics input — body, path params
+  (`:courseId`, `:lessonId`), query params — with its own `*.schema.ts` zod via `createZodDto` +
+  **`nestjs-zod`'s** `ZodValidationPipe`. One mechanism, one `400` path that names the offending field; no
+  `class-validator` DTO alongside it.
+- **⚠️ An entitlement or playback decision must never branch on an unparsed field.** The playback manifest and
+  the entitlement decision are already called out as the load-bearing contracts; on the **input** side the same
+  logic applies — a lesson id, a preview flag or an enrollment token that was never parsed can **fail open**
+  and serve gated video. Parse first, then authorise, then serve.
+- **⛔ THE FLOOR.** Every input field writing a bounded column is validated at least as strictly as the column
+  can store: lesson **ordering** and duration integers against their `int4` ceiling (**2,147,483,647**),
+  progress **percentages and positions** (range- and precision-bounded — a completion threshold is meaningless
+  if `progress: -5` or `10 ** 12` can be stored), `price_cents` for a `published-lesson` audience (GR-014),
+  status enums, nullability. A value the column cannot hold is a `400` at the boundary, never a failed
+  `INSERT`.
+    - ⚠️ **Asserted, never derived**: no zod generated from Drizzle, no storage type imported into a
+      `*.schema.ts`. The import constraint above is unchanged by GR-016.
+    - ⚠️ **Lesson description/script text columns are unbounded**, so their limits — and the AI draft-script
+      request's own input bounds — are **product decisions 013 owns**.
+- **⚠️ The transcode provider's CALLBACK is an inbound external request, and it needs both controls.** As the
+  §15-d block says, the callback body is not ours. GR-016 §16-b adds the ordering: **authenticate the callback
+  (signature/shared secret), then validate the schema** — a signature proves **origin, not shape**, and this
+  payload decides whether a lesson becomes playable. An unvalidated status string that flips a lesson to
+  `ready` is the same class of failure as an unvalidated billing status.
+- **Non-HTTP ingress is in scope.** `cooking-school-workers` **parses the transcode/status event envelope on
+  receipt** against the same authored zod the service publishes — the envelope is shared between two
+  deployables that version independently, so "the service enqueued it" is an assumption about a deploy.
+- **✅ The LLM boundary parse is REQUIRED by GR-016, not merely permitted by §15-d.** Draft-script output is
+  **input** to us: validated before it is persisted, rendered, or shown to an educator.
+- **013 is a CLIENT of other services** (005, 001, 010, 012), and GR-016 §16-c binds both directions: outbound
+  bodies validated against the callee's schema-package zod before the call, responses validated on receipt.
+- **Unknown keys are a stated choice per surface.** Educator authoring (a lesson update) is the load-bearing
+  case — a silently stripped key returns `200` for an edit that did not happen. (Portfolio default is **OPEN** —
+  GR-016 OPEN-GR-016-B.)
+- **No request-derived value reaches `sql.raw()`**; a request-selected analytics metric, interval or sort maps
+  through a validated enum to a closed allowlist of literals in code.
+- **⛔ Response validation is DEFERRED (GR-016 §16-g)** for our own responses. The provider- and LLM-side parses
+  above are **input** to us and are unaffected.
+
 ---
 
 ## Verification and Acceptance Strategy

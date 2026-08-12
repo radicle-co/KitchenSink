@@ -248,6 +248,54 @@ whitelist lives in the type, not in a validation branch someone can forget.
 another user is indistinguishable from one that does not exist (`404`, never `403`), matching the shipped
 recipe read rules.
 
+### 3.1 Input validation (GR-016) — 004's input is HOSTILE by definition
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). §3.0 decides **who
+authors** the zod; GR-016 decides **where it runs**. Bindings for this feature only.
+
+**Every other feature validates input a user typed. 004 validates input a stranger's web page emitted** — so
+the boundary parse is not hygiene here, it is the feature's primary control surface.
+
+- **One mechanism, one `400`.** Every import/job/draft/admin-domain input — body, path params, query params,
+  and the required `Idempotency-Key` header — is parsed by the recipe service's own `*.schema.ts` zod via
+  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. 004 adds **no** `class-validator` DTO: recipe-service
+  still carries 19 such files (measured 2026-08-11) and that residue is being removed, not extended.
+- **⛔ THE FLOOR, and this is where a hostile page reaches it.** 001's five int-backed fields — **`servings`,
+  `prepTimeMinutes`, `cookTimeMinutes`, `totalTimeMinutes`, `timerSeconds`** — write `integer` (`int4`) columns
+  capped at **2,147,483,647**, and **004 is the channel that populates them from data we did not author**. A
+  publisher's JSON-LD claiming `"recipeYield": 9999999999` must be rejected **when the draft is created**, not
+  discovered at the `INSERT` behind `confirm` (which is the `500`-that-owed-a-`400` shape GR-016 exists to
+  end). Every extracted numeric is bounded at the extraction boundary **and** at the draft/confirm wire
+  boundary — the two are different inputs from different parties.
+    - ⚠️ **Asserted, never derived**: no zod generated from Drizzle, no storage type imported into a
+      `*.schema.ts`. §3.0's import constraint is unchanged.
+    - ⚠️ **Text is unbounded in storage** (`text()` columns), so limits on an extracted title, step, note or
+      ingredient string are **product decisions** — and on this feature they are also a **DoS control**, since
+      the upstream author chooses the length. "The column allows it" is not a reason to persist a 2 MB step.
+- **✅ The extraction adapters' boundary parse is REQUIRED by GR-016, not merely permitted by §15-d.** §3.0
+  already says every adapter validates the raw upstream shape (scraped HTML, schema.org/JSON-LD, oEmbed,
+  uploaded files, OCR output). GR-016 makes that parse **mandatory before any field reaches a draft**, and
+  forbids "converging" it away.
+- **The provenance whitelist is the pattern GR-016 wants everywhere.** `FR-025`/HAZ-057 makes
+  `imported_public` / `imported_physical` **not representable** in the `POST /api/v1/recipes` DTO — the rule
+  lives **in the type, not in a validation branch someone can forget**. That is "make illegal states
+  unrepresentable" applied to a wire schema; prefer it over a refinement wherever the shape allows.
+- **Non-HTTP ingress is in scope.** The async import path (`url`, `instagram`, `photo` → `202`) enqueues jobs;
+  the worker **parses its job payload against an authored zod before acting on it**. The job envelope is shared
+  between the service and the worker, authored once (§3.0) and validated on receipt.
+- **004 is a client of food** (ingredient resolution): outbound bodies validated against
+  `@kitchensink/schema-food` before the call — including the ≤100-name batch bound — and responses validated on
+  receipt.
+- **Unknown keys are a stated choice per surface.** On `PATCH .../drafts/{id}` (user corrections) a silently
+  stripped unknown key returns `200` for a correction that was never applied — the worst possible place for
+  `z.object`'s default. (Portfolio default is **OPEN**, GR-016 OPEN-GR-016-B.)
+- **Validation is not SSRF defence, and neither substitutes for the other.** A URL that parses is not a URL
+  that is safe to fetch; §5's SSRF controls (HAZ-003) still apply after the schema accepts the input.
+- **⛔ Response validation is DEFERRED (GR-016 §16-g).** Do not add server-side response parsing to the import
+  endpoints; the deferral is an owner decision, not an unfinished task.
+
 ### Error codes — added to `RecipeErrorCode`, mapped in `ApiExceptionFilter`
 
 | Code                          | HTTP  | Meaning                                                                        |

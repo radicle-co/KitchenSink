@@ -163,6 +163,47 @@ its own contract independently of us.
   this is the path that decides who has paid. `packages/clients/usda` is the reference implementation and its
   `schemas.ts` must never be "converged".
 
+### 3.0a Input validation (GR-016) — this plan already stated the rule's sharpest case
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). §3.0 decides **who
+authors** the zod; GR-016 decides **where it runs**. **The OPEN ownership question above does not defer this
+obligation** — it binds whichever service ends up owning `/api/v1/billing/*`.
+
+- **✅ "Signature-verified is NOT shape-verified" — §15-d above already says it, and GR-016 §16-b makes it
+  portfolio law.** `@golevelup/nestjs-stripe`'s signature check authenticates the **sender**; it says nothing
+  about the **shape**. So every inbound Stripe event — `checkout.session.completed`, `invoice.paid`,
+  `invoice.payment_failed`, `customer.subscription.updated` / `.deleted`, `trial_will_end` — is **validated at
+  the boundary after signature verification and before any field drives a `subscriptions` or `webhook_events`
+  write**. Both controls, in that order, never one instead of the other. This is the same rule identity's svix
+  webhook is bound by (002).
+- **One mechanism, one `400`.** Every checkout, portal and subscription-status input — body, path params, query
+  params — plus the webhook endpoint's **own** response contract, is parsed by that service's own `*.schema.ts`
+  zod via `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. ⚠️ If billing lands **inside
+  `@kitchensink/identity-service`**, note that identity is the service where a `createZodDto` DTO was served by
+  Nest's **own** `ValidationPipe` and therefore validated **nothing while looking correctly wired** (`PATCH
+/users/me`). Billing routes must not inherit that wiring — and the proof is a test that posts a known-bad
+  body to a real billing route and asserts the `400`.
+- **⛔ THE FLOOR.** Every input field writing a bounded column is validated at least as strictly as the column
+  can store — plan/status enums, `price_cents`-style integer amounts and their `int4` ceiling of
+  **2,147,483,647**, timestamps, external-id lengths, nullability. **Asserted, never derived**: no zod generated
+  from Drizzle, and — as §3.0 already requires — **no Stripe SDK type in a `*.schema.ts`** either.
+- **⚠️ An entitlement decision must never branch on an unparsed field.** The `SubscriptionStatus` shape and the
+  plan/entitlement enum gate 004, 007, 009, 012 and 013. A webhook body whose `status` string was never checked
+  against the enum can **fail open** — granting premium — with `typecheck` green. The enum is validated at the
+  boundary and mapped explicitly; an unrecognised value is a **rejection plus an alarm**, never a default.
+- **Non-HTTP ingress is in scope.** Any retry queue, DLQ replay or reconciliation job this feature adds **parses
+  its payload against an authored zod before acting on it** — a pipe reaches none of them, and these are the
+  paths that re-drive money-relevant writes.
+- **Unknown keys are a stated choice per surface.** Our own `/api/v1/billing/*` bodies are small and
+  well-known, which is the easiest place to reject unknown keys outright; Stripe's inbound body is the opposite
+  case — it is **their** shape and gains fields without telling us, so its boundary schema must tolerate
+  unknown keys deliberately rather than by accident. Naming the choice per surface is the requirement.
+  (Portfolio default for **our** bodies is **OPEN** — GR-016 OPEN-GR-016-B.)
+- **⛔ Response validation is DEFERRED (GR-016 §16-g)** for our own responses. The Stripe-side parse above is
+  **input** to us and is unaffected by that deferral — do not conflate them.
+
 ### Billing Endpoints
 
 | Method | Path                           | Auth             | Description                                                |

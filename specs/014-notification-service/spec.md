@@ -452,6 +452,93 @@ requires deciding whether registry entries are authored in the notification serv
 out) or in a separate hand-maintained artifact that the schema package re-exports. **Question for the owner:
 which?** Neither §15 nor an existing ADR decides it, and the answer changes how a producer onboards.
 
+## Input Validation (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). The section above
+applies GR-015 (**who authors** the envelope). This one applies GR-016 (**where that envelope is enforced**).
+It introduces **no new requirement** and mints no FR (GR-003): FR-015 already requires pre-durability
+validation, FR-024 already requires one core with two adapters, FR-027 already makes `source` a trust decision,
+and FR-023 already makes `payload` opaque. GR-016 states what those requirements jointly oblige, in one place,
+so no adapter can satisfy them individually.
+
+### ONE authored zod validates BOTH ingress paths
+
+- **FR-015's pre-durability validation is performed by the envelope's authored zod, on both paths.** The HTTP
+  adapter reaches it via `nestjs-zod`'s `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`; the
+  EventBridge adapter has **no pipe available** and therefore **calls the same schema explicitly**.
+- ⚠️ **The mechanisms differ; the schema must not.** A schema per adapter is the literal way "a rule enforced in
+  only one adapter" — an FR-024 defect — comes into existence, and it would be invisible until the two copies
+  disagreed. One schema is how FR-024 is _made_ true; SC-008's paired per-rule tests are what prove it.
+- ⚠️ **`createZodDto` requires `nestjs-zod`'s `ZodValidationPipe`. Under Nest's own built-in `ValidationPipe`
+  it validates NOTHING while looking correctly wired** — a live case elsewhere in this portfolio (identity's
+  `PATCH /users/me`). On the HTTP publish path that failure would admit **arbitrary envelopes into the durable
+  store** with every visible signal saying they were checked. The proof is a test that publishes a known-bad
+  envelope over HTTP and asserts the rejection, paired (per SC-008) with the same envelope over the bus.
+
+### Two rejection behaviours, one verdict
+
+**"One validation-failure path per service" (GR-016 §16-a.3) means one _verdict_ per ingress, not a `400` on
+the bus.** The HTTP path returns a `400` naming the offending field. The event path has no caller to receive a
+structured error, so a rejection **dead-letters and alarms** with a counter per reason — malformed (FR-015),
+unregistered under enforcement (FR-017), quota-exceeded (FR-019), `source` not allowlisted (FR-027), per
+FR-028. An envelope missing a required field is **rejected outright — never partially routed, never
+defaulted**, on either path.
+
+### The AWS wrapper is parsed BEFORE `source` becomes a trust decision
+
+The **EventBridge event wrapper** (`source`, `detail-type`, `detail`, `account`, `resources`) is **AWS's**
+shape, not ours (GR-015 §15-d), and it is **validated at the boundary in the ingress adapter before `detail` is
+treated as an envelope**. This ordering is the control, not a formality: **FR-027 makes the validated `source`
+a trust decision**, so reading `source` off an unvalidated payload means trusting a field to authorise the
+record that carries it. The wrapper's shape is **not** added to `@kitchensink/schema-notifications` as though we
+owned it; GR-016 is what makes the parse **mandatory** rather than merely permitted.
+
+### ⛔ `payload` stays opaque — GR-016 does NOT reach inside it
+
+FR-023 forbids inspecting, validating or transforming `payload` beyond size limits, and the 2026-05-10
+clarification puts the meaning of every `messageType` with its **producer**. So the envelope's zod models
+`payload` as unknown/opaque **with a size bound only**, and that is a requirement of the schema rather than an
+omission in it. **A contributor citing GR-016 to add per-`messageType` payload validation would put this
+service in violation of its own FR-023** and make it the author of knowledge it explicitly disclaims. A
+producer's payload type belongs to **that producer's** schema package, and the producer validates it there.
+
+### The storage floor, and the subscriber surface
+
+- **Every envelope field that writes a bounded column is validated at least as strictly as that column can
+  store** — `messageType`, `groupId`, `idempotencyKey`, `schemaVersion` and `producer` lengths, the recipient
+  descriptor's enum, nullability, and the envelope/`payload` **size** bound against whatever column persists it
+  for the retention window. A value the column cannot hold must be a rejection at ingress, never a failed
+  durable write — a publish that fails **after** the caller was told it succeeded is worse here than in a plain
+  CRUD service, because the producer has no other record of the notification.
+    - ⚠️ **Asserted, never derived.** No zod is generated from Drizzle, and the envelope schema imports **no
+      storage type, no SQS/EventBridge SDK type and no Nest symbol** — the constraint the section above already
+      states, and it matters doubly here because this schema is imported by **web and mobile**.
+- **`GET /api/v1/notifications/subscribe` and `/replay` validate their inputs too** — the replay cursor/window
+  and any subscription filter are parsed at the boundary. FR-020/FR-021/FR-022 scope a subscription to the
+  **authenticated** identity, so a request-supplied identity or group is **never** the authority for what is
+  delivered; parsing it does not make it trusted, and US-007's cross-user rejection (SC-005) stands
+  independently of the parse.
+- **Unknown keys are a stated choice per surface** — `z.object()` **strips** silently while `z.strictObject()`
+  **rejects**. On the publish envelope this decides whether a producer's typo'd field is a rejection or a
+  silently dropped one; the portfolio default is **OPEN** (GR-016 OPEN-GR-016-B).
+
+### ⛔ Response validation is DEFERRED (GR-016 §16-g) — and note what that means here
+
+No service in this portfolio validates the bodies it emits; the deferral is an owner decision, not an
+unfinished task. For 014 the consequence is specific and worth stating: **the `DeliveryEnvelope` this service
+emits is checked by the SUBSCRIBER on receipt** — web, mobile and `packages/clients/notifications` all import
+the envelope's zod and parse what arrives (GR-016 §16-c.3) — **not by the service on its way out.** That is
+consistent with `schemaVersion`'s purpose (letting a receiver handle an envelope minted by another version) and
+with a released mobile binary that cannot be redeployed in step with this service. Do not "complete" the rule by
+adding an emission-side parse.
+
+🟠 **GR-016 resolves none of the three open items below**, and does not narrow them: a quota bound whose **unit**
+is undecided (OPEN-014-C) cannot be expressed as a schema constraint, a producer-identity field whose authority
+is contested (OPEN-014-A) cannot be marked authoritative in a schema, and a dedup guarantee (OPEN-014-B) is a
+transport-and-state property that no boundary parse establishes.
+
 ## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes

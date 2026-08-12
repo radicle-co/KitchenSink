@@ -282,6 +282,35 @@ validation boundary rather than tidying one.
 **Drift gates** — inherited from GR-015 §15-c, all three required, not reinvented here: turbo `inputs` rebuild,
 the regenerate-and-diff CI gate, and the `CONTRACT_HASH` boot assertion.
 
+### Input validation — where that zod RUNS (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Full bindings:
+[`plan.md` → _GR-016_](./plan.md#gr-016--input-validation-at-every-boundary). The section above decides who
+**authors** the contract; this one is where it is **enforced**. It adds no FR (GR-003).
+
+- **One mechanism, one `400`.** `@kitchensink/creator-profiles-service` parses every profile, handle,
+  collection, follow, analytics and widget input — body, path params (including the public `/@handle` segment)
+  and query params — with its own authored zod via `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`.
+  ⚠️ Under Nest's **own** `ValidationPipe` a `createZodDto` DTO validates **nothing while looking correctly
+  wired** (a live case on identity's `PATCH /users/me`), so the registered pipe is stated and proven by a
+  bad-body route test.
+- **⚠️ `handle` is the highest-risk input in this feature**: it is uniqueness-constrained, length-bounded, and
+  rendered into a **public URL**. Its charset, length, normalisation form and reserved-word policy belong in the
+  authored zod so a client sees the same rule the server enforces. Uniqueness and reservation remain **domain**
+  checks (`409`), and neither substitutes for the other.
+- **⛔ The storage floor applies to every bounded column** — handle/display-name lengths, collection ordering
+  integers against their `int4` ceiling (**2,147,483,647**), analytics window/limit integers, status enums,
+  nullability. **Asserted, never derived**: no zod generated from Drizzle, no storage type imported into a
+  `*.schema.ts`. Bio text columns are unbounded, so their limits are **product decisions this feature owns**.
+- **The analytics-snapshot scheduler is ingress a pipe never sees** and parses its event before it drives a
+  write. A request-selected analytics metric, interval or sort maps through a **validated enum to a closed
+  allowlist of literals** — never into a `sql.raw()` fragment.
+- **The HTML-fragment widget is OUTPUT.** Its request and error shapes are validated like everything else; the
+  fragment itself is governed by escaping and rendering rules, and **⛔ response validation is DEFERRED**
+  portfolio-wide (GR-016 §16-g) — do not add an emission-side parse.
+
 ## Entity Ownership
 
 **`CreatorProfile`** is defined and owned by this feature. Fields: `id`, `userId` (FK → auth), `handle` (unique), `displayName`, `bio`, `avatarKey` (S3), `followerCount`, `followingCount`, `isVerified`, `monetizationEnabled`, `createdAt`, `updatedAt`.

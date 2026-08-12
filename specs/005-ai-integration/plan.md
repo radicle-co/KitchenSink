@@ -270,6 +270,48 @@ is governed by §15-d, not §15-b:
 `@kitchensink/schema-recipe`, never re-declared). The model's raw output on the way in is §15-d. Same request
 path, opposite rules.
 
+### 3.0a Input validation (GR-016) — and model output is INPUT, not a response
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). §3.0 decides **who
+authors** the zod; GR-016 decides **where it runs**. Bindings for this feature only.
+
+- **One mechanism, one `400`.** Every BYOK, generation-intake, job-status, streaming and optimize-preview
+  input — body, path params, query params, `Idempotency-Key` — is parsed by `ai-service`'s own `*.schema.ts`
+  zod via `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. New services start with one mechanism; there
+  is no `class-validator` residue to inherit here, and none is introduced.
+- **⚠️ A model's output is INPUT to us — validating it is 16-a/16-d work, NOT the response validation GR-016
+  §16-g defers.** §1.2 already treats model output as untrusted and §3.0 requires the provider boundary parse;
+  GR-016 makes it **mandatory** before any field is used, logged, or persisted. Do not let §16-g's deferral be
+  read as licence to skip it: §16-g is about **the bodies `ai-service` emits**, not the bodies a provider
+  emits.
+- **⛔ THE FLOOR, reached through the model.** A generated recipe saved via
+  `recipeServiceClient.createRecipe()` writes 001's `integer` (`int4`) columns — **`servings`,
+  `prepTimeMinutes`, `cookTimeMinutes`, `totalTimeMinutes`, `timerSeconds`**, capped at **2,147,483,647**. An
+  LLM is a very plausible source of `servings: 9999999999`, and structured-output mode does not bound
+  magnitudes. So the **structured-generation schema carries those bounds** (it is a `Partial`-style derivation
+  of the recipe wire zod, per §3.0, not a second declaration), and the outbound `createRecipe` body is
+  validated against `@kitchensink/schema-recipe` **before the call**. A model-produced out-of-range integer
+  must fail as a **generation-quality error we own**, never as a `500` from the recipe service's `INSERT`.
+- **Prompt/intake bounds are part of the contract**, not a runtime guard: input length, attachment count and
+  any list arity that drives provider spend belong in the intake zod so a client sees the same limit the
+  service enforces. Unbounded free text on a **metered** path is a cost incident, not just a validation gap.
+- **BYOK bodies: validate the shape, never echo the value.** `POST /api/v1/ai/byok/keys` accepts a
+  provider-scoped secret. The schema bounds provider enum, key shape and length; the validation **error must
+  not** include the offending value, and no key material appears in a `400` body or a log line. (§3.1 already
+  states the response carries metadata, never the key — this is the request-side half of that rule.)
+- **Non-HTTP ingress is in scope.** `@kitchensink/ai-workers` **parses the job/intake envelope on receipt**,
+  against the same authored zod the service publishes (§3.0). "The service put it on the queue" is an
+  assumption about a deploy, and the two deployables version independently.
+- **Streaming is a validated surface too.** Each emitted chunk conforms to the authored partial envelope; a
+  client parsing chunks with the schema package's zod is the receipt-side parse GR-016 §16-c.3 requires of
+  consumers — again, not the deferred server-side response validation.
+- **Unknown keys are a stated choice per surface** (`z.object` strips silently; `z.strictObject` rejects).
+  Portfolio default is **OPEN** (GR-016 OPEN-GR-016-B).
+- **⛔ Response validation on `ai-service`'s own responses is DEFERRED (GR-016 §16-g).** Do not add it, and do
+  not conflate it with the provider-boundary parse above.
+
 ### 3.1 BYOK key management (`ai-service`)
 
 | Method   | Path                             | Behaviour                                                                                                     |

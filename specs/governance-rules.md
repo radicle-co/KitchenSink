@@ -1,7 +1,7 @@
 # KitchenSink Cross-Feature Governance Rules
 
-**Version**: 3.1.0
-**Ratified**: 2026-05-10 | **Last amended**: 2026-08-11
+**Version**: 3.2.0
+**Ratified**: 2026-05-10 | **Last amended**: 2026-08-12
 **Authority**: Senior Product Owner, cross-feature governance
 **Scope**: All features 001–014 and any future feature in this portfolio
 **Status**: Active — enforced from this date forward
@@ -29,7 +29,8 @@ Engineering handoff is blocked until every CRITICAL rule is satisfied for the fe
 13. [Persona Library Compliance (GR-013)](#gr-013-persona-library-compliance)
 14. [Audience and Sharing Model (GR-014)](#gr-014-audience-and-sharing-model)
 15. [API Contract Ownership (GR-015)](#gr-015-api-contract-ownership)
-16. [Governance Amendment Process](#governance-amendment-process)
+16. [Input Validation at Every Boundary (GR-016)](#gr-016-input-validation-at-every-boundary)
+17. [Governance Amendment Process](#governance-amendment-process)
 
 ---
 
@@ -776,6 +777,213 @@ should be read as a completed migration.
 
 ---
 
+## GR-016: Input Validation at Every Boundary
+
+**Severity**: CRITICAL
+**Ratified**: 2026-08-12
+**Normative source**: [`docs/CODING_STANDARDS.md` §15.4](../docs/CODING_STANDARDS.md) — **§15.4 wins on any
+detail this rule summarizes.** Reasoning and rejected alternatives:
+[`docs/architecture/decisions/0015-input-validation-at-every-boundary.md`](../docs/architecture/decisions/0015-input-validation-at-every-boundary.md).
+**Relates to**: [GR-015](#gr-015-api-contract-ownership) — GR-015 decides **who authors** the zod; GR-016
+decides **where that zod must run**. Neither is satisfied by the other.
+**Resolves**: owner directive 2026-08-12 — _"all services and specs must be updated to require input
+validation"_, clarified as _"the database schema is the minimum level of validation we should use for all
+input"_. Measured 2026-08-11: input validation is **three different mechanisms** across three services and
+**one service has no validation pipe at all**.
+
+### Rule
+
+**Every input a service accepts is parsed at the boundary against the service's own authored zod, before any
+branch, any write, and any outbound call.** Downstream code receives a parsed type; it never re-checks an
+`unknown`, and it never hand-writes its own error path.
+
+#### 16-a. One mechanism per service, and it is the service's authored zod
+
+1. Request bodies, path parameters, query parameters and headers a handler reads are validated by the
+   **same** `*.schema.ts` zod GR-015 §15-a already requires the service to author — via `nestjs-zod`'s
+   `createZodDto` plus `nestjs-zod`'s `ZodValidationPipe`. There is no second DTO, no `class-validator`
+   decorator set, and no per-method `safeParse` that agrees with the schema by convention.
+2. **A service has exactly one validation mechanism.** Two mechanisms in one service means two error
+   contracts, two sets of edge cases and two things to keep in step; the mechanism a route uses must not be
+   a per-file accident.
+3. **Validation failure has ONE path per service**, producing a `400` that names the offending field(s).
+   Hand-written per-method messages are prohibited because they lose the distinction between the failures
+   they are reporting. Measured on `@kitchensink/food-service`, which takes `@Body() body: unknown` and
+   hand-writes `safeParse` per method: a **wrong-typed field**, a **missing field** and an **unknown key**
+   all report `{ error: 'Empty name' }`.
+4. **`unknown` is not a validation strategy.** A handler signature of `@Body() body: unknown` moves the
+   parse into the method body, where it is optional by construction and gets skipped on the next endpoint.
+
+#### 16-b. The surfaces a pipe never sees are in scope — queues, events, and webhooks
+
+A NestJS pipe covers HTTP only. These ingress points carry attacker- or transport-influenced data and are
+**equally in scope**:
+
+- **Queue and event consumers** — `packages/services/recipe-workers/src/handlers/*` (erasure worker, archive
+  and erasure sweepers, handle-sync, version-archive) and food's change-refresh / SQS consumers
+  (`packages/services/food-service/src/worker/**`, `src/events/**`). An SQS message body is a string the
+  producer chose; it is parsed against an authored zod before it becomes a job.
+- **Webhooks** — `packages/services/identity-webhooks/src/handlers/*`. `identityWebhook.ts` verifies the
+  **svix signature**, and that verification is required and stays. ⚠️ **But a signature proves ORIGIN, not
+  SHAPE.** A correctly signed Clerk payload whose fields moved, went null, or gained a member is still an
+  unvalidated body, and it is being written to the identity database. The body is schema-validated **after**
+  signature verification — both, in that order, never one instead of the other.
+- **Scheduled/self-triggered invocations** are the one case where the payload is ours end to end; they still
+  parse their event, because "ours" is an assumption about a deploy that has already drifted once.
+
+#### 16-c. No data reaches a database or another service unvalidated
+
+1. **Inbound to storage**: the value written to a column has been through the boundary parse. A DAL is not
+   where input first meets a constraint.
+2. **Outbound to another service**: the request body is validated against the **callee's** schema package
+   zod (GR-015 §15-b) before the call is made, so a malformed outbound payload fails in the caller with a
+   usable stack rather than as a remote `400`.
+3. **Inbound responses are validated on receipt** by the calling client, at the moment the body arrives.
+4. The service-to-service edges in this portfolio are named so none is treated as internal-and-therefore-
+   trusted:
+    - **recipe → food** — the ingredient/catalog reads via `@kitchensink/food-service-client`.
+    - **identity's erasure fan-out Lambda → recipe and food** —
+      `POST /api/v1/internal/account/erasure` on both, from
+      `packages/services/identity-webhooks/src/common/erasure-fanout.ts`.
+
+    ⚠️ **16-c.3 is NOT response validation on the service side** — see 16-g. The receiving **consumer**
+    parsing what it got is required; the **producing service** validating what it emits is deliberately
+    deferred. The distinction is the point: a consumer that parses is defending itself, which it may do
+    unilaterally.
+
+#### 16-d. The database schema is the FLOOR — and this is an ASSERTION, never a derivation
+
+**Every input field that writes a bounded column MUST be validated at least as strictly as that column can
+store.** Numeric range, string length, numeric precision/scale, enum domain and nullability are the floor;
+a value the column cannot hold is rejected as a **`400` at the boundary**, never as a failed `INSERT`.
+
+The live defect this comes from (measured 2026-08-11, recipe): five int-backed wire fields — `servings`,
+`prepTimeMinutes`, `cookTimeMinutes`, `totalTimeMinutes`, `timerSeconds` — carried **no upper bound** while
+writing `integer` (`int4`) columns capped at **2,147,483,647**. So `servings: 9999999999` **passed
+validation** and failed at the `INSERT`: **a 500 that should have been a 400**, on a plain user input.
+
+⚠️ **The floor is an ASSERTION about two independently authored artifacts, NOT a derivation between them.**
+
+- **Zod is never generated from drizzle**, and a **wire type never imports a storage type.** That coupling is
+  precisely what ADR-0014 removed: `RecipeSearchResponse.facets` took its wire type from
+  `../dal/search.dal.js`, and that was the disease, not the cure. GR-015 §15-a.5 (a `*.schema.ts` imports
+  only `zod` and other `*.schema.ts` files) is not weakened by this rule — it is unchanged.
+- The two artifacts stay independent and are **required to agree in one direction only**: the wire bound is
+  at least as tight as the column. A schema may be **stricter** than storage, and usually should be.
+- **The floor is a floor, not a target.** Recipe's text columns are `text()` — **unbounded** in PostgreSQL —
+  so a character limit on a title, a step or a note is a **product decision with no storage floor to derive
+  from**. "The column allows it" is not an argument for accepting it.
+
+#### 16-e. Two mechanism hazards that are invisible by construction
+
+Both are recorded here because a reviewer cannot see either one by reading the route.
+
+1. **`createZodDto` requires `nestjs-zod`'s `ZodValidationPipe`.** Under Nest's own built-in
+   `ValidationPipe`, a `createZodDto` DTO **validates nothing while looking correctly wired** — the schema is
+   present, the DTO is referenced, the route reads as validated, and no input is checked. This already bit
+   identity on **`PATCH /users/me`**, a route that writes user data. A service therefore states which pipe is
+   registered, and the only way to observe the failure is a test that posts a known-bad body to a real route
+   and asserts the `400`.
+2. **`z.object()` strips unknown keys silently; `z.strictObject()` rejects them.** A requirement that says
+   "validate the input" without naming which one **permits silent data loss** — a client that misspells a
+   field gets a `200` and no write. Each request surface names its choice explicitly rather than inheriting
+   zod's default by accident.
+
+#### 16-f. No request-derived value may reach `sql.raw()`
+
+`sql.raw` **bypasses parameterisation by design** — that is what it is for. Measured 2026-08-11, only three
+sites pass it a non-literal argument, and **all three take a config value or a module constant, so none is
+currently reachable from user input**: the recipe search DAL
+(`packages/services/recipe-service/src/search/dal/search.dal.ts`) and two recipe workers
+(`erasure-sweeper.ts`, `erasure-orphan-sweeper.ts`).
+
+That is the state to preserve, not a clean bill of health: the rule is that a **request-derived value must
+never reach `sql.raw()`**, directly or through a variable. Where a request legitimately selects an
+identifier (a sort column, a partition, an index hint), the validated **enum maps to a closed allowlist of
+literals in code** — the request supplies the key, never the SQL fragment. Every other query is
+parameterised.
+
+#### 16-g. ⛔ Response validation is DEFERRED — deliberately. Do NOT "complete" it.
+
+**Zero of the three services validates its own responses, and that is an owner decision, not an oversight.**
+TypeScript at the boundary plus client-side validation on receipt (16-c.3) were judged sufficient for now.
+A contributor who "finishes the job" by adding server-side response parsing is **undoing a decision**, not
+closing a gap.
+
+This rule therefore requires **INPUT** validation and **MUST NOT** be read as requiring response
+validation. The known cost is recorded rather than hidden: GR-015 §15-c's `oasdiff` blind spot means
+response changes are weakly gated. That is an argument about the drift gates, not a licence to reverse this
+deferral. Reversing it needs its own proposal under the [amendment process](#governance-amendment-process).
+
+### Acceptance Criteria
+
+- **AC-016-a**: Every feature that owns or extends a service names, in its contract section, the **single**
+  validation mechanism that service uses, and states that the validating zod is the same authored zod
+  GR-015 requires.
+- **AC-016-b**: Every feature enumerates its **non-HTTP ingress** — queue consumers, event consumers,
+  webhooks, scheduled invocations — and states that each parses its payload against an authored zod. A
+  feature with no such ingress says so.
+- **AC-016-c**: Every feature with a service-to-service call names the edge and states both halves:
+  outbound body validated before send, inbound response validated on receipt.
+- **AC-016-d**: Every feature that writes to a bounded column states the **storage floor** obligation, and
+  states that it is an assertion rather than a derivation (no zod generated from drizzle; no wire type
+  importing a storage type).
+- **AC-016-e**: Every feature whose service uses `createZodDto` states that `nestjs-zod`'s
+  `ZodValidationPipe` is the registered pipe, and that a bad-body route test is what proves it.
+- **AC-016-f**: Every request surface's unknown-key behaviour (`z.object` vs `z.strictObject`) is named
+  explicitly in the feature that owns it.
+- **AC-016-g**: No feature requires, plans, or tasks **server-side response validation** while the 16-g
+  deferral stands, and every feature that discusses validation records the deferral so it is not "fixed".
+- **AC-016-h**: No feature introduces a code path where a request-derived value can reach `sql.raw()`.
+
+### Violation
+
+- A handler that accepts `unknown` and parses inside the method body is in violation, even if the parse is
+  correct today — the obligation is that the parse cannot be skipped, not that it happened once.
+- A second validation mechanism added to a service that already has one is a violation, and so is a
+  `createZodDto` DTO served by Nest's built-in `ValidationPipe` — the latter is a violation that **passes
+  review by looking right**.
+- A queue, event or webhook handler that trusts its payload's shape is in violation. For a signed webhook,
+  verifying the signature and stopping there is the specific violation: it proves origin, not shape.
+- An input that writes a bounded column without at least that column's bound is a violation, and the symptom
+  is a `500` where the contract owed a `400`.
+- **Deriving zod from drizzle — or importing a storage type into a wire schema — is ALSO a violation**, of
+  this rule and of GR-015 §15-a.5. Satisfying 16-d that way is not compliance.
+- Adding server-side response validation while 16-g stands is a violation of 16-g.
+
+### Current State (2026-08-12) — IN PROGRESS, NOT SATISFIED
+
+Measured 2026-08-11, while two convergence efforts were live in the code. **Nothing below describes a
+finished migration.**
+
+| Service                         | `ZodValidationPipe` | `createZodDto` | Notes                                                                                                                                                  |
+| ------------------------------- | ------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@kitchensink/recipe-service`   | 18                  | 26             | furthest along, but **19 files are still on `class-validator`** — two mechanisms in one service                                                        |
+| `@kitchensink/food-service`     | **0**               | **0**          | **no validation pipe at all**; `@Body() body: unknown` + per-method `safeParse`, which is why three distinct failures report `{ error: 'Empty name' }` |
+| `@kitchensink/identity-service` | 3                   | 4              | smallest surface; `PATCH /users/me` is the `createZodDto`-under-the-wrong-pipe case (16-e.1)                                                           |
+
+- ❌ **Response validation: none, in any service — and that is the deferred state (16-g), not a gap to close.**
+- 🔄 Recipe's `class-validator` residue and food's missing pipe are both being converged now.
+- ⚠️ Features **006–010** still do not identify an owning service package for their endpoints (GR-015 Current
+  State). GR-016 binds whichever service ends up owning those paths; the obligation does not wait on the
+  answer.
+
+**OPEN items — recorded, not resolved. No ruling has been made on either.**
+
+- 🟠 **OPEN-GR-016-A — what mechanically enforces the storage floor (16-d)?** The obligation is clear; the
+  thing that keeps it from rotting is not. **Question for the owner: is the floor enforced by a per-service
+  parity test that enumerates bounded columns and asserts each writing wire field rejects an out-of-range
+  value, or is it a review-checklist item?** A test is the only option that survives a later migration
+  widening or narrowing a column, but it must not be built by importing drizzle types into the wire schemas,
+  which 16-d forbids — so the shape of a conforming test is itself part of the question.
+- 🟠 **OPEN-GR-016-B — is `z.strictObject()` the portfolio default for request bodies?** 16-e.2 requires the
+  choice to be explicit per surface; it does not pick one, because the trade-off is real in both directions
+  (rejecting unknown keys catches client typos; accepting them lets a newer client talk to an older
+  service). **Question for the owner: is `strictObject` required for all mutating request bodies, with plain
+  `z.object` permitted only where a forward-compatibility reason is documented at the schema?**
+
+---
+
 ## Governance Amendment Process
 
 Amendments to these rules require:
@@ -794,9 +1002,10 @@ Downgrading a CRITICAL rule to WARNING requires explicit product owner approval 
 
 ## Change Log
 
-| Version | Date       | Author                                          | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------- | ---------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3.1.0   | 2026-08-11 | Repository owner                                | **GR-015 added** (MINOR — new rule): API Contract Ownership. The service authors its wire contract in zod at `src/**/*.schema.ts`, validates its own requests with it, and generates a committed `packages/schemas/<service>` package that clients import; `openapi.yaml` is derived and outbound-only, never a codegen input. **The client half (15-b) is separately mandatory** — a client declares no wire types and derives divergent consumer shapes with `Pick`/`Omit`/`Partial` — because mandating only the service side is how the client half got skipped. Records the three drift gates (15-c) and, prominently, the third-party exception (15-d): USDA/Clerk/Vercel/Stripe/OCR/LLM clients validate the raw upstream shape at the boundary and MAY declare their own types, so "converging" them deletes a security boundary. Normative source is `docs/CODING_STANDARDS.md` §15; reasoning and rejected alternatives in ADR-0014. |
-| 1.0.0   | 2026-05-10 | Senior Product Owner (cross-feature governance) | Initial ratification. Converts all CRITICAL and WARNING findings from `cross-feature-consistency-report.md` into enforceable rules with acceptance criteria. Corrects all release audit reports to BLOCKED status. Establishes release readiness gate (GR-001) as the primary blocker for engineering handoff.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 3.0.0   | 2026-08-02 | Repository owner                                | **GR-014 amended** (MAJOR — incompatible redefinition): recipe visibility declared **binary** (`private` \| `public`); the missing `public` scope added, and `public-profile` demoted to a surfacing concern rather than a third visibility state; `circle` clarified as read-only; `price_cents` removed from the audience shape and restricted to `published-lesson`; ingestion-provenance and attribution criteria added (AC-014-d/e/f). Withdraws the premium-recipe and paid-follow model portfolio-wide. `cross-feature-consistency-report.md` S-004 amended to match.                                                                                                                                                                                                                                                                                                                                                                   |
-| 2.0.0   | 2026-08-02 | Repository owner                                | **GR-009 amended** (MAJOR — incompatible redefinition): the `@kitchensink/{group}-{name}` pattern was ratified when no packages existed and none of the 26 shipped packages follow it. Restated to the two scopes actually in use, `@kitchensink/{name}` and `@commise/{name}`, with role suffixes (`-service`, `-workers`, `-service-client`) replacing group prefixes. Superseded pattern preserved in-section. **GR-002/GR-003/GR-007 Current State** refreshed against shipped `main`; GR-002 confirmed portfolio-wide with no exceptions.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Version | Date       | Author                                          | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------- | ---------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.2.0   | 2026-08-12 | Repository owner                                | **GR-016 added** (MINOR — new rule): Input Validation at Every Boundary. Every input is parsed at the boundary against the service's own authored zod (the GR-015 zod), through **one** mechanism per service with **one** `400` path — measured state was three mechanisms across three services and `@kitchensink/food-service` with **no pipe at all** (`@Body() body: unknown` + per-method `safeParse`, so a bad type, a missing field and an unknown key all report `{ error: 'Empty name' }`). Extends the obligation to the surfaces a pipe never sees — **queue/event consumers and webhooks**, where a svix signature proves **origin, not shape** — and to the service-to-service edges (recipe → food; identity's erasure fan-out → recipe/food `POST /api/v1/internal/account/erasure`): outbound validated before send, inbound validated on receipt. Makes **the database schema the validation FLOOR** (grounded in five int-backed recipe fields with no upper bound writing `int4`, so `servings: 9999999999` was a **500 that owed a 400**) while stating that the floor is an **assertion, never a derivation** — no zod generated from drizzle, no wire type importing a storage type, GR-015 §15-a.5 unchanged. Records the two invisible hazards (`createZodDto` under Nest's own `ValidationPipe` validates nothing while looking wired — it already bit identity's `PATCH /users/me`; `z.object` strips unknown keys where `z.strictObject` rejects) and forbids a request-derived value reaching `sql.raw()`. **Response validation is explicitly DEFERRED** by owner decision and must not be "completed". Normative source `docs/CODING_STANDARDS.md` §15.4; reasoning and rejected alternatives in ADR-0015. Two OPEN items recorded unresolved (GR-016-A floor enforcement mechanism, GR-016-B `strictObject` default). |
+| 3.1.0   | 2026-08-11 | Repository owner                                | **GR-015 added** (MINOR — new rule): API Contract Ownership. The service authors its wire contract in zod at `src/**/*.schema.ts`, validates its own requests with it, and generates a committed `packages/schemas/<service>` package that clients import; `openapi.yaml` is derived and outbound-only, never a codegen input. **The client half (15-b) is separately mandatory** — a client declares no wire types and derives divergent consumer shapes with `Pick`/`Omit`/`Partial` — because mandating only the service side is how the client half got skipped. Records the three drift gates (15-c) and, prominently, the third-party exception (15-d): USDA/Clerk/Vercel/Stripe/OCR/LLM clients validate the raw upstream shape at the boundary and MAY declare their own types, so "converging" them deletes a security boundary. Normative source is `docs/CODING_STANDARDS.md` §15; reasoning and rejected alternatives in ADR-0014.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 1.0.0   | 2026-05-10 | Senior Product Owner (cross-feature governance) | Initial ratification. Converts all CRITICAL and WARNING findings from `cross-feature-consistency-report.md` into enforceable rules with acceptance criteria. Corrects all release audit reports to BLOCKED status. Establishes release readiness gate (GR-001) as the primary blocker for engineering handoff.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 3.0.0   | 2026-08-02 | Repository owner                                | **GR-014 amended** (MAJOR — incompatible redefinition): recipe visibility declared **binary** (`private` \| `public`); the missing `public` scope added, and `public-profile` demoted to a surfacing concern rather than a third visibility state; `circle` clarified as read-only; `price_cents` removed from the audience shape and restricted to `published-lesson`; ingestion-provenance and attribution criteria added (AC-014-d/e/f). Withdraws the premium-recipe and paid-follow model portfolio-wide. `cross-feature-consistency-report.md` S-004 amended to match.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 2.0.0   | 2026-08-02 | Repository owner                                | **GR-009 amended** (MAJOR — incompatible redefinition): the `@kitchensink/{group}-{name}` pattern was ratified when no packages existed and none of the 26 shipped packages follow it. Restated to the two scopes actually in use, `@kitchensink/{name}` and `@commise/{name}`, with role suffixes (`-service`, `-workers`, `-service-client`) replacing group prefixes. Superseded pattern preserved in-section. **GR-002/GR-003/GR-007 Current State** refreshed against shipped `main`; GR-002 confirmed portfolio-wide with no exceptions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |

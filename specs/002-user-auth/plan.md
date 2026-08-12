@@ -284,6 +284,55 @@ can change without telling us. So everything on the Clerk boundary is governed b
 
 ---
 
+## Input validation — where the authored zod RUNS (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). GR-015 decides
+**who authors** the zod; GR-016 decides **where it runs**. Bindings for this feature only.
+
+**002 holds the case that proves why this rule exists** — a route that looks validated and validates nothing.
+
+- **⛔ `createZodDto` requires `nestjs-zod`'s `ZodValidationPipe`, and identity already got this wrong.**
+  Under Nest's **own** built-in `ValidationPipe` a `createZodDto` DTO **validates nothing while every visible
+  signal says it does**. That happened on **`PATCH /users/me`** — a route that **writes user data**. The
+  identity service registers `nestjs-zod`'s pipe, and because the failure is invisible in review, the proof is
+  a test that posts a **known-bad body to the real route** and asserts the `400`. Write it for `PATCH
+/users/me` first.
+- **One mechanism, one `400`.** Measured 2026-08-11: identity has **3** `ZodValidationPipe` / **4**
+  `createZodDto` — the smallest surface in the portfolio, and the one where converging on a single mechanism
+  is cheapest. Every `/api/v1/users/*`, `/api/v1/profile/*`, `/api/v1/accounts/*`, `/api/v1/admin/*` and
+  `/api/v1/groups/*` input — body, path params, query params, and any header a handler reads — goes through
+  it. No second DTO framework, no per-method `safeParse`.
+- **⚠️ WEBHOOKS: the svix signature proves ORIGIN, not SHAPE — and this is 002's highest-exposure surface.**
+  `POST /api/v1/webhooks/users` (`packages/services/identity-webhooks/src/handlers/identityWebhook.ts`)
+  verifies the `svix` signature, and that verification is **required and stays**. But a correctly signed Clerk
+  payload whose fields moved, went null, or gained a member is still an **unvalidated body being written to
+  the identity database**. So: **verify the signature, then validate the schema** — both, in that order,
+  never one instead of the other. The inbound Clerk shape is validated under GR-015 §15-d (it is Clerk's
+  shape, not ours, and does not enter `@kitchensink/schema-identity`); GR-016 is what makes that parse
+  **mandatory rather than a good idea**.
+- **The other Lambda ingress points are in scope too**, because a pipe reaches none of them:
+  `deletion-worker.ts` (SQS retry payload), `reconciliation.ts` / `erasure-reconciliation.ts`,
+  `tombstone-sweep.ts`, `log-forwarder.ts`, `migrate.ts`. Each parses its event against an authored zod before
+  acting on it. A scheduled invocation's payload is "ours" only until a deploy drifts.
+- **Service-to-service, outbound: identity is the CALLER on the erasure fan-out.**
+  `packages/services/identity-webhooks/src/common/erasure-fanout.ts` posts
+  `POST /api/v1/internal/account/erasure` to **recipe and food**. The outbound body is validated against the
+  callee's schema-package zod **before the call**, and each response is **validated on receipt** — a
+  fan-out that silently mis-reads a partial failure is how an erasure is reported complete when it is not.
+- **The floor.** Every profile/account field writing a bounded column — display name, handle, locale,
+  status/role enums, nullability — is validated at least as strictly as that column can store. **Asserted,
+  never derived**: no zod generated from drizzle, and no Drizzle/DAO type imported into a `*.schema.ts` (the
+  constraint this plan already states above is unchanged by GR-016).
+- **Unknown keys are a stated choice per surface** (`z.object` strips silently, `z.strictObject` rejects). On
+  a profile update, silently dropping a misspelled field returns `200` for a write that did not happen.
+  Portfolio default is **OPEN** (GR-016 OPEN-GR-016-B).
+- **⛔ Response validation is DEFERRED (GR-016 §16-g).** Identity validates no responses, deliberately. Do not
+  add it.
+
+---
+
 ## Security and reliability notes
 
 - JWT verification via JWKS with in-process cache; enforce `iss`, `aud`, signature, expiration (REQ-039)

@@ -368,6 +368,38 @@ for it, and its shapes never enter `@kitchensink/schema-digitization`. `packages
 implementation. Deleting those boundary schemas in the name of convergence removes the parse standing between a
 user-supplied photograph's extracted text and the recipe write path — a security regression, not a cleanup.
 
+### Input validation — where that zod RUNS (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Full bindings:
+[`plan.md` → _Input validation (GR-016)_](./plan.md#input-validation-gr-016--two-services-so-two-of-everything).
+The section above decides who **authors** the contract; this one is where it is **enforced**. It adds no FR
+(GR-003) — FR-027/FR-028's payload constraints and FR-030's error contract already exist; GR-016 states where
+they run.
+
+- **Each of 011's two services carries the obligation independently**: one validation mechanism
+  (`createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`), one `400` path emitting the Problem Details
+  envelope, every body/path/query parsed — including `/circles/join/:token`, where the invitation token is path
+  data.
+- **⛔ The save path reaches a storage floor authored by feature 001.** `POST .../jobs/:id/save` persists a
+  recipe, and five int-backed recipe fields (`servings`, `prepTimeMinutes`, `cookTimeMinutes`,
+  `totalTimeMinutes`, `timerSeconds`) write `integer` (`int4`) columns capped at **2,147,483,647**. On this
+  feature those values came out of **a photograph of an arbitrary page**, so they are bounded before the write —
+  a `400`, never a failed `INSERT`. The floor is **asserted, never derived**: no zod generated from Drizzle, no
+  storage type imported into a `*.schema.ts`.
+- **The OCR boundary parse is REQUIRED, not optional.** The paragraph above permits the adapters to own their
+  types; GR-016 makes the parse mandatory before any extracted block, geometry or confidence value reaches a job
+  result.
+- **Async and callback ingress are in scope** — the job worker parses its queue payload, and any provider
+  completion callback gets **authentication first, then schema validation**, because a signature proves
+  **origin, not shape**.
+- **Circles' three service consumers (001, 006, 007) validate in both directions** — outbound bodies against
+  `@kitchensink/schema-circles` before the call, responses on receipt. "Internal" is not a synonym for
+  "trusted".
+- **⛔ Response validation is DEFERRED** by owner decision (GR-016 §16-g). Do not add server-side response
+  parsing to either service.
+
 ### Public API
 
 ```typescript

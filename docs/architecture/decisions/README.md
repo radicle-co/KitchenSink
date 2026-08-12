@@ -31,3 +31,4 @@ Without those two layers the ADR is invisible at the moment it matters.
 - [0012 — MCP agent credential bridge: Clerk proves identity, we own the grant](0012-mcp-agent-credential-bridge.md)
 - [0013 — cdk-nag on every CDK app, ADVISORY, with a byte-identical-template guarantee](0013-cdk-nag-advisory-iac-security-linting.md)
 - [0014 — The service authors its wire contract in zod; clients import only `packages/schemas/<service>`](0014-service-owned-api-contracts.md)
+- [0015 — Input is parsed once at the boundary against the service's own zod; the DB schema is the floor; response validation deferred](0015-input-validation-at-every-boundary.md)

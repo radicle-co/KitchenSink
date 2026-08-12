@@ -145,6 +145,34 @@ All paths under `/api/v1/`. Package names follow `@kitchensink/{group}-{name}` c
   the reference implementation and must never be "converged" — deleting a boundary schema removes a validation
   boundary rather than tidying one.
 
+### Input validation (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). Full bindings in
+[`plan.md` → _Input validation (GR-016)_](./plan.md#input-validation-gr-016). GR-015 decides who **authors** the
+contract; GR-016 is where it is **enforced**. Adds no FR (GR-003).
+
+- **One mechanism, one `400`.** Every input above — body, path params (`:id`, `:courseId`, `:lessonId`), query
+  params — is parsed by `cooking-school-service`'s own zod via `createZodDto` + **`nestjs-zod`'s**
+  `ZodValidationPipe`. ⚠️ Under Nest's **own** `ValidationPipe` a `createZodDto` DTO validates **nothing while
+  looking correctly wired**; the registered pipe is stated, and a bad-body route test is what proves it.
+- **⚠️ Parse before you authorise.** A lesson id, preview flag or enrollment token that was never parsed can
+  **fail open** and serve gated video — the same failure the section above warns about on the response side.
+- **⛔ The storage floor applies**: lesson ordering and duration integers against their `int4` ceiling
+  (**2,147,483,647**), progress percentages/positions (range and precision — a completion threshold means
+  nothing if `-5` or `10 ** 12` can be stored), `price_cents` on a `published-lesson` audience (GR-014), status
+  enums, nullability. **Asserted, never derived**: no zod from Drizzle, no storage type in a `*.schema.ts`.
+  Lesson description/script text columns are unbounded, so those limits are **product decisions 013 owns**.
+- **⚠️ The transcode callback needs BOTH controls**: authenticate it, **then** validate its schema — a signature
+  proves **origin, not shape**, and this payload decides whether a lesson becomes playable.
+  `cooking-school-workers` likewise **parses the transcode/status envelope on receipt**, since the two
+  deployables version independently.
+- **The LLM draft-script output is INPUT to us** and its boundary parse is required by GR-016, not merely
+  permitted by §15-d.
+- **⛔ Response validation is DEFERRED** portfolio-wide (GR-016 §16-g); the provider- and LLM-side parses above
+  are input and are unaffected.
+
 > ⚠️ **Note**: the sentence above the table says package names follow `@kitchensink/{group}-{name}`. That is a
 > GR-009 artifact — no shipped package uses it. See
 > [GR-009 Current State](../governance-rules.md#gr-009-package-naming-convention).

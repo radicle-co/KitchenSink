@@ -4,7 +4,14 @@ Tactical conventions for the KitchenSink monorepo. This document is the authorit
 reference for day-to-day coding decisions. The [Constitution](../.specify/memory/constitution.md)
 defines immutable principles; this document translates them into enforceable rules.
 
-**Version**: 1.3.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-02
+**Version**: 1.4.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-12
+
+> **1.4.0** — **§15.4 Input validation** added: one boundary parse per service against the service's own
+> authored zod (one mechanism, one `400` path), extended to queue/event consumers and webhooks (a signature
+> proves origin, not shape), with the **database schema as the validation FLOOR** — asserted, never derived
+> from drizzle. Records the `createZodDto`-under-Nest's-own-`ValidationPipe` trap, `z.object` vs
+> `z.strictObject`, the `sql.raw()` prohibition, and the **deliberate deferral of response validation**.
+> Portfolio rule: `specs/governance-rules.md` GR-016. (§15 itself landed 2026-08-11 without a version bump.)
 
 > **1.3.0** — corrected §1a/§1b test-file rows and rewrote §7 Test File Location against the actual repo
 > layout (both regimes, the reserved `.spec` suffix, Maestro/k6 homes). 61 test files were migrated to the
@@ -1056,6 +1063,102 @@ returns. **Do not delete those schemas in the name of this section, and do not a
 for an API we do not serve.** §15.1's reasoning does not apply: duplication is only wrong when one side
 could have been derived from the other, and here it could not.
 
+### 15.4 Input validation — one parse at the boundary, and the database schema is its FLOOR
+
+**The rule:** every input a service accepts is **parsed at the boundary against the service's own authored
+zod** — the same `*.schema.ts` §15.2 already requires — before any branch, any write, and any outbound call.
+Downstream code receives a parsed type. It never re-checks an `unknown`, and it never hand-writes its own
+error path.
+
+§15.1–15.3 decide **who authors** the contract. This subsection decides **where that contract runs**. A
+service can satisfy every word of §15.2 and still accept anything, so these are separate obligations.
+Portfolio-wide obligation: [`specs/governance-rules.md` GR-016](../specs/governance-rules.md). Reasoning and
+rejected alternatives: [ADR-0015](architecture/decisions/0015-input-validation-at-every-boundary.md).
+
+**Measured 2026-08-11, before this subsection existed** — validation is three different mechanisms and one
+service has none:
+
+| Service                         | `ZodValidationPipe` | `createZodDto` | State                                                                     |
+| ------------------------------- | ------------------- | -------------- | ------------------------------------------------------------------------- |
+| `@kitchensink/recipe-service`   | 18                  | 26             | furthest along, **19 files still on `class-validator`** — two mechanisms  |
+| `@kitchensink/food-service`     | **0**               | **0**          | **no pipe at all** — `@Body() body: unknown` + per-method `safeParse`     |
+| `@kitchensink/identity-service` | 3                   | 4              | smallest surface; `PATCH /users/me` is the wrong-pipe case (15.4.4 below) |
+
+Food's shape is the instructive one: because each method hand-writes its own `safeParse` and its own message,
+a **wrong-typed field**, a **missing field** and an **unknown key** all come back as
+`{ error: 'Empty name' }`. Three different failures, one wrong answer — the caller cannot fix any of them.
+
+1. **One mechanism per service, and it is `createZodDto` + `nestjs-zod`'s `ZodValidationPipe`.** Bodies, path
+   params, query params and any header a handler reads go through it. No second DTO, no `class-validator`
+   decorator set alongside it, no per-method `safeParse`. Two mechanisms in one service means two error
+   contracts and two sets of edge cases, and which one a route gets becomes a per-file accident.
+2. **Validation failure has ONE path per service** — a `400` that names the offending field(s). A
+   hand-written message per method is how three distinct failures collapse into one string.
+3. **`@Body() body: unknown` is banned.** It moves the parse into the method body, where it is optional by
+   construction and gets skipped on the next endpoint someone adds.
+4. ⚠️ **`createZodDto` requires `nestjs-zod`'s `ZodValidationPipe`. Under Nest's own built-in
+   `ValidationPipe` it validates NOTHING while looking correctly wired.** The schema is present, the DTO is
+   referenced, the route reads as validated, and no input is checked. This already bit identity on
+   **`PATCH /users/me`** — a route that writes user data. It is invisible in review by construction, so the
+   only thing that catches it is a test that posts a **known-bad body to a real route** and asserts the
+   `400`. Write that test per controller.
+5. ⚠️ **`z.object()` strips unknown keys silently; `z.strictObject()` rejects them.** Pick one **explicitly**
+   per request surface — inheriting zod's default by accident means a client that misspells a field gets a
+   `200` and no write. (Whether `strictObject` is the portfolio default for mutating bodies is **OPEN** —
+   GR-016 OPEN-GR-016-B.)
+6. **The surfaces a pipe never sees are in scope.** A Nest pipe covers HTTP only:
+    - **Queue and event consumers** — `packages/services/recipe-workers/src/handlers/*`, food's
+      change-refresh / SQS consumers. An SQS body is a string the producer chose; parse it against an
+      authored zod before it becomes a job.
+    - **Webhooks** — `packages/services/identity-webhooks/src/handlers/*`. `identityWebhook.ts` verifies the
+      **svix signature**, and that stays. **But a signature proves ORIGIN, not SHAPE.** A correctly signed
+      Clerk payload whose fields moved or went null is still an unvalidated body being written to the
+      identity database. Verify the signature **and then** validate the schema — never one instead of the
+      other.
+7. **Nothing reaches a database or another service unvalidated.** A DAL is not where input first meets a
+   constraint. On a service-to-service call — recipe → food, and identity's erasure fan-out
+   (`packages/services/identity-webhooks/src/common/erasure-fanout.ts`) →
+   `POST /api/v1/internal/account/erasure` on recipe and food — the **outbound body is validated against the
+   callee's schema-package zod before the call**, and the **inbound response is validated on receipt**.
+   "Internal" is not a synonym for "trusted".
+8. **THE FLOOR: every input field that writes a bounded column is validated at least as strictly as that
+   column can store.** Numeric range, string length, precision/scale, enum domain, nullability. A value the
+   column cannot hold is a **`400` at the boundary**, never a failed `INSERT`.
+
+    The live defect: five int-backed recipe wire fields — `servings`, `prepTimeMinutes`, `cookTimeMinutes`,
+    `totalTimeMinutes`, `timerSeconds` — had **no upper bound** while writing `integer` (`int4`) columns
+    capped at **2,147,483,647**. `servings: 9999999999` **passed validation** and failed at the `INSERT`:
+    **a 500 that should have been a 400**, on a plain user input.
+
+    ⚠️ **This is an ASSERTION about two independently authored artifacts, NOT a derivation between them.**
+    **Zod is never generated from drizzle, and a wire type never imports a storage type** — that coupling is
+    exactly what §15.2 removed when it flagged `RecipeSearchResponse.facets` taking its wire type from
+    `../dal/search.dal.js`. The `*.schema.ts` import constraint is **unchanged** by this subsection. The two
+    artifacts stay independent and must agree in **one direction only**: the wire bound is at least as tight
+    as the column.
+
+    **And a floor is not a target.** Recipe's text columns are `text()` — **unbounded** in PostgreSQL — so a
+    length limit on a title, a step or a note is a **product decision with no storage floor to derive from**.
+    "The column allows it" is not an argument for accepting it.
+
+9. **No request-derived value may reach `sql.raw()`.** `sql.raw` **bypasses parameterisation by design**.
+   Measured 2026-08-11, only three sites pass it a non-literal, and all three take a config value or a module
+   constant, so **none is currently reachable from user input**:
+   `packages/services/recipe-service/src/search/dal/search.dal.ts`, and recipe-workers'
+   `erasure-sweeper.ts` / `erasure-orphan-sweeper.ts`. Preserve that. Where a request legitimately selects an
+   identifier (a sort column, a partition), the **validated enum maps to a closed allowlist of literals in
+   code** — the request supplies the key, never the SQL fragment.
+10. ⛔ **Response validation is DEFERRED, deliberately — do NOT "complete" it.** No service validates its own
+    responses, and that is an owner decision: TypeScript at the boundary plus client-side validation on
+    receipt (rule 7) were judged sufficient for now. Adding server-side response parsing **undoes a
+    decision** rather than closing a gap. The cost is recorded honestly instead of hidden — §15.2(5)'s
+    `oasdiff` blind spot means response changes are weakly gated — but that is an argument about the drift
+    gates, not a licence to reverse the deferral. Reversing it needs its own proposal.
+
+> **Why rule 7's receipt-validation is not rule 10's response validation.** A **consumer** parsing what it
+> received is defending itself and can do so unilaterally. A **producer** validating what it emits is a
+> different, deferred obligation. Requiring the first does not quietly enact the second.
+
 ### Rules
 
 1. A `packages/clients/*` package MUST NOT declare a type describing a request or response body of a
@@ -1068,3 +1171,11 @@ could have been derived from the other, and here it could not.
    be given a hand-written OpenAPI document for an API we do not serve.
 5. Where this section and an existing hand-written client type conflict, **this section wins** — the
    client is the one that changes.
+6. Every service input — HTTP body/params/query, queue message, event, webhook payload — MUST be parsed at
+   the boundary by the service's authored zod, through **one** mechanism per service with **one** `400` path.
+   `@Body() body: unknown` is banned; a signature check is not a schema check.
+7. Every input field writing a **bounded column** MUST be validated at least as strictly as that column can
+   store, **asserted** — never by generating zod from drizzle or importing a storage type into a wire schema.
+8. A request-derived value MUST NOT reach `sql.raw()`. Request-selected identifiers map through a validated
+   enum to a closed allowlist of literals.
+9. Server-side **response** validation MUST NOT be added while §15.4(10)'s deferral stands.

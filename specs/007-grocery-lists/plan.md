@@ -154,6 +154,44 @@ change without telling us. So §5 _Store Integration_'s adapters are governed by
   request. Order-status polling is the sharpest case — an unvalidated status string decides whether we tell a
   user their groceries are coming.
 
+### 3.0a Input validation (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). §3.0 decides **who
+authors** the zod; GR-016 decides **where it runs**. **The OPEN ownership question above does not defer this
+obligation** — it binds whichever service ends up owning `/api/v1/grocery-lists/*`.
+
+- **One mechanism, one `400`.** Every grocery-list, item, pantry-flag and order input — body, path params
+  (`{id}`, `{itemId}`), query params — is parsed by that service's own `*.schema.ts` zod via `createZodDto` +
+  **`nestjs-zod`'s** `ZodValidationPipe`. One mechanism, and one `400` path that names the offending field.
+- **⛔ THE FLOOR.** Every input field writing a bounded column is validated at least as strictly as the column
+  can store: item **quantities** (numeric range, and `numeric(p,s)` precision/scale where the column has one),
+  unit and `store` enums, nullability, and list/item id formats. A quantity the column cannot hold is a `400`
+  at the boundary, never a failed `INSERT`.
+    - ⚠️ **Asserted, never derived**: no zod generated from Drizzle, no storage type in a `*.schema.ts`.
+    - ⚠️ A list `name` writing an unbounded `text()` column has **no storage floor** — its limit is a product
+      decision 007 owns.
+- **⚠️ The ORDER path spends real money, so its input bounds are a financial control.** `POST
+/api/v1/grocery-lists/{id}/order` and its quantities are validated at the boundary before any retailer call:
+  an unbounded quantity, a duplicated item, or an out-of-enum store is rejected here rather than becoming a
+  cart. This is the same reasoning §15-d gives for parsing the retailer's **responses** — applied to the
+  request we send.
+- **✅ The Walmart/Instacart boundary parse is REQUIRED by GR-016, not merely permitted by §15-d.** Order-status
+  polling is the sharpest case, exactly as §15-d says: an unvalidated status string decides whether we tell a
+  user their groceries are coming. Nothing in GR-016 licenses converging those adapter schemas away.
+- **Non-HTTP ingress is in scope.** Any queue/event consumer this feature adds — list generation from a meal
+  plan, order-status polling, a retailer webhook or callback — **parses its payload against an authored zod
+  before acting on it.** For a signed retailer callback: **verify the signature, then validate the schema** —
+  a signature proves **origin, not shape** (GR-016 §16-b).
+- **007 is a CLIENT of our other services**, both directions: outbound bodies validated against
+  `@kitchensink/schema-recipe` / `@kitchensink/schema-food` before the call, responses validated on receipt.
+- **Unknown keys are a stated choice per surface.** `PUT /api/v1/grocery-lists/{id}` (mark have/need) is the
+  load-bearing case — a silently stripped key returns `200` for a check-off that did not persist, on a screen
+  the user is standing in a shop reading. (Portfolio default is **OPEN**, GR-016 OPEN-GR-016-B.)
+- **⛔ Response validation is DEFERRED (GR-016 §16-g)** for our own responses. The retailer-side parse above is
+  **input** to us and is unaffected by that deferral.
+
 ### Endpoints
 
 | Method | Path                                               | Auth     | Description                     |

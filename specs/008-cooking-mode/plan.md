@@ -122,6 +122,42 @@ so its client **validates the raw upstream shape at the boundary with zod**, **m
 **gets no OpenAPI document**. `packages/clients/usda` is the reference implementation and its `schemas.ts` must
 never be "converged".
 
+### 3.0a Input validation (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). §3.0 decides **who
+authors** the zod; GR-016 decides **where it runs**. Bindings for this feature only.
+
+**008 owns almost no server surface today, so most of GR-016 lands on it as a consumer** — and the one place
+it does touch a bounded column is its own headline feature.
+
+- **Consumer-side parse (GR-016 §16-c.3).** Cooking mode reads
+  `GET /api/v1/recipes/{id}/instructions` through `@kitchensink/recipe-service-client`, and the response is
+  **validated on receipt** with `@kitchensink/schema-recipe`'s zod — not merely typed. A released mobile binary
+  talking to a newer recipe service is the exact case where a shape assumption fails silently, and the
+  `CONTRACT_HASH` gate cannot see a client that never parsed.
+- **⛔ THE FLOOR — `timerSeconds` is one of the five measured fields.** It writes an `integer` (`int4`) column
+  capped at **2,147,483,647** and was measured with **no upper bound**. 008 is the feature that consumes and
+  (if session state is ever persisted) submits it. Wherever a timer value crosses the wire, it is bounded at
+  least as tightly as the column — and in practice far tighter, since a cooking timer has a sane maximum that
+  no storage constraint will ever tell us. **Asserted, never derived**: no zod generated from Drizzle, no
+  storage type imported into a `*.schema.ts`.
+- **If 008 adds a server surface** — persisted cooking sessions (§8 Session Resume) or step sync — the full
+  service half applies: one mechanism (`createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`), one `400`
+  path, path/query/body all parsed, and the storage floor honoured on every persisted field.
+- 🟠 **OPEN (unchanged) — `CookingSessionEvent`.** GR-016 does **not** resolve the two open questions above.
+  §16-b names **queue, event and webhook** ingress explicitly and is silent on a **WebSocket event envelope**,
+  so "does the boundary-parse rule extend to a WS envelope, and which service owns that surface" remains
+  **OPEN for the owner**. What GR-016 does settle is the direction of travel: if that envelope ships, whatever
+  receives it parses it before dispatching on it — an unvalidated event routed by `type` is a defect on either
+  answer. `CookingSessionEvent` stays illustrative and MUST NOT be copied into a shared package.
+- **Local session state is not a wire boundary.** Timer state, wake-lock state and step position held on-device
+  are genuinely client-side (§3.0). GR-016 binds them only if they start crossing a boundary — at which point
+  they are wire shapes and the whole rule applies at once.
+- **⛔ Response validation is DEFERRED (GR-016 §16-g)** on the service side. 008's receipt-side parse above is
+  the consumer half and is required; the two are different obligations.
+
 ### Endpoints (from 001)
 
 | Method | Path                                | Auth     | Description                              |

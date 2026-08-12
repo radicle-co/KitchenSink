@@ -135,6 +135,46 @@ reference implementation and its `schemas.ts` must never be "converged".
 > canonical is `/api/v1/*`, and GR-002's Current State records 006 as the last holdout. Fixing it is out of
 > scope for this GR-015 amendment but remains required before 006 merges.
 
+### 3.0a Input validation (GR-016)
+
+**Normative sources**: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDARDS.md) ·
+[`GR-016`](../governance-rules.md#gr-016-input-validation-at-every-boundary) ·
+[ADR-0015](../../docs/architecture/decisions/0015-input-validation-at-every-boundary.md). §3.0 decides **who
+authors** the zod; GR-016 decides **where it runs**. **The OPEN ownership question above does not defer this
+obligation** — it binds whichever service ends up owning `/api/v1/meal-plans/*`.
+
+- **One mechanism, one `400`.** Every meal-plan, entry, nutrition-summary and suggestion input — body, path
+  params (`{id}`, `{entryId}`), query params — is parsed by that service's own `*.schema.ts` zod via
+  `createZodDto` + **`nestjs-zod`'s** `ZodValidationPipe`. If the paths land in `@kitchensink/recipe-service`,
+  006 adds **no** `class-validator` DTO to the 19 files already being removed there (measured 2026-08-11).
+- **⛔ THE FLOOR — 006's own bodies reach it.** `POST /v1/meal-plans/{id}/entries` carries **`servings`**,
+  which is one of the five int-backed fields measured with **no upper bound** against an `integer` (`int4`)
+  column capped at **2,147,483,647**. Every input field writing a bounded column is validated at least as
+  strictly as the column can store — `servings`, entry counts, `mealType` / `planType` enums, nullability,
+  and the `startDate` / `endDate` / `date` values (ISO-8601 strings per CODING_STANDARDS, so a **format and a
+  plausible range**, not just "a string").
+    - ⚠️ **Asserted, never derived**: no zod generated from Drizzle, no storage type imported into a
+      `*.schema.ts`. §3.0's import constraint is unchanged by GR-016.
+    - ⚠️ **The floor is a floor.** A plan `name` writing an unbounded `text()` column has **no storage bound
+      to derive from**, so its length limit is a product decision 006 owns.
+- **Range inputs are inputs.** A plan window (`startDate`/`endDate`) and any calendar range query bound the
+  work the request can ask for: a reversed or absurd range is rejected at the boundary rather than becoming a
+  query that scans a year of entries. Cross-field rules like `endDate >= startDate` live **in the schema**
+  (a zod refinement), so the client sees the same rule the server enforces.
+- **Non-HTTP ingress**: 006 declares **no** queue, event or webhook consumer today. If it adds one (a
+  plan-rollover job is the obvious candidate), that handler **parses its payload against an authored zod
+  before acting on it** — a pipe reaches none of those surfaces.
+- **006 is a CLIENT of several services**, and GR-016 §16-c binds both directions: outbound bodies validated
+  against the callee's schema-package zod **before the call** — nutrition via `@kitchensink/schema-food`,
+  recipe reads via `@kitchensink/schema-recipe`, AI suggestions via `@kitchensink/schema-ai` — and each
+  **response validated on receipt**.
+- **Unknown keys are a stated choice per surface.** `PUT /v1/meal-plans/{id}` is the load-bearing case: a
+  silently stripped unknown key returns `200` for an edit that did not happen. (Portfolio default is **OPEN**,
+  GR-016 OPEN-GR-016-B.)
+- **No request-derived value reaches `sql.raw()`**; a request-selected sort or grouping maps through a
+  validated enum to a closed allowlist of literals in code.
+- **⛔ Response validation is DEFERRED (GR-016 §16-g).** Do not plan or task server-side response parsing.
+
 ### Endpoints
 
 | Method | Path                                      | Auth     | Description                           |

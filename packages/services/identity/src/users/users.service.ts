@@ -16,6 +16,7 @@ import { ResolveUserService } from './resolveUser.js';
 import { newUserId, type UserId } from '../types/index.js';
 import { createServiceLogger } from '../observability/sentry-logging.js';
 import { traceAuth } from '../observability/auth-trace.js';
+import { reportDeletionEnqueueFailure } from '../queue/deletion-enqueue.error.js';
 
 /** Per-identity, never-deliverable placeholder for users whose Clerk token carries no email claim. */
 function placeholderEmail(sub: string): string {
@@ -312,10 +313,16 @@ export class UsersService {
         }
 
         // Hand the durable, reversible Clerk BAN to the deletion-worker (the only holder of the Clerk secret).
+        //
+        // ⛔ NOT BEST-EFFORT, AND NOT A `warn`. The tombstone above is committed, so a failure here leaves the
+        // database saying "closed" while Clerk keeps the session alive and keeps minting JWTs for the account
+        // the user just closed. It is reported through the ONE paging path in `deletion-enqueue.error.ts` — see
+        // that module for why the state is left divergent-but-loud rather than rolled back (the audit row is
+        // append-only, so a retry of closure would write a second one) and for the sweep that should converge it.
         try {
             await this.sqs.enqueueDeletion({ identityId: clerkUserId, userId, event: 'closure' });
         } catch (err) {
-            this.logger.warn('Failed to enqueue closure ban', { userId, error: String(err) });
+            reportDeletionEnqueueFailure({ event: 'closure', userId, identityId: clerkUserId, error: err });
         }
 
         return {

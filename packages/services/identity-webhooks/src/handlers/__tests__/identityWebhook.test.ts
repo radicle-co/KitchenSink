@@ -51,7 +51,7 @@ import { handler as rawHandler } from '../identityWebhook.js';
 import { getDb } from '../../common/db.js';
 import { setExternalId } from '../../common/identityClient.js';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
-import { captureProvisioningFailure } from '../../common/observability.js';
+import { captureProvisioningFailure, emitMetric, logger } from '../../common/observability.js';
 import { verifyWebhook } from '../../common/svix.js';
 import { resetConfigCacheForTests } from '../../config/env.js';
 
@@ -273,6 +273,43 @@ describe('identity-webhook handler', () => {
         // External id backfill runs AFTER the complete local unit, and stamps the sync marker on success.
         expect(mockSetExternalId).toHaveBeenCalledWith('user_abc123', 'usr_ulid');
         expect(setUser).toHaveBeenCalledWith(expect.objectContaining({ externalIdSyncedAt: expect.any(Date) }));
+    });
+
+    // ⛔ THE COST GUARD, AT ONE REAL CALL SITE. `emitMetric` publishes
+    // `Dimensions: [['service','metric',...Object.keys(dimensions)]]`, so every key passed becomes a CloudWatch
+    // dimension and every distinct VALUE becomes a separately billed custom metric (~$0.30/mo, 15-month
+    // retention). `{ identityId: data.id }` therefore bought one metric PER USER — ~$3,000/mo at 10k users —
+    // holding a single datapoint each. This asserts BOTH halves of the fix on the same invocation: the metric
+    // carries no per-user dimension, AND the identifier is still emitted, as a structured log attribute (where
+    // `sentry-scrubbers.ts` pseudonymizes it; the EMF line goes to raw stdout and passes no scrubber).
+    // `src/common/__tests__/emf-dimension-cardinality.test.ts` is the tree-wide version of the same rule.
+    it('user.created -> counts the event with NO per-user dimension, and keeps the id on the log line', async () => {
+        const { db } = buildMockDb();
+        mockGetDb.mockResolvedValue(db);
+        mockVerifyWebhook.mockReturnValue(userCreatedPayload as never);
+        mockProvisionCompleteUser.mockResolvedValue({
+            kind: 'complete',
+            user: { id: 'usr_ulid', identityId: 'user_abc123', email: 'test@example.com' },
+        } as never);
+
+        await handler(makeEvent(JSON.stringify(userCreatedPayload), { 'svix-id': 'msg_123' }), makeContext());
+
+        // The counter still fires, and still under exactly one dimension set — the emitter's own
+        // `service`/`metric` literals, which is what the `kitchensink-*` alarms select (W4).
+        expect(vi.mocked(emitMetric)).toHaveBeenCalledWith('UserCreatedWebhook', 1);
+
+        const dimensionArguments = vi
+            .mocked(emitMetric)
+            .mock.calls.filter(([name]) => name === 'UserCreatedWebhook')
+            .map(([, , dimensions]) => dimensions);
+
+        expect(dimensionArguments).toEqual([undefined]);
+
+        // …and nothing was lost: the id is still there, on the structured log line.
+        expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+            'identity-webhook: user.created processed',
+            expect.objectContaining({ identityId: 'user_abc123', userId: 'usr_ulid' }),
+        );
     });
 
     it('user.created with an email owned by another active identity -> skips (no 502), still 200', async () => {

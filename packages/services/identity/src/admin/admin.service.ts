@@ -7,6 +7,7 @@ import { containsPattern } from '../common/like-pattern.js';
 import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
 import { SqsService } from '../queue/sqs.service.js';
 import { createServiceLogger } from '../observability/sentry-logging.js';
+import { reportDeletionEnqueueFailure } from '../queue/deletion-enqueue.error.js';
 
 // Authorization (the `admin:users` scope check) is enforced declaratively by `ScopesGuard` +
 // `@RequireScopes('admin:users')` on `AdminController` — see that guard's JSDoc for the pattern. This
@@ -147,9 +148,15 @@ export class AdminService {
                 event: 'reactivation',
             });
         } catch (err) {
-            this.logger.warn('reactivation: failed to enqueue unban (tombstone already cleared)', {
-                targetSub,
-                error: String(err),
+            // ⛔ NOT a `warn`. The tombstone is already cleared and committed, so the database says `active`
+            // while Clerk still has the identity BANNED — the recovered user stays locked out, and the support
+            // agent who called this was told it worked. Announced through the ONE paging path in
+            // `deletion-enqueue.error.ts`.
+            reportDeletionEnqueueFailure({
+                event: 'reactivation',
+                userId: existing.id,
+                identityId: existing.identityId,
+                error: err,
             });
         }
 

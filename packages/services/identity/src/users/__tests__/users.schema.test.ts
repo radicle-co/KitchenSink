@@ -4,13 +4,22 @@
  * Two jobs, and the first is the important one.
  *
  * 1. **PIN THE WIRE LIFECYCLE TO THE DATABASE ENUM.** `userStatusSchema` restates the four values because the
- *    import restriction forbids an authored `*.schema.ts` from reaching into `types/schema/users.ts` (it is copied
- *    into a package web and mobile depend on, and a drizzle import would drag `drizzle-orm` with it). The two
+ *    import restriction forbids an authored `*.schema.ts` from importing drizzle (it is copied into a package web
+ *    and mobile depend on, and a drizzle import would drag `drizzle-orm` into a React Native bundle). The two
  *    representations are kept DELIBERATELY, not merged: the wire vocabulary and the storage column's domain change
  *    for different reasons — a migration is not a contract change, and vice versa. What must never happen is a
  *    SILENT divergence, so this is the test that fails when one moves without the other. Concretely: a migration
  *    adding a status the wire does not know would let the service persist a state it cannot describe, and every
  *    client's exhaustive switch over `UserStatus` would stop being exhaustive without a single compile error.
+ *
+ *    ⚠️ AND FOR ITS WHOLE LIFE IT COULD NOT FAIL. It imported `userStatusEnum` from
+ *    `src/types/schema/users.ts` — a DRIFTED, DEAD copy of the real schema that nothing in production read
+ *    (`id` was `varchar(255)` vs `text`, `email` `varchar(320)` vs case-insensitive `citext`, and it lacked
+ *    `identity_id` and `external_id_synced_at` altogether), while its own comment claimed the two were "kept in
+ *    lockstep". So this file asserted a relationship between the wire and a fiction: an `ALTER TYPE user_status
+ *    ADD VALUE` on the real table could never have turned it red. It now imports from the package ENTRY POINT
+ *    `@kitchensink/identity-db` — the schema `src/database/index.ts` actually re-exports to the DAOs — and the
+ *    duplicate is deleted, so the old import cannot resolve and the drift cannot come back.
  *
  * 2. Assert `patchUserMeRequestSchema` enforces what the pipe, the published document, and the two suites that
  *    pin the `400` (`tests/app-validation.test.ts`, `tests/e2e/users-validation.e2e.test.ts`) all rely on — with
@@ -18,7 +27,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { userStatusEnum } from '../../types/schema/users.js';
+import { userStatusEnum } from '@kitchensink/identity-db';
 import { accountTierSchema, patchUserMeRequestSchema, userProfileSchema, userStatusSchema } from '../users.schema.js';
 
 describe('userStatusSchema', () => {

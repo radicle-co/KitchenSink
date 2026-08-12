@@ -53,7 +53,19 @@ const fanOutOrThrow = async (target: ErasureFanoutTarget): Promise<void> => {
     const failed = legs.filter((leg) => !leg.ok);
 
     if (failed.length > 0) {
-        emitMetric('ErasureFanoutLegFailed', failed.length, { userId: target.userId });
+        // Dimensionless: a per-owner dimension is one separately billed custom metric per user
+        // (`src/common/__tests__/emf-dimension-cardinality.test.ts`). The owner id moves to the structured log
+        // below — which it was NOT on before: it existed only inside the thrown message, and `scrubText`
+        // pseudonymizes an embedded Clerk `sub` but deliberately leaves a bare ULID to the structured-attribute
+        // path. So this log line is both the diagnostic and the scrubbed home for the id.
+        emitMetric('ErasureFanoutLegFailed', failed.length);
+        logger.error('deletion-worker: erasure fan-out leg failed; throwing to force SQS redelivery', {
+            userId: target.userId,
+            failedLegs: failed.map((leg) => leg.service).join(','),
+            recipeOk: result.recipe.ok,
+            foodOk: result.food.ok,
+        });
+
         // Throw so the SQS record is retried; a persistent failure DLQs and the erasure-reconciliation
         // surfaces it. The successful leg's re-run on retry is an idempotent no-op.
         throw new Error(
@@ -97,7 +109,8 @@ const eraseFromWebhook = async (identityId: string, { db, userDao }: DbContext):
             { userId: user.id, triggerSource: 'admin', actor: 'clerk-user-deleted-webhook' },
             new Date(),
         );
-        emitMetric('UserDeletedWebhookErased', 1, { identityId });
+        // Dimensionless — the id is on the log line below (see the cardinality gate).
+        emitMetric('UserDeletedWebhookErased', 1);
         logger.info('deletion-worker: user.deleted — identity erased (KTD-2)', { identityId, userId: user.id });
     } else {
         logger.info('deletion-worker: user.deleted echo for already-erased identity (no re-scrub)', {

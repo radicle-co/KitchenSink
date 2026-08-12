@@ -131,30 +131,38 @@ const TABLE_EXEMPTIONS: readonly TableExemption[] = [
         table: 'users',
         owners: ['packages/services/identity', 'packages/shared/identity-db'],
         why:
-            '⛔ RECORDED DEFECT, not an approval. `packages/services/identity/src/types/schema/users.ts` is a ' +
-            'DRIFTED duplicate of the authoritative `packages/shared/identity-db/src/schema/users.ts`: `id` is ' +
-            '`varchar(255) COLLATE "C"` vs `text`, `email` is `varchar(320)` vs case-insensitive `citext`, and the ' +
-            'authoritative copy has `identity_id` and `external_id_synced_at` columns the duplicate lacks — while ' +
-            'its own comment claims the two are "kept in lockstep". Nothing in production imports it; its only ' +
-            'consumer is a test. Baselined so the guard can ship; deleting it is follow-up work in `packages/**`, ' +
-            'which this change does not own.',
+            'RESOLVED — the drifted duplicate is GONE, and what remains is the intended pair. The authoritative ' +
+            'declaration is `packages/shared/identity-db/src/schema/users.ts`; the second site is the identity ' +
+            "service's own migration SQL that CREATES the table (`0004_users_sub_pk.sql`, `0005_identity_reset." +
+            'sql`), exactly as recorded for `lifecycle_events` below — migration DDL and the Drizzle schema for ' +
+            'one table in one database are a pair, not two owners; the attribution model just cannot tell a ' +
+            'package apart from its own migrations directory. The former second DECLARER, ' +
+            '`packages/services/identity/src/types/schema/users.ts`, was a drifted copy (`id` `varchar(255) ' +
+            'COLLATE "C"` vs `text`, `email` `varchar(320)` vs case-insensitive `citext`, and no `identity_id` ' +
+            'or `external_id_synced_at`) whose own comment claimed the two were "kept in lockstep". It is ' +
+            'deleted, along with the dead `src/types/dao/*` copies that were its only importers and the two ' +
+            'gates that had been pointing at it — `users.schema.test.ts` (which pinned the wire enum to the ' +
+            'fiction) and the storage-capacity audit (whose only bounded column, `users.email` varchar(320), ' +
+            'does not exist in the real citext schema).',
     },
     {
         table: 'accounts',
         owners: ['packages/services/identity', 'packages/shared/identity-db'],
         why:
-            '⛔ RECORDED DEFECT, same root cause as `users`: the identity service keeps a second, drifted copy of ' +
-            'the authoritative `identity-db` schema (`user_id` is `varchar COLLATE "C"` vs `text`). Nothing in ' +
-            'production imports it. Baselined so the guard can ship; the duplicate should be deleted.',
+            'RESOLVED, same as `users`: the drifted duplicate (`user_id` `varchar COLLATE "C"` vs `text`) is ' +
+            'deleted. The remaining pair is the authoritative `identity-db` Drizzle schema plus the identity ' +
+            "service's own migration SQL that creates the table — the same package-vs-its-own-migrations " +
+            'attribution artefact recorded for `lifecycle_events` below.',
     },
     {
         table: 'profiles',
         owners: ['packages/services/identity', 'packages/shared/identity-db'],
         why:
-            '⛔ RECORDED DEFECT, and the worst of the three: the duplicate declares `user_id` as `uuid` where the ' +
-            'authoritative `identity-db` schema declares `text`. That is not a stylistic drift, it is an ' +
-            'incompatible foreign-key type on a live table. Nothing in production imports the duplicate. ' +
-            'Baselined so the guard can ship; the duplicate should be deleted.',
+            'RESOLVED, and this was the worst of the three: the duplicate declared `user_id` as `uuid` where the ' +
+            'authoritative `identity-db` schema declares `text` — an incompatible foreign-key type on a live ' +
+            'table, not a stylistic drift. The duplicate is deleted; the remaining pair is the authoritative ' +
+            "Drizzle schema plus the identity service's own migration SQL that creates the table, the same " +
+            'attribution artefact recorded for `lifecycle_events` below.',
     },
     {
         table: 'lifecycle_events',

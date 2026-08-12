@@ -143,7 +143,12 @@ const handleUserCreated = async (
         traceAuth('webhook.set_external_id_failed', { identityId: data.id });
     }
 
-    emitMetric('UserCreatedWebhook', 1, { identityId: data.id });
+    // ⛔ NO `identityId` DIMENSION. In EMF every distinct dimension VALUE is a separately billed custom metric
+    // (~$0.30/mo, 15-month retention), so a per-user dimension costs one metric PER USER — ~$3,000/mo at 10k
+    // users — for a series holding one datapoint that aggregates to nothing. The id is on the log line below,
+    // where it is searchable AND pseudonymized by `sentry-scrubbers.ts`; the EMF line goes straight to stdout
+    // and never passes a scrubber. Enforced by `src/common/__tests__/emf-dimension-cardinality.test.ts`.
+    emitMetric('UserCreatedWebhook', 1);
     logger.info('identity-webhook: user.created processed', { requestId, identityId: data.id, userId: user.id });
 };
 
@@ -203,14 +208,16 @@ const handleUserUpdated = async (
         }
     }
 
-    emitMetric('UserUpdatedWebhook', 1, { identityId: data.id });
+    // Dimensionless on purpose — see the note on `UserCreatedWebhook` above; the id is on the log line.
+    emitMetric('UserUpdatedWebhook', 1);
     logger.info('identity-webhook: user.updated processed', { requestId, identityId: data.id, userId: existing.id });
 };
 
 /** @implements REQ-013 REQ-014 REQ-015 REQ-016 REQ-017 REQ-018 REQ-019 REQ-CN-003 FR-013 FR-014 FR-015 FR-016 FR-017 FR-018 FR-019 ARCH-010 ARCH-011 ARCH-012 MOD-010 MOD-011 MOD-012 */
 const handleUserDeleted = async (data: { id: string }, requestId: string): Promise<void> => {
     await enqueueDeletion(data.id);
-    emitMetric('UserDeletedWebhook', 1, { identityId: data.id });
+    // Dimensionless on purpose — see the note on `UserCreatedWebhook` above; the id is on the log line.
+    emitMetric('UserDeletedWebhook', 1);
     logger.info('identity-webhook: user.deleted enqueued', { requestId, identityId: data.id });
 };
 

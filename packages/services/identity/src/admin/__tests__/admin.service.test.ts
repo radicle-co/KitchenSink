@@ -7,6 +7,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 
+const reportDeletionEnqueueFailure = vi.fn();
+vi.mock('../../queue/deletion-enqueue.error.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../queue/deletion-enqueue.error.js')>()),
+    reportDeletionEnqueueFailure: (input: unknown) => reportDeletionEnqueueFailure(input),
+}));
+
 import { AdminService } from '../admin.service.js';
 
 const adminCtx = {
@@ -65,6 +71,25 @@ describe('AdminService.reactivateUser', () => {
         const { service } = buildMocks(undefined);
 
         await expect(service.reactivateUser('missing', adminCtx)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    // ⛔ THE UNBAN IS THE WHOLE POINT OF THIS ENDPOINT. The tombstone is cleared inside a transaction, so the
+    // database says `active` the moment it commits — but the user cannot sign in until Clerk unbans them, and
+    // only the deletion-worker can do that. A failed enqueue therefore leaves a user who is active in our
+    // records and LOCKED OUT in reality. That used to be a `logger.warn`, which nothing alerts on, so the
+    // support agent was told the recovery succeeded and the user kept calling back.
+    it('PAGES when the reactivation enqueue fails, instead of warning about it', async () => {
+        const { db, sqs } = buildMocks({ id: 'usr_1', identityId: 'user_1', status: 'tombstoned' });
+        sqs.enqueueDeletion.mockRejectedValueOnce(new Error('AccessDenied'));
+        const service = new AdminService(db, sqs);
+
+        // The tombstone is already cleared and committed, so the recovery still reports success — what changes
+        // is that the missing unban is now announced rather than swallowed.
+        await expect(service.reactivateUser('usr_1', adminCtx)).resolves.toMatchObject({ status: 'active' });
+
+        expect(reportDeletionEnqueueFailure).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'reactivation', userId: 'usr_1', identityId: 'user_1' }),
+        );
     });
 
     it('rejects reactivating a non-tombstoned (active) account, and does not enqueue', async () => {

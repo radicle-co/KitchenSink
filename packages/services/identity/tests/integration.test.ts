@@ -6,6 +6,12 @@ vi.mock('@aws-sdk/client-sqs', () => ({
     SendMessageCommand: vi.fn(),
 }));
 
+const reportDeletionEnqueueFailure = vi.fn();
+vi.mock('../src/queue/deletion-enqueue.error.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../src/queue/deletion-enqueue.error.js')>()),
+    reportDeletionEnqueueFailure: (input: unknown) => reportDeletionEnqueueFailure(input),
+}));
+
 vi.mock('pg', () => {
     const mockPool = { connect: vi.fn(), query: vi.fn(), end: vi.fn() };
 
@@ -191,6 +197,25 @@ describe('UsersService', () => {
 
         await expect(usersService.deleteUserMe(userCtx)).resolves.toMatchObject({ sub: userCtx.userId });
         expect(mockSqs.enqueueDeletion).toHaveBeenCalled();
+    });
+
+    // ⛔ THE BAN IS THE SECURITY CONTROL, NOT A NICETY. The transaction has already tombstoned the row, so the
+    // database says the account is closed — but the Clerk session is untouched until the deletion-worker bans
+    // the identity, and only that Lambda holds the Clerk secret. A swallowed enqueue therefore leaves an
+    // account the user believes is closed still minting fresh JWTs, with nothing recorded anywhere. This used
+    // to be `logger.warn('Failed to enqueue closure ban')`, which is how it went unnoticed that the deployed
+    // task role had no `sqs:SendMessage` grant at all and EVERY enqueue was failing.
+    it('deleteUserMe PAGES when the closure ban cannot be enqueued, instead of warning about it', async () => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
+        mockDb.update = vi.fn().mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) });
+        mockDb.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
+        mockSqs.enqueueDeletion.mockRejectedValueOnce(new Error('AccessDenied'));
+
+        await expect(usersService.deleteUserMe(userCtx)).resolves.toMatchObject({ sub: userCtx.userId });
+
+        expect(reportDeletionEnqueueFailure).toHaveBeenCalledWith(
+            expect.objectContaining({ event: 'closure', userId: userCtx.userId, identityId: 'user_abc123' }),
+        );
     });
 
     it('deleteUserMe throws when user missing', async () => {

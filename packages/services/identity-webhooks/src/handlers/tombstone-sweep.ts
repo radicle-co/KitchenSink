@@ -102,7 +102,8 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: D
         } catch (err) {
             if (!isAlreadyDeleted(err)) {
                 failed += 1;
-                emitMetric('TombstoneErasureClerkDeleteFailed', 1, { identityId: tombstone.identityId });
+                // Dimensionless — both ids are on the log line below (see the cardinality gate).
+                emitMetric('TombstoneErasureClerkDeleteFailed', 1);
                 logger.error('tombstone-sweep: Clerk deleteUser failed; leaving tombstone for next run', {
                     identityId: tombstone.identityId,
                     userId: tombstone.id,

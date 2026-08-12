@@ -129,7 +129,9 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: D
                 await stampReconciled(db, identity.id);
             } else {
                 incomplete += 1;
-                emitMetric('ErasureIncompleteOwner', 1, { userId: identity.id });
+                // Dimensionless — the owner id is on the log line below (see the cardinality gate). The
+                // ALARM watches the aggregate `ErasureIncomplete` count, never a per-owner series.
+                emitMetric('ErasureIncompleteOwner', 1);
                 logger.warn('erasure-reconciliation: erasure incomplete for erased identity', {
                     userId: identity.id,
                     recipeOk: result.recipe.ok,
@@ -142,7 +144,8 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: D
             // An unreachable service (or any throw) is itself an incompleteness signal; keep going so one
             // bad user never blocks reconciling the rest.
             incomplete += 1;
-            emitMetric('ErasureIncompleteOwner', 1, { userId: identity.id });
+            // Dimensionless — the owner id is on the log line below (see the cardinality gate).
+            emitMetric('ErasureIncompleteOwner', 1);
             logger.error('erasure-reconciliation: re-drive threw; counting as incomplete', {
                 userId: identity.id,
                 error: err instanceof Error ? err.message : String(err),

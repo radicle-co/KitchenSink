@@ -258,14 +258,32 @@ describe('the erasure REQUEST schema — shape only, by design', () => {
         expect(erasureRequestSchema.safeParse({ confirmationPhrase: 'delete it all' }).success).toBe(true);
     });
 
-    it('has NO ownerId field, so there is nothing for a caller to smuggle past the token’s bound claim', () => {
-        const parsed = erasureRequestSchema.parse({
+    it('has NO ownerId field, and REFUSES one rather than stripping it (GR-017 §17-c)', () => {
+        const parsed = erasureRequestSchema.safeParse({
             confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE,
             ownerId: 'victim-2',
         });
 
-        expect(parsed).not.toHaveProperty('ownerId');
+        expect(parsed.success).toBe(false);
         expect(Object.keys(erasureRequestSchema.shape)).toEqual(['confirmationPhrase', 'publishRecipeIds']);
+    });
+
+    /**
+     * WHERE STRICTNESS EARNS THE MOST IN THIS SERVICE, asserted rather than only argued in the schema's docstring.
+     *
+     * Erasure is IRREVERSIBLE, and `publishRecipeIds` is the per-recipe DONATE election. Under the previous
+     * stripping behaviour a client that misspelled it had its whole election dropped and got a `202`: the erasure
+     * proceeded and every owner-only recipe was REMOVED rather than donated, with nothing telling the user their
+     * choice had not been recorded and no way to undo it.
+     */
+    it('REFUSES a misspelled publishRecipeIds, instead of erasing recipes the caller elected to donate', () => {
+        const parsed = erasureRequestSchema.safeParse({
+            confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE,
+            publishRecipeIDs: ['3f2504e0-4f89-41d3-9a0c-0305e82c3301'],
+        });
+
+        expect(parsed.success).toBe(false);
+        expect(parsed.error?.issues.some((issue) => issue.code === 'unrecognized_keys')).toBe(true);
     });
 
     it('bounds the donate election, so one request cannot persist an unbounded array on the job row', () => {

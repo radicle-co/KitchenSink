@@ -50,6 +50,22 @@
  * column in the service — an assertion, never a derivation: nothing here imports a drizzle type, and no
  * storage type is ever a wire type.
  *
+ * ── STRICT: AN UNKNOWN KEY ON A MUTATING BODY IS A `400`, NOT A SILENT STRIP (GR-017 §17-c) ──
+ *
+ * Every request body here is `z.strictObject`, INCLUDING the two nested line/step shapes, and that is the
+ * portfolio ruling rather than a local preference. It replaced `z.object`, which STRIPS: a `PATCH` carrying
+ * `tilte` used to answer `200` having written nothing, so the caller was told it succeeded and the data was not
+ * what it sent. The nested shapes matter as much as the envelope — a misspelled `userProteinG` inside an
+ * ingredient line is the same silent partial write, and strictness only at the top level would be cosmetic.
+ *
+ * `updateRecipeRequestSchema` inherits it through `.omit().partial().extend()` (zod carries the `catchall`
+ * across all three), so the update body cannot drift loose while the create body stays strict.
+ *
+ * ⚠️ THE ONE NON-STRICT SHAPE IS {@link listRecipesQuerySchema}, and it is a READ query — see its own note.
+ *
+ * The `ownerId` remark below is now a `400` rather than a strip, which is strictly better for the caller: a
+ * client attempting to smuggle ownership is TOLD its field was refused instead of believing it was honoured.
+ *
  * ── WHY THE `.min(1)`s EXIST, AND WHY `description` IS THE ONE THAT DOES NOT ──
  *
  * Four of them fix a body the server could SEND that no client could READ: `title`, `cuisine`,
@@ -63,8 +79,10 @@
 import { z } from 'zod';
 
 import {
+    paginatedResponseSchema,
     recipeCuisineSchema,
     recipeDescriptionSchema,
+    recipeDetailSchema,
     recipeDeviceLabelSchema,
     recipeDifficultySchema,
     recipeExpectedVersionSchema,
@@ -76,6 +94,7 @@ import {
     recipeLineNutritionSchema,
     recipeListMemberSchema,
     recipeMinutesSchema,
+    recipeSchema,
     recipeServingsSchema,
     recipeStatusSchema,
     recipeStepInstructionSchema,
@@ -95,7 +114,7 @@ import {
  * Every field is a `recipe-core` Value Object; the ENVELOPE — which of them are required, and that the four
  * nutrition overrides are optional — is this file's.
  */
-export const recipeIngredientInputSchema = z.object({
+export const recipeIngredientInputSchema = z.strictObject({
     ingredientId: recipeIngredientIdSchema,
     name: recipeIngredientNameSchema,
     quantity: recipeIngredientQuantitySchema,
@@ -118,7 +137,7 @@ export type RecipeIngredientInput = z.infer<typeof recipeIngredientInputSchema>;
  * `timerSeconds` is OPTIONAL and strictly positive (see `recipeTimerSecondsSchema`): "no timer" is expressed
  * by omitting the key, which is also the only thing the read projection can produce.
  */
-export const recipeStepInputSchema = z.object({
+export const recipeStepInputSchema = z.strictObject({
     instruction: recipeStepInstructionSchema,
     timerSeconds: recipeTimerSecondsSchema.optional(),
 });
@@ -132,7 +151,8 @@ export type RecipeStepInput = z.infer<typeof recipeStepInputSchema>;
  * Body of `POST /api/v1/recipes`.
  *
  * `ownerId` is deliberately absent and unaccepted: ownership comes from the verified principal, so there is
- * no field for a caller to smuggle one through, and zod strips the key if one is sent.
+ * no field for a caller to smuggle one through, and the STRICT object answers `400` if one is sent. It used to
+ * be stripped, which told an attacking (or merely confused) caller nothing about the field being refused.
  *
  * `difficulty` is `.optional()` and NOT `.nullable()`: on create there is nothing to clear, so an explicit
  * `null` is rejected while a genuine omit passes. That distinction is the whole of FR-001b's "the author
@@ -146,7 +166,7 @@ export type RecipeStepInput = z.infer<typeof recipeStepInputSchema>;
  * bounded in practice only by the 100 kB JSON body limit; the asymmetry with `ingredients` (100) and `tags`
  * (50) is flagged for a product decision rather than resolved by guessing a number here.
  */
-export const createRecipeRequestSchema = z.object({
+export const createRecipeRequestSchema = z.strictObject({
     title: recipeTitleSchema,
     description: recipeDescriptionSchema.optional(),
     cuisine: recipeCuisineSchema.optional(),
@@ -178,8 +198,10 @@ export type CreateRecipeRequest = z.infer<typeof createRecipeRequestSchema>;
  * `PATCH /api/v1/recipes/{id}/visibility` endpoint, where the C-004 policy evaluator decides whether the
  * transition is allowed. The document used to advertise it here (it came free with
  * `createRecipeInputSchema.partial()`) while the service STRIPPED it — a field the contract offered and the
- * server ignored. Omitting it makes the document true; a caller that still sends one is unaffected, because
- * the key is dropped exactly as it was before.
+ * server ignored. Omitting it makes the document true, and since this body is STRICT a caller that still sends
+ * one now gets a `400` instead of a `200` that changed nothing. That is the visible failure GR-017 §17-c
+ * chose: the app-side projection `toUpdateRecipeInput` was sending exactly this field, and the silent strip is
+ * what let the bug live long enough to be pinned by a test.
  *
  * `difficulty` is the three-state field (FR-001b), and the three states are NOT interchangeable:
  * ABSENT = leave unchanged, a VALUE = set it, explicit `null` = CLEAR it back to "not stated". Without the
@@ -204,7 +226,7 @@ export type UpdateRecipeRequest = z.infer<typeof updateRecipeRequestSchema>;
  * — this schema only bounds the literal, so a rejected transition stays a policy answer rather than becoming
  * a validation `400`.
  */
-export const setRecipeVisibilityRequestSchema = z.object({
+export const setRecipeVisibilityRequestSchema = z.strictObject({
     visibility: recipeVisibilitySchema,
 });
 
@@ -216,10 +238,13 @@ export type SetRecipeVisibilityRequest = z.infer<typeof setRecipeVisibilityReque
  *
  * A clone deterministically copies the source's content and attribution and derives its visibility from the
  * C-004 clone-default rule, so there is nothing for a caller to supply. `.default({})` is what makes a
- * bodyless `POST` legal (same reasoning as `cloneCollectionRequestSchema`), and zod's key-stripping is what
- * makes a stray field harmless rather than trusted.
+ * bodyless `POST` legal (same reasoning as `cloneCollectionRequestSchema`) — and it still does under
+ * `strictObject`, because a DEFAULT applies to an ABSENT body while the catchall only judges the keys of a body
+ * that is present. A stray field is now a `400` rather than silently dropped, which is the honest answer to a
+ * caller who believes this endpoint takes parameters: it does not, and guessing at one should not look like it
+ * worked.
  */
-export const cloneRecipeRequestSchema = z.object({}).default({});
+export const cloneRecipeRequestSchema = z.strictObject({}).default({});
 
 /** Request body for cloning a recipe (no fields). */
 export type CloneRecipeRequest = z.infer<typeof cloneRecipeRequestSchema>;
@@ -241,6 +266,22 @@ export type RecipeListSortBy = (typeof RECIPE_LIST_SORT_BY)[number];
  * These two are NOT `recipe-core` Value Objects, deliberately: the COERCION and the DEFAULTS are properties
  * of this endpoint's query bag rather than of the domain values, and `MAX_RECIPE_LIST_PAGE_SIZE` — the only
  * actual bound here — is composed from `recipe-core` like every other.
+ *
+ * ⚠️ FORWARD-COMPATIBILITY EXEMPTION from GR-017 §17-c's `z.strictObject()` default, documented at the schema
+ * as that rule requires. This is a READ query, which is the exemption's named case, and two concrete reasons
+ * apply rather than one general preference:
+ *
+ *  1. **The bag is not the client's alone.** Nest hands the pipe the WHOLE parsed query string, so a strict
+ *     object would `400` on anything else riding along — a cache-buster, an analytics parameter, a link a user
+ *     pasted with a tracking tag. None of those changes what the endpoint returns, and refusing to list a
+ *     caller's recipes because of one is a regression with no upside.
+ *  2. **A read has no silent-partial-write to prevent.** §17-c's whole argument is that stripping a mutating
+ *     body turns a caller's mistake into a `200` and data that is not what they sent. A stripped query
+ *     parameter changes nothing that persists: the caller gets the documented default and the same page they
+ *     would have got by omitting it. The failure the rule exists to make visible does not exist here.
+ *
+ * The same reasoning covers `listCollectionsQuerySchema` and `ingredientSearchQuerySchema`, and
+ * `contract/__tests__/contract.test.ts` pins the exempt set so a MUTATING body can never join it by accident.
  */
 export const listRecipesQuerySchema = z.object({
     page: z.coerce.number().int().min(1).default(1),
@@ -250,3 +291,46 @@ export const listRecipesQuerySchema = z.object({
 
 /** Parsed pagination + sort query for listing recipes. */
 export type ListRecipesQuery = z.infer<typeof listRecipesQuerySchema>;
+
+// ── Re-exported wire shapes: the recipe entity bodies this vertical serves ──────────────────────────────────────────────
+
+/*
+ * ⚠️ RE-EXPORT, NOT RE-DECLARATION — and it is the mechanism of a ruling, not a convenience.
+ *
+ * RULING (§5 of this sweep): `@kitchensink/schema-recipe` is AUTHORITATIVE for every shape on the recipe
+ * wire, INCLUDING the bodies that are `recipe-core` domain entities — reached by re-export from the authored
+ * schema of the vertical that SERVES them, never by re-declaration.
+ *
+ * Why, rather than leaving a consumer to import entity zod from `recipe-core` and envelope zod from the schema
+ * package:
+ *
+ *  1. **It was two sources for one question.** `getRecipeById` validated its response against `recipe-core`
+ *     while the collections and account reads validated theirs against `@kitchensink/schema-recipe`, so "where
+ *     does this endpoint's shape live?" had a per-endpoint answer. GR-017 §17-b.2 requires a client to import its
+ *     wire types AND its runtime zod from the schema package; that was not even possible here, because the zod
+ *     for nine published components was not exported from it.
+ *  2. **A parser-based guard cannot tell the two cases apart.** 17-b.1 forbids a client DECLARING a wire shape,
+ *     and with entity zod legitimately arriving from `recipe-core`, an import from that package is not evidence
+ *     either way. One import site makes the rule mechanically checkable.
+ *  3. **The document already claims these components.** `contract/openapi.ts` publishes them, so a schema
+ *     package that does not export their zod is a documented-but-unreachable contract.
+ *
+ * ⛔ Do NOT convert these into local declarations to make the file "self-contained": `recipe-core` remains the
+ * sole AUTHOR of every entity below, and re-declaring one would manufacture exactly the drift ADR-0014 removes.
+ * The GR-007 axis is untouched — every non-wire consumer keeps importing these from `recipe-core`.
+ *
+ * ⚠️ RESIDUAL, reported rather than hidden: `CONTRACT_HASH` is a digest of the service's authored `*.schema.ts`
+ * SOURCES, so it moves when this re-export list changes and NOT when the re-exported definition changes. Drift
+ * layer 3 is therefore still blind to an entity-shape change in `recipe-core` — a deployed service and a pinned
+ * mobile binary can disagree about `Recipe` with identical hashes. Closing that needs the composed leaf's
+ * sources in the hash inputs, which is a `@kitchensink/contract-gen` change affecting all three services.
+ */
+
+export {
+    /** `GET /api/v1/recipes` item + `Recipe` component — the recipe list/summary body. */
+    recipeSchema,
+    /** `GET /api/v1/recipes/{id}` + `RecipeDetail` component — the full recipe body. */
+    recipeDetailSchema,
+    /** The `PaginatedRecipes` envelope factory, shared by every paginated endpoint in this API. */
+    paginatedResponseSchema,
+};

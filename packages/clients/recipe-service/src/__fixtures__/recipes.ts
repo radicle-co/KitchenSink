@@ -25,9 +25,8 @@ import type {
     RecipePhoto,
     RecipeSearchResult,
     RecipeVersion,
-    RestoreVersionResponse,
 } from '@kitchensink/recipe-core';
-import type { CreateRecipeRequest } from '@kitchensink/schema-recipe';
+import type { CreateRecipeRequest, RestoreVersionResponse } from '@kitchensink/schema-recipe';
 
 import type {
     Collection,

@@ -15,8 +15,10 @@
  *     runs before the controller and does not run at all for a bodyless request. The
  *     `accepts a well-formed but WRONG phrase` case exists to RED the build if someone narrows the schema to a
  *     literal — see `../../account.schema.ts` note 2 for the three reasons that would be a regression.
- *  3. **`ownerId` is stripped, not honoured.** It could never redirect the erasure (the owner comes from the
- *     verified token), but the stripping is defence in depth and it must survive the pipe swap.
+ *  3. **`ownerId` is REFUSED, not honoured.** It could never redirect the erasure (the owner comes from the
+ *     verified token); it was STRIPPED until GR-017 §17-c made an unknown key on a mutating body a `400`. The
+ *     defence in depth survives either way — what the ruling adds is that the caller of an IRREVERSIBLE
+ *     operation is told the field was rejected.
  */
 import { describe, it, expect } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
@@ -79,10 +81,14 @@ describe('ErasureRequestDto', () => {
         });
     });
 
-    it('STRIPS an ownerId a client tried to smuggle in — erasure is only ever scoped to the caller', () => {
-        expect(transform({ confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE, ownerId: 'victim-2' })).toEqual({
-            confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE,
-        });
+    // Was a STRIP assertion. The body is `z.strictObject` per GR-017 §17-c, so it is a `400`. Erasure remains
+    // scoped to the verified caller under both behaviours — the owner comes from the token and no body field is
+    // read — but on an IRREVERSIBLE operation the caller must be told their field was refused, not left to infer
+    // it from a `202`.
+    it('REFUSES an ownerId a client tried to smuggle in — erasure is only ever scoped to the caller', () => {
+        expect(() =>
+            transform({ confirmationPhrase: ACCOUNT_ERASURE_CONFIRMATION_PHRASE, ownerId: 'victim-2' }),
+        ).toThrow();
     });
 });
 

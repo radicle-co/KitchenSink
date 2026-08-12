@@ -84,9 +84,8 @@ export type {
     RecipeIngredientView,
     RecipeSearchResult,
     RecipeStepView,
-    RestoreVersionResponse,
 } from '@kitchensink/recipe-core';
 
 // Wire shapes owned by the GENERATED contract package (authored as zod in the recipe service). Re-exported
 // under their existing names so this barrel's public surface is unchanged for its ~121 consumer files.
-export type { RecipeSearchFacets, RecipeSearchResponse } from '@kitchensink/schema-recipe';
+export type { RecipeSearchFacets, RecipeSearchResponse, RestoreVersionResponse } from '@kitchensink/schema-recipe';

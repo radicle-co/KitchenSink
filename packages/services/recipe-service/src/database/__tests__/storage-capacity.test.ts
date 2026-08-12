@@ -36,7 +36,7 @@ import {
     INT4_MAX,
 } from '@kitchensink/contract-gen';
 import type { ColumnAccount } from '@kitchensink/contract-gen';
-import { setRecipeRatingInputSchema } from '@kitchensink/recipe-core';
+import { setRatingRequestSchema } from '../../ratings/ratings.schema.js';
 
 import * as schema from '../schema/index.js';
 import {
@@ -190,7 +190,7 @@ const accounts: readonly ColumnAccount[] = [
     {
         table: 'recipe_ratings',
         column: 'stars',
-        fields: [{ field: 'SetRatingRequest.stars', schema: setRecipeRatingInputSchema.shape.stars }],
+        fields: [{ field: 'SetRatingRequest.stars', schema: setRatingRequestSchema.shape.stars }],
     },
 
     // ── recipe_versions / pending archives ────────────────────────────────────────────────────────

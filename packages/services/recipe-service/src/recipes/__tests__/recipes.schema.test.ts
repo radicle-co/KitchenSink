@@ -21,15 +21,18 @@
  *  1. **The DTO and the published schema are the SAME OBJECT** (`Dto.schema === …Schema`). `@kitchensink/
  *     schema-recipe` publishes these verbatim, so identity makes it impossible to validate one shape
  *     server-side and publish another.
- *  2. **`z.infer` of each request schema is mutually assignable with the `recipe-core` domain input type.**
- *     `recipe-core` keeps the interfaces the typed client and the editor's form model are written against;
- *     this is what stops the schema and those interfaces drifting now that the zod lives here.
+ *  2. **There is ONE representation of each body.** This bullet used to say the opposite — that `recipe-core`
+ *     keeps interfaces the client and the form model are written against, and that mutual assignability stops
+ *     them drifting. Those interfaces are DELETED and the assertion is gone with them: assignability is not
+ *     identity, a spread is exempt from excess-property checking, and a passing bidirectional check is evidence
+ *     that a second declaration exists. See that suite for the defect it was hiding.
  *  3. **The `.min(1)`s that fix a body the server could SEND and no client could READ.** `title`, `cuisine`,
  *     `steps[].instruction` and `ingredients[].notes` were each storable as `''`, and the corresponding read
  *     schema rejects `''` — so the typed client threw parsing back what it had just written. Those four are
  *     asserted against the READ schema, not just as bare rejections, so the reason survives.
  */
 import { describe, expect, expectTypeOf, it } from 'vitest';
+import type { z } from 'zod';
 import {
     recipeIngredientViewSchema,
     recipeSchema,
@@ -60,7 +63,6 @@ import {
     recipeTimerSecondsSchema,
     recipeTitleSchema,
 } from '@kitchensink/recipe-core';
-import type { CreateRecipeInput, CreateRecipeIngredientInput, CreateRecipeStepInput } from '@kitchensink/recipe-core';
 
 import {
     cloneRecipeRequestSchema,
@@ -71,7 +73,12 @@ import {
     setRecipeVisibilityRequestSchema,
     updateRecipeRequestSchema,
 } from '../recipes.schema.js';
-import type { CreateRecipeRequest, RecipeIngredientInput, RecipeStepInput } from '../recipes.schema.js';
+import type {
+    CreateRecipeRequest,
+    RecipeIngredientInput,
+    RecipeStepInput,
+    UpdateRecipeRequest,
+} from '../recipes.schema.js';
 import { CreateRecipeDto } from '../dto/create-recipe.dto.js';
 import { UpdateRecipeDto } from '../dto/update-recipe.dto.js';
 import { CloneRecipeDto } from '../dto/clone-recipe.dto.js';
@@ -162,22 +169,50 @@ describe('the DTOs are the published schemas, so one cannot be validated and the
 
 // ── 2. The wire schema and the domain input type cannot drift ──────────────────────────────────────
 
-describe('the inferred wire types stay assignable to the recipe-core domain inputs', () => {
-    it('CreateRecipeRequest and CreateRecipeInput are mutually assignable', () => {
-        expectTypeOf<CreateRecipeRequest>().toExtend<CreateRecipeInput>();
-        expectTypeOf<CreateRecipeInput>().toExtend<CreateRecipeRequest>();
-    });
-
-    it('the nested line and step types are mutually assignable with their domain inputs', () => {
-        expectTypeOf<RecipeIngredientInput>().toExtend<CreateRecipeIngredientInput>();
-        expectTypeOf<CreateRecipeIngredientInput>().toExtend<RecipeIngredientInput>();
-        expectTypeOf<RecipeStepInput>().toExtend<CreateRecipeStepInput>();
-        expectTypeOf<CreateRecipeStepInput>().toExtend<RecipeStepInput>();
-    });
-
-    it('`deviceLabel` is part of BOTH, which it was not before (the document forbade it)', () => {
-        expectTypeOf<CreateRecipeInput>().toHaveProperty('deviceLabel');
+describe('there is ONE representation of each request body, and it is this file’s', () => {
+    /**
+     * ⚠️ WHAT THIS SUITE USED TO BE, AND WHY IT WAS PART OF THE PROBLEM.
+     *
+     * It asserted MUTUAL ASSIGNABILITY between each `z.infer` here and a hand-written `recipe-core` interface
+     * (`CreateRecipeInput`, `CreateRecipeIngredientInput`, `CreateRecipeStepInput`), on the reasoning that the
+     * check made drift impossible. Those interfaces are now DELETED (ADR-0014 / §15 rule 4), and the deletion is
+     * the fix — the assertion was weaker than it read:
+     *
+     *  • assignability is not identity, so two shapes could satisfy it and still disagree about optionality in a
+     *    way that matters at a call site;
+     *  • TypeScript's excess-property check does NOT apply to a spread, so a projection annotated with the
+     *    interface could send a field this schema does not accept and still compile. That is precisely how
+     *    `toUpdateRecipeInput` came to send `visibility` on the PATCH body — the service stripped it, a test
+     *    pinned the strip, and both type-checked;
+     *  • a passing bidirectional assertion between two declarations is evidence that a SECOND declaration
+     *    exists, which is the thing §15 rule 4 forbids. The test was documenting the defect.
+     *
+     * What replaces it is the property that actually matters: the inferred type IS derived from the schema, so
+     * `deviceLabel` — the field the old document forbade while the server persisted it — is present on exactly
+     * one type, and there is no second one to compare against.
+     */
+    it('the inferred type carries deviceLabel, the field the published document used to forbid', () => {
         expectTypeOf<CreateRecipeRequest>().toHaveProperty('deviceLabel');
+        expect(createAccepts({ deviceLabel: 'iPhone 15' })).toBe(true);
+    });
+
+    it('the nested inputs are the schema’s own inferred types, with no rival declaration to reconcile', () => {
+        expectTypeOf<RecipeIngredientInput>().toEqualTypeOf<z.infer<typeof recipeIngredientInputSchema>>();
+        expectTypeOf<RecipeStepInput>().toEqualTypeOf<z.infer<typeof recipeStepInputSchema>>();
+    });
+
+    /**
+     * The DERIVATION that replaced the deleted `UpdateRecipeInput extends Omit<Partial<CreateRecipeInput>, …>`.
+     *
+     * §15 rule 4's prescription for a consumer whose shape genuinely differs is `Pick`/`Omit`/`Partial` over the
+     * wire type, never an independent declaration — and the update body is the in-contract instance of exactly
+     * that. Asserting the relationship here means the `visibility` OMIT (the field the dedicated visibility route
+     * owns) cannot be quietly reinstated by an edit to the create body.
+     */
+    it('the update body is a DERIVATION of the create body, with visibility omitted', () => {
+        expectTypeOf<UpdateRecipeRequest>().not.toHaveProperty('visibility');
+        expectTypeOf<CreateRecipeRequest>().toHaveProperty('visibility');
+        expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, visibility: 'public' }).success).toBe(false);
     });
 });
 
@@ -349,13 +384,37 @@ describe('enums carried forward', () => {
     });
 });
 
-describe('the create body strips what it must not trust', () => {
+describe('the create body REFUSES what it must not trust (it used to strip it)', () => {
+    /**
+     * These six were asserted as STRIPS and are now REJECTIONS, per GR-017 §17-c.
+     *
+     * The security property is unchanged in both worlds — none of these fields ever reached the service, so
+     * neither behaviour lets a caller smuggle ownership, a row id, a version, a rating or a provenance flag.
+     * What changes is what the caller is TOLD. A strip answered `201` with a recipe whose owner is not the one
+     * requested and whose `sourceType` is not the one requested, and said nothing about either; the rejection
+     * names the refused key.
+     *
+     * The parallel case that is NOT merely diagnostic is `visibility` on the UPDATE body: it was stripped, the
+     * app's own `toUpdateRecipeInput` was sending it, and a user's privacy choice was silently discarded — see
+     * that schema's docstring.
+     */
     it.each(['ownerId', 'id', 'currentVersion', 'averageRating', 'sourceType', 'hasSubstantiveEdit'])(
-        'drops a smuggled %s',
+        'answers 400 for a smuggled %s rather than accepting the body without it',
         (field) => {
-            expect(createRecipeRequestSchema.parse(body({ [field]: 'hostile' }))).not.toHaveProperty(field);
+            const parsed = createRecipeRequestSchema.safeParse(body({ [field]: 'hostile' }));
+
+            expect(parsed.success).toBe(false);
+            // The rejection must be about the KEY, not a coincidental type error on a field of the same name.
+            expect(
+                parsed.error?.issues.some((issue) => issue.code === 'unrecognized_keys' && issue.keys.includes(field)),
+            ).toBe(true);
         },
     );
+
+    // The counterpart property, so the assertions above cannot be satisfied by a schema that rejects everything.
+    it('still accepts the body without those keys, so the strictness did not break create', () => {
+        expect(createRecipeRequestSchema.safeParse(body()).success).toBe(true);
+    });
 });
 
 // ── The remaining request shapes ───────────────────────────────────────────────────────────────────
@@ -372,11 +431,19 @@ describe('setRecipeVisibilityRequestSchema — newly published', () => {
     });
 });
 
-describe('cloneRecipeRequestSchema — a bodyless POST is legal', () => {
-    it('accepts an absent body, an empty body, and strips any field sent', () => {
+describe('cloneRecipeRequestSchema — a bodyless POST is legal, a body with fields is not', () => {
+    // The `.default({})` and the strict catchall judge DIFFERENT things, and both properties matter: the default
+    // applies to an ABSENT body (which is what makes `POST` with no payload legal), while the catchall judges the
+    // keys of a body that IS present. Asserted together because a change to either would look like a change to
+    // the other.
+    it('accepts an absent body and an empty body', () => {
         expect(cloneRecipeRequestSchema.parse(undefined)).toEqual({});
         expect(cloneRecipeRequestSchema.parse({})).toEqual({});
-        expect(cloneRecipeRequestSchema.parse({ ownerId: 'hostile' })).toEqual({});
+    });
+
+    it('REFUSES a field, because this endpoint takes none and guessing at one should not look like it worked', () => {
+        expect(cloneRecipeRequestSchema.safeParse({ ownerId: 'hostile' }).success).toBe(false);
+        expect(cloneRecipeRequestSchema.safeParse({ visibility: 'public' }).success).toBe(false);
     });
 });
 

@@ -115,8 +115,13 @@ describe('CreateCollectionDto', () => {
         expect(() => body(CreateCollectionDto, { name: 'Bakes', visibility: 'unlisted' })).toThrow();
     });
 
-    it('STRIPS an ownerId a client tried to smuggle in — ownership comes from the verified token only', () => {
-        expect(body(CreateCollectionDto, { name: 'Bakes', ownerId: 'someone-elses-ulid' })).toEqual({ name: 'Bakes' });
+    // Was a STRIP assertion. The body is `z.strictObject` per GR-017 §17-c, so it is a `400`. Ownership still
+    // comes from the verified token under either behaviour; the change is that the caller is told the field was
+    // refused instead of receiving a `201` for a collection owned by someone other than the id they sent.
+    it('REFUSES an ownerId a client tried to smuggle in — ownership comes from the verified token only', () => {
+        expect(() => body(CreateCollectionDto, { name: 'Bakes', ownerId: 'someone-elses-ulid' })).toThrow();
+        // The counterpart, so the rejection is not satisfied by a schema that refuses everything.
+        expect(body(CreateCollectionDto, { name: 'Bakes' })).toEqual({ name: 'Bakes' });
     });
 });
 
@@ -138,8 +143,31 @@ describe('UpdateCollectionDto', () => {
         }
     });
 
-    it('rejects a patch whose only key is unknown — stripping it leaves {} , which is still nothing to do', () => {
+    /**
+     * Rejected before AND after the `z.strictObject` sweep — but for a DIFFERENT, better reason, and the
+     * improvement is worth pinning because it is a diagnostic one.
+     *
+     * It used to be stripped to `{}` and then rejected by the `.refine()`, so the caller was told "At least one
+     * field must be provided" while having provided one. It is now an `unrecognized_keys` issue naming
+     * `nickname`, which is what a caller can act on.
+     */
+    it('rejects a patch whose only key is unknown, and now says WHICH key rather than "provide a field"', () => {
         expect(() => body(UpdateCollectionDto, { nickname: 'nope' })).toThrow();
+
+        let issues: readonly { readonly code?: string; readonly keys?: readonly string[] }[] = [];
+
+        try {
+            body(UpdateCollectionDto, { nickname: 'nope' });
+        } catch (thrown) {
+            const response = (thrown as { getResponse: () => unknown }).getResponse() as {
+                errors?: readonly { readonly code?: string; readonly keys?: readonly string[] }[];
+            };
+
+            issues = response.errors ?? [];
+        }
+
+        expect(issues.flatMap((issue) => issue.keys ?? [])).toStrictEqual(['nickname']);
+        expect(JSON.stringify(issues)).not.toContain('At least one field must be provided.');
     });
 
     it('rejects an unknown visibility literal', () => {

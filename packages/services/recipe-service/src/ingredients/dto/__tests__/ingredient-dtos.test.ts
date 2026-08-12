@@ -7,7 +7,8 @@
  * surfaces here as an accepted-instead-of-rejected (or un-trimmed) case.
  *
  * THE SEMANTICS ARE UNCHANGED BY THE SWAP, which is the point — every case below is the one it was under
- * `class-validator`, including the whitelist strip, which is now `z.object`'s default rather than an option.
+ * `class-validator`, including the whitelist strip — which became `z.object`'s default and is now an outright
+ * `z.strictObject` REJECTION (GR-017 §17-c).
  * Two mechanical differences: the pipe is SYNCHRONOUS (so a rejection is a `throw`, not a rejected promise),
  * and it returns the PARSED OBJECT rather than a class instance, so these read properties off a plain object.
  */
@@ -49,14 +50,17 @@ describe('AddIngredientByFoodDto (POST /api/v1/ingredients/by-food — Stage 2 p
         expect(dto.foodId).toBe('01J0000000000000000000FOOD');
     });
 
-    it('STRIPS a caller-supplied name — the display name comes from food-service, never the client', () => {
-        const dto = parse(
-            { foodId: '01J0FOOD', name: 'Definitely not chicken' },
-            byFoodMeta,
-        ) as AddIngredientByFoodDto & Record<string, unknown>;
-
-        expect(dto.foodId).toBe('01J0FOOD');
-        expect(dto['name']).toBeUndefined();
+    /**
+     * Was a STRIP assertion; the body is `z.strictObject` per GR-017 §17-c, so it is a `400`.
+     *
+     * ⚠️ This is the case where the diagnostic difference is most likely to matter to a real user. The display
+     * name of a food-backed ingredient is the CANONICAL name resolved from the food catalog (ADV-2), never the
+     * client's. A caller who sent `name: 'Definitely not chicken'` previously got a `201` for an ingredient
+     * called something else entirely, with no indication that the name they supplied had been discarded.
+     */
+    it('REFUSES a caller-supplied name — the display name comes from food-service, never the client', () => {
+        expect(() => parse({ foodId: '01J0FOOD', name: 'Definitely not chicken' }, byFoodMeta)).toThrow();
+        expect((parse({ foodId: '01J0FOOD' }, byFoodMeta) as AddIngredientByFoodDto).foodId).toBe('01J0FOOD');
     });
 
     it.each([
@@ -82,15 +86,22 @@ describe('CreateIngredientDto (POST /api/v1/ingredients and /by-name)', () => {
         expect(dto.name).toHaveLength(120);
     });
 
-    it('strips a spoofed non-DTO field (whitelist)', () => {
-        const dto = parse(
-            { name: 'Flour', ownerId: 'attacker', isUserEntered: false },
-            createMeta,
-        ) as CreateIngredientDto & Record<string, unknown>;
+    /**
+     * Was a STRIP assertion (`class-validator`'s `whitelist`, then `z.object`'s default); the body is
+     * `z.strictObject` per GR-017 §17-c, so it is a `400`.
+     *
+     * `isUserEntered` is the field that makes this more than diagnostic. It is a PROVENANCE flag the service
+     * derives itself, and a caller who sent `isUserEntered: false` hoping to have a user-entered ingredient
+     * recorded as catalog-sourced previously got a `201` with the flag set the other way and no indication that
+     * their field had been ignored.
+     */
+    it('REFUSES a spoofed non-DTO field instead of stripping it and answering 201', () => {
+        expect(() => parse({ name: 'Flour', ownerId: 'attacker', isUserEntered: false }, createMeta)).toThrow();
+    });
 
-        expect(dto.name).toBe('Flour');
-        expect(dto['ownerId']).toBeUndefined();
-        expect(dto['isUserEntered']).toBeUndefined();
+    // The counterpart, so the rejection above cannot be satisfied by a schema that refuses everything.
+    it('still accepts the well-formed body', () => {
+        expect(parse<CreateIngredientDto>({ name: 'Flour' }, createMeta).name).toBe('Flour');
     });
 
     it.each([

@@ -103,10 +103,17 @@ export function matchesAccountErasureConfirmation(input: string): boolean {
  * Body of `POST /api/v1/account/erasure`.
  *
  * `confirmationPhrase` is REQUIRED — see note 2 above for why its VALUE is checked in the service and not
- * here. There is deliberately no `ownerId` field: the owner comes from the verified token, so zod strips a
- * smuggled one before the service sees it.
+ * here. There is deliberately no `ownerId` field: the owner comes from the verified token, and the STRICT
+ * object (GR-017 §17-c) answers `400` for a smuggled one rather than stripping it.
+ *
+ * ⚠️ STRICTNESS EARNS THE MOST HERE OF ANYWHERE IN THIS CONTRACT, because the operation is IRREVERSIBLE. The
+ * one field a caller can get wrong and care about is `publishRecipeIds` — the per-recipe DONATE election. Under
+ * the previous stripping behaviour, a client that misspelled it (or sent a shape from a later contract) had its
+ * whole election silently dropped and received `202`: the erasure proceeded and every owner-only recipe was
+ * REMOVED instead of donated, with nothing to tell the user their choice had not been recorded and no way to
+ * undo it. That is the §17-c silent-partial-write failure at its worst, and it is now a `400`.
  */
-export const erasureRequestSchema = z.object({
+export const erasureRequestSchema = z.strictObject({
     /** The confirmation phrase gating the erasure. SHAPE-bounded here; the value is the service's `400`. */
     confirmationPhrase: z.string().min(1).max(MAX_CONFIRMATION_PHRASE_LENGTH).meta({
         description:

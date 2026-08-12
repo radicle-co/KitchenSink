@@ -12,12 +12,12 @@ import {
     recipeSearchSortBySchema,
     RecipeErrorCode,
     recipeRatingSchema,
-    setRecipeRatingInputSchema,
+    recipeRatingStarsSchema,
     usesPremiumCapability,
     RecipeVisibility,
     RecipeSourceType,
 } from '../index.js';
-import type { Recipe, RecipeDetail, RecipeRating, SetRecipeRatingInput } from '../index.js';
+import type { Recipe, RecipeDetail, RecipeRating } from '../index.js';
 
 /** A fully-populated, schema-valid `Recipe` the individual cases mutate one field at a time. */
 function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
@@ -269,7 +269,7 @@ describe('recipeSearchSortBySchema (W8-a.9 — most-cloned + quickest added)', (
     });
 });
 
-describe('RecipeRating + SetRecipeRatingInput', () => {
+describe('RecipeRating + the stars Value Object', () => {
     it('validates a well-formed rating row', () => {
         const rating: RecipeRating = {
             id: 'rat-1',
@@ -288,16 +288,34 @@ describe('RecipeRating + SetRecipeRatingInput', () => {
         expect(recipeRatingSchema.safeParse({ id: 'r', recipeId: 'x', userId: 'u', stars: 3.5 }).success).toBe(false);
     });
 
-    it('validates the PUT body (stars only — the rater comes from the token, never the body)', () => {
-        const input: SetRecipeRatingInput = { stars: 4 };
-        expect(setRecipeRatingInputSchema.parse(input).stars).toBe(4);
-        expect(setRecipeRatingInputSchema.safeParse({ stars: 4, userId: 'spoofed' }).success).toBe(true);
-        // A spoofed rater id in the body is simply ignored (stripped) — never trusted.
-        expect(Object.keys(setRecipeRatingInputSchema.parse({ stars: 4, userId: 'spoofed' }))).toEqual(['stars']);
+    /**
+     * ⚠️ THIS SUITE USED TO TEST THE PUT BODY, AND IT IS NOT THIS PACKAGE'S ANY MORE.
+     *
+     * `SetRecipeRatingInput` / `setRecipeRatingInputSchema` were a whole request ENVELOPE authored here — the one
+     * thing `recipeRequestBounds.ts`'s header forbids — so they are gone (ADR-0014 / §15 rule 4). The envelope is
+     * `setRatingRequestSchema` in the recipe service, which is now `z.strictObject` (GR-017 §17-c), and its
+     * behaviour is asserted there (`src/ratings/__tests__/ratings.schema.test.ts`) — including that a spoofed
+     * `userId` is REFUSED rather than stripped, which is the assertion this one used to make the other way.
+     *
+     * What stays here is the VALUE rule, which genuinely is the domain's and which both apps' inputs compose.
+     */
+    it('bounds a star rating to whole numbers 1..5, and that rule lives ONCE', () => {
+        expect(recipeRatingStarsSchema.parse(4)).toBe(4);
+        expect(recipeRatingStarsSchema.parse(1)).toBe(1);
+        expect(recipeRatingStarsSchema.parse(5)).toBe(5);
+
+        for (const invalid of [0, 6, 3.5, -1, '4', null]) {
+            expect(recipeRatingStarsSchema.safeParse(invalid).success, String(invalid)).toBe(false);
+        }
     });
 
-    it('rejects a missing stars value', () => {
-        expect(setRecipeRatingInputSchema.safeParse({}).success).toBe(false);
+    // The rating ROW's own bound must agree with it — they are the same rule seen from storage and from the wire,
+    // and a divergence would let a row exist that no request could have created.
+    it('agrees with the persisted row schema, so the two cannot drift', () => {
+        for (const stars of [0, 6, 3.5]) {
+            expect(recipeRatingStarsSchema.safeParse(stars).success).toBe(false);
+            expect(recipeRatingSchema.safeParse({ id: 'r', recipeId: 'x', userId: 'u', stars }).success).toBe(false);
+        }
     });
 });
 

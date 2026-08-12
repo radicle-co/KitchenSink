@@ -18,7 +18,7 @@
  */
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { SetRecipeRatingInput } from '@kitchensink/recipe-core';
+import type { SetRatingRequest } from '@kitchensink/schema-recipe';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { NotFoundError } from '@kitchensink/recipe-service-client';
 import { useDeleteRecipeRating, useSetRecipeRating } from '@kitchensink/recipe-service-client/hooks';
@@ -88,7 +88,7 @@ const NEUTRAL_MUTATION_FIELDS = { context: undefined, failureCount: 0, isPaused:
 
 /** A placeholder `{id, input}` pair — the exact values are irrelevant, only the ERROR variant's `variables`
  * field needs to be present (and correctly shaped) at all; the container never reads it. */
-const RATING_VARIABLES_PLACEHOLDER: { id: string; input: SetRecipeRatingInput } = { id: 'rec_1', input: { stars: 1 } };
+const RATING_VARIABLES_PLACEHOLDER: { id: string; input: SetRatingRequest } = { id: 'rec_1', input: { stars: 1 } };
 
 /**
  * Build a `useSetRecipeRating` return value. IDLE by default (the state every test starts from); pass an

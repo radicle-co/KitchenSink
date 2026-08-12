@@ -99,11 +99,21 @@ describe('UpdateRecipeDto.difficulty (FR-001b — the three-state: omit | value 
 });
 
 describe('UpdateRecipeDto does NOT accept visibility (it has a dedicated endpoint)', () => {
-    it('strips a visibility key instead of applying it', () => {
-        // The service has always ignored `visibility` here — it is set through
-        // `PATCH /api/v1/recipes/{id}/visibility`, where the C-004 policy evaluator gates the transition. The
-        // published `UpdateRecipeRequest` used to advertise the field anyway (it came free with
-        // `createRecipeInputSchema.partial()`), which is a contract offering something the server drops.
-        expect(update({ visibility: 'private' })).not.toHaveProperty('visibility');
+    /**
+     * ⚠️ THIS ASSERTION USED TO PIN A LIVE BUG, and it is the clearest instance in the service of why GR-017
+     * §17-c chose rejection over stripping.
+     *
+     * `visibility` is set through `PATCH /api/v1/recipes/{id}/visibility`, where the C-004 policy evaluator gates
+     * the transition, so this route has always ignored it. The app's own draft→wire projection
+     * (`toUpdateRecipeInput`) was SENDING it, the service STRIPPED it, and the previous version of this test
+     * asserted the strip — i.e. it pinned the discarded field as correct behaviour. A user who changed a recipe's
+     * visibility in the editor and saved had that choice silently dropped, and every layer reported success.
+     *
+     * Now it is a `400`. The app-side projection was fixed in the same sweep (it no longer sends the field), so
+     * this rejection is unreachable from the shipped client — which is the point: if it ever becomes reachable
+     * again, the caller finds out.
+     */
+    it('REFUSES a visibility key instead of silently discarding the caller’s choice', () => {
+        expect(() => update({ visibility: 'private' })).toThrow();
     });
 });

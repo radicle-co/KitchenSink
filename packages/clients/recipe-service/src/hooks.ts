@@ -16,15 +16,10 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { createContext, createElement, useContext, useEffect } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
-import type {
-    RecipeDetail,
-    RecipeSearchParams,
-    RecipeVisibility,
-    SetRecipeRatingInput,
-} from '@kitchensink/recipe-core';
+import type { RecipeDetail, RecipeSearchParams, RecipeVisibility } from '@kitchensink/recipe-core';
 // The two recipe WRITE envelopes, from the contract the service authors. They were `recipe-core`'s
 // `CreateRecipeInput` / `UpdateRecipeInput` — hand-written twins of these schemas (§15 rule 4 / ADR-0014).
-import type { CreateRecipeRequest, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
+import type { CreateRecipeRequest, SetRatingRequest, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
 
 import { RecipeServiceClient } from './client.js';
 import {
@@ -606,7 +601,7 @@ export function useSetRecipeRating() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (vars: { id: string; input: SetRecipeRatingInput }) => client.setRecipeRating(vars.id, vars.input),
+        mutationFn: (vars: { id: string; input: SetRatingRequest }) => client.setRecipeRating(vars.id, vars.input),
         onMutate: async (vars): Promise<RatingMutationContext> => {
             await queryClient.cancelQueries({ queryKey: recipeServiceKeys.recipe(vars.id) });
             const previous = queryClient.getQueryData<RecipeDetail>(recipeServiceKeys.recipe(vars.id));

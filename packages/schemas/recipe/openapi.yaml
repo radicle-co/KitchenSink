@@ -76,7 +76,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeDetail"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -92,13 +93,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -132,7 +133,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/PaginatedRecipes"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -148,13 +150,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -211,7 +213,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeDetail"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -239,13 +242,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -281,7 +284,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeDetail"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -315,13 +319,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -360,7 +364,8 @@ paths:
         "204":
           description: Deleted.
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -388,13 +393,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -431,7 +436,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeDetail"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -453,13 +459,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -496,7 +502,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeDetail"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -524,13 +531,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -577,7 +584,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeDetail"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -605,13 +613,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -651,7 +659,8 @@ paths:
         "204":
           description: Removed.
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -673,13 +682,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -716,7 +725,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipePhotoList"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -738,13 +748,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -781,7 +791,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/PhotoUploadUrlResponse"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -821,13 +832,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -873,7 +884,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipePhoto"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -919,13 +931,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -969,7 +981,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipePhotoList"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -997,13 +1010,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1043,7 +1056,8 @@ paths:
         "204":
           description: Removed.
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1071,13 +1085,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1122,7 +1136,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeVersionList"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1144,13 +1159,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1187,7 +1202,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeVersion"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1209,13 +1225,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1260,7 +1276,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RestoreVersionResponse"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1294,13 +1311,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1345,7 +1362,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeSearchResponse"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1361,13 +1379,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1483,7 +1501,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/IngredientList"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1499,13 +1518,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1549,7 +1568,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/IngredientSuggestions"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1565,13 +1585,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1618,7 +1638,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ingredient"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1634,13 +1655,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1675,7 +1696,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ingredient"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1691,13 +1713,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1734,7 +1756,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ingredient"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1750,13 +1773,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1791,7 +1814,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ingredient"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1813,13 +1837,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1856,7 +1880,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/IngredientCandidateList"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1878,13 +1903,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1924,7 +1949,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ingredient"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -1946,13 +1972,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1996,7 +2022,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Collection"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -2018,13 +2045,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2060,7 +2087,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/PaginatedCollections"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -2076,13 +2104,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2128,7 +2156,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/CollectionWithRecipes"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -2150,13 +2179,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2195,7 +2224,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Collection"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -2223,13 +2253,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2271,7 +2301,8 @@ paths:
         "204":
           description: Deleted.
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -2299,13 +2330,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2342,7 +2373,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/CollectionRecipeMembership"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -2370,13 +2402,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2419,7 +2451,8 @@ paths:
         "204":
           description: Removed.
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -2447,13 +2480,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2498,7 +2531,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Collection"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -2526,13 +2560,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2580,7 +2614,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/PullDiff"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -2608,13 +2643,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2654,7 +2689,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/PullFromSourceResponse"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -2688,13 +2724,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2741,7 +2777,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/AccountExport"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -2757,13 +2794,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2798,7 +2835,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErasureRequestAcceptedResponse"
         "400":
-          description: The request body or query failed validation.
+          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
+            domain rule did. See ErrorResponse — the body is one of three shapes.
           content:
             application/json:
               schema:
@@ -2820,13 +2858,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiError"
         "429":
-          description: Per-user rate limit exceeded.
+          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ThrottleError"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2902,35 +2940,73 @@ components:
       description: A signed service-principal token, used only by the internal erasure route.
   schemas:
     ErrorResponse:
+      anyOf:
+        - $ref: "#/components/schemas/ApiError"
+        - $ref: "#/components/schemas/ValidationError"
+        - $ref: "#/components/schemas/NestHttpError"
+        - $ref: "#/components/schemas/ThrottleError"
+    ApiError:
       type: object
       properties:
         code:
           type: string
-          enum:
-            - RECIPE_NOT_FOUND
-            - RECIPE_TOMBSTONED
-            - NOT_OWNER
-            - VERSION_CONFLICT
-            - MAX_PHOTOS_EXCEEDED
-            - INVALID_VISIBILITY
-            - PHOTO_PROCESSING_FAILED
-            - ARCHIVE_PENDING
-            - ARCHIVE_DLQ
-            - COLLECTION_NOT_CLONED
-            - PULL_DRIFT
-            - COLLECTION_LIMIT_REACHED
-            - ERASURE_IN_PROGRESS
-            - UNKNOWN_INGREDIENT
-            - CANNOT_RATE_OWN_RECIPE
         message:
           type: string
-          minLength: 1
         details:
           type: object
           additionalProperties: {}
       required:
         - code
         - message
+      additionalProperties: {}
+    NestHttpError:
+      type: object
+      properties:
+        statusCode:
+          type: number
+        message:
+          type: string
+        error:
+          type: string
+      required:
+        - statusCode
+        - message
+      additionalProperties: {}
+    ValidationError:
+      type: object
+      properties:
+        statusCode:
+          type: number
+        message:
+          type: string
+          enum:
+            - Validation failed
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+              path:
+                type: array
+                items:
+                  anyOf:
+                    - type: string
+                    - type: number
+              message:
+                type: string
+              keys:
+                type: array
+                items:
+                  type: string
+            additionalProperties: {}
+      required:
+        - statusCode
+        - message
+      additionalProperties: {}
+    ThrottleError:
+      type: string
     HealthStatus:
       type: object
       properties:
@@ -3414,6 +3490,7 @@ components:
               - ingredientId
               - name
               - quantity
+            additionalProperties: false
         steps:
           minItems: 1
           type: array
@@ -3430,6 +3507,7 @@ components:
                 maximum: 2147483647
             required:
               - instruction
+            additionalProperties: false
         servings:
           type: integer
           minimum: 0
@@ -3466,6 +3544,7 @@ components:
         - prepTimeMinutes
         - cookTimeMinutes
         - totalTimeMinutes
+      additionalProperties: false
     UpdateRecipeRequest:
       type: object
       properties:
@@ -3542,6 +3621,7 @@ components:
               - ingredientId
               - name
               - quantity
+            additionalProperties: false
         steps:
           minItems: 1
           type: array
@@ -3558,6 +3638,7 @@ components:
                 maximum: 2147483647
             required:
               - instruction
+            additionalProperties: false
         servings:
           type: integer
           minimum: 0
@@ -3593,6 +3674,7 @@ components:
           maximum: 2147483647
       required:
         - expectedVersion
+      additionalProperties: false
     SetRecipeVisibilityRequest:
       type: object
       properties:
@@ -3603,6 +3685,7 @@ components:
             - private
       required:
         - visibility
+      additionalProperties: false
     SetRatingRequest:
       type: object
       properties:
@@ -3612,6 +3695,7 @@ components:
           maximum: 5
       required:
         - stars
+      additionalProperties: false
     RecipePhoto:
       type: object
       properties:
@@ -3673,6 +3757,7 @@ components:
         - fileName
         - contentType
         - fileSize
+      additionalProperties: false
     PhotoUploadUrlResponse:
       type: object
       properties:
@@ -3711,6 +3796,7 @@ components:
       required:
         - key
         - contentType
+      additionalProperties: false
     ReorderPhotosRequest:
       type: object
       properties:
@@ -3723,6 +3809,7 @@ components:
             pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$
       required:
         - photoIds
+      additionalProperties: false
     Ingredient:
       type: object
       properties:
@@ -3866,6 +3953,7 @@ components:
           maxLength: 120
       required:
         - name
+      additionalProperties: false
     AddIngredientByFoodRequest:
       type: object
       properties:
@@ -3875,6 +3963,7 @@ components:
           maxLength: 64
       required:
         - foodId
+      additionalProperties: false
     ResolveIngredientRequest:
       type: object
       properties:
@@ -3887,6 +3976,7 @@ components:
             minLength: 1
       required:
         - candidateIds
+      additionalProperties: false
     RecipeVersion:
       type: object
       properties:
@@ -4474,6 +4564,7 @@ components:
             - private
       required:
         - name
+      additionalProperties: false
     UpdateCollectionRequest:
       type: object
       properties:
@@ -4490,6 +4581,7 @@ components:
           enum:
             - public
             - private
+      additionalProperties: false
     AddRecipeToCollectionRequest:
       type: object
       properties:
@@ -4499,6 +4591,7 @@ components:
           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
       required:
         - recipeId
+      additionalProperties: false
     CloneCollectionRequest:
       default: {}
       type: object
@@ -4511,6 +4604,7 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+      additionalProperties: false
     PullDiff:
       type: object
       properties:
@@ -4540,6 +4634,7 @@ components:
         previewedDiff:
           allOf:
             - $ref: "#/components/schemas/PullDiff"
+      additionalProperties: false
     PullFromSourceResponse:
       type: object
       properties:
@@ -4909,6 +5004,7 @@ components:
             pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
       required:
         - confirmationPhrase
+      additionalProperties: false
     ErasureRequestAcceptedResponse:
       type: object
       properties:

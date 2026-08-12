@@ -2,7 +2,7 @@
  * Component tests for RecipeCreateContainer (w3/e1,e2: rewired onto the 4-step `Wizard` shell). Covers: the
  * wizard renders seeded at step 1; an invalid form blocks submission (no mutation, validation surfaced on
  * the current step); a valid form — filled across steps 1/2/3 via the footer `Next` nav — maps to the
- * `CreateRecipeInput` wire shape (with the ingredient resolved via the picker on step 2) and navigates to
+ * `CreateRecipeRequest` wire shape (with the ingredient resolved via the picker on step 2) and navigates to
  * the new recipe on success; Save Draft persists with a draft status; poll-after-add (a PENDING line
  * resolves to RESOLVED via the poller, on step 2); and a persistence failure surfaces. The Next router stays
  * mocked; queries use role/label/text only.
@@ -16,7 +16,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import type { CreateRecipeInput } from '@kitchensink/recipe-core';
+import type { CreateRecipeRequest } from '@kitchensink/schema-recipe';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -132,7 +132,7 @@ describe('RecipeCreateContainer', () => {
 
         const createSpy = vi.mocked(client.createRecipe);
         await vi.waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
-        const [input] = createSpy.mock.calls[0] as [CreateRecipeInput];
+        const [input] = createSpy.mock.calls[0] as [CreateRecipeRequest];
         expect(input.title).toBe('Test Recipe');
         expect(input.ingredients).toEqual([{ ingredientId: 'ing_9', name: 'Olive oil', quantity: 1 }]);
         expect(input.steps).toEqual([{ instruction: 'Combine everything.' }]);
@@ -154,7 +154,7 @@ describe('RecipeCreateContainer', () => {
 
         const createSpy = vi.mocked(client.createRecipe);
         await vi.waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
-        const [input] = createSpy.mock.calls[0] as [CreateRecipeInput];
+        const [input] = createSpy.mock.calls[0] as [CreateRecipeRequest];
         expect(input.title).toBe('Draft Recipe');
         expect(input.status).toBe('draft');
         await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_created'));

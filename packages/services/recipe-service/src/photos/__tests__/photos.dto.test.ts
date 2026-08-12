@@ -67,15 +67,19 @@ describe('CreatePhotoUploadDto', () => {
         ).toEqual({ fileName: 'stew.jpg', contentType: 'image/jpeg', fileSize: 2048 });
     });
 
-    it('strips an unknown key rather than passing it through to the service', () => {
-        expect(
+    // Was a STRIP assertion; the body is `z.strictObject` per GR-017 §17-c, so it is a `400`. The service was
+    // never at risk either way — it re-derives the recipe and owner from its own records — so what changes is
+    // that a caller sending `ownerId` is told the field was refused instead of receiving a presigned URL that
+    // silently ignored it.
+    it('REFUSES an unknown key rather than stripping it and answering 200', () => {
+        expect(() =>
             transform(CreatePhotoUploadDto, {
                 fileName: 'stew.jpg',
                 contentType: 'image/jpeg',
                 fileSize: 2048,
                 ownerId: 'someone-elses-ulid',
             }),
-        ).toEqual({ fileName: 'stew.jpg', contentType: 'image/jpeg', fileSize: 2048 });
+        ).toThrow();
     });
 
     it.each([

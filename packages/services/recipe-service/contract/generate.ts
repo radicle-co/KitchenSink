@@ -1,11 +1,11 @@
 /**
- * THE RECIPE CONTRACT'S GENERATION ENTRY POINT — configuration and a `main`, and nothing else.
+ * THE RECIPE CONTRACT'S GENERATION ENTRY POINT — a `main` over `./config.js`, and nothing else.
  *
  * The PROCEDURE lives in `@kitchensink/contract-gen`: discovering the authored `*.schema.ts` files, enforcing
  * the import restriction, flattening and copying them, stamping `CONTRACT_HASH` into both sides, and writing
- * the derived `openapi.yaml`. This file holds only what is genuinely recipe-specific — where the two package
- * roots are, what the regenerate command is, which package imports are admissible inside an authored schema,
- * and the document's route table (`./openapi.js`).
+ * the derived `openapi.yaml`. What is genuinely recipe-specific lives in two siblings — `./config.js` (the
+ * package roots, the regenerate command, the import allowlist, the exclusions) and `./openapi.js` (the
+ * document's route table).
  *
  * That split replaced ~250 lines of logic that lived here and was, line for line, the same logic the food and
  * identity services needed. Two copies of "which imports may cross into the leaf package" is exactly the
@@ -25,55 +25,38 @@
  *
  * @sideEffect Reads the service's schema sources and WRITES the schema package plus a hash stamp.
  */
-import { resolve } from 'node:path';
-
 import { formatGenerationSummary, generateSchemaPackage } from '@kitchensink/contract-gen';
 import type { ContractGenerationConfig } from '@kitchensink/contract-gen';
 
+import {
+    ALLOWED_PACKAGE_IMPORTS,
+    CONTRACT_DISPLAY_NAME,
+    EXCLUDED_FILES,
+    REGENERATE_COMMAND,
+    SCHEMA_PACKAGE_NAME,
+    SCHEMA_PACKAGE_ROOT,
+    SERVICE_PATH_PREFIX,
+    SERVICE_ROOT,
+    SERVICE_STAMP_PATH,
+} from './config.js';
 import { buildRecipeOpenApiDocument } from './openapi.js';
 
-/** Absolute path of the recipe-service package root. */
-const SERVICE_ROOT = resolve(import.meta.dirname, '..');
-
-/** The generated package this run publishes. */
-const SCHEMA_PACKAGE_NAME = '@kitchensink/schema-recipe';
-
 /**
- * The recipe service's contract configuration.
+ * The recipe service's contract configuration, assembled from `./config.js`.
  *
- * ⚠️ `allowedPackageImports` IS THE LOAD-BEARING ENTRY. An authored `*.schema.ts` is copied verbatim into a
- * package that `@commise/web` and `@commise/mobile` depend on, so admitting a specifier here is a promise that
- * its whole transitive runtime graph is safe for a React Native bundle. Widening it is a reviewed decision,
- * never an incidental edit.
+ * The values live in that module rather than here so `contract/__tests__/contract.test.ts` asserts against the
+ * VERY config this run uses — a restatement in the suite could drift from the one that ships.
  */
 const config: Omit<ContractGenerationConfig, 'openApi'> = {
     serviceRoot: SERVICE_ROOT,
-    schemaPackageRoot: resolve(SERVICE_ROOT, '../../schemas/recipe'),
+    schemaPackageRoot: SCHEMA_PACKAGE_ROOT,
     schemaPackageName: SCHEMA_PACKAGE_NAME,
-    servicePathPrefix: 'packages/services/recipe-service',
-    regenerateCommand: 'npm run contract:generate --workspace=@kitchensink/recipe-service',
-    contractDisplayName: 'recipe service',
-    serviceStampPath: 'src/contract/contract-hash.ts',
-    allowedPackageImports: [
-        {
-            specifier: 'zod',
-            why: 'The schema language itself. The generated package depends on it directly.',
-        },
-        {
-            // RECONCILIATION, flagged for the owner: the locked rules say a `*.schema.ts` may import "only zod
-            // and other *.schema.ts files", and ALSO say to compose `recipe-core`'s existing zod rather than
-            // author a second schema for a shape it already owns. Those two rules cannot both hold literally —
-            // composing recipe-core requires importing it. This entry resolves the conflict in favour of the
-            // no-duplication rule, which is the one with teeth: re-declaring `Recipe`/`RecipeDetail`/
-            // `PaginatedResponse` would manufacture precisely the drift this seam exists to prevent.
-            //
-            // It is safe on the same test every other entry must pass: `@kitchensink/recipe-core` is itself a
-            // leaf whose ONLY runtime dependency is `zod` (verified in its package.json), so admitting it pulls
-            // no server graph into web or mobile.
-            specifier: '@kitchensink/recipe-core',
-            why: 'Zod-only leaf that already owns the recipe DOMAIN schemas; composed, never re-declared.',
-        },
-    ],
+    servicePathPrefix: SERVICE_PATH_PREFIX,
+    regenerateCommand: REGENERATE_COMMAND,
+    contractDisplayName: CONTRACT_DISPLAY_NAME,
+    serviceStampPath: SERVICE_STAMP_PATH,
+    allowedPackageImports: ALLOWED_PACKAGE_IMPORTS,
+    excludeFiles: EXCLUDED_FILES,
 };
 
 /**

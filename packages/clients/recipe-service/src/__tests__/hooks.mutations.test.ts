@@ -27,7 +27,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, waitFor } from '@testing-library/react';
 
-import type { CreateRecipeInput, RecipeDetail } from '@kitchensink/recipe-core';
+import type { RecipeDetail } from '@kitchensink/recipe-core';
+import type { CreateRecipeRequest } from '@kitchensink/schema-recipe';
 import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE } from '@kitchensink/schema-recipe';
 
 import {
@@ -198,7 +199,7 @@ const PHOTO_PROBES: readonly CacheProbeName[] = [
 ];
 
 /**
- * A minimal valid `CreateRecipeInput`, delegating to {@link makeCreateRecipeRequest} so "valid" means what
+ * A minimal valid `CreateRecipeRequest`, delegating to {@link makeCreateRecipeRequest} so "valid" means what
  * the PUBLISHED contract means rather than what merely typechecks.
  *
  * ⚠️ It previously claimed to be minimal-and-valid while sending `ingredients: []` and `steps: []`, which
@@ -210,7 +211,7 @@ const PHOTO_PROBES: readonly CacheProbeName[] = [
  * @param overrides - Fields to replace on the draft.
  * @returns A complete create-recipe draft.
  */
-function makeCreateInput(overrides: Partial<CreateRecipeInput> = {}): CreateRecipeInput {
+function makeCreateInput(overrides: Partial<CreateRecipeRequest> = {}): CreateRecipeRequest {
     return { ...makeCreateRecipeRequest(), ...overrides };
 }
 

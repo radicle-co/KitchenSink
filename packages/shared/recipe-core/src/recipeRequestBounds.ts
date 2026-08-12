@@ -272,3 +272,19 @@ export const recipeExpectedVersionSchema = positiveInt4();
  * minutes, whereas a 0-serving recipe is meaningless.
  */
 export const recipeMinutesSchema = z.number().int().nonnegative().max(INT4_CEILING);
+
+/**
+ * A star rating: a whole number of stars, 1–5 inclusive.
+ *
+ * The VALUE constraint only. The ENVELOPE that carries it (`{ stars }`, the body of
+ * `PUT /api/v1/recipes/{id}/rating`) is authored by the service in
+ * `packages/services/recipe-service/src/ratings/ratings.schema.ts`, as this module's header requires — it used
+ * to be `setRecipeRatingInputSchema` HERE, which was exactly the "whole request body in recipe-core" that the
+ * header's ⛔ forbids, and it is the reason the rating body could not be made `z.strictObject` without editing a
+ * shared domain package.
+ *
+ * `.max(5)` is the product rule and `.int()` the column's; both are stricter than the `integer` column, so
+ * {@link INT4_CEILING} is not additionally applied — a value that fails `≤ 5` never reaches the INSERT. The DB
+ * agrees independently via `CHECK (stars BETWEEN 1 AND 5)`, and `storage-capacity.test.ts` asserts the pairing.
+ */
+export const recipeRatingStarsSchema = z.number().int().min(1).max(5);

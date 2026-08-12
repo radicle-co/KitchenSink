@@ -44,6 +44,23 @@
  * zod-only would manufacture exactly the drift §15 exists to prevent. recipe-core is admitted to the schema
  * package's import allowlist because it is itself a leaf whose only runtime dependency is `zod`.
  *
+ * ── STRICT REQUESTS, LOOSE-BY-EXEMPTION QUERY, AND THE ONE SHAPE THAT IS BOTH ──
+ *
+ * The five request bodies (`create`, `update`, `addRecipe`, `clone`, `pullFromSource`) are `z.strictObject`
+ * per GR-017 §17-c: an unknown key on a mutating body is a `400` the caller can fix, never a `200` that wrote
+ * something else. Two shapes here are deliberately NOT strict, and each carries its reason at the schema:
+ *
+ *  • {@link listCollectionsQuerySchema} — a READ query (the §17-c exemption; see
+ *    `recipes.schema.ts`'s `listRecipesQuerySchema` for the full argument, stated once there).
+ *  • {@link pullDiffSchema} — the ONE shape in this contract that is BOTH a response body and a request
+ *    field, which is what makes it the interesting case. See its own note.
+ *
+ * `updateCollectionRequestSchema` keeps its `.refine()` on top of the strict object, and the two rejections
+ * stack rather than overlap: `{}` fails the refine ("at least one field"), `{ nmae: 'x' }` now fails as an
+ * unrecognized key. It previously answered the SECOND case with the FIRST message — the key was stripped, the
+ * object became empty, and the caller was told "at least one field must be provided" while having provided
+ * one. That is a real diagnostic improvement, not just a policy change.
+ *
  * ── `readonly`, AND THE ONE PLACE IT STOPS ──
  *
  * Response bodies are `readonly` throughout: a parsed body is a snapshot of what the server said, and a
@@ -102,10 +119,11 @@ const collectionDescriptionSchema = z.string().min(1).max(MAX_COLLECTION_DESCRIP
  * Body of `POST /api/v1/collections`.
  *
  * `ownerId` is deliberately absent and unaccepted: ownership comes from the verified principal, so there is no
- * field for a caller to smuggle one through. zod strips unknown keys, so a hostile `ownerId` is dropped before
- * the service sees it — asserted in `dto/__tests__/collection-dtos.test.ts`.
+ * field for a caller to smuggle one through. The STRICT object refuses a hostile `ownerId` with a `400` before
+ * the service sees it — asserted in `dto/__tests__/collection-dtos.test.ts`. It used to be stripped, which is
+ * equally safe for the SERVER and worse for the caller, who was told nothing.
  */
-export const createCollectionRequestSchema = z.object({
+export const createCollectionRequestSchema = z.strictObject({
     name: collectionNameSchema,
     description: collectionDescriptionSchema.optional(),
     /** Defaults to `private` SERVER-side (FR-010) rather than here, so an omitted field stays distinguishable. */
@@ -124,7 +142,7 @@ export type CreateCollectionRequest = z.infer<typeof createCollectionRequestSche
  * complete — would turn a client bug (a PATCH that changes nothing) into a silent success.
  */
 export const updateCollectionRequestSchema = z
-    .object({
+    .strictObject({
         name: collectionNameSchema.optional(),
         description: collectionDescriptionSchema.optional(),
         visibility: recipeVisibilitySchema.optional(),
@@ -135,7 +153,7 @@ export const updateCollectionRequestSchema = z
 export type UpdateCollectionRequest = z.infer<typeof updateCollectionRequestSchema>;
 
 /** Body of `POST /api/v1/collections/{id}/recipes`. */
-export const addRecipeToCollectionRequestSchema = z.object({
+export const addRecipeToCollectionRequestSchema = z.strictObject({
     /** The recipe to add. Any UUID version — `recipes.id` is `uuid` and the service re-resolves it anyway. */
     recipeId: z.uuid(),
 });
@@ -155,7 +173,7 @@ export type AddRecipeToCollectionRequest = z.infer<typeof addRecipeToCollectionR
  * have rejected.
  */
 export const cloneCollectionRequestSchema = z
-    .object({
+    .strictObject({
         name: collectionNameSchema.optional(),
         description: collectionDescriptionSchema.optional(),
     })
@@ -169,6 +187,9 @@ export type CloneCollectionRequest = z.infer<typeof cloneCollectionRequestSchema
  *
  * Coerced, because a query bag is strings on the wire. `.int()` rejects `2.5` rather than truncating it — a
  * silently-truncated page size is a contract that lies about what it did.
+ *
+ * NOT strict: a READ query, under GR-017 §17-c's exemption. The reasoning is stated once, at
+ * `recipes.schema.ts`'s `listRecipesQuerySchema`, rather than repeated here.
  */
 export const listCollectionsQuerySchema = z.object({
     page: z.coerce.number().int().min(1).default(1),
@@ -193,6 +214,24 @@ export type ListCollectionsQuery = z.infer<typeof listCollectionsQuerySchema>;
  * byte-equality of the sorted buckets is the drift signal. The schema does not re-assert sortedness — a
  * `.refine()` would reject a legitimately-echoed document from a future producer with a different order, and
  * the comparison is the server's job, not the parser's.
+ *
+ * ⚠️ FORWARD-COMPATIBILITY EXEMPTION from GR-017 §17-c, and this is the one shape in the recipe contract where
+ * the exemption is earned by something other than being a read. It is BOTH directions: the `PullDiff` RESPONSE
+ * of `previewPullFromSource` and the `previewedDiff` FIELD a client echoes back on commit. So it is subject to
+ * both halves of the rule at once, and they point opposite ways — a response must tolerate a field a client has
+ * not been taught, while a request body must reject one.
+ *
+ * The round trip breaks the tie, decisively. Because the client echoes back the EXACT document the server sent,
+ * a strict request member would mean: the day the server adds a field to the diff, every in-flight preview →
+ * commit sequence `400`s on a body the SERVER ITSELF produced. The client did nothing wrong and has no way to
+ * comply — stripping the new field would fail the byte-equality drift check instead. `z.object` makes the
+ * addition a no-op for old and new clients alike.
+ *
+ * The safety the strictness would have bought is already held elsewhere and is not lost: the *drift comparison*
+ * is what protects this endpoint (an echoed document that does not match the freshly-derived one is a `409`
+ * `PULL_DRIFT`, whatever extra keys it carries), and the enclosing
+ * {@link pullFromSourceRequestSchema} IS strict, so a caller who misspells `previewedDiff` itself still gets a
+ * `400`. What stays permissive is only the interior of a document the server authored.
  */
 export const pullDiffSchema = z
     .object({
@@ -216,7 +255,7 @@ export type PullDiff = z.infer<typeof pullDiffSchema>;
  * previewed. `.default({})` for the same reason as {@link cloneCollectionRequestSchema}.
  */
 export const pullFromSourceRequestSchema = z
-    .object({
+    .strictObject({
         previewedDiff: pullDiffSchema.optional(),
     })
     .default({});

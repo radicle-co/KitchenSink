@@ -30,6 +30,14 @@
  *    published contract depend on another's, so a food contract bump would move the recipe contract's hash;
  *  - promoting the shape into a shared package would need a cross-service decision this change cannot make.
  *
+ * ── STRICT REQUESTS; THE SEARCH QUERY IS THE EXEMPTION ──
+ *
+ * The three request bodies (`create`, `by-food`, `resolve`) are `z.strictObject` per GR-017 §17-c.
+ * {@link ingredientSearchQuerySchema} is deliberately NOT — it is a READ query, the exemption's named case, and
+ * the reasoning is stated once at `recipes.schema.ts`'s `listRecipesQuerySchema`. It is also the one query bag
+ * here that is SHARED by two routes (`/search` and `/suggest`), which makes the exemption load-bearing rather
+ * than incidental: a parameter meaningful to one of them must not `400` the other.
+ *
  * ACCEPTED CONSEQUENCE, stated rather than hidden: two structurally identical declarations exist, one per
  * service. That is not a DRY violation on the knowledge axis — they change for different reasons (food's is
  * what FOOD serves; this one is what RECIPE promises) — but it does mean a food-side field addition does not
@@ -152,7 +160,7 @@ export type IngredientSuggestionsResponse = z.infer<typeof ingredientSuggestions
  *
  * Trimmed before validation, so `'  '` is a `400` rather than an ingredient literally named two spaces.
  */
-export const createIngredientRequestSchema = z.object({
+export const createIngredientRequestSchema = z.strictObject({
     /** The user-entered ingredient name. */
     name: z
         .string()
@@ -164,7 +172,7 @@ export const createIngredientRequestSchema = z.object({
 export type CreateIngredientRequest = z.infer<typeof createIngredientRequestSchema>;
 
 /** Body of `POST /api/v1/ingredients/by-food`. */
-export const addIngredientByFoodRequestSchema = z.object({
+export const addIngredientByFoodRequestSchema = z.strictObject({
     /** The opaque food id taken from a `catalog` suggestion. */
     foodId: z
         .string()
@@ -181,7 +189,7 @@ export type AddIngredientByFoodRequest = z.infer<typeof addIngredientByFoodReque
  * Bounded at {@link MAX_CANDIDATE_IDS}: the handler fans out per candidate, so an unbounded array is an
  * amplification vector rather than a generous API.
  */
-export const resolveIngredientRequestSchema = z.object({
+export const resolveIngredientRequestSchema = z.strictObject({
     /** The candidate handles to resolve against, from `GET …/candidates`. */
     candidateIds: z
         .array(
@@ -214,5 +222,17 @@ export const ingredientListResponseSchema = z.array(ingredientSchema).readonly()
 /** The ingredient-list response body. */
 export type IngredientListResponse = z.infer<typeof ingredientListResponseSchema>;
 
-/** Re-exported so the published contract carries the resolution-status enum a consumer branches on. */
-export { foodResolutionStatusSchema };
+// ── Re-exported wire shapes: the resolution enum and the ingredient entity body ───────────────────
+
+/*
+ * ⚠️ RE-EXPORT, NOT RE-DECLARATION. `recipe-core` remains the sole AUTHOR; this makes the shape reachable from
+ * `@kitchensink/schema-recipe`, which is authoritative for everything on the recipe wire. The full reasoning
+ * (and the `CONTRACT_HASH` residual it does not close) is stated ONCE, in `recipes.schema.ts`. ⛔ Do not
+ * re-declare it here to make this file self-contained.
+ */
+export {
+    /** The resolution-status enum a consumer branches on. */
+    foodResolutionStatusSchema,
+    /** The `Ingredient` component — the `ingredients/search` item and every `local` suggestion's payload. */
+    ingredientSchema,
+};

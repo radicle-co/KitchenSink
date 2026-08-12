@@ -25,10 +25,23 @@
  * security-relevant bound — the precise failure `recipe-core`'s docstrings record having already fixed once.
  * HEIC/HEIF are absent from that allowlist deliberately (the `sharp` build cannot decode HEVC); this schema
  * inherits that decision rather than re-litigating it.
+ *
+ * ── STRICT REQUEST BODIES, AND WHY THAT DOES NOT DISTURB THE 413/415 SPLIT ──
+ *
+ * All three request bodies are `z.strictObject` per GR-017 §17-c. That is orthogonal to the split this file's
+ * long note above describes: strictness judges WHICH KEYS a body has, while the `415`/`413` answers judge the
+ * VALUES of `contentType` and `fileSize`. An unknown key is now a `400` from the pipe; a non-allowlisted content
+ * type is still a `415` from `PhotosService`, and an oversized declared size still a `413`. ⛔ Do not read this
+ * change as licence to narrow `contentType` to {@link recipePhotoContentTypeSchema} — that would collapse the
+ * `415` into a `400`, which is the regression the note above exists to prevent.
  */
 import { z } from 'zod';
 
-import { ALLOWED_RECIPE_PHOTO_MIME_TYPES, MAX_RECIPE_PHOTO_UPLOAD_BYTES } from '@kitchensink/recipe-core';
+import {
+    recipePhotoSchema,
+    ALLOWED_RECIPE_PHOTO_MIME_TYPES,
+    MAX_RECIPE_PHOTO_UPLOAD_BYTES,
+} from '@kitchensink/recipe-core';
 
 /**
  * The content types a photo upload may declare — the DOCUMENTED allowlist, not a request validator.
@@ -52,7 +65,7 @@ import { ALLOWED_RECIPE_PHOTO_MIME_TYPES, MAX_RECIPE_PHOTO_UPLOAD_BYTES } from '
 export const recipePhotoContentTypeSchema = z.enum(ALLOWED_RECIPE_PHOTO_MIME_TYPES);
 
 /** Body of `POST /api/v1/recipes/{id}/photos/upload-url`. */
-export const createPhotoUploadRequestSchema = z.object({
+export const createPhotoUploadRequestSchema = z.strictObject({
     /** Client-supplied original filename. Bounded; used only for logging and the object key's suffix. */
     fileName: z.string().min(1).max(255),
     /**
@@ -106,7 +119,7 @@ export const photoUploadUrlResponseSchema = z
 export type PhotoUploadUrlResponse = z.infer<typeof photoUploadUrlResponseSchema>;
 
 /** Body of `POST /api/v1/recipes/{id}/photos/confirm`. */
-export const confirmPhotoRequestSchema = z.object({
+export const confirmPhotoRequestSchema = z.strictObject({
     /**
      * The object key returned by `upload-url`. Bounded to S3's key limit. The server re-derives the recipe
      * and owner from its own records rather than trusting anything encoded in this string.
@@ -134,10 +147,23 @@ export type ConfirmPhotoRequest = z.infer<typeof confirmPhotoRequestSchema>;
  * index in this array. Non-empty, because an empty array asks for no reordering at all and the honest answer
  * to that is a `400`, not a silent success.
  */
-export const reorderPhotosRequestSchema = z.object({
+export const reorderPhotosRequestSchema = z.strictObject({
     /** Photo ids in display order. v4 UUIDs — the nil UUID names no photo and is rejected. */
     photoIds: z.array(z.uuid({ version: 'v4' })).min(1),
 });
 
 /** Request body for setting a recipe's photo display order. */
 export type ReorderPhotosRequest = z.infer<typeof reorderPhotosRequestSchema>;
+
+// ── Re-exported wire shapes: the photo entity body this vertical serves ───────────────────────────
+
+/*
+ * ⚠️ RE-EXPORT, NOT RE-DECLARATION. `recipe-core` remains the sole AUTHOR; this makes the shape reachable from
+ * `@kitchensink/schema-recipe`, which is authoritative for everything on the recipe wire. The full reasoning
+ * (and the `CONTRACT_HASH` residual it does not close) is stated ONCE, in `recipes.schema.ts`. ⛔ Do not
+ * re-declare it here to make this file self-contained.
+ */
+export {
+    /** The `RecipePhoto` component — one photo, and each element of the `RecipePhotoList` body. */
+    recipePhotoSchema,
+};

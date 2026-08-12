@@ -1,7 +1,8 @@
 /**
  * The rating write DTO, driven through the real {@link ZodValidationPipe} that runs on an inbound request.
  *
- * The SECURITY property under test is the unknown-key strip: the rater is always the verified bearer, so a
+ * The SECURITY property under test is unknown-key REJECTION (it was a strip until GR-017 §17-c): the rater is
+ * always the verified bearer, so a
  * body carrying `userId` must never reach the service. `class-validator`'s `whitelist: true` used to
  * provide that; zod's `z.object` strips by default, and the test below is what proves the guarantee
  * survived the swap rather than being assumed to.
@@ -40,8 +41,12 @@ describe('SetRatingDto', () => {
         expect(transform({ stars })).toEqual({ stars });
     });
 
-    it('strips a spoofed rater id, so a caller can never rate as another user', () => {
-        expect(transform({ stars: 4, userId: 'someone-elses-ulid' })).toEqual({ stars: 4 });
+    // Was a STRIP assertion. The body is `z.strictObject` per GR-017 §17-c, so a spoofed rater id is a `400`.
+    // The guarantee itself is unchanged and does not depend on either behaviour: the rater is taken from the
+    // verified bearer token and no body field is ever read. See `../__tests__/ratings.schema.test.ts`, which
+    // also asserts the `400` NAMES `userId`.
+    it('REFUSES a spoofed rater id, so a caller learns the field was rejected', () => {
+        expect(() => transform({ stars: 4, userId: 'someone-elses-ulid' })).toThrow();
     });
 
     it.each([

@@ -60,11 +60,9 @@ import {
     ingredientSchema,
     paginatedResponseSchema,
     recipeDetailSchema,
-    recipeErrorSchema,
     recipePhotoSchema,
     recipeSchema,
     recipeVersionSchema,
-    restoreVersionResponseSchema,
     MAX_RECIPE_LIST_PAGE_SIZE,
 } from '@kitchensink/recipe-core';
 
@@ -88,6 +86,13 @@ import {
     pullFromSourceResponseSchema,
     updateCollectionRequestSchema,
 } from '../src/collections/collections.schema.js';
+import {
+    apiErrorSchema,
+    errorResponseSchema,
+    nestHttpErrorSchema,
+    throttleErrorSchema,
+    validationErrorSchema,
+} from '../src/common/api-error.schema.js';
 import { healthStatusSchema, healthUnavailableSchema } from '../src/health/health.schema.js';
 import {
     addIngredientByFoodRequestSchema,
@@ -110,6 +115,7 @@ import {
     updateRecipeRequestSchema,
 } from '../src/recipes/recipes.schema.js';
 import { recipeSearchResponseSchema } from '../src/search/search.schema.js';
+import { restoreVersionResponseSchema } from '../src/versions/versions.schema.js';
 
 /**
  * The published component schemas, keyed by the name they appear under in `components.schemas`.
@@ -117,9 +123,24 @@ import { recipeSearchResponseSchema } from '../src/search/search.schema.js';
  * Composed from `@kitchensink/recipe-core` and the service's authored `*.schema.ts`. Nothing is re-declared:
  * a component that is not backed by one of those two is absent from the document rather than invented here,
  * because a hand-written shape in this file would be a THIRD authority for a wire type.
+ *
+ * ⚠️ Exported (it was private) so `contract/__tests__/contract.test.ts` can probe the REAL zod BEHAVIOURALLY —
+ * parsing a body with an unknown key and looking for zod's `unrecognized_keys` issue — rather than re-deriving
+ * strictness from the same introspection the generator uses, which would make the assertion agree with the
+ * generator by construction. Food's suite does the same, for the same reason.
  */
-const components = {
-    ErrorResponse: recipeErrorSchema,
+export const openApiComponents = {
+    // ⚠️ THE FOUR ERROR SHAPES. `ErrorResponse` was `recipe-core`'s `recipeErrorSchema`, whose `code` is an ENUM
+    // of the fifteen recipe-DOMAIN codes — so the document described a body three of this service's four error
+    // populations do not satisfy (the generic 500's `INTERNAL_ERROR`, every Nest `{ statusCode, message, error }`,
+    // the validation 400, and the 429 which is a bare STRING). The members are published individually as well as
+    // in the union, so an integrator can name the one they handle; see `src/common/api-error.schema.ts` for why
+    // converging them is a separate, breaking change.
+    ErrorResponse: errorResponseSchema,
+    ApiError: apiErrorSchema,
+    NestHttpError: nestHttpErrorSchema,
+    ValidationError: validationErrorSchema,
+    ThrottleError: throttleErrorSchema,
     HealthStatus: healthStatusSchema,
     HealthUnavailable: healthUnavailableSchema,
     Recipe: recipeSchema,
@@ -175,7 +196,7 @@ const components = {
 } as const;
 
 /** A component name, so a typo in a response is a `typecheck` failure rather than a missing `$ref`. */
-type ComponentName = keyof typeof components & string;
+type ComponentName = keyof typeof openApiComponents & string;
 
 /** One operation, narrowed to this document's component names. */
 type Operation = OpenApiOperation<ComponentName>;
@@ -205,22 +226,60 @@ function uuidPathParam(name: string, description: string): OpenApiParameter {
  * of the service, not of any one handler. A per-operation copy would be ~30 chances to describe one behaviour
  * differently.
  *
+ * ⚠️ TWO OF THESE FIVE NAME A SPECIFIC SHAPE rather than the `ErrorResponse` union, and the test for whether a
+ * status MAY be narrowed is **"can its producers be enumerated, and is there exactly one?"** — never "which
+ * shape is most common". Both of these have one producer, verified against the source:
+ *
+ *  - `429` is `ThrottleError` — a bare JSON **string**. The only producer is `UserThrottlerGuard`, i.e.
+ *    `@nestjs/throttler`'s `ThrottlerException`; nothing else in this service raises a `429`.
+ *  - `423` is `ApiError` — the only producer is `ErasureLockGuard`, which raises the DOMAIN error
+ *    `ERASURE_IN_PROGRESS`, so the body is always the `{ code, message }` envelope.
+ *
+ * ⚠️ `400` IS THE COUNTEREXAMPLE, AND IT WAS NARROWED TO `ValidationError` IN THIS VERY CHANGE BEFORE BEING
+ * CORRECTED — recorded because the reasoning that produced the mistake is seductive. The validation `400` is the
+ * one the `z.strictObject()` sweep makes common, it is the only one carrying `errors`, and naming the union
+ * "hides" that. But a `400` has THREE producer classes, so the narrow claim was false for two of them:
+ *
+ *  1. `nestjs-zod`'s pipe → `ValidationError`;
+ *  2. six hand-thrown `new BadRequestException('a string')` sites (`ErasureService`'s confirmation-phrase
+ *     mismatch, three in `IngredientsController`, two in `PhotosService`) → `NestHttpError`;
+ *  3. three DOMAIN codes mapped to `400` by `ApiExceptionFilter` (`INVALID_VISIBILITY`,
+ *     `COLLECTION_NOT_CLONED`, `UNKNOWN_INGREDIENT`) → `ApiError`.
+ *
+ * Naming `ValidationError` there would tell an integrator's codegen to expect `errors` on a body that carries
+ * `error` instead — the SAME class of lie as the `recipeErrorSchema` component this change removed, introduced
+ * while removing it. So `400` publishes the union, and an integrator reads `ValidationError`'s own component to
+ * learn what the validation case carries.
+ *
+ * The `401` and `500` publish the union for the same reason: a `401` is `ApiError` for the
+ * `IDENTITY_SYNC_PENDING` race and `NestHttpError` for every other rejection, and a `500` is `ApiError` for the
+ * filter's own collapse but `NestHttpError` for an `HttpException` raised with a 5xx status.
+ *
+ * ⛔ Before narrowing any status here, ENUMERATE ITS THROW SITES. `src/common/__tests__/api-error.schema.test.ts`
+ * asserts that a real body of each of the four shapes satisfies the component this table claims for its status —
+ * which is what catches a narrowing that is wrong today. It cannot see a throw site added later.
+ *
  * @returns The shared 4xx/5xx responses. Pure.
  */
 function sharedErrorResponses(): Readonly<Record<string, OpenApiResponse<ComponentName>>> {
     return {
-        '400': { description: 'The request body or query failed validation.', schema: 'ErrorResponse' },
+        '400': {
+            description:
+                'The request body or query failed validation (ValidationError), or a handler rejected it ' +
+                'explicitly, or a domain rule did. See ErrorResponse — the body is one of three shapes.',
+            schema: 'ErrorResponse',
+        },
         '401': {
             description: 'No, invalid, expired, or wrong-authorized-party bearer token.',
             schema: 'ErrorResponse',
         },
         '423': {
             description: 'The caller has an in-flight account erasure, so writes are locked (HAZ-052).',
-            schema: 'ErrorResponse',
+            schema: 'ApiError',
         },
         '429': {
-            description: 'Per-user rate limit exceeded.',
-            schema: 'ErrorResponse',
+            description: 'Per-user rate limit exceeded. The body is a bare string, not an error envelope.',
+            schema: 'ThrottleError',
             headers: {
                 'Retry-After': { description: 'Seconds until the limit resets.', schema: z.number().int().positive() },
             },
@@ -986,7 +1045,7 @@ export function buildRecipeOpenApiDocument(): OpenApiBuildResult {
             },
         },
         defaultSecurity: [CLERK_BEARER],
-        components,
+        components: openApiComponents,
         paths,
     });
 }

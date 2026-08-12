@@ -1,0 +1,542 @@
+/**
+ * THE DRIFT GATES for `@kitchensink/schema-recipe`, run as tests rather than as a bespoke CI step so they
+ * execute on every `npm test` and in every existing CI job, with no workflow change to forget.
+ *
+ * Recipe was the ONE service of the three with no such suite. It had `openapi.test.ts` — the route-parity and
+ * coverage ratchet — which guards the DOCUMENT, and nothing at all guarding the generated PACKAGE. So a
+ * hand-edited `packages/schemas/recipe/src/schemas/*.ts`, a `CONTRACT_HASH` stamped on only one side, or a
+ * runtime dependency added to the leaf would all have shipped green, while food and identity caught every one.
+ *
+ * `docs/CODING_STANDARDS.md` §15.2.5 names three layers, each catching what the others cannot:
+ *
+ *  - **Rebuild (turbo)** — declared in `turbo.json`; content-hashing this package's `build` over the service's
+ *    authored `*.schema.ts`. Not testable from here.
+ *  - **Correctness (this file)** — regenerate and fail on any difference from the committed artifacts. This is
+ *    the STRONG gate: it is what catches generated output somebody hand-edited.
+ *  - **Skew (this file)** — `CONTRACT_HASH` must be the fingerprint of the authored sources AND identical on
+ *    both sides, or the boot-time skew assertion compares a value with itself and can never fail.
+ *
+ * WHY IT COMPARES INSTEAD OF SHELLING OUT TO THE GENERATOR. Running the real generator here would WRITE into the
+ * repository from a test: a genuinely-drifted checkout would come out of `npm test` silently REPAIRED, so the
+ * gate would report success having erased its own evidence. Comparing the committed bytes against a fresh
+ * in-memory derivation catches the same drift, changes nothing, and names the file that disagrees.
+ *
+ * ── AND THE FOURTH GATE, WHICH IS THIS SUITE'S OWN ──
+ *
+ * `describe('mutating request bodies reject unknown keys')` enforces GR-017 §17-c, and it DISCOVERS its subjects
+ * from the document's own route table rather than from a list. GR-017 states outright that "a hardcoded list of
+ * services in a conformance test is itself the defect", and the same reasoning reaches a list of request bodies:
+ * a list is a thing to forget, so a new `POST` would be out of scope until someone remembered it. Every component
+ * used as a request body on a mutating operation is in scope the day the operation is added.
+ */
+import { readFile, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import {
+    computeContractHash,
+    discoverAuthoredSchemas,
+    findUnpublishedSiblingImports,
+    findViolations,
+    flattenSiblingImports,
+} from '@kitchensink/contract-gen';
+import type { AuthoredSchema } from '@kitchensink/contract-gen';
+import { describe, expect, it } from 'vitest';
+import { stringify } from 'yaml';
+
+import {
+    ALLOWED_PACKAGE_IMPORTS,
+    EXCLUDED_FILES,
+    SCHEMA_PACKAGE_NAME,
+    SCHEMA_PACKAGE_ROOT,
+    SERVICE_PATH_PREFIX,
+    SERVICE_ROOT,
+    SERVICE_STAMP_PATH,
+} from '../config.js';
+import { buildRecipeOpenApiDocument, openApiComponents } from '../openapi.js';
+
+/** The authored schemas, discovered once with the SAME config the generator runs with. */
+const authored: AuthoredSchema[] = await discoverAuthoredSchemas(SERVICE_ROOT, { excludeFiles: EXCLUDED_FILES });
+
+/** The built document, shared by every assertion so the derivation happens once. */
+const built = buildRecipeOpenApiDocument();
+
+/**
+ * Read a committed file from the generated package.
+ *
+ * @param relativePath - Path relative to the schema package root.
+ * @returns The file's text.
+ * @sideEffect Reads the filesystem.
+ */
+async function readCommitted(relativePath: string): Promise<string> {
+    return readFile(join(SCHEMA_PACKAGE_ROOT, relativePath), 'utf8');
+}
+
+describe('the authored recipe wire contract', () => {
+    it('contains at least one schema, so the package cannot be silently empty', () => {
+        expect(authored.length).toBeGreaterThan(0);
+    });
+
+    // THE load-bearing safety property. A single import of a DAL type, a drizzle schema or a Nest symbol either
+    // breaks the copied package outright or drags `drizzle-orm`/`@nestjs/*`/`pg`/`aws-sdk` into every consumer.
+    // The predicate itself is mutation-tested in `@kitchensink/contract-gen`; this asserts it holds for the REAL
+    // authored files, with this service's REAL allowlist.
+    it('imports nothing but zod, recipe-core, and flat sibling schema modules', () => {
+        const violations = authored.flatMap((schema) =>
+            findViolations(schema.servicePath, schema.source, ALLOWED_PACKAGE_IMPORTS),
+        );
+
+        expect(violations).toStrictEqual([]);
+    });
+
+    // The gap the allowlist alone does NOT close: a `./something.schema.js` import is shaped like a flat sibling
+    // and so `findViolations` admits it, while an EXCLUDED or renamed sibling would not exist in the generated
+    // package. Asserted against the REAL authored files.
+    it('imports no sibling schema that the generated package will not contain', () => {
+        const publishedModuleNames = authored.map((schema) => schema.moduleName);
+        const unresolved = authored.flatMap((schema) =>
+            findUnpublishedSiblingImports(schema.servicePath, schema.source, publishedModuleNames),
+        );
+
+        expect(unresolved).toStrictEqual([]);
+    });
+
+    /**
+     * Widening the allowlist is the one edit that can quietly undo the property above, so it is PINNED.
+     *
+     * The second entry is what makes recipe's allowlist wider than food's, and the reason is recorded in
+     * `config.ts`: `recipe-core` already OWNS the recipe domain schemas, so composing it is what keeps there
+     * from being a second declaration of `Recipe`. It is admissible on the same test every entry must pass —
+     * it is itself a leaf whose only runtime dependency is zod, asserted below rather than asserted about.
+     */
+    it('allows ONLY zod and recipe-core at the package level', () => {
+        expect(ALLOWED_PACKAGE_IMPORTS.map((entry) => entry.specifier)).toStrictEqual([
+            'zod',
+            '@kitchensink/recipe-core',
+        ]);
+    });
+
+    it('documents a substantive reason for every allowlist entry and every exclusion', () => {
+        for (const entry of [...ALLOWED_PACKAGE_IMPORTS, ...EXCLUDED_FILES]) {
+            expect(entry.why.length).toBeGreaterThan(20);
+        }
+    });
+
+    /**
+     * Recipe has NO exclusions, and the assertion is the decision rather than a restatement of it.
+     *
+     * Food excludes `src/config/env.schema.ts` — publishing a service's env-var inventory into a package web and
+     * mobile depend on, and churning `CONTRACT_HASH` on every env change. Recipe's env schema is not a
+     * `*.schema.ts` at all (it lives in `src/config/config.types.ts`), so there is nothing to exclude. If a
+     * `*.schema.ts` ever appears under `src/config/`, this fails and forces the exclusion decision instead of
+     * letting the file be published by default.
+     */
+    it('publishes no schema from src/config/, because there is none to exclude', () => {
+        expect(authored.filter((schema) => schema.servicePath.startsWith('src/config/'))).toStrictEqual([]);
+        expect(EXCLUDED_FILES).toStrictEqual([]);
+    });
+});
+
+describe('drift layer 2 — the committed package matches a fresh generation', () => {
+    it('publishes exactly the authored modules, no more and no fewer', async () => {
+        const published = await readdir(join(SCHEMA_PACKAGE_ROOT, 'src/schemas'));
+
+        expect(published.sort()).toStrictEqual(authored.map((schema) => `${schema.moduleName}.ts`).sort());
+    });
+
+    it('copies every authored schema VERBATIM, under a banner naming its source', async () => {
+        for (const schema of authored) {
+            const committed = await readCommitted(`src/schemas/${schema.moduleName}.ts`);
+
+            expect(committed, `${schema.moduleName}.ts is not a verbatim copy`).toContain(
+                `// Source: ${SERVICE_PATH_PREFIX}/${schema.servicePath}`,
+            );
+            expect(committed.endsWith(flattenSiblingImports(schema.source))).toBe(true);
+        }
+    });
+
+    it('marks every generated module as generated, so nobody edits one believing it is source', async () => {
+        for (const schema of authored) {
+            expect(await readCommitted(`src/schemas/${schema.moduleName}.ts`)).toContain('GENERATED FILE');
+        }
+    });
+
+    it('re-exports every module from the schemas barrel', async () => {
+        const barrel = await readCommitted('src/schemas.ts');
+
+        for (const schema of authored) {
+            expect(barrel).toContain(`export * from './schemas/${schema.moduleName}.js';`);
+        }
+    });
+
+    it('exports the zod AND the contract hash from the package root', async () => {
+        const index = await readCommitted('src/index.ts');
+
+        expect(index).toContain("export * from './schemas.js';");
+        expect(index).toContain("export { CONTRACT_HASH } from './contract-hash.js';");
+    });
+
+    it('re-exports the inferred types type-only', async () => {
+        expect(await readCommitted('src/types.ts')).toContain("export type * from './schemas.js';");
+    });
+
+    // The document is what integrators and `oasdiff` read. A committed copy that has drifted from the authored
+    // zod is the exact failure this seam exists to prevent, one layer out.
+    it('publishes an openapi.yaml identical to a fresh derivation from the authored zod', async () => {
+        expect(await readCommitted('openapi.yaml')).toContain(stringify(built.document, { lineWidth: 120 }));
+    });
+
+    it('states in openapi.yaml that it is generated and is not the type authority', async () => {
+        const committed = await readCommitted('openapi.yaml');
+
+        expect(committed).toContain('GENERATED FILE — DO NOT EDIT');
+        expect(committed).toContain('NOT the type authority');
+    });
+});
+
+describe('drift layer 3 — the contract hash', () => {
+    const expected = computeContractHash(authored);
+
+    it('is stamped in the schema package as the fingerprint of the authored sources', async () => {
+        expect(await readCommitted('src/contract-hash.ts')).toContain(`export const CONTRACT_HASH = '${expected}';`);
+    });
+
+    // Both sides, or the runtime skew check compares a value with itself. That is the live case for mobile,
+    // where a released binary cannot be updated in step with a backend deploy.
+    it('is stamped identically in the SERVICE, which is what makes a skew check possible', async () => {
+        const stamp = await readFile(join(SERVICE_ROOT, SERVICE_STAMP_PATH), 'utf8');
+
+        expect(stamp).toContain(`export const CONTRACT_HASH = '${expected}';`);
+    });
+});
+
+describe('the leaf property', () => {
+    /**
+     * The whole reason the package is a COPY rather than a re-export: a runtime dependency on NestJS, drizzle,
+     * `pg` or the AWS SDK here would reach `@commise/web` and `@commise/mobile` through every consumer, and on
+     * mobile that is a bundle that cannot build.
+     *
+     * Recipe's list is `['@kitchensink/recipe-core', 'zod']` where food's is `['zod']`, and the extra entry is
+     * exactly the allowlist's second specifier — so the two assertions cannot disagree about what is admitted.
+     */
+    it('declares only recipe-core and zod as runtime dependencies', async () => {
+        const manifest = JSON.parse(await readCommitted('package.json')) as {
+            name: string;
+            dependencies: Record<string, string>;
+        };
+
+        expect(manifest.name).toBe(SCHEMA_PACKAGE_NAME);
+        expect(Object.keys(manifest.dependencies).sort()).toStrictEqual(['@kitchensink/recipe-core', 'zod']);
+    });
+
+    // `recipe-core` is admitted to the allowlist ON THE GROUND that it is itself a zod-only leaf. That claim is
+    // the reason web and mobile can bundle this package, so it is CHECKED rather than trusted: the day
+    // `recipe-core` grows a runtime dependency, this fails and the allowlist entry has to be re-justified.
+    it('is only safe because recipe-core is ITSELF a zod-only leaf, so that is asserted too', async () => {
+        const manifest = JSON.parse(
+            await readFile(join(SERVICE_ROOT, '../../shared/recipe-core/package.json'), 'utf8'),
+        ) as { dependencies: Record<string, string> };
+
+        expect(Object.keys(manifest.dependencies)).toStrictEqual(['zod']);
+    });
+});
+
+// ── GR-017 §17-c — mutating request bodies reject unknown keys ─────────────────────────────────────
+
+/** Every component name the emitted document uses as a request body, by HTTP method. */
+function requestBodyComponentsByMethod(): ReadonlyMap<string, ReadonlySet<string>> {
+    const paths = built.document['paths'] as Record<
+        string,
+        Record<
+            string,
+            { readonly requestBody?: { readonly content: Record<string, { readonly schema: { $ref?: string } }> } }
+        >
+    >;
+    const byMethod = new Map<string, Set<string>>();
+
+    for (const methods of Object.values(paths)) {
+        for (const [method, operation] of Object.entries(methods)) {
+            const ref = operation.requestBody?.content['application/json']?.schema.$ref;
+
+            if (ref === undefined) {
+                continue;
+            }
+
+            const name = ref.replace('#/components/schemas/', '');
+
+            byMethod.set(method, (byMethod.get(method) ?? new Set()).add(name));
+        }
+    }
+
+    return byMethod;
+}
+
+/** The HTTP methods whose request body GR-017 §17-c governs. */
+const MUTATING_METHODS: readonly string[] = ['post', 'put', 'patch', 'delete'];
+
+/** Component names that carry a request body on a mutating operation, discovered from the document. */
+const mutatingBodyComponents: readonly string[] = [
+    ...new Set(
+        MUTATING_METHODS.flatMap((method) => [...(requestBodyComponentsByMethod().get(method) ?? new Set<string>())]),
+    ),
+].sort();
+
+/**
+ * Whether a schema REJECTS an unknown key, determined BEHAVIOURALLY.
+ *
+ * Derived by parsing a probe body and looking for zod's own `unrecognized_keys` issue — never from the same
+ * introspection the generator uses, which would make every assertion below agree with the generator by
+ * construction rather than with the runtime.
+ *
+ * @param name - The component name, used only in failure messages.
+ * @returns True when an unknown key produces an `unrecognized_keys` issue. Pure.
+ */
+function rejectsUnknownKeys(name: string): boolean {
+    const schema = openApiComponents[name as keyof typeof openApiComponents];
+    const parsed = schema.safeParse({ __unknownKeyProbe__: 'x' });
+
+    return !parsed.success && parsed.error.issues.some((issue) => issue.code === 'unrecognized_keys');
+}
+
+describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', () => {
+    // Non-vacuity first: the discovery must actually find bodies, or every assertion below passes over an empty
+    // set. A count is deliberately NOT pinned — the point of discovery is that a new endpoint joins the set
+    // without an edit here — but zero would mean the discovery itself broke.
+    it('discovers the mutating request bodies from the document, and finds a substantial number', () => {
+        expect(mutatingBodyComponents.length).toBeGreaterThanOrEqual(12);
+    });
+
+    it.each(mutatingBodyComponents)(
+        '%s rejects an unknown key, so a misspelled field is a 400 and not a silent partial write',
+        (name) => {
+            expect(rejectsUnknownKeys(name), `${name} STRIPS unknown keys — see GR-017 §17-c`).toBe(true);
+        },
+    );
+
+    /**
+     * The document's strictness must MATCH the service's, in both directions and over EVERY component — not just
+     * the mutating bodies.
+     *
+     * `additionalProperties: false` is a promise that an unknown key is REJECTED. A `z.object` strips and answers
+     * `2xx`; only `z.strictObject` rejects. Food's generator once emitted `false` for both, which published ten
+     * request bodies claiming a rejection that never happened. Recipe's document did the opposite — it claimed
+     * nothing anywhere, so the strict bodies' rejection was undocumented. Either way the document and the runtime
+     * must not be allowed to disagree.
+     */
+    it('claims to reject unknown keys ONLY where the authored zod actually rejects them', () => {
+        const published = (built.document['components'] as { schemas: Record<string, Record<string, unknown>> })
+            .schemas;
+
+        const disagreements = Object.keys(openApiComponents).flatMap((name) => {
+            const claim = published[name]?.['additionalProperties'];
+
+            if (rejectsUnknownKeys(name) === (claim === false)) {
+                return [];
+            }
+
+            return [
+                `${name}: the document says additionalProperties=${JSON.stringify(claim)} but the zod ` +
+                    `${rejectsUnknownKeys(name) ? 'REJECTS' : 'accepts and strips'} an unknown key`,
+            ];
+        });
+
+        expect(disagreements).toStrictEqual([]);
+    });
+
+    /**
+     * NON-VACUITY for the assertion above, in the other direction, AND the record of which shapes are exempt.
+     *
+     * That assertion compares against `=== false`, so a generator rule that stripped the keyword WHOLESALE would
+     * satisfy it trivially. So the set of components claiming rejection is pinned, and it must be exactly the
+     * mutating request bodies — nothing more (a response body claiming rejection would break a forward-compatible
+     * deploy) and nothing less (a mutating body not claiming it is the §17-c violation).
+     *
+     * `z.object` ⇄ `z.strictObject` is a BREAKING wire change in one direction and a silently-permissive one in
+     * the other, and neither should be possible to make by accident.
+     */
+    it('claims rejection on EXACTLY the mutating request bodies — no response body, no read query', () => {
+        const published = (built.document['components'] as { schemas: Record<string, Record<string, unknown>> })
+            .schemas;
+
+        const claimingRejection = Object.entries(published)
+            .filter(([, schema]) => schema['additionalProperties'] === false)
+            .map(([name]) => name)
+            .sort();
+
+        expect(claimingRejection).toStrictEqual(mutatingBodyComponents);
+    });
+
+    /**
+     * A SECOND DISCOVERY AXIS, over the authored SOURCES rather than the document — and it exists because the
+     * first axis has a hole that this suite found in itself.
+     *
+     * `cloneRecipeRequestSchema` is a real, authored, mutating request body (`POST …/recipes/{id}/clone`) that is
+     * NOT published as a component: it has no client-controlled fields, so the document correctly declares the
+     * operation with no `requestBody`. Discovering from the document therefore cannot see it, and a body that is
+     * authored but undocumented is exactly the shape most likely to be forgotten — it is invisible to the reader
+     * of the contract AND to a gate that reads the contract.
+     *
+     * So every exported binding whose name ends `RequestSchema` must reject unknown keys, whatever the document
+     * says about it. Naming is the discriminant on purpose: it is the convention every authored request body in
+     * this service already follows, and a new body that does not follow it fails the barrel-shape assertion
+     * below rather than slipping past silently.
+     */
+    it('holds for every authored *RequestSchema, including the ones the document does not publish', async () => {
+        const modules = await Promise.all(
+            authored.map(
+                async (schema) =>
+                    import(join(SERVICE_ROOT, schema.servicePath.replace(/\.ts$/u, '.js'))) as Promise<
+                        Record<string, unknown>
+                    >,
+            ),
+        );
+
+        const requestSchemas = modules.flatMap((module) =>
+            Object.entries(module).filter(([name]) => name.endsWith('RequestSchema')),
+        );
+
+        // Non-vacuity: the import + filter must actually find the bodies.
+        expect(requestSchemas.length).toBeGreaterThanOrEqual(13);
+
+        const stripping = requestSchemas
+            .filter(([, schema]) => {
+                const parsed = (
+                    schema as {
+                        safeParse: (value: unknown) => { success: boolean; error?: { issues: { code: string }[] } };
+                    }
+                ).safeParse({ __unknownKeyProbe__: 'x' });
+
+                return parsed.success || !parsed.error?.issues.some((issue) => issue.code === 'unrecognized_keys');
+            })
+            .map(([name]) => name);
+
+        expect(stripping).toStrictEqual([]);
+    });
+
+    /**
+     * The three FORWARD-COMPATIBILITY EXEMPTIONS §17-c permits, pinned by name so adding a fourth is a visible,
+     * reviewable edit rather than a quiet loosening.
+     *
+     * Two are read queries (`listRecipesQuerySchema`, `listCollectionsQuerySchema`, `ingredientSearchQuerySchema`)
+     * and are not components at all — they are inlined as `parameters` — so the interesting one is `PullDiff`: it
+     * is BOTH a response body and a request FIELD, and a strict version would `400` a commit echoing back a
+     * document the server itself produced. See `collections.schema.ts` for the full argument.
+     *
+     * The error envelopes are `.loose()` and stay OPEN for the mirror-image reason: an error body that grows a
+     * field must not crash a client that has not been taught it.
+     */
+    it('leaves the round-tripped PullDiff and the four error shapes OPEN, deliberately', () => {
+        const published = (built.document['components'] as { schemas: Record<string, Record<string, unknown>> })
+            .schemas;
+
+        expect(mutatingBodyComponents).not.toContain('PullDiff');
+        expect(rejectsUnknownKeys('PullDiff')).toBe(false);
+
+        for (const name of ['ApiError', 'NestHttpError', 'ValidationError']) {
+            expect(published[name]?.['additionalProperties'], `${name} is .loose() and must publish as open`).toEqual(
+                {},
+            );
+        }
+    });
+});
+
+// ── The §5 ruling, enforced ────────────────────────────────────────────────────────────────────────
+
+describe('every published component’s zod is REACHABLE from @kitchensink/schema-recipe', () => {
+    /**
+     * THIS IS WHAT MAKES THE §5 RULING STRUCTURAL RATHER THAN ASPIRATIONAL.
+     *
+     * The ruling: `@kitchensink/schema-recipe` is authoritative for every shape on the recipe wire, INCLUDING the
+     * bodies that are `recipe-core` domain entities, reached by re-export from the authored schema of the vertical
+     * that serves them.
+     *
+     * Before it, nine components (`Recipe`, `RecipeDetail`, `PaginatedRecipes`, `RecipePhoto`, `RecipePhotoList`,
+     * `Ingredient`, `IngredientList`, `RecipeVersion`, `RecipeVersionList`) were DOCUMENTED by this contract while
+     * their zod was not exported from the package the document points a consumer at. So "which package is the
+     * source for this endpoint's shape?" had a per-endpoint answer, and GR-017 §17-b.2 — a client imports its wire
+     * types AND its runtime zod from the schema package — was not satisfiable.
+     *
+     * The check is on the AUTHORED sources rather than the generated package, because the generated files are a
+     * verbatim copy: if a symbol is exported from an authored module it is exported from the barrel, and drift
+     * layer 2 above already proves the copy. Asserting here means a NEW component that forgets its re-export
+     * fails immediately, naming itself.
+     */
+    it('exports zod for every component the document declares', async () => {
+        const sources = await Promise.all(
+            authored.map(async (schema) => readCommitted(`src/schemas/${schema.moduleName}.ts`)),
+        );
+        const published = sources.join('\n');
+
+        // The symbol each component is built from, as it must appear in an `export` of some authored module. Only
+        // the composed/derived components are absent: those are `z.array(...)` and `paginatedResponseSchema(...)`
+        // applications built in `contract/openapi.ts`, whose ELEMENT schema is what a consumer needs.
+        const unreachable = Object.entries(openApiComponents)
+            .map(([name, schema]) => ({ name, schema }))
+            .filter(({ name }) => {
+                const symbol = COMPONENT_SYMBOL[name];
+
+                return symbol !== undefined && !new RegExp(`\\b${symbol}\\b`, 'u').test(published);
+            })
+            .map(({ name }) => name);
+
+        expect(unreachable).toStrictEqual([]);
+    });
+
+    // Every component that has a NAMED zod binding, mapped to that binding. A component built inline in the route
+    // table (`z.array(x)`, `paginatedResponseSchema(x)`) has no symbol of its own and maps its ELEMENT instead,
+    // which is the schema a consumer actually parses with.
+    const COMPONENT_SYMBOL: Readonly<Record<string, string>> = {
+        ErrorResponse: 'errorResponseSchema',
+        ApiError: 'apiErrorSchema',
+        NestHttpError: 'nestHttpErrorSchema',
+        ValidationError: 'validationErrorSchema',
+        ThrottleError: 'throttleErrorSchema',
+        HealthStatus: 'healthStatusSchema',
+        HealthUnavailable: 'healthUnavailableSchema',
+        Recipe: 'recipeSchema',
+        RecipeDetail: 'recipeDetailSchema',
+        PaginatedRecipes: 'paginatedResponseSchema',
+        CreateRecipeRequest: 'createRecipeRequestSchema',
+        UpdateRecipeRequest: 'updateRecipeRequestSchema',
+        SetRecipeVisibilityRequest: 'setRecipeVisibilityRequestSchema',
+        SetRatingRequest: 'setRatingRequestSchema',
+        RecipePhoto: 'recipePhotoSchema',
+        RecipePhotoList: 'recipePhotoSchema',
+        CreatePhotoUploadRequest: 'createPhotoUploadRequestSchema',
+        PhotoUploadUrlResponse: 'photoUploadUrlResponseSchema',
+        ConfirmPhotoRequest: 'confirmPhotoRequestSchema',
+        ReorderPhotosRequest: 'reorderPhotosRequestSchema',
+        Ingredient: 'ingredientSchema',
+        IngredientList: 'ingredientSchema',
+        IngredientCandidateList: 'ingredientCandidatesResponseSchema',
+        IngredientSuggestions: 'ingredientSuggestionsResponseSchema',
+        CreateIngredientRequest: 'createIngredientRequestSchema',
+        AddIngredientByFoodRequest: 'addIngredientByFoodRequestSchema',
+        ResolveIngredientRequest: 'resolveIngredientRequestSchema',
+        RecipeVersion: 'recipeVersionSchema',
+        RecipeVersionList: 'recipeVersionSchema',
+        RestoreVersionResponse: 'restoreVersionResponseSchema',
+        RecipeSearchResponse: 'recipeSearchResponseSchema',
+        Collection: 'collectionResponseSchema',
+        PaginatedCollections: 'collectionListResponseSchema',
+        CollectionMemberRecipe: 'collectionMemberRecipeSchema',
+        CollectionWithRecipes: 'collectionWithRecipesResponseSchema',
+        CollectionRecipeMembership: 'collectionRecipeMembershipResponseSchema',
+        CreateCollectionRequest: 'createCollectionRequestSchema',
+        UpdateCollectionRequest: 'updateCollectionRequestSchema',
+        AddRecipeToCollectionRequest: 'addRecipeToCollectionRequestSchema',
+        CloneCollectionRequest: 'cloneCollectionRequestSchema',
+        PullDiff: 'pullDiffSchema',
+        PullFromSourceRequest: 'pullFromSourceRequestSchema',
+        PullFromSourceResponse: 'pullFromSourceResponseSchema',
+        AccountExport: 'accountExportSchema',
+        ErasureRequest: 'erasureRequestSchema',
+        ErasureRequestAcceptedResponse: 'erasureRequestAcceptedResponseSchema',
+        ServiceErasureAcceptedResponse: 'serviceErasureAcceptedResponseSchema',
+    };
+
+    // The map above is a second list of the components, so it must be EXHAUSTIVE or the check silently skips a
+    // component. Asserted in both directions.
+    it('maps every component to a zod symbol, and maps no component that does not exist', () => {
+        expect(Object.keys(COMPONENT_SYMBOL).sort()).toStrictEqual(Object.keys(openApiComponents).sort());
+    });
+});

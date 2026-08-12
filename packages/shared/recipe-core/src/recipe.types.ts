@@ -841,24 +841,17 @@ export const versionConflictDetailsSchema = z.object({
     base: versionConflictSideSchema.optional(),
 });
 
-/**
- * Response to a version restore (`POST /api/v1/recipes/{id}/versions/{versionNumber}/restore`): the recipe
- * after the restore, the version it was restored FROM, and the recipe's new current version number.
- */
-export interface RestoreVersionResponse {
-    recipe: RecipeDetail;
-    restoredFromVersion: number;
-    currentVersion: number;
-}
-
-/**
- * Runtime validator for {@link RestoreVersionResponse}.
- */
-export const restoreVersionResponseSchema = z.object({
-    recipe: recipeDetailSchema,
-    restoredFromVersion: positiveIntSchema,
-    currentVersion: positiveIntSchema,
-});
+// ⛔ `RestoreVersionResponse` / `restoreVersionResponseSchema` USED TO BE HERE and were MOVED to
+// `packages/services/recipe-service/src/versions/versions.schema.ts`, published as `@kitchensink/schema-recipe`.
+//
+// It is an endpoint RESPONSE ENVELOPE — the body of exactly one route — not a domain entity, so it belongs to
+// the service that serves it (ADR-0014 / §15). The tell is in its own shape: it is `{ recipe, restoredFromVersion,
+// currentVersion }`, a description of what ONE operation returns, and nothing in the recipe DOMAIN has that
+// shape. `RecipeDetail` and `RecipeVersion` — the entities it is assembled from — stay here, which is the line
+// GR-007 and GR-015 draw between them.
+//
+// It is also the reason the line is worth drawing: while it lived here, a change to the restore response moved
+// no `CONTRACT_HASH`, so drift layer 3 could not see it.
 
 /**
  * One user's star rating of one recipe (CR-001 / FR-013).
@@ -890,24 +883,15 @@ export const recipeRatingSchema = z.object({
     updatedAt: isoDateTimeStringSchema,
 });
 
-/**
- * Body of the idempotent `PUT /api/v1/recipes/{id}/rating` upsert (FR-013).
- *
- * The rater is taken from the authenticated token, never from the body — a client-supplied rater id
- * would let any caller rate as anyone else. The schema is non-strict (unknown keys are stripped), so a
- * body carrying a spoofed `userId` parses to `{ stars }` only.
- */
-export interface SetRecipeRatingInput {
-    /** Whole stars, 1–5 inclusive. */
-    stars: number;
-}
-
-/**
- * Runtime validator for {@link SetRecipeRatingInput}.
- */
-export const setRecipeRatingInputSchema = z.object({
-    stars: z.number().int().min(1).max(5),
-});
+// ⛔ `SetRecipeRatingInput` / `setRecipeRatingInputSchema` USED TO BE HERE and are GONE. The request ENVELOPE is
+// authored by the service in `packages/services/recipe-service/src/ratings/ratings.schema.ts`
+// (`setRatingRequestSchema`, now `z.strictObject` per GR-017 §17-c); the VALUE constraint it composes is
+// `recipeRatingStarsSchema` in `./recipeRequestBounds.ts`, which is where a bounded domain value belongs.
+//
+// Keeping a whole request body here is what `recipeRequestBounds.ts`'s header forbids, and it had a concrete
+// cost: the rating body could not be made strict without changing a schema every other consumer of the domain
+// type shares. The docstring it carried is also the record of why the ruling changed — it explained that a
+// spoofed `userId` "parses to `{ stars }` only", i.e. the caller was told `200`.
 
 /**
  * User-owned collection used to organize recipes.
@@ -1070,117 +1054,24 @@ export const recipeVersionPendingArchiveSchema = z.object({
 // ⛔ So a whole request BODY schema still does not belong in this package. A single bounded FIELD does, and
 // the service composes it by reference (asserted by identity in that service's `recipes.schema.test.ts`).
 //
-// The INTERFACES below stay, because they are the shape the typed client's method signatures and the
-// editor's form model are written against, and a `z.infer` of the service's schema is asserted mutually
-// assignable to them in `recipe-service/src/recipes/__tests__/recipes.schema.test.ts` — so the domain type
-// and the wire schema cannot drift apart in silence. They carry no BOUNDS and cannot: a TypeScript `number`
-// has no way to express `≤ 2147483647`, which is exactly why the zod above is the authority and these are a
-// projection of it rather than a rival.
-
-/**
- * Input payload for a single ingredient when creating or updating a recipe draft.
- */
-export interface CreateRecipeIngredientInput {
-    /**
-     * The catalog `ingredients` row this line references — REQUIRED. Both food-backed and freeform
-     * (user-entered) ingredients are first created in the catalog, so a recipe line always points at an
-     * existing id; the server rejects an unknown id with `UNKNOWN_INGREDIENT` (400).
-     */
-    ingredientId: string;
-    /** The client's display label. The server re-resolves the CANONICAL name from the catalog (ADV-2). */
-    name: string;
-    quantity: number;
-    unit?: string;
-    /** Free-form display override (wire field `notes`; persisted as `displayText`). */
-    notes?: string;
-    /** Per-line user-entered nutrition override (FR-007a) — absolute for this line's quantity. */
-    userCalories?: number;
-    userProteinG?: number;
-    userCarbsG?: number;
-    userFatG?: number;
-}
-
-/**
- * Input payload for a single instruction step when creating or updating a recipe
- * draft. The server assigns `stepNumber` from array order; the client sends only
- * the instruction text and an optional inline timer.
- *
- * `timerSeconds` must be STRICTLY POSITIVE where it is present — the persisted column carries
- * `CHECK (timer_seconds IS NULL OR timer_seconds > 0)`, so "no timer" is expressed by omitting the key, never
- * by `0`. Enforced by the service's `recipeStepInputSchema`.
- */
-export interface CreateRecipeStepInput {
-    instruction: string;
-    timerSeconds?: number;
-}
-
-/**
- * Input payload to create a new recipe.
- *
- * `servings` and all three timings are REQUIRED — the server's create contract requires them, and
- * `totalTimeMinutes` is an independent value (not derived from prep + cook: a recipe may have inactive
- * time — rest, marinate, chill — that belongs in the total but in neither prep nor cook). Making them
- * required here means the typed client can only build an accepted create body (resolves divergence #5).
- */
-export interface CreateRecipeInput {
-    title: string;
-    description?: string;
-    ingredients: CreateRecipeIngredientInput[];
-    steps: CreateRecipeStepInput[];
-    servings: number;
-    prepTimeMinutes: number;
-    cookTimeMinutes: number;
-    totalTimeMinutes: number;
-    /** Author-stated difficulty (FR-001b). Omit when the author states none — there is no default. */
-    difficulty?: RecipeDifficulty;
-    cuisine?: string;
-    dietaryFlags?: string[];
-    tags?: string[];
-    visibility?: RecipeVisibility;
-    /**
-     * Publication status (W8-a.3). OPTIONAL: absent leaves it unchanged on update (the server defaults a
-     * create to `published` when omitted). The wizard's Save Draft sends `draft`; Publish sends `published`;
-     * the plain (non-wizard) "Save changes" path omits it entirely so it never flips an existing recipe's
-     * publication state as a side effect of an unrelated edit.
-     */
-    status?: RecipeStatus;
-    /**
-     * The device that authored this version (W8-a.6 / FR-007b) — OPTIONAL bounded free text recorded on the
-     * version snapshot the write creates.
-     *
-     * It was MISSING from this type while the service accepted and persisted it, and while the published
-     * contract listed it only on `RecipeVersion` (a response) with both request bodies marked
-     * `additionalProperties: false` — so the document forbade a field the service uses. Bounded by
-     * {@link MAX_RECIPE_DEVICE_LABEL_LENGTH} and charset-restricted by the service's request schema.
-     */
-    deviceLabel?: string;
-}
-
-/**
- * Input payload to update an existing recipe with optimistic concurrency protection.
- *
- * Standard semantic: an OMITTED field is left unchanged. `difficulty` is the deliberate exception (it
- * is three-state — see below), so it is excluded from the inherited `Partial<CreateRecipeInput>` and
- * re-declared with the `| null` clear sentinel.
- *
- * `visibility` is inherited from `Partial<CreateRecipeInput>` but the SERVICE IGNORES IT on this route — it
- * is set through `PATCH /api/v1/recipes/{id}/visibility`, where the C-004 policy evaluator gates the
- * transition. The published `UpdateRecipeRequest` no longer advertises it for that reason; the field survives
- * here only because the editor's `toUpdateRecipeInput` spreads its create projection, and a value sent is
- * dropped exactly as it always was.
- */
-export interface UpdateRecipeInput extends Omit<Partial<CreateRecipeInput>, 'difficulty'> {
-    expectedVersion: number;
-    /**
-     * Author-stated difficulty (FR-001b). Three distinct meanings, and they are not interchangeable:
-     * omitted = leave unchanged; a value = set it; explicit `null` = CLEAR it back to "not stated".
-     *
-     * `null` is required because FR-001b makes "no difficulty" a first-class state: without an
-     * explicit clear sentinel, `Partial<>`'s omitted-means-unchanged rule would make that state
-     * reachable only at create time, so a user who ever set a difficulty could never remove it.
-     */
-    difficulty?: RecipeDifficulty | null;
-}
+// ⛔ AND NEITHER DOES A WHOLE REQUEST BODY INTERFACE. `CreateRecipeInput`, `UpdateRecipeInput`,
+// `CreateRecipeIngredientInput` and `CreateRecipeStepInput` lived here and are GONE (ADR-0014 / §15 rule 4),
+// as is `SetRecipeRatingInput` further down.
+//
+// They were the TYPE half of a twin whose ZOD half had already been removed, and the argument that kept them —
+// "a z.infer of the service schema is asserted mutually assignable, so they cannot drift in silence" — was
+// weaker than it read. Mutual assignability is not identity, and TypeScript's excess-property check does not
+// apply to a SPREAD: a projection annotated with one of these interfaces could send a field the wire schema
+// does not accept and still compile.
+//
+// That is not hypothetical. `toUpdateRecipeInput` was sending `visibility` on the PATCH body,
+// `updateRecipeRequestSchema` does not accept it, the service silently STRIPPED it, and a test PINNED the
+// resulting behaviour as correct. Two representations plus an assignability check is what let that live.
+//
+// The replacements are the published wire types, and there is exactly one of each: `CreateRecipeRequest`,
+// `UpdateRecipeRequest`, `RecipeIngredientInput`, `RecipeStepInput` and `SetRatingRequest` from
+// `@kitchensink/schema-recipe`. A consumer whose shape genuinely differs DERIVES it (`Pick`/`Omit`/`Partial`)
+// rather than declaring it — see `packages/apps/commise/features/recipes/src/filters/model.ts`.
 
 /**
  * Query parameters for recipe catalog search.

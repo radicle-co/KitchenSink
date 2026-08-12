@@ -23,7 +23,6 @@ import {
     recipePhotoSchema,
     recipeSchema,
     recipeVersionSchema,
-    restoreVersionResponseSchema,
     versionConflictDetailsSchema,
 } from '@kitchensink/recipe-core';
 import { z } from 'zod';
@@ -36,8 +35,6 @@ import type {
     RecipeSearchParams,
     RecipeVersion,
     RecipeVisibility,
-    RestoreVersionResponse,
-    SetRecipeRatingInput,
 } from '@kitchensink/recipe-core';
 import ky, { HTTPError, TimeoutError } from 'ky';
 import type { KyInstance, Options } from 'ky';
@@ -112,12 +109,18 @@ import {
     recipeSearchResponseSchema,
     reorderPhotosRequestSchema,
     resolveIngredientRequestSchema,
+    restoreVersionResponseSchema,
     setRatingRequestSchema,
     setRecipeVisibilityRequestSchema,
     updateCollectionRequestSchema,
     updateRecipeRequestSchema,
 } from '@kitchensink/schema-recipe';
-import type { CreateRecipeRequest, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
+import type {
+    CreateRecipeRequest,
+    RestoreVersionResponse,
+    SetRatingRequest,
+    UpdateRecipeRequest,
+} from '@kitchensink/schema-recipe';
 
 /**
  * A bearer token supplied either as a literal or a (sync/async) per-request callback. The callback
@@ -467,7 +470,7 @@ export class RecipeServiceClient {
      *   {@link NotFoundError} when the recipe is absent OR not visible to the caller.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async setRecipeRating(id: string, input: SetRecipeRatingInput): Promise<RecipeDetail> {
+    public async setRecipeRating(id: string, input: SetRatingRequest): Promise<RecipeDetail> {
         const res = await this.send(
             'PUT',
             `/api/v1/recipes/${encodeURIComponent(id)}/rating`,

@@ -24,7 +24,7 @@ import {
     isPullDriftError,
     isVersionConflictError,
 } from '../index.js';
-import { makePullDiff, makeRecipeDetail } from '../__fixtures__/recipes.js';
+import { makeCreateRecipeRequest, makePullDiff, makeRecipeDetail } from '../__fixtures__/recipes.js';
 import { callsOf, requestAt, sequenceFetch, stubFetch } from './utils/fetchDouble.js';
 
 const BASE = 'https://recipes.example.test';
@@ -157,15 +157,17 @@ describe('RecipeServiceClient — request build + token attach', () => {
         const fetchMock = stubFetch(201, created);
         const client = new RecipeServiceClient({ baseUrl: `${BASE}/`, token: 'tok-123', fetch: fetchMock });
 
-        const input = {
+        // Built from the fixture factory rather than spelled inline: the client validates its OUTBOUND body
+        // against `createRecipeRequestSchema`, whose `ingredients`/`steps` are both `.min(1)`, so the empty
+        // arrays this used to send were a body the service answers `400` to — the assertion below would have
+        // pinned a request that could never have succeeded in production.
+        const input = makeCreateRecipeRequest({
             title: 'Soup',
-            ingredients: [],
-            steps: [],
             servings: 2,
             prepTimeMinutes: 5,
             cookTimeMinutes: 10,
             totalTimeMinutes: 15,
-        };
+        });
         const result = await client.createRecipe(input);
 
         expect(result).toEqual(created);

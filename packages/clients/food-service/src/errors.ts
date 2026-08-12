@@ -156,6 +156,39 @@ export function isFetchUnavailableError(error: unknown): error is FetchUnavailab
     return error instanceof FetchUnavailableError;
 }
 
+/**
+ * The body the CALLER built does not satisfy the request schema the food service publishes, so the request was
+ * never sent (ADR-0014, outbound half).
+ *
+ * ⚠️ It is deliberately NOT a {@link BadRequestError}, because three failures that all look like "a 400" need
+ * to stay distinguishable — the right response to each differs and a caller cannot act on a conflated one:
+ *
+ *  1. **This error** — the caller's own bug. The body is illegal per `@kitchensink/schema-food`; no request
+ *     went out and a retry with the same body cannot work.
+ *  2. {@link BadRequestError} — the SERVER answered `400`. The body was legal per the contract this client
+ *     compiles against and the service rejected it anyway: either a rule the contract does not express, or
+ *     genuine skew worth alerting on.
+ *  3. A bare `ZodError` from the response parse — the SERVER's body drifted from the contract.
+ *
+ * Mirrors `@kitchensink/recipe-service-client`'s `InvalidRequestError`, so the two clients read alike.
+ */
+export class InvalidRequestError extends FoodServiceClientError {
+    /** The `ZodError` from parsing the outbound body against the published request schema. */
+    public override readonly cause: unknown;
+
+    public constructor(operation: string, cause: unknown) {
+        super(`Request body for ${operation} does not satisfy the published food-service contract`);
+        this.name = 'InvalidRequestError';
+        this.cause = cause;
+        Object.setPrototypeOf(this, InvalidRequestError.prototype);
+    }
+}
+
+/** Type guard for {@link InvalidRequestError}. */
+export function isInvalidRequestError(error: unknown): error is InvalidRequestError {
+    return error instanceof InvalidRequestError;
+}
+
 /** Any unmapped/unexpected response status (a contract drift the caller should surface, not swallow). */
 export class UnexpectedResponseError extends FoodServiceClientError {
     public constructor(status: number, message = `Unexpected food-service response (${status})`) {

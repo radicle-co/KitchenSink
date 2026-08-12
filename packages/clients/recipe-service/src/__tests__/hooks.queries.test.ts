@@ -912,9 +912,11 @@ describe('useAllOwnerRecipes', () => {
 
         // After the first page resolves there is still a page owed → not complete, still loading.
         await waitFor(() => expect(result.current.recipes.length).toBeGreaterThan(0));
+
         if (!result.current.isComplete) {
             expect(result.current.isLoading).toBe(true);
         }
+
         await waitFor(() => expect(result.current.isComplete).toBe(true));
         expect(result.current.recipes).toHaveLength(2);
     });

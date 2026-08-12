@@ -1,0 +1,8 @@
+{
+    "name": "@kitchensink/tagged-without-reason-client",
+    "private": true,
+    "dependencies": {
+        "@kitchensink/schema-thing": "*",
+        "zod": "^4.4.3"
+    }
+}

@@ -9,9 +9,14 @@ import { describe, expect, it } from 'vitest';
 
 import { RecipeServiceClient } from '../index.js';
 import {
+    FIXTURE_OTHER_PHOTO_UUID,
+    FIXTURE_OTHER_RECIPE_UUID,
+    FIXTURE_PHOTO_UUID,
+    FIXTURE_RECIPE_UUID,
     makeCollection,
     makeCollectionRecipeMembership,
     makeCollectionWithRecipes,
+    makeCreateRecipeRequest,
     makeErasureAccepted,
     makeIngredient,
     makePaginatedResponse,
@@ -43,15 +48,10 @@ describe('RecipeServiceClient — recipes', () => {
     it('createRecipe POSTs /api/v1/recipes with the draft body and returns the created detail (201)', async () => {
         const created = makeRecipeDetail({ id: 'rec_new' });
         const fetchMock = stubFetch(201, created);
-        const input = {
-            title: 'Tomato Soup',
-            ingredients: [],
-            steps: [],
-            servings: 4,
-            prepTimeMinutes: 10,
-            cookTimeMinutes: 20,
-            totalTimeMinutes: 30,
-        };
+        // A contract-valid draft: `createRecipeRequestSchema` requires at least one ingredient AND at least
+        // one step, and the client validates the outbound body, so the empty arrays this used to send were a
+        // `400` the service would never have accepted — the body asserted below is now one that it would.
+        const input = makeCreateRecipeRequest();
 
         const result = await makeClient(fetchMock).createRecipe(input);
 
@@ -422,16 +422,21 @@ describe('RecipeServiceClient — photos', () => {
     });
 
     it('reorderRecipePhotos PATCHes /photos/reorder with { photoIds } and returns the ordered photos (200)', async () => {
+        // The ids sent are v4 UUIDs because `reorderPhotosRequestSchema.photoIds` is
+        // `z.array(z.uuid({ version: 'v4' })).min(1)` — a `'pho_2'` token is not a photo id the service can
+        // resolve, so the old fixture asserted a reorder request that would have come back `400`. (The
+        // RESPONSE keeps readable ids: response id fields are deliberately `z.string().min(1)`.)
+        const desiredOrder = [FIXTURE_OTHER_PHOTO_UUID, FIXTURE_PHOTO_UUID];
         const reordered = [makeRecipePhoto({ id: 'pho_2', order: 1 }), makeRecipePhoto({ id: 'pho_1', order: 2 })];
         const fetchMock = stubFetch(200, reordered);
 
-        const result = await makeClient(fetchMock).reorderRecipePhotos('rec_1', ['pho_2', 'pho_1']);
+        const result = await makeClient(fetchMock).reorderRecipePhotos('rec_1', desiredOrder);
 
         expect(result).toEqual(reordered);
         const req = requestAt(fetchMock);
         expect(req.method).toBe('PATCH');
         expect(req.url).toBe(`${BASE}/api/v1/recipes/rec_1/photos/reorder`);
-        expect(jsonBody(fetchMock)).toEqual({ photoIds: ['pho_2', 'pho_1'] });
+        expect(jsonBody(fetchMock)).toEqual({ photoIds: desiredOrder });
     });
 });
 
@@ -513,13 +518,16 @@ describe('RecipeServiceClient — collections', () => {
         const membership = makeCollectionRecipeMembership();
         const fetchMock = stubFetch(201, membership);
 
-        const result = await makeClient(fetchMock).addRecipeToCollection('col_1', 'rec_1');
+        // `addRecipeToCollectionRequestSchema.recipeId` is `z.uuid()` (the `recipes.id uuid` column), so the
+        // BODY must carry a UUID — `'rec_1'` was never a resolvable recipe id. The collection id stays a
+        // readable token because it travels in the PATH, which this schema does not describe.
+        const result = await makeClient(fetchMock).addRecipeToCollection('col_1', FIXTURE_RECIPE_UUID);
 
         expect(result).toEqual(membership);
         const req = requestAt(fetchMock);
         expect(req.method).toBe('POST');
         expect(req.url).toBe(`${BASE}/api/v1/collections/col_1/recipes`);
-        expect(jsonBody(fetchMock)).toEqual({ recipeId: 'rec_1' });
+        expect(jsonBody(fetchMock)).toEqual({ recipeId: FIXTURE_RECIPE_UUID });
     });
 
     it('removeRecipeFromCollection DELETEs /{id}/recipes/{recipeId} and resolves void (204)', async () => {
@@ -651,7 +659,13 @@ describe('RecipeServiceClient — search & account', () => {
     it('requestAccountErasure forwards the per-recipe donate election (publishRecipeIds) in the body', async () => {
         const accepted = makeErasureAccepted({ status: 'queued' });
         const fetchMock = stubFetch(202, accepted);
-        const request = { confirmationPhrase: 'ERASE MY DATA', publishRecipeIds: ['rec-1', 'rec-2'] } as const;
+        // Each entry is a UUID because `erasureRequestSchema.publishRecipeIds` is `z.array(z.uuid())` — the
+        // election names `recipes.id` rows for the worker to publish, and `'rec-1'` names nothing. This
+        // fixture now exercises an election the service would actually honour.
+        const request = {
+            confirmationPhrase: 'ERASE MY DATA',
+            publishRecipeIds: [FIXTURE_RECIPE_UUID, FIXTURE_OTHER_RECIPE_UUID],
+        } as const;
 
         const result = await makeClient(fetchMock).requestAccountErasure(request);
 

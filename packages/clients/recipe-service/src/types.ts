@@ -84,18 +84,29 @@ export type {
     PullFromSourceResponse,
     UpdateCollectionRequest,
 } from '@kitchensink/schema-recipe';
-// Imported (not merely re-exported) because the two types below are DERIVED from them.
-import type { CollectionMemberRecipe, ListCollectionsQuery } from '@kitchensink/schema-recipe';
+// Imported (not merely re-exported) because the three types below are DERIVED from them.
+import type { CollectionMemberRecipe, ListCollectionsQuery, ListRecipesQuery } from '@kitchensink/schema-recipe';
 
-/** Sort key for `listRecipes` (`GET /api/v1/recipes`). */
-export type RecipeListSortBy = 'updatedAt' | 'createdAt' | 'title';
+/**
+ * Sort key for `listRecipes` (`GET /api/v1/recipes`). ALIAS of the contract's `RecipeListSortBy`, which the
+ * service derives from the `RECIPE_LIST_SORT_BY` tuple its own `z.enum` validates against — so the union here
+ * cannot drift from the keys the endpoint actually accepts. The hand-written copy this replaced spelled the
+ * same three literals, which is exactly the failure mode: it agreed today and nothing checked it tomorrow.
+ */
+export type { RecipeListSortBy } from '@kitchensink/schema-recipe';
 
-/** Query parameters for `listRecipes`. */
-export interface ListRecipesParams {
-    readonly page?: number;
-    readonly pageSize?: number;
-    readonly sortBy?: RecipeListSortBy;
-}
+/**
+ * Query parameters for `listRecipes` (`GET /api/v1/recipes`).
+ *
+ * DERIVED from the contract's parsed query type rather than declared, for the same reasons — verbatim — as
+ * {@link ListCollectionsParams} below: adding a parameter server-side widens this automatically, and
+ * `Partial<>` (not the schema's own INPUT type) because the two ends mean different things — the contract's
+ * input is what the coercing schema accepts off a query string (`z.coerce.number()` takes `unknown`, which is
+ * useless as a caller-facing type), while a caller passes real numbers or omits them and the server's
+ * `.default()` supplies 1 / 20 / `'updatedAt'` for what is omitted. A genuinely client-side shape (§15.2.4),
+ * which is why it stays in this file.
+ */
+export type ListRecipesParams = Readonly<Partial<ListRecipesQuery>>;
 
 /**
  * Query parameters for `listCollections` (`GET /api/v1/collections`).

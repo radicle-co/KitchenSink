@@ -3,7 +3,20 @@
  *
  * Pure, platform-agnostic state + helpers for the recipe editor, shared by the web (`*.tsx`) and native
  * (`*.native.tsx`) form leaves and by the app container. Holds the editable form shape, the auto total-time
- * rule, the mapping to the `CreateRecipeInput` wire contract, and validation. No React, no platform APIs.
+ * rule, the mapping to the recipe service's PUBLISHED request contract, and validation. No React, no
+ * platform APIs.
+ *
+ * ⚠️ THE MAPPERS TARGET `@kitchensink/schema-recipe`, NOT A LOCAL TWIN (§15 rule 4 / ADR-0014). They used to
+ * be annotated with `recipe-core`'s `CreateRecipeInput` / `UpdateRecipeInput` — hand-written interfaces that
+ * mirrored `createRecipeRequestSchema` / `updateRecipeRequestSchema` field for field with nothing comparing
+ * them, which is the silent-drift shape §15.1 measures. Now the editor's output type IS the request type the
+ * service authors, so a backend field change fails this package's `typecheck` instead of an emulator run.
+ *
+ * The swap also surfaced a real defect it had been hiding: `toUpdateRecipeInput` shipped `visibility` on the
+ * `PATCH` body, because it spreads the create projection. `UpdateRecipeRequest` has no such key — visibility
+ * moves through `PATCH /api/v1/recipes/{id}/visibility`, where the C-004 policy evaluator gates it — and the
+ * service silently STRIPPED it. A spread is exempt from excess-property checking, so annotating with the
+ * published type would have compiled while still sending the field; it is dropped explicitly below instead.
  */
 import {
     computeRecipeNutrition,
@@ -13,7 +26,6 @@ import {
     toNutritionLine as buildNutritionLine,
 } from '@kitchensink/recipe-core';
 import type {
-    CreateRecipeInput,
     FoodResolutionStatus,
     IngredientPortion,
     LineCatalogNutrition,
@@ -24,8 +36,8 @@ import type {
     RecipeNutrition,
     RecipeStatus,
     RecipeVisibility,
-    UpdateRecipeInput,
 } from '@kitchensink/recipe-core';
+import type { CreateRecipeRequest, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
 
 /**
  * One editable ingredient line. `ingredientId` is `null` until the line resolves to a catalog row (via
@@ -216,18 +228,18 @@ export const defaultRecipeFormValues = (): RecipeFormValues => ({
 });
 
 /**
- * Map form values to the `CreateRecipeInput` wire contract: computes total time, drops unresolved
- * ingredient lines (no `ingredientId`), omits empty optional strings, and carries a step timer only when
- * set. `status` (w3, draft/publish) is a SUBMISSION-time concern, not part of the form's own values — it is
- * threaded as a separate argument and OMITTED when not given, so the plain (non-wizard) save path never
- * touches publication state as a side effect. Pure. (Validate BEFORE submitting — this does not throw on an
- * incomplete form.)
+ * Map form values to the service's published `CreateRecipeRequest` body: computes total time, drops
+ * unresolved ingredient lines (no `ingredientId`), omits empty optional strings, and carries a step timer
+ * only when set. `status` (w3, draft/publish) is a SUBMISSION-time concern, not part of the form's own values
+ * — it is threaded as a separate argument and OMITTED when not given, so the plain (non-wizard) save path
+ * never touches publication state as a side effect. Pure. (Validate BEFORE submitting — this does not throw
+ * on an incomplete form.)
  *
  * @param values - The editor's form values.
  * @param status - The publication status to persist (`draft`/`published`); omit to leave it untouched.
- * @returns The `CreateRecipeInput` payload.
+ * @returns The `POST /api/v1/recipes` body.
  */
-export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeStatus): CreateRecipeInput => ({
+export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeStatus): CreateRecipeRequest => ({
     title: values.title.trim(),
     ...(values.description.trim() === '' ? {} : { description: values.description.trim() }),
     ...(values.cuisine.trim() === '' ? {} : { cuisine: values.cuisine.trim() }),
@@ -257,29 +269,44 @@ export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeSta
 });
 
 /**
- * Map form values to the body of an `UpdateRecipeInput` (the caller adds the `expectedVersion` optimistic-
- * concurrency token). Identical to {@link toCreateRecipeInput} for every field EXCEPT `difficulty`, which is
- * three-state on update (omit = unchanged, value = set, `null` = clear).
+ * Map form values to the service's published `UpdateRecipeRequest` body, minus the `expectedVersion`
+ * optimistic-concurrency token the caller adds. Identical to {@link toCreateRecipeInput} for every field
+ * EXCEPT two, and both exceptions are the contract's, not this function's.
  *
- * The edit form is seeded from the recipe's current difficulty, so the field's presence encodes the user's
- * INTENT: a present value means "set/keep this difficulty", and an ABSENT value means the user chose "not
- * stated" and wants it CLEARED. This maps absent → explicit `null` (not omit): omit would leave a previously
- * set difficulty unchanged, making "not stated" unreachable once set (FR-001b). Sending the current value
- * again, or `null` on an already-unstated recipe, is idempotent — consistent with the form's full-state
- * replacement of every other field on update. Pure. (Validate BEFORE submitting.)
+ * `difficulty` is three-state on update (omit = unchanged, value = set, `null` = clear). The edit form is
+ * seeded from the recipe's current difficulty, so the field's presence encodes the user's INTENT: a present
+ * value means "set/keep this difficulty", and an ABSENT value means the user chose "not stated" and wants it
+ * CLEARED. This maps absent → explicit `null` (not omit): omit would leave a previously set difficulty
+ * unchanged, making "not stated" unreachable once set (FR-001b). Sending the current value again, or `null` on
+ * an already-unstated recipe, is idempotent — consistent with the form's full-state replacement of every other
+ * field on update.
+ *
+ * ⚠️ `visibility` IS DROPPED, and that is a fix rather than a restriction. `PATCH /api/v1/recipes/{id}` does
+ * not accept it — `updateRecipeRequestSchema` omits the key, because visibility transitions go through
+ * `PATCH /api/v1/recipes/{id}/visibility` where the C-004 policy evaluator decides whether the transition is
+ * allowed at all. This function nevertheless SENT it for as long as it existed, inheriting it from the create
+ * projection it spreads, and the service silently stripped it: a field the client believed it was setting and
+ * the server discarded. Deleting it here means the body this produces is one the published contract describes.
+ * Pure. (Validate BEFORE submitting.)
  *
  * @param values - The editor's form values.
  * @param status - The publication status to persist (`draft`/`published`); omit to leave it untouched.
- * @returns The `UpdateRecipeInput` body, without `expectedVersion`.
+ * @returns The `PATCH /api/v1/recipes/{id}` body, without `expectedVersion`.
  */
 export const toUpdateRecipeInput = (
     values: RecipeFormValues,
     status?: RecipeStatus,
-): Omit<UpdateRecipeInput, 'expectedVersion'> => ({
-    ...toCreateRecipeInput(values, status),
-    // Present → set that value; absent → explicit null CLEAR (the crux: omit could never clear a set value).
-    difficulty: values.difficulty ?? null,
-});
+): Omit<UpdateRecipeRequest, 'expectedVersion'> => {
+    // Destructured out, not `delete`d: the key must be ABSENT from the returned object, and a spread of the
+    // create projection would otherwise reintroduce it past the type system's excess-property check.
+    const { visibility: _visibility, ...rest } = toCreateRecipeInput(values, status);
+
+    return {
+        ...rest,
+        // Present → set that value; absent → explicit null CLEAR (the crux: omit could never clear a set value).
+        difficulty: values.difficulty ?? null,
+    };
+};
 
 /**
  * Project a loaded {@link RecipeDetail} onto the editor's {@link RecipeFormValues} seed shape (T067, unified
@@ -435,7 +462,8 @@ const isResolvedIngredientId = (ingredientId: string | null): boolean =>
  * and a positive quantity, ≥1 step with a non-empty instruction, positive servings, non-negative times.
  * Pure and locale-free — returns error CODES (the leaf resolves copy). Empty object when submittable.
  *
- * COMPOSES the `CreateRecipeInput` wire schema (DA5, parse-don't-validate) for the rules it and the form
+ * COMPOSES the published `createRecipeRequestSchema`'s field bounds (DA5, parse-don't-validate) for the
+ * rules it and the form
  * genuinely share — title, ingredient id/quantity, step instruction — via the field schemas above, each
  * `.safeParse`d against the (trimmed, for strings) form value and mapped to the SAME `RecipeFormErrorCode`s
  * this validator has always returned. Two kinds of rule stay hand-written rather than schema-derived:
@@ -462,7 +490,10 @@ export const validateRecipeForm = (values: RecipeFormValues): RecipeFormErrors =
     }
 
     if (values.ingredients.length === 0) {
-        // Form-only: the wire schema allows an empty `ingredients` array.
+        // Caught HERE so the user gets a field-level message instead of a 400: `createRecipeRequestSchema`
+        // also rejects an empty `ingredients` array (`.min(1)`), so this is the same rule stated where it can
+        // be shown, not a form-only extra. (It said "the wire schema allows an empty array" until the
+        // published contract gained the bound; keeping that claim would have invited deleting the check.)
         errors.ingredients = 'ingredientsEmpty';
     } else if (
         values.ingredients.some(
@@ -473,7 +504,8 @@ export const validateRecipeForm = (values: RecipeFormValues): RecipeFormErrors =
     }
 
     if (
-        // Form-only: the wire schema allows an empty `steps` array.
+        // Same as `ingredients` above: `createRecipeRequestSchema.steps` carries `.min(1)`, so this surfaces
+        // the contract's own bound as a field message rather than adding a form-only rule.
         values.steps.length === 0 ||
         values.steps.some((step) => !instructionSchema.safeParse(step.instruction.trim()).success)
     ) {

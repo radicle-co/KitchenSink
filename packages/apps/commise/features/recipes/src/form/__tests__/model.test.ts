@@ -12,6 +12,7 @@ import {
     recipeTitleSchema,
     RecipeDifficulty,
     RecipeStatus,
+    RecipeVisibility,
     MAX_RECIPE_DESCRIPTION_LENGTH,
     MAX_RECIPE_TITLE_LENGTH,
 } from '@kitchensink/recipe-core';
@@ -152,12 +153,33 @@ describe('toUpdateRecipeInput (three-state difficulty)', () => {
         expect('difficulty' in input).toBe(true);
     });
 
-    it('mirrors create for every non-difficulty field', () => {
+    it('mirrors create for every field except difficulty AND visibility', () => {
         const values = filledValues({ description: 'Creamy.', cuisine: 'Italian', difficulty: RecipeDifficulty.EASY });
         const { difficulty: _updateDifficulty, ...updateRest } = toUpdateRecipeInput(values);
-        const { difficulty: _createDifficulty, ...createRest } = toCreateRecipeInput(values);
+        const {
+            difficulty: _createDifficulty,
+            visibility: _createVisibility,
+            ...createRest
+        } = toCreateRecipeInput(values);
 
         expect(updateRest).toEqual(createRest);
+    });
+
+    // ⚠️ THE ASSERTION THIS PAIR REPLACED WAS THE BUG'S ALIBI. It compared the two bodies field-for-field with
+    // only `difficulty` excluded, so it actively PINNED `visibility` onto the PATCH body — a key
+    // `updateRecipeRequestSchema` does not accept, because visibility moves through
+    // `PATCH /api/v1/recipes/{id}/visibility` where the C-004 policy evaluator gates the transition. The service
+    // silently stripped it, so nothing failed and the test read as proof the mapper was right.
+    it('OMITS visibility — the PATCH contract has no such key, and the service was silently stripping it', () => {
+        const input = toUpdateRecipeInput(filledValues({ visibility: RecipeVisibility.PRIVATE }));
+
+        expect('visibility' in input).toBe(false);
+    });
+
+    // The other half, so the omission above cannot be "fixed" by dropping visibility from BOTH mappers: create
+    // genuinely accepts it (`createRecipeRequestSchema.visibility`), and the editor's privacy control needs it.
+    it('but create KEEPS visibility, which its own contract does accept', () => {
+        expect(toCreateRecipeInput(filledValues({ visibility: RecipeVisibility.PRIVATE })).visibility).toBe('private');
     });
 
     it('diverges from create ONLY on the not-stated case: create omits, update clears with null', () => {

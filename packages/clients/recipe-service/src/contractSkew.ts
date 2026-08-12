@@ -65,7 +65,7 @@
  * DESIGN PATTERN: Specification (a pure verdict predicate) + a fire-and-forget Command with an idempotence
  * latch. The verdict, the message, and the probe are separated so the DECISION is testable without a socket.
  */
-import { CONTRACT_HASH } from '@kitchensink/schema-recipe';
+import { CONTRACT_HASH, healthStatusSchema } from '@kitchensink/schema-recipe';
 
 /** A lower-case hex SHA-256 — the shape of every fingerprint the contract generator emits. */
 const SHA256_HEX = /^[0-9a-f]{64}$/u;
@@ -277,11 +277,17 @@ async function readPublishedContractHash(
             return undefined;
         }
 
-        const body: unknown = JSON.parse(await response.text());
+        // PARSED against the published `healthStatusSchema`, not cast. `.safeParse` (not `.parse`) because a
+        // skew PROBE must never throw or become a second failure mode: an unreachable or degraded origin, or one
+        // answering `/health` with something else entirely (the shared ALB's HTML error page, ADR-0003), simply
+        // yields "no fingerprint available" and the check stays silent — rule 2 of this module's contract.
+        //
+        // The cast this replaces (`body as { contractHash?: unknown }`) asserted the ONE field the whole of
+        // drift layer 3 depends on. Reading it through the service's own published envelope means the probe
+        // that detects contract drift is not itself an unchecked belief about the contract.
+        const parsed = healthStatusSchema.safeParse(JSON.parse(await response.text()));
 
-        return typeof body === 'object' && body !== null
-            ? (body as { contractHash?: unknown }).contractHash
-            : undefined;
+        return parsed.success ? parsed.data.contractHash : undefined;
     } finally {
         clearTimeout(timer);
     }

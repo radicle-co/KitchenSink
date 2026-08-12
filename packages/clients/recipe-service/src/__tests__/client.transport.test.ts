@@ -19,7 +19,7 @@ import {
     isRecipeServiceClientError,
 } from '../index.js';
 import type { FetchUnavailableError } from '../index.js';
-import { makePaginatedResponse, makeRecipeDetail } from '../__fixtures__/recipes.js';
+import { makeCreateRecipeRequest, makePaginatedResponse, makeRecipeDetail } from '../__fixtures__/recipes.js';
 import { resetContractSkewLatchForTests } from '../contractSkew.js';
 import {
     callsOf,
@@ -110,15 +110,17 @@ describe('RecipeServiceClient — identity-sync retry backoff + replay', () => {
             { status: 201, body: makeRecipeDetail({ id: 'rec_new' }) },
         ]);
         const client = new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock, sleep });
-        const input = {
+        // The replayed body must be one the service would accept, or this test proves nothing about a real
+        // retried create: `createRecipeRequestSchema` requires >= 1 ingredient and >= 1 step, and the client
+        // validates the outbound body once, up front — so an invalid draft never reaches the first attempt,
+        // let alone the replay.
+        const input = makeCreateRecipeRequest({
             title: 'Soup',
-            ingredients: [],
-            steps: [],
             servings: 2,
             prepTimeMinutes: 5,
             cookTimeMinutes: 10,
             totalTimeMinutes: 15,
-        };
+        });
 
         await client.createRecipe(input);
 

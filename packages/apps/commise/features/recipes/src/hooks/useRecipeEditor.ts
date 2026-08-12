@@ -119,9 +119,11 @@ import {
     RecipeStatus,
     type RecipeDetail,
     type RecipeSnapshot,
-    type UpdateRecipeInput,
     type VersionConflictSide,
 } from '@kitchensink/recipe-core';
+// The PATCH envelope, from the contract the service authors — was `recipe-core`'s hand-written
+// `UpdateRecipeInput` twin (§15 rule 4 / ADR-0014).
+import type { UpdateRecipeRequest } from '@kitchensink/schema-recipe';
 import { isVersionConflictError } from '@kitchensink/recipe-service-client';
 import { useRecipe, useUpdateRecipe } from '@kitchensink/recipe-service-client/hooks';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -438,7 +440,7 @@ export function useRecipeEditor(recipeId: string, opts: UseRecipeEditorOptions):
     // this with no status so a routine save/resubmit never touches publication state; `publish`/`saveDraft`
     // are the only callers that pass one.
     const submitDraft = (draft: RecipeFormValues, expectedVersion: number, status?: RecipeStatus): void => {
-        const input: UpdateRecipeInput = { ...toUpdateRecipeInput(draft, status), expectedVersion };
+        const input: UpdateRecipeRequest = { ...toUpdateRecipeInput(draft, status), expectedVersion };
         // Captured NOW (this submission's own epoch) — compared against `epochRef.current` inside the
         // callbacks below, whenever THEY eventually fire. `discardAndClose` bumps the ref if the user leaves
         // before this settles; see the ref's own doc above for why a plain ref (not state) is what makes that

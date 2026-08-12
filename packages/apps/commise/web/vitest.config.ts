@@ -64,6 +64,9 @@ export default defineConfig({
             '@commise/features-account/danger': fileURLToPath(
                 new URL('../features/account/src/danger/index.ts', import.meta.url),
             ),
+            '@commise/features-account/testing': fileURLToPath(
+                new URL('../features/account/src/__fixtures__/index.ts', import.meta.url),
+            ),
             '@commise/features-account': fileURLToPath(new URL('../features/account/src/index.ts', import.meta.url)),
         },
     },

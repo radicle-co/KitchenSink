@@ -13,10 +13,12 @@ import {
     FetchUnavailableError,
     FoodServiceClient,
     ForbiddenError,
+    InvalidRequestError,
     NotFoundError,
     UnauthorizedError,
     isCandidateMismatchError,
     isFetchUnavailableError,
+    isInvalidRequestError,
     isNotFoundError,
 } from '../index.js';
 
@@ -161,9 +163,12 @@ describe('FoodServiceClient — status → typed error mapping', () => {
         await expect(client.addByName('x')).rejects.toBeInstanceOf(ForbiddenError);
     });
 
-    it('400 → BadRequestError (empty name / oversized batch)', async () => {
-        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(400, { error: 'Empty name' }) });
-        await expect(client.addByName('')).rejects.toBeInstanceOf(BadRequestError);
+    // The SERVER's 400, on a body this client's own outbound parse accepts — which is what makes the mapping
+    // reachable at all now that the request schema runs first. `'x'` is a legal `addFoodRequestSchema` name, so
+    // the request goes out and the service's rejection is what produces the error.
+    it('400 → BadRequestError', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(400, { error: 'Unavailable' }) });
+        await expect(client.addByName('x')).rejects.toBeInstanceOf(BadRequestError);
     });
 
     it('503 → FetchUnavailableError with the Retry-After seconds', async () => {
@@ -456,5 +461,67 @@ describe('FoodServiceClient — a drifted response FAILS at the boundary, not de
         const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(200, { results: [] }) });
 
         await expect(client.search('kale')).resolves.toEqual({ results: [] });
+    });
+});
+
+/**
+ * The OUTBOUND half of the contract (ADR-0014): a body this client cannot legally send never leaves.
+ *
+ * These assert the DISTINCTION, not merely that something throws. `InvalidRequestError` and
+ * `BadRequestError` both mean "400-ish" to a careless caller, and collapsing them is what the separate type
+ * exists to prevent: the first says "your body is illegal per the published contract, no request was made,
+ * retrying it cannot work", the second says "the service rejected a body the contract allows". A test that
+ * accepted either would not notice them being merged.
+ */
+describe('FoodServiceClient — outbound request validation', () => {
+    /** A fetch double that FAILS the test if it is ever called — the proof that no request was issued. */
+    const neverFetch: typeof fetch = () => {
+        throw new Error('the client must not issue a request for a body that fails the published contract');
+    };
+
+    it('rejects an empty name before issuing a request', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: neverFetch });
+        const error = await client.addByName('').catch((caught: unknown) => caught);
+
+        expect(isInvalidRequestError(error)).toBe(true);
+        // NOT the server's 400: nothing was sent, so blaming the service would send an operator hunting a
+        // problem that is not happening.
+        expect(error).not.toBeInstanceOf(BadRequestError);
+        // The ZodError is carried so the offending field path survives to the caller.
+        expect((error as InvalidRequestError).cause).toBeDefined();
+    });
+
+    // ⚠️ THE CASE THAT DEFINES THE BOUNDARY, and it goes the other way. An oversized batch is LEGAL per
+    // `batchAddFoodRequestSchema` — that schema deliberately carries no `.max()`, because the cap is
+    // `FOOD_MAX_BATCH_NAMES`, a runtime configuration value, and a static bound in the published contract would
+    // be a second representation that disagrees the moment the environment variable is tuned (the schema says so
+    // in its own header). So the request DOES go out and the server's `400` is the answer.
+    //
+    // Pinned because the tempting shape for this suite is "anything a caller might get wrong fails locally",
+    // which would mean re-declaring server policy in the client — the exact duplication §15 forbids. The
+    // outbound parse enforces the CONTRACT; it does not enforce configuration it cannot know.
+    it('sends an oversized batch and surfaces the server 400, because the cap is not in the contract', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(400, { error: 'Too many names' }) });
+        const names = Array.from({ length: 101 }, (_unused, index) => `food-${index}`);
+
+        await expect(client.batch(names)).rejects.toBeInstanceOf(BadRequestError);
+    });
+
+    it('rejects an empty candidate list before issuing a request', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: neverFetch });
+
+        expect(isInvalidRequestError(await client.resolve('id', []).catch((caught: unknown) => caught))).toBe(true);
+    });
+
+    // The mirror image, and the reason the suite is not just three rejections: a LEGAL body must still go out.
+    // Without this, deleting every method's outbound parse and replacing it with an unconditional throw would
+    // pass everything above.
+    it('sends a body that satisfies the published request schema', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(202, { id: 'f_1', status: 'PENDING' }),
+        });
+
+        await expect(client.addByName('tomato')).resolves.toStrictEqual({ id: 'f_1', status: 'PENDING' });
     });
 });

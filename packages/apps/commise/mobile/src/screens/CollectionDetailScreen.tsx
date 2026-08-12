@@ -215,7 +215,11 @@ export function CollectionDetailScreen({
                 name={collection.name}
                 description={collection.description}
                 visibility={savedVisibility}
-                recipeCount={collection.recipeCount ?? collection.recipes?.length ?? 0}
+                recipeCount={
+                    // `recipeCount ??` STAYS — the contract genuinely marks it optional (absent on list reads). The
+                    // `recipes?.` chain does not: `recipes` is required on `CollectionWithRecipesResponse`.
+                    collection.recipeCount ?? collection.recipes.length
+                }
                 sourceCollectionName={collection.sourceCollectionName}
                 sourceOwnerHandle={collection.sourceOwnerHandle}
                 lastPulledAt={collection.lastPulledAt}

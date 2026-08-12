@@ -1,0 +1,35 @@
+/** A client that does everything §15 asks, and derives rather than declares. */
+import { createThingRequestSchema, thingResponseSchema } from '@kitchensink/schema-thing';
+import type { CreateThingRequest, ThingResponse } from '@kitchensink/schema-thing';
+
+/** DERIVED with Pick — the sanctioned escape when a consumer's shape genuinely differs. */
+export type ThingSummary = Pick<ThingResponse, 'id'>;
+
+/** DERIVED with Partial — a caller-facing option bag over the published query. */
+export type ThingDraftRequest = Partial<CreateThingRequest>;
+
+/** DERIVED with an indexed access. */
+export type ThingId = ThingResponse['id'];
+
+/** DERIVED by extension — adds a client-only field to a published shape. */
+export interface AnnotatedThingResponse extends ThingResponse {
+    readonly fetchedAt: string;
+}
+
+/**
+ * A genuinely client-side transport envelope. Not a wire shape, and it says so.
+ *
+ * @notWireShape The normalized `{ status, body }` this client's own transport passes around; the service
+ *   never sends this object, so there is nothing in the contract to import or derive it from.
+ */
+interface RawResponse {
+    readonly status: number;
+    readonly body: unknown;
+}
+
+export async function createThing(input: CreateThingRequest): Promise<ThingResponse> {
+    const body = createThingRequestSchema.parse(input);
+    const res: RawResponse = { status: 200, body };
+
+    return thingResponseSchema.parse(res.body);
+}

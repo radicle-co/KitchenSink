@@ -38,7 +38,10 @@ export const CollectionDetail: FC<CollectionDetailViewProps> = ({
 }) => {
     const { detail } = useMessages(collectionMessages);
     const [revealCount, setRevealCount] = useState(MEMBER_WINDOW_SIZE);
-    const recipes = collection.recipes ?? [];
+    // `recipes` is REQUIRED on the published `CollectionWithRecipesResponse` — `getCollectionById` sets it
+    // unconditionally, and the contract notes an absent key "would have meant something the server cannot say".
+    // The `?? []` this replaces was the local twin's optionality leaking into a reader.
+    const recipes = collection.recipes;
     const visibleRecipes = recipes.slice(0, revealCount);
     const remainingCount = recipes.length - visibleRecipes.length;
     // B17 — a failed delete/remove is a mandated UI state, never a frozen no-op. Resolve the container's error

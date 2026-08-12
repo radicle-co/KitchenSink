@@ -204,6 +204,41 @@ export function isFetchUnavailableError(error: unknown): error is FetchUnavailab
     return error instanceof FetchUnavailableError;
 }
 
+/**
+ * The body the CALLER built does not satisfy the request schema the service publishes, so the request was
+ * never sent (ADR-0014, outbound half).
+ *
+ * ⚠️ It exists to keep three failures that all "look like a 400" distinguishable, because the right response
+ * to each is different and a caller cannot act on a conflated one:
+ *
+ *  1. **This error** — the caller's own bug. The body is illegal per `@kitchensink/schema-recipe`; no request
+ *     went out, nothing was charged, nothing partially applied, and a retry with the same body cannot work.
+ *  2. {@link BadRequestError} — the SERVER answered `400`. The body was legal per the contract this client
+ *     compiles against and the service rejected it anyway, which is either a rule the contract does not
+ *     express (a policy check) or genuine skew worth alerting on.
+ *  3. A bare `ZodError` out of {@link RecipeServiceClient}'s response parse — the SERVER's body drifted.
+ *
+ * Collapsing 1 into 2 would have a caller retry-and-alert on its own malformed input; collapsing 1 into 3
+ * would blame the service for the client's mistake. Carries the `ZodError` as `cause` so the offending
+ * field path is available without re-parsing.
+ */
+export class InvalidRequestError extends RecipeServiceClientError {
+    /** The `ZodError` from parsing the outbound body against the published request schema. */
+    public override readonly cause: unknown;
+
+    public constructor(operation: string, cause: unknown) {
+        super(`Request body for ${operation} does not satisfy the published recipe-service contract`);
+        this.name = 'InvalidRequestError';
+        this.cause = cause;
+        Object.setPrototypeOf(this, InvalidRequestError.prototype);
+    }
+}
+
+/** Type guard for {@link InvalidRequestError}. */
+export function isInvalidRequestError(error: unknown): error is InvalidRequestError {
+    return error instanceof InvalidRequestError;
+}
+
 /** Any unmapped/unexpected response status (a contract drift the caller should surface, not swallow). */
 export class UnexpectedResponseError extends RecipeServiceClientError {
     public constructor(status: number, message = `Unexpected recipe-service response (${status})`) {

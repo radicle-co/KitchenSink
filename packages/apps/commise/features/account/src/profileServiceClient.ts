@@ -16,20 +16,37 @@
  * service, with drizzle, `pg`, the AWS SDK and `@sentry/nestjs` in its graph — declared as a RUNTIME
  * dependency of a package the mobile bundle ships. The types erase at compile time, so nothing broke; the
  * dependency EDGE from a mobile-bound package to a server package is what was wrong, and
- * `@kitchensink/schema-identity` (a generated leaf whose only dependency is zod) exists to remove it. The
- * same package also exports the RUNTIME zod for these shapes, so a caller that wants to validate this
- * boundary can do so against the same definition rather than a second one.
+ * `@kitchensink/schema-identity` (a generated leaf whose only dependency is zod) exists to remove it.
+ *
+ * ⚠️ AND IT NOW RUNS THAT PACKAGE'S ZOD, WHICH IT PREVIOUSLY ONLY IMPORTED TYPES FROM. Until this change every
+ * method's sole exit was `return JSON.parse(text) as T` — so `getMe`, `patchMe` and `deleteMe` ASSERTED
+ * `UserProfile` / `DeleteUserMeResponse` and verified nothing. The old header's closing line said the runtime
+ * zod was available "so a caller that wants to validate this boundary can do so", which is the shape of the
+ * problem ADR-0014 names: the contract was present, importable, and never executed, so a response that had
+ * drifted surfaced as a mystery `undefined` inside a React component instead of a loud failure at the edge
+ * naming the field. Every boundary here is now parsed — inbound AND outbound — against the same definitions
+ * the identity service validates with.
  *
  * Platform-specific side effects (e.g. the web app's redirect-to-sign-in on a `401`, or a `credentials`
  * policy) are NOT baked in here — they are injected via {@link ProfileServiceClientOptions.onUnauthorized}
  * / `.credentials`, so this class stays platform-agnostic and is usable, unmodified, from both the web
  * server/client boundary and the mobile app.
  */
-import type { DeleteUserMeResponse, UserProfile, UserUpdateInput } from '@kitchensink/schema-identity';
+// The RUNTIME zod, not just the types: the same definitions the identity service validates with, so this
+// boundary is CHECKED in both directions rather than asserted (§15.2 rules 2 and 4, ADR-0014).
+import {
+    apiErrorSchema,
+    deleteUserMeResponseSchema,
+    patchUserMeRequestSchema,
+    userProfileSchema,
+} from '@kitchensink/schema-identity';
+import type { ApiErrorBody, DeleteUserMeResponse, UserProfile, UserUpdateInput } from '@kitchensink/schema-identity';
+import type { z } from 'zod';
 
 import {
     BadRequestError,
     ForbiddenError,
+    InvalidRequestError,
     NotFoundError,
     ProfileServiceClientError,
     UnauthorizedError,
@@ -89,12 +106,6 @@ export interface ProfileServiceClientOptions {
     readonly onUnauthorized?: () => void;
 }
 
-/** A minimal error-body shape the identity service's exception filter emits. */
-interface ErrorPayload {
-    readonly message?: string;
-    readonly code?: string;
-}
-
 export class ProfileServiceClient {
     private readonly baseUrl: string;
     private readonly token: TokenSource | undefined;
@@ -120,7 +131,7 @@ export class ProfileServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async getMe(options?: ProfileRequestOptions): Promise<UserProfile> {
-        return this.send<UserProfile>('GET', PROFILE_ME_PATH, undefined, options);
+        return this.send('GET', PROFILE_ME_PATH, userProfileSchema, undefined, options);
     }
 
     /**
@@ -133,7 +144,14 @@ export class ProfileServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async patchMe(input: UserUpdateInput, options?: ProfileRequestOptions): Promise<UserProfile> {
-        return this.send<UserProfile>('PATCH', PROFILE_ME_PATH, input, options);
+        // The OUTBOUND parse matters more here than anywhere else in this client, because
+        // `patchUserMeRequestSchema` is a `z.strictObject`: the identity service REJECTS an unknown key on this
+        // route with a `400` rather than stripping it. So a caller that misspells `displayName` used to spend a
+        // round trip to learn that, and — before the schema was strict — would have got a `200` with no write.
+        // Running the same strict schema here fails at the call site that built the body, with the field path.
+        const body = this.request('patchMe', patchUserMeRequestSchema, input);
+
+        return this.send('PATCH', PROFILE_ME_PATH, userProfileSchema, body, options);
     }
 
     /**
@@ -145,7 +163,7 @@ export class ProfileServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async deleteMe(options?: ProfileRequestOptions): Promise<DeleteAccountResult> {
-        return this.send<DeleteAccountResult>('DELETE', PROFILE_ME_PATH, undefined, options);
+        return this.send('DELETE', PROFILE_ME_PATH, deleteUserMeResponseSchema, undefined, options);
     }
 
     /**
@@ -161,12 +179,35 @@ export class ProfileServiceClient {
         return typeof this.token === 'function' ? this.token({ forceRefresh }) : this.token;
     }
 
-    private async send<T>(
+    /**
+     * Issue an authenticated request and PARSE the response against `schema`.
+     *
+     * Parse-don't-validate at the wire boundary. This method's entire success path used to be
+     * `return JSON.parse(text) as T`, which asserts a shape instead of establishing one — so a drifted identity
+     * response reached a React component as a missing field rather than failing here, at the edge, naming it.
+     *
+     * The empty-body short-circuit is kept and is NOT a hole: it exists for a genuinely bodyless success (a
+     * `204`), and none of this client's three routes has one — `DELETE /api/v1/users/me` answers `202` WITH a
+     * body, which is exactly why `deleteUserMeResponseSchema` exists. A `204` on any of them would be a contract
+     * change, and the `undefined` it produces is what the method's own return type would then have to admit.
+     *
+     * @param method - HTTP method.
+     * @param path - The endpoint path.
+     * @param schema - The published response schema for this endpoint's success body.
+     * @param body - Optional JSON body (already parsed against its request schema by the caller).
+     * @param options - Per-call token/refresh options.
+     * @returns The VALIDATED response body.
+     * @throws the typed error for the status, or a `ZodError` when the body does not match the published
+     *   contract — a drift the caller should surface, not swallow.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    private async send<S extends z.ZodType>(
         method: 'GET' | 'PATCH' | 'DELETE',
         path: string,
+        schema: S,
         body: unknown,
         options?: ProfileRequestOptions,
-    ): Promise<T> {
+    ): Promise<z.output<S>> {
         const token = await this.resolveToken(options?.forceRefresh ?? false);
         const headers: Record<string, string> = { accept: 'application/json' };
 
@@ -199,17 +240,50 @@ export class ProfileServiceClient {
         const text = await response.text();
 
         if (text.length === 0) {
-            return undefined as T;
+            return undefined as z.output<S>;
         }
 
-        return JSON.parse(text) as T;
+        return schema.parse(JSON.parse(text)) as z.output<S>;
     }
 
+    /**
+     * Parse an OUTBOUND body against the request schema the identity service publishes.
+     *
+     * @param operation - The method name, for the error message.
+     * @param schema - The published request schema for this endpoint.
+     * @param body - The caller's body.
+     * @returns The parsed body.
+     * @throws {InvalidRequestError} when it does not satisfy the published contract — deliberately not a
+     *   {@link BadRequestError}, which means "the server said 400" and is a different fault with a different fix.
+     */
+    private request<S extends z.ZodType>(operation: string, schema: S, body: unknown): z.output<S> {
+        const parsed = schema.safeParse(body);
+
+        if (!parsed.success) {
+            throw new InvalidRequestError(operation, parsed.error);
+        }
+
+        return parsed.data as z.output<S>;
+    }
+
+    /**
+     * Map a non-success response to the typed error for its status, reading its body through the envelope the
+     * identity service publishes.
+     *
+     * The local `interface ErrorPayload { message?; code? }` this replaces was a second declaration of
+     * `apiErrorSchema`, and it had already DRIFTED in two directions the type system could not see: it made both
+     * wire-REQUIRED fields optional, and it dropped `details` entirely — the field a validation rejection uses to
+     * carry per-field constraint messages, i.e. the one thing a form needs to show the user which input is wrong.
+     *
+     * `safeParse` with a fallback, not `parse`: a non-2xx body is often not our envelope at all (the shared ALB
+     * serves an HTML page for `502`/`503`/`504` during every deploy, ADR-0003), and throwing from the
+     * error-mapping path would replace a recoverable typed error with a parse failure. An unrecognized body
+     * degrades to mapping by status alone, which the switch below still does correctly.
+     */
     private async toError(response: Response): Promise<ProfileServiceClientError> {
-        const payload = await response
-            .json()
-            .then((value: unknown) => value as ErrorPayload)
-            .catch(() => ({}) as ErrorPayload);
+        const raw: unknown = await response.json().catch(() => undefined);
+        const parsed = apiErrorSchema.safeParse(raw);
+        const payload: Partial<ApiErrorBody> = parsed.success ? parsed.data : {};
         const message = payload.message ?? `Request failed: ${response.status}`;
 
         switch (response.status) {

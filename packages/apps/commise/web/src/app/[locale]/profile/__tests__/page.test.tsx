@@ -11,10 +11,14 @@ import type { ReactNode } from 'react';
 
 import { renderWithProviders } from '@commise/test-utils';
 
-const get = vi.fn();
+const getMe = vi.fn();
 
-vi.mock('@/lib/apiClient', () => ({
-    buildApiClient: () => ({ get }),
+// The identity read now goes through the TYPED `ProfileServiceClient` (its response is parsed against
+// `@kitchensink/schema-identity`), so the seam to mock is the client factory rather than the deleted
+// `lib/apiClient`. `getMe` stands in for the whole client, which is all this suite touches.
+vi.mock('@/lib/identityServiceClient', () => ({
+    IDENTITY_SERVICE_BASE_URL: 'http://identity.test',
+    createProfileServiceClient: () => ({ getMe }),
 }));
 vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: () => ({ data: { user: { displayName: 'Ada' } } }),
@@ -30,13 +34,13 @@ import { ProfileContent } from '../ProfileContent.js';
 
 describe('ProfileContent — SSR identity fetch resilience + U3 shell', () => {
     beforeEach(() => {
-        get.mockReset();
+        getMe.mockReset();
     });
 
     afterEach(cleanup);
 
     it('renders the profile inside the nav chrome when the identity service responds', async () => {
-        get.mockResolvedValue({
+        getMe.mockResolvedValue({
             user: { displayName: 'Ada', email: 'ada@example.com', status: 'active' },
             account: { subscriptionTier: 'free' },
         });
@@ -50,7 +54,7 @@ describe('ProfileContent — SSR identity fetch resilience + U3 shell', () => {
     });
 
     it('degrades to a recoverable state (no throw) when the identity fetch rejects (ECONNREFUSED)', async () => {
-        get.mockRejectedValue(new Error('fetch failed'));
+        getMe.mockRejectedValue(new Error('fetch failed'));
 
         renderWithProviders(await ProfileContent({ accessToken: 'tok', locale: 'en' }));
 
@@ -68,7 +72,7 @@ describe('ProfileContent — SSR identity fetch resilience + U3 shell', () => {
      * carry two `h1`s. It is plain banner text, so exactly one level-1 heading survives.
      */
     it('names ITSELF in the top bar and leaves the page content as the only h1', async () => {
-        get.mockResolvedValue({
+        getMe.mockResolvedValue({
             user: { displayName: 'Ada', email: 'ada@example.com', status: 'active' },
             account: { subscriptionTier: 'free' },
         });

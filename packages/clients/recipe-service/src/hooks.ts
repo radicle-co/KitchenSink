@@ -17,13 +17,14 @@ import { createContext, createElement, useContext, useEffect } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
 import type {
-    CreateRecipeInput,
     RecipeDetail,
     RecipeSearchParams,
     RecipeVisibility,
     SetRecipeRatingInput,
-    UpdateRecipeInput,
 } from '@kitchensink/recipe-core';
+// The two recipe WRITE envelopes, from the contract the service authors. They were `recipe-core`'s
+// `CreateRecipeInput` / `UpdateRecipeInput` — hand-written twins of these schemas (§15 rule 4 / ADR-0014).
+import type { CreateRecipeRequest, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
 
 import { RecipeServiceClient } from './client.js';
 import {
@@ -356,7 +357,7 @@ export function useCreateRecipe() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (input: CreateRecipeInput) => client.createRecipe(input),
+        mutationFn: (input: CreateRecipeRequest) => client.createRecipe(input),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipes });
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
@@ -380,7 +381,7 @@ export function useUpdateRecipe() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (vars: { id: string; input: UpdateRecipeInput }) => client.updateRecipe(vars.id, vars.input),
+        mutationFn: (vars: { id: string; input: UpdateRecipeRequest }) => client.updateRecipe(vars.id, vars.input),
         onSuccess: async (data, vars) => {
             // Cancel any in-flight `recipe(id)` GET before writing through, so a detail fetch that started
             // stale (>staleTime) and settles AFTER this mutation cannot clobber the fresh response with

@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -27,12 +29,24 @@ export default defineConfig({
         },
     },
     resolve: {
+        // ⚠️ ABSOLUTE, resolved from THIS file — and the schema alias was BOTH relative AND off by one level.
+        //
+        // It read `'../../schemas/identity/src/index.ts'`, which points at `packages/apps/schemas/identity` (this
+        // file sits at `packages/apps/commise/mobile/`, so two levels up is `packages/apps`, not `packages`). The
+        // target has never existed. It cost nothing for as long as `@kitchensink/schema-identity` was reached only
+        // with `import type` — erased before resolution ever ran — and surfaced the moment
+        // `@commise/features-account` began importing that package's RUNTIME zod, as `Cannot find package`, which
+        // reads like a missing dependency rather than a wrong path. `fileURLToPath(new URL(…))` fixes the second
+        // half of the trap too: a relative alias TARGET is re-resolved from the IMPORTING file, so it would still
+        // have broken for any importer that does not sit at this package's depth.
         alias: {
-            '@kitchensink/schema-identity': '../../schemas/identity/src/index.ts',
-            '@commise/features-account': '../features/account/src/index.ts',
+            '@kitchensink/schema-identity': fileURLToPath(
+                new URL('../../../schemas/identity/src/index.ts', import.meta.url),
+            ),
+            '@commise/features-account': fileURLToPath(new URL('../features/account/src/index.ts', import.meta.url)),
             // Resolve the shared numeric design scale to its source so the token drift guard runs without a
             // built `@commise/ui/dist` (mirrors the workspace-src aliasing used for the other packages above).
-            '@commise/ui/scale': '../ui/src/tokens/scale.ts',
+            '@commise/ui/scale': fileURLToPath(new URL('../ui/src/tokens/scale.ts', import.meta.url)),
         },
     },
 });

@@ -6,8 +6,11 @@
  * controlled, presentational components: they fetch nothing and delegate every interaction upward.
  */
 import type { Locale } from '@commise/i18n';
-import type { Collection, Recipe, RecipeCollectionAddedVia, RecipeVisibility } from '@kitchensink/recipe-core';
+import type { Collection, Recipe, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { PullDiff } from '@kitchensink/recipe-service-client';
+// Imported (not merely re-exported) because the props below reference both by name, and an `export … from`
+// re-export does not bring a name into this module's scope.
+import type { CollectionMemberRecipe, CollectionWithRecipesResponse } from '@kitchensink/schema-recipe';
 
 import type { RecipeListRefreshControl } from '../list/model.js';
 
@@ -37,23 +40,41 @@ export type RecipePickerStatus = 'loading' | 'error' | 'ready';
 export type CollectionFormMode = 'create' | 'rename';
 
 /**
- * A member recipe's provenance within a specific collection (W5 Task 9, C3 / FR-011) — mirrors the
- * recipe-service client's `CollectionMemberRecipe` (`Recipe & { addedVia }`), but expressed in
- * `@kitchensink/recipe-core` domain types so this presentational feature depends only on the domain layer,
- * not the HTTP client (same rationale as {@link CollectionWithRecipes}). `manual` = added directly by the
- * collection owner, protected from Pull Updates (the wireframe's `[x]` state); `clone_seed`/`pull` = seeded
- * from or synced from the source collection, and will be refreshed by a future Pull Updates (the `[ ]` state).
+ * A member recipe's provenance within a specific collection (W5 Task 9, C3 / FR-011) — the PUBLISHED wire
+ * shape (`recipeSchema.extend({ addedVia })`), re-exported under the contract's own name rather than declared
+ * here (§15 Rule 1 / ADR-0014). `manual` = added directly by the collection owner, protected from Pull Updates
+ * (the wireframe's `[x]` state); `clone_seed`/`pull` = seeded from or synced from the source collection, and
+ * will be refreshed by a future Pull Updates (the `[ ]` state).
+ *
+ * The declaration this replaced (`Recipe & { addedVia }`, in `@kitchensink/recipe-core` domain types) argued
+ * it kept this presentational feature off the HTTP client. That argument did not hold in either direction:
+ * this package already depends on `@kitchensink/schema-recipe`, which is the CONTRACT and not the client (no
+ * transport, no fetch — the same import `filters/model.ts` uses for `RecipeSearchFacets`), and it already
+ * imports {@link PullDiff} from the client proper a few lines above. So the twin bought no decoupling and cost
+ * the one thing that matters: nothing checked it against the shape the server actually sends.
  */
-export type CollectionMemberRecipe = Recipe & { readonly addedVia: RecipeCollectionAddedVia };
+export type { CollectionMemberRecipe } from '@kitchensink/schema-recipe';
 
 /**
- * A collection plus its member recipes — the shape the detail view (T072) consumes. Structurally mirrors
- * the recipe-service client's `CollectionWithRecipes` response (`Collection` + optional member `recipes`),
- * but is expressed in `@kitchensink/recipe-core` domain types so this presentational feature depends only on
- * the domain layer, not the HTTP client. `recipes` is optional (a list-only projection may omit it) and the
- * view treats an absent list as empty.
+ * A collection plus its member recipes — the shape the detail view (T072) consumes. ALIAS of the published
+ * `CollectionWithRecipesResponse` (`GET /api/v1/collections/{id}`), never a second declaration of it; the
+ * local name is kept because this package's public surface and both platforms' containers use it.
+ *
+ * ⚠️ The declaration this replaced had already DRIFTED from the contract in two ways, both resolved toward the
+ * server:
+ *  - it typed `recipes` as OPTIONAL where the contract has it REQUIRED. `CollectionsService.getCollection`
+ *    sets it unconditionally, so "absent" was never a state the server could produce — an empty array already
+ *    says "nothing you can see", and an absent key would have meant something the server cannot say. Declaring
+ *    it optional invited a view to render "recipes not loaded" for an impossible case and forced a `?? []` on
+ *    every read.
+ *  - it omitted the three response-only provenance projections the wire body carries — `sourceOwnerHandle` /
+ *    `sourceCollectionName` (the source's attribution, frozen at clone time) and `lastPulledAt` — so a
+ *    container holding a real response had to widen or re-project to reach them.
+ *
+ * Aliasing is what keeps both of those honest from now on: a field added, removed or renamed in the contract
+ * fails this package's typecheck instead of silently leaving a stale hand-written copy behind.
  */
-export type CollectionWithRecipes = Collection & { readonly recipes?: readonly CollectionMemberRecipe[] };
+export type CollectionWithRecipes = CollectionWithRecipesResponse;
 
 /**
  * Props for the collection-list view — a controlled, presentational component. It renders one of four states

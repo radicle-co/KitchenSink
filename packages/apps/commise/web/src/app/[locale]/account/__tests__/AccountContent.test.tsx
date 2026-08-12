@@ -11,8 +11,14 @@ import type { ReactNode } from 'react';
 
 import { renderWithProviders } from '@commise/test-utils';
 
-const { get } = vi.hoisted(() => ({ get: vi.fn() }));
-vi.mock('@/lib/apiClient', () => ({ buildApiClient: () => ({ get }) }));
+// The identity read now goes through the TYPED `ProfileServiceClient` (its response is parsed against
+// `@kitchensink/schema-identity`), so the seam to mock is the client factory rather than the deleted
+// `lib/apiClient`.
+const { getMe } = vi.hoisted(() => ({ getMe: vi.fn() }));
+vi.mock('@/lib/identityServiceClient', () => ({
+    IDENTITY_SERVICE_BASE_URL: 'http://identity.test',
+    createProfileServiceClient: () => ({ getMe }),
+}));
 
 vi.mock('@/hooks/useUserProfile', () => ({
     useUserProfile: () => ({ data: { user: { displayName: 'Ada' } } }),
@@ -39,7 +45,7 @@ const { AccountContent } = await import('../AccountContent');
 afterEach(cleanup);
 
 const renderContent = async (): Promise<void> => {
-    get.mockResolvedValue({
+    getMe.mockResolvedValue({
         user: { displayName: 'Ada', email: 'ada@example.com', status: 'active', avatarUrl: null },
         account: { subscriptionTier: 'free' },
     });
@@ -84,7 +90,7 @@ describe('AccountContent (U3) — shell + composition', () => {
 
 describe('AccountContent — SSR identity-fetch resilience', () => {
     it('degrades to a recoverable state (no throw) when the identity fetch rejects (ECONNREFUSED)', async () => {
-        get.mockRejectedValue(new Error('fetch failed'));
+        getMe.mockRejectedValue(new Error('fetch failed'));
 
         renderWithProviders(await AccountContent({ accessToken: 'tok', locale: 'en' }));
 

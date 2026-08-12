@@ -360,6 +360,12 @@ export async function aliasPreviewDeployment(
  * The alias SUCCEEDED by the time this runs; the field only distinguishes a first binding from a
  * re-pointing, so an unparseable body must not turn a success into a failure.
  *
+ * @unparsedBoundary Vercel's alias API is a third-party API we do not serve (CODING_STANDARDS §15.3 /
+ *   ADR-0014), so no contract of ours could describe this body and writing an OpenAPI document for it is
+ *   explicitly forbidden. The single field read is narrowed by construction instead — `typeof value === 'string'
+ *   && value.length > 0` — and every other outcome is `undefined`, which this function's own contract already
+ *   admits. Adding zod here would validate one optional string against a shape only Vercel can change.
+ *
  * @param bodyText - The response body promise.
  * @returns The previous deployment id, or `undefined`.
  */

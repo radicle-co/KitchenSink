@@ -1,0 +1,13 @@
+{
+    "name": "@kitchensink/exempt-without-reason-client",
+    "private": true,
+    "dependencies": {
+        "zod": "^4.4.3"
+    },
+    "kitchensink": {
+        "wireContract": {
+            "thirdParty": true,
+            "reason": "third party"
+        }
+    }
+}

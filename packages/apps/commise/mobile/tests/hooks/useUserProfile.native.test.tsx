@@ -14,6 +14,9 @@ import { createElement } from 'react';
 
 vi.mock('@clerk/expo', () => ({ useAuth: vi.fn() }));
 
+import { makeUserProfile, makeUserProfileUser } from '@commise/features-account/testing';
+import type { DeleteUserMeResponse } from '@kitchensink/schema-identity';
+
 import { useDeleteAccount, useUpdateProfile, useUserProfile } from '../../src/hooks/useUserProfile.js';
 
 const useAuthMock = vi.mocked(useAuth);
@@ -24,7 +27,31 @@ function wrapper({ children }: { children: ReactNode }) {
     return createElement(QueryClientProvider, { client }, children);
 }
 
-const profile = { user: { id: 'usr_1', displayName: 'Ada' }, account: {} };
+/**
+ * A COMPLETE `UserProfile`, because `ProfileServiceClient` now PARSES its response against
+ * `@kitchensink/schema-identity`'s `userProfileSchema` instead of casting it.
+ *
+ * It was `{ user: { id: 'usr_1', displayName: 'Ada' }, account: {} }` — two of seven `user` fields and none of
+ * `account`'s five — which passed only because the client ended in `JSON.parse(text) as T`. These cases assert
+ * the outgoing `fetch` (URL, method, body, token policy), and they were doing so against a body the identity
+ * service cannot send. Shared factory, so the web hook's suite and this one cannot disagree about what a valid
+ * profile is.
+ */
+const profile = makeUserProfile({ user: makeUserProfileUser({ id: 'usr_1', displayName: 'Ada' }) });
+
+/**
+ * The real `202 Accepted` body of `DELETE /api/v1/users/me`.
+ *
+ * `202` and not `204` because closure is ASYNCHRONOUS — the reversible Clerk ban is handed to the deletion
+ * worker — so the response acknowledges the request rather than its completion, which is why it HAS a body.
+ * This case used to answer `json: () => ({})` with `text: () => ''`, i.e. an EMPTY body, which took the
+ * bodyless short-circuit and never exercised the parse at all.
+ */
+const deletion: DeleteUserMeResponse = {
+    sub: '01JQZX0000000000000000USER',
+    deletedAt: '2026-01-01T00:00:00.000Z',
+    message: 'Account closure accepted.',
+};
 
 beforeEach(() => {
     global.fetch = vi.fn().mockResolvedValue({
@@ -117,8 +144,8 @@ describe('useDeleteAccount (mobile)', () => {
         global.fetch = vi.fn().mockResolvedValue({
             ok: true,
             status: 202,
-            json: () => Promise.resolve({}),
-            text: () => Promise.resolve(''),
+            json: () => Promise.resolve(deletion),
+            text: () => Promise.resolve(JSON.stringify(deletion)),
         } as Response);
 
         const { result } = renderHook(() => useDeleteAccount(), { wrapper });

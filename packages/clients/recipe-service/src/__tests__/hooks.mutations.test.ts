@@ -65,8 +65,13 @@ import {
     useUpdateRecipe,
 } from '../hooks.js';
 import {
+    FIXTURE_OTHER_PHOTO_UUID,
+    FIXTURE_OTHER_RECIPE_UUID,
+    FIXTURE_PHOTO_UUID,
+    FIXTURE_RECIPE_UUID,
     makeCollection,
     makeCollectionRecipeMembership,
+    makeCreateRecipeRequest,
     makeErasureAccepted,
     makeIngredient,
     makePullDiff,
@@ -193,23 +198,20 @@ const PHOTO_PROBES: readonly CacheProbeName[] = [
 ];
 
 /**
- * A minimal valid `CreateRecipeInput`. The times are required by the contract, so they are spelled out
- * here rather than left off — the hook forwards whatever it is handed, and the input must typecheck.
+ * A minimal valid `CreateRecipeInput`, delegating to {@link makeCreateRecipeRequest} so "valid" means what
+ * the PUBLISHED contract means rather than what merely typechecks.
+ *
+ * ⚠️ It previously claimed to be minimal-and-valid while sending `ingredients: []` and `steps: []`, which
+ * `createRecipeRequestSchema` rejects (both are `.min(1)`). Nothing here caught that, because these tests
+ * drive a client whose method is a spy — so an illegal body never met the client's outbound validation, and
+ * the doc comment asserted a property no assertion held. Building the draft from the same factory the
+ * client-level tests use means one definition of "a create body the service accepts".
  *
  * @param overrides - Fields to replace on the draft.
  * @returns A complete create-recipe draft.
  */
 function makeCreateInput(overrides: Partial<CreateRecipeInput> = {}): CreateRecipeInput {
-    return {
-        title: 'Tomato Soup',
-        ingredients: [],
-        steps: [],
-        servings: 4,
-        prepTimeMinutes: 10,
-        cookTimeMinutes: 20,
-        totalTimeMinutes: 30,
-        ...overrides,
-    };
+    return { ...makeCreateRecipeRequest(), ...overrides };
 }
 
 /**
@@ -258,11 +260,15 @@ describe('useCreateRecipe', () => {
     });
 
     it('surfaces a validation failure and invalidates nothing', async () => {
-        const error = new BadRequestError('Title is required', 'VALIDATION_ERROR');
+        // A SERVICE-side `400` on a CONTRACT-VALID draft, which is the only kind that can reach this hook.
+        // `title: ''` (what this used to send) is rejected by the client's own outbound validation against
+        // `createRecipeRequestSchema` as an `InvalidRequestError` and never becomes a request at all — so
+        // pairing it with a mocked `BadRequestError` described a flow the system cannot produce.
+        const error = new BadRequestError('The service rejected the draft', 'VALIDATION_ERROR');
         const { result, client, probes } = renderMutation(() => useCreateRecipe());
         vi.spyOn(client, 'createRecipe').mockRejectedValue(error);
 
-        act(() => result.current.mutate(makeCreateInput({ title: '' })));
+        act(() => result.current.mutate(makeCreateInput()));
         await waitFor(() => expect(result.current.isError).toBe(true));
 
         expect(result.current.error).toBe(error);
@@ -636,9 +642,11 @@ describe('useSetRecipeRating', () => {
                 recipeServiceKeys.recipe(PROBE_RECIPE_ID),
                 makeRecipeDetail({ id: PROBE_RECIPE_ID, viewerRating: undefined }),
             );
+
             let resolveSetRecipeRating: (value: RecipeDetail) => void = () => {
                 throw new Error('resolveSetRecipeRating was not assigned');
             };
+
             const pending = new Promise<RecipeDetail>((resolve) => {
                 resolveSetRecipeRating = resolve;
             });
@@ -732,9 +740,11 @@ describe('useDeleteRecipeRating', () => {
                 recipeServiceKeys.recipe(PROBE_RECIPE_ID),
                 makeRecipeDetail({ id: PROBE_RECIPE_ID, viewerRating: 4 }),
             );
+
             let resolveDeleteRecipeRating: () => void = () => {
                 throw new Error('resolveDeleteRecipeRating was not assigned');
             };
+
             const pending = new Promise<void>((resolve) => {
                 resolveDeleteRecipeRating = resolve;
             });
@@ -798,11 +808,13 @@ describe('useCreateIngredient', () => {
     });
 
     it('surfaces a validation failure', async () => {
-        const error = new BadRequestError('Name is required', 'VALIDATION_ERROR');
+        // Same correction as `useCreateRecipe`'s: `''` is rejected locally by `createIngredientRequestSchema`
+        // (`name` is `.min(1)`), so only a service-side `400` on a well-formed name can reach this hook.
+        const error = new BadRequestError('The service rejected the ingredient', 'VALIDATION_ERROR');
         const { result, client } = renderMutation(() => useCreateIngredient());
         vi.spyOn(client, 'createIngredient').mockRejectedValue(error);
 
-        act(() => result.current.mutate(''));
+        act(() => result.current.mutate('Sumac'));
         await waitFor(() => expect(result.current.isError).toBe(true));
 
         expect(result.current.error).toBe(error);
@@ -933,16 +945,24 @@ describe('useDeleteRecipePhoto', () => {
     });
 });
 
+/**
+ * A desired photo order the CLIENT would actually transmit: `reorderPhotosRequestSchema.photoIds` is
+ * `z.array(z.uuid({ version: 'v4' })).min(1)`, so v4 UUIDs and at least one of them. The hook forwards these
+ * to a spy, which is precisely why the values have to be legal on purpose — nothing at this layer would
+ * notice a body the real client rejects before it reaches the wire.
+ */
+const REORDERED_PHOTO_IDS: readonly string[] = [FIXTURE_OTHER_PHOTO_UUID, FIXTURE_PHOTO_UUID];
+
 describe('useReorderRecipePhotos', () => {
     it('reorders through the client with the recipe id and the ordered photo ids', async () => {
         const reordered = [makeRecipePhoto({ id: 'pho_2', order: 1 }), makeRecipePhoto({ id: 'pho_1', order: 2 })];
         const { result, client } = renderMutation(() => useReorderRecipePhotos());
         const reorderRecipePhotos = vi.spyOn(client, 'reorderRecipePhotos').mockResolvedValue(reordered);
 
-        act(() => result.current.mutate({ id: PROBE_RECIPE_ID, photoIds: ['pho_2', 'pho_1'] }));
+        act(() => result.current.mutate({ id: PROBE_RECIPE_ID, photoIds: REORDERED_PHOTO_IDS }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(reorderRecipePhotos).toHaveBeenCalledWith(PROBE_RECIPE_ID, ['pho_2', 'pho_1']);
+        expect(reorderRecipePhotos).toHaveBeenCalledWith(PROBE_RECIPE_ID, REORDERED_PHOTO_IDS);
         expect(result.current.data).toEqual(reordered);
     });
 
@@ -953,7 +973,7 @@ describe('useReorderRecipePhotos', () => {
         const { result, client, probes } = renderMutation(() => useReorderRecipePhotos());
         vi.spyOn(client, 'reorderRecipePhotos').mockResolvedValue([makeRecipePhoto()]);
 
-        act(() => result.current.mutate({ id: PROBE_RECIPE_ID, photoIds: ['pho_2', 'pho_1'] }));
+        act(() => result.current.mutate({ id: PROBE_RECIPE_ID, photoIds: REORDERED_PHOTO_IDS }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
         expect(probes()).toEqual(expectedProbes(PHOTO_PROBES));
@@ -964,7 +984,11 @@ describe('useReorderRecipePhotos', () => {
         const { result, client, probes } = renderMutation(() => useReorderRecipePhotos());
         vi.spyOn(client, 'reorderRecipePhotos').mockRejectedValue(error);
 
-        act(() => result.current.mutate({ id: PROBE_RECIPE_ID, photoIds: [] }));
+        // Well-formed ids that simply do not cover the recipe — which is what a SERVER-side `400` looks like.
+        // An empty array (what this used to send) never reaches the server at all: the client's outbound
+        // validation rejects it locally as an `InvalidRequestError`, so the case being asserted here — the
+        // hook surfacing the service's `BadRequestError` without evicting cache — could not arise from it.
+        act(() => result.current.mutate({ id: PROBE_RECIPE_ID, photoIds: REORDERED_PHOTO_IDS }));
         await waitFor(() => expect(result.current.isError).toBe(true));
 
         expect(result.current.error).toBe(error);
@@ -1015,11 +1039,13 @@ describe('useCreateCollection', () => {
     });
 
     it('surfaces a validation failure and invalidates nothing', async () => {
-        const error = new BadRequestError('Name is required', 'VALIDATION_ERROR');
+        // As above: `name: ''` fails `createCollectionRequestSchema` inside the client, so the reachable case
+        // is a service-side `400` on a well-formed body.
+        const error = new BadRequestError('The service rejected the collection', 'VALIDATION_ERROR');
         const { result, client, probes } = renderMutation(() => useCreateCollection());
         vi.spyOn(client, 'createCollection').mockRejectedValue(error);
 
-        act(() => result.current.mutate({ name: '', visibility: 'private' }));
+        act(() => result.current.mutate({ name: 'Weeknight dinners', visibility: 'private' }));
         await waitFor(() => expect(result.current.isError).toBe(true));
 
         expect(result.current.error).toBe(error);
@@ -1109,16 +1135,23 @@ describe('useDeleteCollection', () => {
     });
 });
 
+/*
+ * The recipe id an add-to-collection carries travels in the BODY (unlike the path ids everywhere else here),
+ * and `addRecipeToCollectionRequestSchema.recipeId` is `z.uuid()` — so a `'rec_a'`-style probe token would be
+ * rejected by the client's outbound validation rather than sent. `PROBE_RECIPE_ID` stays `'rec_a'` because
+ * this hook invalidates only the COLLECTION's detail (asserted below), never the recipe's, so the recipe id
+ * here is a wire value and not a cache key.
+ */
 describe('useAddRecipeToCollection', () => {
     it('adds through the client with BOTH the collection id and the recipe id, in order', async () => {
         const membership = makeCollectionRecipeMembership();
         const { result, client } = renderMutation(() => useAddRecipeToCollection());
         const addRecipeToCollection = vi.spyOn(client, 'addRecipeToCollection').mockResolvedValue(membership);
 
-        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID, recipeId: PROBE_RECIPE_ID }));
+        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID, recipeId: FIXTURE_RECIPE_UUID }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(addRecipeToCollection).toHaveBeenCalledWith(PROBE_COLLECTION_ID, PROBE_RECIPE_ID);
+        expect(addRecipeToCollection).toHaveBeenCalledWith(PROBE_COLLECTION_ID, FIXTURE_RECIPE_UUID);
         expect(result.current.data).toEqual(membership);
     });
 
@@ -1132,7 +1165,7 @@ describe('useAddRecipeToCollection', () => {
         const { result, client, probes } = renderMutation(() => useAddRecipeToCollection());
         vi.spyOn(client, 'addRecipeToCollection').mockResolvedValue(makeCollectionRecipeMembership());
 
-        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID, recipeId: PROBE_RECIPE_ID }));
+        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID, recipeId: FIXTURE_RECIPE_UUID }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
         expect(probes()).toEqual(expectedProbes(['collectionA']));
@@ -1143,7 +1176,10 @@ describe('useAddRecipeToCollection', () => {
         const { result, client, probes } = renderMutation(() => useAddRecipeToCollection());
         vi.spyOn(client, 'addRecipeToCollection').mockRejectedValue(error);
 
-        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID, recipeId: 'rec_missing' }));
+        // A WELL-FORMED uuid that resolves to no row: the `404` is the service's answer about existence, which
+        // is the only way this path is reachable. `'rec_missing'` was rejected as malformed by the client
+        // first, so it could never have produced the `NotFoundError` this asserts.
+        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID, recipeId: FIXTURE_OTHER_RECIPE_UUID }));
         await waitFor(() => expect(result.current.isError).toBe(true));
 
         expect(result.current.error).toBe(error);
@@ -1427,7 +1463,7 @@ describe('mutation hooks — search cache (cross-cutting characterization)', () 
         const { result, client, probes } = renderMutation(() => useAddRecipeToCollection());
         vi.spyOn(client, 'addRecipeToCollection').mockResolvedValue(makeCollectionRecipeMembership());
 
-        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID, recipeId: PROBE_RECIPE_ID }));
+        act(() => result.current.mutate({ id: PROBE_COLLECTION_ID, recipeId: FIXTURE_RECIPE_UUID }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
         expect(probes()).not.toContain('recipeSearch');

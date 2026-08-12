@@ -5,9 +5,14 @@
  * mirroring `recipeServiceConfig.ts`'s role for the recipe client.
  *
  * The origin comes from the validated configuration in `@/config/env` (never hardcoded —
- * CODING_STANDARDS §12) and has deliberately NO default; `lib/apiClient.ts` (still used by the two
- * server-rendered pages that have not migrated to the typed client) imports
- * {@link IDENTITY_SERVICE_BASE_URL} from here rather than re-declaring its own, so the two never drift.
+ * CODING_STANDARDS §12) and has deliberately NO default.
+ *
+ * ⚠️ THIS IS NOW THE ONLY WEB PATH TO THE IDENTITY SERVICE. `lib/apiClient.ts` — a second hand-rolled
+ * transport that duplicated this file's origin, `credentials` policy and 401 redirect while validating no
+ * response (`JSON.parse(text) as T`) — has been DELETED, and the two server-rendered pages its own header
+ * described as "not migrated to the typed client" (`ProfileContent`, `AccountContent`) now call
+ * {@link createProfileServiceClient}. So there is one place a web identity call is configured, and its
+ * responses are parsed against `@kitchensink/schema-identity` (§15 / ADR-0014).
  *
  * This used to read `process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:4000'`. `NEXT_PUBLIC_*`
  * is inlined at BUILD time, so that fallback shipped in the deployed preview bundle and every signed-in
@@ -37,7 +42,8 @@ export function createProfileServiceClient(token: TokenSource): ProfileServiceCl
         baseUrl: IDENTITY_SERVICE_BASE_URL,
         token,
         credentials: 'include',
-        // ONE authoritative recovery policy, shared with `apiClient`, and CIRCUIT-BROKEN: a 401 that
+        // ONE authoritative recovery policy — it used to be duplicated in `apiClient`, which is gone — and
+        // CIRCUIT-BROKEN: a 401 that
         // survives the sign-in round trip (wrong Clerk instance, rotated verification key, `azp` mismatch)
         // is not fixable by bouncing, so the second attempt is suppressed and the error surfaces to the
         // consumer's boundary rather than looping the browser. See lib/unauthorizedRedirect.ts.

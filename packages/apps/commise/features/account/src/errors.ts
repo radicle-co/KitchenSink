@@ -91,6 +91,39 @@ export function isNotFoundError(error: unknown): error is NotFoundError {
     return error instanceof NotFoundError;
 }
 
+/**
+ * The body the CALLER built does not satisfy the request schema the identity service publishes, so the request
+ * was never sent (ADR-0014, outbound half).
+ *
+ * ⚠️ Deliberately NOT a {@link BadRequestError}, because three failures that all look like "a 400" need to stay
+ * distinguishable — the right response to each differs and a caller cannot act on a conflated one:
+ *
+ *  1. **This error** — the caller's own bug. The body is illegal per `@kitchensink/schema-identity`; no request
+ *     went out and retrying the same body cannot work. On `PATCH /api/v1/users/me` this is the common case, because
+ *     `patchUserMeRequestSchema` is a `z.strictObject`: an unknown key is a rejection, not a stripped field.
+ *  2. {@link BadRequestError} — the SERVER answered `400` to a body the contract allows: a rule the contract does
+ *     not express, or genuine skew worth alerting on.
+ *  3. A bare `ZodError` from the response parse — the SERVER's body drifted.
+ *
+ * Mirrors the `InvalidRequestError` in both `packages/clients/*` clients, so all three read alike.
+ */
+export class InvalidRequestError extends ProfileServiceClientError {
+    /** The `ZodError` from parsing the outbound body against the published request schema. */
+    public override readonly cause: unknown;
+
+    public constructor(operation: string, cause: unknown) {
+        super(`Request body for ${operation} does not satisfy the published identity-service contract`);
+        this.name = 'InvalidRequestError';
+        this.cause = cause;
+        Object.setPrototypeOf(this, InvalidRequestError.prototype);
+    }
+}
+
+/** Type guard for {@link InvalidRequestError}. */
+export function isInvalidRequestError(error: unknown): error is InvalidRequestError {
+    return error instanceof InvalidRequestError;
+}
+
 /** Any unmapped/unexpected response status (a contract drift the caller should surface, not swallow). */
 export class UnexpectedResponseError extends ProfileServiceClientError {
     public constructor(status?: number, message = `Unexpected identity-service response (${status ?? 'unknown'})`) {

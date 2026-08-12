@@ -16,13 +16,19 @@ import type { z } from 'zod';
 // The RUNTIME zod from the contract the food service OWNS and publishes — the same definitions the service
 // validates its own responses' shapes against, so this client parses rather than believes (§15, rule 4).
 import {
+    addFoodRequestSchema,
     addResponseSchema,
+    batchAddFoodRequestSchema,
     batchResponseSchema,
     candidatesResponseSchema,
+    errorResponseSchema,
     foodResponseSchema,
+    foodStatusSchema,
     pendingFoodStatusSchema,
     pendingResponseSchema,
+    resolveFoodRequestSchema,
     resolveResponseSchema,
+    searchFoodQuerySchema,
     searchResponseSchema,
     statusResponseSchema,
 } from '@kitchensink/schema-food';
@@ -35,6 +41,7 @@ import {
     FetchUnavailableError,
     ForbiddenError,
     FoodServiceClientError,
+    InvalidRequestError,
     NotFoundError,
     UnauthorizedError,
     UnexpectedResponseError,
@@ -43,7 +50,6 @@ import type {
     AddResult,
     BatchResult,
     CandidatesResult,
-    FoodStatus,
     GetFoodResult,
     ResolveResult,
     SearchResult,
@@ -82,7 +88,14 @@ export interface FoodServiceClientOptions {
     readonly onContractSkew?: (message: string) => void;
 }
 
-/** A normalized response: status, parsed JSON body (or `undefined`), and a parsed `Retry-After`. */
+/**
+ * A normalized response: status, parsed JSON body (or `undefined`), and a parsed `Retry-After`.
+ *
+ * @notWireShape This client's own transport envelope — the food service never sends this object. It is the
+ *   `{ status, body, retryAfterSeconds }` triple `send()` produces so `expect()` and `toError()` can dispatch
+ *   on a status without re-reading a `Response`, so there is nothing in `@kitchensink/schema-food` to import
+ *   or derive it from. (The wire BODIES it carries at `.body` are parsed against the published contract.)
+ */
 interface RawResponse {
     readonly status: number;
     readonly body: unknown;
@@ -123,7 +136,7 @@ export class FoodServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async addByName(name: string): Promise<AddResult> {
-        const res = await this.send('POST', '/api/v1/foods', { name });
+        const res = await this.send('POST', '/api/v1/foods', this.request('addByName', addFoodRequestSchema, { name }));
 
         return this.expect<AddResult>(res, 202, addResponseSchema);
     }
@@ -137,7 +150,11 @@ export class FoodServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async batch(names: readonly string[]): Promise<BatchResult> {
-        const res = await this.send('POST', '/api/v1/foods/batch', { names });
+        const res = await this.send(
+            'POST',
+            '/api/v1/foods/batch',
+            this.request('batch', batchAddFoodRequestSchema, { names }),
+        );
 
         // 201, not 200 — and that is worth pinning rather than tolerating. `POST /api/v1/foods/batch` carries no
         // `@HttpCode` and does not set a status on the response, so it gets Nest's POST default of 201 (asserted
@@ -232,7 +249,13 @@ export class FoodServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async search(query: string): Promise<SearchResult> {
-        const res = await this.send('GET', `/api/v1/foods/search?query=${encodeURIComponent(query)}`);
+        // The QUERY is validated too, against the same `searchFoodQuerySchema` the service parses it with, so a
+        // term this client cannot legally send never costs a round trip. `?? ''` is not a defensive shrug: the
+        // published field is `.optional()` and its own doc says an absent query "is treated as empty, which
+        // yields an empty result set", so the empty string IS the contract's meaning for absent — and this
+        // method's signature requires a `string` anyway, making the branch unreachable in practice.
+        const { query: validated } = this.request('search', searchFoodQuerySchema, { query });
+        const res = await this.send('GET', `/api/v1/foods/search?query=${encodeURIComponent(validated ?? '')}`);
 
         return this.expect<SearchResult>(res, 200, searchResponseSchema);
     }
@@ -249,7 +272,11 @@ export class FoodServiceClient {
      * @sideEffect Performs an authenticated HTTP request.
      */
     public async resolve(id: string, candidateIds: readonly string[]): Promise<ResolveResult> {
-        const res = await this.send('PATCH', `/api/v1/foods/${encodeURIComponent(id)}`, { candidateIds });
+        const res = await this.send(
+            'PATCH',
+            `/api/v1/foods/${encodeURIComponent(id)}`,
+            this.request('resolve', resolveFoodRequestSchema, { candidateIds }),
+        );
 
         return this.expect<ResolveResult>(res, 200, resolveResponseSchema, id);
     }
@@ -357,6 +384,39 @@ export class FoodServiceClient {
         throw this.toError(res, id);
     }
 
+    /**
+     * Parse an OUTBOUND body/query against the request schema the food service publishes, and return it.
+     *
+     * PARSE, DON'T VALIDATE — in the direction that was entirely missing. Every write here serialized whatever
+     * it was handed, so this client's only statement about a request was a TypeScript annotation that erases at
+     * runtime: `addByName('')` and `resolve(id, [])` are both illegal per the published schemas and both left as
+     * requests, coming back as a {@link BadRequestError} whose only diagnosis was the server's message.
+     * zod's key-stripping also NORMALIZES, so a stray property cannot reach the wire even where structural
+     * typing admitted it.
+     *
+     * ⚠️ WHAT THIS DOES **NOT** CHECK, deliberately: server-side POLICY the contract does not carry. The batch
+     * cap is `FOOD_MAX_BATCH_NAMES`, a runtime configuration value that `batchAddFoodRequestSchema` states it is
+     * leaving out precisely so there is no second representation of it — so an oversized batch still goes out and
+     * still comes back a {@link BadRequestError}. Re-declaring that bound here to "fail faster" would recreate
+     * the duplication §15 exists to forbid, one layer down.
+     *
+     * @param operation - The method name, for the error message.
+     * @param schema - The published request schema for this endpoint.
+     * @param body - The caller's body (or query bag).
+     * @returns The parsed, key-stripped value.
+     * @throws {InvalidRequestError} when it does not satisfy the published contract — deliberately not a
+     *   {@link BadRequestError}, which means "the server said 400" and is a different fault with a different fix.
+     */
+    private request<S extends z.ZodType>(operation: string, schema: S, body: unknown): z.output<S> {
+        const parsed = schema.safeParse(body);
+
+        if (!parsed.success) {
+            throw new InvalidRequestError(operation, parsed.error);
+        }
+
+        return parsed.data as z.output<S>;
+    }
+
     /** Resolve the configured token (literal or callback), or `undefined` for an unauthenticated call. */
     private async resolveToken(): Promise<string | undefined> {
         if (this.token === undefined) {
@@ -366,9 +426,32 @@ export class FoodServiceClient {
         return typeof this.token === 'function' ? this.token() : this.token;
     }
 
-    /** Map a non-success response to the typed error for its status (FR-051 precedence + DSN-14). */
+    /**
+     * Map a non-success response to the typed error for its status (FR-051 precedence + DSN-14).
+     *
+     * The error BODY is parsed against the envelope the food service publishes (`errorResponseSchema` — the
+     * union of its `ApiError`, controller-error and Nest-`HttpException` shapes), not cast. It used to be
+     * `(res.body ?? {}) as { error?; message?; status? }`, which is the same unfalsifiable belief as an
+     * unparsed success body and arguably worse: the fields read here DECIDE WHICH TYPED ERROR the caller
+     * gets. `/candidate/i.test(body.error)` selecting {@link CandidateMismatchError} over
+     * {@link ConflictError} is a control-flow branch taken on an unchecked string.
+     *
+     * `safeParse` with a fallback, NOT `parse`, and the fallback is the point: a non-2xx body is frequently
+     * not our envelope at all — the shared internet-facing ALB serves an HTML page for `502`/`503`/`504`
+     * during every deploy (ADR-0003). Throwing here would replace a recoverable typed error with a `ZodError`
+     * escaping the error-mapping path itself, so an unrecognized body degrades to "map by status alone",
+     * which is exactly what the status switch below can still do correctly.
+     */
     private toError(res: RawResponse, id: string): FoodServiceClientError {
-        const body = (res.body ?? {}) as { error?: string; message?: string; status?: FoodStatus };
+        const parsed = errorResponseSchema.safeParse(res.body);
+        const body: { error?: string; message?: string; status?: string } = parsed.success ? parsed.data : {};
+        // ⚠️ FINDING, narrowed here rather than silently cast: the published envelope types the lifecycle
+        // `status` it may carry as a bare `z.string()`, while `NotFoundError` takes a {@link FoodStatus}. So the
+        // enum is re-applied at this boundary — a second `safeParse` against the two-value-plus-three enum the
+        // service also publishes — and an unrecognized value becomes `undefined` (a `404` with no status),
+        // which is what the field's own optionality already means. Tightening the published error envelope's
+        // `status` to `foodStatusSchema` is a service-side contract change and out of scope here.
+        const status = foodStatusSchema.safeParse(body.status);
 
         switch (res.status) {
             case 400:
@@ -378,7 +461,7 @@ export class FoodServiceClient {
             case 403:
                 return new ForbiddenError(body.error ?? body.message);
             case 404:
-                return new NotFoundError(id, body.status);
+                return new NotFoundError(id, status.success ? status.data : undefined);
             case 409:
                 // A candidate-not-in-set 409 is a CandidateMismatchError (DSN-14); any other 409 is a
                 // lifecycle conflict (e.g. not awaiting disambiguation).

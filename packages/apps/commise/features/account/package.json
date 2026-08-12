@@ -7,7 +7,8 @@
     "types": "./src/index.ts",
     "exports": {
         ".": "./src/index.ts",
-        "./danger": "./src/danger/index.ts"
+        "./danger": "./src/danger/index.ts",
+        "./testing": "./src/__fixtures__/index.ts"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
@@ -23,7 +24,8 @@
         "@kitchensink/recipe-core": "*",
         "@kitchensink/schema-identity": "*",
         "@radix-ui/react-dialog": "^1.1.20",
-        "@tanstack/react-query": "^5.62.0"
+        "@tanstack/react-query": "^5.62.0",
+        "zod": "^4.4.3"
     },
     "peerDependencies": {
         "react": "^19.0.0",

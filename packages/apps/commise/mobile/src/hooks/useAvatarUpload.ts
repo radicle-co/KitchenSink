@@ -18,6 +18,7 @@
  * 3. Resolve the durable public URL on success; reject (never silently succeed) if either the presign or the
  *    S3 PUT fails, so the caller can surface a localized error and leave the stored avatar unchanged.
  */
+import { avatarPresignQuerySchema, avatarPresignResponseSchema } from '@kitchensink/schema-identity';
 import { useAuth } from '@clerk/expo';
 import { useCallback } from 'react';
 
@@ -30,12 +31,6 @@ export interface AvatarUploadInput {
     readonly blob: Blob;
     /** The image MIME type; must match the presigned PUT's signed `Content-Type`. */
     readonly contentType: string;
-}
-
-/** The identity avatar presign response: a short-lived S3 PUT URL + the durable public URL. */
-interface AvatarPresignResponse {
-    readonly uploadUrl: string;
-    readonly publicUrl: string;
 }
 
 /** The avatar upload seam consumed by the profile screen's {@link import('../components/account/AvatarField.js')}. */
@@ -56,10 +51,23 @@ export function useAvatarUpload(): UseAvatarUpload {
         async ({ blob, contentType }: AvatarUploadInput): Promise<string> => {
             // Native tokens are azp-less; the services only admit them when minted from the native template.
             const getIdentityToken: GetToken = () => getToken({ template: NATIVE_JWT_TEMPLATE });
-            const query = `type=${encodeURIComponent(contentType)}&size=${blob.size}`;
-            const presign = await apiRequest<AvatarPresignResponse>(
+            // ⚠️ THE QUERY AND THE RESPONSE BOTH GO THROUGH `@kitchensink/schema-identity` (§15 rule 4). This hook
+            // used to declare its OWN `interface AvatarPresignResponse { uploadUrl; publicUrl }` — a fresh
+            // declaration under the exact name the identity contract already publishes, in an app that already
+            // depends on that package and already imports three other types from it. Two representations of one
+            // wire shape, on either side of a boundary `typecheck` could not cross.
+            //
+            // `size` is stringified because a query bag is strings on the wire, which is what
+            // `avatarPresignQuerySchema` describes. The allowed-type list and the size cap are deliberately NOT in
+            // that schema (they live in the controller that owns the presigning, so there is one authority on the
+            // security rule), so an unlisted type or oversized image is still the server's `400` — this parse
+            // checks the SHAPE of the exchange, which is all the contract claims to describe.
+            const query = avatarPresignQuerySchema.parse({ type: contentType, size: String(blob.size) });
+            const search = new URLSearchParams({ type: query.type ?? '', size: query.size ?? '' });
+            const presign = await apiRequest(
                 getIdentityToken,
-                `/api/v1/users/me/avatar/presign?${query}`,
+                `/api/v1/users/me/avatar/presign?${search.toString()}`,
+                avatarPresignResponseSchema,
                 { method: 'POST' },
             );
 

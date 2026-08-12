@@ -27,6 +27,10 @@ import type {
     RestoreVersionResponse,
     UploadUrlResponse,
 } from '@kitchensink/recipe-service-client';
+import type {
+    CollectionResponse as SchemaCollectionResponse,
+    CollectionWithRecipesResponse as SchemaCollectionWithRecipesResponse,
+} from '@kitchensink/schema-recipe';
 
 /**
  * The mock "S3" origin the presign step hands back as `uploadUrl` (T067/CP-6/P3 photo-upload e2e). A
@@ -354,15 +358,19 @@ export function makeCollection(over: Partial<MockCollection> = {}): MockCollecti
     };
 }
 
-/** The `Collection` wire shape the service emits: the stored record minus its join, plus a derived count. */
-interface CollectionResponse extends Collection {
-    readonly recipeCount: number;
-}
-
-/** The `CollectionWithRecipes` wire shape: a collection plus its member recipes as METADATA + provenance. */
-interface CollectionWithRecipesResponse extends CollectionResponse {
-    readonly recipes: readonly CollectionMemberRecipe[];
-}
+// ⚠️ THE TWO COLLECTION WIRE SHAPES COME FROM THE CONTRACT (§15 rule 4 / ADR-0014), not from here.
+//
+// They were declared locally as `interface CollectionResponse extends Collection { recipeCount: number }` and
+// `interface CollectionWithRecipesResponse extends CollectionResponse { recipes: … }`. A mock that declares its
+// own version of the shape it is standing in for is the worst place for this duplication to live, because the
+// mock IS the oracle a Playwright spec is judged against: the local `recipeCount` was `readonly recipeCount:
+// number` — REQUIRED — while the published `collectionResponseSchema` marks it optional (absent on list reads),
+// so a spec asserting a count on a list row would have been green here and wrong against production.
+//
+// Aliased rather than re-exported under the contract's names because the rest of this module refers to them by
+// these names; each is one definition with one extra name, never a second definition.
+type CollectionResponse = SchemaCollectionResponse;
+type CollectionWithRecipesResponse = SchemaCollectionWithRecipesResponse;
 
 /**
  * Strip a stored {@link RecipeDetail} down to the `Recipe` METADATA the search + collection read paths

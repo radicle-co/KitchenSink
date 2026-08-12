@@ -13,6 +13,8 @@ import {
     isUnauthorizedError,
     isUnexpectedResponseError,
 } from '../errors.js';
+import { makeUserProfile, makeUserProfileUser } from '../__fixtures__/index.js';
+import { isInvalidRequestError } from '../errors.js';
 import { PROFILE_ME_PATH, ProfileServiceClient } from '../profileServiceClient.js';
 
 const BASE = 'https://identity.example.test';
@@ -37,7 +39,7 @@ describe('ProfileServiceClient — request shape', () => {
     });
 
     it('getMe() sends GET /api/v1/users/me with the bearer token and returns the parsed profile', async () => {
-        const profile = { user: { displayName: 'Ada' }, account: {} };
+        const profile = makeUserProfile();
         const fetchMock = stubFetch({ status: 200, body: profile });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
 
@@ -52,7 +54,7 @@ describe('ProfileServiceClient — request shape', () => {
     });
 
     it('patchMe() PATCHes the update as a JSON body to /api/v1/users/me — NOT /api/v1/profiles/me', async () => {
-        const updated = { user: { displayName: 'Ada Lovelace' }, account: {} };
+        const updated = makeUserProfile({ user: makeUserProfileUser({ displayName: 'Ada Lovelace' }) });
         const fetchMock = stubFetch({ status: 200, body: updated });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
 
@@ -87,7 +89,7 @@ describe('ProfileServiceClient — request shape', () => {
     });
 
     it('sends no body/content-type header on a GET', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { user: {}, account: {} } });
+        const fetchMock = stubFetch({ status: 200, body: makeUserProfile() });
         const client = new ProfileServiceClient({ baseUrl: BASE, token: 'tok_123', fetch: fetchMock });
 
         await client.getMe();
@@ -98,7 +100,7 @@ describe('ProfileServiceClient — request shape', () => {
     });
 
     it('omits the Authorization header when constructed with no token', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { user: {}, account: {} } });
+        const fetchMock = stubFetch({ status: 200, body: makeUserProfile() });
         const client = new ProfileServiceClient({ baseUrl: BASE, fetch: fetchMock });
 
         await client.getMe();
@@ -108,7 +110,7 @@ describe('ProfileServiceClient — request shape', () => {
     });
 
     it('resolves a callback TokenSource per request, forwarding forceRefresh', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { user: {}, account: {} } });
+        const fetchMock = stubFetch({ status: 200, body: makeUserProfile() });
         const getToken = vi.fn((options?: { forceRefresh?: boolean }) =>
             options?.forceRefresh === true ? 'fresh_token' : 'cached_token',
         );
@@ -133,7 +135,7 @@ describe('ProfileServiceClient — request shape', () => {
     });
 
     it('forwards configured credentials on every request', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { user: {}, account: {} } });
+        const fetchMock = stubFetch({ status: 200, body: makeUserProfile() });
         const client = new ProfileServiceClient({
             baseUrl: BASE,
             token: 'tok',
@@ -148,7 +150,7 @@ describe('ProfileServiceClient — request shape', () => {
     });
 
     it('strips a trailing slash from baseUrl before joining the path', async () => {
-        const fetchMock = stubFetch({ status: 200, body: { user: {}, account: {} } });
+        const fetchMock = stubFetch({ status: 200, body: makeUserProfile() });
         const client = new ProfileServiceClient({ baseUrl: `${BASE}/`, token: 'tok', fetch: fetchMock });
 
         await client.getMe();
@@ -238,5 +240,59 @@ describe('is* guards — negative cases', () => {
     it('a sibling typed error does not satisfy an unrelated guard (discriminates by subclass)', () => {
         expect(isBadRequestError(new UnauthorizedError())).toBe(false);
         expect(isNotFoundError(new ForbiddenError())).toBe(false);
+    });
+});
+
+/**
+ * BOTH DIRECTIONS of the published identity contract (ADR-0014), which this client previously checked in
+ * neither. The suite is deliberately about the DISTINCTION between the three "400-ish" failures, not merely
+ * that something throws: `InvalidRequestError` means the body never left, `BadRequestError` means the service
+ * rejected a legal body, and a `ZodError` out of a read means the SERVICE's body drifted. A test that accepted
+ * any of them interchangeably would not notice them being merged.
+ */
+describe('ProfileServiceClient — contract validation', () => {
+    /** A fetch double that FAILS the test if called — the proof that no request was issued. */
+    const neverFetch: typeof fetch = () => {
+        throw new Error('the client must not issue a request for a body that fails the published contract');
+    };
+
+    it('rejects an unknown key on patchMe before issuing a request, because the schema is strict', async () => {
+        const client = new ProfileServiceClient({ baseUrl: BASE, fetch: neverFetch });
+        // `patchUserMeRequestSchema` is a `z.strictObject`, so the identity service answers 400 to an unknown
+        // key rather than stripping it. A misspelled field is therefore a caller bug, and it is caught here.
+        const error = await client
+            .patchMe({ displayNam: 'Ada' } as unknown as Parameters<typeof client.patchMe>[0])
+            .catch((caught: unknown) => caught);
+
+        expect(isInvalidRequestError(error)).toBe(true);
+        expect(error).not.toBeInstanceOf(BadRequestError);
+    });
+
+    it('rejects a non-URL avatarUrl before issuing a request', async () => {
+        const client = new ProfileServiceClient({ baseUrl: BASE, fetch: neverFetch });
+        // `z.url()` requires a scheme — a deliberate tightening over the `@IsUrl()` this replaced, which
+        // accepted a bare `example.com/x.png` for a value that is rendered as an image source.
+        const error = await client.patchMe({ avatarUrl: 'example.com/a.png' }).catch((caught: unknown) => caught);
+
+        expect(isInvalidRequestError(error)).toBe(true);
+    });
+
+    // The mirror image, and what stops the three cases above from passing against an unconditional throw.
+    it('sends a body that satisfies the published request schema', async () => {
+        const fetchMock = stubFetch({ status: 200, body: makeUserProfile() });
+        const client = new ProfileServiceClient({ baseUrl: BASE, fetch: fetchMock });
+
+        await expect(client.patchMe({ displayName: 'Ada', avatarUrl: null })).resolves.toStrictEqual(makeUserProfile());
+    });
+
+    it('REJECTS a response that does not match the published contract, instead of casting it', async () => {
+        // The defect this whole change closes: `{ user: {}, account: {} }` used to be returned as a `UserProfile`
+        // and only surfaced as a missing field deep inside a component. It must now fail at the edge.
+        const client = new ProfileServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch({ status: 200, body: { user: {}, account: {} } }),
+        });
+
+        await expect(client.getMe()).rejects.toThrow(/expected string/iu);
     });
 });

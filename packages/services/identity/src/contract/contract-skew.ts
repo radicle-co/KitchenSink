@@ -27,11 +27,20 @@
  * a CONSUMER's pinned schema — the released mobile binary that cannot be updated in step with a backend
  * deploy. That comparison is inherently cross-process: the device's copy of `@kitchensink/schema-identity` was pinned at ITS build
  * time and is not present in this process. Detecting it requires the service to PUBLISH its hash and the
- * client to compare. That publication is deliberately NOT added here: it is a wire-contract ADDITION whose
- * client-side half (does a mismatch warn, or refuse?) changes behaviour for every consumer and wants an
- * explicit ruling, and inventing one unilaterally for a second and third service would spread a decision
- * nobody has made. `recipe-service` publishes `contractHash` on `GET /health`; when the client-side policy is
- * ruled on, these two services follow it.
+ * client to compare. The PUBLICATION half now exists here: `GET /health` and `GET /health/ready` carry
+ * `contractHash` (`src/health/health.schema.ts`), matching `recipe-service`'s payload field for field.
+ *
+ * The COMPARISON half is the consumer's, and the owner's ruling (2026-08-11) is that a mismatch **WARNS ONCE
+ * AND CONTINUES NORMALLY** — never refuses, blocks, retries, or alters a response. Identity has no generated
+ * TypeScript client package of its own today (the web/mobile apps talk to Clerk's SDK and to the recipe
+ * service; `@kitchensink/schema-identity` is consumed for types), so nothing in-repo compares this value yet —
+ * publishing it is what makes the comparison POSSIBLE for the next consumer, and the reference implementation
+ * to copy is `packages/clients/food-service/src/contractSkew.ts`.
+ *
+ * ⚠️ DO NOT "harden" a future client half into a refusal to match this boot check's fail-closed posture. The
+ * two are asymmetric ON PURPOSE, and the reason is in the next section: this check's inputs are both baked
+ * into one artifact, so refusing costs no availability. A client's inputs are two INDEPENDENTLY deployed
+ * artifacts, so refusing there converts a diagnostic into a self-inflicted outage on every backend deploy.
  *
  * ── WHY IT IS FAIL-CLOSED, AND WHY THAT COSTS NO AVAILABILITY ──
  *

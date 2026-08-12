@@ -22,6 +22,15 @@ COPY packages/shared/recipe-core/prod.package.json ./packages/shared/recipe-core
 COPY packages/shared/recipe-core/dist ./packages/shared/recipe-core/dist
 COPY packages/clients/food-service/prod.package.json ./packages/clients/food-service/package.json
 COPY packages/clients/food-service/dist ./packages/clients/food-service/dist
+# TRANSITIVE, and it WILL look redundant — it is not. This service does not import @kitchensink/schema-food
+# itself; @kitchensink/food-service-client does, and only since it began reading that package's CONTRACT_HASH
+# as a VALUE for the drift-layer-3 skew comparison (CODING_STANDARDS §15.2.5). Before that the import was
+# `import type` only, so it erased at compile time and the image never needed the package on disk. The moment it
+# became a runtime import, omitting this COPY turned a diagnostic WARNING into `ERR_MODULE_NOT_FOUND` at boot —
+# a crash-loop caused by the feature meant to report drift. service-dockerfile-deps.test.ts now walks the
+# TRANSITIVE @kitchensink closure precisely so this class cannot return.
+COPY packages/schemas/food/prod.package.json ./packages/schemas/food/package.json
+COPY packages/schemas/food/dist ./packages/schemas/food/dist
 COPY packages/shared/clerk-verify/prod.package.json ./packages/shared/clerk-verify/package.json
 COPY packages/shared/clerk-verify/dist ./packages/shared/clerk-verify/dist
 COPY packages/shared/identity-core/prod.package.json ./packages/shared/identity-core/package.json

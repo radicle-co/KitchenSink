@@ -1,19 +1,17 @@
 /**
- * T046 — request DTO for `PATCH /api/v1/recipes/{id}/visibility` (US2 set-visibility).
+ * Request DTO for `PATCH /api/v1/recipes/{id}/visibility` (US2 set-visibility).
  *
- * Carries the single requested visibility literal (`public` | `private`); the C-004 policy evaluator in
- * {@link import('../recipes.service.js').RecipesService} decides whether the transition is allowed for
- * the recipe's `(sourceType, isPremium, hasSubstantiveEdit)`. Validation runs via the controller-scoped
- * `ValidationPipe`.
+ * A thin `nestjs-zod` adapter over the AUTHORED contract in `../recipes.schema.ts` (CODING_STANDARDS §15.2),
+ * which is also the first time this body appears in the published document at all. The schema bounds the
+ * literal only; the C-004 policy evaluator in {@link import('../recipes.service.js').RecipesService} still
+ * decides whether the transition is allowed for the recipe's `(sourceType, isPremium, hasSubstantiveEdit)`, so
+ * a refused transition stays a policy answer rather than collapsing into a validation `400`.
+ *
+ * ⚠️ A `createZodDto` class carries NO `class-validator` metadata; see `create-recipe.dto.ts`.
  */
-import { IsIn } from 'class-validator';
-import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { createZodDto } from 'nestjs-zod';
 
-/** The allowed visibility literals, derived from the shared `RecipeVisibility` value object. */
-const RECIPE_VISIBILITIES = Object.values(RecipeVisibility);
+import { setRecipeVisibilityRequestSchema } from '../recipes.schema.js';
 
 /** Body of `PATCH /api/v1/recipes/{id}/visibility`. */
-export class SetVisibilityDto {
-    @IsIn(RECIPE_VISIBILITIES)
-    visibility!: RecipeVisibility;
-}
+export class SetVisibilityDto extends createZodDto(setRecipeVisibilityRequestSchema) {}

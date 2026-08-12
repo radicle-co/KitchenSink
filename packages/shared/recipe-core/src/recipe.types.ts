@@ -756,6 +756,18 @@ export interface RecipeVersion {
 }
 
 /**
+ * Max length of a version's device label (W8-a.6 / FR-007b).
+ *
+ * ONE authority for the bound, shared by the two RESPONSE shapes that carry the label
+ * ({@link recipeVersionSchema}, {@link versionConflictSideSchema}) and by the recipe service's REQUEST schema
+ * (`src/recipes/recipes.schema.ts`), which additionally applies a charset rule the responses must not — a
+ * response has to be able to carry a label persisted before that rule existed. Bounded at all because the
+ * value is user-controlled and surfaced in the version history and the conflict banner; the cap is defense in
+ * depth over the render-time escaping that is the actual XSS control.
+ */
+export const MAX_RECIPE_DEVICE_LABEL_LENGTH = 80;
+
+/**
  * Runtime validator for {@link RecipeVersion}.
  */
 export const recipeVersionSchema = z.object({
@@ -768,7 +780,7 @@ export const recipeVersionSchema = z.object({
     createdBy: idSchema,
     changeSummary: z.string().min(1).optional(),
     // Device attribution (W8-a.6) — bounded free text; absent for pre-feature versions / when unsent.
-    deviceLabel: z.string().min(1).max(80).optional(),
+    deviceLabel: z.string().min(1).max(MAX_RECIPE_DEVICE_LABEL_LENGTH).optional(),
     editorHandle: z.string().min(1).optional(),
     createdAt: isoDateTimeStringSchema,
 });
@@ -794,7 +806,7 @@ export interface VersionConflictSide {
  */
 export const versionConflictSideSchema = z.object({
     versionNumber: positiveIntSchema,
-    deviceLabel: z.string().min(1).max(80).optional(),
+    deviceLabel: z.string().min(1).max(MAX_RECIPE_DEVICE_LABEL_LENGTH).optional(),
     updatedAt: isoDateTimeStringSchema,
     snapshot: recipeSnapshotSchema,
 });
@@ -1033,6 +1045,27 @@ export const recipeVersionPendingArchiveSchema = z.object({
     updatedAt: isoDateTimeStringSchema,
 });
 
+// ── Recipe write inputs: TYPES here, the VALIDATION in the service ────────────────────────────────
+//
+// ⚠️ The four request schemas that used to sit alongside these interfaces —
+// `createRecipeInputSchema`, `updateRecipeInputSchema`, `createRecipeIngredientInputSchema` and
+// `createRecipeStepInputSchema` — HAVE BEEN REMOVED, and must not be reinstated here. They were a strictly
+// LOOSER second representation of rules the recipe service enforces: no `title` maximum against the
+// service's 200, no `ingredientId` UUID check, no ingredient-quantity bounds, no array caps, and no upper
+// bound on any of the five int4-backed numbers. The looser twin is the trap, not the convenience — the
+// published OpenAPI document was generated from it and therefore told integrators that `title` had no
+// maximum while the service rejected at 201.
+//
+// The AUTHORITY is now `packages/services/recipe-service/src/recipes/recipes.schema.ts`, published as
+// `@kitchensink/schema-recipe` (`createRecipeRequestSchema`, `updateRecipeRequestSchema`,
+// `recipeIngredientInputSchema`, `recipeStepInputSchema`) — CODING_STANDARDS §15.2, "the service OWNS its
+// wire types". Both apps import their field-level validators from there.
+//
+// The INTERFACES below stay, because they are the shape the typed client's method signatures and the
+// editor's form model are written against, and a `z.infer` of the service's schema is asserted mutually
+// assignable to them in `recipe-service/src/recipes/__tests__/recipes.schema.test.ts` — so the domain type
+// and the wire schema cannot drift apart in silence.
+
 /**
  * Input payload for a single ingredient when creating or updating a recipe draft.
  */
@@ -1057,37 +1090,18 @@ export interface CreateRecipeIngredientInput {
 }
 
 /**
- * Runtime validator for {@link CreateRecipeIngredientInput}.
- */
-export const createRecipeIngredientInputSchema = z.object({
-    ingredientId: idSchema,
-    name: z.string().min(1),
-    quantity: positiveNumberSchema,
-    unit: z.string().min(1).optional(),
-    notes: z.string().min(1).optional(),
-    userCalories: nonNegativeNumberSchema.optional(),
-    userProteinG: nonNegativeNumberSchema.optional(),
-    userCarbsG: nonNegativeNumberSchema.optional(),
-    userFatG: nonNegativeNumberSchema.optional(),
-});
-
-/**
  * Input payload for a single instruction step when creating or updating a recipe
  * draft. The server assigns `stepNumber` from array order; the client sends only
  * the instruction text and an optional inline timer.
+ *
+ * `timerSeconds` must be STRICTLY POSITIVE where it is present — the persisted column carries
+ * `CHECK (timer_seconds IS NULL OR timer_seconds > 0)`, so "no timer" is expressed by omitting the key, never
+ * by `0`. Enforced by the service's `recipeStepInputSchema`.
  */
 export interface CreateRecipeStepInput {
     instruction: string;
     timerSeconds?: number;
 }
-
-/**
- * Runtime validator for {@link CreateRecipeStepInput}.
- */
-export const createRecipeStepInputSchema = z.object({
-    instruction: z.string().min(1),
-    timerSeconds: nonNegativeIntSchema.optional(),
-});
 
 /**
  * Input payload to create a new recipe.
@@ -1119,27 +1133,17 @@ export interface CreateRecipeInput {
      * publication state as a side effect of an unrelated edit.
      */
     status?: RecipeStatus;
+    /**
+     * The device that authored this version (W8-a.6 / FR-007b) — OPTIONAL bounded free text recorded on the
+     * version snapshot the write creates.
+     *
+     * It was MISSING from this type while the service accepted and persisted it, and while the published
+     * contract listed it only on `RecipeVersion` (a response) with both request bodies marked
+     * `additionalProperties: false` — so the document forbade a field the service uses. Bounded by
+     * {@link MAX_RECIPE_DEVICE_LABEL_LENGTH} and charset-restricted by the service's request schema.
+     */
+    deviceLabel?: string;
 }
-
-/**
- * Runtime validator for {@link CreateRecipeInput}.
- */
-export const createRecipeInputSchema = z.object({
-    title: z.string().min(1),
-    description: z.string().optional(),
-    ingredients: z.array(createRecipeIngredientInputSchema),
-    steps: z.array(createRecipeStepInputSchema),
-    servings: positiveIntSchema,
-    prepTimeMinutes: nonNegativeIntSchema,
-    cookTimeMinutes: nonNegativeIntSchema,
-    totalTimeMinutes: nonNegativeIntSchema,
-    difficulty: recipeDifficultySchema.optional(),
-    cuisine: z.string().min(1).optional(),
-    dietaryFlags: z.array(z.string().min(1)).optional(),
-    tags: z.array(z.string().min(1)).optional(),
-    visibility: recipeVisibilitySchema.optional(),
-    status: recipeStatusSchema.optional(),
-});
 
 /**
  * Input payload to update an existing recipe with optimistic concurrency protection.
@@ -1147,6 +1151,12 @@ export const createRecipeInputSchema = z.object({
  * Standard semantic: an OMITTED field is left unchanged. `difficulty` is the deliberate exception (it
  * is three-state — see below), so it is excluded from the inherited `Partial<CreateRecipeInput>` and
  * re-declared with the `| null` clear sentinel.
+ *
+ * `visibility` is inherited from `Partial<CreateRecipeInput>` but the SERVICE IGNORES IT on this route — it
+ * is set through `PATCH /api/v1/recipes/{id}/visibility`, where the C-004 policy evaluator gates the
+ * transition. The published `UpdateRecipeRequest` no longer advertises it for that reason; the field survives
+ * here only because the editor's `toUpdateRecipeInput` spreads its create projection, and a value sent is
+ * dropped exactly as it always was.
  */
 export interface UpdateRecipeInput extends Omit<Partial<CreateRecipeInput>, 'difficulty'> {
     expectedVersion: number;
@@ -1160,15 +1170,6 @@ export interface UpdateRecipeInput extends Omit<Partial<CreateRecipeInput>, 'dif
      */
     difficulty?: RecipeDifficulty | null;
 }
-
-/**
- * Runtime validator for {@link UpdateRecipeInput}.
- */
-export const updateRecipeInputSchema = createRecipeInputSchema.partial().extend({
-    expectedVersion: positiveIntSchema,
-    // .nullable().optional() — the three-state field above: absent | value | null (clear).
-    difficulty: recipeDifficultySchema.nullable().optional(),
-});
 
 /**
  * Query parameters for recipe catalog search.

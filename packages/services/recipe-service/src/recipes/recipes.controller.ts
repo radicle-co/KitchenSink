@@ -5,8 +5,15 @@
  * from `req.principal` (set by the fail-closed `AuthMiddleware` — the owner key is the app-user ULID,
  * never the Clerk `sub`) and the controller delegates every decision to {@link RecipesService}. Domain
  * failures thrown by the service (`RECIPE_NOT_FOUND` / `NOT_OWNER` / `VERSION_CONFLICT`) are translated
- * to HTTP by the global `ApiExceptionFilter`. A controller-scoped `ValidationPipe` enforces the DTOs
- * (the app registers no global pipe).
+ * to HTTP by the global `ApiExceptionFilter`. A controller-scoped `ZodValidationPipe` enforces the DTOs,
+ * which ARE the authored wire contract (`recipes.schema.ts`) rather than a second set of `class-validator`
+ * rules beside it — see CODING_STANDARDS §15.2. Unknown body keys are stripped (zod's `z.object` default),
+ * and a `@Param` string passes through the pipe untouched because its metatype is not a `ZodDto`.
+ *
+ * ⚠️ THE PIPE IS LOAD-BEARING, not decoration. The DTOs are `createZodDto` classes and carry NO
+ * `class-validator` metadata, so swapping this back to Nest's own `ValidationPipe` would validate NOTHING
+ * while looking correctly wired — on the route that writes user-authored recipe content. The app registers no
+ * global pipe, so this binding is the only enforcement point.
  */
 import {
     Body,
@@ -21,8 +28,8 @@ import {
     Post,
     Query,
     UsePipes,
-    ValidationPipe,
 } from '@nestjs/common';
+import { ZodValidationPipe } from 'nestjs-zod';
 
 import { RecipesService } from './recipes.service.js';
 import { CreateRecipeDto } from './dto/create-recipe.dto.js';
@@ -40,7 +47,7 @@ import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 // webhook URL) as well as already-shipped mobile builds and cached web bundles, whose endpoints were
 // inlined at build time. Removing it REQUIRES updating the Clerk dashboard first — see ADR-0011.
 @Controller(['api/v1/recipes', 'v1/recipes'])
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
+@UsePipes(ZodValidationPipe)
 export class RecipesController {
     public constructor(private readonly recipesService: RecipesService) {}
 

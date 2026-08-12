@@ -521,6 +521,12 @@ jobs:
                   ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
                   IMAGE_TAG: ${{ github.sha }}
               run: |
+                  # Regenerate prod.package.json from the dev manifest before the image is built — the same
+                  # step food and identity already had. Recipe was the ONE service without it, which is how its
+                  # manifest came to omit eight declared runtime dependencies and to name `./dist/main.js`, an
+                  # entry point the build does not emit. prod-manifest-parity.test.ts checks the CONTENTS; this
+                  # is what stops them going stale in the first place.
+                  npm run docker:prepare --workspace=packages/services/recipe-service
                   npm run infra:build --workspace=packages/services/recipe-service
                   npm run bundle:lambda --workspace=packages/services/recipe-service
                   docker buildx build --platform linux/amd64 -f packages/services/recipe-service/Dockerfile \

@@ -10,9 +10,11 @@
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { CONTRACT_HASH } from '@kitchensink/schema-recipe';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NotFoundError, RecipeServiceClient } from '../index.js';
+import { resetContractSkewLatchForTests } from '../contractSkew.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 
 /** A single request as observed on the server socket. */
@@ -32,8 +34,34 @@ interface CannedResponse {
 /** A booted test server: its base URL, the requests it received (in order), and a shutdown hook. */
 interface TestServer {
     readonly baseUrl: string;
+    /** API requests only — the `/health` skew probe is answered out-of-band, see {@link startServer}. */
     readonly received: ReceivedRequest[];
+    /** The `/health` skew-probe requests this server answered (drift layer 3, §15.2.5). */
+    readonly healthProbes: ReceivedRequest[];
     close(): Promise<void>;
+}
+
+/**
+ * What the test server answers on `GET /health` — the drift-layer-3 skew probe (§15.2.5).
+ *
+ * `'agree'` publishes the client's OWN fingerprint (no warning — the default, so every unrelated scenario is
+ * unaffected), `'skewed'` publishes a different well-formed one, and `'absent'` omits the field entirely, which
+ * is what a service deployed before publication serves.
+ */
+type HealthPosture = 'agree' | 'skewed' | 'absent';
+
+/** A well-formed fingerprint that is deliberately not this client's. */
+const FOREIGN_HASH = 'd'.repeat(64);
+
+/** The `/health` body for a posture. */
+function healthBody(posture: HealthPosture): Record<string, string> {
+    const base = { status: 'ok', service: 'recipe' };
+
+    if (posture === 'absent') {
+        return base;
+    }
+
+    return { ...base, contractHash: posture === 'skewed' ? FOREIGN_HASH : CONTRACT_HASH };
 }
 
 /** Read a request's full body off the socket as a UTF-8 string. */
@@ -53,19 +81,38 @@ async function readBody(req: IncomingMessage): Promise<string> {
  *
  * @sideEffect Opens a listening TCP socket on an ephemeral localhost port.
  */
-async function startServer(responses: readonly CannedResponse[]): Promise<TestServer> {
+async function startServer(
+    responses: readonly CannedResponse[],
+    healthPosture: HealthPosture = 'agree',
+): Promise<TestServer> {
     const received: ReceivedRequest[] = [];
+    const healthProbes: ReceivedRequest[] = [];
     let i = 0;
 
     const server: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
         void (async (): Promise<void> => {
             const body = await readBody(req);
-            received.push({
+            const observed = {
                 method: req.method ?? '',
                 url: req.url ?? '',
                 authorization: req.headers['authorization'],
                 body,
-            });
+            };
+
+            // `/health` is the drift-layer-3 skew probe, NOT part of any scenario below. It is answered
+            // out-of-band — outside the canned sequence and outside `received` — for two reasons: letting it
+            // consume a queued response would silently shift every sequenced scenario by one (the identity-sync
+            // retry test would have had its 401 eaten by the probe), and letting it land in `received` would
+            // break every length/index assertion depending on unrelated network timing.
+            if (observed.url === '/health') {
+                healthProbes.push(observed);
+                res.writeHead(200, { 'content-type': 'application/json' });
+                res.end(JSON.stringify(healthBody(healthPosture)));
+
+                return;
+            }
+
+            received.push(observed);
 
             const canned = responses[Math.min(i, responses.length - 1)]!;
             i += 1;
@@ -88,12 +135,19 @@ async function startServer(responses: readonly CannedResponse[]): Promise<TestSe
     return {
         baseUrl: `http://127.0.0.1:${port}`,
         received,
+        healthProbes,
         close: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
     };
 }
 
 describe('RecipeServiceClient (integration, real HTTP server)', () => {
     let server: TestServer | undefined;
+
+    // The skew probe latches once per ORIGIN per process. Each test here gets a fresh ephemeral port (so a fresh
+    // origin), but resetting keeps that an explicit guarantee rather than a side effect of port allocation.
+    beforeEach(() => {
+        resetContractSkewLatchForTests();
+    });
 
     afterEach(async () => {
         await server?.close();
@@ -115,8 +169,23 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
     });
 
     it('serializes list + array query params onto the real request line', async () => {
+        // All FOUR facet dimensions, not `facets: {}`. `recipeSearchFacetsSchema` declares every dimension
+        // REQUIRED (deliberately — the server/client disagreement about whether a facet block could be absent
+        // was reconciled in favour of required), so a `{}` canned body fails the client's own response parse and
+        // this scenario died on a ZodError before it could assert anything about the request line. Pre-existing
+        // red on this tier, unrelated to what the test is checking.
         server = await startServer([
-            { status: 200, json: { results: [], total: 0, page: 2, pageSize: 20, hasMore: false, facets: {} } },
+            {
+                status: 200,
+                json: {
+                    results: [],
+                    total: 0,
+                    page: 2,
+                    pageSize: 20,
+                    hasMore: false,
+                    facets: { dietaryFlags: [], tags: [], cuisine: [], totalTime: [] },
+                },
+            },
         ]);
         const client = new RecipeServiceClient({ baseUrl: server.baseUrl, fetch });
 
@@ -186,5 +255,96 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
         expect(result).toEqual(recipe);
         expect(server.received).toHaveLength(2);
         expect(forceRefreshFlags).toEqual([false, true]);
+    });
+});
+
+/**
+ * DRIFT LAYER 3 (Skew) over a REAL socket — CODING_STANDARDS §15.2.5, owner ruling 2026-08-11 (warn, never
+ * refuse).
+ *
+ * The unit tier proves the decision with a mocked `fetch`. This tier proves the thing a mock cannot: that the
+ * probe is a real, separate, unauthenticated `GET /health` on the wire, that the caller's request completes
+ * normally alongside it, and that the fingerprint survives a genuine JSON round-trip.
+ */
+describe('RecipeServiceClient contract skew (integration, real HTTP server)', () => {
+    let server: TestServer | undefined;
+
+    beforeEach(() => {
+        resetContractSkewLatchForTests();
+    });
+
+    afterEach(async () => {
+        await server?.close();
+        server = undefined;
+    });
+
+    it('probes /health over the wire, unauthenticated, and warns once on a real mismatch', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1', title: 'Soup' });
+        server = await startServer([{ status: 200, json: recipe }], 'skewed');
+        const onContractSkew = vi.fn();
+        const client = new RecipeServiceClient({
+            baseUrl: server.baseUrl,
+            token: 'tok-int',
+            fetch,
+            onContractSkew,
+        });
+
+        // The caller's call is completely unaffected — that IS the ruling.
+        await expect(client.getRecipeById('rec_1')).resolves.toEqual(recipe);
+
+        await vi.waitFor(() => {
+            expect(onContractSkew).toHaveBeenCalledTimes(1);
+        });
+        expect(server.healthProbes).toHaveLength(1);
+        expect(server.healthProbes[0]!.method).toBe('GET');
+        // No credential on the probe: `/health` is public so a consumer can ask before it holds one.
+        expect(server.healthProbes[0]!.authorization).toBeUndefined();
+        expect(onContractSkew.mock.calls[0]?.[0]).toContain(FOREIGN_HASH.slice(0, 12));
+    });
+
+    it('stays silent when the real service publishes an agreeing fingerprint', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1' });
+        server = await startServer([{ status: 200, json: recipe }], 'agree');
+        const onContractSkew = vi.fn();
+        const client = new RecipeServiceClient({ baseUrl: server.baseUrl, fetch, onContractSkew });
+
+        await client.getRecipeById('rec_1');
+        await vi.waitFor(() => {
+            expect(server?.healthProbes).toHaveLength(1);
+        });
+
+        expect(onContractSkew).not.toHaveBeenCalled();
+    });
+
+    // A real service deployed before publication existed. Silence, not noise.
+    it('stays silent when the real service publishes no fingerprint at all', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1' });
+        server = await startServer([{ status: 200, json: recipe }], 'absent');
+        const onContractSkew = vi.fn();
+        const client = new RecipeServiceClient({ baseUrl: server.baseUrl, fetch, onContractSkew });
+
+        await client.getRecipeById('rec_1');
+        await vi.waitFor(() => {
+            expect(server?.healthProbes).toHaveLength(1);
+        });
+
+        expect(onContractSkew).not.toHaveBeenCalled();
+    });
+
+    it('probes ONCE across many real requests to the same origin', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1' });
+        server = await startServer([{ status: 200, json: recipe }], 'skewed');
+        const onContractSkew = vi.fn();
+        const client = new RecipeServiceClient({ baseUrl: server.baseUrl, fetch, onContractSkew });
+
+        for (let n = 0; n < 5; n += 1) {
+            await client.getRecipeById('rec_1');
+        }
+
+        await vi.waitFor(() => {
+            expect(onContractSkew).toHaveBeenCalledTimes(1);
+        });
+        expect(server.received).toHaveLength(5);
+        expect(server.healthProbes).toHaveLength(1);
     });
 });

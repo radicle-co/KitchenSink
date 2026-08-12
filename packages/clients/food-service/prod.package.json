@@ -8,6 +8,9 @@
     "exports": {
         ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
     },
+    "dependencies": {
+        "@kitchensink/schema-food": "*"
+    },
     "engines": {
         "node": "24.x"
     }

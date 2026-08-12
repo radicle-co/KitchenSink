@@ -27,9 +27,17 @@
  * a CONSUMER's pinned schema — the released mobile binary that cannot be updated in step with a backend
  * deploy. That comparison is inherently cross-process: the device's copy of `@kitchensink/schema-recipe` was
  * pinned at ITS build time and is not present in this process. Detecting it requires the service to PUBLISH its
- * hash and the client to compare — which is why `GET /health` now carries `contractHash`. The client-side
- * comparison (and the policy question of whether a mismatch should warn or refuse) is deliberately NOT decided
- * here; it changes client behaviour for every consumer and wants an explicit ruling.
+ * hash and the client to compare — which is why `GET /health` carries `contractHash`. The client-side half now
+ * exists too: `@kitchensink/recipe-service-client` compares its pinned `CONTRACT_HASH` against that value and,
+ * on a mismatch, **WARNS ONCE AND CONTINUES NORMALLY** (owner ruling, 2026-08-11). It does not refuse, block,
+ * retry, or alter a single response the caller sees; an ABSENT field is silence, not a warning. See
+ * `packages/clients/recipe-service/src/contractSkew.ts`.
+ *
+ * ⚠️ DO NOT "harden" the client half into a refusal to match this boot check's fail-closed posture. The two are
+ * asymmetric ON PURPOSE, and the reason is in the next section: this check's inputs are both baked into one
+ * artifact, so refusing costs no availability. The client's inputs are two INDEPENDENTLY deployed artifacts, so
+ * refusing there converts a diagnostic into a self-inflicted outage on every backend deploy — and on mobile,
+ * one that only an App Store release could clear.
  *
  * ── WHY IT IS FAIL-CLOSED, AND WHY THAT COSTS NO AVAILABILITY ──
  *

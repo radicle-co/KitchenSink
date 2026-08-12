@@ -18,8 +18,26 @@
  * container health check reads liveness, the ALB target group reads readiness. The payload is part of the
  * published contract because the `service` discriminator is what lets a probe tell "identity answered" from "the
  * shared ALB's default 404 answered" (ADR-0003).
+ *
+ * ── WHY `contractHash` IS PUBLISHED HERE, ON AN UNAUTHENTICATED ROUTE ──
+ *
+ * It is the SKEW SIGNAL for drift layer 3 (§15.2.5), and it mirrors `recipe-service`'s health payload field for
+ * field so the three services agree. The boot assertion in `src/contract/contract-skew.ts` compares the two
+ * stamps baked into ONE image; it is structurally blind to the case the layer exists for — a deployed service
+ * running ahead of a CONSUMER's pinned schema, which is the live problem for a released mobile binary that
+ * cannot be updated in step with a backend deploy. That comparison is cross-process, so the service has to say
+ * which contract it is serving.
+ *
+ * Publishing it leaks nothing: the identical value already ships inside every consumer as `CONTRACT_HASH` in
+ * `@kitchensink/schema-identity`. What this adds is the OTHER half — and it is on the unauthenticated probes on
+ * purpose, because a consumer checking for skew must be able to ask before it holds a credential.
+ *
+ * The client-side half is a WARNING, never a refusal (owner ruling, 2026-08-11).
  */
 import { z } from 'zod';
+
+/** A lower-case hex SHA-256 — the shape of every fingerprint the contract generator emits. */
+const contractHashSchema = z.string().regex(/^[0-9a-f]{64}$/u);
 
 /** The shape of the identity health/readiness payloads. */
 export const healthStatusSchema = z.object({
@@ -27,6 +45,12 @@ export const healthStatusSchema = z.object({
     status: z.string(),
     /** Which service answered — `identity`. The discriminator distinguishing us from a default ALB response. */
     service: z.string(),
+    /**
+     * The wire-contract fingerprint this binary was built against — the same value
+     * `@kitchensink/schema-identity` publishes as `CONTRACT_HASH`. A consumer whose pinned copy differs is
+     * talking to a service whose contract has moved, and warns (drift layer 3, §15.2.5).
+     */
+    contractHash: contractHashSchema,
 });
 
 /** The shape of the identity health/readiness payloads. */

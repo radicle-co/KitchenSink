@@ -12,6 +12,7 @@
  *
  * @implements FR-047
  */
+import { reportContractSkewOnce } from './contractSkew.js';
 import {
     BadRequestError,
     CandidateMismatchError,
@@ -56,6 +57,16 @@ export interface FoodServiceClientOptions {
     readonly fetch?: typeof fetch;
     /** Per-request timeout in milliseconds; defaults to {@link DEFAULT_TIMEOUT_MS} (8000). */
     readonly timeoutMs?: number;
+    /**
+     * Where a contract-skew WARNING goes (drift layer 3, CODING_STANDARDS §15.2.5). Defaults to
+     * `console.warn`.
+     *
+     * This package has no logging seam of its own and this is not the place to invent one: a skew warning is
+     * the ONLY thing this client ever emits out-of-band, so it gets one narrowly-named sink rather than a
+     * logger abstraction nothing else would use. Supply it to route the warning into a real logger (or to
+     * assert on it in a test).
+     */
+    readonly onContractSkew?: (message: string) => void;
 }
 
 /** A normalized response: status, parsed JSON body (or `undefined`), and a parsed `Retry-After`. */
@@ -70,6 +81,7 @@ export class FoodServiceClient {
     private readonly token: TokenSource | undefined;
     private readonly fetchImpl: typeof fetch;
     private readonly timeoutMs: number;
+    private readonly onContractSkew: (message: string) => void;
 
     /** @param options - Base URL, optional token (user or M2M), optional `fetch` double, and timeout. */
     public constructor(options: FoodServiceClientOptions) {
@@ -77,6 +89,15 @@ export class FoodServiceClient {
         this.token = options.token;
         this.fetchImpl = options.fetch ?? fetch;
         this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+        this.onContractSkew =
+            options.onContractSkew ??
+            ((message: string): void => {
+                console.warn(message);
+            });
+        // NOTHING skew-related happens here. Constructing a client must not touch the network: this class is
+        // instantiated PER REQUEST — and per keystroke for the typeahead — by the recipe service's
+        // `FoodServiceClients` factory, so a probe in the constructor would be a `/health` request per
+        // keystroke. See `./contractSkew.ts` for where the check fires instead, and why.
     }
 
     /**
@@ -277,6 +298,12 @@ export class FoodServiceClient {
         } finally {
             clearTimeout(timeout);
         }
+
+        // DRIFT LAYER 3 (Skew), consumer half — CODING_STANDARDS §15.2.5. Fired HERE, after a response has been
+        // received, and deliberately NOT awaited: it must add no latency, change no response, and never throw.
+        // "After a response" so the one-shot is not spent on an origin we never reached; once per ORIGIN per
+        // process (not per client instance) because instances are minted per keystroke. See `./contractSkew.ts`.
+        reportContractSkewOnce({ baseUrl: this.baseUrl, fetch: this.fetchImpl, warn: this.onContractSkew });
 
         const retryAfter = response.headers.get('retry-after');
 

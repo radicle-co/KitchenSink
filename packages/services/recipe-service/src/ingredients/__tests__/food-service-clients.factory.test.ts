@@ -12,12 +12,17 @@
  *  - `typeahead()` and `standard()` really do carry DIFFERENT deadlines (the per-keystroke bound vs the 8s
  *    one) — collapsing them would let a degraded food service stall the typeahead;
  *  - the credential appears in NO error thrown out of a failed call, however that error is stringified.
+ *  - the drift-layer-3 skew probe the client fires (`GET /health`, CODING_STANDARDS §15.2.5) carries NO caller
+ *    credential and is aimed at the configured origin — a background diagnostic must not spend, or misaim, a
+ *    forwarded user token.
  *
  * Written before the factory existed (TDD red → green).
  */
 import { inspect } from 'node:util';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { resetContractSkewLatchForTests } from '@kitchensink/food-service-client';
 
 import { CallerToken } from '../../auth/caller-token.js';
 import { FoodServiceClients } from '../food-service-clients.factory.js';
@@ -36,16 +41,32 @@ function caller(raw = SECRET): CallerToken {
     return token;
 }
 
+/** Split recorded calls into the API requests and the drift-layer-3 `GET /health` skew probes (§15.2.5). */
+function partitionCalls(calls: readonly { url: string; headers: Record<string, string> }[]): {
+    api: { url: string; headers: Record<string, string> }[];
+    healthProbes: { url: string; headers: Record<string, string> }[];
+} {
+    return {
+        api: calls.filter((call) => !call.url.endsWith('/health')),
+        healthProbes: calls.filter((call) => call.url.endsWith('/health')),
+    };
+}
+
 /** A `fetch` double that records every call and answers with an empty search result. */
 function recordingFetch(): { impl: typeof fetch; calls: { url: string; headers: Record<string, string> }[] } {
     const calls: { url: string; headers: Record<string, string> }[] = [];
     const impl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
         calls.push({
-            url: String(input),
+            url,
             headers: Object.fromEntries(Object.entries((init?.headers ?? {}) as Record<string, string>)),
         });
 
-        return new Response(JSON.stringify({ results: [] }), {
+        // The skew probe reads `contractHash`; answering it with the search body would simply be indeterminate,
+        // but answering it properly keeps the double honest about what each endpoint returns.
+        const body = url.endsWith('/health') ? { status: 'ok', service: 'food' } : { results: [] };
+
+        return new Response(JSON.stringify(body), {
             status: 200,
             headers: { 'content-type': 'application/json' },
         });
@@ -66,14 +87,24 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
+// The client's skew probe latches once per ORIGIN per process (`@kitchensink/food-service-client`'s
+// `contractSkew.ts`). Clearing it keeps these cases order-independent: otherwise only whichever test ran first
+// would see a probe at all, and the probe-credential assertions below would pass vacuously.
+beforeEach(() => {
+    resetContractSkewLatchForTests();
+});
+
 describe('FoodServiceClients — forwarding the caller credential', () => {
     it('sends the caller bearer on the typeahead client', async () => {
         const { calls } = recordingFetch();
 
         await clients().typeahead(caller()).search('chicken');
 
-        expect(calls).toHaveLength(1);
-        expect(calls[0]?.headers['authorization']).toBe(`Bearer ${SECRET}`);
+        // Exactly ONE API request. The client also fires the unauthenticated `/health` skew probe, which is
+        // asserted on separately below — it is not a call made on the caller's behalf.
+        const { api } = partitionCalls(calls);
+        expect(api).toHaveLength(1);
+        expect(api[0]?.headers['authorization']).toBe(`Bearer ${SECRET}`);
     });
 
     it('sends the caller bearer on the standard (8s) client too', async () => {
@@ -91,7 +122,10 @@ describe('FoodServiceClients — forwarding the caller credential', () => {
         await factory.typeahead(caller('alice-token')).search('a');
         await factory.typeahead(caller('bob-token')).search('b');
 
-        expect(calls.map((call) => call.headers['authorization'])).toEqual(['Bearer alice-token', 'Bearer bob-token']);
+        expect(partitionCalls(calls).api.map((call) => call.headers['authorization'])).toEqual([
+            'Bearer alice-token',
+            'Bearer bob-token',
+        ]);
     });
 
     it('sends NO Authorization header when there is no caller credential (never a fallback token)', async () => {
@@ -198,5 +232,48 @@ describe('FoodServiceClients — the credential never reaches an error', () => {
             .catch((thrown: unknown) => thrown);
 
         expect(inspect(error, { depth: null })).not.toContain(SECRET);
+    });
+});
+
+/**
+ * The skew probe is a SECOND request this seam now emits, so it gets the same confused-deputy scrutiny as the
+ * first. Drift layer 3 (CODING_STANDARDS §15.2.5), owner ruling 2026-08-11.
+ */
+describe('FoodServiceClients — the contract-skew probe is credential-free and correctly aimed', () => {
+    it('fires the probe at the CONFIGURED origin only, carrying no caller credential', async () => {
+        const { calls } = recordingFetch();
+
+        await clients().typeahead(caller()).search('chicken');
+
+        const { healthProbes } = partitionCalls(calls);
+        expect(healthProbes).toHaveLength(1);
+        expect(healthProbes[0]?.url).toBe(`${FOOD_ORIGIN}/health`);
+        // The whole point: the forwarded user token does NOT ride along on a background diagnostic.
+        expect(healthProbes[0]?.headers['authorization']).toBeUndefined();
+    });
+
+    it('never puts the caller secret anywhere in the probe request', async () => {
+        const { calls } = recordingFetch();
+
+        await clients().standard(caller()).search('chicken');
+
+        const { healthProbes } = partitionCalls(calls);
+        expect(healthProbes).toHaveLength(1);
+        expect(inspect(healthProbes[0], { depth: null })).not.toContain(SECRET);
+    });
+
+    // Per-keystroke clients are the reason the latch is keyed on the origin rather than the instance: a probe per
+    // client would be a probe per keystroke, i.e. a network call on the hottest path in the system.
+    it('fires ONCE across many per-keystroke clients from the same factory', async () => {
+        const { calls } = recordingFetch();
+        const factory = clients();
+
+        for (const term of ['c', 'ch', 'chi', 'chic', 'chick']) {
+            await factory.typeahead(caller()).search(term);
+        }
+
+        const { api, healthProbes } = partitionCalls(calls);
+        expect(api).toHaveLength(5);
+        expect(healthProbes).toHaveLength(1);
     });
 });

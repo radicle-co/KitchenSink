@@ -44,6 +44,7 @@ import type {
 import ky, { HTTPError, TimeoutError } from 'ky';
 import type { KyInstance, Options } from 'ky';
 
+import { reportContractSkewOnce } from './contractSkew.js';
 import {
     BadRequestError,
     FetchUnavailableError,
@@ -144,6 +145,15 @@ export interface RecipeServiceClientOptions {
      * a few ms) but never disable-able: an unbounded wait is the defect this exists to prevent.
      */
     readonly timeoutMs?: number;
+    /**
+     * Where a contract-skew WARNING goes (drift layer 3, CODING_STANDARDS §15.2.5). Defaults to `console.warn`.
+     *
+     * This package has no logging seam of its own and this is not the place to invent one: a skew warning is
+     * the ONLY thing this client ever emits out-of-band, so it gets one narrowly-named sink rather than a logger
+     * abstraction nothing else would use. Supply it to route the warning into a real logger (Sentry on web, the
+     * RN console on mobile), or to assert on it in a test.
+     */
+    readonly onContractSkew?: (message: string) => void;
 }
 
 /** A normalized response: status and parsed JSON body (or `undefined` for empty/`204`). */
@@ -231,6 +241,17 @@ export class RecipeServiceClient {
     private readonly timeoutMs: number;
     /** The configured ky transport: base URL, token attach, JSON body/parse, and typed error throwing. */
     private readonly http: KyInstance;
+    /**
+     * The resolved `fetch`, kept for the drift-layer-3 skew probe (§15.2.5).
+     *
+     * The probe deliberately does NOT go through `this.http`: ky's `beforeRequest` hook would attach the
+     * caller's bearer token, and `/health` is unauthenticated ON PURPOSE — a consumer checking for skew must be
+     * able to ask before it holds a credential, and a background diagnostic has no business minting or spending
+     * the viewer's token. Same instance as ky's, so an injected test double still sees the probe.
+     */
+    private readonly probeFetch: typeof fetch;
+    /** Where a skew warning goes; `console.warn` unless the consumer supplied a sink. */
+    private readonly onContractSkew: (message: string) => void;
 
     /** @param options - Base URL, optional token, an optional `fetch` double, and identity-sync retry config. */
     public constructor(options: RecipeServiceClientOptions) {
@@ -240,6 +261,15 @@ export class RecipeServiceClient {
         this.identitySyncBackoffMs = options.identitySyncBackoffMs ?? [250, 500, 1000];
         this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
         this.timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+        this.probeFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+        this.onContractSkew =
+            options.onContractSkew ??
+            ((message: string): void => {
+                console.warn(message);
+            });
+        // NOTHING skew-related happens here. Constructing a client must not touch the network — a client is
+        // composed wherever the app mounts a provider, and per-request on a server-rendered path. See
+        // `./contractSkew.ts` for where the check fires instead, and why.
         this.http = ky.create({
             // ky appends the single joining slash; input paths are passed without a leading slash.
             prefixUrl: this.baseUrl,
@@ -248,7 +278,7 @@ export class RecipeServiceClient {
             // `TypeError: Illegal invocation` in the browser (window.fetch must be called with `window` as
             // its receiver) — breaking every real browser request. Binding fixes it on web and is a no-op
             // in Node/RN. (Test doubles are plain functions and need no binding.)
-            fetch: options.fetch ?? globalThis.fetch.bind(globalThis),
+            fetch: this.probeFetch,
             // Identity-sync retries are owned by `send()` (they inspect the body + re-mint the token), and
             // no other status is retried — so ky's own retry is disabled to preserve behavior.
             retry: 0,
@@ -941,6 +971,13 @@ export class RecipeServiceClient {
         if (res.status === 401 && !isIdentitySyncPending(res)) {
             res = await this.sendOnce(method, path, body, query, true);
         }
+
+        // DRIFT LAYER 3 (Skew), consumer half — CODING_STANDARDS §15.2.5, owner ruling 2026-08-11: a mismatch
+        // WARNS, it does not refuse. Fired HERE, after a response has been received, and deliberately NOT
+        // awaited: it must add no latency, change no response, and never throw. Placed after the retry loops so
+        // one logical call produces at most one probe attempt, and once per ORIGIN per process rather than per
+        // client instance (a client may be constructed per server-rendered request). See `./contractSkew.ts`.
+        reportContractSkewOnce({ baseUrl: this.baseUrl, fetch: this.probeFetch, warn: this.onContractSkew });
 
         return res;
     }

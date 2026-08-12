@@ -7,6 +7,13 @@
  * single comma-separated value (`?tags=a,b`), normalized to a trimmed `string[]` by `@Transform`. The
  * controller-scoped `ValidationPipe` (`transform: true`) applies these. `page`/`pageSize`/`sortBy` are
  * left optional here and defaulted in {@link SearchService} so the wire contract stays a pure subset.
+ *
+ * ⚠️ The three `max*Time` filters carry {@link INT4_CEILING} for the SAME reason the create/update bodies do,
+ * even though a filter writes nothing: each becomes `WHERE <int4 column> <= $1`, and an out-of-range parameter
+ * fails that comparison with the identical `22003 value "…" is out of range for type integer` an INSERT would
+ * — which the `ApiExceptionFilter` collapses to a generic `500` for what is plainly a bad request. Verified
+ * against a live PostgreSQL 16. This vertical has NOT otherwise converged on §15.2 zod yet, so the bound is
+ * expressed as `@Max` here; when it does converge it moves into `search.schema.ts`.
  */
 import { Transform, Type } from 'class-transformer';
 import { IsArray, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
@@ -14,6 +21,12 @@ import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 import type { RecipeSearchParams, RecipeSearchSortBy as RecipeSearchSortByType } from '@kitchensink/recipe-core';
 
 import { MAX_SEARCH_PAGE_SIZE } from '../dal/search.dal.js';
+
+/**
+ * The largest value a Postgres `integer` (int4) column accepts — the ceiling of the `prep_time_minutes` /
+ * `cook_time_minutes` / `total_time_minutes` columns these filters compare against.
+ */
+const INT4_CEILING = 2_147_483_647;
 
 /**
  * The `sortBy` values accepted on the wire — derived from the shared {@link RecipeSearchSortBy} value object
@@ -59,18 +72,21 @@ export class SearchRecipesQueryDto implements RecipeSearchParams {
     @Type(() => Number)
     @IsInt()
     @Min(0)
+    @Max(INT4_CEILING)
     maxPrepTime?: number;
 
     @IsOptional()
     @Type(() => Number)
     @IsInt()
     @Min(0)
+    @Max(INT4_CEILING)
     maxCookTime?: number;
 
     @IsOptional()
     @Type(() => Number)
     @IsInt()
     @Min(0)
+    @Max(INT4_CEILING)
     maxTotalTime?: number;
 
     @IsOptional()

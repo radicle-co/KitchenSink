@@ -14,4 +14,5 @@ export * from './schemas/health.schema.js';
 export * from './schemas/ingredients.schema.js';
 export * from './schemas/photos.schema.js';
 export * from './schemas/ratings.schema.js';
+export * from './schemas/recipes.schema.js';
 export * from './schemas/search.schema.js';

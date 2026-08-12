@@ -47,7 +47,7 @@ const makeStep = (overrides: Partial<RecipeStep> = {}): RecipeStep => ({
 const makeIngredient = (overrides: Partial<RecipeIngredient> = {}): RecipeIngredient => ({
     id: 'ri_1',
     recipeId: 'rec_1',
-    ingredientId: 'ing_1',
+    ingredientId: '00000000-0000-4000-8000-000000000001',
     quantity: 2,
     unit: 'tbsp',
     sortOrder: 0,
@@ -872,7 +872,14 @@ describe('useRecipeEditor — merge(selections) composes via composeConflictMerg
                 makeStepView({ stepNumber: 1, instruction: 'Mine step one' }),
                 makeStepView({ stepNumber: 2, instruction: 'Mine step two' }),
             ],
-            ingredients: [makeIngredientView({ ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp' })],
+            ingredients: [
+                makeIngredientView({
+                    ingredientId: '00000000-0000-4000-8000-000000000001',
+                    name: 'Olive oil',
+                    quantity: 2,
+                    unit: 'tbsp',
+                }),
+            ],
         });
         useRecipeMock.mockReturnValue(recipeQuery({ data: loaded }));
         const server = makeSide({
@@ -886,7 +893,7 @@ describe('useRecipeEditor — merge(selections) composes via composeConflictMerg
                 ingredients: [
                     makeIngredient({
                         id: 'ri_1',
-                        ingredientId: 'ing_1',
+                        ingredientId: '00000000-0000-4000-8000-000000000001',
                         ingredientName: 'Olive oil',
                         quantity: 2,
                         unit: 'tbsp',
@@ -894,7 +901,7 @@ describe('useRecipeEditor — merge(selections) composes via composeConflictMerg
                     }),
                     makeIngredient({
                         id: 'ri_2',
-                        ingredientId: 'ing_2',
+                        ingredientId: '00000000-0000-4000-8000-000000000002',
                         ingredientName: 'Butter',
                         quantity: 1,
                         unit: 'tbsp',
@@ -913,7 +920,12 @@ describe('useRecipeEditor — merge(selections) composes via composeConflictMerg
         const { result } = renderHook(() => useRecipeEditor('rec_1', { onSaved, locale: 'en' }));
 
         act(() => result.current.submit());
-        act(() => result.current.resolutions.merge({ 'steps[1]': 'theirs', 'ingredients:ing_2': 'theirs' }));
+        act(() =>
+            result.current.resolutions.merge({
+                'steps[1]': 'theirs',
+                'ingredients:00000000-0000-4000-8000-000000000002': 'theirs',
+            }),
+        );
 
         expect(mutation.mutate).toHaveBeenCalledTimes(2);
         const [secondVars] = mutation.mutate.mock.calls[1] as [{ id: string; input: Record<string, unknown> }];
@@ -921,7 +933,10 @@ describe('useRecipeEditor — merge(selections) composes via composeConflictMerg
         const steps = secondVars.input['steps'] as ReadonlyArray<{ instruction: string }>;
         expect(steps.map((step) => step.instruction)).toEqual(['Mine step one', 'Their step two']);
         const ingredients = secondVars.input['ingredients'] as ReadonlyArray<{ ingredientId: string }>;
-        expect(ingredients.map((ingredient) => ingredient.ingredientId).sort()).toEqual(['ing_1', 'ing_2']);
+        expect(ingredients.map((ingredient) => ingredient.ingredientId).sort()).toEqual([
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000002',
+        ]);
         expect(onSaved).toHaveBeenCalledWith(saved);
     });
 

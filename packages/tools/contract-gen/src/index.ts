@@ -61,3 +61,23 @@ export {
     generateSchemaPackage,
 } from './generate.js';
 export type { ContractGenerationConfig, ContractGenerationResult } from './generate.js';
+
+export {
+    auditStorageCapacity,
+    collectBoundedColumns,
+    describeColumnCapacity,
+    formatStorageCapacityFindings,
+    wireUpperBound,
+    INT2_MAX,
+    INT4_MAX,
+    INT8_MAX,
+} from './storage-capacity.js';
+export type {
+    BoundedColumn,
+    ColumnAccount,
+    ColumnCapacity,
+    StorageCapacityAudit,
+    StorageCapacityFinding,
+    WireField,
+    WireUpperBound,
+} from './storage-capacity.js';

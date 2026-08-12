@@ -57,7 +57,7 @@ export function makeCollectionMemberRecipe(overrides: Partial<CollectionMemberRe
  */
 export function makeIngredientView(overrides: Partial<RecipeIngredientView> = {}): RecipeIngredientView {
     return {
-        ingredientId: 'ing_1',
+        ingredientId: '00000000-0000-4000-8000-000000000001',
         name: 'Olive oil',
         quantity: 2,
         unit: 'tbsp',
@@ -153,7 +153,9 @@ export function makeRecipeFormValues(overrides: Partial<RecipeFormValues> = {}):
         prepTimeMinutes: 10,
         cookTimeMinutes: 20,
         visibility: RecipeVisibility.PRIVATE,
-        ingredients: [{ ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp' }],
+        ingredients: [
+            { ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Olive oil', quantity: 2, unit: 'tbsp' },
+        ],
         steps: [{ instruction: 'Combine the ingredients.' }],
         ...overrides,
     };

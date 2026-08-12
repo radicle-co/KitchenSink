@@ -57,7 +57,6 @@ import type {
     OpenApiResponse,
 } from '@kitchensink/contract-gen';
 import {
-    createRecipeInputSchema,
     ingredientSchema,
     paginatedResponseSchema,
     recipeDetailSchema,
@@ -66,7 +65,6 @@ import {
     recipeSchema,
     recipeVersionSchema,
     restoreVersionResponseSchema,
-    updateRecipeInputSchema,
 } from '@kitchensink/recipe-core';
 
 import {
@@ -104,6 +102,13 @@ import {
     reorderPhotosRequestSchema,
 } from '../src/photos/photos.schema.js';
 import { setRatingRequestSchema } from '../src/ratings/ratings.schema.js';
+import {
+    createRecipeRequestSchema,
+    listRecipesQuerySchema,
+    setRecipeVisibilityRequestSchema,
+    updateRecipeRequestSchema,
+    MAX_RECIPE_LIST_PAGE_SIZE,
+} from '../src/recipes/recipes.schema.js';
 import { recipeSearchResponseSchema } from '../src/search/search.schema.js';
 
 /**
@@ -120,8 +125,14 @@ const components = {
     Recipe: recipeSchema,
     RecipeDetail: recipeDetailSchema,
     PaginatedRecipes: paginatedResponseSchema(recipeSchema),
-    CreateRecipeRequest: createRecipeInputSchema,
-    UpdateRecipeRequest: updateRecipeInputSchema,
+    // ⚠️ These two come from the SERVICE's authored `recipes.schema.ts`, not from `recipe-core`. They used to
+    // be `recipe-core`'s `createRecipeInputSchema`/`updateRecipeInputSchema`, which were STRICTLY LOOSER than
+    // what the service enforced — the document told integrators `title` had no maximum while the DTO rejected
+    // at 201, and gave no upper bound at all for the five int4-backed numbers. `recipe-core`'s request zod has
+    // been removed for that reason; see `src/recipes/recipes.schema.ts`.
+    CreateRecipeRequest: createRecipeRequestSchema,
+    UpdateRecipeRequest: updateRecipeRequestSchema,
+    SetRecipeVisibilityRequest: setRecipeVisibilityRequestSchema,
     SetRatingRequest: setRatingRequestSchema,
     RecipePhoto: recipePhotoSchema,
     RecipePhotoList: z.array(recipePhotoSchema),
@@ -272,19 +283,27 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         get: {
             operationId: 'listRecipes',
             summary: "List the caller's recipes, newest-updated first by default.",
+            // Taken from the AUTHORED query schema rather than restated: these three were hand-written zod
+            // here, which is a second representation of the same three rules, and the published defaults come
+            // free from the schema that actually applies them.
             parameters: [
-                { name: 'page', in: 'query', description: '1-based page number.', schema: z.number().int().min(1) },
+                {
+                    name: 'page',
+                    in: 'query',
+                    description: '1-based page number.',
+                    schema: listRecipesQuerySchema.shape.page,
+                },
                 {
                     name: 'pageSize',
                     in: 'query',
-                    description: 'Page size, 1..100.',
-                    schema: z.number().int().min(1).max(100),
+                    description: `Page size, 1..${MAX_RECIPE_LIST_PAGE_SIZE}.`,
+                    schema: listRecipesQuerySchema.shape.pageSize,
                 },
                 {
                     name: 'sortBy',
                     in: 'query',
                     description: 'Sort key.',
-                    schema: z.enum(['updatedAt', 'createdAt', 'title']),
+                    schema: listRecipesQuerySchema.shape.sortBy,
                 },
             ],
             responses: {
@@ -350,8 +369,13 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             operationId: 'setRecipeVisibility',
             summary: 'Set the caller’s recipe visibility (`public` | `private`).',
             description:
-                'The request body is NOT described yet: the visibility body has no authored `*.schema.ts`, and inventing one here would be a third authority for it.',
+                'The schema bounds the literal only — whether the requested transition is ALLOWED is the C-004 policy evaluator’s answer (`403`), gated on the recipe’s `(sourceType, isPremium, hasSubstantiveEdit)`, not a validation `400`.',
             parameters: [uuidPathParam('id', 'The recipe id.')],
+            requestBody: {
+                description: 'The requested visibility.',
+                required: true,
+                schema: 'SetRecipeVisibilityRequest',
+            },
             responses: {
                 '200': { description: 'The updated recipe.', schema: 'RecipeDetail' },
                 '403': NOT_OWNER,
@@ -540,20 +564,26 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
                 {
                     name: 'maxPrepTime',
                     in: 'query',
+                    // Capped at the int4 ceiling: the filter becomes `WHERE <int4 column> <= $1`, and an
+                    // out-of-range parameter is a `22003` (a 500) rather than the 400 it should be.
                     description: 'Maximum prep minutes.',
-                    schema: z.number().int().min(0),
+                    schema: z.number().int().min(0).max(2_147_483_647),
                 },
                 {
                     name: 'maxCookTime',
                     in: 'query',
+                    // Capped at the int4 ceiling: the filter becomes `WHERE <int4 column> <= $1`, and an
+                    // out-of-range parameter is a `22003` (a 500) rather than the 400 it should be.
                     description: 'Maximum cook minutes.',
-                    schema: z.number().int().min(0),
+                    schema: z.number().int().min(0).max(2_147_483_647),
                 },
                 {
                     name: 'maxTotalTime',
                     in: 'query',
+                    // Capped at the int4 ceiling: the filter becomes `WHERE <int4 column> <= $1`, and an
+                    // out-of-range parameter is a `22003` (a 500) rather than the 400 it should be.
                     description: 'Maximum total minutes.',
-                    schema: z.number().int().min(0),
+                    schema: z.number().int().min(0).max(2_147_483_647),
                 },
                 { name: 'page', in: 'query', description: '1-based page number.', schema: z.number().int().min(1) },
                 { name: 'pageSize', in: 'query', description: 'Page size.', schema: z.number().int().min(1) },

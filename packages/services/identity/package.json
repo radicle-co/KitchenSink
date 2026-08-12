@@ -15,7 +15,7 @@
         "infra:build": "tsc -p infra/tsconfig.json",
         "infra:synth": "cdk synth --app 'npx tsx infra/bin/app.ts'",
         "infra:deploy": "cdk deploy --app 'npx tsx infra/bin/app.ts'",
-        "start": "node dist/main.js",
+        "start": "node dist/src/main.js",
         "test": "vitest run",
         "test:e2e": "vitest run --config vitest.e2e.config.ts",
         "test:integration": "vitest run --config vitest.integration.config.ts",
@@ -26,7 +26,7 @@
         "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "docker:prepare": "node docker-prepare.js",
+        "docker:prepare": "node ../../../scripts/prepareProdManifest.mjs",
         "docker:build": "docker build -t kitchensink-identity .",
         "docker:push": "aws ecr get-login-password | docker login --username AWS --password-stdin ${ECR_REGISTRY} && docker push ${ECR_REGISTRY}/kitchensink-identity:${IMAGE_TAG}",
         "contract:generate": "tsx contract/generate.ts"

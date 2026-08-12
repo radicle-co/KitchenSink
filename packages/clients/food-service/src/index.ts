@@ -63,3 +63,10 @@ export type {
     SearchResult,
     StatusResult,
 } from './types.js';
+
+// Drift layer 3 (Skew) — CODING_STANDARDS §15.2.5. The comparison itself is internal (the client wires it
+// automatically; route the warning with the `onContractSkew` option). Only the TEST SEAM is exported, because a
+// CONSUMER's test suite needs it: the once-per-origin latch is module scope, so a consumer asserting on the probe
+// — e.g. recipe-service's confused-deputy suite, which proves the probe carries no caller credential — cannot
+// make its cases order-independent without being able to clear it. Never call this from production code.
+export { resetContractSkewLatchForTests } from './contractSkew.js';

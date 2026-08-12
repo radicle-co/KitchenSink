@@ -28,11 +28,20 @@
  * a CONSUMER's pinned schema — the released mobile binary that cannot be updated in step with a backend
  * deploy. That comparison is inherently cross-process: the device's copy of `@kitchensink/schema-food` was pinned at ITS build
  * time and is not present in this process. Detecting it requires the service to PUBLISH its hash and the
- * client to compare. That publication is deliberately NOT added here: it is a wire-contract ADDITION whose
- * client-side half (does a mismatch warn, or refuse?) changes behaviour for every consumer and wants an
- * explicit ruling, and inventing one unilaterally for a second and third service would spread a decision
- * nobody has made. `recipe-service` publishes `contractHash` on `GET /health`; when the client-side policy is
- * ruled on, these two services follow it.
+ * client to compare, and BOTH halves now exist:
+ *
+ *   - PUBLICATION — `GET /health` and `GET /health/ready` carry `contractHash` (`src/health/health.schema.ts`),
+ *     matching `recipe-service`'s payload field for field.
+ *   - COMPARISON — `@kitchensink/food-service-client` compares its pinned `CONTRACT_HASH` against that value
+ *     and, on a mismatch, **WARNS ONCE AND CONTINUES NORMALLY** (owner ruling, 2026-08-11). It does not
+ *     refuse, block, retry, or alter a single response the caller sees. See
+ *     `packages/clients/food-service/src/contractSkew.ts` for why that is the only safe policy for a
+ *     released binary, and why an ABSENT field is silence rather than a warning.
+ *
+ * ⚠️ DO NOT "harden" the client half into a refusal to match this boot check's fail-closed posture. The two
+ * are asymmetric ON PURPOSE, and the reason is in the next section: this check's inputs are both baked into
+ * one artifact, so refusing costs no availability. The client's inputs are two INDEPENDENTLY deployed
+ * artifacts, so refusing there converts a diagnostic into a self-inflicted outage on every backend deploy.
  *
  * ── WHY IT IS FAIL-CLOSED, AND WHY THAT COSTS NO AVAILABILITY ──
  *

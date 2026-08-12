@@ -205,9 +205,13 @@ describe('RecipeEditContainer', () => {
     it('maps the edited form to the update input (with expectedVersion) and navigates on success', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-            makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 }),
-        );
+        // Hoisted so the ingredient assertion below DERIVES its expectation from the same Object Mother the
+        // component was fed, rather than restating it. The literal it used to hardcode (`ingredientId: 'ing_1'`)
+        // went stale silently when the fixture moved to a real UUID — the wire field is a `z.uuid()`, and
+        // `'ing_1'` was never a value the catalog API could return. A hardcoded copy of fixture data is the same
+        // drift this contract work exists to remove, one layer down.
+        const loaded = makeRecipeDetail({ title: 'Weeknight Pasta', currentVersion: 3 });
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(loaded);
         const updateSpy = vi.spyOn(client, 'updateRecipe').mockResolvedValue(makeRecipeDetail({ id: 'rec_1' }));
 
         renderWithRecipeClient(<RecipeEditContainer locale="en" recipeId="rec_1" />, client);
@@ -221,7 +225,14 @@ describe('RecipeEditContainer', () => {
         expect(id).toBe('rec_1');
         expect(input.title).toBe('Weeknight Pasta Deluxe');
         expect(input.expectedVersion).toBe(3);
-        expect(input.ingredients).toEqual([{ ingredientId: 'ing_1', name: 'Olive oil', quantity: 2, unit: 'tbsp' }]);
+        expect(input.ingredients).toEqual(
+            loaded.ingredients.map(({ ingredientId, name, quantity, unit }) => ({
+                ingredientId,
+                name,
+                quantity,
+                unit,
+            })),
+        );
         await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
     });
 

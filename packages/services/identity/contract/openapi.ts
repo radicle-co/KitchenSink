@@ -302,7 +302,10 @@ export const identityOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument(
                 summary: 'Liveness probe',
                 description:
                     'Static. Deliberately does NOT touch the database — a transient RDS blip must not make ECS ' +
-                    'kill an otherwise-healthy container.',
+                    'kill an otherwise-healthy container. Deliberately PUBLIC — the ALB target group calls it ' +
+                    'with no credential, and a consumer checking for contract skew must be able to ask before it ' +
+                    'holds one. `contractHash` is that skew signal (§15.2.5): a client whose pinned ' +
+                    '`@kitchensink/schema-identity` fingerprint differs WARNS and keeps working.',
                 security: [],
                 responses: { '200': { description: 'The process is up.', schema: 'HealthStatus' } },
             },

@@ -87,9 +87,27 @@ export function hangingFetch(): typeof fetch {
     }) as unknown as typeof fetch;
 }
 
-/** The recorded `fetch` calls; ky invokes the injected fetch with a `Request` as the first argument. */
+/**
+ * The recorded API `fetch` calls; ky invokes the injected fetch with a `Request` as the first argument.
+ *
+ * The drift-layer-3 skew probe (`GET {baseUrl}/health`, CODING_STANDARDS §15.2.5) shares this same `fetch`, so
+ * it also lands in `mock.calls` — but it is NOT a call the client made on the caller's behalf, and it does not
+ * even have the same shape: the probe bypasses ky and invokes `fetch(url, init)` with a plain STRING url, so
+ * including it here would make `requestAt(...).url` `undefined` for anything indexed past it. Filtering it out
+ * in this ONE place keeps every existing count/index assertion meaning what it says. Use
+ * {@link skewProbeCallsOf} to assert on the probe itself.
+ */
 export function callsOf(fetchMock: typeof fetch): [Request, ...unknown[]][] {
-    return (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls as [Request, ...unknown[]][];
+    return (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+        (call) => call[0] instanceof Request,
+    ) as [Request, ...unknown[]][];
+}
+
+/** The recorded drift-layer-3 skew-probe calls (`GET {baseUrl}/health`), which bypass ky. */
+export function skewProbeCallsOf(fetchMock: typeof fetch): [string, ...unknown[]][] {
+    return (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+        (call) => typeof call[0] === 'string' && call[0].endsWith('/health'),
+    ) as [string, ...unknown[]][];
 }
 
 /** The observable request the fake fetch received on its Nth call (0-based): URL, method, headers, body. */

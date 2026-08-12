@@ -5,13 +5,12 @@
  * (`*.native.tsx`) form leaves and by the app container. Holds the editable form shape, the auto total-time
  * rule, the mapping to the `CreateRecipeInput` wire contract, and validation. No React, no platform APIs.
  */
+import { computeRecipeNutrition, toNutritionLine as buildNutritionLine } from '@kitchensink/recipe-core';
 import {
-    computeRecipeNutrition,
-    createRecipeIngredientInputSchema,
-    createRecipeInputSchema,
-    createRecipeStepInputSchema,
-    toNutritionLine as buildNutritionLine,
-} from '@kitchensink/recipe-core';
+    createRecipeRequestSchema,
+    recipeIngredientInputSchema,
+    recipeStepInputSchema,
+} from '@kitchensink/schema-recipe';
 import type {
     CreateRecipeInput,
     FoodResolutionStatus,
@@ -87,12 +86,23 @@ export interface RecipeFormValues {
     readonly steps: readonly RecipeFormStep[];
 }
 
-/** Maximum title length (w3/e6) — enforced client-side via `maxLength` and surfaced by a live "N/64" counter. */
+/**
+ * Maximum title length (w3/e6) — enforced client-side via `maxLength` and surfaced by a live "N/64" counter.
+ *
+ * ⚠️ This is the EDITOR's display cap and it is deliberately TIGHTER than the wire's
+ * `MAX_RECIPE_TITLE_LENGTH` (200, from `@kitchensink/schema-recipe`): a title has to fit a recipe card. The
+ * relationship is the invariant —
+ * the editor may be stricter than the server, NEVER looser, or the user types something the API then rejects on
+ * submit. `__tests__/model.test.ts` asserts it, so raising this above the wire cap fails the build rather than
+ * shipping a form that can compose an invalid body. Which of the two numbers is RIGHT for the product is an
+ * open question (they were set independently and differ 3×); the invariant holds either way.
+ */
 export const TITLE_MAX_LENGTH = 64;
 
 /**
  * Maximum description length (w3/e6) — enforced client-side via `maxLength` and surfaced by a live "N/256"
- * counter.
+ * counter. Tighter than the wire's `MAX_RECIPE_DESCRIPTION_LENGTH` (5000) for the same reason, and under the
+ * same asserted invariant, as {@link TITLE_MAX_LENGTH}.
  */
 export const DESCRIPTION_MAX_LENGTH = 256;
 
@@ -381,19 +391,39 @@ export interface RecipeFormErrors {
     times?: RecipeFormErrorCode;
 }
 
-// Field-level validators COMPOSED from the wire schema (parse-don't-validate, DA5) — the single authoritative
-// source for the rules the form and the `CreateRecipeInput` contract genuinely SHARE, so the form can never
+// Field-level validators COMPOSED from the PUBLISHED wire schema (parse-don't-validate, DA5) — the single
+// authoritative source for the rules the form and the create contract genuinely SHARE, so the form can never
 // hand-restate (and drift from) what the wire already encodes:
-//   - `titleSchema`: non-empty title (matches `createRecipeInputSchema.shape.title`).
-//   - `ingredientIdSchema`: a resolved catalog id — REJECTS `null`, which is exactly the form's "unresolved
-//     line" sentinel (`RecipeFormIngredient.ingredientId: string | null`), so composing this schema against a
-//     form line's raw (possibly-`null`) id needs no hand-written `=== null` check.
-//   - `quantitySchema`: a finite, strictly-positive quantity.
+//   - `titleSchema`: a non-empty, ≤200-character title.
+//   - `quantitySchema`: a quantity inside the 0.001 .. 1 000 000 window the column can actually store.
 //   - `instructionSchema`: a non-empty step instruction.
-const titleSchema = createRecipeInputSchema.shape.title;
-const ingredientIdSchema = createRecipeIngredientInputSchema.shape.ingredientId;
-const quantitySchema = createRecipeIngredientInputSchema.shape.quantity;
-const instructionSchema = createRecipeStepInputSchema.shape.instruction;
+//
+// ⚠️ THESE NOW COME FROM `@kitchensink/schema-recipe`, the contract the SERVICE authors and enforces
+// (CODING_STANDARDS §15.2) — not from `@kitchensink/recipe-core`, whose request zod has been REMOVED. That is
+// the point of the change, not an import tidy-up: recipe-core's version was strictly looser than the server
+// (no title maximum, no quantity bounds), so a form composing it could build a body the server then rejected.
+// Composing the real contract makes the two agree by construction — `quantitySchema` in particular now rejects
+// `0.0001` and `2_000_000` in the editor instead of on the round trip.
+const titleSchema = createRecipeRequestSchema.shape.title;
+const quantitySchema = recipeIngredientInputSchema.shape.quantity;
+const instructionSchema = recipeStepInputSchema.shape.instruction;
+
+/**
+ * Whether an ingredient line has been RESOLVED to a catalog row.
+ *
+ * ⚠️ Deliberately NOT `recipeIngredientInputSchema.shape.ingredientId`, even though the wire field is a
+ * `z.uuid()` and composing it would look more DRY. The two are different questions, and merging them makes the
+ * editor lie: the form's `ingredientsUnresolved` code means "you have not picked this ingredient yet", which is
+ * the `null` sentinel (`RecipeFormIngredient.ingredientId: string | null`) — a malformed-but-present id is a
+ * different failure that deserves different copy, and reporting it as "unresolved" would send the user back to
+ * a picker that is already showing a selection. The FORMAT rule is the wire's, is enforced server-side, and is
+ * unreachable from this surface anyway: every id here comes from the catalog API, which returns real UUIDs.
+ *
+ * @param ingredientId - The line's raw id, or `null` while unresolved.
+ * @returns True when the line references a catalog row. Pure.
+ */
+const isResolvedIngredientId = (ingredientId: string | null): boolean =>
+    ingredientId !== null && ingredientId.length > 0;
 
 /**
  * Validate the form for submission: title present, ≥1 ingredient with EVERY line resolved to a catalog id
@@ -404,9 +434,10 @@ const instructionSchema = createRecipeStepInputSchema.shape.instruction;
  * genuinely share — title, ingredient id/quantity, step instruction — via the field schemas above, each
  * `.safeParse`d against the (trimmed, for strings) form value and mapped to the SAME `RecipeFormErrorCode`s
  * this validator has always returned. Two kinds of rule stay hand-written rather than schema-derived:
- *   - `ingredientsEmpty` / the empty-`steps`-array half of `stepsRequired` are FORM-ONLY: the wire schema
- *     places no minimum length on `ingredients`/`steps` (a recipe *record* can exist with zero of either, e.g.
- *     mid-edit), but the form's submit gate requires at least one of each.
+ *   - `ingredientsEmpty` / the empty-`steps`-array half of `stepsRequired` state the same rule the wire now
+ *     carries (`ingredients`/`steps` are `min(1)` on the request), kept as explicit comparisons so the form can
+ *     attribute the failure to a FIELD and return its own error code rather than a parse failure of the whole
+ *     body. Line-level resolution is {@link isResolvedIngredientId}, which is the form's own question.
  *   - `servingsPositive` / `timesNonNegative` are deliberately NOT parsed through the wire's
  *     `servings`/`prepTimeMinutes`/`cookTimeMinutes` fields, which additionally require an INTEGER
  *     (`positiveIntSchema`/`nonNegativeIntSchema`). The form has never enforced integer-ness (its numeric
@@ -430,9 +461,7 @@ export const validateRecipeForm = (values: RecipeFormValues): RecipeFormErrors =
         errors.ingredients = 'ingredientsEmpty';
     } else if (
         values.ingredients.some(
-            (line) =>
-                !ingredientIdSchema.safeParse(line.ingredientId).success ||
-                !quantitySchema.safeParse(line.quantity).success,
+            (line) => !isResolvedIngredientId(line.ingredientId) || !quantitySchema.safeParse(line.quantity).success,
         )
     ) {
         errors.ingredients = 'ingredientsUnresolved';

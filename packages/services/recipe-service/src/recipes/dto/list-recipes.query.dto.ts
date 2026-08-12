@@ -1,36 +1,19 @@
 /**
- * T023 — query DTO for `GET /api/v1/recipes` (list the caller's recipes with pagination).
+ * Query DTO for `GET /api/v1/recipes` (list the caller's recipes with pagination).
  *
- * Mirrors the `Page`/`PageSize` parameters + the `sortBy` enum in `contracts/api.openapi.yaml`:
+ * A thin `nestjs-zod` adapter over the AUTHORED contract in `../recipes.schema.ts` (CODING_STANDARDS §15.2):
  * `page` ≥ 1 (default 1), `pageSize` in 1..100 (default 20), `sortBy` ∈ {updatedAt, createdAt, title}
- * (default updatedAt). Query strings are coerced to numbers by the controller-scoped `ValidationPipe`
- * (`transform: true` + `@Type(() => Number)`).
+ * (default updatedAt). Query-string values arrive as strings, so the schema coerces — `z.coerce.number()`
+ * replaces what `@Type(() => Number)` did, and `.int()` REJECTS `2.5` rather than truncating it.
+ *
+ * ⚠️ A `createZodDto` class carries NO `class-validator` metadata; see `create-recipe.dto.ts`.
  */
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
 
-/** Supported list sort keys (contract `sortBy` enum). */
-export const RECIPE_LIST_SORT_BY = ['updatedAt', 'createdAt', 'title'] as const;
-
-/** A list sort key. */
-export type RecipeListSortBy = (typeof RECIPE_LIST_SORT_BY)[number];
+import { listRecipesQuerySchema } from '../recipes.schema.js';
 
 /** Query parameters of `GET /api/v1/recipes`. */
-export class ListRecipesQueryDto {
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(1)
-    page: number = 1;
+export class ListRecipesQueryDto extends createZodDto(listRecipesQuerySchema) {}
 
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(1)
-    @Max(100)
-    pageSize: number = 20;
-
-    @IsOptional()
-    @IsIn(RECIPE_LIST_SORT_BY)
-    sortBy: RecipeListSortBy = 'updatedAt';
-}
+export { MAX_RECIPE_LIST_PAGE_SIZE, RECIPE_LIST_SORT_BY } from '../recipes.schema.js';
+export type { RecipeListSortBy } from '../recipes.schema.js';

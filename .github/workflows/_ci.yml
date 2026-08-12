@@ -669,6 +669,12 @@ jobs:
               run: npm run test:integration --workspace=@commise/web
             - name: Run recipe-service-client integration tests
               run: npm run test:integration --workspace=@kitchensink/recipe-service-client
+            # Self-contained like the recipe one: a real in-process `node:http` server, no Docker. It covers the
+            # drift-layer-3 skew probe as a genuinely separate unauthenticated `GET /health` on the wire
+            # (CODING_STANDARDS §15.2.5) — behaviour a mocked `fetch` cannot prove. A non-unit tier is only real
+            # if CI calls it by name (§7), which is why this step exists alongside the config and the script.
+            - name: Run food-service-client integration tests
+              run: npm run test:integration --workspace=@kitchensink/food-service-client
 
     e2e-food:
         name: E2E (food — booted app + Postgres + LocalStack)

@@ -6,11 +6,19 @@
 import { describe, expect, it } from 'vitest';
 
 import { computeRecipeNutrition, RecipeDifficulty, RecipeStatus } from '@kitchensink/recipe-core';
+import {
+    createRecipeRequestSchema,
+    recipeIngredientInputSchema,
+    MAX_RECIPE_DESCRIPTION_LENGTH,
+    MAX_RECIPE_TITLE_LENGTH,
+} from '@kitchensink/schema-recipe';
 
 import {
     canAdvanceFromStep,
     computeTotalTime,
     defaultRecipeFormValues,
+    DESCRIPTION_MAX_LENGTH,
+    TITLE_MAX_LENGTH,
     lineCalories,
     pendingIngredientIds,
     recipeNutritionTotal,
@@ -30,7 +38,9 @@ const filledValues = (over: Partial<RecipeFormValues> = {}): RecipeFormValues =>
     servings: 4,
     prepTimeMinutes: 10,
     cookTimeMinutes: 25,
-    ingredients: [{ ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300, unit: 'g' }],
+    ingredients: [
+        { ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Arborio rice', quantity: 300, unit: 'g' },
+    ],
     steps: [{ instruction: 'Toast the rice.' }],
     ...over,
 });
@@ -62,7 +72,9 @@ describe('toCreateRecipeInput', () => {
         expect(input.cuisine).toBe('Italian');
         expect(input.tags).toEqual(['dinner']);
         expect(input.totalTimeMinutes).toBe(35);
-        expect(input.ingredients).toEqual([{ ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300, unit: 'g' }]);
+        expect(input.ingredients).toEqual([
+            { ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Arborio rice', quantity: 300, unit: 'g' },
+        ]);
         expect(input.steps).toEqual([{ instruction: 'Toast the rice.' }]);
     });
 
@@ -72,7 +84,7 @@ describe('toCreateRecipeInput', () => {
                 description: '',
                 cuisine: '',
                 ingredients: [
-                    { ingredientId: 'ing_1', name: 'Rice', quantity: 1, unit: 'cup' },
+                    { ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Rice', quantity: 1, unit: 'cup' },
                     { ingredientId: null, name: 'Pending food', quantity: 1 },
                 ],
             }),
@@ -80,7 +92,7 @@ describe('toCreateRecipeInput', () => {
         expect(input.description).toBeUndefined();
         expect(input.cuisine).toBeUndefined();
         expect(input.ingredients).toHaveLength(1);
-        expect(input.ingredients[0]?.ingredientId).toBe('ing_1');
+        expect(input.ingredients[0]?.ingredientId).toBe('00000000-0000-4000-8000-000000000001');
     });
 
     it('includes a step timer only when set', () => {
@@ -191,7 +203,9 @@ describe('validateRecipeForm', () => {
 
     it('flags an ingredient line with a resolved id but a non-positive quantity', () => {
         const errors = validateRecipeForm(
-            filledValues({ ingredients: [{ ingredientId: 'ing_1', name: 'Kale', quantity: 0 }] }),
+            filledValues({
+                ingredients: [{ ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Kale', quantity: 0 }],
+            }),
         );
         expect(errors.ingredients).toBe('ingredientsUnresolved');
     });
@@ -289,7 +303,7 @@ describe('pendingIngredientIds (poll-after-add: which lines still resolve)', () 
 
 describe('toNutritionLine (E3 plumbing — form line -> the aggregator NutritionLine)', () => {
     const baseLine = (over: Partial<RecipeFormIngredient> = {}): RecipeFormIngredient => ({
-        ingredientId: 'ing_1',
+        ingredientId: '00000000-0000-4000-8000-000000000001',
         name: 'Olive oil',
         quantity: 2,
         unit: 'tbsp',
@@ -378,7 +392,7 @@ describe('toNutritionLine (E3 plumbing — form line -> the aggregator Nutrition
 
     it('degrades an absent unit to an empty string rather than guessing — unconvertible, honestly incomplete', () => {
         const line: RecipeFormIngredient = {
-            ingredientId: 'ing_2',
+            ingredientId: '00000000-0000-4000-8000-000000000002',
             name: 'Eggs',
             quantity: 3,
             caloriesPer100g: 155,
@@ -393,7 +407,7 @@ describe('toNutritionLine (E3 plumbing — form line -> the aggregator Nutrition
 
 describe('lineCalories (w3/e3 — per-row calorie figure)', () => {
     const baseLine = (over: Partial<RecipeFormIngredient> = {}): RecipeFormIngredient => ({
-        ingredientId: 'ing_1',
+        ingredientId: '00000000-0000-4000-8000-000000000001',
         name: 'Olive oil',
         quantity: 2,
         unit: 'tbsp',
@@ -450,8 +464,20 @@ describe('recipeNutritionTotal (w3/e3 — the running per-serving total, one agg
         const values = filledValues({
             servings: 2,
             ingredients: [
-                { ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300, unit: 'g', caloriesPer100g: 130 },
-                { ingredientId: 'ing_2', name: 'Salt', quantity: 5, unit: 'g', userCalories: 0 },
+                {
+                    ingredientId: '00000000-0000-4000-8000-000000000001',
+                    name: 'Arborio rice',
+                    quantity: 300,
+                    unit: 'g',
+                    caloriesPer100g: 130,
+                },
+                {
+                    ingredientId: '00000000-0000-4000-8000-000000000002',
+                    name: 'Salt',
+                    quantity: 5,
+                    unit: 'g',
+                    userCalories: 0,
+                },
             ],
         });
 
@@ -465,7 +491,7 @@ describe('recipeNutritionTotal (w3/e3 — the running per-serving total, one agg
             servings: 1,
             ingredients: [
                 {
-                    ingredientId: 'ing_1',
+                    ingredientId: '00000000-0000-4000-8000-000000000001',
                     name: 'Arborio rice',
                     quantity: 300,
                     unit: 'g',
@@ -474,7 +500,13 @@ describe('recipeNutritionTotal (w3/e3 — the running per-serving total, one agg
                     carbsGPer100g: 28,
                     fatGPer100g: 0.3,
                 },
-                { ingredientId: 'ing_2', name: 'Custom spice', quantity: 1, userCalories: 30, userProteinG: 1 },
+                {
+                    ingredientId: '00000000-0000-4000-8000-000000000002',
+                    name: 'Custom spice',
+                    quantity: 1,
+                    userCalories: 30,
+                    userProteinG: 1,
+                },
             ],
         });
 
@@ -491,9 +523,21 @@ describe('recipeNutritionTotal (w3/e3 — the running per-serving total, one agg
         const values = filledValues({
             servings: 1,
             ingredients: [
-                { ingredientId: 'ing_1', name: 'Arborio rice', quantity: 300, unit: 'g', caloriesPer100g: 130 },
+                {
+                    ingredientId: '00000000-0000-4000-8000-000000000001',
+                    name: 'Arborio rice',
+                    quantity: 300,
+                    unit: 'g',
+                    caloriesPer100g: 130,
+                },
                 // Still resolving — no catalog nutrition yet, no user override: excluded, never a fake 0.
-                { ingredientId: 'ing_2', name: 'Stock', quantity: 1, unit: 'cup', resolutionStatus: 'PENDING' },
+                {
+                    ingredientId: '00000000-0000-4000-8000-000000000002',
+                    name: 'Stock',
+                    quantity: 1,
+                    unit: 'cup',
+                    resolutionStatus: 'PENDING',
+                },
             ],
         });
 
@@ -542,4 +586,70 @@ describe('setIngredientStatusById (poll-after-add: apply a resolved status)', ()
 
         expect(setIngredientStatusById(values, 'missing', 'RESOLVED')).toBe(values);
     });
+});
+
+describe('the editor may be STRICTER than the wire, never LOOSER (§15.2)', () => {
+    // The editor caps `title` at 64 and `description` at 256 (w3/e6) with a hard `maxLength` on the input and
+    // a live "N/64" counter, while the SERVER accepts 200 and 5000. A tighter editor is a legitimate product
+    // choice — a title has to fit a card. A LOOSER one is a bug: the user types something the input accepts
+    // and the API then rejects on submit, which is the failure mode centralizing the zod exists to end.
+    //
+    // ⚠️ The 3× / 20× gap between the two numbers is real and was NOT set deliberately — the pair were
+    // authored independently. Which number is right for the product is an open question; this test only fixes
+    // the DIRECTION, so the question can be answered later without a regression in the meantime.
+
+    it('the title display cap does not exceed the wire cap', () => {
+        expect(TITLE_MAX_LENGTH).toBeLessThanOrEqual(MAX_RECIPE_TITLE_LENGTH);
+    });
+
+    it('the description display cap does not exceed the wire cap', () => {
+        expect(DESCRIPTION_MAX_LENGTH).toBeLessThanOrEqual(MAX_RECIPE_DESCRIPTION_LENGTH);
+    });
+
+    it('a title the editor allows is one the wire accepts', () => {
+        const atCap = 'a'.repeat(TITLE_MAX_LENGTH);
+
+        expect(createRecipeRequestSchema.shape.title.safeParse(atCap).success).toBe(true);
+    });
+
+    it('a description the editor allows is one the wire accepts', () => {
+        const atCap = 'a'.repeat(DESCRIPTION_MAX_LENGTH);
+
+        expect(createRecipeRequestSchema.shape.description.safeParse(atCap).success).toBe(true);
+    });
+});
+
+describe('the form validators ARE the published wire schemas, so the two cannot drift', () => {
+    it('composes the create schema`s own title field', () => {
+        // Identity, not equivalence: `validateRecipeForm` reads `createRecipeRequestSchema.shape.title`, so a
+        // change to the server`s title rule reaches the editor with no second edit.
+        expect(validateRecipeForm(filledValues({ title: 'a'.repeat(MAX_RECIPE_TITLE_LENGTH + 1) })).title).toBe(
+            'titleRequired',
+        );
+    });
+
+    it('rejects an ingredient quantity the wire would reject, instead of round-tripping to a 400', () => {
+        // 0.0001 rounds to 0.000 in the `numeric(10,3)` column and then violates its `CHECK (quantity > 0)`.
+        expect(recipeIngredientInputSchema.shape.quantity.safeParse(0.0001).success).toBe(false);
+        expect(
+            validateRecipeForm(
+                filledValues({
+                    ingredients: [
+                        { ingredientId: '00000000-0000-4000-8000-000000000001', name: 'Salt', quantity: 0.0001 },
+                    ],
+                }),
+            ).ingredients,
+        ).toBe('ingredientsUnresolved');
+    });
+
+    // ⚠️ THERE IS DELIBERATELY NO TEST HERE FOR A MALFORMED-BUT-PRESENT `ingredientId`, and the asymmetry with
+    // the quantity case above is the point. Quantity is USER-ENTERED, so a value the wire would reject is worth
+    // catching in the editor rather than round-tripping to a 400. An `ingredientId` is not user-entered: it comes
+    // back from the catalog API, which returns real UUIDs, so a malformed one is unreachable from this surface.
+    //
+    // A test asserting `validateRecipeForm` reports it as `ingredientsUnresolved` was written and then removed,
+    // because it pinned the wrong behaviour: that code means "you have not picked this ingredient yet" (the
+    // `null` sentinel), and reusing it for a malformed id would send the user back to a picker that is already
+    // showing a selection. The FORMAT rule belongs to the wire — `recipeIngredientInputSchema` enforces
+    // `z.uuid()` and the server rejects it — and `model.ts` records why the form must not compose that shape.
 });

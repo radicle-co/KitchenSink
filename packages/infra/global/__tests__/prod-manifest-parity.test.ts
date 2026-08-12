@@ -19,12 +19,16 @@
  *  - `food-service`'s once declared `zod ^3.24.0` while the service ran `^4.4.3`, i.e. it named a MAJOR version
  *    the code could not work with.
  *
- * `food-service` and `identity` GENERATE theirs (`docker-prepare.js`); `recipe-service`'s is hand-maintained with
- * no generator. This guard is deliberately a check on the CONTENTS rather than a fourth copy of the generator:
- * it holds all three to the same rule, it catches a generator that was not re-run just as well as a hand edit,
- * and it does not require every service to adopt the same script in the same change. `service-dockerfile-deps.
- * test.ts` is the complementary half — it checks that the image CONTAINS each shared dependency's `dist`; this one
- * checks that the manifest describing the image is true.
+ * All three now GENERATE theirs from ONE script, `scripts/prepareProdManifest.mjs`, invoked as each service's
+ * `docker:prepare`. That replaced two byte-identical per-service copies (`docker-prepare.js` in `food-service`
+ * and `identity`) plus `recipe-service`'s hand-maintained manifest — which is how recipe's came to omit eight
+ * declared runtime dependencies and to point `main` at `./dist/main.js`, a path the build does not emit.
+ *
+ * This guard stays a check on the CONTENTS rather than a re-implementation of the generator: it holds all three
+ * to the same rule and it catches a generator that was NOT RE-RUN exactly as well as a hand edit — which is the
+ * failure mode that remains now that generation is a deploy-time step rather than a commit-time one.
+ * `service-dockerfile-deps.test.ts` is the complementary half — it checks that the image CONTAINS each shared
+ * dependency's `dist` (transitively); this one checks that the manifest describing the image is true.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
@@ -131,6 +135,30 @@ describe('prod.package.json agrees with the manifest it is derived from', () => 
             ),
         ).toStrictEqual([]);
         expect(prod.main).toMatch(/^\.\/dist\//u);
+    });
+
+    // A `^./dist/` prefix check is NOT enough, and `recipe-service` proved it: its manifest said
+    // `./dist/main.js` — matching that prefix perfectly — while the build emits `./dist/src/main.js`. It was not
+    // a boot failure only because the Dockerfile CMD and the ECS command both spell the real path, so the wrong
+    // one sat there being wrong. All three services compile with `rootDir: "."`, so the `src/` segment is
+    // preserved and there is exactly ONE correct value; pinning it is also what holds each committed manifest to
+    // `scripts/prepareProdManifest.mjs` having actually been re-run.
+    it.each(deployable)('%s names the exact compiled entry point the build emits', (service) => {
+        const { prod } = manifestsOf(service);
+
+        expect(prod.main).toBe('./dist/src/main.js');
+        expect(prod.types).toBe('./dist/src/main.d.ts');
+    });
+
+    // The dev manifest is the other half of the same rule: it exists so a consumer compiles against SOURCE.
+    // recipe-service's pointed at `./dist/main.js` — a build output, and one that is never produced.
+    it.each(deployable)('%s dev manifest points at source, never at a build output', (service) => {
+        const { dev } = manifestsOf(service);
+        const devEntryPoints = [dev.main, dev.types, ...Object.values(dev.exports ?? {})].filter(
+            (value): value is string => typeof value === 'string',
+        );
+
+        expect(devEntryPoints.filter((entry) => entry.startsWith('./dist'))).toStrictEqual([]);
     });
 
     // `type` is not cosmetic: a production manifest that lost `"type": "module"` makes node parse the compiled

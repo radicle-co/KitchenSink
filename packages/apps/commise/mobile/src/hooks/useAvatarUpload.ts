@@ -57,13 +57,16 @@ export function useAvatarUpload(): UseAvatarUpload {
             // depends on that package and already imports three other types from it. Two representations of one
             // wire shape, on either side of a boundary `typecheck` could not cross.
             //
-            // `size` is stringified because a query bag is strings on the wire, which is what
-            // `avatarPresignQuerySchema` describes. The allowed-type list and the size cap are deliberately NOT in
-            // that schema (they live in the controller that owns the presigning, so there is one authority on the
-            // security rule), so an unlisted type or oversized image is still the server's `400` — this parse
-            // checks the SHAPE of the exchange, which is all the contract claims to describe.
+            // `size` goes IN as a string, because a query bag is strings on the wire, and comes OUT of the
+            // parse as a NUMBER: `avatarPresignQuerySchema.size` is `z.coerce.number().int().positive()`, so
+            // both sides of the exchange now reject a non-numeric size at the boundary rather than at the AWS
+            // SDK (`?size=abc` used to reach `ContentLength` as `NaN`). It is re-stringified here for the URL —
+            // the only place a string is genuinely required. The allowed-type list and the size cap are
+            // deliberately NOT in that schema (they live in the controller that owns the presigning, so there is
+            // one authority on the security rule), so an unlisted type or oversized image is still the server's
+            // `400` — this parse checks the SHAPE of the exchange, which is all the contract claims to describe.
             const query = avatarPresignQuerySchema.parse({ type: contentType, size: String(blob.size) });
-            const search = new URLSearchParams({ type: query.type ?? '', size: query.size ?? '' });
+            const search = new URLSearchParams({ type: query.type, size: String(query.size) });
             const presign = await apiRequest(
                 getIdentityToken,
                 `/api/v1/users/me/avatar/presign?${search.toString()}`,

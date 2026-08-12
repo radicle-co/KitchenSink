@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Param, Query, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { AdminListUsersQueryDto } from './dto/admin-list-users.query.dto.js';
+import { AdminUserIdParamDto } from './dto/admin-user-id.param.dto.js';
 import { AdminService } from './admin.service.js';
 import { CurrentAuthorizerContext } from '../auth/decorators/current-user.decorator.js';
 import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
@@ -27,6 +28,14 @@ import {
 export class AdminController {
     constructor(private readonly adminService: AdminService) {}
 
+    // ⚠️ EVERY `:userId` ROUTE TAKES `@Param() params: AdminUserIdParamDto`, NOT `@Param('userId') userId: string`.
+    // The single-key form has metatype `String`, which the global `ZodValidationPipe`
+    // (`strictSchemaDeclaration: false`) passes straight through — so the five routes below used to hand an
+    // arbitrary caller-supplied string into `eq(users.id, …)` with no format check at all. Annotating the whole
+    // params object with the Zod DTO is what puts the pipe in the path. A new admin action must do the same;
+    // `tests/admin-param-validation.test.ts` discovers every `:userId` route from Nest's own metadata and fails
+    // on one that reverts to a bare string.
+
     /**
      * `GET /api/v1/admin/users` — filtered, paginated user list (admin-scoped).
      *
@@ -43,45 +52,45 @@ export class AdminController {
     @Post(':userId/suspend')
     @HttpCode(HttpStatus.OK)
     async suspendUser(
-        @Param('userId') userId: string,
+        @Param() params: AdminUserIdParamDto,
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<AdminSuspendUserResponseDto> {
-        return this.adminService.suspendUser(userId, ctx);
+        return this.adminService.suspendUser(params.userId, ctx);
     }
 
     @Post(':userId/unsuspend')
     @HttpCode(HttpStatus.OK)
     async unsuspendUser(
-        @Param('userId') userId: string,
+        @Param() params: AdminUserIdParamDto,
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<AdminUnsuspendUserResponseDto> {
-        return this.adminService.unsuspendUser(userId, ctx);
+        return this.adminService.unsuspendUser(params.userId, ctx);
     }
 
     @Post(':userId/reactivate')
     @HttpCode(HttpStatus.OK)
     async reactivateUser(
-        @Param('userId') userId: string,
+        @Param() params: AdminUserIdParamDto,
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<AdminReactivateUserResponseDto> {
-        return this.adminService.reactivateUser(userId, ctx);
+        return this.adminService.reactivateUser(params.userId, ctx);
     }
 
     @Post(':userId/impersonation/start')
     @HttpCode(HttpStatus.OK)
     async startImpersonation(
-        @Param('userId') userId: string,
+        @Param() params: AdminUserIdParamDto,
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<ImpersonationStartResponseDto> {
-        return this.adminService.startImpersonation(userId, ctx);
+        return this.adminService.startImpersonation(params.userId, ctx);
     }
 
     @Post(':userId/impersonation/stop')
     @HttpCode(HttpStatus.OK)
     async stopImpersonation(
-        @Param('userId') userId: string,
+        @Param() params: AdminUserIdParamDto,
         @CurrentAuthorizerContext() ctx: AuthorizerContext,
     ): Promise<ImpersonationStopResponseDto> {
-        return this.adminService.stopImpersonation(userId, ctx);
+        return this.adminService.stopImpersonation(params.userId, ctx);
     }
 }

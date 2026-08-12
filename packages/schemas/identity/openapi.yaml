@@ -164,12 +164,16 @@ paths:
           description: The image's MIME type. Must be one of the admitted image types.
           schema:
             type: string
+            minLength: 1
         - name: size
           in: query
           required: true
-          description: The image's exact byte length, as a decimal string.
+          description: The image's exact byte length, sent as a decimal string and coerced. A value that is not a positive integer
+            is a `400`; the CAP is enforced by the service and reported in its own `400`.
           schema:
-            type: string
+            type: integer
+            minimum: 0
+            exclusiveMinimum: true
   /api/v1/admin/users:
     get:
       operationId: adminListUsers
@@ -241,6 +245,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminSuspendUserResponse"
+        "400":
+          description: The `{userId}` path parameter is not a ULID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "401":
           description: No valid Clerk session token.
           content:
@@ -264,9 +274,11 @@ paths:
         - name: userId
           in: path
           required: true
-          description: The target user's app ULID (NOT the Clerk `sub`).
+          description: The target user's app ULID (NOT the Clerk `sub`). A non-ULID value is a `400`.
           schema:
             type: string
+            format: ulid
+            pattern: ^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$
   /api/v1/admin/users/{userId}/unsuspend:
     post:
       operationId: adminUnsuspendUser
@@ -280,6 +292,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminUnsuspendUserResponse"
+        "400":
+          description: The `{userId}` path parameter is not a ULID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "401":
           description: No valid Clerk session token.
           content:
@@ -303,9 +321,11 @@ paths:
         - name: userId
           in: path
           required: true
-          description: The target user's app ULID (NOT the Clerk `sub`).
+          description: The target user's app ULID (NOT the Clerk `sub`). A non-ULID value is a `400`.
           schema:
             type: string
+            format: ulid
+            pattern: ^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$
   /api/v1/admin/users/{userId}/reactivate:
     post:
       operationId: adminReactivateUser
@@ -319,6 +339,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminReactivateUserResponse"
+        "400":
+          description: The `{userId}` path parameter is not a ULID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "401":
           description: No valid Clerk session token.
           content:
@@ -345,9 +371,11 @@ paths:
         - name: userId
           in: path
           required: true
-          description: The target user's app ULID (NOT the Clerk `sub`).
+          description: The target user's app ULID (NOT the Clerk `sub`). A non-ULID value is a `400`.
           schema:
             type: string
+            format: ulid
+            pattern: ^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$
   /api/v1/admin/users/{userId}/impersonation/start:
     post:
       operationId: adminStartImpersonation
@@ -361,6 +389,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ImpersonationStartResponse"
+        "400":
+          description: The `{userId}` path parameter is not a ULID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "401":
           description: No valid Clerk session token.
           content:
@@ -385,9 +419,11 @@ paths:
         - name: userId
           in: path
           required: true
-          description: The target user's app ULID (NOT the Clerk `sub`).
+          description: The target user's app ULID (NOT the Clerk `sub`). A non-ULID value is a `400`.
           schema:
             type: string
+            format: ulid
+            pattern: ^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$
   /api/v1/admin/users/{userId}/impersonation/stop:
     post:
       operationId: adminStopImpersonation
@@ -401,6 +437,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ImpersonationStopResponse"
+        "400":
+          description: The `{userId}` path parameter is not a ULID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "401":
           description: No valid Clerk session token.
           content:
@@ -424,9 +466,11 @@ paths:
         - name: userId
           in: path
           required: true
-          description: The target user's app ULID (NOT the Clerk `sub`).
+          description: The target user's app ULID (NOT the Clerk `sub`). A non-ULID value is a `400`.
           schema:
             type: string
+            format: ulid
+            pattern: ^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$
   /health:
     get:
       operationId: getHealth

@@ -23,8 +23,7 @@ import { CONTRACT_HASH as SCHEMA_PACKAGE_CONTRACT_HASH } from '@kitchensink/sche
 import { CONTRACT_HASH } from './contract/contract-hash.js';
 import { assertContractHashesAgree } from './contract/contract-skew.js';
 import { NestSentryLogger } from './observability/sentry-logging.js';
-import { buildCorsOptions } from './config/cors.js';
-import { parseCommaList } from './config/env.schema.js';
+import { buildCorsPolicy } from './config/cors.js';
 
 async function bootstrap(): Promise<void> {
     // DRIFT LAYER 3 (Skew) — the first thing this process does after Sentry is installed, and before config is
@@ -36,12 +35,23 @@ async function bootstrap(): Promise<void> {
     assertContractHashesAgree(CONTRACT_HASH, SCHEMA_PACKAGE_CONTRACT_HASH);
 
     const { AppModule } = await import('./app.module.js');
-    const app = await NestFactory.create(AppModule, { logger: new NestSentryLogger() });
+    const logger = new NestSentryLogger();
+    const app = await NestFactory.create(AppModule, { logger });
 
-    // U11/F3: the service is fronted by a public ALB and called cross-origin by the web/mobile apps.
-    // With no CORS those calls are blocked. Reuse the Clerk authorized-parties allowlist as the CORS
-    // origin allowlist (same trust boundary).
-    app.enableCors(buildCorsOptions(parseCommaList(process.env['CLERK_AUTHORIZED_PARTIES'])));
+    // U11/F3: the service is fronted by a public ALB and called cross-origin by the web app, so with no
+    // CORS those calls are blocked. The origin allowlist is DERIVED from the same Clerk `azp` boundary the
+    // token check uses (`config/cors.ts`), per stage, and denies when nothing is configured. The resolved
+    // mode is logged because "which posture is live" was previously unobservable — an empty parties list
+    // silently became `origin: true` on every non-prod stage.
+    const cors = buildCorsPolicy({
+        stage: process.env['STAGE'] ?? 'dev',
+        authorizedPartiesRaw: process.env['CLERK_AUTHORIZED_PARTIES'],
+        previewBaseDomain: process.env['CLERK_AZP_PATTERN'],
+        previewMode: process.env['CLERK_AZP_PREVIEW_MODE'],
+    });
+
+    app.enableCors(cors.options);
+    logger.log(`CORS origin mode: ${cors.mode}`, 'bootstrap');
 
     const port = Number.parseInt(process.env['PORT'] ?? '3001', 10);
 

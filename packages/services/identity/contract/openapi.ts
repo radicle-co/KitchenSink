@@ -29,12 +29,13 @@ import {
     userProfileSchema,
     userProfileUserSchema,
 } from '../src/users/users.schema.js';
-import { avatarPresignResponseSchema } from '../src/users/avatar.schema.js';
+import { avatarPresignQuerySchema, avatarPresignResponseSchema } from '../src/users/avatar.schema.js';
 import {
     adminListUsersResponseSchema,
     adminReactivateUserResponseSchema,
     adminSuspendUserResponseSchema,
     adminUnsuspendUserResponseSchema,
+    adminUserIdParamSchema,
     adminUserListItemSchema,
     impersonationStartResponseSchema,
     impersonationStopResponseSchema,
@@ -72,12 +73,30 @@ const forbidden = {
 /** `404` — no such user. */
 const userNotFound = { description: 'No such user.', schema: 'ApiError' } as const;
 
-/** The `userId` path parameter every admin route takes. */
+/**
+ * `400` — the `{userId}` path parameter is not a ULID.
+ *
+ * Ordered AFTER the guard: an unauthorized caller gets the `403` and never this, so the validation error cannot
+ * be used as an existence oracle (`tests/admin-param-validation.test.ts` pins that precedence).
+ */
+const malformedUserId = {
+    description: 'The `{userId}` path parameter is not a ULID.',
+    schema: 'ApiError',
+} as const;
+
+/**
+ * The `userId` path parameter every admin route takes.
+ *
+ * The schema is taken FROM the authored param contract rather than restated as `z.string()`, which is what it
+ * used to be: the document claimed any string was addressable while the routes intended a ULID, and nothing
+ * validated it either. One definition now backs the published document, the `400`, and the DTO.
+ */
 const userIdParameter = {
     name: 'userId',
     in: 'path',
-    description: "The target user's app ULID (NOT the Clerk `sub`).",
-    schema: z.string(),
+    required: true,
+    description: "The target user's app ULID (NOT the Clerk `sub`). A non-ULID value is a `400`.",
+    schema: adminUserIdParamSchema.shape.userId,
 } as const;
 
 /** The five admin routes that act on one user and answer a single shape. */
@@ -94,6 +113,7 @@ const adminAction = (
         parameters: [userIdParameter],
         responses: {
             '200': { description: 'Done.', schema },
+            '400': malformedUserId,
             '401': unauthorized,
             '403': forbidden,
             '404': userNotFound,
@@ -203,14 +223,17 @@ export const identityOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument(
                         in: 'query',
                         required: true,
                         description: "The image's MIME type. Must be one of the admitted image types.",
-                        schema: z.string(),
+                        schema: avatarPresignQuerySchema.shape.type,
                     },
                     {
                         name: 'size',
                         in: 'query',
                         required: true,
-                        description: "The image's exact byte length, as a decimal string.",
-                        schema: z.string(),
+                        description:
+                            "The image's exact byte length, sent as a decimal string and coerced. A value " +
+                            'that is not a positive integer is a `400`; the CAP is enforced by the service and ' +
+                            'reported in its own `400`.',
+                        schema: avatarPresignQuerySchema.shape.size,
                     },
                 ],
                 responses: {

@@ -26,12 +26,26 @@
  */
 import { z } from 'zod';
 
-/** Query for `POST /api/v1/users/me/avatar/presign`. */
+/**
+ * Query for `POST /api/v1/users/me/avatar/presign`.
+ *
+ * ⚠️ THIS SCHEMA EXISTED AND WAS NEVER WIRED UP, and the shape it described was too loose to have helped even
+ * if it had been. The controller read two bare `@Query()` strings — metatype `String`, which the global
+ * `ZodValidationPipe` passes straight through — and hand-parsed the size as
+ * `size ? Number.parseInt(size, 10) : 0`. `Number.parseInt('abc', 10)` is `NaN`, and every comparison against
+ * `NaN` is false, so `NaN <= 0 || NaN > maxSizeBytes` admitted it and `ContentLength: NaN` was signed into the
+ * presigned URL. Both fields are therefore REQUIRED here, and `size` is COERCED to a positive integer rather
+ * than left as a string for a caller to re-parse (the same correction `adminListUsersQuerySchema` needed).
+ */
 export const avatarPresignQuerySchema = z.object({
     /** The image's MIME type. Restricted server-side; an unlisted type is a `400` naming what is allowed. */
-    type: z.string().optional(),
-    /** The image's exact byte length, as a decimal string. Bounded server-side; out of range is a `400`. */
-    size: z.string().optional(),
+    type: z.string().min(1),
+    /**
+     * The image's exact byte length. Sent as a decimal string and coerced; a value that is not a positive
+     * integer is a `400` here. The CAP is not restated in this schema — see the note above: the controller owns
+     * it, and reports it in its own `400`.
+     */
+    size: z.coerce.number().int().positive(),
 });
 
 /** Query for `POST /api/v1/users/me/avatar/presign`. */

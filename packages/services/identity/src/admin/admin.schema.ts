@@ -8,16 +8,49 @@
  * is deliberately no trusted-header path, because the service is fronted by a public ALB and a client-suppliable
  * header would be forgeable (PR #39).
  *
- * These shapes were previously `class-validator` classes in `dto/admin.dto.ts`. Two of them —
- * `AdminUserIdParamDto` and `AdminAuditLogDto` — had NO callers at all: the controller reads `@Param('userId')`
- * as a bare string, so the "validated" param DTO validated nothing. They are deleted rather than translated;
- * publishing a shape no route uses would be a contract that lies about the API's surface.
+ * These shapes were previously `class-validator` classes in `dto/admin.dto.ts`. `AdminAuditLogDto` had NO
+ * callers at all and was deleted rather than translated; publishing a shape no route uses would be a contract
+ * that lies about the API's surface.
+ *
+ * ⚠️ `AdminUserIdParamDto` WAS DELETED FOR THAT SAME REASON AND IS NOW BACK — because the reason it was unused
+ * was the DEFECT, not the justification. The controller read `@Param('userId')` as a bare string, so the five
+ * action routes handed an arbitrary caller-supplied string straight into `eq(users.id, …)`. Drizzle
+ * parameterises, so it was never injectable, but nothing checked the FORMAT of a path parameter on an
+ * admin-privileged route, and the published document described it as a bare `z.string()`. It is re-authored
+ * here as {@link adminUserIdParamSchema}, bound through `dto/admin-user-id.param.dto.ts`, and asserted to be
+ * REACHED by `tests/admin-param-validation.test.ts` (§15.4(1): path params go through the pipe).
  *
  * WHY THE STATUS FIELDS ARE LITERALS. `suspendUser` always answers `status: 'suspended'` and the two recovery
  * routes always answer `status: 'active'`. Modelling them as the full `userStatusSchema` would widen the contract
  * to values those routes cannot return, and a client would have to write a branch that can never run.
  */
 import { z } from 'zod';
+
+/**
+ * The `{userId}` path parameter shared by the five admin action routes
+ * (`suspend` / `unsuspend` / `reactivate` / `impersonation/start` / `impersonation/stop`).
+ *
+ * `z.ulid()` rather than `z.string()`: `users.id` is only ever written by `newUserId()` (`ulidx.ulid()`), so a
+ * value that is not a ULID cannot name a row — it is a malformed request, and the honest answer is a `400` at
+ * the boundary instead of a database round-trip and a `404`. Crockford base32 excludes `I`, `L`, `O` and `U`,
+ * which is why several older test fixtures in this repo were not the ULIDs they looked like.
+ *
+ * Two deliberate loosenesses, so nobody "tightens" them by accident:
+ *
+ * - **Case-insensitive.** `z.ulid()` accepts a lowercase form. It is a well-formed ULID that simply matches no
+ *   row (`users.id` is `VARCHAR COLLATE "C"` and every stored id is upper-case), so it answers `404`. Do NOT
+ *   normalise with `.toUpperCase()`: that would make two distinct parameter values address one user.
+ * - **`z.object`, not `z.strictObject`.** Nest hands `@Param()` exactly the route's own parameters, so there is
+ *   no client-supplied surface for a strict object to reject, and a route that later adds a second path
+ *   parameter must not start failing on it.
+ */
+export const adminUserIdParamSchema = z.object({
+    /** The target user's app ULID (NOT the Clerk `sub`). */
+    userId: z.ulid(),
+});
+
+/** The `{userId}` path parameter of the admin action routes. */
+export type AdminUserIdParam = z.infer<typeof adminUserIdParamSchema>;
 
 /** One row in the admin user list. Deliberately narrow — an admin search result, not a full profile. */
 export const adminUserListItemSchema = z.object({

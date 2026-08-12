@@ -65,22 +65,47 @@ export const PREVIEW_CNAME_TARGET = 'cname.vercel-dns.com';
 /** Short by design: a preview's address is re-pointed on close, and a stale cache is a dead preview. */
 export const PREVIEW_RECORD_TTL = 60;
 
-/** How many times the alias is attempted while Vercel is still issuing the certificate. */
-const DEFAULT_ALIAS_ATTEMPTS = 12;
+/** How many times the alias is attempted while Vercel is still getting ready to accept it. */
+const DEFAULT_ALIAS_ATTEMPTS = 20;
 
-/** Wait between alias attempts. 12 × 15s ≈ 3 minutes, which covers observed cert issuance. */
+/**
+ * Wait between alias attempts. 20 × 15s = 5 minutes.
+ *
+ * Raised from 12 (3 minutes) when `deployment_not_ready` joined the pending set below: the two waits are
+ * SEQUENTIAL — the deployment has to finish building before the alias can be accepted at all, and only
+ * then does cert issuance start — so a budget sized for "observed cert issuance" alone no longer covers
+ * what the loop must now wait through. The loop exits on the first success, so a longer budget costs
+ * nothing on the common path and only spends time in the case that used to fail outright.
+ */
 const DEFAULT_ALIAS_DELAY_MS = 15_000;
 
 /**
  * Vercel failures that mean "not yet", not "no".
  *
- * Measured in ADR-0001: immediately after the CNAME is created the certificate does not exist yet, so the
- * alias answers `400 cert_missing`; and while the name has not propagated to Vercel's resolvers the cert
- * request answers `449 http_pretest_domain_not_resolving_to_vercel_error`. Everything else — a bad token,
- * a deployment on another team, an alias held elsewhere — is permanent, and retrying it would burn minutes
- * and then report the wrong cause.
+ * TWO independent axes, both transient, and the retry loop cannot tell them apart from the outside:
+ *
+ *  - The DOMAIN is not ready. Measured in ADR-0001: immediately after the CNAME is created the certificate
+ *    does not exist yet, so the alias answers `400 cert_missing`; and while the name has not propagated to
+ *    Vercel's resolvers the cert request answers `449 http_pretest_domain_not_resolving_to_vercel_error`.
+ *  - The DEPLOYMENT is not ready. `400 deployment_not_ready` / "The deployment `readyState` is not
+ *    `READY`" — Vercel is still building. This is the NORMAL case rather than an edge one, because the
+ *    `preview-domain` job runs on every non-closed PR event concurrently with that build. Missing from
+ *    this set, it took PR #91's `Publish sandbox preview address` job red after 14 seconds without a
+ *    single retry, which read as a hard Vercel rejection rather than a race.
+ *
+ * Everything else — a bad token, a deployment on another team, an alias held elsewhere — is permanent, and
+ * retrying it would burn minutes and then report the wrong cause.
+ *
+ * Matched on Vercel's `code`, deliberately NOT on the human `message`. An earlier draft also matched the
+ * bare word `readyState` from the message text, which is loose enough to catch a deployment that has ended
+ * in ERROR — permanently un-aliasable — and would spend the whole budget on it. The accepted residual is
+ * narrower but real: `deployment_not_ready` itself does not distinguish "still building" from "build
+ * failed", so a failed build now waits out the 5 minutes before reporting. That is bounded, reports the
+ * true cause when it gives up, and is the cheaper trade than an extra readyState round-trip on the happy
+ * path — but it is the thing to revisit if this job ever sits on the critical path.
  */
-const PROVISIONING_MARKERS = /cert_missing|cert not found|certificate|not_resolving|domain_not_verified/iu;
+const ALIAS_PENDING_MARKERS =
+    /cert_missing|cert not found|certificate|not_resolving|domain_not_verified|deployment_not_ready/iu;
 
 /** A deployment reference is a `dpl_…` id or a bare deployment host; it lands in an API URL path. */
 const DEPLOYMENT_REF = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/u;
@@ -284,10 +309,11 @@ export async function upsertPreviewDnsRecord(
 /**
  * Bind the preview hostname to THIS PR's deployment — the step ADR-0001 flags as load-bearing.
  *
- * Runs LAST, and only once DNS exists: Vercel refuses the alias until a certificate has been issued, and
- * refuses the certificate until the hostname resolves to Vercel. Those two refusals are transient, so they
- * are raised as {@link PreviewAliasPendingError} for the Command to retry; every other failure is
- * permanent and surfaces the status and body immediately.
+ * Runs LAST, and only once DNS exists: Vercel refuses the alias until a certificate has been issued,
+ * refuses the certificate until the hostname resolves to Vercel, and refuses it outright while the
+ * deployment is still building. All three refusals are transient, so they are raised as
+ * {@link PreviewAliasPendingError} for the Command to retry; every other failure is permanent and
+ * surfaces the status and body immediately.
  *
  * @param http - `fetch`, or a double.
  * @param config - Vercel token, project and (optional) team.
@@ -295,7 +321,7 @@ export async function upsertPreviewDnsRecord(
  * @param previewHost - The `pr-{N}.<zone>` host to bind.
  * @returns `'assigned'` for a first binding, `'moved'` when it was re-pointed from an earlier deployment.
  * @throws PreviewScopeError When `previewHost` is not a `pr-{N}` preview host.
- * @throws PreviewAliasPendingError When Vercel is still provisioning the certificate.
+ * @throws PreviewAliasPendingError When the deployment is still building, or the cert is still pending.
  * @throws Error When the deployment reference is malformed, or Vercel fails permanently.
  * @sideEffect Assigns a Vercel alias.
  */
@@ -318,7 +344,7 @@ export async function aliasPreviewDeployment(
         const body = await response.text();
         const message = `create-preview-domain: Vercel refused to alias ${host} to ${ref} — ${response.status} ${body}`;
 
-        if (response.status === 449 || (response.status === 400 && PROVISIONING_MARKERS.test(body))) {
+        if (response.status === 449 || (response.status === 400 && ALIAS_PENDING_MARKERS.test(body))) {
             throw new PreviewAliasPendingError(message, response.status, body);
         }
 

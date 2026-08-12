@@ -339,10 +339,18 @@ describe('aliasPreviewDeployment — the step ADR-0001 says is load-bearing', ()
 
     // Measured in ADR-0001: the alias is refused until Vercel has issued a cert, and the cert is refused
     // until the hostname resolves to Vercel. Both are TRANSIENT immediately after the CNAME is created.
+    //
+    // `deployment_not_ready` is a THIRD transient cause on a different axis — the DEPLOYMENT is still
+    // building, rather than the DOMAIN still being provisioned — and it took PR #91's `Publish sandbox
+    // preview address` job red on the real API: this exact body, matched by no marker, so the command
+    // failed after 14 seconds without retrying once. The `preview-domain` job runs on every non-closed PR
+    // event, concurrently with Vercel's build, so racing an unfinished deployment is the NORMAL case, not
+    // an edge one.
     it.each([
         [400, '{"error":{"code":"cert_missing"}}'],
         [400, '{"error":{"code":"not_found","message":"cert not found"}}'],
         [449, '{"error":{"code":"http_pretest_domain_not_resolving_to_vercel_error"}}'],
+        [400, '{"error":{"code":"deployment_not_ready","message":"The deployment `readyState` is not `READY`"}}'],
     ])('classifies %i %s as still-provisioning', async (status, body) => {
         const http = vi.fn().mockResolvedValueOnce(response(status, body));
 

@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Param, Query, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { AdminListUsersQueryDto } from './dto/admin-list-users.query.dto.js';
 import { AdminService } from './admin.service.js';
 import { CurrentAuthorizerContext } from '../auth/decorators/current-user.decorator.js';
 import type { AuthorizerContext } from '../auth/decorators/current-user.decorator.js';
@@ -26,21 +27,17 @@ import {
 export class AdminController {
     constructor(private readonly adminService: AdminService) {}
 
+    /**
+     * `GET /api/v1/admin/users` — filtered, paginated user list (admin-scoped).
+     *
+     * ONE validated DTO replaces five bare `@Query()` strings plus a hand-rolled `Number.parseInt`. The old form
+     * let `?limit=abc` become `NaN` — which `filters.limit ?? 50` does not catch, since `??` tests only
+     * null/undefined — so `query.limit(NaN).offset(NaN)` reached drizzle and `NaN` came back in the response.
+     * The pipe now coerces and bounds both, and rejects a non-numeric value with a `400` instead.
+     */
     @Get()
-    async listUsers(
-        @Query('email') email?: string,
-        @Query('name') name?: string,
-        @Query('sub') sub?: string,
-        @Query('limit') limit?: string,
-        @Query('offset') offset?: string,
-    ) {
-        return this.adminService.listUsers({
-            email,
-            name,
-            sub,
-            limit: limit ? Number.parseInt(limit, 10) : undefined,
-            offset: offset ? Number.parseInt(offset, 10) : undefined,
-        });
+    async listUsers(@Query() query: AdminListUsersQueryDto) {
+        return this.adminService.listUsers(query);
     }
 
     @Post(':userId/suspend')

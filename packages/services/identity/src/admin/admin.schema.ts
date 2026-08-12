@@ -36,24 +36,38 @@ export const adminUserListItemSchema = z.object({
 /** One row in the admin user list. */
 export type AdminUserListItem = z.infer<typeof adminUserListItemSchema>;
 
+/** The largest page an admin list request may ask for — a bound on the work one request can cause. */
+export const MAX_ADMIN_LIST_LIMIT = 200;
+
+/** The longest filter string accepted. `users.email` is `varchar(320)`; `name` is `text`, so this is the app's. */
+const MAX_FILTER_LENGTH = 320;
+
 /**
  * Query for `GET /api/v1/admin/users`.
  *
- * `limit`/`offset` are strings because they arrive as query parameters; the controller parses them and applies
- * its own defaults (50 / 0). Those defaults are NOT restated here — a default in two places is a default that can
- * disagree.
+ * ⚠️ THIS SCHEMA WAS WRITTEN AND THEN NEVER WIRED UP. The controller read five bare `@Query()` strings instead,
+ * and the global `ZodValidationPipe` passes through any parameter whose metatype is not a Zod DTO — so nothing
+ * validated these at all. The consequence reached the database: `limit` was parsed with
+ * `Number.parseInt(limit, 10)`, which answers `NaN` for `?limit=abc`, and the service's `filters.limit ?? 50`
+ * does NOT catch `NaN` (`??` only tests null/undefined). So `query.limit(NaN).offset(NaN)` went to drizzle, and
+ * `NaN` was echoed back in the response. That is exactly the "no data reaches a database unvalidated" case.
+ *
+ * `limit`/`offset` are therefore COERCED and BOUNDED here rather than left as strings for the controller to
+ * parse. `z.coerce.number().int()` rejects `abc` and `2.5` instead of truncating, and the published contract now
+ * describes them as the integers they are. Defaults are still NOT restated here — the service owns `50`/`0`, so
+ * both fields stay `.optional()` and a default cannot disagree with itself across two files.
  */
 export const adminListUsersQuerySchema = z.object({
-    /** Substring match on email. */
-    email: z.string().optional(),
-    /** Substring match on the provider-synced name. */
-    name: z.string().optional(),
+    /** Substring match on email. Bounded — it becomes a `LIKE` pattern. */
+    email: z.string().max(MAX_FILTER_LENGTH).optional(),
+    /** Substring match on the provider-synced name. Bounded for the same reason. */
+    name: z.string().max(MAX_FILTER_LENGTH).optional(),
     /** Exact match on the app-user ULID. */
-    sub: z.string().optional(),
-    /** Page size, as a decimal string. Defaults server-side. */
-    limit: z.string().optional(),
-    /** Page offset, as a decimal string. Defaults server-side. */
-    offset: z.string().optional(),
+    sub: z.string().max(MAX_FILTER_LENGTH).optional(),
+    /** Page size. A positive integer, capped at {@link MAX_ADMIN_LIST_LIMIT}. Defaults server-side. */
+    limit: z.coerce.number().int().min(1).max(MAX_ADMIN_LIST_LIMIT).optional(),
+    /** Page offset. A non-negative integer. Defaults server-side. */
+    offset: z.coerce.number().int().min(0).optional(),
 });
 
 /** Query for `GET /api/v1/admin/users`. */

@@ -19,7 +19,7 @@ vi.mock('@kitchensink/identity-db', () => ({
     }),
 }));
 
-import { withDb, withVerifiedWebhook } from '../handler-pipeline.js';
+import { WEBHOOK_REJECTION_STATUS, withDb, withVerifiedWebhook } from '../handler-pipeline.js';
 import { getDb } from '../db.js';
 import { verifyWebhook } from '../svix.js';
 import { emitMetric, logger } from '../observability.js';
@@ -131,12 +131,25 @@ describe('withVerifiedWebhook', () => {
     });
 
     /**
-     * The rejection contract, per the owner's ruling: a signature failure and a shape failure are EQUALLY
-     * INVALID and take ONE path — acknowledge (2xx, so svix stops redelivering), do not process, and alarm at
-     * ERROR with the reason as a FIELD.
+     * The rejection contract: a signature failure and a shape failure are EQUALLY INVALID and take ONE path —
+     * never process, alarm at ERROR, and report the reason as a FIELD — but they do NOT get the same STATUS,
+     * because retrying helps exactly one of them.
      *
-     * Each `it` below is a separate mutation guard, because the three halves regress independently:
-     *  - `throw`ing (or returning non-2xx) instead of acknowledging re-creates the retry loop;
+     *  - `shape` → **200**. The caller IS svix (the signature verified), and an unparseable payload parses
+     *    identically on every redelivery, so retrying replays the same failure forever. Acknowledging takes it
+     *    off svix's schedule.
+     *  - `signature` → **401**. A signature failure is either not Clerk at all (in which case a 200 tells a
+     *    forger their forgery was accepted) or OUR SIGNING SECRET IS WRONG — which is a transient,
+     *    operator-fixable condition, and svix's multi-hour retry schedule is precisely what rescues it. A 200
+     *    there means "delivered": every queued real Clerk event is discarded permanently behind a green
+     *    acknowledgement. That is the recorded incident class — a dropped `user.created` leaving Clerk holding
+     *    a user the database does not.
+     *
+     * `WEBHOOK_REJECTION_STATUS` is asserted directly as well as through the pipeline, so the mapping cannot
+     * be inverted or collapsed without reding a test. Each `it` below is a separate mutation guard, because the
+     * halves regress independently:
+     *  - collapsing the two statuses back onto one re-creates either the retry loop (shape) or the silent-drop
+     *    (signature);
      *  - dropping the ERROR log turns "do not retry" into "fail silently", which is strictly worse;
      *  - dropping the `reason` field makes the alarm unactionable — it is what lets signature noise from this
      *    public endpoint be thresholded separately from a Clerk contract change.
@@ -144,6 +157,7 @@ describe('withVerifiedWebhook', () => {
     describe.each([
         [
             'signature',
+            401,
             (): void => {
                 mockVerifyWebhook.mockImplementation(() => {
                     throw new Error('Invalid signature');
@@ -152,23 +166,25 @@ describe('withVerifiedWebhook', () => {
         ],
         [
             'shape',
+            200,
             (): void => {
                 // A VALID signature over a payload we cannot read: no `id`. Previously this sailed through as
                 // `?? 'unknown'` and was written to `webhook_events.identity_id`.
                 mockVerifyWebhook.mockReturnValue({ type: 'user.created', data: {} } as never);
             },
         ],
-    ])('an invalid payload (reason: %s)', (reason, arrange) => {
+    ])('an invalid payload (reason: %s)', (reason, expectedStatus, arrange) => {
         beforeEach(arrange);
 
-        it('ACKNOWLEDGES with 2xx so svix stops redelivering, and never calls the inner handler', async () => {
+        it(`answers ${expectedStatus} and never calls the inner handler`, async () => {
             const core = vi.fn();
 
             const result = await withVerifiedWebhook(core)(makeApiEvent('{}', { 'svix-id': 'msg_bad' }), makeContext());
 
-            // 2xx is the whole point: svix retries on ANY non-2xx, so a throw or a 401 would redeliver a
-            // payload that can never succeed. This assertion reds if the rejection goes back to throwing.
-            expect(result.statusCode).toBe(200);
+            // The status is DERIVED from the reason. A `shape` 200 stops svix redelivering a payload that can
+            // never succeed; a `signature` 401 keeps the delivery on svix's retry schedule so a rotated-secret
+            // misconfiguration is recoverable instead of silently dropping every real event.
+            expect(result.statusCode).toBe(expectedStatus);
             expect(JSON.parse(result.body)).toEqual({ ok: false, rejected: reason });
             expect(core).not.toHaveBeenCalled();
         });
@@ -198,6 +214,31 @@ describe('withVerifiedWebhook', () => {
 
             const logged = JSON.stringify(mockLogger.error.mock.calls);
             expect(logged).not.toContain('ada@example.com');
+        });
+    });
+
+    /**
+     * The mapping itself, asserted directly rather than only through the pipeline.
+     *
+     * The pipeline tests above would still pass if BOTH reasons were mapped to the same status and the test
+     * table were "corrected" to match — this one cannot, because it names the retry semantics each value
+     * carries. A `signature` 2xx tells svix "delivered" and discards every queued real event when the failure
+     * cause is a stale secret; a `shape` non-2xx puts a permanently unparseable delivery on a multi-hour retry
+     * schedule. The two are opposite mistakes, so neither is a safe default for the other.
+     */
+    describe('WEBHOOK_REJECTION_STATUS', () => {
+        it('keeps a signature failure RETRYABLE (non-2xx) so a stale signing secret is recoverable', () => {
+            expect(WEBHOOK_REJECTION_STATUS.signature).toBe(401);
+            expect(WEBHOOK_REJECTION_STATUS.signature).toBeGreaterThanOrEqual(400);
+        });
+
+        it('makes a shape failure TERMINAL (2xx) so an unparseable payload is not redelivered forever', () => {
+            expect(WEBHOOK_REJECTION_STATUS.shape).toBe(200);
+            expect(WEBHOOK_REJECTION_STATUS.shape).toBeLessThan(300);
+        });
+
+        it('never collapses the two reasons onto one status', () => {
+            expect(WEBHOOK_REJECTION_STATUS.signature).not.toBe(WEBHOOK_REJECTION_STATUS.shape);
         });
     });
 

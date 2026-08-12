@@ -78,10 +78,12 @@ export type VerifiedWebhookContext = {
 /**
  * Template-Method decorator: the svix signature-verification prologue extracted from
  * `identityWebhook.ts`. Resolves the webhook's (stricter) typed config first — a genuine env
- * misconfig fails the invocation outright (S-I5), never swallowed into the 401 branch below — then
- * verifies the inbound signature. On success, hands the verified {@link IdpWebhookEvent} and the
- * resolved request id to `handler`; on a missing/invalid signature, short-circuits to a 401 without
- * ever reaching `handler` (so an unverified payload can't touch the DB).
+ * misconfig fails the invocation outright (S-I5), never swallowed into the rejection branch below —
+ * then verifies the inbound signature. On success, hands the verified {@link IdpWebhookEvent} and the
+ * resolved request id to `handler`; on a missing/invalid signature OR an unreadable payload, it
+ * short-circuits through {@link rejectInvalidWebhook} without ever reaching `handler` (so an unverified
+ * payload can't touch the DB). That rejection answers **401 for a signature failure and 200 for a shape
+ * failure** — see {@link WEBHOOK_REJECTION_STATUS} for why the two differ.
  */
 export const withVerifiedWebhook = (
     handler: (
@@ -101,11 +103,10 @@ export const withVerifiedWebhook = (
             const rawBody = event.body ?? '';
             const signed = verifyWebhook(event.headers as Record<string, string>, rawBody, config.IDP_WEBHOOK_SECRET);
 
-            // TWO checks, ONE verdict. The signature proves Clerk sent it; the parse proves we can read it.
-            // A failure of either is invalid input that NO retry can fix — a shape that will not parse today
-            // parses identically on every redelivery, and a signature that fails either is not Clerk at all
-            // or means our signing secret is wrong, which every retry reproduces. So both take the SAME
-            // rejection path below and differ only in the `reason` they report.
+            // TWO checks, ONE rejection PATH, TWO statuses. The signature proves Clerk sent it; the parse
+            // proves we can read it. A failure of either is invalid input that must never reach the DB, so
+            // both take the SAME path below and report a `reason` — but the STATUS is derived from that
+            // reason, because retrying rescues exactly one of them (see `WEBHOOK_REJECTION_STATUS`).
             //
             // The envelope is read FIRST so an event type we simply do not handle is not mistaken for an
             // invalid one — see `idpEventEnvelopeSchema`. That case is a quiet 200, not an alarm.
@@ -133,13 +134,41 @@ export const withVerifiedWebhook = (
 };
 
 /**
+ * The HTTP status each rejection reason answers with. A complete `Record`, so adding a reason fails to compile
+ * until its retry disposition is decided — there is no silent default.
+ *
+ * **The two are NOT interchangeable, and collapsing them onto one status breaks something either way.** svix
+ * retries on ANY non-2xx, across a schedule spanning hours; the question each reason must answer is therefore
+ * "would a redelivery ever succeed?"
+ *
+ * - **`shape` → 200.** The signature already verified, so the caller IS svix and the payload IS Clerk's. A
+ *   payload we cannot parse today parses identically on every redelivery, so retrying replays one permanent
+ *   failure on a schedule. Acknowledging takes it off that schedule; the ERROR log is what makes the drop
+ *   visible (a shape failure behind a valid signature means Clerk's contract moved).
+ * - **`signature` → 401.** Two causes, and BOTH argue against 200. If the caller is not Clerk, a 200 tells a
+ *   forger their forgery was accepted — and this endpoint is public with no gateway auth (`POST
+ *   /api/v1/webhooks/users`), so the signature is the only trust boundary there is. If the caller IS Clerk and
+ *   OUR SIGNING SECRET is stale (a rotation not yet propagated to the secret store), then the condition is
+ *   TRANSIENT and operator-fixable, and svix's retry window is exactly the mechanism that rescues it: fix the
+ *   secret and the queued deliveries land. Answering 200 says "delivered" and discards every real event
+ *   permanently, behind a green check. That is the incident already on record — a dropped `user.created`
+ *   leaving Clerk holding a user the database does not.
+ *
+ * An earlier revision of this module reasoned that a wrong secret "every retry reproduces" and so returned 200
+ * for both. That is the half that was wrong: it treats an operator-fixable misconfiguration as permanent, and
+ * pays for the mistake with irrecoverable data loss rather than a retry.
+ */
+export const WEBHOOK_REJECTION_STATUS: Readonly<Record<WebhookRejectionReason, number>> = {
+    shape: 200,
+    signature: 401,
+};
+
+/**
  * The ONE rejection path for an invalid inbound webhook — a bad signature or an unreadable shape.
  *
- * **Returns 200, and that is the load-bearing part.** svix retries on ANY non-2xx, so `throw`ing here — the
- * reflex on a validation failure, and what the rest of this codebase does — would produce the exact opposite
- * of the intent: the same unprocessable payload redelivered on svix's full retry schedule, failing identically
- * every time. Acknowledging takes it off that schedule. (The previous `401` on a signature failure had exactly
- * this behaviour.)
+ * The status comes from {@link WEBHOOK_REJECTION_STATUS} (401 signature / 200 shape); everything else about the
+ * two rejections is identical, which is why this is one function with a `reason` field rather than two branches
+ * that can drift apart.
  *
  * **"Do not retry" MUST NOT collapse into "fail silently"** — that distinction is the whole value of this
  * path, so the rejection is alarmed, not swallowed. A shape failure behind a VALID signature means Clerk
@@ -154,8 +183,9 @@ export const withVerifiedWebhook = (
  *
  * @param reason - Which check failed. A FIELD, not a branch, so an alert can threshold signature noise (this
  *   endpoint is public and unauthenticated by design, so it receives internet background scanning) separately
- *   from shape failures, which are the ones that mean Clerk's contract moved.
- * @returns A 200 acknowledgement carrying the reason, so the rejection is visible to the caller and in logs.
+ *   from shape failures, which are the ones that mean Clerk's contract moved. It ALSO selects the status.
+ * @returns The reason's mapped status, carrying the reason in the body so the rejection is visible to the
+ *   caller and in logs.
  * @sideEffect Emits one ERROR log record and one rejection metric.
  */
 const rejectInvalidWebhook = ({
@@ -184,5 +214,5 @@ const rejectInvalidWebhook = ({
     // without being buried by `signature` volume from unauthenticated internet noise.
     emitMetric('IdentityWebhookRejected', 1, { reason });
 
-    return { statusCode: 200, body: JSON.stringify({ ok: false, rejected: reason }) };
+    return { statusCode: WEBHOOK_REJECTION_STATUS[reason], body: JSON.stringify({ ok: false, rejected: reason }) };
 };

@@ -69,6 +69,12 @@ describe('UsersService', () => {
             update: vi.fn().mockReturnValue({
                 set: () => ({ where: () => Promise.resolve() }),
             }),
+            // Raw-statement escape hatch. Needed because `provisionCompleteUser` opens its transaction with a
+            // per-identity `pg_advisory_xact_lock` — the fix for the `40P01` speculative-insertion deadlock
+            // between the `identity_id` arbiter and `users_email_unique` (see
+            // `packages/utils/identity/src/provisioning.ts`). Swallowed here; the lock's presence and its
+            // position BEFORE the upsert are asserted in that package's own unit suite.
+            execute: vi.fn().mockResolvedValue([]),
             // Delegate the transaction callback to mockDb so per-test insert/select/delete stubs apply,
             // and RETURN its result (upsertUserRecord returns the created row from inside the tx).
             transaction: vi.fn((cb: (tx: any) => unknown) => cb(mockDb)),

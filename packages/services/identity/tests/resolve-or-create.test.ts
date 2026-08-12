@@ -36,7 +36,19 @@ describe('UsersService.resolveOrCreateFromClaims', () => {
 
     beforeEach(async () => {
         vi.resetModules();
-        mockDb = { select: vi.fn(), insert: vi.fn() };
+        // `transaction` is part of the double because `provisionCompleteUser` now runs the users upsert inside
+        // a short transaction that first takes a per-identity advisory lock — the fix for the `40P01`
+        // speculative-insertion deadlock between the `identity_id` arbiter and `users_email_unique`
+        // (`packages/utils/identity/src/provisioning.ts`, proven in `provisioning-race.integration.test.ts`).
+        // The handle delegates `insert` to the same spy, so every expectation below still observes the upsert;
+        // the lock statement is swallowed here because THIS suite is about claim resolution, and the lock's own
+        // presence and ordering are asserted in `packages/utils/identity/src/__tests__/provisioning.test.ts`.
+        mockDb = {
+            select: vi.fn(),
+            insert: vi.fn(),
+            transaction: (run: (tx: unknown) => Promise<unknown>) =>
+                run({ execute: () => Promise.resolve([]), insert: (table: unknown) => mockDb.insert(table) }),
+        };
 
         const { UsersService } = await import('../src/users/users.service.js');
 

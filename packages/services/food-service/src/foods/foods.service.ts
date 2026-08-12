@@ -302,16 +302,20 @@ export class FoodsService {
      * rolling-window limiter; merge → `RESOLVED` and clear the candidate set. A re-fetch failure leaves
      * the food `UNRESOLVED` with its candidate set intact (TST-2).
      *
+     * TAKES NO REQUESTER KEY, unlike every enqueue path. A resolve draws from the limiter's reserved headroom
+     * (DSN-6) rather than a requester's budget and writes no `fetch_requesters` row, so there is nothing a
+     * requester key would key. It formerly accepted one as `_requesterId` — never read, not even logged — so a
+     * value was derived in the controller and discarded here; see `FoodsController.patchResolve`.
+     *
      * @param id - The internal food id.
      * @param candidateIds - The picked candidate row ids.
-     * @param _requesterId - The requester key (unused for budget; resolves draw from reserved headroom, DSN-6).
      * @returns The id + `RESOLVED` status.
      * @throws {FoodNotFoundError} (→ 404) when no row exists.
      * @throws {NotResolvableError} (→ 409) when the food is not `UNRESOLVED` (and not an idempotent `RESOLVED`).
      * @throws {CandidateMismatchError} (→ 409) when a pick is not in the food's candidate set.
      * @throws {FetchUnavailableError} (→ 503) when the re-fetch cannot draw from the rolling-window budget.
      */
-    public async patchResolve(id: string, candidateIds: string[], _requesterId: string): Promise<ResolveResponse> {
+    public async patchResolve(id: string, candidateIds: string[]): Promise<ResolveResponse> {
         const food = await this.foodDao.getById(id);
 
         if (!food) {

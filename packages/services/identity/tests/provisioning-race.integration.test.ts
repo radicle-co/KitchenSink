@@ -7,7 +7,7 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 
-import { provisionCompleteUser, type ProvisionDeps } from '@kitchensink/identity-utils';
+import { PROVISION_LOCK_NAMESPACE, provisionCompleteUser, type ProvisionDeps } from '@kitchensink/identity-utils';
 import { users, accounts, profiles } from '../src/database/index.js';
 import { UserDAO, newUserId } from '@kitchensink/identity-db';
 
@@ -132,6 +132,59 @@ describe.skipIf(!DATABASE_URL)('provisionCompleteUser — race-safety under conc
             expect(['complete', 'incomplete']).toContain(webhookResult.kind);
 
             expect(await countsFor(sub)).toMatchObject({ users: 1, accounts: 1, profiles: 1 });
+        }
+    });
+
+    /**
+     * The MECHANISM, asserted deterministically — the two concurrency cases above cannot do this job alone.
+     *
+     * The `40P01` this guards is racy: the three-way case ran green 12/12 locally on the very code that failed
+     * in CI, and a widened reproduction needed 16 concurrent provisioners to surface 8 deadlocks in 60
+     * iterations. A probabilistic test is a poor guard for a defect on the authentication hot path, so this
+     * asserts the property that makes the deadlock impossible instead of sampling for its symptom: the users
+     * upsert takes a per-identity advisory lock, so two provisioners of one identity are never inside
+     * PostgreSQL's speculative insertion (heap tuple + one index tuple per unique index — here the
+     * `identity_id` arbiter AND `users_email_unique`) at the same time, which is where the cycle formed.
+     *
+     * Holding the identical lock from a second connection must therefore stall provisioning. The timing
+     * assertion fails in the SAFE direction: unserialized provisioning completes in single-digit milliseconds,
+     * far under the grace period, so a slow machine yields a false PASS rather than a false failure — and
+     * deleting the lock removes the exported constant, which breaks this file's import outright.
+     */
+    it('serializes the users upsert per identity — provisioning BLOCKS behind the advisory lock', async () => {
+        const sub = 'user_lock_probe';
+        const blocker = await pool.connect();
+
+        try {
+            await blocker.query('begin');
+            await blocker.query('select pg_advisory_xact_lock($1::int4, hashtext($2::text))', [
+                PROVISION_LOCK_NAMESPACE,
+                sub,
+            ]);
+
+            let settled = false;
+            const provisioning = readThrough(sub, `${sub}@example.com`).then((result) => {
+                settled = true;
+
+                return result;
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
+            expect(
+                settled,
+                'provisioning completed while the per-identity advisory lock was held — the users upsert is ' +
+                    'NOT serialized, so concurrent provisioners can re-enter the speculative-insertion ' +
+                    'deadlock (40P01 on users_email_unique)',
+            ).toBe(false);
+
+            // Committing the blocker releases the transaction-scoped lock; provisioning must then complete.
+            await blocker.query('commit');
+
+            await expect(provisioning).resolves.toMatchObject({ kind: 'complete' });
+            expect(await countsFor(sub)).toMatchObject({ users: 1, accounts: 1, profiles: 1 });
+        } finally {
+            blocker.release();
         }
     });
 

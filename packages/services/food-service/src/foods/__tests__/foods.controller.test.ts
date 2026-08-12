@@ -233,7 +233,7 @@ describe('FoodsController.patchResolve', () => {
         ctx.service.patchResolve.mockResolvedValue({ id: VALID_ID, status: 'RESOLVED' });
         const { res, status } = makeRes();
 
-        const result = await ctx.controller.patchResolve(VALID_ID, { candidateIds: ['c1'] }, makeReq(), res);
+        const result = await ctx.controller.patchResolve(VALID_ID, { candidateIds: ['c1'] }, res);
 
         expect(status).toHaveBeenCalledWith(HttpStatus.OK);
         expect(result).toEqual({ id: VALID_ID, status: 'RESOLVED' });
@@ -243,26 +243,24 @@ describe('FoodsController.patchResolve', () => {
         ctx.service.patchResolve.mockRejectedValue(new CandidateMismatchError(VALID_ID));
         const { res } = makeRes();
 
-        await expect(
-            ctx.controller.patchResolve(VALID_ID, { candidateIds: ['c1'] }, makeReq(), res),
-        ).rejects.toBeInstanceOf(ConflictException);
+        await expect(ctx.controller.patchResolve(VALID_ID, { candidateIds: ['c1'] }, res)).rejects.toBeInstanceOf(
+            ConflictException,
+        );
     });
 
     it('maps a NotResolvableError to 409', async () => {
         ctx.service.patchResolve.mockRejectedValue(new NotResolvableError(VALID_ID, 'PENDING'));
         const { res } = makeRes();
 
-        await expect(
-            ctx.controller.patchResolve(VALID_ID, { candidateIds: ['c1'] }, makeReq(), res),
-        ).rejects.toBeInstanceOf(ConflictException);
+        await expect(ctx.controller.patchResolve(VALID_ID, { candidateIds: ['c1'] }, res)).rejects.toBeInstanceOf(
+            ConflictException,
+        );
     });
 
     it('rejects a malformed body (no candidateIds) with 400 (DSN-14)', async () => {
         const { res } = makeRes();
 
-        await expect(ctx.controller.patchResolve(VALID_ID, {}, makeReq(), res)).rejects.toBeInstanceOf(
-            BadRequestException,
-        );
+        await expect(ctx.controller.patchResolve(VALID_ID, {}, res)).rejects.toBeInstanceOf(BadRequestException);
     });
 });
 

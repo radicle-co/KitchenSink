@@ -169,19 +169,29 @@ export class FoodsController {
         }
     }
 
-    /** `PATCH /api/v1/foods/{id}` — resolve from the user's candidate pick (FR-RES-2). */
+    /**
+     * `PATCH /api/v1/foods/{id}` — resolve from the user's candidate pick (FR-RES-2).
+     *
+     * NO REQUESTER IS PASSED, AND THAT IS THE DESIGN, not an omission. A resolve is not an enqueue: it draws
+     * from the limiter's reserved headroom (DSN-6) rather than a requester's budget, and it writes no
+     * `fetch_requesters` row — so there is nothing for a requester key to key. It used to receive one anyway,
+     * computed by a `requesterTrace(req)` helper that fell back to the raw Clerk `sub` and then to the string
+     * `'unknown'`; the callee's parameter was underscore-prefixed and read exactly nowhere, so the value was
+     * derived, carried across a module boundary, and discarded. Both are deleted. Adding a requester here is a
+     * deliberate decision with a privacy cost (`fetch_requesters` is the "user X asked for food Y" linkage the
+     * erasure leg deletes), not a signature to restore for symmetry with the enqueue routes.
+     */
     @Patch(':id')
     public async patchResolve(
         @Param('id') id: string,
         @Body() body: unknown,
-        @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
     ): Promise<ResolveResponse> {
         this.requireId(id);
         const candidateIds = this.requireCandidateIds(body);
 
         try {
-            const result = await this.foodsService.patchResolve(id, candidateIds, this.requesterTrace(req));
+            const result = await this.foodsService.patchResolve(id, candidateIds);
             res.status(HttpStatus.OK);
 
             return result;
@@ -238,15 +248,6 @@ export class FoodsController {
         }
 
         return resolution.requesterId;
-    }
-
-    /**
-     * A best-effort requester id for a NON-enqueue path (e.g. PATCH-resolve, which records no requester).
-     * Prefers the app-user ULID, falls back to the Clerk `sub` for trace only, and NEVER throws on a
-     * sync-race — resolving does not depend on `external_id`.
-     */
-    private requesterTrace(req: AuthenticatedRequest): string {
-        return req.user?.userId ?? req.user?.sub ?? 'unknown';
     }
 
     /** Narrow the guard-populated principal, failing closed with `401` if somehow absent. */

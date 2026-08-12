@@ -590,21 +590,36 @@ describe('identity-webhook handler', () => {
         expect(mockRecordOnce).toHaveBeenCalledWith(db, 'msg_ok', 'user_abc123', 'user.created');
     });
 
-    it('invalid signature -> ACKNOWLEDGES (200) without processing, so svix stops redelivering', async () => {
-        // Was a 401. Changed deliberately, per the owner's ruling that a signature failure and a shape failure
-        // are equally invalid and neither can be fixed by a retry: svix retries on any non-2xx, so the 401 put
-        // an unprocessable delivery on the full retry schedule to fail identically each time. It is now
-        // acknowledged and alarmed instead (the ERROR log + per-reason metric are asserted in
-        // `common/__tests__/handler-pipeline.test.ts`, which owns that path).
+    it('invalid signature -> 401 without processing, so a stale secret is recoverable', async () => {
+        // A signature failure is the ONE rejection that must stay retryable. It briefly returned 200 on the
+        // reasoning that a wrong signing secret "every retry reproduces" — but a wrong secret is a TRANSIENT,
+        // operator-fixable condition, and svix's multi-hour retry window is what rescues it. A 200 says
+        // "delivered" and discards every queued real Clerk event permanently behind a green check (the recorded
+        // dropped-`user.created` incident). It also tells a forger their forgery was accepted, on an endpoint
+        // whose signature is the only trust boundary. The ERROR log + per-reason metric are asserted in
+        // `common/__tests__/handler-pipeline.test.ts`, which owns that path.
         mockVerifyWebhook.mockImplementation(() => {
             throw new Error('Invalid signature');
         });
 
         const result = await handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext());
 
-        expect(result.statusCode).toBe(200);
+        expect(result.statusCode).toBe(401);
         expect(JSON.parse(result.body)).toEqual({ ok: false, rejected: 'signature' });
-        // Still never processed, and still never recorded — acknowledging is not the same as accepting.
+        // Still never processed, and still never recorded — rejecting is not the same as accepting.
+        expect(mockRecordOnce).not.toHaveBeenCalled();
+    });
+
+    it('unreadable shape behind a VALID signature -> 200, because no redelivery can ever parse it', async () => {
+        // The other half of the pair, asserted HERE too so the two statuses cannot silently converge onto one
+        // value: a shape failure is permanent (the same bytes reparse identically), so acknowledging takes it
+        // off svix's schedule. Reds if `shape` is ever mapped to a non-2xx.
+        mockVerifyWebhook.mockReturnValue({ type: 'user.created', data: {} } as never);
+
+        const result = await handler(makeEvent(JSON.stringify(userCreatedPayload), {}), makeContext());
+
+        expect(result.statusCode).toBe(200);
+        expect(JSON.parse(result.body)).toEqual({ ok: false, rejected: 'shape' });
         expect(mockRecordOnce).not.toHaveBeenCalled();
     });
 

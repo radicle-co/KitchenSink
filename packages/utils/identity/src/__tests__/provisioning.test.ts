@@ -33,6 +33,13 @@ function buildMockDb(opts: MockOpts = {}) {
     const insertedTables: string[] = [];
     const valuesByTable = new Map<string, Record<string, unknown>>();
     const conflictSets: Array<Record<string, unknown>> = [];
+    /**
+     * Every statement the routine runs on a TRANSACTION handle, in order, plus which table each `insert`
+     * targeted — so a test can assert that the advisory lock is taken BEFORE the users upsert and that the aux
+     * inserts are NOT inside the transaction. Recorded rather than ignored on purpose: a double that silently
+     * accepted `execute()` would let the lock be deleted with the unit suite still green.
+     */
+    const txStatements: string[] = [];
     let userReturningCount = 0;
     const row = {
         id: 'usr_test',
@@ -43,6 +50,29 @@ function buildMockDb(opts: MockOpts = {}) {
     };
 
     const db = {
+        /**
+         * Runs the callback with a handle that records `execute`d statements and delegates `insert` to the same
+         * recorder the autocommit path uses, so a table inserted inside the transaction is distinguishable
+         * from one inserted outside it by position in `txStatements`.
+         */
+        transaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
+            const tx = {
+                execute(statement: { queryChunks?: unknown[] }) {
+                    // Drizzle's `sql` template object: flatten whatever string parts it carries so the
+                    // assertion can look for the function name without depending on the driver's dialect.
+                    txStatements.push(`execute:${JSON.stringify(statement?.queryChunks ?? statement)}`);
+
+                    return Promise.resolve([]);
+                },
+                insert(table: { __t: string }) {
+                    txStatements.push(`insert:${table.__t}`);
+
+                    return db.insert(table);
+                },
+            };
+
+            return fn(tx);
+        },
         insert(table: { __t: string }) {
             insertedTables.push(table.__t);
 
@@ -79,7 +109,7 @@ function buildMockDb(opts: MockOpts = {}) {
         newUserId: () => 'usr_test',
     };
 
-    return { deps, insertedTables, valuesByTable, conflictSets };
+    return { deps, insertedTables, valuesByTable, conflictSets, txStatements };
 }
 
 describe('provisionCompleteUser', () => {
@@ -100,6 +130,48 @@ describe('provisionCompleteUser', () => {
             displayName: 'Ada',
             avatarUrl: 'https://img/ada.png',
         });
+    });
+
+    /**
+     * The per-identity serialization, at unit speed.
+     *
+     * `provisioning-race.integration.test.ts` proves the runtime behaviour against a real Postgres (provisioning
+     * blocks behind the lock). These two assert the STRUCTURE that produces it, so the guard runs on every
+     * `npm test` without a database:
+     *
+     *  1. the advisory lock is the FIRST statement in the transaction, before the upsert — a lock taken after
+     *     the insert would serialize nothing, because the deadlock forms *inside* the insert's speculative
+     *     insertion (heap tuple + one index tuple per unique index, `identity_id` AND `users_email_unique`);
+     *  2. the aux inserts stay OUTSIDE the transaction — putting them in is the `d59e11c` deadlock, from the
+     *     opposite direction, so the fix for one must not become the other.
+     */
+    it('takes the per-identity advisory lock BEFORE the users upsert, inside one transaction', async () => {
+        const { deps, txStatements } = buildMockDb();
+
+        await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com' },
+            { onEmailCollision: 'placeholder' },
+        );
+
+        expect(txStatements[0], 'no statement ran on the transaction handle — the upsert is not serialized').toMatch(
+            /pg_advisory_xact_lock/,
+        );
+        expect(txStatements[1]).toBe('insert:users');
+    });
+
+    it('keeps the accounts/profiles inserts OUT of that transaction (the d59e11c deadlock)', async () => {
+        const { deps, txStatements, insertedTables } = buildMockDb();
+
+        await provisionCompleteUser(
+            deps,
+            { identityId: 'id_1', email: 'a@b.com' },
+            { onEmailCollision: 'placeholder' },
+        );
+
+        expect(insertedTables).toEqual(['users', 'accounts', 'profiles']);
+        expect(txStatements).not.toContain('insert:accounts');
+        expect(txStatements).not.toContain('insert:profiles');
     });
 
     it('carries a lifecycle-aware deletedAt directive in the conflict set (revival gated on status)', async () => {

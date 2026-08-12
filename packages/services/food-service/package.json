@@ -74,7 +74,8 @@
         "tsx": "*",
         "typescript": "^5.9.3",
         "undici": "^6.27.0",
-        "vitest": "^4.0.0"
+        "vitest": "^4.0.0",
+        "yaml": "^2.8.1"
     },
     "engines": {
         "node": "24.x"

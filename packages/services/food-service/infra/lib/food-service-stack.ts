@@ -67,7 +67,16 @@ export const EPHEMERAL_PRIORITY_BAND_WIDTH = 10_000;
  *
  * Kept strictly ABOVE the per-PR band so a hashed named-stage priority can never collide with a
  * `pr-{N}` rule: PRs occupy 10000–19999, named stages 20000–29999 (ALB rule priorities max at 50000,
- * so both fit). Within the named band the stage string is hashed, so two *distinct, concurrently
+ * so both fit).
+ *
+ * ⚠️ THE EPHEMERAL BAND SPACE IS NOW FULL. Each feature service owns two 10000-wide bands and they must be
+ * disjoint across services (`recipe-service-stack.ts` takes 30000–39999 and 40000–49999 for exactly that
+ * reason). With the ALB ceiling at 50000, food's 10000–29999 plus recipe's 30000–49999 exhausts the range: a
+ * THIRD feature service has no band left to claim. Do not "solve" that by overlapping a band — the collision
+ * surfaces as a failed per-PR deploy, not a synth error. It needs a different allocation scheme (one shared
+ * ephemeral band hashed over service AND stage, or a priority derived from a registry).
+ *
+ * Within the named band the stage string is hashed, so two *distinct, concurrently
  * deployed* named stages could still collide — that residual is inherent to hashing and acceptable
  * because named ephemeral stages are deployed one-at-a-time by hand (unlike PRs, which are keyed off
  * the globally unique PR number).
@@ -712,8 +721,9 @@ export class FoodServiceStack extends Stack {
             },
         );
 
-        // Per-service listener-rule priority allocation: identity=100, food=200. Future services pick
-        // 300, 400, … A per-PR preview rides the SHARED sandbox listener, so it MUST NOT reuse 200 —
+        // Per-service listener-rule priority allocation (ADR-0003): identity=100, food=200, recipe=300.
+        // Future services pick 400, 500, … A per-PR preview rides the SHARED sandbox listener, so it MUST
+        // NOT reuse 200 —
         // it allocates from the per-PR band (PER_PR_PRIORITY_BASE + N; ADR-0006). Base stages keep 200,
         // so their template does not diff. Priorities must be unique across all rules on the listener.
         new elbv2.ApplicationListenerRule(this, 'FoodServiceListenerRule', {

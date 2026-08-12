@@ -7,11 +7,83 @@
  * schedule (the archive's ONLY trigger — no rule means the outbox never drains), and the FR-007b-i
  * alarm thresholds.
  */
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
+import ts from 'typescript';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { RecipeWorkersStack } from '../lib/recipe-workers-stack.js';
+
+/** The asset directory `Code.fromAsset` ships — `<package>/dist`, which carries NO `node_modules`. */
+const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
+
+/**
+ * Specifiers a handler may import bare despite the asset having no `node_modules`.
+ *
+ * Mirrors `esbuild.mjs`'s `external`, and for its reasons: `@aws-sdk/*` is provided by the Node Lambda runtime,
+ * and `pg-native` is an optional peer `pg` only requires when `Client.native` is touched. `node:` builtins are
+ * handled separately since they are a prefix rule, not a list.
+ */
+const RUNTIME_PROVIDED = [/^@aws-sdk\//u, /^pg-native$/u];
+
+/**
+ * Every module specifier an emitted Lambda file STATICALLY imports that would not resolve inside the deployed
+ * asset.
+ *
+ * This is the precondition a Lambda cold start actually has, asserted directly rather than through a proxy: the
+ * asset is `dist/` with no `node_modules`, so a surviving bare specifier in a static import is
+ * `ERR_MODULE_NOT_FOUND` before the handler runs a line. Deliberately NOT a check on `esbuild.mjs`'s config
+ * text — the artifact is what ships, and a config assertion is one more copy of a list to keep in step, which is
+ * the defect this whole area exists for.
+ *
+ * ⚠️ PARSED, NOT GREPPED, and this one is not theoretical either. The first version of this function matched
+ * `from '…'` textually and reported `drizzle-orm/pg-core` and `@aws-lambda-powertools/logger` in all SIX
+ * bundles — every hit was inside a JSDoc `@example` block that esbuild preserves from the dependency's own
+ * source (`* import { union } from 'drizzle-orm/pg-core'`). A text gate over bundled output reads its
+ * dependencies' documentation as code, so it fires hardest on the artifacts that are correct.
+ *
+ * Static declarations only. A bundled CJS dependency's lazy `require('pg-native')` is conditional and may never
+ * execute, whereas a static import is evaluated at load — the defect signature is the latter.
+ *
+ * @param file - Absolute path to an emitted `.js` handler.
+ * @returns The unresolvable bare specifiers, empty for a correctly bundled handler.
+ * @sideEffect Reads the built artifact.
+ */
+function unresolvableImports(file: string): readonly string[] {
+    const source = ts.createSourceFile(
+        file,
+        readFileSync(file, 'utf8'),
+        ts.ScriptTarget.Latest,
+        /* setParentNodes */ false,
+        ts.ScriptKind.JS,
+    );
+    const specifiers = new Set<string>();
+
+    for (const statement of source.statements) {
+        const specifier =
+            (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
+            statement.moduleSpecifier !== undefined &&
+            ts.isStringLiteral(statement.moduleSpecifier)
+                ? statement.moduleSpecifier.text
+                : undefined;
+
+        if (specifier !== undefined) {
+            specifiers.add(specifier);
+        }
+    }
+
+    return [...specifiers].filter(
+        (specifier) =>
+            !specifier.startsWith('.') &&
+            !specifier.startsWith('/') &&
+            !specifier.startsWith('node:') &&
+            !RUNTIME_PROVIDED.some((allowed) => allowed.test(specifier)),
+    );
+}
 
 // NOTE: the stack's `Code.fromAsset(dist)` requires the esbuild bundle to exist. The `test` npm script
 // runs `npm run build` before vitest precisely so this synth suite has `dist/` on a clean checkout (CI /
@@ -210,22 +282,40 @@ describe('RecipeWorkersStack', () => {
         });
     });
 
-    it('points each Lambda at its real bundled handler', () => {
-        const handlers = Object.values(template.findResources('AWS::Lambda::Function')).map(
-            (fn) => fn.Properties?.Handler,
-        );
+    /**
+     * ⚠️ THIS TEST USED TO BE THE BUG. It asserted the handler strings with
+     * `expect(handlers).toEqual(expect.arrayContaining([…five names…]))` — which proves those five are PRESENT
+     * and says nothing whatsoever about a SIXTH. The stack deploys six Lambdas, `esbuild.mjs` bundled five, and
+     * `handle-sync-worker` shipped as raw `tsc` output into an asset with no `node_modules`: every cold start
+     * was `ERR_MODULE_NOT_FOUND`. `build-inputs.test.ts` iterated the same five names and missed it too.
+     *
+     * A list copied from the bundler cannot detect that the bundler's list is incomplete. So the subjects are
+     * now DISCOVERED from the synthesized template — every `AWS::Lambda::Function` CloudFormation will create —
+     * and the expectation is DERIVED from each handler string via esbuild's `outbase: src` layout. There is no
+     * list left for a human to keep in step, which is the actual defect; the missing entry was its symptom.
+     */
+    it('ships a loadable artifact for every Lambda it deploys — derived from the template, not from a list', () => {
+        // `handlers/x.handler` → `dist/handlers/x.js`: the exported symbol is everything after the LAST dot.
+        const artifacts = Object.values(template.findResources('AWS::Lambda::Function'))
+            .map((fn) => fn.Properties?.Handler as string)
+            .map((handler) => ({
+                handler,
+                file: path.join(DIST_DIR, `${handler.slice(0, handler.lastIndexOf('.'))}.js`),
+            }));
 
-        // These strings must match esbuild's outbase:src layout, or the deploy succeeds and every
-        // invocation fails at runtime with "Cannot find module".
-        expect(handlers).toEqual(
-            expect.arrayContaining([
-                'handlers/version-archive-worker.handler',
-                'handlers/archive-sweeper.handler',
-                'handlers/account-erasure-worker.handler',
-                'handlers/erasure-sweeper.handler',
-                'handlers/erasure-orphan-sweeper.handler',
-            ]),
-        );
+        // Non-vacuity: a template that yielded no Lambdas would make every assertion below trivially pass.
+        expect(artifacts.length).toBeGreaterThanOrEqual(6);
+
+        expect(artifacts.filter(({ file }) => !existsSync(file)).map(({ handler }) => handler)).toEqual([]);
+
+        // The failure signature of the real defect: `handle-sync-worker.js` was raw `tsc` output opening
+        // `import { sql } from 'drizzle-orm'`, so this reports `drizzle-orm` — the specifier that killed the
+        // cold start — rather than merely "an entry point is missing from a config file".
+        expect(
+            artifacts
+                .map(({ handler, file }) => ({ handler, unresolvable: unresolvableImports(file) }))
+                .filter(({ unresolvable }) => unresolvable.length > 0),
+        ).toEqual([]);
     });
 
     it('alarms when the backlog exceeds 100 for 15 minutes (FR-007b-i)', () => {

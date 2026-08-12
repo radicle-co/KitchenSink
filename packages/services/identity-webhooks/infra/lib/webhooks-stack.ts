@@ -8,6 +8,7 @@ import {
     aws_apigateway as apigw,
     aws_certificatemanager as acm,
     aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cloudwatch_actions,
     aws_ec2 as ec2,
     aws_events as events,
     aws_events_targets as events_targets,
@@ -419,17 +420,55 @@ export class WebhooksStack extends Stack {
             targets: [new events_targets.LambdaFunction(erasureReconciliationFn)],
         });
 
+        // Somewhere for the alarms below to page. This stack had NO alarm action at all: its single alarm
+        // changed state and told nobody, which is the same failure `identity-service-stack.ts` records having
+        // already fixed once ("A4: alarms previously had no action wired, so they fired silently").
+        // Subscriptions are managed out-of-band per stage, as they are for the identity and food topics.
+        const alarmTopic = new sns.Topic(this, 'WebhooksAlarmTopic', {
+            enforceSSL: true,
+            displayName: `Identity webhooks alarms (${deployStage})`,
+        });
+        const alarmAction = new cloudwatch_actions.SnsAction(alarmTopic);
+
+        /**
+         * The dimensions `emitMetric` (`src/common/observability.ts`) attaches to EVERY metric it publishes.
+         *
+         * ⛔ AN ALARM ON ONE OF THESE METRICS MUST SELECT THESE DIMENSIONS. The EMF directive is
+         * `Dimensions: [['service', 'metric', ...Object.keys(dimensions)]]`, and EMF publishes ONLY the
+         * dimension sets the directive lists — CloudWatch does not also roll the datapoints up under an empty
+         * dimension set. A dimensionless alarm therefore subscribes to a series that has never received a single
+         * datapoint, and with `treatMissingData: NOT_BREACHING` it sits in a confident, permanent `OK`.
+         *
+         * That is not hypothetical: the `ErasureIncomplete` alarm below was written dimensionless and had been
+         * dead since the day it was authored. Both deployed alarms
+         * (`kitchensink-erasure-incomplete-{prod,sandbox}`) reported `Dimensions: []` with the state reason "no
+         * datapoints were received for 2 periods and 2 missing datapoints were treated as [NonBreaching]".
+         *
+         * The ALARM is the side that was fixed, not the emitter: the dimension set is the emitter's published
+         * contract for every other metric, and adding a second (empty) dimension set to the directive would
+         * double the number of billed custom metrics to make one alarm's omission work. `service` and `metric`
+         * carry the emitter's own literals — `metric` is redundant with the CloudWatch metric name, and if it is
+         * ever dropped from the emitter these alarms must change in the same commit;
+         * `service-infra-wiring-invariants.test.ts` (W4) now fails if they drift apart.
+         */
+        const EMITTER_NAMESPACE = 'KitchenSink/IdentityWebhooks';
+        const emitterDimensions = (metricName: string): Record<string, string> => ({
+            service: 'identity-webhooks',
+            metric: metricName,
+        });
+
         // R7 detective control: alarm when ANY erased identity's recipe/food leg is still incomplete. The
         // handler emits `ErasureIncomplete` (a count) every run — including 0, so a cleared backlog resets
         // the alarm. A silently half-erased account is a GDPR Art. 17 failure, so a single incomplete owner
         // for two consecutive daily runs pages.
-        new cloudwatch.Alarm(this, 'ErasureIncompleteAlarm', {
+        const erasureIncompleteAlarm = new cloudwatch.Alarm(this, 'ErasureIncompleteAlarm', {
             alarmName: `kitchensink-erasure-incomplete-${deployStage}`,
             alarmDescription:
                 'CR-002 R7: one or more identities reached status=erased but their recipe/food erasure leg is not complete.',
             metric: new cloudwatch.Metric({
-                namespace: 'KitchenSink/IdentityWebhooks',
+                namespace: EMITTER_NAMESPACE,
                 metricName: 'ErasureIncomplete',
+                dimensionsMap: emitterDimensions('ErasureIncomplete'),
                 statistic: cloudwatch.Stats.MAXIMUM,
                 period: Duration.days(1),
             }),
@@ -439,6 +478,67 @@ export class WebhooksStack extends Stack {
             datapointsToAlarm: 2,
             treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
         });
+        erasureIncompleteAlarm.addAlarmAction(alarmAction);
+
+        /**
+         * Webhook REJECTIONS, alarmed per `reason`. The counter was emitted and watched by nothing at all.
+         *
+         * `handler-pipeline.ts` records `emitMetric('IdentityWebhookRejected', 1, { reason })` on every rejected
+         * payload, and its own docstring explains why `reason` is a dimension rather than a branch: "an alert can
+         * threshold signature noise (this endpoint is public and unauthenticated by design, so it receives
+         * internet background scanning) separately from shape failures, which are the ones that mean Clerk's
+         * contract moved". That alert did not exist, so a rejection was indistinguishable from a success.
+         *
+         * Two alarms rather than one, because a single threshold over both reasons is useless in both directions:
+         * set it low and scanner noise pages continuously; set it high and a total contract break is buried.
+         */
+        const rejectionMetric = (reason: string): cloudwatch.Metric =>
+            new cloudwatch.Metric({
+                namespace: EMITTER_NAMESPACE,
+                metricName: 'IdentityWebhookRejected',
+                dimensionsMap: { ...emitterDimensions('IdentityWebhookRejected'), reason },
+                statistic: cloudwatch.Stats.SUM,
+                period: Duration.minutes(5),
+            });
+
+        // `shape` = the payload verified its SIGNATURE and then failed the zod schema, i.e. this really is Clerk
+        // and Clerk's contract has moved. There is no benign cause and no volume at which it is acceptable, so a
+        // single occurrence in one period pages. It is also the rejection that returns 200 (the payload is
+        // acknowledged, not retried), so nothing else in the system will ever raise it.
+        const shapeRejectionAlarm = new cloudwatch.Alarm(this, 'WebhookShapeRejectionAlarm', {
+            alarmName: `kitchensink-webhook-rejected-shape-${deployStage}`,
+            alarmDescription:
+                "Clerk's user webhook payload failed schema validation after a valid signature — their contract has changed and users are no longer syncing.",
+            metric: rejectionMetric('shape'),
+            threshold: 0,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluationPeriods: 1,
+            datapointsToAlarm: 1,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        shapeRejectionAlarm.addAlarmAction(alarmAction);
+
+        // `signature` = svix rejected the headers. Sporadically this is background scanning of a public
+        // endpoint and must never page. SUSTAINED it is the outage worth catching: a rotated/stale
+        // `SIGNING_SECRET` rejects every genuine webhook, so no user is provisioned or updated at all.
+        //
+        // The threshold discriminates on DURATION rather than magnitude, which is what separates the two
+        // causes: scanning is bursty, a stale secret is continuous. 15 minutes of sustained failures. The
+        // magnitude is a deliberate starting point rather than a measured one — there is no rejection-rate
+        // history to fit it to yet — so tune it from the metric once it has run, and treat a flapping alarm
+        // here as a signal to raise the threshold, never to delete the alarm.
+        const signatureRejectionAlarm = new cloudwatch.Alarm(this, 'WebhookSignatureRejectionAlarm', {
+            alarmName: `kitchensink-webhook-rejected-signature-${deployStage}`,
+            alarmDescription:
+                'Sustained svix signature rejections on the Clerk webhook — likely a stale SIGNING_SECRET, in which case NO user is being synced. Sporadic rejections are internet scanning and do not reach this threshold.',
+            metric: rejectionMetric('signature'),
+            threshold: 20,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluationPeriods: 3,
+            datapointsToAlarm: 3,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        signatureRejectionAlarm.addAlarmAction(alarmAction);
 
         // In-VPC schema migration runner. The RDS instance lives in private-isolated subnets, so the
         // deploy pipeline (outside the VPC) invokes this Lambda to apply migrations. It reuses the

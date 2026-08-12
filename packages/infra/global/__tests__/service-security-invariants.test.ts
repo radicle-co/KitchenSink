@@ -35,141 +35,25 @@
  * deleted (the lesson recorded in `app-service-dependency.test.ts`). Parsing means comments are comments and
  * string literals are string literals.
  */
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-// .../packages/infra/global/__tests__ → repo root is four levels up.
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-
-/** Where the deployable services live. */
-const SERVICES_ROOT = 'packages/services';
-
-/** One source file, as the predicates see it. */
-interface SourceFile {
-    /** Repo-relative (or fixture) path. */
-    readonly file: string;
-    /** The file's text. */
-    readonly contents: string;
-}
-
-/** A service as the gates see it: its directory name plus every TypeScript source under it. */
-interface DiscoveredService {
-    /** Directory name under `packages/services/` (or the fake's name). */
-    readonly name: string;
-    /** Package name from the manifest. */
-    readonly packageName: string;
-    /** Every `.ts` source in the service, tests included. */
-    readonly sources: readonly SourceFile[];
-}
-
-/**
- * Every tracked file under a repo-relative directory that is ALSO present in the working tree.
- *
- * `git ls-files` rather than a directory walk, so gitignored build output (`dist/`, `cdk.out/`, `.turbo/`)
- * can never contribute a finding — the trap documented at length in `scripts/boundariesRatchet.mjs`, where a
- * stray `cdk synth` invented three phantom violations. The `existsSync` filter is not redundant: `ls-files`
- * reports the INDEX, which disagrees with the working tree during an unstaged deletion or a half-finished
- * rebase, and a gate that throws in those states fails for reasons unrelated to what it checks.
- *
- * @param relativeDir - Repo-relative directory to list.
- * @returns Repo-relative paths of the tracked, on-disk files.
- * @sideEffect Shells out to git and stats the working tree.
- */
-function trackedFiles(relativeDir: string): readonly string[] {
-    return execFileSync('git', ['ls-files', '--', relativeDir], { cwd: repoRoot, encoding: 'utf8' })
-        .split('\n')
-        .filter((file) => file.length > 0 && existsSync(path.join(repoRoot, file)));
-}
-
-/**
- * Discover every deployable service and read its sources.
- *
- * @returns One entry per `packages/services/*` directory carrying a manifest.
- * @sideEffect Reads the services tree.
- */
-function discoverServices(): readonly DiscoveredService[] {
-    const services: DiscoveredService[] = [];
-
-    for (const entry of readdirSync(path.join(repoRoot, SERVICES_ROOT), { withFileTypes: true })) {
-        const manifestPath = path.posix.join(SERVICES_ROOT, entry.name, 'package.json');
-
-        if (!entry.isDirectory() || !existsSync(path.join(repoRoot, manifestPath))) {
-            continue;
-        }
-
-        const manifest = JSON.parse(readFileSync(path.join(repoRoot, manifestPath), 'utf8')) as { name?: string };
-        const sources = trackedFiles(path.posix.join(SERVICES_ROOT, entry.name))
-            .filter((file) => file.endsWith('.ts'))
-            .map((file) => ({ file, contents: readFileSync(path.join(repoRoot, file), 'utf8') }));
-
-        services.push({ name: entry.name, packageName: manifest.name ?? entry.name, sources });
-    }
-
-    return services;
-}
-
-/** Walk every node of a parsed source file. */
-function visit(source: ts.SourceFile, callback: (node: ts.Node) => void): void {
-    const walk = (node: ts.Node): void => {
-        callback(node);
-        ts.forEachChild(node, walk);
-    };
-
-    walk(source);
-}
-
-/** Parse one file. */
-function parse({ file, contents }: SourceFile): ts.SourceFile {
-    return ts.createSourceFile(file, contents, ts.ScriptTarget.Latest, /* setParentNodes */ false, ts.ScriptKind.TS);
-}
-
-/** Every string-literal VALUE in a file (never a comment, never an identifier). */
-function stringLiterals(source: SourceFile): readonly string[] {
-    const literals: string[] = [];
-
-    visit(parse(source), (node) => {
-        if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
-            literals.push(node.text);
-        }
-    });
-
-    return literals;
-}
-
-/** Every module specifier a file imports / exports-from / requires. */
-function moduleSpecifiers(source: SourceFile): readonly string[] {
-    const specifiers: string[] = [];
-
-    visit(parse(source), (node) => {
-        if (
-            (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
-            node.moduleSpecifier !== undefined &&
-            ts.isStringLiteral(node.moduleSpecifier)
-        ) {
-            specifiers.push(node.moduleSpecifier.text);
-        }
-
-        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'require') {
-            const [first] = node.arguments;
-
-            if (first !== undefined && ts.isStringLiteral(first)) {
-                specifiers.push(first.text);
-            }
-        }
-    });
-
-    return specifiers;
-}
-
-/** Whether a file is a test/fixture rather than production source. */
-function isTestFile(file: string): boolean {
-    return /(^|\/)(__tests__|__fixtures__|tests)\//u.test(file) || /\.(test|spec)\.ts$/u.test(file);
-}
+// The DISCOVERY and AST-reading mechanism lives in one module, shared with
+// `service-infra-wiring-invariants.test.ts`. It was duplicated into both files, and that is the one
+// duplication here that actually matters: both suites depend on discovering services from their manifests to
+// constrain services that do not exist yet, so if the copies drifted, a guard would silently stop covering a
+// service and pass vacuously forever — the failure mode a guard exists to prevent. The INVARIANTS stay here,
+// as pure predicates; only the tree walk is shared.
+import {
+    type DiscoveredService,
+    type SourceFile,
+    discoverServices,
+    isTestFile,
+    moduleSpecifiers,
+    parse,
+    stringLiterals,
+    visit,
+} from './serviceSources.js';
 
 // ───────────────────────────── the invariants, as pure predicates ─────────────────────────────
 

@@ -11,6 +11,7 @@
  * (the typecheck project) keeps including them, which the last case pins.
  */
 import { execFileSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -76,20 +77,33 @@ describe('production build inputs', () => {
         TSC_TIMEOUT_MS,
     );
 
+    /**
+     * ⚠️ THIS TEST USED TO ENUMERATE FIVE HANDLER NAMES, and that list was the bug.
+     *
+     * `handle-sync-worker.ts` was the sixth handler the stack deployed, and it appeared in neither this list nor
+     * `esbuild.mjs`'s `entryPoints`. Both this test and `recipe-workers-stack.test.ts` stayed green while the
+     * handler shipped as raw `tsc` output into an asset with no `node_modules` — every cold start was
+     * `ERR_MODULE_NOT_FOUND`. Two guards, one shared blind spot: each compared the build against a copy of the
+     * same human-maintained list, and a copy cannot detect that the original is incomplete.
+     *
+     * The subject set is now DISCOVERED from the filesystem — every handler that exists must compile — so a new
+     * handler is covered the moment its file lands. The other two links in the chain are derived from the stack
+     * rather than from anything anyone maintains: `service-infra-wiring-invariants.test.ts` (W2) requires an
+     * `esbuild.mjs` entry point for every `lambda.Function` handler string in the stack, and
+     * `recipe-workers-stack.test.ts` asserts the synthesized template's handlers each resolve to a BUNDLED
+     * artifact with no unresolvable bare imports.
+     */
     it(
-        'still compiles every handler the CDK stack references',
+        'compiles every handler that exists — discovered, not listed',
         () => {
             const files = programFiles('tsconfig.build.json');
+            const handlers = readdirSync(path.join(packageRoot, 'src', 'handlers'), { withFileTypes: true })
+                .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+                .map((entry) => path.join('src', 'handlers', entry.name));
 
-            for (const handler of [
-                'version-archive-worker',
-                'account-erasure-worker',
-                'archive-sweeper',
-                'erasure-sweeper',
-                'erasure-orphan-sweeper',
-            ]) {
-                expect(files).toContain(path.join('src', 'handlers', `${handler}.ts`));
-            }
+            // Non-vacuity: an empty discovery would make the assertion below trivially true.
+            expect(handlers.length).toBeGreaterThanOrEqual(6);
+            expect(handlers.filter((handler) => !files.includes(handler))).toEqual([]);
         },
         TSC_TIMEOUT_MS,
     );

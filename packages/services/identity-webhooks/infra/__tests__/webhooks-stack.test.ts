@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { App } from 'aws-cdk-lib';
-import { Template } from 'aws-cdk-lib/assertions';
+import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, it, expect, beforeAll } from 'vitest';
 
 import { WebhooksStack } from '../lib/webhooks-stack.js';
@@ -294,5 +294,110 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
 
         expect(secretGrantResources).toContain(`${authBase}-??????`);
         expect(secretGrantResources).not.toContain(authBase);
+    });
+
+    /**
+     * The alarms, and the two ways one can be dead while looking healthy.
+     *
+     * `emitMetric` (`src/common/observability.ts`) publishes EVERY metric under
+     * `Dimensions: [['service', 'metric', ...Object.keys(dimensions)]]`. EMF publishes ONLY the dimension sets
+     * its directive lists — there is no dimensionless rollup — so an alarm that selects no dimensions subscribes
+     * to a time series that has never had a datapoint, and `treatMissingData: NOT_BREACHING` renders that as a
+     * confident, permanent `OK`. Verified against the deployed account: both `kitchensink-erasure-incomplete-*`
+     * alarms reported `Dimensions: []` and "no datapoints were received for 2 periods".
+     *
+     * The second way is having no action at all, which this stack's only alarm also had.
+     */
+    describe('alarms watch series the code actually publishes, and page someone', () => {
+        /** The dimension keys `emitMetric` attaches to every metric, whatever the caller passes. */
+        const EMITTER_DIMENSIONS = ['service', 'metric'];
+
+        const alarmsFor = (metricName: string): ReadonlyArray<Record<string, unknown>> =>
+            Object.values(template.findResources('AWS::CloudWatch::Alarm'))
+                .map((alarm) => (alarm.Properties ?? {}) as Record<string, unknown>)
+                .filter((properties) => properties['MetricName'] === metricName);
+
+        const dimensionsOf = (properties: Record<string, unknown>): ReadonlyMap<string, unknown> =>
+            new Map(
+                ((properties['Dimensions'] ?? []) as ReadonlyArray<{ Name: string; Value: unknown }>).map(
+                    (dimension) => [dimension.Name, dimension.Value],
+                ),
+            );
+
+        it('selects the emitter’s unconditional dimensions on ErasureIncomplete (was dimensionless → dead)', () => {
+            const [alarm] = alarmsFor('ErasureIncomplete');
+            const dimensions = dimensionsOf(alarm as Record<string, unknown>);
+
+            expect(alarm).toBeDefined();
+            expect([...dimensions.keys()].sort()).toEqual([...EMITTER_DIMENSIONS].sort());
+            // The values are the emitter's own: `service: 'identity-webhooks'` and `metric: <metricName>`.
+            expect(dimensions.get('service')).toBe('identity-webhooks');
+            expect(dimensions.get('metric')).toBe('ErasureIncomplete');
+        });
+
+        it('alarms on IdentityWebhookRejected per reason, so shape and signature threshold separately', () => {
+            const alarms = alarmsFor('IdentityWebhookRejected');
+            const reasons = alarms.map((alarm) => dimensionsOf(alarm).get('reason'));
+
+            // `reason: 'shape'` means Clerk's contract moved — the signal worth paging on. `signature` is
+            // dominated by unauthenticated internet scanning against a deliberately public endpoint, so it
+            // cannot share a threshold with shape without one burying the other.
+            expect(reasons.sort()).toEqual(['shape', 'signature']);
+
+            const shape = alarms.find((alarm) => dimensionsOf(alarm).get('reason') === 'shape') as Record<
+                string,
+                unknown
+            >;
+            const signature = alarms.find((alarm) => dimensionsOf(alarm).get('reason') === 'signature') as Record<
+                string,
+                unknown
+            >;
+
+            // Any shape rejection at all is actionable; signature must be sustained before it means anything.
+            expect(shape['Threshold']).toBe(0);
+            expect(shape['EvaluationPeriods']).toBe(1);
+            expect(Number(signature['Threshold'])).toBeGreaterThan(0);
+            expect(Number(signature['EvaluationPeriods'])).toBeGreaterThan(1);
+        });
+
+        it('carries the emitter’s dimensions on every rejection alarm too', () => {
+            // Non-vacuity: without this the loop below passes over an empty set, which is how a
+            // for-loop assertion stays green while the resources it checks do not exist.
+            expect(alarmsFor('IdentityWebhookRejected')).toHaveLength(2);
+
+            for (const alarm of alarmsFor('IdentityWebhookRejected')) {
+                const dimensions = dimensionsOf(alarm);
+
+                expect([...dimensions.keys()].sort()).toEqual([...EMITTER_DIMENSIONS, 'reason'].sort());
+                expect(dimensions.get('service')).toBe('identity-webhooks');
+                expect(dimensions.get('metric')).toBe('IdentityWebhookRejected');
+            }
+        });
+
+        it('gives EVERY alarm an action — an alarm that pages nobody is a dashboard', () => {
+            const alarms = Object.values(template.findResources('AWS::CloudWatch::Alarm'));
+
+            // Non-vacuity: no alarms would make the filter below trivially empty.
+            expect(alarms.length).toBeGreaterThanOrEqual(3);
+            expect(
+                alarms
+                    .filter((alarm) => ((alarm.Properties?.AlarmActions ?? []) as unknown[]).length === 0)
+                    .map((alarm) => alarm.Properties?.AlarmName),
+            ).toEqual([]);
+        });
+
+        it('publishes the alarm topic over SSL only', () => {
+            template.hasResourceProperties('AWS::SNS::TopicPolicy', {
+                PolicyDocument: Match.objectLike({
+                    Statement: Match.arrayWith([
+                        Match.objectLike({
+                            Action: 'sns:Publish',
+                            Condition: { Bool: { 'aws:SecureTransport': 'false' } },
+                            Effect: 'Deny',
+                        }),
+                    ]),
+                }),
+            });
+        });
     });
 });

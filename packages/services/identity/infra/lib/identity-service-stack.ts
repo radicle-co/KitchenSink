@@ -158,7 +158,23 @@ export class IdentityServiceStack extends Stack {
         dbCredentialsSecret.grantRead(taskRole);
         authSecretKey.grantRead(taskRole);
         migrationPlanSecret.grantRead(taskRole);
-        deletionQueue.grantConsumeMessages(taskRole);
+        // SEND, not consume. This service is a pure PRODUCER on the deletion queue: `queue/sqs.service.ts`
+        // imports exactly one command (`SendMessageCommand`) and nothing in `src/` ever receives — the
+        // deletion-WORKER Lambda is the consumer, and it holds its own `grantConsumeMessages` over in the
+        // webhooks stack.
+        //
+        // ⚠️ This line read `grantConsumeMessages` and shipped that way. `grantConsumeMessages` confers
+        // ReceiveMessage/DeleteMessage/ChangeMessageVisibility and NOT SendMessage, so the task held only dead
+        // permission on a queue it exclusively writes to, and every enqueue was an AccessDenied — confirmed on
+        // the deployed sandbox role. Because both call sites (`users.service.ts` closure, `admin.service.ts`
+        // reactivation) await the enqueue inside a swallow that logs a warning, the API still answered 200:
+        // account closure never BANNED the Clerk identity and reactivation never UNBANNED it, so a reactivated
+        // user stayed locked out of an account the database said was active. A security control that fails into
+        // logger.warn is indistinguishable from one that works, which is why nobody noticed.
+        //
+        // `service-infra-wiring-invariants.test.ts` (W1) now derives this: a queue whose URL is injected into a
+        // deployed environment must be granted the operations that code's SQS commands require.
+        deletionQueue.grantSendMessages(taskRole);
         handleSyncTopic.grantPublish(taskRole);
         mediaBucket.grantReadWrite(taskRole);
         archiveBucket.grantReadWrite(taskRole);
@@ -350,8 +366,11 @@ export class IdentityServiceStack extends Stack {
             },
         );
 
-        // Per-service listener-rule priority allocation: identity=100, food=200. Future services pick
-        // 300, 400, … (priorities must be unique across all rules on the shared listener).
+        // Per-service listener-rule priority allocation (ADR-0003): identity=100, food=200, recipe=300.
+        // Future services pick 400, 500, … Priorities must be unique across every rule on the shared
+        // listener, so this is a repo-wide namespace: allocate the next free number, never reuse one.
+        // Identity has no ephemeral variant — it is the ONE shared persistent service every per-PR preview
+        // signs in against — so unlike food and recipe it needs no per-PR priority band.
         new elbv2.ApplicationListenerRule(this, 'IdentityServiceListenerRule', {
             listener: sharedHttpsListener,
             priority: 100,

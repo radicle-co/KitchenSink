@@ -50,8 +50,19 @@ export const NAMED_STAGE_PRIORITY_BASE = 40_000;
 export const BASE_RECIPE_LISTENER_PRIORITY = 300;
 
 /**
- * Resolve the shared-ALB listener-rule priority for a stage (base = 300; per-PR = 10000+N; named =
- * 20000+hash), keeping the per-PR and named bands disjoint. Mirrors {@link foodListenerPriorityForStage}.
+ * Resolve the shared-ALB listener-rule priority for a stage, keeping the per-PR and named bands disjoint.
+ *
+ * base = {@link BASE_RECIPE_LISTENER_PRIORITY} (300) · per-PR = {@link PER_PR_PRIORITY_BASE} + N (30000–39999) ·
+ * named = {@link NAMED_STAGE_PRIORITY_BASE} + hash (40000–49999).
+ *
+ * ⚠️ The bases are recipe's OWN, and are deliberately NOT food's. This summary previously read "per-PR =
+ * 10000+N; named = 20000+hash" — food's bands, copied when this function was mirrored from
+ * {@link foodListenerPriorityForStage} and never updated to the constants below. Following the prose instead of
+ * the code puts recipe-pr-{N} on food-pr-{N}'s priority, which is the "Priority '10073' is currently in use"
+ * deploy failure the disjoint bands exist to prevent — so it would have broken every per-PR deploy. The
+ * constants are the source of truth; this text mirrors them and must be changed with them.
+ *
+ * Mirrors {@link foodListenerPriorityForStage} in SHAPE, not in values.
  *
  * @param stage - The deploy stage.
  * @param baseStage - The resolved base stage.

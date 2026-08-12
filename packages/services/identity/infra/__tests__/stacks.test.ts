@@ -405,3 +405,56 @@ describe('Auth secret grant (regression: ECS NotStabilized / GetSecretValue Acce
         expect(bareGrants).toEqual([]);
     });
 });
+
+describe('Deletion-queue grant (regression: closure/reactivation never reached Clerk)', () => {
+    /**
+     * The service is a pure PRODUCER on the deletion queue: `queue/sqs.service.ts` imports exactly one command
+     * (`SendMessageCommand`) and nothing in `src/` ever receives — the deletion-WORKER Lambda is the consumer,
+     * and it holds its own `grantConsumeMessages` in the webhooks stack.
+     *
+     * This stack nevertheless granted the task role `grantConsumeMessages` and never `grantSendMessages`, while
+     * injecting `DELETION_QUEUE_URL` into the container. Verified against the DEPLOYED sandbox role, which held
+     * `sqs:ReceiveMessage`, `ChangeMessageVisibility`, `GetQueueUrl`, `DeleteMessage`, `GetQueueAttributes` and
+     * no `sqs:SendMessage`. So every enqueue was an `AccessDenied`, and because both call sites
+     * (`users.service.ts` closure, `admin.service.ts` reactivation) `await` inside a swallow that logs a
+     * warning, the API answered `200`: account closure never BANNED the Clerk identity, reactivation never
+     * UNBANNED it, and a reactivated user stayed locked out of a working account.
+     *
+     * Asserted over the SQS statements the template actually synthesizes rather than by construct id, so the
+     * grant cannot be satisfied by a statement attached to some other role.
+     */
+    const sqsStatements = (): ReadonlyArray<{ readonly actions: readonly string[] }> =>
+        Object.values(serviceTemplate.findResources('AWS::IAM::Policy'))
+            .flatMap(
+                (policy) =>
+                    (policy.Properties?.PolicyDocument?.Statement ?? []) as ReadonlyArray<Record<string, unknown>>,
+            )
+            .map((statement) => ({
+                actions: ([] as string[]).concat(statement['Action'] as string | string[]),
+            }))
+            .filter((statement) => statement.actions.some((action) => action.startsWith('sqs:')));
+
+    it('grants sqs:SendMessage — without it every closure/reactivation enqueue is AccessDenied', () => {
+        expect(sqsStatements().flatMap((statement) => statement.actions)).toContain('sqs:SendMessage');
+    });
+
+    it('does NOT grant the consume actions — the service never receives, the worker Lambda does', () => {
+        // Least privilege, and the tell that the original grant was simply the wrong one rather than
+        // insufficient: a consume grant here is dead permission on a queue this task only ever writes to.
+        expect(sqsStatements().flatMap((statement) => statement.actions)).not.toContain('sqs:ReceiveMessage');
+        expect(sqsStatements().flatMap((statement) => statement.actions)).not.toContain('sqs:DeleteMessage');
+    });
+
+    it('scopes the grant to the imported deletion queue, not a wildcard', () => {
+        serviceTemplate.hasResourceProperties('AWS::IAM::Policy', {
+            PolicyDocument: {
+                Statement: Match.arrayWith([
+                    Match.objectLike({
+                        Action: Match.arrayWith(['sqs:SendMessage']),
+                        Resource: { 'Fn::ImportValue': 'kitchensink-data-test:DeletionQueueArn' },
+                    }),
+                ]),
+            },
+        });
+    });
+});

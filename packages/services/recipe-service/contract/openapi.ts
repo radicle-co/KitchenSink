@@ -86,14 +86,8 @@ import {
     pullFromSourceResponseSchema,
     updateCollectionRequestSchema,
 } from '../src/collections/collections.schema.js';
-import {
-    apiErrorSchema,
-    errorResponseSchema,
-    nestHttpErrorSchema,
-    throttleErrorSchema,
-    validationErrorSchema,
-} from '../src/common/api-error.schema.js';
-import { healthStatusSchema, healthUnavailableSchema } from '../src/health/health.schema.js';
+import { apiErrorSchema, recipeApiErrorSchema } from '../src/common/api-error.schema.js';
+import { healthStatusSchema } from '../src/health/health.schema.js';
 import {
     addIngredientByFoodRequestSchema,
     createIngredientRequestSchema,
@@ -130,19 +124,22 @@ import { restoreVersionResponseSchema } from '../src/versions/versions.schema.js
  * generator by construction. Food's suite does the same, for the same reason.
  */
 export const openApiComponents = {
-    // ⚠️ THE FOUR ERROR SHAPES. `ErrorResponse` was `recipe-core`'s `recipeErrorSchema`, whose `code` is an ENUM
-    // of the fifteen recipe-DOMAIN codes — so the document described a body three of this service's four error
-    // populations do not satisfy (the generic 500's `INTERNAL_ERROR`, every Nest `{ statusCode, message, error }`,
-    // the validation 400, and the 429 which is a bare STRING). The members are published individually as well as
-    // in the union, so an integrator can name the one they handle; see `src/common/api-error.schema.ts` for why
-    // converging them is a separate, breaking change.
-    ErrorResponse: errorResponseSchema,
+    // ⚠️ THE ERROR CONTRACT IS NOW ONE SHAPE, KEYED ON A PUBLISHED CODE.
+    //
+    // `ErrorResponse` was `recipe-core`'s `recipeErrorSchema`, whose `code` is an ENUM of the fifteen
+    // recipe-DOMAIN codes, so the document described a body most of this service's failures do not satisfy. A
+    // previous revision replaced it with an honest four-member UNION (`NestHttpError`, `ValidationError`,
+    // `ThrottleError`), which described reality but left it inconsistent. `ApiExceptionFilter` is now the sole
+    // author of every error body, so those three members no longer exist on the wire and are GONE from here.
+    //
+    // Two components remain, and a consumer needs both: `ApiError` is the permissive envelope (any `code`, so a
+    // deployed service may add codes ahead of a released mobile binary) and `RecipeApiError` is the typed
+    // discriminated union a consumer narrows with SECOND. `ErrorResponse` is kept as an ALIAS of the envelope so
+    // ~120 existing `$ref`s in this table keep resolving; new operations should name `ApiError`.
+    ErrorResponse: apiErrorSchema,
     ApiError: apiErrorSchema,
-    NestHttpError: nestHttpErrorSchema,
-    ValidationError: validationErrorSchema,
-    ThrottleError: throttleErrorSchema,
+    RecipeApiError: recipeApiErrorSchema,
     HealthStatus: healthStatusSchema,
-    HealthUnavailable: healthUnavailableSchema,
     Recipe: recipeSchema,
     RecipeDetail: recipeDetailSchema,
     PaginatedRecipes: paginatedResponseSchema(recipeSchema),
@@ -226,38 +223,18 @@ function uuidPathParam(name: string, description: string): OpenApiParameter {
  * of the service, not of any one handler. A per-operation copy would be ~30 chances to describe one behaviour
  * differently.
  *
- * ⚠️ TWO OF THESE FIVE NAME A SPECIFIC SHAPE rather than the `ErrorResponse` union, and the test for whether a
- * status MAY be narrowed is **"can its producers be enumerated, and is there exactly one?"** — never "which
- * shape is most common". Both of these have one producer, verified against the source:
+ * ⚠️ EVERY ONE OF THESE IS NOW THE SAME COMPONENT, AND THAT IS THE WHOLE POINT OF THE CONVERGENCE. Before it,
+ * this table had to guess which of four shapes each status carried, and an interim revision of this file got
+ * exactly that wrong: it narrowed `400` to a validation-only component on the strength of the validation case
+ * being the common one, when a `400` in fact has three producer classes (`nestjs-zod`'s pipe, six hand-thrown
+ * `BadRequestException` sites, and three DOMAIN codes mapped to `400`). The document would have promised
+ * `errors` on a body carrying `error` — the same lie it was removing. That bookkeeping no longer exists to get
+ * wrong: the filter is the sole author, so every status carries the envelope.
  *
- *  - `429` is `ThrottleError` — a bare JSON **string**. The only producer is `UserThrottlerGuard`, i.e.
- *    `@nestjs/throttler`'s `ThrottlerException`; nothing else in this service raises a `429`.
- *  - `423` is `ApiError` — the only producer is `ErasureLockGuard`, which raises the DOMAIN error
- *    `ERASURE_IN_PROGRESS`, so the body is always the `{ code, message }` envelope.
- *
- * ⚠️ `400` IS THE COUNTEREXAMPLE, AND IT WAS NARROWED TO `ValidationError` IN THIS VERY CHANGE BEFORE BEING
- * CORRECTED — recorded because the reasoning that produced the mistake is seductive. The validation `400` is the
- * one the `z.strictObject()` sweep makes common, it is the only one carrying `errors`, and naming the union
- * "hides" that. But a `400` has THREE producer classes, so the narrow claim was false for two of them:
- *
- *  1. `nestjs-zod`'s pipe → `ValidationError`;
- *  2. six hand-thrown `new BadRequestException('a string')` sites (`ErasureService`'s confirmation-phrase
- *     mismatch, three in `IngredientsController`, two in `PhotosService`) → `NestHttpError`;
- *  3. three DOMAIN codes mapped to `400` by `ApiExceptionFilter` (`INVALID_VISIBILITY`,
- *     `COLLECTION_NOT_CLONED`, `UNKNOWN_INGREDIENT`) → `ApiError`.
- *
- * Naming `ValidationError` there would tell an integrator's codegen to expect `errors` on a body that carries
- * `error` instead — the SAME class of lie as the `recipeErrorSchema` component this change removed, introduced
- * while removing it. So `400` publishes the union, and an integrator reads `ValidationError`'s own component to
- * learn what the validation case carries.
- *
- * The `401` and `500` publish the union for the same reason: a `401` is `ApiError` for the
- * `IDENTITY_SYNC_PENDING` race and `NestHttpError` for every other rejection, and a `500` is `ApiError` for the
- * filter's own collapse but `NestHttpError` for an `HttpException` raised with a 5xx status.
- *
- * ⛔ Before narrowing any status here, ENUMERATE ITS THROW SITES. `src/common/__tests__/api-error.schema.test.ts`
- * asserts that a real body of each of the four shapes satisfies the component this table claims for its status —
- * which is what catches a narrowing that is wrong today. It cannot see a throw site added later.
+ * What a consumer does with it is the same at every status: parse `ApiError`, then narrow with `RecipeApiError`
+ * to get the `code` and the `details` that code promises. The `code` is what separates outcomes the status
+ * cannot — `IDENTITY_SYNC_PENDING` from `UNAUTHORIZED` (both `401`, opposite handling), and `PULL_DRIFT` from
+ * `VERSION_CONFLICT` (both `409`).
  *
  * @returns The shared 4xx/5xx responses. Pure.
  */
@@ -265,8 +242,9 @@ function sharedErrorResponses(): Readonly<Record<string, OpenApiResponse<Compone
     return {
         '400': {
             description:
-                'The request body or query failed validation (ValidationError), or a handler rejected it ' +
-                'explicitly, or a domain rule did. See ErrorResponse — the body is one of three shapes.',
+                'The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from ' +
+                'the boundary parser (with `details.fields` naming each offending field, including a rejected ' +
+                'unknown key), or a domain code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`.',
             schema: 'ErrorResponse',
         },
         '401': {
@@ -274,12 +252,16 @@ function sharedErrorResponses(): Readonly<Record<string, OpenApiResponse<Compone
             schema: 'ErrorResponse',
         },
         '423': {
-            description: 'The caller has an in-flight account erasure, so writes are locked (HAZ-052).',
-            schema: 'ApiError',
+            description:
+                'The caller has an in-flight account erasure, so writes are locked (HAZ-052). ' +
+                '`code: ERASURE_IN_PROGRESS`.',
+            schema: 'ErrorResponse',
         },
         '429': {
-            description: 'Per-user rate limit exceeded. The body is a bare string, not an error envelope.',
-            schema: 'ThrottleError',
+            description:
+                'Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON ' +
+                'STRING — the throttler exception passed through the filter unchanged — and is now the envelope.',
+            schema: 'ErrorResponse',
             headers: {
                 'Retry-After': { description: 'Seconds until the limit resets.', schema: z.number().int().positive() },
             },
@@ -323,8 +305,12 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             responses: {
                 '200': { description: 'The database answered; the service is ready.', schema: 'HealthStatus' },
                 '503': {
-                    description: 'The database did not answer within the probe timeout.',
-                    schema: 'HealthUnavailable',
+                    description:
+                        'The database did not answer within the probe timeout (`code: NOT_READY`). ⚠️ This body ' +
+                        'used to be `{ status: "unavailable", service: "recipe" }` (the retired ' +
+                        '`HealthUnavailable` component); it is now the standard envelope, like every other ' +
+                        'failure. Nothing consumed the old body — every probe reads the status.',
+                    schema: 'ErrorResponse',
                 },
             },
         },

@@ -1,372 +1,219 @@
 /**
- * THE ERROR ENVELOPE IS PROVEN, NOT DESCRIBED — every published error shape is parsed out of a body the REAL
- * failing layer produced.
+ * THE ERROR CONTRACT'S SCHEMA PROPERTIES — the envelope, the published code set, and the typed union's
+ * relationship to both.
  *
- * `contract/openapi.ts` records two evidence standards for a documented response body: *observed in production*
- * (a shape the shipped client already parses, so it would be throwing were the schema wrong) and *proven
- * deliberately* (a suite drives the real code and parses its ACTUAL output). The error bodies have neither
- * property to inherit — the client did not parse them at all (`@unparsedBoundary`) — so this suite supplies the
- * second one.
+ * ── HOW THIS FILE DIVIDES WORK WITH ITS TWO SIBLINGS ──
  *
- * WHY THAT MATTERS MORE HERE THAN ANYWHERE ELSE. The previous `ErrorResponse` component was `recipe-core`'s
- * `recipeErrorSchema`, whose `code` is an ENUM of the fifteen recipe-DOMAIN codes. Three of the four bodies this
- * service actually emits do not satisfy it — the generic `500`'s `INTERNAL_ERROR`, every Nest `{ statusCode,
- * message, error }`, and the validation `400` — so the document described a shape the service mostly does not
- * send, and it did so while nothing compared the two. A schema written from the filter's source code would
- * reproduce that class of error; a schema whose every member is parsed from a real emitted body cannot.
+ * Three suites cover the error contract and each owns a different question, so none of them is redundant:
  *
- * The suite is written to FAIL if a schema is loosened into vacuity as well as if it is wrong: each body is
- * required to parse against its OWN member and to be REJECTED by the members it is not, so folding two
- * populations together (or widening one until it swallows another) reds the build instead of passing.
+ *  - **THIS FILE — is the CONTRACT internally coherent?** Is every domain code publishable? Is the typed union a
+ *    refinement of the envelope rather than a rival shape? Does an unknown code still parse permissively? These
+ *    are properties of the zod alone, provable with no HTTP and no filter.
+ *  - **`filters/__tests__/api-exception.filter.test.ts` — does the FILTER write that contract?** Status mapping,
+ *    the no-passthrough guarantee per input shape, the message-leak rule.
+ *  - **`error-contract-lockstep.test.ts` — do the SERVER and CLIENT agree?** The filter's real output replayed
+ *    into the real client. That is the only one that fails when a change moves one half and not the other.
+ *
+ * ⚠️ AN EARLIER REVISION OF THIS FILE TESTED SOMETHING THAT NO LONGER EXISTS, and the history is worth keeping
+ * because it records a decision reversed on purpose. It asserted a FOUR-MEMBER union — the envelope, Nest's
+ * `{ statusCode, message, error? }`, `nestjs-zod`'s validation body, and a bare JSON string for the `429` —
+ * because the filter passed `HttpException` bodies through and a document must describe what ships. Publishing
+ * the inconsistency honestly was the right call for a documentation-only change and the wrong place to stop; the
+ * filter is now the sole author, so those three shapes are gone from the wire and from here.
  */
-import {
-    BadRequestException,
-    GoneException,
-    HttpStatus,
-    UnauthorizedException,
-    type ArgumentsHost,
-} from '@nestjs/common';
-import { ThrottlerException } from '@nestjs/throttler';
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
-import type { RecipeError } from '@kitchensink/recipe-core';
-import { ZodValidationPipe } from 'nestjs-zod';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { ApiExceptionFilter } from '../filters/api-exception.filter.js';
 import {
     apiErrorSchema,
-    errorResponseSchema,
-    nestHttpErrorSchema,
-    throttleErrorSchema,
-    validationErrorSchema,
+    recipeApiErrorSchema,
+    recipeErrorCodeSchema,
+    IDENTITY_SYNC_PENDING_CODE,
 } from '../api-error.schema.js';
-import { CreateRecipeDto } from '../../recipes/dto/create-recipe.dto.js';
-import { buildRecipeOpenApiDocument } from '../../../contract/openapi.js';
+import { codeForStatus, RECIPE_ERROR_STATUS } from '../api-error.js';
 
-/** Capture what the filter wrote, exactly as `api-exception.filter.test.ts` does. */
-function emit(thrown: unknown): { readonly status: number | undefined; readonly body: unknown } {
-    const captured: { status: number | undefined; body: unknown } = { status: undefined, body: undefined };
-    const response = {
-        status: vi.fn((code: number) => {
-            captured.status = code;
+/** Every code the contract publishes. */
+const PUBLISHED: readonly string[] = recipeErrorCodeSchema.options;
 
-            return response;
-        }),
-        json: vi.fn((body: unknown) => {
-            captured.body = body;
+/** A `details` value that satisfies the arm for each code that promises one. */
+const DETAILS_BY_CODE: Readonly<Record<string, Record<string, unknown>>> = {
+    VERSION_CONFLICT: {
+        currentVersion: 7,
+        conflictingVersion: 5,
+        server: {
+            versionNumber: 7,
+            updatedAt: '2026-08-12T10:00:00.000Z',
+            snapshot: {
+                version: 7,
+                title: 'T',
+                description: '',
+                steps: [],
+                ingredients: [],
+                servings: 1,
+                prepTimeMinutes: 0,
+                cookTimeMinutes: 0,
+            },
+        },
+    },
+    PULL_DRIFT: { diff: { added: [], removed: [], unchanged: [] } },
+    VALIDATION_FAILED: { fields: ['title: Too small'] },
+    COLLECTION_LIMIT_REACHED: { limit: 50 },
+    MAX_PHOTOS_EXCEEDED: { limit: 10 },
+};
 
-            return response;
-        }),
-    };
-    const host = {
-        switchToHttp: () => ({ getResponse: () => response, getRequest: () => ({}) }),
-    } as unknown as ArgumentsHost;
+/** A minimal valid body for a published code. */
+function bodyFor(code: string): Record<string, unknown> {
+    const details = DETAILS_BY_CODE[code];
 
-    new ApiExceptionFilter().catch(thrown, host);
-
-    // Round-trip through JSON: what a client receives is the SERIALIZED body, and `ThrottlerException`'s is a
-    // bare string — a distinction that only survives if the assertion looks at the wire form.
-    return { status: captured.status, body: JSON.parse(JSON.stringify(captured.body)) as unknown };
+    return details === undefined ? { code, message: 'a message' } : { code, message: 'a message', details };
 }
 
-/** Drive the REAL `nestjs-zod` pipe over the REAL create DTO and return the body its rejection produces. */
-function emitValidationFailure(body: unknown): { readonly status: number | undefined; readonly body: unknown } {
-    try {
-        new ZodValidationPipe().transform(body, { type: 'body', metatype: CreateRecipeDto });
-    } catch (thrown) {
-        return emit(thrown);
-    }
+describe('the published code set and the DOMAIN code set cannot disagree', () => {
+    /**
+     * THE SUBSET ASSERTION, discovered from `recipe-core` rather than from a hand-copied list.
+     *
+     * `RecipeErrorCode` is the DOMAIN's (what a thrown `RecipeError` may carry) and `recipeErrorCodeSchema` is the
+     * WIRE's (a superset, including codes that are not domain errors at all). Neither is derivable from the other,
+     * so both exist — but a domain code the wire does not publish is a body the filter WILL emit and no consumer
+     * can narrow, which is silent degradation. Iterating `Object.values(RecipeErrorCode)` is what makes a code
+     * added to the domain fail here instead.
+     */
+    it('publishes every recipe-domain code', () => {
+        const unpublished = Object.values(RecipeErrorCode).filter((code) => !PUBLISHED.includes(code));
 
-    throw new Error('the pipe accepted a body this test needs it to reject');
-}
-
-/** A minimal-but-valid create body, so a rejection is caused only by the field under test. */
-const A_VALID_CREATE_BODY = {
-    title: 'Herb Risotto',
-    servings: 4,
-    prepTimeMinutes: 10,
-    cookTimeMinutes: 25,
-    totalTimeMinutes: 35,
-    ingredients: [{ ingredientId: '00000000-0000-4000-8000-0000000000aa', name: 'Flour', quantity: 1 }],
-    steps: [{ instruction: 'Toast the rice.' }],
-} as const;
-
-describe('shape 1 — the { code, message, details? } envelope', () => {
-    it('describes a DOMAIN error body, as the filter emits it', () => {
-        const error: RecipeError = { code: RecipeErrorCode.RECIPE_NOT_FOUND, message: 'No such recipe' };
-        const { body } = emit(error);
-
-        expect(apiErrorSchema.parse(body)).toStrictEqual({ code: 'RECIPE_NOT_FOUND', message: 'No such recipe' });
+        expect(unpublished).toStrictEqual([]);
     });
 
-    it('describes the domain error that carries `details`, without flattening it', () => {
-        const error: RecipeError = {
-            code: RecipeErrorCode.VERSION_CONFLICT,
-            message: 'Recipe version conflict',
-            details: { currentVersion: 3, conflictingVersion: 2 },
-        };
+    // Non-vacuity in the other direction, and the record of WHY the wire set is bigger: these are real failures
+    // with no domain error behind them. If this ever became empty, the two sets would have collapsed into one and
+    // the superset reasoning would need re-examining rather than silently holding.
+    it('also publishes codes that are NOT domain errors, which is why it is a superset', () => {
+        const domain: readonly string[] = Object.values(RecipeErrorCode);
+        const wireOnly = PUBLISHED.filter((code) => !domain.includes(code));
 
-        expect(apiErrorSchema.parse(emit(error).body).details).toStrictEqual({
-            currentVersion: 3,
-            conflictingVersion: 2,
-        });
+        expect(wireOnly).toContain('VALIDATION_FAILED');
+        expect(wireOnly).toContain('UNAUTHORIZED');
+        expect(wireOnly).toContain('NOT_READY');
+        expect(wireOnly.length).toBeGreaterThan(5);
     });
 
-    // THE BODY THE OLD COMPONENT COULD NOT DESCRIBE. `recipeErrorSchema.code` is an enum of the fifteen domain
-    // codes, and `INTERNAL_ERROR` is not one of them — so the document's own `500` description was false.
-    it('describes the generic 500, whose `INTERNAL_ERROR` is NOT a recipe-domain code', () => {
-        const { status, body } = emit(new Error('a leaked internal detail'));
-
-        expect(status).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
-        expect(apiErrorSchema.parse(body)).toStrictEqual({ code: 'INTERNAL_ERROR', message: 'Internal server error' });
-        expect(JSON.stringify(body)).not.toContain('leaked internal detail');
+    // The middleware raises the sync-race 401 from `recipe-core`'s constant while the union spells it as a
+    // literal. Two spellings of one string is exactly the drift this asserts away.
+    it('spells IDENTITY_SYNC_PENDING identically in recipe-core and in the published enum', () => {
+        expect(IDENTITY_SYNC_PENDING_CODE).toBe(recipeErrorCodeSchema.enum.IDENTITY_SYNC_PENDING);
     });
 
-    it('describes the object-payload 401 the auth middleware raises for the first-token sync race', () => {
-        const thrown = new UnauthorizedException({
-            code: 'IDENTITY_SYNC_PENDING',
-            message: 'App-user identity (external_id) not yet available; retry with a refreshed token.',
-        });
+    // A code with no status cannot be served, so the table must be total over the published set. TypeScript
+    // already enforces this at compile time; asserting it too catches a `Record` widened to `string`.
+    it('assigns a status to every published code', () => {
+        const unmapped = PUBLISHED.filter(
+            (code) => typeof RECIPE_ERROR_STATUS[code as keyof typeof RECIPE_ERROR_STATUS] !== 'number',
+        );
 
-        expect(apiErrorSchema.parse(emit(thrown).body).code).toBe('IDENTITY_SYNC_PENDING');
+        expect(unmapped).toStrictEqual([]);
+    });
+});
+
+describe('the typed union REFINES the envelope, and is not a second shape', () => {
+    /**
+     * The property that makes the two-layer read safe: a consumer parses with the envelope first, then narrows.
+     * If a narrowed body were not also a valid envelope body, that sequence would be incoherent — the second
+     * parse could accept something the first rejected.
+     */
+    it.each(recipeErrorCodeSchema.options)('a valid %s body satisfies BOTH schemas', (code) => {
+        const body = bodyFor(code);
+
+        expect(recipeApiErrorSchema.safeParse(body).success, `typed: ${JSON.stringify(body)}`).toBe(true);
+        expect(apiErrorSchema.safeParse(body).success, `envelope: ${JSON.stringify(body)}`).toBe(true);
     });
 
-    it('describes the object-payload 410 the erasure service raises for an already-erased account', () => {
-        const thrown = new GoneException({
-            code: 'ACCOUNT_ALREADY_ERASED',
-            message: 'Account has already been erased',
-        });
-
-        expect(apiErrorSchema.parse(emit(thrown).body).code).toBe('ACCOUNT_ALREADY_ERASED');
+    /**
+     * `details` is REQUIRED on the arms whose code promises one, and this is the assertion that keeps the promise
+     * meaningful. A body that dropped `details.currentVersion` must FAIL the typed parse — surfacing at the
+     * boundary, naming the field — rather than handing a caller an `undefined` that surfaces three layers deeper.
+     */
+    it.each(Object.keys(DETAILS_BY_CODE))('%s REJECTS a body with no details', (code) => {
+        expect(recipeApiErrorSchema.safeParse({ code, message: 'a message' }).success).toBe(false);
     });
 
-    // `code` must stay a plain `string`. Narrowing it to the codes emitted today makes every NEW code a
-    // breaking change for a client that only branches on the few it knows — and a deployed service adds codes
-    // ahead of a released mobile binary.
-    it('admits a code it has not been taught, so a forward-compatible deploy is not a client crash', () => {
+    it('VERSION_CONFLICT rejects details missing the 3-way-merge snapshot, not just missing details', () => {
+        const body = { code: 'VERSION_CONFLICT', message: 'x', details: { currentVersion: 7, conflictingVersion: 5 } };
+
+        expect(recipeApiErrorSchema.safeParse(body).success).toBe(false);
+    });
+
+    it('VERSION_CONFLICT’s details are recipe-core’s, so the snapshots arrive typed rather than as unknown', () => {
+        const parsed = recipeApiErrorSchema.safeParse(bodyFor('VERSION_CONFLICT'));
+
+        expect(parsed.success).toBe(true);
+
+        if (parsed.success && parsed.data.code === 'VERSION_CONFLICT') {
+            // Reached without a cast or optional chaining — which is the whole value of composing the real schema.
+            expect(parsed.data.details.server.snapshot.title).toBe('T');
+            expect(parsed.data.details.currentVersion).toBe(7);
+        }
+    });
+});
+
+describe('forward compatibility — a deployed service may run ahead of a released client', () => {
+    it('the envelope accepts a code this build has never been taught', () => {
         expect(apiErrorSchema.safeParse({ code: 'A_CODE_FROM_A_LATER_DEPLOY', message: 'x' }).success).toBe(true);
     });
 
-    it('passes an unknown FIELD through rather than stripping it, for the same reason', () => {
+    it('the typed union REJECTS it, so a consumer degrades by status instead of inventing a meaning', () => {
+        expect(recipeApiErrorSchema.safeParse({ code: 'A_CODE_FROM_A_LATER_DEPLOY', message: 'x' }).success).toBe(
+            false,
+        );
+    });
+
+    it('an unknown FIELD is passed through rather than stripped, on the envelope and on a typed arm', () => {
         expect(apiErrorSchema.parse({ code: 'X', message: 'y', addedLater: 1 })['addedLater']).toBe(1);
-    });
-});
 
-describe('shape 2 — Nest’s own { statusCode, message, error? } body', () => {
-    it('describes a string-constructed exception, which carries `error`', () => {
-        const { body } = emit(new BadRequestException('The confirmation phrase does not match.'));
+        const parsed = recipeApiErrorSchema.parse({ ...bodyFor('NOT_OWNER'), addedLater: 1 });
 
-        expect(nestHttpErrorSchema.parse(body)).toStrictEqual({
-            statusCode: 400,
-            message: 'The confirmation phrase does not match.',
-            error: 'Bad Request',
-        });
+        expect((parsed as unknown as Record<string, unknown>)['addedLater']).toBe(1);
     });
 
-    // `error` MUST be optional: `new UnauthorizedException()` with no argument omits it entirely, and this
-    // service raises exactly that in `ClerkAuthService` and four times in `ServiceErasureAuthService`. A
-    // required `error` would make the union reject every one of those five 401s.
-    it('describes the ARGUMENT-LESS exception, whose body has NO `error` key at all', () => {
-        const { body } = emit(new UnauthorizedException());
-
-        expect(body).not.toHaveProperty('error');
-        expect(nestHttpErrorSchema.parse(body)).toStrictEqual({ statusCode: 401, message: 'Unauthorized' });
-    });
-
-    it('is NOT satisfied by the { code, message } envelope, so the two populations stay distinct', () => {
-        expect(nestHttpErrorSchema.safeParse({ code: 'RECIPE_NOT_FOUND', message: 'x' }).success).toBe(false);
-        expect(apiErrorSchema.safeParse({ statusCode: 404, message: 'x', error: 'Not Found' }).success).toBe(false);
-    });
-});
-
-describe('shape 3 — the validation 400, which is what a REJECTED UNKNOWN KEY now produces', () => {
-    it('is the body `nestjs-zod` emits, `errors` and all', () => {
-        const { status, body } = emitValidationFailure({ ...A_VALID_CREATE_BODY, title: '' });
-        const parsed = validationErrorSchema.parse(body);
-
-        expect(status).toBe(HttpStatus.BAD_REQUEST);
-        expect(parsed.message).toBe('Validation failed');
-        expect(parsed.errors?.length).toBeGreaterThan(0);
-    });
-
-    /**
-     * THE POINT OF THE WHOLE STRICT-OBJECT RULING, MADE MACHINE-READABLE.
-     *
-     * GR-017 §17-c picks rejection over stripping because "rejecting unknown keys turns a client's misspelled
-     * field into a `400` the client can fix". That promise is only kept if the `400` says WHICH key — otherwise
-     * the caller is told "Validation failed" and is no better off than with a silent strip. The `keys` array on
-     * an `unrecognized_keys` issue is where that information lives, so it is published and asserted here.
-     */
-    it('names the misspelled key, which is what makes the 400 actionable rather than merely correct', () => {
-        const { body } = emitValidationFailure({ ...A_VALID_CREATE_BODY, tilte: 'typo' });
-        const issues = validationErrorSchema.parse(body).errors ?? [];
-
-        expect(issues.some((issue) => issue.code === 'unrecognized_keys')).toBe(true);
-        expect(issues.flatMap((issue) => issue.keys ?? [])).toContain('tilte');
-    });
-
-    it('reports the PATH of a nested failure, so a client can mark the offending input', () => {
-        const { body } = emitValidationFailure({
-            ...A_VALID_CREATE_BODY,
-            ingredients: [{ ingredientId: 'not-a-uuid', name: 'Flour', quantity: 1 }],
-        });
-        const issues = validationErrorSchema.parse(body).errors ?? [];
-
-        expect(issues.some((issue) => issue.path?.join('.') === 'ingredients.0.ingredientId')).toBe(true);
-    });
-
-    // It shares `statusCode` + `message` with shape 2 but has NO `error` and DOES have `errors`. Folding the
-    // two together would publish a `400` that promises `error` (absent) and hides `errors` (present).
-    it('is distinguishable from Nest’s default body, so the two are not one component', () => {
-        const { body } = emitValidationFailure({ ...A_VALID_CREATE_BODY, title: '' });
-
-        expect(body).not.toHaveProperty('error');
-        expect(body).toHaveProperty('errors');
-    });
-});
-
-describe('shape 4 — the 429, which is a bare JSON STRING and not an object at all', () => {
-    /**
-     * ⚠️ FINDING. `UserThrottlerGuard` extends `@nestjs/throttler`'s `ThrottlerGuard`, which throws
-     * `ThrottlerException`; that exception's response is the bare string `"ThrottlerException: Too Many
-     * Requests"`, and `ApiExceptionFilter` passes an `HttpException`'s response through UNCHANGED. So the
-     * `429` body on the wire is a JSON string, while the document described it as `{ code, message }`.
-     *
-     * Published rather than normalized: converging it is a wire change on a status the shipped client already
-     * handles (it falls to `UnexpectedResponseError`), and it belongs in the same PR as the client, not in a
-     * contract-extraction change.
-     */
-    it('is the string the throttler guard produces, not an envelope', () => {
-        const { status, body } = emit(new ThrottlerException());
-
-        expect(status).toBe(HttpStatus.TOO_MANY_REQUESTS);
-        expect(typeof body).toBe('string');
-        expect(throttleErrorSchema.parse(body)).toContain('Too Many Requests');
-    });
-
-    it('is rejected by all three OBJECT members, which is why it needs a member of its own', () => {
-        const body = 'ThrottlerException: Too Many Requests';
-
-        expect(apiErrorSchema.safeParse(body).success).toBe(false);
-        expect(nestHttpErrorSchema.safeParse(body).success).toBe(false);
-        expect(validationErrorSchema.safeParse(body).success).toBe(false);
-    });
-});
-
-describe('the union — every body this service can emit parses, and it is not vacuous', () => {
-    it('parses all four REAL bodies', () => {
-        const bodies: readonly unknown[] = [
-            emit({ code: RecipeErrorCode.NOT_OWNER, message: 'Not yours' } satisfies RecipeError).body,
-            emit(new Error('boom')).body,
-            emit(new BadRequestException('nope')).body,
-            emit(new UnauthorizedException()).body,
-            emitValidationFailure({ ...A_VALID_CREATE_BODY, title: '' }).body,
-            emit(new ThrottlerException()).body,
-        ];
-
-        for (const body of bodies) {
-            expect(errorResponseSchema.safeParse(body).success, JSON.stringify(body)).toBe(true);
+    // Non-vacuity for the whole file: a schema loosened to `z.unknown()` would satisfy everything above.
+    it('REJECTS bodies that are not the envelope at all', () => {
+        for (const invalid of [{}, { code: 404 }, { message: 'no code' }, null, 42, 'a bare string', []]) {
+            expect(apiErrorSchema.safeParse(invalid).success, JSON.stringify(invalid)).toBe(false);
         }
     });
-
-    // Non-vacuity. A union that had degenerated to `z.unknown()` would satisfy every assertion above; these
-    // are bodies this service cannot produce, and the union must still say no to them.
-    it('REJECTS a body this service cannot emit, so the union is a check and not a rubber stamp', () => {
-        expect(errorResponseSchema.safeParse({}).success).toBe(false);
-        expect(errorResponseSchema.safeParse({ code: 404 }).success).toBe(false);
-        expect(errorResponseSchema.safeParse({ message: 'no code and no statusCode' }).success).toBe(false);
-        expect(errorResponseSchema.safeParse(null).success).toBe(false);
-        expect(errorResponseSchema.safeParse(42).success).toBe(false);
-    });
 });
 
-// ── The document's per-status CLAIM must accept every real body of that status ─────────────────────
+describe('codeForStatus — the code for a failure that arrived with none', () => {
+    it.each([
+        [401, 'UNAUTHORIZED'],
+        [403, 'FORBIDDEN'],
+        [404, 'NOT_FOUND'],
+        [413, 'PAYLOAD_TOO_LARGE'],
+        [429, 'TOO_MANY_REQUESTS'],
+        [500, 'INTERNAL_ERROR'],
+    ])('maps %i to the PUBLISHED code %s, so the body stays narrowable', (status, code) => {
+        expect(codeForStatus(status)).toBe(code);
+        expect(PUBLISHED).toContain(code);
+    });
 
-describe('the published document does not claim a NARROWER shape than a status can carry', () => {
     /**
-     * ⚠️ THIS SUITE EXISTS BECAUSE THE MISTAKE IT CATCHES WAS MADE IN THE CHANGE THAT ADDED IT.
-     *
-     * `contract/openapi.ts` publishes a component per error status. Narrowing one from the `ErrorResponse` union
-     * to a specific member is legitimate ONLY when that status has exactly one producer — and the `400` was
-     * briefly narrowed to `ValidationError` on the strength of the validation case being the common one. It is
-     * not the only one: six hand-thrown `BadRequestException('a string')` sites emit `NestHttpError`, and three
-     * domain codes mapped to `400` emit `ApiError`. The document would have promised `errors` on a body carrying
-     * `error` — the same lie as the `recipeErrorSchema` component being removed, reintroduced one layer over.
-     *
-     * The check drives the REAL producers for the statuses that matter and requires the document's claimed
-     * component to accept each. It cannot see a throw site added tomorrow; what it does is make a WRONG narrowing
-     * fail immediately instead of shipping as a documented promise.
+     * The deliberate other half: these statuses get a stable code that is NOT published, so the typed union
+     * rejects it and a consumer maps by status — which is correct, because the status IS the whole signal. See
+     * `api-error.ts`'s `STATUS_CODE` for the reasoning; pinned here so the boundary cannot move silently.
      */
-    /** The component the emitted document claims for a status on `POST /api/v1/recipes`, resolved by `$ref`. */
-    function claimedComponentFor(status: string): string {
-        const paths = buildRecipeOpenApiDocument().document['paths'] as Record<
-            string,
-            Record<
-                string,
-                { readonly responses: Record<string, { content?: Record<string, { schema: { $ref?: string } }> }> }
-            >
-        >;
-        const ref = paths['/api/v1/recipes']?.['post']?.responses[status]?.content?.['application/json']?.schema.$ref;
-
-        expect(ref, `POST /api/v1/recipes has no documented ${status} body`).toBeDefined();
-
-        return String(ref).replace('#/components/schemas/', '');
-    }
-
-    /** The published zod for a component name. */
-    const componentSchema: Readonly<Record<string, { safeParse: (value: unknown) => { success: boolean } }>> = {
-        ErrorResponse: errorResponseSchema,
-        ApiError: apiErrorSchema,
-        NestHttpError: nestHttpErrorSchema,
-        ValidationError: validationErrorSchema,
-        ThrottleError: throttleErrorSchema,
-    };
-
-    it('the documented 400 accepts ALL THREE bodies a 400 can carry, not just the validation one', () => {
-        const claimed = componentSchema[claimedComponentFor('400')];
-        const realBodies: readonly unknown[] = [
-            // 1. the nestjs-zod pipe
-            emitValidationFailure({ ...A_VALID_CREATE_BODY, title: '' }).body,
-            // 2. a hand-thrown BadRequestException (ErasureService, IngredientsController, PhotosService)
-            emit(new BadRequestException('The confirmation phrase does not match.')).body,
-            // 3. a DOMAIN code mapped to 400 by ApiExceptionFilter
-            emit({ code: RecipeErrorCode.UNKNOWN_INGREDIENT, message: 'No such ingredient' } satisfies RecipeError)
-                .body,
-        ];
-
-        expect(claimed).toBeDefined();
-
-        for (const body of realBodies) {
-            expect(claimed?.safeParse(body).success, `the documented 400 rejects ${JSON.stringify(body)}`).toBe(true);
-        }
+    it.each([
+        [400, 'BAD_REQUEST'],
+        [409, 'CONFLICT'],
+        [410, 'GONE'],
+        [422, 'UNPROCESSABLE_ENTITY'],
+        [423, 'LOCKED'],
+        [503, 'SERVICE_UNAVAILABLE'],
+    ])('maps %i to the UNPUBLISHED code %s, so a consumer falls back to the status', (status, code) => {
+        expect(codeForStatus(status)).toBe(code);
+        expect(PUBLISHED).not.toContain(code);
     });
 
-    it('the documented 429 accepts the throttler’s bare string', () => {
-        const claimed = componentSchema[claimedComponentFor('429')];
-
-        expect(claimed?.safeParse(emit(new ThrottlerException()).body).success).toBe(true);
-    });
-
-    it('the documented 500 accepts the filter’s collapsed envelope', () => {
-        const claimed = componentSchema[claimedComponentFor('500')];
-
-        expect(claimed?.safeParse(emit(new Error('boom')).body).success).toBe(true);
-    });
-
-    it('the documented 401 accepts BOTH the sync-race envelope and Nest’s argument-less body', () => {
-        const claimed = componentSchema[claimedComponentFor('401')];
-        const syncRace = emit(new UnauthorizedException({ code: 'IDENTITY_SYNC_PENDING', message: 'retry' })).body;
-
-        expect(claimed?.safeParse(syncRace).success).toBe(true);
-        expect(claimed?.safeParse(emit(new UnauthorizedException()).body).success).toBe(true);
-    });
-
-    // Non-vacuity: the resolution must really be reading the document, and the narrow members must really be
-    // narrower — otherwise every assertion above would hold against a component map of `z.unknown()`.
-    it('is not vacuous — the narrow members REJECT bodies the union accepts', () => {
-        expect(claimedComponentFor('429')).toBe('ThrottleError');
-        expect(claimedComponentFor('400')).toBe('ErrorResponse');
-        expect(validationErrorSchema.safeParse(emit(new BadRequestException('nope')).body).success).toBe(false);
-        expect(throttleErrorSchema.safeParse(emit(new Error('boom')).body).success).toBe(false);
+    it('is deterministic and leaks nothing for a status it has never seen', () => {
+        expect(codeForStatus(418)).toBe('HTTP_418');
+        expect(codeForStatus(599)).toBe('HTTP_599');
     });
 });

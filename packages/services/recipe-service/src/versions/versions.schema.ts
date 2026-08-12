@@ -19,11 +19,12 @@
  * `CONTRACT_HASH` is computed over the service's authored `*.schema.ts` sources and therefore did not move when
  * this response's shape changed.
  *
- * ⚠️ RESIDUAL, and it belongs to `@kitchensink/contract-gen` rather than to this file: the ENTITY schemas this
- * envelope composes (`recipeDetailSchema`, `recipeVersionSchema`) are still authored in `recipe-core`, so a
- * change to THEM still moves no `CONTRACT_HASH`. Composing them here is correct — re-declaring them would
- * manufacture the drift the whole seam removes — so the fix is to include the composed leaf's sources in the hash
- * inputs, which is a generator change affecting all three services and is reported rather than made here.
+ * ✅ RESIDUAL NOW CLOSED (and recorded because the note used to say otherwise). The ENTITY schemas this envelope
+ * composes (`recipeDetailSchema`, `recipeVersionSchema`) are authored in `recipe-core`, and a change to them
+ * used to move no `CONTRACT_HASH` — so drift layer 3 was blind to every entity body this API returns.
+ * `computeContractHash` now fingerprints the COMPOSED sources too (`collectComposedSources`), and its
+ * `composed` parameter is REQUIRED with no default so a caller cannot quietly recreate the blind hash. Recipe is
+ * the service where this mattered: it is the only one whose import allowlist admits a composed package at all.
  */
 import { z } from 'zod';
 

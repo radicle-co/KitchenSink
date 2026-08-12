@@ -1,84 +1,70 @@
 /**
- * THE ERROR WIRE CONTRACT — authored here and copied into `@kitchensink/schema-recipe`
- * (`docs/CODING_STANDARDS.md` §15.2 / ADR-0014).
+ * THE ERROR WIRE CONTRACT — ONE envelope, keyed on a PUBLISHED code. Authored here and copied into
+ * `@kitchensink/schema-recipe` (`docs/CODING_STANDARDS.md` §15.2 / ADR-0014).
  *
  * SOURCE OF TRUTH for these shapes. It may import ONLY `zod`, `@kitchensink/recipe-core`, and flat sibling
  * `*.schema.js` modules — enforced by `@kitchensink/contract-gen`'s import restriction.
  *
- * ⚠️ WHY THIS FILE HAD TO EXIST, AND WHAT WAS WRONG BEFORE IT. Recipe was the one service of the three with no
- * authored error envelope, and the gap was not merely an omission — the published `ErrorResponse` component was
+ * ── WHAT WAS WRONG, IN TWO LAYERS ──
+ *
+ * ⚠️ **Layer 1 — the document described a shape the service mostly did not send.** `ErrorResponse` was
  * `@kitchensink/recipe-core`'s `recipeErrorSchema`, whose `code` is an ENUM of the fifteen recipe-DOMAIN codes.
- * That schema is CORRECT for what it is (the type guard `ApiExceptionFilter` uses to recognise a thrown domain
- * error, which is precisely why it is an enum) and WRONG as a description of the wire: the generic `500`'s
- * `INTERNAL_ERROR`, the auth middleware's `IDENTITY_SYNC_PENDING` `401`, the erasure service's
- * `ACCOUNT_ALREADY_ERASED` `410`, every Nest `{ statusCode, message, error }`, the validation `400` and the
- * `429` all FAIL it. So the document promised one narrow shape while the service emitted four, and the typed
- * client — having nothing publishable to parse against — read error bodies through an unchecked cast marked
- * `@unparsedBoundary`. `recipeErrorSchema` keeps its job as the domain-error guard; the WIRE is described here.
+ * That schema is CORRECT for what it is — the type guard `ApiExceptionFilter` uses to recognise a thrown domain
+ * error — and WRONG as a description of the wire: the generic `500`'s `INTERNAL_ERROR`, the auth middleware's
+ * `IDENTITY_SYNC_PENDING` `401`, the erasure service's `ACCOUNT_ALREADY_ERASED` `410`, every Nest
+ * `{ statusCode, message, error }`, the validation `400` and the `429` all FAIL it.
  *
- * ⚠️ FINDING, RECORDED RATHER THAN PAPERED OVER: this service does not emit ONE error shape. It emits FOUR, and
- * which one a caller receives depends on which layer failed:
+ * ⚠️ **Layer 2 — the service really did emit FOUR shapes**, because the filter returned `exception.getResponse()`
+ * UNCHANGED: the envelope, Nest's `{ statusCode, message, error? }`, `nestjs-zod`'s
+ * `{ statusCode, message: 'Validation failed', errors }`, and — for the `429` — a bare JSON **string**. An
+ * earlier revision of this file published all four as a union, on the reasoning that a document must describe
+ * what ships. That was the right call for a documentation-only change and the WRONG place to stop: it made the
+ * inconsistency honest instead of removing it, and left the client unable to tell two `409`s apart by anything
+ * better than a string compare on `body.code` through an unchecked cast.
  *
- *  1. `{ code, message, details? }` — {@link apiErrorSchema}, the ARCH-PS-2 envelope shared verbatim with the
- *     food and identity services. Produced by `ApiExceptionFilter` for a thrown recipe domain error, for the
- *     generic `500`, and for the two exceptions raised with an object payload of this shape
- *     (`IDENTITY_SYNC_PENDING` `401`, `ACCOUNT_ALREADY_ERASED` `410`).
- *  2. `{ statusCode, message, error? }` — {@link nestHttpErrorSchema}, Nest's own default body, produced by any
- *     `new HttpException('a string')`. `error` is OPTIONAL because an ARGUMENT-LESS exception omits it, and this
- *     service raises `new UnauthorizedException()` five times (`ClerkAuthService` once,
- *     `ServiceErasureAuthService` four).
- *  3. `{ statusCode, message: 'Validation failed', errors? }` — {@link validationErrorSchema}, `nestjs-zod`'s
- *     `ZodValidationException`. This is the body EVERY request-validation `400` carries, which since the
- *     `z.strictObject()` sweep (GR-017 §17-c) includes every rejected unknown key — so it is also the body that
- *     tells a caller which field they misspelled. It shares `statusCode`/`message` with shape 2, carries no
- *     `error`, and carries `errors` that shape 2 never has.
- *  4. A bare JSON **string** — {@link throttleErrorSchema}. `UserThrottlerGuard` extends `@nestjs/throttler`'s
- *     `ThrottlerGuard`, whose `ThrottlerException` response is the string `"ThrottlerException: Too Many
- *     Requests"`, so the `429` body is not an object at all.
+ * ── THERE IS NOW ONE SHAPE, AND THE FILTER IS ITS SOLE AUTHOR ──
  *
- * All four reach the wire because `ApiExceptionFilter` passes an `HttpException`'s response body through
- * UNCHANGED. They are published as a UNION rather than smoothed over, because a document claiming a single
- * envelope would be a document that LIES — the failure §15.2 exists to prevent — and every member here is
- * parsed out of a body the real failing layer produced (`__tests__/api-error.schema.test.ts`).
+ * `ApiExceptionFilter` normalizes EVERY failure into {@link apiErrorSchema} and has **no passthrough branch**.
+ * That is the structural core rather than a tidy-up: because the guarantee lives in one class instead of in
+ * throw-site discipline, it also covers failures this service never raises — `ClerkAuthService`'s argument-less
+ * `401`s, Nest's `404` for an unrouted path, the body parser's `413`, the throttler's string `429` — none of
+ * which any amount of controller discipline would have reached. Same change food made (`d7684207`); this follows
+ * it deliberately rather than inventing a second dialect.
  *
- * ⛔ CONVERGING THEM IS A SEPARATE, BREAKING CHANGE and deliberately NOT attempted here. Identity DOES normalize
- * (its filter rewrites every failure into shape 1) and that is the better end state, but reaching it from here
- * changes the failure body of all 41 operations for an already-shipped mobile binary, and it must land with the
- * client updated in step — the same call the food contract recorded making. What this file changes is only what
- * the document CLAIMS, which was false; the bytes on the wire are unchanged.
+ * ── HOW A CONSUMER USES THE TWO SCHEMAS (both halves matter) ──
  *
- * `.loose()` throughout: these schemas DESCRIBE responses rather than validate requests, so a body carrying a
- * field a client has not been taught must stay valid instead of turning a forward-compatible deploy into a
- * client-side parse crash. That is the mirror image of the `z.strictObject()` rule for REQUEST bodies, and the
- * asymmetry is deliberate — a request's unknown key is a caller's mistake to be told about, a response's is a
- * newer server's addition to be tolerated.
+ *  1. Parse with {@link apiErrorSchema} — `code` is a plain `string`, so a body carrying a code this build has
+ *     never been taught still parses. That is REQUIRED, not lenient: a deployed service adds codes ahead of a
+ *     released mobile binary, and narrowing here would make every new code a client-side crash.
+ *  2. Then narrow with {@link recipeApiErrorSchema}, the discriminated union over `code`. Success means "a code I
+ *     was taught, carrying the `details` its contract promises"; failure means "map by HTTP status alone", which
+ *     is the correct degradation for exactly the skew case in (1).
+ *
+ * `.loose()` on every arm: a response must tolerate a field a newer server added. That is the mirror image of the
+ * `z.strictObject()` rule for REQUEST bodies (GR-017 §17-c), and the asymmetry is deliberate — a request's
+ * unknown key is a caller's mistake to be told about, a response's is a newer server's addition to be absorbed.
  */
 import { z } from 'zod';
 
 import { versionConflictDetailsSchema, IDENTITY_SYNC_PENDING_CODE } from '@kitchensink/recipe-core';
 
 /**
- * The structured error envelope shared with the food and identity services (ARCH-PS-2).
+ * The structured error envelope — the ONLY body a non-2xx response from this service carries.
  *
- * `code` is a plain `string`, not an enum of the codes emitted today, and that is deliberate: a client MUST
- * tolerate a code it has not been taught, because a deployed service adds codes ahead of a released mobile
- * binary. Narrowing it would make every new code a breaking change for a client that only branches on the few it
- * knows — and it is exactly how the previous `ErrorResponse` came to describe a shape the service mostly does
- * not send. ⛔ Do not "tighten" it to `recipe-core`'s `recipeErrorCodeSchema`: that enum is the DOMAIN's, and
- * three of this service's four error populations carry a code outside it (or no code at all).
+ * Shared VERBATIM with the food and identity services (ARCH-PS-2), so one client-side handler covers all three.
+ *
+ * `code` is a plain `string` and MUST stay one. ⛔ Do not "tighten" it to {@link recipeErrorCodeSchema}: that
+ * would make every code the service adds a breaking change for a client that only branches on the few it knows,
+ * and it is precisely how the previous `ErrorResponse` came to describe a shape the service mostly does not send.
+ * The typed view is {@link recipeApiErrorSchema}, which a consumer applies SECOND and is allowed to fail.
  */
 export const apiErrorSchema = z
     .object({
-        /** Stable, machine-readable failure code, e.g. `RECIPE_NOT_FOUND`, `INTERNAL_ERROR`. Branch on this. */
+        /** Stable, machine-readable failure code, e.g. `VERSION_CONFLICT`, `INTERNAL_ERROR`. Branch on this. */
         code: z.string(),
         /** Human-readable summary. Never localized, never security-sensitive, never a stack trace. */
         message: z.string(),
-        /**
-         * Per-code diagnostic detail, when the code carries any. Two are load-bearing and already parsed by the
-         * typed client: `VERSION_CONFLICT` carries `{ currentVersion, conflictingVersion, server, base? }`
-         * (`recipe-core`'s `versionConflictDetailsSchema`) and `PULL_DRIFT` carries `{ diff }`
-         * (`collections.schema.ts`'s `pullDiffSchema`).
-         */
+        /** Per-code diagnostic detail, when that code's contract promises any. */
         details: z.record(z.string(), z.unknown()).optional(),
     })
     .loose();
@@ -87,124 +73,187 @@ export const apiErrorSchema = z
 export type ApiErrorBody = z.infer<typeof apiErrorSchema>;
 
 /**
- * Nest's own default `HttpException` body, still on the wire wherever an exception was raised with a string.
+ * Every failure code this API publishes.
  *
- * ⚠️ `error` IS OPTIONAL, and that is a fact rather than caution: `HttpException.createBody` omits it entirely
- * when the exception was constructed with no argument, so `new UnauthorizedException()` emits
- * `{ message: 'Unauthorized', statusCode: 401 }`. A required `error` would make this member reject five of this
- * service's real `401`s.
+ * ── WHY THIS IS A SUPERSET OF `recipe-core`'s `RecipeErrorCode`, AND WHY THAT IS NOT DUPLICATION ──
  *
- * `message` is `z.string()` rather than `z.union([z.string(), z.array(z.string())])`: Nest supports an array
- * message, but nothing in this service passes one, and publishing the wider type would tell an integrator to
- * handle a case that cannot occur. If an array is ever passed, this member must widen with it.
+ * `recipe-core`'s `RecipeErrorCode` is the DOMAIN's: the codes a thrown `RecipeError` can carry, used by
+ * `isRecipeError` and by every `*.error.ts` factory. This enum is the WIRE's, and it necessarily contains codes
+ * that are not domain errors at all — a validation rejection, an unrouted path, a rate limit, an unmapped fault.
+ * Neither is derivable from the other, so both exist; what is NOT allowed is for them to disagree about a code
+ * they share, and `__tests__/api-error.schema.test.ts` asserts the subset relation MECHANICALLY over
+ * `RecipeErrorCode`'s own values rather than over a hand-copied list.
+ *
+ * Food's `foodErrorCodeSchema` is the same shape for the same reason, and the generic members are spelled
+ * IDENTICALLY across the two services on purpose, so the three services speak one vocabulary for the cases that
+ * are not about their domain.
+ *
+ * ⛔ Adding a member here is a contract change with two mechanical consequences, both intended: `RECIPE_ERROR_STATUS`
+ * (`../common/api-error.ts`) fails to compile until the new code has a status, and the typed client's exhaustive
+ * `switch` fails to compile until it decides what the code MEANS. Neither is busywork — a code with no status
+ * cannot be served, and a code no consumer handles is a contract nobody can use.
  */
-export const nestHttpErrorSchema = z
-    .object({
-        /** The HTTP status, repeated in the body by Nest. */
-        statusCode: z.number(),
-        /** The exception's message. */
-        message: z.string(),
-        /** Nest's status text, e.g. `Unauthorized`. ABSENT for an argument-less exception. */
-        error: z.string().optional(),
-    })
-    .loose();
+export const recipeErrorCodeSchema = z.enum([
+    // ── The fifteen recipe DOMAIN codes (mirrored from `recipe-core`'s `RecipeErrorCode`) ──
+    /** No such recipe, or it is not visible to the caller. Also the answer for a recipe you may not rate. */
+    'RECIPE_NOT_FOUND',
+    /** The recipe was erased; a tombstone row remains so the `410` is distinguishable from a `404`. */
+    'RECIPE_TOMBSTONED',
+    /** The caller does not own the resource. */
+    'NOT_OWNER',
+    /** Optimistic-concurrency failure — `details` carries the version numbers and the conflicting snapshots. */
+    'VERSION_CONFLICT',
+    /** The recipe already holds the maximum of 10 photos. */
+    'MAX_PHOTOS_EXCEEDED',
+    /** The requested visibility transition is not allowed for this recipe's provenance (C-004). */
+    'INVALID_VISIBILITY',
+    /** A photo was uploaded but could not be processed (magic-byte or thumbnail failure). */
+    'PHOTO_PROCESSING_FAILED',
+    /** The version's S3 archive has not been written yet, so the snapshot cannot be read. */
+    'ARCHIVE_PENDING',
+    /** The version archive failed permanently and landed in the DLQ. */
+    'ARCHIVE_DLQ',
+    /** The operation requires a collection that was cloned from a source, and this one was not. */
+    'COLLECTION_NOT_CLONED',
+    /** A pull-from-source commit was rejected because the diff drifted since the caller's preview (W8-a.8). */
+    'PULL_DRIFT',
+    /** The caller already owns the maximum of 50 collections (REQ-049b). */
+    'COLLECTION_LIMIT_REACHED',
+    /** The caller has an in-flight account erasure, so writes are locked (HAZ-052) — a `423`. */
+    'ERASURE_IN_PROGRESS',
+    /** A recipe line referenced an `ingredientId` the catalog does not hold. */
+    'UNKNOWN_INGREDIENT',
+    /** A caller may not rate their own recipe (FR-013) — always a `403`, never a `404`. */
+    'CANNOT_RATE_OWN_RECIPE',
 
-/** Nest's default `HttpException` body: `{ statusCode, message, error? }`. */
-export type NestHttpError = z.infer<typeof nestHttpErrorSchema>;
+    // ── Auth and account-lifecycle codes, which are NOT recipe-domain errors ──
+    /** No, invalid, expired, or wrong-authorized-party bearer token. */
+    'UNAUTHORIZED',
+    /** The token verified but carries no `external_id` yet — RETRY with a refreshed token, do not surface. */
+    'IDENTITY_SYNC_PENDING',
+    /** Authenticated, but not permitted (a scope/permission gate rather than an ownership one). */
+    'FORBIDDEN',
+    /** The caller's account has already been erased — a `410` on the erasure route. */
+    'ACCOUNT_ALREADY_ERASED',
 
-/**
- * One `zod` issue as `nestjs-zod` serializes it into a validation `400`.
- *
- * Deliberately shallow and loose: zod's issue union has a per-code shape (`expected`, `values`, `origin`,
- * `minimum`, …) and re-declaring all of it here would be a second, drifting copy of zod's own types for no
- * consumer's benefit. What IS declared is the three fields a client can act on, and `keys` is the reason this
- * schema exists at all — see {@link validationErrorSchema}.
- */
-const validationIssueSchema = z
-    .object({
-        /** zod's issue code, e.g. `too_small`, `invalid_type`, `unrecognized_keys`. */
-        code: z.string().optional(),
-        /**
-         * Path to the offending value, e.g. `['ingredients', 0, 'ingredientId']`. EMPTY for an issue about the
-         * object itself, which is the case for a rejected unknown key.
-         */
-        path: z.array(z.union([z.string(), z.number()])).optional(),
-        /** zod's message for the issue. */
-        message: z.string().optional(),
-        /** The unknown keys that were REJECTED. Present only on an `unrecognized_keys` issue. */
-        keys: z.array(z.string()).optional(),
-    })
-    .loose();
-
-/** One zod issue in a validation `400`. */
-export type ValidationIssue = z.infer<typeof validationIssueSchema>;
-
-/**
- * `nestjs-zod`'s `ZodValidationException` body — the response to EVERY request-validation failure.
- *
- * WHY IT IS ITS OWN COMPONENT AND NOT FOLDED INTO {@link nestHttpErrorSchema}. It shares `statusCode` and
- * `message`, but it has no `error` and it HAS `errors`. Folding them would publish a `400` that promises a field
- * this body never has and hides the only field a caller can act on.
- *
- * WHY `errors` MATTERS MORE SINCE THE STRICT-OBJECT SWEEP. GR-017 §17-c chose rejection over stripping because
- * "a client's misspelled field becomes a `400` the client can fix". That is only true if the `400` says WHICH
- * key, and `keys` on the `unrecognized_keys` issue is where that lives — a caller who reads only `message` sees
- * `Validation failed` and learns nothing. Publishing `errors` is what turns the ruling into a usable contract.
- *
- * `errors` is OPTIONAL because `nestjs-zod` omits it for a thrown value that is not a zod error.
- */
-export const validationErrorSchema = z
-    .object({
-        /** Always `400`. */
-        statusCode: z.number(),
-        /** Always the literal `Validation failed` — the per-field detail is in `errors`, never here. */
-        message: z.literal('Validation failed'),
-        /** The zod issues, one per failed constraint. */
-        errors: z.array(validationIssueSchema).optional(),
-    })
-    .loose();
-
-/** The request-validation `400` body: `{ statusCode, message: 'Validation failed', errors? }`. */
-export type ValidationError = z.infer<typeof validationErrorSchema>;
-
-/**
- * The `429` body: a bare JSON **string**, not an envelope.
- *
- * `@nestjs/throttler`'s `ThrottlerException` is constructed with a string, so its response IS that string, and
- * `ApiExceptionFilter` passes an `HttpException`'s response through unchanged. Published as `z.string()` because
- * that is what a caller receives; the `Retry-After` header (documented on the operation) is where the actionable
- * information is.
- *
- * ⛔ Do not "fix" this by asserting an object here — that would make the document claim a body the guard does not
- * send. Normalizing the guard's response is the real fix and is a wire change owed its own PR.
- */
-export const throttleErrorSchema = z.string();
-
-/** The rate-limit `429` body: a bare string. */
-export type ThrottleError = z.infer<typeof throttleErrorSchema>;
-
-/**
- * What a non-2xx body from this service actually is: one of the four live shapes.
- *
- * A plain union rather than a discriminated one, because the four have no common discriminant — that IS the
- * inconsistency. A consumer should test in this order: a `string` is the rate limit; then `code` (the envelope);
- * then `errors` (a validation failure); then `statusCode` (Nest's default).
- *
- * Member ORDER is not load-bearing for correctness — no body satisfies two members, asserted in
- * `__tests__/api-error.schema.test.ts` — but it is kept in "most specific first" order so a zod error names the
- * closest member rather than the first one tried.
- */
-export const errorResponseSchema = z.union([
-    apiErrorSchema,
-    validationErrorSchema,
-    nestHttpErrorSchema,
-    throttleErrorSchema,
+    // ── Transport / framework outcomes the filter now names rather than passing through ──
+    /** A request body, query or param the boundary rejected. `details.fields` names each offending field. */
+    'VALIDATION_FAILED',
+    /** A request for a path this service does not route. ⚠️ NOT `RECIPE_NOT_FOUND` — a different fix. */
+    'NOT_FOUND',
+    /** The request body exceeded the size cap (the 5 MB photo ceiling, or the JSON body limit). */
+    'PAYLOAD_TOO_LARGE',
+    /** The declared content type is not one this route accepts. */
+    'UNSUPPORTED_MEDIA_TYPE',
+    /** Per-user rate limit exceeded. */
+    'TOO_MANY_REQUESTS',
+    /** The instance cannot serve traffic — the readiness probe's database check failed. */
+    'NOT_READY',
+    /** An unmapped server fault. The body carries no internal detail, by design. */
+    'INTERNAL_ERROR',
 ]);
 
-/** Any non-2xx body this service emits. */
-export type ErrorResponse = z.infer<typeof errorResponseSchema>;
+/** A stable, machine-readable recipe-API failure code. */
+export type RecipeErrorCode = z.infer<typeof recipeErrorCodeSchema>;
 
-// ── Re-exported wire shapes: the two error payloads a client must branch on ───────────────────────
+/** `{ code, message }` with no promised `details` — the shape most codes have. */
+const bare = <TCode extends RecipeErrorCode>(code: TCode) =>
+    z.object({ code: z.literal(code), message: z.string() }).loose();
+
+/**
+ * The TYPED view of an error body: {@link recipeErrorCodeSchema} as a discriminant, with the `details` each code
+ * actually carries.
+ *
+ * It is a REFINEMENT of {@link apiErrorSchema}, never a second error shape — every value here is also a valid
+ * `apiErrorSchema` body, asserted for EVERY arm in `__tests__/api-error.schema.test.ts` rather than assumed.
+ *
+ * `details` is REQUIRED on every arm whose code promises one. A body that dropped `details.currentVersion` must
+ * FAIL the typed parse — surfacing at the boundary, naming the field — rather than handing a caller an
+ * `undefined` that surfaces three layers deeper as "cannot read property of undefined".
+ *
+ * ⚠️ `PULL_DRIFT`'s `details.diff` is deliberately NOT typed structurally here, and the reason is a real
+ * constraint rather than an oversight. The diff's shape is `pullDiffSchema`, authored in
+ * `../collections/collections.schema.ts`; generation FLATTENS every authored schema into one directory, so a
+ * `*.schema.ts` may import only a FLAT `./x.schema.js` sibling, and that file is not one of this module's
+ * siblings in the service tree. Re-declaring the diff here to get a typed `details` would create a second
+ * authority for `PullDiff` — the exact defect ADR-0014 exists to remove — so the arm guarantees only that
+ * `details.diff` is PRESENT, and the consumer narrows it with `pullDiffSchema`, which it already imports from
+ * `@kitchensink/schema-recipe` and already parses the preview response with.
+ */
+export const recipeApiErrorSchema = z.discriminatedUnion('code', [
+    // ── Codes whose `details` are part of their contract ──
+    z
+        .object({
+            code: z.literal('VERSION_CONFLICT'),
+            message: z.string(),
+            /**
+             * The optimistic-concurrency detail, INCLUDING the W8-a.5 snapshots that let a conflict UI 3-way
+             * merge without re-fetching. Composed from `recipe-core`'s own schema, never re-declared.
+             */
+            details: versionConflictDetailsSchema.loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('PULL_DRIFT'),
+            message: z.string(),
+            /** Carries `diff` — the freshly-derived `PullDiff`. See the note above on why it is not typed here. */
+            details: z.object({ diff: z.unknown() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('VALIDATION_FAILED'),
+            message: z.string(),
+            /** One rendered `"<field path>: <constraint>"` per rejected field. */
+            details: z.object({ fields: z.array(z.string()) }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('COLLECTION_LIMIT_REACHED'),
+            message: z.string(),
+            /** The configured cap, reported so a caller need not guess it. */
+            details: z.object({ limit: z.number() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('MAX_PHOTOS_EXCEEDED'),
+            message: z.string(),
+            /** The per-recipe photo cap. */
+            details: z.object({ limit: z.number() }).loose(),
+        })
+        .loose(),
+
+    // ── Codes carrying no promised `details` ──
+    bare('RECIPE_NOT_FOUND'),
+    bare('RECIPE_TOMBSTONED'),
+    bare('NOT_OWNER'),
+    bare('INVALID_VISIBILITY'),
+    bare('PHOTO_PROCESSING_FAILED'),
+    bare('ARCHIVE_PENDING'),
+    bare('ARCHIVE_DLQ'),
+    bare('COLLECTION_NOT_CLONED'),
+    bare('ERASURE_IN_PROGRESS'),
+    bare('UNKNOWN_INGREDIENT'),
+    bare('CANNOT_RATE_OWN_RECIPE'),
+    bare('UNAUTHORIZED'),
+    bare('IDENTITY_SYNC_PENDING'),
+    bare('FORBIDDEN'),
+    bare('ACCOUNT_ALREADY_ERASED'),
+    bare('NOT_FOUND'),
+    bare('PAYLOAD_TOO_LARGE'),
+    bare('UNSUPPORTED_MEDIA_TYPE'),
+    bare('TOO_MANY_REQUESTS'),
+    bare('NOT_READY'),
+    bare('INTERNAL_ERROR'),
+]);
+
+/** An error body whose `code` this build has been taught, with the `details` that code promises. */
+export type RecipeApiError = z.infer<typeof recipeApiErrorSchema>;
+
+// ── Re-exported wire shapes: the error payloads a consumer must branch on ─────────────────────────
 
 /*
  * ⚠️ RE-EXPORT, NOT RE-DECLARATION. `recipe-core` remains the sole AUTHOR; this makes the shape reachable from
@@ -214,15 +263,16 @@ export type ErrorResponse = z.infer<typeof errorResponseSchema>;
  */
 export {
     /**
-     * The `details` payload of a `409` whose `code` is `VERSION_CONFLICT` —
-     * `{ currentVersion, conflictingVersion, server, base? }`. Re-exported HERE, with the envelope that
-     * carries it, so a consumer can obtain every schema it needs to parse an error body from one package.
-     */
-    versionConflictDetailsSchema,
-    /**
-     * The `code` on the `401` a client must RETRY rather than surface (the first-token sync race). A wire
-     * constant, not a domain one: a consumer that compares against a literal of its own has re-declared the
-     * contract, which is what §15 rule 4 forbids.
+     * The `code` on the `401` a client must RETRY rather than surface (the first-token sync race). Re-exported
+     * because the auth middleware raises it from `recipe-core`'s constant while the union above spells it as a
+     * literal; `__tests__/api-error.schema.test.ts` asserts the two are the same string, so the middleware and
+     * the published union cannot drift.
      */
     IDENTITY_SYNC_PENDING_CODE,
+    /**
+     * The `details` payload of a `VERSION_CONFLICT` — `{ currentVersion, conflictingVersion, server, base? }`.
+     * Re-exported alongside the envelope so a consumer gets every schema it needs to parse an error from one
+     * package. It is also composed directly into the typed union's `VERSION_CONFLICT` arm above.
+     */
+    versionConflictDetailsSchema,
 };

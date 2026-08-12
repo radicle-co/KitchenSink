@@ -88,6 +88,7 @@ import type {
 import {
     addIngredientByFoodRequestSchema,
     addRecipeToCollectionRequestSchema,
+    apiErrorSchema,
     cloneCollectionRequestSchema,
     collectionListResponseSchema,
     collectionRecipeMembershipResponseSchema,
@@ -105,6 +106,7 @@ import {
     photoUploadUrlResponseSchema,
     pullDiffSchema,
     pullFromSourceRequestSchema,
+    recipeApiErrorSchema,
     pullFromSourceResponseSchema,
     recipeSearchResponseSchema,
     reorderPhotosRequestSchema,
@@ -116,7 +118,9 @@ import {
     updateRecipeRequestSchema,
 } from '@kitchensink/schema-recipe';
 import type {
+    ApiErrorBody,
     CreateRecipeRequest,
+    RecipeApiError,
     RestoreVersionResponse,
     SetRatingRequest,
     UpdateRecipeRequest,
@@ -1247,48 +1251,157 @@ export class RecipeServiceClient {
     }
 
     /**
-     * Map a non-success response to the typed error for its status.
+     * Map a non-success response to its typed error.
      *
-     * @unparsedBoundary ⚠️ THE RECIPE SERVICE PUBLISHES NO ERROR ENVELOPE, and that is the whole reason this
-     *   read is not a parse. Food and identity each author an `api-error.schema.ts` (so their clients parse
-     *   error bodies against `errorResponseSchema` / `apiErrorSchema`); recipe-service authors none — its
-     *   `common/filters/api-exception.filter.ts` emits `{ code, message, details }` that no `*.schema.ts`
-     *   describes, so there is nothing published to parse against and inventing zod here would make THIS
-     *   package a second authority on a shape the service owns — the precise inversion ADR-0014 forbids.
+     * ── TWO LAYERS, AND BOTH ARE LOAD-BEARING ──
      *
-     *   This is DEBT, not a design: the service must author `api-error.schema.ts` like its two siblings, and
-     *   this tag comes out the day it does. It is deliberately visible and greppable rather than a silent cast.
+     * 1. **`recipeApiErrorSchema` — the published discriminated union — decides the error, keyed on `code`.**
+     *    The `switch` in {@link errorForCode} is EXHAUSTIVE over the published codes, so a code the service adds
+     *    is a `typecheck` failure in this file rather than a silent fall-through at runtime.
+     * 2. **`apiErrorSchema` then the STATUS, for anything the union does not recognise.** A body may
+     *    legitimately be an envelope carrying a code this build has never been taught (a deployed service adds
+     *    codes ahead of a released mobile binary), or not our envelope at all — the shared internet-facing ALB
+     *    serves an HTML page for `502`/`503`/`504` during every deploy (ADR-0003). Both degrade to "map by
+     *    status alone", which {@link errorForStatus} still does correctly.
      *
-     *   What is mitigated in the meantime: the two branches that actually DECIDE something re-validate their own
-     *   input against schemas that DO exist — {@link toVersionConflict} via `versionConflictDetailsSchema` and
-     *   {@link toPullDrift} via `pullDiffSchema`. The `409` dispatch on `code` is the one unchecked branch, and
-     *   it is fail-safe by construction: anything that is not the literal `PULL_DRIFT` falls through to the
-     *   version-conflict mapping, so an absent or drifted code cannot produce an untyped error.
+     * ⚠️ THIS REPLACED AN UNCHECKED CAST, and the `@unparsedBoundary` tag that documented it is GONE. The read
+     * was `(res.body ?? {}) as { code?, message?, details? }` because the service published no error envelope, so
+     * there was nothing to parse against; it now publishes one. The `409` branch was the sharp edge — it told a
+     * `PULL_DRIFT` from a `VERSION_CONFLICT` with a bare string compare on an unvalidated field, and anything
+     * that was not the literal fell through to the version-conflict mapping, so a drifted code produced the WRONG
+     * typed error rather than a recognisable failure. Both `409`s are now arms of the union.
+     *
+     * `safeParse` throughout, never `parse`: throwing here would replace a recoverable typed error with a
+     * `ZodError` escaping the error-mapping path itself.
+     *
+     * @param res - The normalized non-success response.
+     * @returns The typed error to throw.
      */
     private toError(res: RawResponse): RecipeServiceClientError {
-        const body = (res.body ?? {}) as { code?: string; message?: string; details?: Record<string, unknown> };
+        const known = recipeApiErrorSchema.safeParse(res.body);
+
+        if (known.success) {
+            return this.errorForCode(known.data, res);
+        }
+
+        const envelope = apiErrorSchema.safeParse(res.body);
+
+        return this.errorForStatus(res, envelope.success ? envelope.data : undefined);
+    }
+
+    /**
+     * The typed error for a body whose `code` this build knows, narrowed by the published union.
+     *
+     * Every `details` read here is one the union GUARANTEES for that code, which is why there is no optional
+     * chaining and no re-narrowing: `VERSION_CONFLICT` carries `versionConflictDetailsSchema` (composed into the
+     * arm, so the 3-way-merge snapshots arrive typed) and `PULL_DRIFT` carries `details.diff`.
+     *
+     * ⚠️ `details.diff` is the ONE value still narrowed here rather than by the union, and the reason is a real
+     * constraint recorded at the schema: generation flattens the authored schemas, so `api-error.schema.ts` cannot
+     * import `pullDiffSchema` from `collections.schema.ts` to type it, and re-declaring the diff shape would make
+     * a second authority for `PullDiff`. So the arm guarantees `diff` is PRESENT and this parses it with the
+     * published `pullDiffSchema` — the same schema the preview response is parsed with.
+     *
+     * @param body - The narrowed error body.
+     * @param res - The normalized response, for the status the un-classed codes keep.
+     * @returns The typed error to throw. Pure.
+     */
+    private errorForCode(body: RecipeApiError, res: RawResponse): RecipeServiceClientError {
+        switch (body.code) {
+            case 'VERSION_CONFLICT':
+                return new VersionConflictError(
+                    body.details.currentVersion,
+                    body.details.conflictingVersion,
+                    body.message,
+                    { server: body.details.server, base: body.details.base },
+                );
+            case 'PULL_DRIFT':
+                return toPullDrift(body);
+            case 'RECIPE_TOMBSTONED':
+            case 'ACCOUNT_ALREADY_ERASED':
+                return new GoneError(body.message, body.code);
+            case 'RECIPE_NOT_FOUND':
+            case 'NOT_FOUND':
+                return new NotFoundError(body.message, body.code);
+            case 'NOT_OWNER':
+            case 'CANNOT_RATE_OWN_RECIPE':
+            case 'FORBIDDEN':
+                return new ForbiddenError(body.message, body.code);
+            case 'UNAUTHORIZED':
+            case 'IDENTITY_SYNC_PENDING':
+                return new UnauthorizedError(body.message, body.code);
+            case 'VALIDATION_FAILED':
+            case 'INVALID_VISIBILITY':
+            case 'COLLECTION_NOT_CLONED':
+            case 'UNKNOWN_INGREDIENT':
+                return new BadRequestError(body.message, body.code);
+            // Every remaining code has no dedicated error class, so it keeps the response's OWN status and
+            // carries its code for the caller to read. The status is deliberately taken from the response rather
+            // than from the service's code→status table: that table is the SERVICE's, this client must not
+            // re-declare it, and importing the service package to reach it would drag NestJS and drizzle into
+            // web and mobile (ADR-0014, rejected alternative 2).
+            //
+            // Listing them EXPLICITLY rather than with a `default` is what makes the exhaustiveness gate below
+            // reachable — a `default` would silently absorb a newly published code, which is the whole failure
+            // this gate exists to prevent.
+            case 'MAX_PHOTOS_EXCEEDED':
+            case 'ARCHIVE_PENDING':
+            case 'COLLECTION_LIMIT_REACHED':
+            case 'PHOTO_PROCESSING_FAILED':
+            case 'ARCHIVE_DLQ':
+            case 'ERASURE_IN_PROGRESS':
+            case 'PAYLOAD_TOO_LARGE':
+            case 'UNSUPPORTED_MEDIA_TYPE':
+            case 'TOO_MANY_REQUESTS':
+            case 'NOT_READY':
+            case 'INTERNAL_ERROR':
+                return new UnexpectedResponseError(res.status, body.message, body.code);
+
+            default: {
+                // EXHAUSTIVENESS GATE (§15.1: drift must fail at `typecheck`, not in e2e). Adding a code to the
+                // service's `recipeErrorCodeSchema` breaks this line until this client decides what it means —
+                // and an OLDER client, which cannot have the arm, still degrades correctly because `safeParse`
+                // rejects the unknown code before it ever gets here.
+                const unhandled: never = body;
+
+                return new UnexpectedResponseError(500, (unhandled as { message?: string }).message);
+            }
+        }
+    }
+
+    /**
+     * The typed error for a body this build cannot narrow — an unknown code, or not our envelope at all.
+     *
+     * This is the ONLY place status still decides, and it must stay: it is the correct degradation for a service
+     * deployed ahead of this binary, and for the ALB's HTML error page.
+     *
+     * @param res - The normalized non-success response.
+     * @param envelope - The permissively-parsed envelope, when the body was at least that.
+     * @returns The typed error to throw. Pure.
+     */
+    private errorForStatus(res: RawResponse, envelope: ApiErrorBody | undefined): RecipeServiceClientError {
+        const message = envelope?.message;
+        const code = envelope?.code;
 
         switch (res.status) {
             case 400:
-                return new BadRequestError(body.message, body.code);
+                return new BadRequestError(message, code);
             case 401:
-                return new UnauthorizedError(body.message, body.code);
+                return new UnauthorizedError(message, code);
             case 403:
-                return new ForbiddenError(body.message, body.code);
+                return new ForbiddenError(message, code);
             case 404:
-                return new NotFoundError(body.message, body.code);
+                return new NotFoundError(message, code);
+            // A `409` this build cannot narrow keeps falling through to the version-conflict mapping, which is
+            // the pre-convergence behaviour and remains the right guess: `VERSION_CONFLICT` is the only `409`
+            // whose typed error carries data a caller acts on, and `toVersionConflict` tolerates a body with no
+            // usable `details` by leaving the version numbers undefined.
             case 409:
-                // Two DISTINCT 409s share this status: an optimistic-concurrency VERSION_CONFLICT (recipe
-                // update/restore) and a pull-from-source PULL_DRIFT (commit re-derived a diff that no
-                // longer matches the caller's preview). Dispatch on the body's `code` — the ONLY thing that
-                // tells them apart — so both keep mapping to their own typed error without regressing the
-                // other; anything that is not `PULL_DRIFT` (including a legacy/absent code) falls through
-                // to the version-conflict mapping, preserving today's behavior exactly.
-                return body.code === 'PULL_DRIFT' ? toPullDrift(body) : toVersionConflict(body);
+                return toVersionConflict({ message, details: envelope?.details });
             case 410:
-                return new GoneError(body.message, body.code);
+                return new GoneError(message, code);
             default:
-                return new UnexpectedResponseError(res.status);
+                return new UnexpectedResponseError(res.status, message, code);
         }
     }
 }
@@ -1296,21 +1409,25 @@ export class RecipeServiceClient {
 /**
  * True when a normalized response is the first-token sync-race `401` (`code: IDENTITY_SYNC_PENDING`).
  *
- * @unparsedBoundary Same gap as {@link RecipeServiceClient.toError}: the recipe service publishes no error
- *   envelope, so there is no zod for the `{ code }` shape this reads and authoring one here would make the
- *   client a rival authority on a shape the service owns. Narrow by construction rather than by assertion —
- *   the `code` is compared against `recipe-core`'s single `IDENTITY_SYNC_PENDING_CODE` constant, so any other
- *   value (including a non-string) is simply `false` and the retry loop does not start. Retire this tag when
- *   the service authors `api-error.schema.ts`.
+ * The body is PARSED against the published envelope rather than cast. The `@unparsedBoundary` tag that used to
+ * sit here is gone: it recorded that the service published no error envelope, so there was no zod for this
+ * `{ code }` read and authoring some here would have made the client a rival authority on a shape the service
+ * owns. The service now publishes `apiErrorSchema`, so this parses.
+ *
+ * Two properties are kept deliberately. The comparison is still against `IDENTITY_SYNC_PENDING_CODE` — the ONE
+ * published constant — rather than a local literal, so the retry trigger cannot drift from what the auth
+ * middleware emits. And the check is still fail-CLOSED: a body that is not the envelope, or carries any other
+ * code, yields `false` and the retry loop does not start, so a malformed `401` can never become an infinite
+ * refresh-and-retry.
  */
 function isIdentitySyncPending(res: RawResponse): boolean {
     if (res.status !== 401) {
         return false;
     }
 
-    const body = res.body as { code?: unknown } | undefined;
+    const envelope = apiErrorSchema.safeParse(res.body);
 
-    return body?.code === IDENTITY_SYNC_PENDING_CODE;
+    return envelope.success && envelope.data.code === IDENTITY_SYNC_PENDING_CODE;
 }
 
 /**

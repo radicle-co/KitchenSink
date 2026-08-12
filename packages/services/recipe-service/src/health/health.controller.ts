@@ -13,12 +13,13 @@
  * against, and the SKEW SIGNAL for drift layer 3 (CODING_STANDARDS §15.2.5). See `health.schema.ts` for why it
  * is published unauthenticated and why it leaks nothing.
  */
-import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import type pg from 'pg';
 
 import { CONTRACT_HASH } from '../contract/contract-hash.js';
-import type { HealthStatus, HealthUnavailable } from './health.schema.js';
+import { apiError } from '../common/api-error.js';
+import type { HealthStatus } from './health.schema.js';
 import { PgPoolProvider } from '../database/database.module.js';
 
 /** Upper bound on the readiness `SELECT 1`; a slower DB is reported not-ready rather than hanging the probe. */
@@ -43,10 +44,11 @@ export class HealthController {
 
     /**
      * Readiness probe: the service can reach its database. Runs a bounded `SELECT 1`; a failure or
-     * timeout surfaces as `503 Service Unavailable` so traffic is routed away until the DB recovers.
+     * timeout surfaces as a `503` carrying the `NOT_READY` envelope, so traffic is routed away until the DB
+     * recovers.
      *
      * @returns The `ok` payload (with `contractHash`) when the DB answers within the timeout.
-     * @throws {ServiceUnavailableException} (→ 503) when the probe query fails or times out.
+     * @throws {HttpException} The `NOT_READY` envelope (→ 503) when the probe query fails or times out.
      * @sideEffect Issues a `SELECT 1` against the connection pool.
      */
     @Get('ready')
@@ -54,10 +56,22 @@ export class HealthController {
         try {
             await this.probeDatabase();
         } catch {
-            throw new ServiceUnavailableException({
-                status: 'unavailable',
-                service: 'recipe',
-            } satisfies HealthUnavailable);
+            // ⚠️ THE ENVELOPE, NOT THE OLD `{ status: 'unavailable', service: 'recipe' }` BODY.
+            //
+            // Since `ApiExceptionFilter` became the SOLE AUTHOR of every error body, a passthrough shape would
+            // have been normalized into `{ code: 'SERVICE_UNAVAILABLE', message, details: { status, service } }`
+            // — the same information under a status-derived code that tells a consumer nothing the `503` did
+            // not. Raising `NOT_READY` through `apiError` names the failure with a code a consumer can branch
+            // on and keeps this route inside the one-shape contract.
+            //
+            // ⚠️ This CHANGES a published body (`HealthUnavailable` is retired). Verified safe rather than
+            // assumed: nothing reads it. The only producer was this line, the only other references were the
+            // schema and the document, and every probe that consumes this route — the ALB target group, ECS,
+            // and the sandbox deploy smoke — reads the STATUS. Searched across `packages/` and `.github/`.
+            //
+            // The message is deliberately generic: readiness is UNAUTHENTICATED, so it must not report which
+            // dependency failed. The diagnosable detail is in the log line the filter writes.
+            throw apiError('NOT_READY', 'Database not reachable');
         }
 
         return OK;

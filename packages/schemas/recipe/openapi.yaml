@@ -56,11 +56,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
         "503":
-          description: The database did not answer within the probe timeout.
+          description: 'The database did not answer within the probe timeout (`code: NOT_READY`). ⚠️ This body used to be `{
+            status: "unavailable", service: "recipe" }` (the retired `HealthUnavailable` component); it is now the
+            standard envelope, like every other failure. Nothing consumed the old body — every probe reads the status.'
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HealthUnavailable"
+                $ref: "#/components/schemas/ErrorResponse"
       description: Deliberately PUBLIC.
   /api/v1/recipes:
     post:
@@ -76,8 +78,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeDetail"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -89,17 +92,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -133,8 +137,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/PaginatedRecipes"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -146,17 +151,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -213,8 +219,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeDetail"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -238,17 +245,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -284,8 +292,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeDetail"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -315,17 +324,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -364,8 +374,9 @@ paths:
         "204":
           description: Deleted.
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -389,17 +400,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -436,8 +448,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeDetail"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -455,17 +468,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -502,8 +516,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeDetail"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -527,17 +542,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -584,8 +600,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeDetail"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -609,17 +626,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -660,8 +678,9 @@ paths:
         "204":
           description: Removed.
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -679,17 +698,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -726,8 +746,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipePhotoList"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -745,17 +766,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -792,8 +814,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/PhotoUploadUrlResponse"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -829,17 +852,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -885,8 +909,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipePhoto"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -928,17 +953,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -982,8 +1008,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipePhotoList"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1007,17 +1034,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1057,8 +1085,9 @@ paths:
         "204":
           description: Removed.
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1082,17 +1111,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1137,8 +1167,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeVersionList"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1156,17 +1187,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1203,8 +1235,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeVersion"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1222,17 +1255,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1277,8 +1311,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RestoreVersionResponse"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1308,17 +1343,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1363,8 +1399,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecipeSearchResponse"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1376,17 +1413,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1502,8 +1540,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/IngredientList"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1515,17 +1554,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1569,8 +1609,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/IngredientSuggestions"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1582,17 +1623,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1639,8 +1681,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ingredient"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1652,17 +1695,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1697,8 +1741,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ingredient"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1710,17 +1755,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1757,8 +1803,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ingredient"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1770,17 +1817,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1815,8 +1863,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ingredient"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1834,17 +1883,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1881,8 +1931,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/IngredientCandidateList"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1900,17 +1951,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -1950,8 +2002,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ingredient"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -1969,17 +2022,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2023,8 +2077,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Collection"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -2042,17 +2097,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2088,8 +2144,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/PaginatedCollections"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -2101,17 +2158,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2157,8 +2215,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/CollectionWithRecipes"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -2176,17 +2235,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2225,8 +2285,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Collection"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -2250,17 +2311,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2302,8 +2364,9 @@ paths:
         "204":
           description: Deleted.
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -2327,17 +2390,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2374,8 +2438,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/CollectionRecipeMembership"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -2399,17 +2464,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2452,8 +2518,9 @@ paths:
         "204":
           description: Removed.
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -2477,17 +2544,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2532,8 +2600,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Collection"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -2557,17 +2626,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2615,8 +2685,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/PullDiff"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -2640,17 +2711,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2690,8 +2762,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/PullFromSourceResponse"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -2721,17 +2794,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2778,8 +2852,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/AccountExport"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -2791,17 +2866,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2836,8 +2912,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErasureRequestAcceptedResponse"
         "400":
-          description: The request body or query failed validation (ValidationError), or a handler rejected it explicitly, or a
-            domain rule did. See ErrorResponse — the body is one of three shapes.
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
           content:
             application/json:
               schema:
@@ -2855,17 +2932,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "423":
-          description: The caller has an in-flight account erasure, so writes are locked (HAZ-052).
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/ErrorResponse"
         "429":
-          description: Per-user rate limit exceeded. The body is a bare string, not an error envelope.
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ThrottleError"
+                $ref: "#/components/schemas/ErrorResponse"
           headers:
             Retry-After:
               description: Seconds until the limit resets.
@@ -2943,11 +3021,19 @@ components:
       description: A signed service-principal token, used only by the internal erasure route.
   schemas:
     ErrorResponse:
-      anyOf:
-        - $ref: "#/components/schemas/ApiError"
-        - $ref: "#/components/schemas/ValidationError"
-        - $ref: "#/components/schemas/NestHttpError"
-        - $ref: "#/components/schemas/ThrottleError"
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: {}
+      required:
+        - code
+        - message
+      additionalProperties: {}
     ApiError:
       type: object
       properties:
@@ -2962,54 +3048,632 @@ components:
         - code
         - message
       additionalProperties: {}
-    NestHttpError:
-      type: object
-      properties:
-        statusCode:
-          type: number
-        message:
-          type: string
-        error:
-          type: string
-      required:
-        - statusCode
-        - message
-      additionalProperties: {}
-    ValidationError:
-      type: object
-      properties:
-        statusCode:
-          type: number
-        message:
-          type: string
-          enum:
-            - Validation failed
-        errors:
-          type: array
-          items:
-            type: object
-            properties:
-              code:
-                type: string
-              path:
-                type: array
-                items:
-                  anyOf:
-                    - type: string
-                    - type: number
-              message:
-                type: string
-              keys:
-                type: array
-                items:
-                  type: string
-            additionalProperties: {}
-      required:
-        - statusCode
-        - message
-      additionalProperties: {}
-    ThrottleError:
-      type: string
+    RecipeApiError:
+      oneOf:
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - VERSION_CONFLICT
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                currentVersion:
+                  type: integer
+                  minimum: 0
+                  exclusiveMinimum: true
+                conflictingVersion:
+                  type: integer
+                  minimum: 0
+                  exclusiveMinimum: true
+                server:
+                  type: object
+                  properties:
+                    versionNumber:
+                      type: integer
+                      minimum: 0
+                      exclusiveMinimum: true
+                    deviceLabel:
+                      type: string
+                      minLength: 1
+                      maxLength: 80
+                    updatedAt:
+                      type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                    snapshot:
+                      type: object
+                      properties:
+                        version:
+                          type: integer
+                          minimum: 0
+                          exclusiveMinimum: true
+                        title:
+                          type: string
+                          minLength: 1
+                        description:
+                          default: ""
+                          type: string
+                        steps:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                minLength: 1
+                              recipeId:
+                                type: string
+                                minLength: 1
+                              stepNumber:
+                                type: integer
+                                minimum: 0
+                                exclusiveMinimum: true
+                              instruction:
+                                type: string
+                                minLength: 1
+                              timerSeconds:
+                                type: integer
+                                minimum: 0
+                            required:
+                              - id
+                              - recipeId
+                              - stepNumber
+                              - instruction
+                        ingredients:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                minLength: 1
+                              recipeId:
+                                type: string
+                                minLength: 1
+                              ingredientId:
+                                type: string
+                                minLength: 1
+                              quantity:
+                                type: number
+                                minimum: 0
+                                exclusiveMinimum: true
+                              unit:
+                                type: string
+                              displayText:
+                                type: string
+                                minLength: 1
+                              sortOrder:
+                                type: integer
+                                minimum: 0
+                              ingredientName:
+                                type: string
+                                minLength: 1
+                              isUserEntered:
+                                type: boolean
+                              userCalories:
+                                type: number
+                                minimum: 0
+                              userProteinG:
+                                type: number
+                                minimum: 0
+                              userCarbsG:
+                                type: number
+                                minimum: 0
+                              userFatG:
+                                type: number
+                                minimum: 0
+                            required:
+                              - id
+                              - recipeId
+                              - ingredientId
+                              - quantity
+                              - unit
+                              - sortOrder
+                              - ingredientName
+                              - isUserEntered
+                        servings:
+                          type: integer
+                          minimum: 0
+                          exclusiveMinimum: true
+                        prepTimeMinutes:
+                          type: integer
+                          minimum: 0
+                        cookTimeMinutes:
+                          type: integer
+                          minimum: 0
+                      required:
+                        - version
+                        - title
+                        - description
+                        - steps
+                        - ingredients
+                        - servings
+                        - prepTimeMinutes
+                        - cookTimeMinutes
+                  required:
+                    - versionNumber
+                    - updatedAt
+                    - snapshot
+                base:
+                  type: object
+                  properties:
+                    versionNumber:
+                      type: integer
+                      minimum: 0
+                      exclusiveMinimum: true
+                    deviceLabel:
+                      type: string
+                      minLength: 1
+                      maxLength: 80
+                    updatedAt:
+                      type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                    snapshot:
+                      type: object
+                      properties:
+                        version:
+                          type: integer
+                          minimum: 0
+                          exclusiveMinimum: true
+                        title:
+                          type: string
+                          minLength: 1
+                        description:
+                          default: ""
+                          type: string
+                        steps:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                minLength: 1
+                              recipeId:
+                                type: string
+                                minLength: 1
+                              stepNumber:
+                                type: integer
+                                minimum: 0
+                                exclusiveMinimum: true
+                              instruction:
+                                type: string
+                                minLength: 1
+                              timerSeconds:
+                                type: integer
+                                minimum: 0
+                            required:
+                              - id
+                              - recipeId
+                              - stepNumber
+                              - instruction
+                        ingredients:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                minLength: 1
+                              recipeId:
+                                type: string
+                                minLength: 1
+                              ingredientId:
+                                type: string
+                                minLength: 1
+                              quantity:
+                                type: number
+                                minimum: 0
+                                exclusiveMinimum: true
+                              unit:
+                                type: string
+                              displayText:
+                                type: string
+                                minLength: 1
+                              sortOrder:
+                                type: integer
+                                minimum: 0
+                              ingredientName:
+                                type: string
+                                minLength: 1
+                              isUserEntered:
+                                type: boolean
+                              userCalories:
+                                type: number
+                                minimum: 0
+                              userProteinG:
+                                type: number
+                                minimum: 0
+                              userCarbsG:
+                                type: number
+                                minimum: 0
+                              userFatG:
+                                type: number
+                                minimum: 0
+                            required:
+                              - id
+                              - recipeId
+                              - ingredientId
+                              - quantity
+                              - unit
+                              - sortOrder
+                              - ingredientName
+                              - isUserEntered
+                        servings:
+                          type: integer
+                          minimum: 0
+                          exclusiveMinimum: true
+                        prepTimeMinutes:
+                          type: integer
+                          minimum: 0
+                        cookTimeMinutes:
+                          type: integer
+                          minimum: 0
+                      required:
+                        - version
+                        - title
+                        - description
+                        - steps
+                        - ingredients
+                        - servings
+                        - prepTimeMinutes
+                        - cookTimeMinutes
+                  required:
+                    - versionNumber
+                    - updatedAt
+                    - snapshot
+              required:
+                - currentVersion
+                - conflictingVersion
+                - server
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - PULL_DRIFT
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                diff: {}
+              required:
+                - diff
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_FAILED
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                fields:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - fields
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - COLLECTION_LIMIT_REACHED
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                limit:
+                  type: number
+              required:
+                - limit
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - MAX_PHOTOS_EXCEEDED
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                limit:
+                  type: number
+              required:
+                - limit
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - RECIPE_NOT_FOUND
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - RECIPE_TOMBSTONED
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - NOT_OWNER
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - INVALID_VISIBILITY
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - PHOTO_PROCESSING_FAILED
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - ARCHIVE_PENDING
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - ARCHIVE_DLQ
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - COLLECTION_NOT_CLONED
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - ERASURE_IN_PROGRESS
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - UNKNOWN_INGREDIENT
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - CANNOT_RATE_OWN_RECIPE
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - UNAUTHORIZED
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - IDENTITY_SYNC_PENDING
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - FORBIDDEN
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - ACCOUNT_ALREADY_ERASED
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - NOT_FOUND
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - PAYLOAD_TOO_LARGE
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - UNSUPPORTED_MEDIA_TYPE
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - TOO_MANY_REQUESTS
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - NOT_READY
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - INTERNAL_ERROR
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
     HealthStatus:
       type: object
       properties:
@@ -3028,20 +3692,6 @@ components:
         - status
         - service
         - contractHash
-    HealthUnavailable:
-      type: object
-      properties:
-        status:
-          type: string
-          enum:
-            - unavailable
-        service:
-          type: string
-          enum:
-            - recipe
-      required:
-        - status
-        - service
     Recipe:
       type: object
       properties:

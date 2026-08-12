@@ -40,7 +40,7 @@ const contractHashSchema = z.string().regex(/^[0-9a-f]{64}$/u);
 
 /** Body of a successful `GET /health` or `GET /health/ready`. */
 export const healthStatusSchema = z.object({
-    /** Always `ok` on a `200`; the `503` body says `unavailable` instead. */
+    /** Always `ok`. A `503` carries the error envelope (`code: NOT_READY`) rather than a variant of this. */
     status: z.literal('ok'),
     /** Which service answered, so a misrouted probe is obvious rather than mysteriously green. */
     service: z.literal('recipe'),
@@ -55,18 +55,22 @@ export const healthStatusSchema = z.object({
 /** A successful health payload. */
 export type HealthStatus = z.infer<typeof healthStatusSchema>;
 
-/**
- * Body of `GET /health/ready` when the database is unreachable (`503`).
- *
- * Carries no `contractHash`: the fingerprint is not the question being answered, and a caller must not be able
- * to read a not-ready response as a contract assertion.
- */
-export const healthUnavailableSchema = z.object({
-    /** Always `unavailable`. */
-    status: z.literal('unavailable'),
-    /** Which service answered. */
-    service: z.literal('recipe'),
-});
-
-/** An unavailable health payload. */
-export type HealthUnavailable = z.infer<typeof healthUnavailableSchema>;
+// ⛔ `healthUnavailableSchema` / `HealthUnavailable` USED TO BE HERE and are GONE.
+//
+// It described `{ status: 'unavailable', service: 'recipe' }` — the readiness `503`'s own body, which was a
+// FIFTH error shape on this service's wire. It existed only because `ApiExceptionFilter` passed an
+// `HttpException`'s response through unchanged; once the filter became the sole author of every error body, a
+// bespoke failure shape for one route stopped being expressible without a passthrough branch, and the branch is
+// the defect.
+//
+// `HealthController.getReadiness` now raises `apiError('NOT_READY', …)`, so the `503` carries the standard
+// `{ code, message }` envelope like every other failure — which a consumer can branch on, where
+// `status: 'unavailable'` merely restated the HTTP status in the body.
+//
+// ⚠️ This retires a PUBLISHED component, and the safety was verified rather than assumed: the only producer was
+// that one throw, the only other references were this schema and the document, and every consumer of
+// `/health/ready` — the ALB target group, ECS, and the sandbox deploy smoke — reads the STATUS, not the body.
+// Searched across `packages/` and `.github/` before deleting.
+//
+// The `200` body (`healthStatusSchema`) is UNTOUCHED, including its `contractHash`, which is drift layer 3's
+// skew signal and is genuinely read by a consumer.

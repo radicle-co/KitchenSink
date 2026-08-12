@@ -12,9 +12,11 @@
  *   body's `code`), `410` → {@link GoneError} (account already erased), anything else →
  *   {@link UnexpectedResponseError}.
  *
- * The optional `code` mirrors the recipe domain's `ErrorResponse.code` (see `RecipeErrorCode` in
- * `@kitchensink/recipe-core`); it is passed through verbatim as a `string` because the wire also emits
- * transport-level codes (`UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `ALREADY_ERASED`) outside that enum.
+ * The optional `code` is the PUBLISHED `ApiError.code` — `recipeErrorCodeSchema` in
+ * `@kitchensink/schema-recipe`, authored by the service. It is typed as a plain `string` on purpose, not as
+ * that enum: a deployed service may emit a code ahead of a released mobile binary, and narrowing here would turn
+ * a forward-compatible deploy into a client-side type error. The typed narrowing happens once, in
+ * `client.ts`'s `errorForCode`, whose `switch` IS exhaustive over the published set.
  */
 import type { VersionConflictSide } from '@kitchensink/recipe-core';
 
@@ -241,8 +243,16 @@ export function isInvalidRequestError(error: unknown): error is InvalidRequestEr
 
 /** Any unmapped/unexpected response status (a contract drift the caller should surface, not swallow). */
 export class UnexpectedResponseError extends RecipeServiceClientError {
-    public constructor(status: number, message = `Unexpected recipe-service response (${status})`) {
-        super(message, status);
+    /**
+     * @param status - The HTTP status that produced this error.
+     * @param message - Defaults to a status-only summary when the body carried none.
+     * @param code - The published `code` when the body carried one. It NOW usually does: since the recipe
+     *   service converged onto one error envelope, a status this client has no dedicated error class for still
+     *   arrives with a machine-readable code (`MAX_PHOTOS_EXCEEDED`, `TOO_MANY_REQUESTS`, `NOT_READY`, …), and
+     *   dropping it here would discard the only actionable part of the body.
+     */
+    public constructor(status: number, message = `Unexpected recipe-service response (${status})`, code?: string) {
+        super(message, status, code);
         this.name = 'UnexpectedResponseError';
         Object.setPrototypeOf(this, UnexpectedResponseError.prototype);
     }

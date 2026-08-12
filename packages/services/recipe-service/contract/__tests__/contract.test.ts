@@ -33,13 +33,14 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
+    collectComposedSources,
     computeContractHash,
     discoverAuthoredSchemas,
     findUnpublishedSiblingImports,
     findViolations,
     flattenSiblingImports,
 } from '@kitchensink/contract-gen';
-import type { AuthoredSchema } from '@kitchensink/contract-gen';
+import type { AuthoredSchema, ComposedSource } from '@kitchensink/contract-gen';
 import { describe, expect, it } from 'vitest';
 import { stringify } from 'yaml';
 
@@ -56,6 +57,19 @@ import { buildRecipeOpenApiDocument, openApiComponents } from '../openapi.js';
 
 /** The authored schemas, discovered once with the SAME config the generator runs with. */
 const authored: AuthoredSchema[] = await discoverAuthoredSchemas(SERVICE_ROOT, { excludeFiles: EXCLUDED_FILES });
+
+/**
+ * The COMPOSED sources the authored schemas build their shapes from — for recipe, `@kitchensink/recipe-core`.
+ *
+ * ⚠️ REQUIRED, and this parameter is why. `CONTRACT_HASH` used to fingerprint only the AUTHORED files, so
+ * changing `recipeDetailSchema` inside `recipe-core` altered the wire shape while the hash stood still — drift
+ * layer 3 was blind to every entity body this API returns. Recipe is the service where that mattered, because it
+ * is the only one whose import allowlist admits a composed package at all (food and identity are zod-only, so
+ * their composed corpus is empty and their fingerprints are unchanged).
+ *
+ * Collected with the SAME call the generator makes, so the value asserted below is the value that is stamped.
+ */
+const composed: readonly ComposedSource[] = await collectComposedSources(authored, { serviceRoot: SERVICE_ROOT });
 
 /** The built document, shared by every assertion so the derivation happens once. */
 const built = buildRecipeOpenApiDocument();
@@ -194,7 +208,7 @@ describe('drift layer 2 — the committed package matches a fresh generation', (
 });
 
 describe('drift layer 3 — the contract hash', () => {
-    const expected = computeContractHash(authored);
+    const expected = computeContractHash(authored, composed);
 
     it('is stamped in the schema package as the fingerprint of the authored sources', async () => {
         expect(await readCommitted('src/contract-hash.ts')).toContain(`export const CONTRACT_HASH = '${expected}';`);
@@ -206,6 +220,48 @@ describe('drift layer 3 — the contract hash', () => {
         const stamp = await readFile(join(SERVICE_ROOT, SERVICE_STAMP_PATH), 'utf8');
 
         expect(stamp).toContain(`export const CONTRACT_HASH = '${expected}';`);
+    });
+
+    /*
+     * ── NON-VACUITY: the fingerprint must actually COVER the composed leaf ──────────────────────────────────
+     *
+     * The three assertions below are the ones whose absence let the original defect live. `collectComposedSources`
+     * is unit-tested against fixtures, but a fixture cannot notice that the WIRING went away — drop the
+     * `recipe-core` allowlist entry, or have the collector quietly stop following imports, and every fixture test
+     * still passes while this service's hash silently returns to being blind. Recipe is the only service where
+     * that is possible, so the assertion belongs here, against the real tree.
+     *
+     * They are also deliberately asserted BEFORE the stamp comparison could mask them: a regenerated stamp agrees
+     * with an empty corpus just as happily as with a full one, so "the stamps match" is not evidence of coverage.
+     */
+    it('reaches the recipe-core module that DEFINES the entity bodies this API serves', () => {
+        expect(composed.length).toBeGreaterThan(0);
+        expect(composed.map((source) => source.key)).toContain('@kitchensink/recipe-core/src/recipe.types.ts');
+    });
+
+    it('narrows to REACHABLE modules rather than swallowing the whole composed package', () => {
+        const keys = composed.map((source) => source.key);
+
+        // Operational and policy modules of the same package: a hash that moved when a CDN-invalidation helper or
+        // an infra database name changed would train every reader to regenerate without looking.
+        for (const unreachable of [
+            'cdnInvalidation',
+            'recipeAccessPolicy',
+            'recipeDatabaseName',
+            'serviceErasureToken',
+        ]) {
+            expect(keys).not.toContain(`@kitchensink/recipe-core/src/${unreachable}.ts`);
+        }
+    });
+
+    // Ties the corpus back to the allowlist: nothing may enter the fingerprint that the reviewed allowlist does
+    // not admit, or the leaf property and the fingerprint would be describing different dependency sets.
+    it('composes only from packages the import allowlist admits', () => {
+        const admitted = ALLOWED_PACKAGE_IMPORTS.map((entry) => entry.specifier);
+
+        for (const source of composed) {
+            expect(admitted).toContain(source.packageName);
+        }
     });
 });
 
@@ -431,11 +487,19 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
         expect(mutatingBodyComponents).not.toContain('PullDiff');
         expect(rejectsUnknownKeys('PullDiff')).toBe(false);
 
-        for (const name of ['ApiError', 'NestHttpError', 'ValidationError']) {
+        // The error components are `.loose()` and stay OPEN. Both of them: `ApiError` (the permissive envelope)
+        // and `RecipeApiError` (the typed union). Before the convergence this list also named `NestHttpError` and
+        // `ValidationError`, which described Nest's and nestjs-zod's own bodies — shapes the filter no longer lets
+        // reach the wire.
+        for (const name of ['ApiError', 'ErrorResponse']) {
             expect(published[name]?.['additionalProperties'], `${name} is .loose() and must publish as open`).toEqual(
                 {},
             );
         }
+
+        // The typed union publishes as `anyOf`, so it has no `additionalProperties` of its own — its ARMS carry
+        // it. Asserted so a generator change that flattened the union to a bare object would be caught here.
+        expect(published['RecipeApiError']?.['anyOf'] ?? published['RecipeApiError']?.['oneOf']).toBeDefined();
     });
 });
 
@@ -485,13 +549,11 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
     // table (`z.array(x)`, `paginatedResponseSchema(x)`) has no symbol of its own and maps its ELEMENT instead,
     // which is the schema a consumer actually parses with.
     const COMPONENT_SYMBOL: Readonly<Record<string, string>> = {
-        ErrorResponse: 'errorResponseSchema',
+        // `ErrorResponse` is an ALIAS of the envelope, kept so ~120 existing `$ref`s keep resolving.
+        ErrorResponse: 'apiErrorSchema',
         ApiError: 'apiErrorSchema',
-        NestHttpError: 'nestHttpErrorSchema',
-        ValidationError: 'validationErrorSchema',
-        ThrottleError: 'throttleErrorSchema',
+        RecipeApiError: 'recipeApiErrorSchema',
         HealthStatus: 'healthStatusSchema',
-        HealthUnavailable: 'healthUnavailableSchema',
         Recipe: 'recipeSchema',
         RecipeDetail: 'recipeDetailSchema',
         PaginatedRecipes: 'paginatedResponseSchema',

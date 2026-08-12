@@ -11,8 +11,9 @@
 /**
  * Fingerprint of the recipe service's authored wire contract (service-embedded copy).
  *
- * SHA-256 over the authored `*.schema.ts` sources. The generator writes this value into BOTH the
- * service and the schema package, so a consumer pinned to an older schema package can detect that
- * the service it is talking to has moved ahead of it.
+ * SHA-256 over the authored `*.schema.ts` sources AND the composed sources they transitively
+ * reach (see @kitchensink/contract-gen composed-sources.ts). The generator writes this value into
+ * BOTH the service and the schema package, so a consumer pinned to an older schema package can
+ * detect that the service it is talking to has moved ahead of it.
  */
-export const CONTRACT_HASH = '2381e1b2d502ea80a73e41836d403a51c2b6cab8b2f0f92957f88a70a1e28125';
+export const CONTRACT_HASH = 'c3136e64c7f1dee9665fffe1c7713f9e09c844be2083ba53419fefbb8da6f409';

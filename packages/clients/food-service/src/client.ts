@@ -12,6 +12,21 @@
  *
  * @implements FR-047
  */
+import type { z } from 'zod';
+// The RUNTIME zod from the contract the food service OWNS and publishes — the same definitions the service
+// validates its own responses' shapes against, so this client parses rather than believes (§15, rule 4).
+import {
+    addResponseSchema,
+    batchResponseSchema,
+    candidatesResponseSchema,
+    foodResponseSchema,
+    pendingFoodStatusSchema,
+    pendingResponseSchema,
+    resolveResponseSchema,
+    searchResponseSchema,
+    statusResponseSchema,
+} from '@kitchensink/schema-food';
+
 import { reportContractSkewOnce } from './contractSkew.js';
 import {
     BadRequestError,
@@ -29,9 +44,7 @@ import type {
     BatchResult,
     CandidatesResult,
     FoodStatus,
-    FoodView,
     GetFoodResult,
-    PendingResponse,
     ResolveResult,
     SearchResult,
     StatusResult,
@@ -112,11 +125,7 @@ export class FoodServiceClient {
     public async addByName(name: string): Promise<AddResult> {
         const res = await this.send('POST', '/api/v1/foods', { name });
 
-        if (res.status === 202) {
-            return res.body as AddResult;
-        }
-
-        throw this.toError(res, '');
+        return this.expect<AddResult>(res, 202, addResponseSchema);
     }
 
     /**
@@ -130,11 +139,13 @@ export class FoodServiceClient {
     public async batch(names: readonly string[]): Promise<BatchResult> {
         const res = await this.send('POST', '/api/v1/foods/batch', { names });
 
-        if (res.status >= 200 && res.status < 300) {
-            return res.body as BatchResult;
-        }
-
-        throw this.toError(res, '');
+        // 201, not 200 — and that is worth pinning rather than tolerating. `POST /api/v1/foods/batch` carries no
+        // `@HttpCode` and does not set a status on the response, so it gets Nest's POST default of 201 (asserted
+        // by `tests/foods-api.integration.test.ts`). The old check here was `res.status >= 200 && res.status < 300`,
+        // which accepted ANY 2xx and so hid which one the service actually sends — a range that would also have
+        // returned a `204`'s empty body as a `BatchResult` of `undefined`. Naming the exact status means a
+        // service-side change to it now fails loudly here instead of silently.
+        return this.expect<BatchResult>(res, 201, batchResponseSchema);
     }
 
     /**
@@ -149,17 +160,33 @@ export class FoodServiceClient {
         const res = await this.send('GET', `/api/v1/foods/${encodeURIComponent(id)}`);
 
         if (res.status === 200) {
-            return { status: 'RESOLVED', food: res.body as FoodView };
+            return { status: 'RESOLVED', food: foodResponseSchema.parse(res.body) };
         }
 
         if (res.status === 202) {
             // The `202` body's shape is the service's `PendingResponse`, NOT a shape this client gets to
             // restate: an inline `{ id; status; estimatedWaitSeconds? }` here was a hand-written wire type on
             // the far side of a boundary that could not typecheck against the server (CODING_STANDARDS §15).
-            const body = res.body as PendingResponse;
+            //
+            // Now PARSED rather than cast, which also retires the `body.status as 'PENDING' | 'UNRESOLVED'`
+            // narrowing below it. That cast was the sharpest edge in this file: `PendingResponse.status` is the
+            // FULL five-value lifecycle enum, so the cast asserted a two-value narrowing that nothing checked.
+            // A service answering `202` with `RESOLVED`/`NOT_FOUND`/`FAILED` — a bug, but a reachable one —
+            // produced a `GetFoodResult` whose `status` was outside its own declared union, and every
+            // downstream exhaustive `switch` on it would silently fall through.
+            //
+            // ⚠️ FINDING, worked around here rather than silently: `pendingResponseSchema.status` is the FULL
+            // five-value `foodStatusSchema`, even though only `PENDING`/`UNRESOLVED` can legitimately answer a
+            // 202 — and `pendingFoodStatusSchema` (exactly those two) exists in the same authored file but is
+            // not used by it, while `getFoodResultSchema`'s pending arm DOES use it. So the service's own
+            // contract disagrees with itself about what a 202 carries. Tightening the published response is a
+            // service-side contract change and out of scope here, so the invariant is enforced at THIS
+            // boundary: the envelope is parsed, then the status is parsed against the two-value enum, which is
+            // what this method's own return type promises.
+            const body = pendingResponseSchema.parse(res.body);
 
             return {
-                status: body.status as 'PENDING' | 'UNRESOLVED',
+                status: pendingFoodStatusSchema.parse(body.status),
                 id: body.id,
                 estimatedWaitSeconds: body.estimatedWaitSeconds,
             };
@@ -179,11 +206,7 @@ export class FoodServiceClient {
     public async getStatus(id: string): Promise<StatusResult> {
         const res = await this.send('GET', `/api/v1/foods/${encodeURIComponent(id)}/status`);
 
-        if (res.status === 200) {
-            return res.body as StatusResult;
-        }
-
-        throw this.toError(res, id);
+        return this.expect<StatusResult>(res, 200, statusResponseSchema, id);
     }
 
     /**
@@ -197,11 +220,7 @@ export class FoodServiceClient {
     public async getCandidates(id: string): Promise<CandidatesResult> {
         const res = await this.send('GET', `/api/v1/foods/${encodeURIComponent(id)}/candidates`);
 
-        if (res.status === 200) {
-            return res.body as CandidatesResult;
-        }
-
-        throw this.toError(res, id);
+        return this.expect<CandidatesResult>(res, 200, candidatesResponseSchema, id);
     }
 
     /**
@@ -215,11 +234,7 @@ export class FoodServiceClient {
     public async search(query: string): Promise<SearchResult> {
         const res = await this.send('GET', `/api/v1/foods/search?query=${encodeURIComponent(query)}`);
 
-        if (res.status === 200) {
-            return res.body as SearchResult;
-        }
-
-        throw this.toError(res, '');
+        return this.expect<SearchResult>(res, 200, searchResponseSchema);
     }
 
     /**
@@ -236,11 +251,7 @@ export class FoodServiceClient {
     public async resolve(id: string, candidateIds: readonly string[]): Promise<ResolveResult> {
         const res = await this.send('PATCH', `/api/v1/foods/${encodeURIComponent(id)}`, { candidateIds });
 
-        if (res.status === 200) {
-            return res.body as ResolveResult;
-        }
-
-        throw this.toError(res, id);
+        return this.expect<ResolveResult>(res, 200, resolveResponseSchema, id);
     }
 
     /**
@@ -312,6 +323,38 @@ export class FoodServiceClient {
             body: text.length > 0 ? JSON.parse(text) : undefined,
             retryAfterSeconds: retryAfter !== null && retryAfter.length > 0 ? Number(retryAfter) : undefined,
         };
+    }
+
+    /**
+     * On the expected success `status`, **parse** the body with `schema` and return the validated value;
+     * otherwise throw the typed error for the status.
+     *
+     * PARSE, DON'T VALIDATE, at the wire boundary. Every success path in this client used to end in
+     * `return res.body as T` — eight of them — which asserts a shape instead of establishing one. The
+     * consequence was not theoretical: the `as` made the client's beliefs about the server unfalsifiable at
+     * runtime, so a response that had drifted from the contract surfaced as a mystery `undefined` deep inside a
+     * caller (the recipe service's ingredient path, a web component) rather than as a loud failure at the edge
+     * that names the field. The `@kitchensink/schema-food` zod parsed here is the SAME definition the food
+     * service authors and validates its own requests with, so there is one representation of the contract and
+     * this side can no longer disagree with it silently.
+     *
+     * The `as T` bridges the schema's inferred output to the (deprecated-alias) result type, and is safe
+     * precisely BECAUSE `schema.parse` has already validated the runtime shape — the opposite situation to the
+     * casts it replaces.
+     *
+     * @param res - The normalized response.
+     * @param status - The status that means success for this call.
+     * @param schema - The published schema for that success body.
+     * @returns The validated body.
+     * @throws the typed error (via {@link toError}) on any other status, or a `ZodError` when the body does not
+     *   match the published contract.
+     */
+    private expect<T>(res: RawResponse, status: number, schema: z.ZodType, id = ''): T {
+        if (res.status === status) {
+            return schema.parse(res.body) as T;
+        }
+
+        throw this.toError(res, id);
     }
 
     /** Resolve the configured token (literal or callback), or `undefined` for an unauthenticated call. */

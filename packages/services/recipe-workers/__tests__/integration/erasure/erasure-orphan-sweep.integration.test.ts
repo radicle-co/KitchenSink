@@ -109,8 +109,8 @@ describe.skipIf(!canRun)('erasure-orphan sweep — completed-owner reconciliatio
             INSERT INTO account_erasure_jobs (owner_id, status, removed_recipe_ids, created_at, updated_at)
             VALUES (
                 ${ownerId}, ${status}, ${JSON.stringify(removedRecipeIds)}::jsonb,
-                now() - ${sql.raw(`interval '${updatedMinutesAgo} minutes'`)},
-                now() - ${sql.raw(`interval '${updatedMinutesAgo} minutes'`)}
+                now() - ${`${updatedMinutesAgo} minutes`}::interval,
+                now() - ${`${updatedMinutesAgo} minutes`}::interval
             )
         `);
     }

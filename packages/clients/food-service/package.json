@@ -31,6 +31,7 @@
         "node": "24.x"
     },
     "dependencies": {
-        "@kitchensink/schema-food": "*"
+        "@kitchensink/schema-food": "*",
+        "zod": "^4.4.3"
     }
 }

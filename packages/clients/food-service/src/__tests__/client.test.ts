@@ -92,7 +92,9 @@ describe('FoodServiceClient — request build + token attach', () => {
     });
 
     it('URL-encodes the search query and path ids', async () => {
-        const fetchMock = stubFetch(200, { id: 'food x', status: 'NOT_FOUND' });
+        // A VALID `SearchResponse` body: the client parses responses now, so a stub that is not a real search
+        // response fails at the boundary before the assertion about the URL can be reached.
+        const fetchMock = stubFetch(200, { results: [] });
         const client = new FoodServiceClient({ baseUrl: BASE, fetch: fetchMock });
 
         await client.search('chicken breast');
@@ -103,7 +105,18 @@ describe('FoodServiceClient — request build + token attach', () => {
 
 describe('FoodServiceClient — getById result mapping', () => {
     it('200 → RESOLVED with the golden record', async () => {
-        const food = { id: 'food_1', status: 'RESOLVED', nutrients: [], portions: [], provenance: {} };
+        // Every field `foodResponseSchema` requires — `name`, `description` and `kind` were absent, so the old
+        // stub was not a golden record at all. The cast this test used to exercise could not tell; the parse can.
+        const food = {
+            id: 'food_1',
+            name: 'Chicken breast',
+            description: 'raw',
+            kind: 'generic',
+            status: 'RESOLVED',
+            nutrients: [],
+            portions: [],
+            provenance: {},
+        };
         const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(200, food) });
 
         const result = await client.getById('food_1');
@@ -384,5 +397,64 @@ describe('FoodServiceClient — contract-skew reporting', () => {
             String(call[0]).endsWith('/health'),
         );
         expect(healthProbes).toHaveLength(1);
+    });
+});
+
+/**
+ * RESPONSE VALIDATION AT THE WIRE BOUNDARY (§15, rule 4).
+ *
+ * Every success path in this client used to end in `return res.body as T` — eight of them. A cast asserts a
+ * shape rather than establishing one, so the client's beliefs about the server were unfalsifiable at runtime:
+ * a response that had drifted from the published contract did not fail here, it surfaced later as a mystery
+ * `undefined` inside a caller (the recipe service's ingredient path, or a web component) with nothing pointing
+ * back at the wire. The sibling `recipe-service` client already parsed; this one did not.
+ *
+ * These cases are the mutation guard. Each feeds a body that is WRONG in one specific way and asserts the call
+ * rejects, so restoring any `as` cast reds the case for that method. Note they are not merely "parses the happy
+ * path" — the fixtures above already cover that, and they passed while the casts were still in place, which is
+ * exactly why the negative cases have to exist.
+ */
+describe('FoodServiceClient — a drifted response FAILS at the boundary, not deep in a caller', () => {
+    const drifted: ReadonlyArray<readonly [string, number, unknown, (client: FoodServiceClient) => Promise<unknown>]> =
+        [
+            // A field the contract requires is missing.
+            ['search: no `results` array', 200, {}, (c) => c.search('kale')],
+            ['getStatus: no `status`', 200, { id: 'food_1' }, (c) => c.getStatus('food_1')],
+            ['getCandidates: no `candidates`', 200, { id: 'food_1' }, (c) => c.getCandidates('food_1')],
+            ['addByName: no `status`', 202, { id: 'food_1' }, (c) => c.addByName('kale')],
+            ['batch: no `items`', 201, {}, (c) => c.batch(['kale'])],
+            ['resolve: no `status`', 200, { id: 'food_1' }, (c) => c.resolve('food_1', ['cand_1'])],
+            [
+                'getById: a golden record missing `kind`',
+                200,
+                { id: 'f', name: 'n', description: 'd' },
+                (c) => c.getById('f'),
+            ],
+            // A field is present but the WRONG TYPE — the case a presence-only check would miss.
+            ['search: `results` is an object, not an array', 200, { results: {} }, (c) => c.search('kale')],
+            ['getStatus: `status` is a number', 200, { id: 'f', status: 7 }, (c) => c.getStatus('f')],
+            // A 202 answered with a status only a 200/404 may carry. `pendingResponseSchema.status` is the FULL
+            // five-value enum (a looseness in the service's own contract, noted in `client.ts`), so this is
+            // caught by the client's extra `pendingFoodStatusSchema` parse — without which a `GetFoodResult`
+            // would carry a status outside its own declared union and every exhaustive `switch` on it would
+            // silently fall through.
+            [
+                'getById 202: a terminal `NOT_FOUND` status',
+                202,
+                { id: 'f', status: 'NOT_FOUND' },
+                (c) => c.getById('f'),
+            ],
+        ];
+
+    it.each(drifted)('rejects %s', async (_label, status, body, call) => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(status, body) });
+
+        await expect(call(client)).rejects.toThrow();
+    });
+
+    it('still returns a VALID body unchanged — the parse narrows, it does not rewrite', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: stubFetch(200, { results: [] }) });
+
+        await expect(client.search('kale')).resolves.toEqual({ results: [] });
     });
 });

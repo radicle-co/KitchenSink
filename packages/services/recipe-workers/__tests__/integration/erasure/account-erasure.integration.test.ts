@@ -157,10 +157,18 @@ describe.skipIf(!canRun)('account-erasure worker — scoped erasure on the real 
         return row.rows[0]!.id;
     }
 
-    /** Count rows in `table` where `column = value`. `table`/`column` are test-controlled literals. */
+    /**
+     * Count rows in `table` where `column = value`.
+     *
+     * `table` and `column` are IDENTIFIERS, and SQL has no parameter form for an identifier — which is exactly
+     * the case the `sql.raw` ban's message points at. The answer is drizzle's own `sql.identifier`, not a raw
+     * splice: it emits a properly quoted identifier and doubles any embedded quote, so a hostile name becomes
+     * one harmless quoted identifier (verified: `a"; DROP TABLE t; --` renders as `"a""; DROP TABLE t; --"`)
+     * rather than new SQL. `value` stays a bound parameter as before.
+     */
     async function count(table: string, column: string, value: string): Promise<number> {
         const result = await db.execute<CountRow>(
-            sql`SELECT count(*)::int AS count FROM ${sql.raw(table)} WHERE ${sql.raw(column)} = ${value}`,
+            sql`SELECT count(*)::int AS count FROM ${sql.identifier(table)} WHERE ${sql.identifier(column)} = ${value}`,
         );
 
         return result.rows[0]?.count ?? 0;

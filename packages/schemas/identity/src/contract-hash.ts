@@ -11,8 +11,9 @@
 /**
  * Fingerprint of the identity service's authored wire contract (schema package copy).
  *
- * SHA-256 over the authored `*.schema.ts` sources. The generator writes this value into BOTH the
- * service and the schema package, so a consumer pinned to an older schema package can detect that
- * the service it is talking to has moved ahead of it.
+ * SHA-256 over the authored `*.schema.ts` sources AND the composed sources they transitively
+ * reach (see @kitchensink/contract-gen composed-sources.ts). The generator writes this value into
+ * BOTH the service and the schema package, so a consumer pinned to an older schema package can
+ * detect that the service it is talking to has moved ahead of it.
  */
 export const CONTRACT_HASH = 'f476327ac251295be408037be4a85b4c6628f72386729cd113b18d6166fc3bf0';

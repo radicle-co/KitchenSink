@@ -10,20 +10,13 @@
  * body. Deferring the import is what makes the ordering real instead of asserted-in-a-comment.
  * `__tests__/main-boot-order.test.ts` fails if the static form comes back.
  */
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { CONTRACT_HASH as SCHEMA_PACKAGE_CONTRACT_HASH } from '@kitchensink/schema-recipe';
 
-import { buildCorsOptions } from './config/cors.js';
+import { buildCorsPolicy } from './config/cors.js';
 import { CONTRACT_HASH } from './contract/contract-hash.js';
 import { assertContractHashesAgree } from './contract/contract-skew.js';
-
-/** Parse a comma-separated env allowlist into trimmed, non-empty entries (mirrors identity's parser). */
-function parseCommaList(raw: string | undefined): string[] {
-    return (raw ?? '')
-        .split(',')
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0);
-}
 
 async function bootstrap(): Promise<void> {
     // DRIFT LAYER 3 (Skew) — the FIRST thing this process does, before config is validated, before the DI graph
@@ -37,9 +30,20 @@ async function bootstrap(): Promise<void> {
     const { AppModule } = await import('./app.module.js');
     const app = await NestFactory.create(AppModule);
 
-    // Cross-origin browser calls from the web app need CORS; reuse the Clerk authorized-parties allowlist
-    // as the origin allowlist (same trust boundary), mirroring the identity service. See config/cors.ts.
-    app.enableCors(buildCorsOptions(parseCommaList(process.env['CLERK_AUTHORIZED_PARTIES'])));
+    // Cross-origin browser calls from the web app need CORS. The origin allowlist is DERIVED from the same
+    // Clerk `azp` boundary the token check uses (`config/cors.ts`), per environment, and DENIES when nothing
+    // is configured. The resolved mode is logged because "which posture is live" was previously unobservable:
+    // an empty `CLERK_AUTHORIZED_PARTIES` list silently became `origin: true` — reflect any origin — on
+    // sandbox and on every `pr-{N}`.
+    const cors = buildCorsPolicy({
+        nodeEnv: process.env['NODE_ENV'],
+        authorizedPartiesRaw: process.env['CLERK_AUTHORIZED_PARTIES'],
+        previewBaseDomain: process.env['CLERK_AZP_PATTERN'],
+        previewMode: process.env['CLERK_AZP_PREVIEW_MODE'],
+    });
+
+    app.enableCors(cors.options);
+    new Logger('bootstrap').log(`CORS origin mode: ${cors.mode}`);
 
     await app.listen(process.env['PORT'] ?? 3000);
 }

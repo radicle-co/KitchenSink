@@ -147,7 +147,8 @@ const handleUserCreated = async (
     // (~$0.30/mo, 15-month retention), so a per-user dimension costs one metric PER USER — ~$3,000/mo at 10k
     // users — for a series holding one datapoint that aggregates to nothing. The id is on the log line below,
     // where it is searchable AND pseudonymized by `sentry-scrubbers.ts`; the EMF line goes straight to stdout
-    // and never passes a scrubber. Enforced by `src/common/__tests__/emf-dimension-cardinality.test.ts`.
+    // and never passes a scrubber. Enforced repo-wide by
+    // `packages/infra/global/__tests__/emf-identifier-dimension-repo-gate.test.ts`.
     emitMetric('UserCreatedWebhook', 1);
     logger.info('identity-webhook: user.created processed', { requestId, identityId: data.id, userId: user.id });
 };

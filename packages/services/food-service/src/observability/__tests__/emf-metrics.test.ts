@@ -70,6 +70,23 @@ describe('emf-metrics', () => {
             expect(payload['source']).toBe('usda');
             expect(payload['source-rolling-window-count']).toBe(42);
         });
+
+        /**
+         * A dimension with no value must not be DECLARED, because CloudWatch would then look for a field
+         * `JSON.stringify` has already dropped and reject the whole line — losing the metric silently, which
+         * is the worst outcome for an emitter whose only job is to make a failure visible. Reachable now that
+         * `dimensions` is an allowlisted PARTIAL bag: `{ source: undefined }` typechecks.
+         */
+        it('declares no dimension for a facet whose value is absent', () => {
+            const payload = buildEmf({
+                metrics: [{ name: FOOD_METRIC.sourceRollingWindowCount, value: 1, unit: 'Count' }],
+                dimensions: { source: undefined },
+                timestamp: 1,
+            });
+
+            expect(payload._aws.CloudWatchMetrics[0].Dimensions).toEqual([[]]);
+            expect(Object.keys(payload)).not.toContain('source');
+        });
     });
 
     describe('emitMetric', () => {

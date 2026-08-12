@@ -45,6 +45,39 @@ export const FOOD_METRIC = {
 /** A CloudWatch metric unit (the subset the food worker emits). */
 export type MetricUnit = 'Count' | 'Seconds' | 'Milliseconds' | 'Percent' | 'None';
 
+/**
+ * The facets a food metric may be grouped BY — a CLOSED set, and that is the point.
+ *
+ * ⚠️ THIS USED TO BE `Record<string, string>`, i.e. an arbitrary dimension bag, and an arbitrary dimension bag
+ * is a cost bomb with the safety catch off. In CloudWatch EMF every distinct combination of dimension VALUES is
+ * a separately billed custom metric (~$0.30/month, 15-month retention), so one `dimensions: { userId }` turns
+ * this namespace into one billed series per user — the defect `identity-webhooks` shipped at eight call sites
+ * (`06107d97`: ≈ $3,000/month at 10k users, for series that each hold one datapoint and aggregate to nothing
+ * chartable). Food was clean only by habit; nothing in the type stopped the next contributor.
+ *
+ * Naming the facets makes that unrepresentable rather than merely discouraged: `dimensions: { userId }` no
+ * longer compiles. The repo-wide AST gate
+ * (`packages/infra/global/__tests__/emf-identifier-dimension-repo-gate.test.ts`) is the second line — it holds
+ * the same rule for every service, including the ones whose emitters cannot be closed this cheaply, and its
+ * docstring carries the full arithmetic plus the PRIVACY reason an identifier does not belong in an unbilled
+ * EMF property either.
+ *
+ * ⛔ Widening this union is a deliberate decision, not a formality. A new facet multiplies the billed series
+ * count by its own cardinality, so state the bound; and if the emitter starts attaching it UNCONDITIONALLY,
+ * `service-infra-wiring-invariants.test.ts`'s W4 will require every `Commise/Food` alarm to select it, because
+ * EMF publishes only the dimension sets the directive lists — there is no dimensionless rollup to fall back on.
+ *
+ * `source` qualifies because its value space is the registered source adapters (`usda`, …), which is bounded by
+ * code rather than by traffic.
+ */
+export type FoodMetricDimension = 'source';
+
+/**
+ * A dimension bag: allowlisted facet → value. Partial, because most food metrics carry no dimension at all —
+ * see {@link buildEmf} for why an explicitly `undefined` value is dropped rather than declared.
+ */
+export type FoodMetricDimensions = Readonly<Partial<Record<FoodMetricDimension, string>>>;
+
 /** One metric value to embed in an EMF record. */
 export interface MetricDatum {
     /** The metric name (use a {@link FOOD_METRIC} value). */
@@ -60,7 +93,7 @@ export interface EmfInput {
     /** The metrics published in this record (all share the dimension set + timestamp). */
     readonly metrics: readonly MetricDatum[];
     /** Optional dimensions (e.g. `{ source: 'usda' }`); each key becomes a CloudWatch dimension. */
-    readonly dimensions?: Readonly<Record<string, string>>;
+    readonly dimensions?: FoodMetricDimensions;
     /** Namespace override (defaults to {@link FOOD_METRIC_NAMESPACE}). */
     readonly namespace?: string;
     /** Epoch-millis timestamp (defaults to `Date.now()`). */
@@ -94,13 +127,20 @@ export interface EmfPayload {
  * Build a CloudWatch EMF record from a set of metrics + optional dimensions. Pure given its
  * `timestamp` (defaults to `Date.now()`, the only impurity).
  *
+ * A facet present with an `undefined` value is DROPPED rather than declared. `JSON.stringify` omits an
+ * `undefined` field, so declaring the key anyway would ship a directive naming a dimension the line does not
+ * carry — which CloudWatch rejects, discarding the whole record. Losing a metric silently is the worst failure
+ * an emitter can have, since its entire job is to make a problem visible.
+ *
  * @param input - The metrics, optional dimensions, namespace, and timestamp.
  * @returns The serializable EMF payload.
  */
 export function buildEmf(input: EmfInput): EmfPayload {
     const namespace = input.namespace ?? FOOD_METRIC_NAMESPACE;
     const timestamp = input.timestamp ?? Date.now();
-    const dimensions = input.dimensions ?? {};
+    const dimensions = Object.fromEntries(
+        Object.entries(input.dimensions ?? {}).filter((entry): entry is [string, string] => entry[1] !== undefined),
+    );
     const dimensionKeys = Object.keys(dimensions);
 
     const payload: Record<string, unknown> = {

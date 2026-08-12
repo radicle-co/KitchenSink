@@ -282,7 +282,7 @@ describe('identity-webhook handler', () => {
     // holding a single datapoint each. This asserts BOTH halves of the fix on the same invocation: the metric
     // carries no per-user dimension, AND the identifier is still emitted, as a structured log attribute (where
     // `sentry-scrubbers.ts` pseudonymizes it; the EMF line goes to raw stdout and passes no scrubber).
-    // `src/common/__tests__/emf-dimension-cardinality.test.ts` is the tree-wide version of the same rule.
+    // `packages/infra/global/__tests__/emf-identifier-dimension-repo-gate.test.ts` is the repo-wide version of the same rule.
     it('user.created -> counts the event with NO per-user dimension, and keeps the id on the log line', async () => {
         const { db } = buildMockDb();
         mockGetDb.mockResolvedValue(db);

@@ -54,7 +54,7 @@ const fanOutOrThrow = async (target: ErasureFanoutTarget): Promise<void> => {
 
     if (failed.length > 0) {
         // Dimensionless: a per-owner dimension is one separately billed custom metric per user
-        // (`src/common/__tests__/emf-dimension-cardinality.test.ts`). The owner id moves to the structured log
+        // (`packages/infra/global/__tests__/emf-identifier-dimension-repo-gate.test.ts`). The owner id moves to the structured log
         // below — which it was NOT on before: it existed only inside the thrown message, and `scrubText`
         // pseudonymizes an embedded Clerk `sub` but deliberately leaves a bare ULID to the structured-attribute
         // path. So this log line is both the diagnostic and the scrubbed home for the id.

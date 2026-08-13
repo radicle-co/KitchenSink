@@ -12,7 +12,13 @@
  * site rather than only in the shared client.
  *
  * `@clerk/expo` (the native token source) and the global `fetch` are mocked, so these cover the hook's own request
- * contract in isolation; the on-device picker + real S3 PUT are exercised by the Maestro flow.
+ * contract in isolation.
+ *
+ * ⚠️ AND NOTHING ABOVE THIS LAYER COVERS IT. This header used to close by saying "the on-device picker + real S3
+ * PUT are exercised by the Maestro flow"; measured 2026-08-12, no such flow exists — the only `avatar` mention
+ * under `.maestro/` is navigational (`account-danger-zone.yaml` reaching ProfileScreen via the Profile tab). So
+ * the picker → presign → PUT happy path has no mobile e2e flow, which the testing policy requires. Recorded here
+ * rather than repeated as a claim, because an inherited sentence asserting coverage is what stops anyone looking.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';

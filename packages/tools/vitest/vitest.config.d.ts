@@ -7,6 +7,9 @@ import type { UserConfig } from 'vitest/config';
  * The test property is typed as UserConfig['test'] to ensure compatibility with
  * Vitest's configuration schema and enable IDE autocomplete for test options.
  */
+/** Test timeout for a suite whose assertions run a CDK synth (ms). See the implementation's note. */
+export declare const CDK_SYNTH_TEST_TIMEOUT_MS: number;
+
 export declare const baseConfig: {
     test: UserConfig['test'];
     resolve: {

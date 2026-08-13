@@ -83,7 +83,10 @@ async function compileAppCss(): Promise<string> {
 function ruleFor(css: string, utility: string): string | undefined {
     // Escape every regex metacharacter, not just `-`: a partial escape silently mis-parses any utility
     // carrying a `.`, `[` or `\` (arbitrary-value utilities do), and leaves the literal match only apparently exact.
-    const escaped = utility.replace(/[.*+?^${}()|[\]\\-]/gu, '\\$&');
+    // `-` is deliberately NOT in the set: it is literal outside a character class, and escaping it emits `\-`,
+    // which a `u`-flagged pattern rejects as an invalid escape — so every utility carrying a hyphen (`size-8`,
+    // `h-14`, i.e. nearly all of them) threw at construction.
+    const escaped = utility.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
     const match = new RegExp(`\\.${escaped}\\s*\\{([^}]*)\\}`, 'u').exec(css);
 
     return match?.[1].replace(/\s+/g, '').replace(/;$/, '');

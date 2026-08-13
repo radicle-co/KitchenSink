@@ -1,5 +1,5 @@
 import { defineConfig, mergeConfig } from 'vitest/config';
-import { baseConfig } from '@kitchensink/vitest';
+import { baseConfig, CDK_SYNTH_TEST_TIMEOUT_MS } from '@kitchensink/vitest';
 
 /**
  * Default (unit) test config for `@kitchensink/recipe-workers`. Inherits the shared `__tests__/**​/*.test.ts`
@@ -16,6 +16,8 @@ export default mergeConfig(
     defineConfig({
         test: {
             passWithNoTests: true,
+            // `infra/__tests__` synthesizes the workers stack; see the constant's note.
+            testTimeout: CDK_SYNTH_TEST_TIMEOUT_MS,
             exclude: ['**/node_modules/**', '**/dist/**', '**/__tests__/integration/**'],
         },
     }),

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { route } from './utils/basePath';
-import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { E2E_INGREDIENT_IDS, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -186,7 +186,13 @@ test.describe('recipe search (T110)', () => {
                     ownerId: 'usr_other',
                     title: 'Tropical Fruit Salad',
                     ingredients: [
-                        { ingredientId: 'ing_mango', name: 'Mango', quantity: 1, unit: 'each', isUserEntered: false },
+                        {
+                            ingredientId: E2E_INGREDIENT_IDS.mango,
+                            name: 'Mango',
+                            quantity: 1,
+                            unit: 'each',
+                            isUserEntered: false,
+                        },
                     ],
                 }),
             ],

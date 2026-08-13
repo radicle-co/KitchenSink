@@ -16,7 +16,7 @@ import {
     MAX_RECIPE_DESCRIPTION_LENGTH,
     MAX_RECIPE_TITLE_LENGTH,
 } from '@kitchensink/recipe-core';
-import { createRecipeRequestSchema } from '@kitchensink/schema-recipe';
+import { createRecipeRequestSchema, updateRecipeRequestSchema } from '@kitchensink/schema-recipe';
 
 import {
     canAdvanceFromStep,
@@ -198,6 +198,32 @@ describe('toUpdateRecipeInput (three-state difficulty)', () => {
     it('carries a given status verbatim (draft or published)', () => {
         expect(toUpdateRecipeInput(filledValues(), RecipeStatus.DRAFT).status).toBe('draft');
         expect(toUpdateRecipeInput(filledValues(), RecipeStatus.PUBLISHED).status).toBe('published');
+    });
+});
+
+/**
+ * The projections must satisfy the bodies they claim to produce — PARSED, not compared field-by-field.
+ *
+ * Every other assertion above checks the mapper's shape against hand-named keys, which is why a body the
+ * published contract rejects could pass the whole suite. `RecipeServiceClient` now parses OUTBOUND
+ * (`this.request(...)`), so a body that fails here never reaches the network: the client throws
+ * `InvalidRequestError` and the editor surfaces a generic save failure with no request in the log. That is a
+ * silent, total loss of save — which is what these two assertions exist to make loud.
+ */
+describe('the form projections satisfy their published request contracts', () => {
+    it('toUpdateRecipeInput produces a body updateRecipeRequestSchema accepts', () => {
+        const body = { ...toUpdateRecipeInput(filledValues(), RecipeStatus.PUBLISHED), expectedVersion: 1 };
+        const parsed = updateRecipeRequestSchema.safeParse(body);
+
+        expect(parsed.error?.issues ?? []).toEqual([]);
+        expect(parsed.success).toBe(true);
+    });
+
+    it('toCreateRecipeInput produces a body createRecipeRequestSchema accepts', () => {
+        const parsed = createRecipeRequestSchema.safeParse(toCreateRecipeInput(filledValues()));
+
+        expect(parsed.error?.issues ?? []).toEqual([]);
+        expect(parsed.success).toBe(true);
     });
 });
 

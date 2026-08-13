@@ -3,7 +3,13 @@ import type { Page } from '@playwright/test';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import { route } from './utils/basePath';
-import { makeRecipeDetail, makeRecipeVersion, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import {
+    E2E_INGREDIENT_IDS,
+    makeRecipeDetail,
+    makeRecipeVersion,
+    mockRecipeApi,
+    readViewerAppId,
+} from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
@@ -34,7 +40,7 @@ const RECIPE_ID = 'rec_pasta';
 const oliveOil = {
     id: 'ri_1',
     recipeId: RECIPE_ID,
-    ingredientId: 'ing_olive_oil',
+    ingredientId: E2E_INGREDIENT_IDS.oliveOil,
     quantity: 2,
     unit: 'tbsp',
     sortOrder: 1,

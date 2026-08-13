@@ -31,6 +31,7 @@ import type {
     CollectionResponse as SchemaCollectionResponse,
     CollectionWithRecipesResponse as SchemaCollectionWithRecipesResponse,
 } from '@kitchensink/schema-recipe';
+import { makeUserProfileAccount, makeUserProfileUser } from '@commise/features-account/testing';
 
 /**
  * The mock "S3" origin the presign step hands back as `uploadUrl` (T067/CP-6/P3 photo-upload e2e). A
@@ -229,7 +230,7 @@ export function makeRecipeDetail(over: Partial<RecipeDetail> = {}): RecipeDetail
     return {
         ...makeRecipe(over),
         ingredients: over.ingredients ?? [
-            { ingredientId: 'ing_salt', name: 'Salt', quantity: 1, unit: 'tsp', isUserEntered: false },
+            { ingredientId: E2E_INGREDIENT_IDS.salt, name: 'Salt', quantity: 1, unit: 'tsp', isUserEntered: false },
         ],
         steps: over.steps ?? [{ stepNumber: 1, instruction: 'Combine and cook.' }],
         photos: over.photos ?? [],
@@ -249,7 +250,7 @@ function makeVersionSnapshot(over: Partial<RecipeSnapshot> = {}): RecipeSnapshot
             {
                 id: 'ri_seed_1',
                 recipeId: 'rec_seed',
-                ingredientId: 'ing_salt',
+                ingredientId: E2E_INGREDIENT_IDS.salt,
                 quantity: 1,
                 unit: 'tsp',
                 sortOrder: 1,
@@ -552,8 +553,23 @@ function toSearchFacets(recipes: readonly Recipe[]): RecipeSearchFacets {
     };
 }
 
+/**
+ * Catalog ingredient ids, as UUIDs rather than readable `ing_*` slugs.
+ *
+ * `recipeIngredientIdSchema` is `z.uuid()`, and `RecipeServiceClient` now PARSES its outbound bodies — so a
+ * slug id makes every save throw `InvalidRequestError` client-side: no request reaches the wire, and the
+ * editor shows a bare "We couldn't save this recipe". A seed the real service could never have returned
+ * therefore fails the specs that edit it, not the ones that merely render it.
+ */
+export const E2E_INGREDIENT_IDS = {
+    salt: '11111111-1111-4111-8111-111111111111',
+    blackPepper: '22222222-2222-4222-8222-222222222222',
+    oliveOil: '33333333-3333-4333-8333-333333333333',
+    mango: '44444444-4444-4444-8444-444444444444',
+} as const;
+
 const catalogIngredient: Ingredient = {
-    id: 'ing_salt',
+    id: E2E_INGREDIENT_IDS.salt,
     name: 'Salt',
     foodId: 'food_salt',
     isUserEntered: false,
@@ -570,7 +586,7 @@ const catalogSuggestionName = 'Pepper, black, ground';
 
 /** The `ingredients` row `POST /api/v1/ingredients/by-food` creates for {@link catalogSuggestionFoodId}. */
 const admittedCatalogIngredient: Ingredient = {
-    id: 'ing_black_pepper',
+    id: E2E_INGREDIENT_IDS.blackPepper,
     name: catalogSuggestionName,
     foodId: catalogSuggestionFoodId,
     foodResolutionStatus: FoodResolutionStatus.RESOLVED,
@@ -888,12 +904,15 @@ export async function mockRecipeApi(
         const body = (): Record<string, unknown> =>
             request.postData() ? JSON.parse(request.postData() as string) : {};
 
-        // Identity profile → drives the premium visibility gate.
+        // Identity profile → drives the premium visibility gate. Built from the published contract's factories
+        // rather than a literal: `ProfileServiceClient.getMe` PARSES this against `userProfileSchema`, so a body
+        // short of its seven `user` / five `account` fields fails the query and silently re-gates the viewer to
+        // free — which is how a hand-written literal here left the private-visibility control disabled.
         if (path.endsWith('/api/v1/users/me')) {
             return route.fulfill({
                 json: {
-                    user: { id: viewerId, displayName: 'E2E', email: 'e2e@example.com', status: 'active' },
-                    account: { subscriptionTier: tier },
+                    user: makeUserProfileUser({ id: viewerId, displayName: 'E2E', email: 'e2e@example.com' }),
+                    account: makeUserProfileAccount({ userId: viewerId, subscriptionTier: tier }),
                 },
             });
         }
@@ -946,7 +965,9 @@ export async function mockRecipeApi(
         if (path.endsWith('/api/v1/ingredients') && method === 'POST') {
             const { name } = body() as { name?: string };
             const freeform: Ingredient = {
-                id: `ing_freeform_${nextFreeformIngredientId++}`,
+                // A UUID for the same reason as {@link E2E_INGREDIENT_IDS}: this id goes straight onto a recipe
+                // line, and the save that follows parses it against `z.uuid()` before sending.
+                id: `f0000000-0000-4000-8000-${String(nextFreeformIngredientId++).padStart(12, '0')}`,
                 name: name ?? 'Custom ingredient',
                 isUserEntered: true,
                 createdAt: ISO,

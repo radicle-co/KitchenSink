@@ -5,6 +5,21 @@ import { makeCollection, makeRecipeDetail, mockRecipeApi, readViewerAppId } from
 import { signInWithTicket } from './utils/auth';
 
 /**
+ * Recipe ids as UUIDs rather than readable `rec_*` slugs, because THIS spec is the only one that puts a recipe
+ * id in a REQUEST BODY: `addRecipeToCollectionRequestSchema.recipeId` is `z.uuid()`, and the client parses
+ * outbound — so a slug makes "add to collection" throw `InvalidRequestError` before any request, leaving the
+ * membership silently absent. Recipe ids elsewhere in the suite are path params, which are never parsed.
+ */
+const RECIPE_IDS = {
+    pasta: 'a1111111-1111-4111-8111-111111111111',
+    soup: 'a2222222-2222-4222-8222-222222222222',
+    family: 'a3333333-3333-4333-8333-333333333333',
+    risotto: 'a4444444-4444-4444-8444-444444444444',
+    duck: 'a5555555-5555-4555-8555-555555555555',
+    tart: 'a6666666-6666-4666-8666-666666666666',
+} as const;
+
+/**
  * Collections happy path (T109, US1 — "organize recipes into collections"), driven through the real web UI
  * (Next dev server + Clerk session + client hooks + routing) with the recipe-service HTTP contract
  * intercepted (`utils/recipeApi`). The real backend is covered separately by the recipe-service's own e2e +
@@ -64,8 +79,8 @@ test.describe('collections (T109)', () => {
         await mockRecipeApi(page, {
             viewerId,
             recipes: [
-                makeRecipeDetail({ id: 'rec_pasta', ownerId: viewerId, title: 'Weeknight Pasta' }),
-                makeRecipeDetail({ id: 'rec_soup', ownerId: viewerId, title: 'Lentil Soup' }),
+                makeRecipeDetail({ id: RECIPE_IDS.pasta, ownerId: viewerId, title: 'Weeknight Pasta' }),
+                makeRecipeDetail({ id: RECIPE_IDS.soup, ownerId: viewerId, title: 'Lentil Soup' }),
             ],
             // An EMPTY collection — the add flow is what puts a recipe in it.
             collections: [makeCollection({ id: 'col_dinners', ownerId: viewerId, name: 'Weeknight dinners' })],
@@ -102,8 +117,8 @@ test.describe('collections (T109)', () => {
         await mockRecipeApi(page, {
             viewerId,
             recipes: [
-                makeRecipeDetail({ id: 'rec_pasta', ownerId: viewerId, title: 'Weeknight Pasta' }),
-                makeRecipeDetail({ id: 'rec_soup', ownerId: viewerId, title: 'Lentil Soup' }),
+                makeRecipeDetail({ id: RECIPE_IDS.pasta, ownerId: viewerId, title: 'Weeknight Pasta' }),
+                makeRecipeDetail({ id: RECIPE_IDS.soup, ownerId: viewerId, title: 'Lentil Soup' }),
             ],
             // Seeded membership — the app has no add-to-collection control (see the file header).
             collections: [
@@ -111,7 +126,7 @@ test.describe('collections (T109)', () => {
                     id: 'col_dinners',
                     ownerId: viewerId,
                     name: 'Weeknight dinners',
-                    recipeIds: ['rec_pasta', 'rec_soup'],
+                    recipeIds: [RECIPE_IDS.pasta, RECIPE_IDS.soup],
                 }),
             ],
         });
@@ -169,7 +184,7 @@ test.describe('collections (T109)', () => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const recipe = makeRecipeDetail({
-            id: 'rec_family',
+            id: RECIPE_IDS.family,
             ownerId: viewerId,
             title: 'Family Lasagna',
             visibility: 'public',
@@ -179,7 +194,7 @@ test.describe('collections (T109)', () => {
             ownerId: viewerId,
             name: 'Sunday Suppers',
             visibility: 'public',
-            recipeIds: ['rec_family'],
+            recipeIds: [RECIPE_IDS.family],
         });
         await mockRecipeApi(page, {
             viewerId,
@@ -223,19 +238,19 @@ test.describe('collections (T109)', () => {
         const viewerId = await readViewerAppId(page);
         const sourceOwnerId = 'usr_chef_marco';
         const risotto = makeRecipeDetail({
-            id: 'rec_risotto',
+            id: RECIPE_IDS.risotto,
             ownerId: sourceOwnerId,
             title: 'Herb Risotto',
             visibility: 'public',
         });
         const duck = makeRecipeDetail({
-            id: 'rec_duck',
+            id: RECIPE_IDS.duck,
             ownerId: sourceOwnerId,
             title: 'Pan-Seared Duck',
             visibility: 'public',
         });
         const tart = makeRecipeDetail({
-            id: 'rec_tart',
+            id: RECIPE_IDS.tart,
             ownerId: sourceOwnerId,
             title: 'Lemon Tart',
             visibility: 'public',
@@ -245,7 +260,7 @@ test.describe('collections (T109)', () => {
             ownerId: sourceOwnerId,
             name: 'Weekend Picks',
             visibility: 'public',
-            recipeIds: ['rec_risotto', 'rec_duck', 'rec_tart'],
+            recipeIds: [RECIPE_IDS.risotto, RECIPE_IDS.duck, RECIPE_IDS.tart],
         });
         // The clone was seeded BEFORE "Lemon Tart" existed in the source — the source has since drifted
         // ahead by exactly that one recipe, which the preview/commit below must surface.
@@ -254,8 +269,8 @@ test.describe('collections (T109)', () => {
             ownerId: viewerId,
             name: 'Weekend Picks',
             visibility: 'private',
-            recipeIds: ['rec_risotto', 'rec_duck'],
-            memberAddedVia: { rec_risotto: 'clone_seed', rec_duck: 'clone_seed' },
+            recipeIds: [RECIPE_IDS.risotto, RECIPE_IDS.duck],
+            memberAddedVia: { [RECIPE_IDS.risotto]: 'clone_seed', [RECIPE_IDS.duck]: 'clone_seed' },
             sourceCollectionId: 'col_source',
             sourceOwnerHandle: 'chef_marco',
             sourceCollectionName: 'Weekend Picks',

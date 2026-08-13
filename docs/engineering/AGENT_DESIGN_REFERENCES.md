@@ -107,6 +107,48 @@ architect prompt feels vague in both directions.
 | **`file:line` anchoring + verified-vs-assumed**       | From Anthropic and wshobson. Unanchored claims about a codebase are where confident wrongness lives                                                      |
 | **Pattern register incl. "intent already satisfied"** | Straight from `CLAUDE.md`. Prevents the agent adding machinery where a discriminated union already IS Visitor                                            |
 | **Confidence calibration criteria**                   | A bare High/Medium/Low inflates. Tied to whether governing decisions and code were actually read                                                         |
+| **Composition doctrine ("compose, don't collect")**   | The gap this repo's own docs left: `ENGINEERING_EXCELLENCE.md` catalogues patterns individually and mentions composition **zero** times                  |
+| **Nine accountability dimensions**                    | A staff architect is not a pattern-matcher. Forces coverage of data, contracts, failure, concurrency, operability, evolution, cost of change, and people |
+| **One-way vs two-way doors**                          | Spends rigour asymmetrically. Also absent from the excellence doc (0 mentions of reversibility)                                                          |
+| **"Where you beat a human / where you don't"**        | Turns "be better than a staff engineer" into behaviour instead of flattery — see below                                                                   |
+
+### Progressive disclosure, not duplication
+
+The agent does **not** inline the pattern catalogue, SOLID, or the smell list. Those already live in
+`ENGINEERING_EXCELLENCE.md`, and copying them into an agent prompt would violate the repo's own DRY
+rule and guarantee drift the first time either changed. §2 of the agent instead makes reading the
+relevant section **mandatory before forming an opinion**, and the agent carries only what that
+document lacks: composition, evolution/migration, reversibility, Conway, and the judgement layer.
+
+Verified gaps at the time of writing (`grep -ci` over `ENGINEERING_EXCELLENCE.md`): composition 0,
+expand-contract/strangler/migration 0, Conway 0, reversibility/one-way door 0. Idempotency (8) and
+consistency (3) are covered there, so the agent references rather than restates them.
+
+### "Better than a human staff engineer", honestly
+
+The owner's requirement was that this agent exceed a human at the role. That is achievable, but only
+on specific axes, and stating it as a compliment would produce nothing. §7 of the agent names both
+halves:
+
+- **Genuinely better at** — reading every call site rather than a sample; never skipping the boring
+  check; holding no ego about its own prior recommendation; no politics; consistency across the 50th
+  review as the 1st.
+- **Genuinely worse at, and must compensate** — no production scars, no tacit org context, no
+  long-running experiment, a fresh context every session, and **fluent overconfidence**, which is its
+  characteristic failure: it can produce a well-cited, well-structured, entirely wrong
+  recommendation that reads better than a human's correct one.
+
+The anchoring rules, HALT gates and confidence calibration exist to convert the second list into
+process rather than hope.
+
+### One premise deliberately not encoded
+
+"A codebase that uses patterns everywhere it possibly can is therefore clean" is **not** in the
+agent, because pattern density is not a quality metric and maximizing it is a documented failure
+mode. `CLAUDE.md` already states the sharper rule — _"Always use design patterns, unless applying one
+would break the pattern or the code"_, and _"the only misuse is forcing"_ — and that is what the
+agent enforces. Patterns are necessary for a clean system, not sufficient: boundaries, data model,
+and failure behaviour can each be wrong in a fully pattern-ed codebase.
 
 ### The failure this was built around
 

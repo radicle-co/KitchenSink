@@ -6,6 +6,13 @@ import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 
 /**
+ * A UUID, not a `rec_*` slug: this id is elected into the erasure body, and
+ * `publishRecipeIds` is `z.array(z.uuid())`. Because the client parses outbound, a slug throws
+ * `InvalidRequestError` before the request, so the spec's captured body would simply be `undefined`.
+ */
+const PRIVATE_RECIPE_ID = 'b1111111-1111-4111-8111-111111111111';
+
+/**
  * Account danger-zone happy path (CR-002 / U4b): the account page must present CLOSURE and ERASURE as two
  * DISTINCT, non-conflatable actions — closure recoverable, erasure irreversible — and drive the
  * phrase-gated, donate-election erasure end to end. Driven through the real web UI (Next dev server + Clerk
@@ -29,7 +36,7 @@ test.describe('account danger zone — closure vs erasure (CR-002/U4b)', () => {
             recipes: [
                 // Owner-only (private) — OFFERED in the donate election.
                 makeRecipeDetail({
-                    id: 'rec_priv',
+                    id: PRIVATE_RECIPE_ID,
                     ownerId: viewerId,
                     title: 'My Private Recipe',
                     visibility: 'private',
@@ -84,7 +91,7 @@ test.describe('account danger zone — closure vs erasure (CR-002/U4b)', () => {
             .poll(() => erasureBody)
             .toEqual({
                 confirmationPhrase: 'ERASE MY DATA',
-                publishRecipeIds: ['rec_priv'],
+                publishRecipeIds: [PRIVATE_RECIPE_ID],
             });
 
         // …and the viewer was signed out to the app's PUBLIC FRONT DOOR: `signOut({ redirectUrl: '/' })` lands

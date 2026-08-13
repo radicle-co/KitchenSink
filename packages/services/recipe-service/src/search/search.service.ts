@@ -11,11 +11,11 @@ import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 
 import { toPageEnvelope } from '../common/pagination.js';
 import { SearchDal, DEFAULT_SEARCH_PAGE_SIZE } from './dal/search.dal.js';
-// The service's input type is THIS SERVICE'S OWN authored wire contract, not `recipe-core`'s
-// `RecipeSearchParams`. That interface is a second, looser declaration of the same knowledge — it carries no
-// bounds, no coercion and MUTABLE arrays — and typing the method with it meant the parsed query was widened back
-// to a shape the boundary had already refused. `recipeSearchQuerySchema`'s inferred type is what the pipe
-// actually produces, so this signature and the wire cannot disagree.
+// The service's input type is THIS SERVICE'S OWN authored wire contract. It used to be `recipe-core`'s
+// hand-written `RecipeSearchParams` — a second, looser declaration of the same knowledge (no bounds, no
+// coercion, MUTABLE arrays) which widened the parsed query back to a shape the boundary had already refused.
+// That interface has since been DELETED, along with its never-called zod twin; the published
+// `RecipeSearchQuery` is the only representation left, and it is what the pipe actually produces.
 import type { RecipeSearchQuery, RecipeSearchResponse } from './search.schema.js';
 
 /** DI token for the search DAL — provided by `SearchModule` via `useFactory` over the Drizzle client. */

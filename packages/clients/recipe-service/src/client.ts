@@ -32,7 +32,6 @@ import type {
     Recipe,
     RecipeDetail,
     RecipePhoto,
-    RecipeSearchParams,
     RecipeVersion,
     RecipeVisibility,
 } from '@kitchensink/recipe-core';
@@ -121,6 +120,7 @@ import type {
     ApiErrorBody,
     CreateRecipeRequest,
     RecipeApiError,
+    RecipeSearchQuery,
     RestoreVersionResponse,
     SetRatingRequest,
     UpdateRecipeRequest,
@@ -616,7 +616,7 @@ export class RecipeServiceClient {
      *
      * The server re-reads the food service, persists the current status (and golden-record nutrition once
      * `RESOLVED`), and returns the refreshed ingredient. Poll while `foodResolutionStatus` is `PENDING`;
-     * stop on any terminal/resolved/unresolved state (see {@link useIngredientStatus}).
+     * stop on any terminal/resolved/unresolved state (see `useIngredientStatus`).
      *
      * @param id - The ingredient id.
      * @returns The refreshed ingredient with its current resolution status.
@@ -999,7 +999,7 @@ export class RecipeServiceClient {
      * @throws {UnauthorizedError} on auth failure.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async searchRecipes(params: RecipeSearchParams = {}): Promise<RecipeSearchResponse> {
+    public async searchRecipes(params: RecipeSearchQuery = {}): Promise<RecipeSearchResponse> {
         const res = await this.send('GET', '/api/v1/search/recipes', undefined, {
             query: params.query,
             cuisine: params.cuisine,

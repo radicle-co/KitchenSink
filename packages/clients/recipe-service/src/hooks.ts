@@ -16,10 +16,15 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { createContext, createElement, useContext, useEffect } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
-import type { RecipeDetail, RecipeSearchParams, RecipeVisibility } from '@kitchensink/recipe-core';
+import type { RecipeDetail, RecipeVisibility } from '@kitchensink/recipe-core';
 // The two recipe WRITE envelopes, from the contract the service authors. They were `recipe-core`'s
 // `CreateRecipeInput` / `UpdateRecipeInput` — hand-written twins of these schemas (§15 rule 4 / ADR-0014).
-import type { CreateRecipeRequest, SetRatingRequest, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
+import type {
+    CreateRecipeRequest,
+    RecipeSearchQuery,
+    SetRatingRequest,
+    UpdateRecipeRequest,
+} from '@kitchensink/schema-recipe';
 
 import { RecipeServiceClient } from './client.js';
 import {
@@ -239,7 +244,7 @@ export function useCollection(id: string, options: QueryEnableOptions = {}) {
 // ─── Search queries ─────────────────────────────────────────────────────────────────────────────
 
 /** `GET /api/v1/search/recipes` — full-text recipe search with facets. */
-export function useSearchRecipes(params: RecipeSearchParams = {}) {
+export function useSearchRecipes(params: RecipeSearchQuery = {}) {
     const client = useRecipeServiceClient();
 
     return useQuery(recipeQueries(client).search(params));
@@ -254,7 +259,7 @@ export function useSearchRecipes(params: RecipeSearchParams = {}) {
  *
  * @param params - The search criteria (query/filters/sort). The `page` field is managed by the pager.
  */
-export function useInfiniteSearchRecipes(params: RecipeSearchParams = {}) {
+export function useInfiniteSearchRecipes(params: RecipeSearchQuery = {}) {
     const client = useRecipeServiceClient();
 
     return useInfiniteQuery(recipeQueries(client).searchInfinite(params));
@@ -918,7 +923,7 @@ export function usePreviewPull() {
  *
  * `previewedDiff` (from {@link usePreviewPull}) is optional and, when supplied, lets the server detect
  * DRIFT between what the caller previewed and what it would apply now — a rejection surfaces as a typed
- * {@link PullDriftError} (never swallowed) carrying the fresh diff for the caller to re-present.
+ * `PullDriftError` (never swallowed) carrying the fresh diff for the caller to re-present.
  *
  * No write-through: the response's `collection` is the NARROW `Collection` projection (no `recipes`
  * embed), so writing it into `collection(id)` would clobber that cache's `.recipes` array with an entry

@@ -1072,40 +1072,21 @@ export const recipeVersionPendingArchiveSchema = z.object({
 // `UpdateRecipeRequest`, `RecipeIngredientInput`, `RecipeStepInput` and `SetRatingRequest` from
 // `@kitchensink/schema-recipe`. A consumer whose shape genuinely differs DERIVES it (`Pick`/`Omit`/`Partial`)
 // rather than declaring it — see `packages/apps/commise/features/recipes/src/filters/model.ts`.
-
-/**
- * Query parameters for recipe catalog search.
- */
-export interface RecipeSearchParams {
-    query?: string;
-    cuisine?: string;
-    dietaryFlags?: string[];
-    tags?: string[];
-    maxPrepTime?: number;
-    maxCookTime?: number;
-    maxTotalTime?: number;
-    ingredientIds?: string[];
-    page?: number;
-    pageSize?: number;
-    sortBy?: RecipeSearchSortBy;
-}
-
-/**
- * Runtime validator for {@link RecipeSearchParams}.
- */
-export const recipeSearchParamsSchema = z.object({
-    query: z.string().min(1).optional(),
-    cuisine: z.string().min(1).optional(),
-    dietaryFlags: z.array(z.string().min(1)).optional(),
-    tags: z.array(z.string().min(1)).optional(),
-    maxPrepTime: nonNegativeIntSchema.optional(),
-    maxCookTime: nonNegativeIntSchema.optional(),
-    maxTotalTime: nonNegativeIntSchema.optional(),
-    ingredientIds: z.array(idSchema).optional(),
-    page: positiveIntSchema.optional(),
-    pageSize: positiveIntSchema.optional(),
-    sortBy: recipeSearchSortBySchema.optional(),
-});
+//
+// ⛔ AND THE SAME NOW GOES FOR THE SEARCH QUERY. `RecipeSearchParams` and `recipeSearchParamsSchema` sat five
+// lines below this banner while describing exactly what it forbids, which is why the rule is restated rather
+// than assumed: the note above says "request BODY", and a query bag read as a different category kept the pair
+// alive through the create/update convergence. `GET /api/v1/search/recipes` accepts a request either way.
+//
+// The zod half had ZERO callers anywhere — never parsed, never inferred from — while the interface half was the
+// client's request type, so the only representation in USE was the one nothing validated. It was also strictly
+// LOOSER than the contract it shadowed (mutable arrays, no integer/range bounds, no `max` on `pageSize`, no
+// blank-as-absent), so a caller could type-check against a shape the service refuses. The replacement is
+// `RecipeSearchQuery` / `recipeSearchQuerySchema` from `@kitchensink/schema-recipe`, authored at
+// `packages/services/recipe-service/src/search/search.schema.ts`.
+//
+// `RecipeSearchSortBy` below STAYS here and is not affected: it is a domain value object (GR-007), the authored
+// wire schema COMPOSES it by reference, and there is one declaration of it.
 
 /**
  * Single ranked hit in a recipe search response. An object-per-hit envelope (not a bare `Recipe`) so

@@ -27,8 +27,8 @@
  * the chip's label without a network round-trip to re-resolve the name.
  */
 import type { Locale } from '@commise/i18n';
-import type { Ingredient, RecipeFacetCount, RecipeSearchParams } from '@kitchensink/recipe-core';
-import type { RecipeSearchFacets } from '@kitchensink/schema-recipe';
+import type { Ingredient, RecipeFacetCount } from '@kitchensink/recipe-core';
+import type { RecipeSearchFacets, RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
 import { fillTemplate } from '../list/model.js';
 import { meetsIngredientSearchThreshold } from '../hooks/ingredientResolver.model.js';
@@ -46,7 +46,7 @@ export interface RecipeFilterState {
     readonly dietaryFlags?: readonly string[];
     readonly tags?: readonly string[];
     /**
-     * A single cuisine (S2). The search API filters by ONE exact cuisine (`RecipeSearchParams.cuisine` is a
+     * A single cuisine (S2). The search API filters by ONE exact cuisine (`RecipeSearchQuery.cuisine` is a
      * string, not an array), so this is single-select — never a multi-value array — even though the UI draws
      * cuisine as a facet group.
      */
@@ -59,7 +59,7 @@ export interface RecipeFilterState {
     readonly maxTotalTime?: number;
     /**
      * The selected ingredient filters (id + display name), resolved via the ingredient typeahead. Projects
-     * onto `RecipeSearchParams.ingredientIds` (ids only) for the wire. OR-narrowed, like the other array
+     * onto `RecipeSearchQuery.ingredientIds` (ids only) for the wire. OR-narrowed, like the other array
      * dimensions (a recipe matches if it contains ANY selected ingredient).
      */
     readonly ingredients?: readonly RecipeIngredientFilter[];
@@ -351,7 +351,7 @@ export function clearRecipeFilters(): RecipeFilterState {
 }
 
 /**
- * Project the filter state + search term onto the `RecipeSearchParams` the client forwards to
+ * Project the filter state + search term onto the published `RecipeSearchQuery` the client forwards to
  * `GET /api/v1/search/recipes`. Omits every empty dimension and a blank/whitespace query, so the request is a
  * pure subset — only what is actually constrained. Pure.
  *
@@ -359,8 +359,8 @@ export function clearRecipeFilters(): RecipeFilterState {
  * @param query - The raw search term (trimmed here).
  * @returns The search params to send.
  */
-export function filtersToSearchParams(state: RecipeFilterState, query: string): RecipeSearchParams {
-    const params: RecipeSearchParams = {};
+export function filtersToSearchParams(state: RecipeFilterState, query: string): RecipeSearchQuery {
+    const params: RecipeSearchQuery = {};
     const term = query.trim();
 
     if (term.length > 0) {

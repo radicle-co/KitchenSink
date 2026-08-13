@@ -44,7 +44,8 @@ import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import type { QueryKey } from '@tanstack/react-query';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import type { Ingredient, RecipeSearchParams } from '@kitchensink/recipe-core';
+import type { Ingredient } from '@kitchensink/recipe-core';
+import type { RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
 import type { RecipeServiceClient } from './client.js';
 import type { ListCollectionsParams, ListRecipesParams } from './types.js';
@@ -76,7 +77,7 @@ export const recipeServiceKeys = {
     collection: (id: string) => ['recipe-service', 'collections', 'detail', id] as const,
     /** Prefix over every `recipeSearch(params)` — the address for "every cached recipe search, whatever the terms". */
     recipeSearches: ['recipe-service', 'search', 'recipes'] as const,
-    recipeSearch: (params: RecipeSearchParams = {}) => ['recipe-service', 'search', 'recipes', params] as const,
+    recipeSearch: (params: RecipeSearchQuery = {}) => ['recipe-service', 'search', 'recipes', params] as const,
     /**
      * Prefix over every `ingredientSearch(query, limit)` AND every `ingredientSuggest(query, limit)` —
      * "every cached ingredient typeahead, whatever the terms or blend". Deliberately the shared parent of
@@ -169,7 +170,7 @@ export function recipeQueries(client: RecipeServiceClient) {
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
             }),
         /** `GET /api/v1/search/recipes` — full-text recipe search with facets (flat page). */
-        search: (params: RecipeSearchParams = {}) =>
+        search: (params: RecipeSearchQuery = {}) =>
             queryOptions({
                 queryKey: recipeServiceKeys.recipeSearch(params),
                 queryFn: () => client.searchRecipes(params),
@@ -180,7 +181,7 @@ export function recipeQueries(client: RecipeServiceClient) {
          * fetched page appends to `data.pages`; the next page is `page + 1` while the last page reported
          * `hasMore`, otherwise `getNextPageParam` returns `undefined` and the control disappears.
          */
-        searchInfinite: (params: RecipeSearchParams = {}) =>
+        searchInfinite: (params: RecipeSearchQuery = {}) =>
             infiniteQueryOptions({
                 queryKey: recipeServiceKeys.recipeSearch(params),
                 queryFn: ({ pageParam }) => client.searchRecipes({ ...params, page: pageParam }),

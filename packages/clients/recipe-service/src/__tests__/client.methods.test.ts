@@ -5,7 +5,10 @@
  * status→error mapping, the identity-sync retry, and transport edge cases) live in `client.test.ts` and
  * `client.transport.test.ts`. Transport is a mocked `fetch`; no real network is touched.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+
+import { recipeSearchQuerySchema } from '@kitchensink/schema-recipe';
+import type { RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
 import { RecipeServiceClient } from '../index.js';
 import {
@@ -640,6 +643,55 @@ describe('RecipeServiceClient — search & account', () => {
         await makeClient(fetchMock).searchRecipes();
 
         expect(requestAt(fetchMock).url).toBe(`${BASE}/api/v1/search/recipes`);
+    });
+
+    /*
+     * ── THE SEARCH REQUEST TYPE IS DERIVED, NOT DECLARED (§15.1, GR-015 §15-b.2/15-b.3, ADR-0014 rule 4) ──
+     *
+     * `searchRecipes` was typed with `recipe-core`'s hand-written `RecipeSearchParams`, the type half of a twin
+     * whose zod half (`recipeSearchParamsSchema`) had no callers at all — the same shape `CreateRecipeInput` and
+     * `UpdateRecipeInput` were deleted for, sitting five lines below the banner that declares them forbidden. The
+     * twin was strictly LOOSER than the contract (mutable arrays, no bounds, no coercion), so `typecheck` reported
+     * agreement between two representations that had never been compared.
+     *
+     * The two cases below are what make the convergence hold rather than merely happen once, and they are
+     * deliberately different in kind: the first pins the TYPE (a re-declared looser twin fails it, because
+     * `string[]` is not `readonly string[]`), the second pins the WIRE. Neither implies the other — a retyped
+     * method still compiles while sending the wrong fields, because a SPREAD is exempt from excess-property
+     * checking, which is exactly how a `visibility` key survived on the recipe PATCH body.
+     */
+    it('types searchRecipes with the published RecipeSearchQuery, not a local twin', () => {
+        expectTypeOf<Parameters<RecipeServiceClient['searchRecipes']>[0]>().toEqualTypeOf<
+            RecipeSearchQuery | undefined
+        >();
+    });
+
+    it('puts every field the published query declares on the wire, and no others', async () => {
+        const params: RecipeSearchQuery = {
+            query: 'chicken pie',
+            cuisine: 'british',
+            dietaryFlags: ['vegan'],
+            tags: ['dinner'],
+            maxPrepTime: 30,
+            maxCookTime: 45,
+            maxTotalTime: 60,
+            ingredientIds: ['ing_1'],
+            page: 2,
+            pageSize: 10,
+            sortBy: 'relevance',
+        };
+        // ⚠️ RATCHET, and it must come first: every field is OPTIONAL, so a contract that grows a twelfth one
+        // would leave this case quietly exercising eleven and reporting success. Asserting the INPUT covers the
+        // published shape is what forces this test — and then the client — to be updated. Same device as
+        // `recipe-service`'s `contract/__tests__/openapi.test.ts`.
+        expect(Object.keys(params).sort()).toStrictEqual(Object.keys(recipeSearchQuerySchema.shape).sort());
+
+        const fetchMock = stubFetch(200, makeRecipeSearchResponse());
+        await makeClient(fetchMock).searchRecipes(params);
+
+        const sent = [...new URL(requestAt(fetchMock).url).searchParams.keys()];
+
+        expect([...new Set(sent)].sort()).toStrictEqual(Object.keys(recipeSearchQuerySchema.shape).sort());
     });
 
     it('requestAccountErasure POSTs /api/v1/account/erasure WITH a confirmation body and returns the job (202)', async () => {

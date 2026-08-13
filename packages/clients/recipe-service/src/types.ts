@@ -1,8 +1,8 @@
 /**
  * The wire-shape SURFACE of `@kitchensink/recipe-service-client` (T-004 / T-095) — almost entirely ALIASES now.
  *
- * WHAT THIS FILE IS FOR, AFTER §15. The domain types (`Recipe`, `Ingredient`, `RecipePhoto`, `RecipeVersion`,
- * `CreateRecipeInput`, `UpdateRecipeInput`, `RecipeSearchParams`, `PaginatedResponse`) come from
+ * WHAT THIS FILE IS FOR, AFTER §15. The domain types (`Recipe`, `RecipeDetail`, `Ingredient`, `RecipePhoto`,
+ * `RecipeVersion`, `PaginatedResponse`) come from
  * `@kitchensink/recipe-core`; every endpoint ENVELOPE comes from `@kitchensink/schema-recipe`, the contract the
  * service itself authors. This module's remaining job is to keep this package's public names stable while the
  * definitions behind them live where they belong: each re-export below is an alias, so a name that differs from

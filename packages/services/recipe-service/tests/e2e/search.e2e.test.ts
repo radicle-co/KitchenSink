@@ -131,6 +131,7 @@ describe.skipIf(!hasDatabaseUrl)('search read surface (e2e, assembled app)', () 
         const qs = new URLSearchParams({ query: TOKEN, ...params }).toString();
         const res = await fetch(`${booted.baseUrl}/api/v1/search/recipes?${qs}`);
         expect(res.status).toBe(200);
+
         return (await res.json()) as SearchBody;
     }
 

@@ -486,6 +486,7 @@ describe('RecipeDetailView (native) — iOS shadow-clipping guard', () => {
 
         // The elevation is present (the guard would be vacuous if the shadows had simply been dropped)…
         expect(elevated.length).toBeGreaterThan(0);
+
         // …and no elevated node clips.
         for (const node of elevated) {
             expect(window.getComputedStyle(node).overflowX).not.toBe('hidden');

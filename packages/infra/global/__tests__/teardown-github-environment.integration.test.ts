@@ -139,33 +139,40 @@ const LIVE_SHAPED_INVENTORY = [
  */
 function run(token: string, options: RunOptions = {}): RunResult {
     writeFileSync(join(workdir, 'environments'), `${(options.environments ?? []).join('\n')}\n`);
+
     if (options.listFails === true) {
         writeFileSync(join(workdir, 'list-fails'), '');
     }
+
     if (options.deleteFails === true) {
         writeFileSync(join(workdir, 'delete-fails'), '');
     }
 
     const env: Record<string, string> = {};
+
     for (const [key, value] of Object.entries(process.env)) {
         if (value !== undefined) {
             env[key] = value;
         }
     }
+
     env['PATH'] = `${binDir}:${process.env['PATH'] ?? ''}`;
     env['GH_CALL_LOG'] = logFile;
     env['GH_STUB_DIR'] = workdir;
     env['GITHUB_REPOSITORY'] = REPOSITORY;
     env['GH_ENVIRONMENT_ADMIN_TOKEN'] = ADMIN_TOKEN;
+
     // The preview-domain step (section 0) is left UNCONFIGURED on purpose: it then reports its own error
     // without shelling out to `npx tsx`, which keeps this suite hermetic — and proves section 0b is not
     // skipped by a predecessor's failure.
     for (const key of ['PREVIEW_ZONE', 'PREVIEW_HOSTED_ZONE_ID', 'VERCEL_TOKEN', 'VERCEL_PROJECT_ID']) {
         delete env[key];
     }
+
     if (options.withoutToken === true) {
         delete env['GH_ENVIRONMENT_ADMIN_TOKEN'];
     }
+
     if (options.withoutRepository === true) {
         delete env['GITHUB_REPOSITORY'];
     }
@@ -193,6 +200,7 @@ beforeEach(() => {
     binDir = join(workdir, 'bin');
     mkdirSync(binDir);
     logFile = join(workdir, 'gh-calls.log');
+
     for (const [name, body] of [
         ['gh', GH_STUB],
         ['aws', AWS_STUB],

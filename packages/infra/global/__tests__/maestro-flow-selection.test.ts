@@ -165,6 +165,7 @@ const SPINE = ALL_FLOWS.filter((flow) => VERTICAL_OF.get(flow) === 'spine');
 /** Every `.yaml` under `.maestro/`, as a slash-separated name without the extension (`recipes/create`). */
 function discoverFlowFiles(): readonly string[] {
     const found: string[] = [];
+
     const walk = (directory: string): void => {
         for (const entry of readdirSync(directory)) {
             const full = join(directory, entry);

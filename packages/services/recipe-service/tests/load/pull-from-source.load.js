@@ -95,6 +95,7 @@ export function setup() {
     }
 
     let cloneId = null;
+
     if (sourceId) {
         const clone = http.post(`${BASE_URL}/api/v1/collections/${sourceId}/clone`, null, {
             headers: authHeaders(),

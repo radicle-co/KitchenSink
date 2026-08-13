@@ -182,6 +182,7 @@ export const TOKENS = (() => {
                 'gitignored credential material — run `npm run test:load:tokens` first, then ' +
                 '`npm run test:load:db`, and boot the service under test with ' +
                 'CLERK_JWT_KEY="$(cat tests/load/clerk-public-key.pem)".',
+            { cause: error },
         );
     }
 })();
@@ -189,6 +190,7 @@ export const TOKENS = (() => {
 /** Read-only headers (Bearer + Accept) for the given token. */
 export function authHeaders(token, extra) {
     const headers = { Accept: 'application/json' };
+
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }

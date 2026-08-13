@@ -67,6 +67,7 @@ describe.skipIf(!hasDatabaseUrl)('handle-sync consumer (integration, real DB)', 
             'SELECT author_handle FROM recipes WHERE id = $1',
             [id],
         );
+
         return rows[0]!.author_handle;
     }
 
@@ -75,6 +76,7 @@ describe.skipIf(!hasDatabaseUrl)('handle-sync consumer (integration, real DB)', 
             'SELECT editor_handle FROM recipe_versions WHERE recipe_id = $1',
             [id],
         );
+
         return rows[0]!.editor_handle;
     }
 

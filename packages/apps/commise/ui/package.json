@@ -7,7 +7,7 @@
     "scripts": {
         "build": "tsc -p tsconfig.build.json && node scripts/generate-theme.mjs",
         "typecheck": "tsc --noEmit",
-        "lint": "eslint 'src/**/*.{ts,tsx}' --ignore-pattern '**/*.test.{ts,tsx}'",
+        "lint": "eslint .",
         "test": "vitest run && vitest run --config vitest.native.config.ts",
         "format": "prettier --write .",
         "format:check": "prettier --check ."

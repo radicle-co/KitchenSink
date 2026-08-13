@@ -38,6 +38,7 @@ describe('bootServiceApp', () => {
     afterEach(async () => {
         await booted?.close();
         booted = undefined;
+
         for (const key of ENV_KEYS) {
             delete process.env[key];
         }

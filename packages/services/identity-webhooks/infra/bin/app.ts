@@ -16,10 +16,10 @@ Tags.of(app).add('Environment', 'global');
 // U9: cdk-nag AwsSolutions review, ADVISORY — reported as warnings, never fails the build, and
 // annotation-only so the synthesized template is unchanged. See @kitchensink/infra-security.
 attachSecurityChecks(app);
-const stage = app.node.tryGetContext('stage') ?? process.env.STAGE ?? 'dev';
-const region = process.env.CDK_DEFAULT_REGION ?? process.env.DEFAULT_AWS_REGION ?? 'us-east-1';
-const account = process.env.CDK_DEFAULT_ACCOUNT ?? process.env.AWS_ACCOUNT_ID;
-const domainName = process.env.DOMAIN_NAME;
+const stage = app.node.tryGetContext('stage') ?? process.env['STAGE'] ?? 'dev';
+const region = process.env['CDK_DEFAULT_REGION'] ?? process.env['DEFAULT_AWS_REGION'] ?? 'us-east-1';
+const account = process.env['CDK_DEFAULT_ACCOUNT'] ?? process.env['AWS_ACCOUNT_ID'];
+const domainName = process.env['DOMAIN_NAME'];
 
 if (!domainName) {
     throw new Error('DOMAIN_NAME env var is required');
@@ -30,7 +30,8 @@ const isProd = stage === 'prod';
 const isSandbox =
     stage === 'sandbox' || stage.startsWith('sandbox-') || stage.startsWith('mr-') || stage.startsWith('pr-');
 
-const vpcId = process.env.IDENTITY_VPC_ID;
+const vpcId = process.env['IDENTITY_VPC_ID'];
+
 if (!vpcId) {
     throw new Error('IDENTITY_VPC_ID env var is required');
 }

@@ -266,9 +266,11 @@ describe('forwarding the caller credential to a REAL food-service socket (integr
     it('degrades to local-only on a food 401, and logs nothing containing the credential', async () => {
         behaviour = 'unauthorized';
         const logged: string[] = [];
+
         const capture = (...args: unknown[]): void => {
             logged.push(args.map((arg) => (typeof arg === 'string' ? arg : inspect(arg, { depth: null }))).join(' '));
         };
+
         vi.spyOn(Logger.prototype, 'warn').mockImplementation(capture);
         vi.spyOn(Logger.prototype, 'debug').mockImplementation(capture);
         vi.spyOn(Logger.prototype, 'error').mockImplementation(capture);

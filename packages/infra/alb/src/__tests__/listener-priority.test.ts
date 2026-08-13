@@ -210,6 +210,7 @@ describe('listenerPriorityForStage', () => {
         ];
 
         expect(sampled).toHaveLength(4);
+
         for (const priority of sampled) {
             expect(priority).toBeGreaterThanOrEqual(ALB_MIN_LISTENER_PRIORITY);
             expect(priority).toBeLessThanOrEqual(ALB_MAX_LISTENER_PRIORITY);

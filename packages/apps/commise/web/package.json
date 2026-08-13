@@ -7,7 +7,7 @@
         "dev": "next dev",
         "build": "tsx scripts/buildWithEndpoints.ts",
         "start": "next start",
-        "lint": "eslint 'src/' 'tests/' 'router/src/' 'router/tests/' 'scripts/' 'infra/'",
+        "lint": "eslint .",
         "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
         "test": "vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",

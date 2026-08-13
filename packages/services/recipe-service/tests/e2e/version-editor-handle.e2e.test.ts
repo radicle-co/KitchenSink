@@ -78,6 +78,7 @@ describe.skipIf(!hasDatabaseUrl)('version editor_handle provenance (e2e, real DB
             'SELECT editor_handle FROM recipe_versions WHERE recipe_id = $1 AND version_number = $2',
             [recipeId, versionNumber],
         );
+
         return rows[0]?.editor_handle ?? null;
     }
 

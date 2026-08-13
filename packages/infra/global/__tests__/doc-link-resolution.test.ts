@@ -103,6 +103,7 @@ function analyzeFixture(): readonly DocLink[] {
 
     host.readFile = (fileName) => files.get(fileName) ?? readReal(fileName);
     host.fileExists = (fileName) => files.has(fileName) || existsReal(fileName);
+
     host.getSourceFile = (fileName, languageVersion) => {
         const overlay = files.get(fileName);
 
@@ -159,6 +160,18 @@ describe('doc links across the repository', () => {
         expect(discovered.length).toBeGreaterThan(600);
         expect(discovered).toContain(SELF);
         expect(discovered).toContain('packages/infra/global/__tests__/doc-links.ts');
+    });
+
+    /**
+     * JavaScript is in scope, and this pins it. The gate shipped `.ts`/`.tsx` only, which left six links in five
+     * files outside it — measured, then closed by `allowJs` rather than by writing the exemption down, because a
+     * dead link in a `.mjs` build script rots exactly like one in a `.ts` module. One file per owning-tsconfig
+     * shape is asserted: a package-owned `.js`, and a repo-root `.mjs` that falls through to the root config.
+     */
+    it('covers JavaScript too, under both the package and the root tsconfig', () => {
+        expect(discovered).toContain('packages/services/identity/tests/load/lib/common.js');
+        expect(discovered).toContain('packages/tools/eslint/__tests__/nativeA11y.test.js');
+        expect(discovered).toContain('scripts/contractOwners.mjs');
     });
 
     it('the fixture cannot be reported: this file holds a dead link in a string, and is clean', () => {

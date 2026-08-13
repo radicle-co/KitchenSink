@@ -10,6 +10,10 @@
         "experimentalDecorators": true,
         "emitDecoratorMetadata": true
     },
+    // Typecheck/editor/eslint project — it never emits (`nest build` uses `tsconfig.build.json`, which keeps
+    // its own test exclusions). The co-located specs and the e2e tier are deliberately INCLUDED: vitest
+    // transpiles without typechecking, so excluding them here left 17 files with no static analysis at all.
+    // Same reasoning already recorded in `recipe-service/tsconfig.json`.
     "include": ["src/**/*.ts", "src/**/*.d.ts", "tests/**/*.ts", "contract/**/*.ts"],
-    "exclude": ["node_modules", "dist", "tests/e2e", "src/**/__tests__", "src/**/*.test.ts"]
+    "exclude": ["node_modules", "dist"]
 }

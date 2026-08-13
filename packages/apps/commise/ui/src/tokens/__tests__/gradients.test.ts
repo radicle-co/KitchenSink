@@ -56,6 +56,7 @@ describe('gradient specs', () => {
         // Both CSS and expo-linear-gradient interpolate premultiplied RGB, so charcoal→`transparent` would
         // pass through a muddy grey. Holding the rgb fixed and moving only alpha is what keeps the fade clean.
         expect(rgb(gradient.scrim.stops[1].color)).toBe(rgb(gradient.scrim.stops[0].color));
+
         for (const stop of gradient.scrim.stops) {
             expect(stop.color).not.toBe('transparent');
         }
@@ -66,6 +67,7 @@ describe('gradient specs', () => {
             const positions = spec.stops.map((s) => s.position);
             expect(positions[0]).toBe(0);
             expect(positions[positions.length - 1]).toBe(100);
+
             for (let i = 1; i < positions.length; i += 1) {
                 expect(positions[i]).toBeGreaterThanOrEqual(positions[i - 1]!);
             }
@@ -172,6 +174,7 @@ describe('glass specs', () => {
 
     it('every glass fallback is more opaque than its translucent surface (readable when blur is unsupported)', () => {
         const alpha = (rgba: string): number => Number(rgba.slice(rgba.lastIndexOf(',') + 1, -1));
+
         for (const spec of Object.values(glass)) {
             expect(alpha(spec.fallback)).toBeGreaterThan(alpha(spec.surface));
         }
@@ -179,6 +182,7 @@ describe('glass specs', () => {
 
     it('gives every tier a TRANSLUCENT edge — an opaque border frames the glass instead of edging it', () => {
         const alpha = (rgba: string): number => Number(rgba.slice(rgba.lastIndexOf(',') + 1, -1));
+
         for (const spec of Object.values(glass)) {
             expect(alpha(spec.border)).toBeGreaterThan(0);
             expect(alpha(spec.border)).toBeLessThan(1);

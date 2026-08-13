@@ -225,6 +225,7 @@ export function loadTokens() {
             `common.js: cannot read the Clerk token pool at '${TOKENS_FILE}' (${error}). It is generated, ` +
                 `gitignored credential material — run \`npm run test:load:tokens\` first, and boot the ` +
                 `service under test with CLERK_JWT_KEY="$(cat tests/load/clerk-public-key.pem)".`,
+            { cause: error },
         );
     }
 
@@ -257,6 +258,7 @@ export function loadFixture() {
             `common.js: cannot read the store fixture at '${FIXTURE_FILE}' (${error}). Run ` +
                 `\`DATABASE_URL=… npm run test:load:fixture\` first (it seeds the RESOLVED population these ` +
                 `scripts read and emits the id/probe lists).`,
+            { cause: error },
         );
     }
 

@@ -33,6 +33,7 @@ function renderList(overrides: Partial<RecipeListViewProps> = {}) {
         ...overrides,
     };
     render(<RecipeList {...props} />);
+
     return props;
 }
 
@@ -278,6 +279,7 @@ describe('RecipeList (web) — quick-filter chips (L4)', () => {
         });
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
+
         // Base `py-1.5` grows the mobile tap target; `md:py-1` restores the original desktop chip density,
         // so the 1280px surface is byte-identical.
         for (const name of ['All', 'Vegetarian'] as const) {
@@ -331,6 +333,7 @@ describe('RecipeList (web) — loading state', () => {
         const status = screen.getByRole('status');
         const shimmer = status.querySelectorAll('.animate-pulse');
         expect(shimmer.length).toBeGreaterThanOrEqual(3);
+
         // Every placeholder is hidden from assistive tech — the `role="status"` label already announces it.
         for (const node of Array.from(shimmer)) {
             expect(node.closest('[aria-hidden="true"]')).not.toBeNull();
@@ -477,6 +480,7 @@ describe('RecipeList (web) — touch targets (44px floor)', () => {
         });
 
         const chips = screen.getByRole('group', { name: 'Quick filters' });
+
         for (const name of ['All', 'Vegetarian', 'Italian']) {
             const chip = within(chips).getByRole('button', { name });
             expect(chip.className).toContain('min-h-11');

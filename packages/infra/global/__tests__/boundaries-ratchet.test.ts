@@ -102,6 +102,7 @@ function run(stdin: string, baseline: unknown, extraArgs: readonly string[] = []
     const dir = mkdtempSync(path.join(tmpdir(), 'boundaries-ratchet-'));
     const baselinePath = path.join(dir, 'baseline.json');
     writeFileSync(baselinePath, JSON.stringify(baseline, null, 4));
+
     try {
         // `--stdin` is EXPLICIT rather than sniffed. Deciding between "read the pipe" and "spawn turbo"
         // by inspecting fd 0 would make the gate's behaviour depend on the ambient shape of stdin — a
@@ -112,9 +113,11 @@ function run(stdin: string, baseline: unknown, extraArgs: readonly string[] = []
             encoding: 'utf8',
             stdio: ['pipe', 'pipe', 'pipe'],
         });
+
         return { code: 0, out };
     } catch (error) {
         const err = error as { status?: number; stdout?: string; stderr?: string };
+
         return { code: err.status ?? -1, out: `${err.stdout ?? ''}${err.stderr ?? ''}` };
     }
 }
@@ -162,9 +165,11 @@ function runWithTurboBin(turboBin: string, baselinePath: string, extraArgs: read
             [script, '--baseline', baselinePath, '--turbo-bin', turboBin, ...extraArgs],
             { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
         );
+
         return { code: 0, out };
     } catch (error) {
         const err = error as { status?: number; stdout?: string; stderr?: string };
+
         return { code: err.status ?? -1, out: `${err.stdout ?? ''}${err.stderr ?? ''}` };
     }
 }

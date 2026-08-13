@@ -14,7 +14,7 @@
         "infra:deploy": "cdk deploy --app 'npx tsx infra/bin/app.ts'",
         "test": "npm run build && vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",
-        "lint": "eslint 'src/**/*.ts' '__tests__/**/*.ts'",
+        "lint": "eslint .",
         "typecheck": "tsc --noEmit && tsc -p infra/tsconfig.json --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check ."

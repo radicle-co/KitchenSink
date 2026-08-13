@@ -53,6 +53,7 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal dedup is race-proof (integratio
             `SELECT count(*)::int AS n FROM ingredients WHERE food_id = $1`,
             [foodId],
         );
+
         return Number(rows[0]!.n);
     }
 
@@ -62,6 +63,7 @@ describe.skipIf(!hasDatabaseUrl)('IngredientsDal dedup is race-proof (integratio
             `SELECT count(*)::int AS n FROM ingredients WHERE is_user_entered = true AND lower(name) = lower($1)`,
             [name],
         );
+
         return Number(rows[0]!.n);
     }
 

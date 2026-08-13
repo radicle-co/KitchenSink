@@ -282,6 +282,7 @@ describe('RecipeForm (native) — cuisine dropdown (w3/e5; U6 Select, not a radi
         for (const cuisine of CUISINES) {
             expect(screen.getByRole('menuitem', { name: cuisine })).toBeTruthy();
         }
+
         expect(screen.getByRole('menuitem', { name: 'No cuisine' })).toBeTruthy();
     });
 

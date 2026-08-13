@@ -71,6 +71,7 @@ describe.skipIf(!hasDatabaseUrl)('RecipeDetail.viewerRating (integration)', () =
              VALUES ($1, $2, $3, 2, 5, 10, 15) RETURNING id`,
             [ownerId, title, visibility],
         );
+
         return rows[0]!.id;
     }
 
@@ -86,6 +87,7 @@ describe.skipIf(!hasDatabaseUrl)('RecipeDetail.viewerRating (integration)', () =
     async function getDetail(recipeId: string): Promise<RecipeDetailBody> {
         const res = await fetch(`${baseUrl}/api/v1/recipes/${recipeId}`);
         expect(res.status).toBe(200);
+
         return (await res.json()) as RecipeDetailBody;
     }
 

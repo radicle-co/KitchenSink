@@ -8,7 +8,7 @@
         "dev": "expo start",
         "build": "tsc --noEmit",
         "test": "vitest run && vitest run --config vitest.native.config.ts",
-        "lint": "eslint 'src/**/*.ts' 'src/**/*.tsx'",
+        "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "test:e2e": "vitest run --config vitest.e2e.config.ts",
         "format": "prettier --write .",

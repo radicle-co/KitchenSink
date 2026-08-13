@@ -51,7 +51,7 @@ vi.mock('@aws-sdk/client-sqs', () => ({
 }));
 
 import { bootIdentityApp } from './harness.js';
-import type { BootedServiceApp } from './service-harness.js';
+import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
 const DEV_USER = '01HZZE2EVALIDATIONUSER0000';
 

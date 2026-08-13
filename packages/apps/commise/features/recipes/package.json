@@ -15,7 +15,7 @@
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run && vitest run --config vitest.native.config.ts",
-        "lint": "eslint 'src/**/*.{ts,tsx}' --ignore-pattern '**/*.test.{ts,tsx}'",
+        "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",
         "format:check": "prettier --check ."

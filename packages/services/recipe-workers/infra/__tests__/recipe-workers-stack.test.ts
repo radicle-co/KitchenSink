@@ -611,6 +611,7 @@ describe('RecipeWorkersStack — account erasure', () => {
         );
 
         expect(erasureOutputs.length).toBeGreaterThan(0);
+
         for (const output of erasureOutputs) {
             expect(output['Export']).toBeUndefined();
         }

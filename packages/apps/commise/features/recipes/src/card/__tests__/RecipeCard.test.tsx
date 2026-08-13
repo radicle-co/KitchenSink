@@ -362,6 +362,7 @@ describe('RecipeCard (web) — non-text graphics stay legible (WCAG 2.1 AA)', ()
         const pips = [...screen.getByRole('img', { name: /out of 5/ }).querySelectorAll('svg')];
 
         expect(pips).toHaveLength(5);
+
         for (const [index, pip] of pips.slice(2).entries()) {
             expect(
                 utilityContrast(classListOf(pip)),

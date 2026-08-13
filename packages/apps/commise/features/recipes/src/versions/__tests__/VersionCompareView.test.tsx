@@ -326,6 +326,7 @@ describe('VersionCompareView (web) — dismissal', () => {
 
         function Harness() {
             const [open, setOpen] = useState(false);
+
             return (
                 <>
                     <button type="button" onClick={() => setOpen(true)}>

@@ -199,6 +199,7 @@ describe('RecipeRatingControl (web) — text contrast (WCAG 2.1 AA)', () => {
         const pips = [...screen.getByRole('img', { name: /out of 5/ }).querySelectorAll('svg')];
 
         expect(pips).toHaveLength(5);
+
         for (const [index, pip] of pips.slice(2).entries()) {
             expect(
                 utilityContrast(classListOf(pip)),
@@ -215,6 +216,7 @@ describe('RecipeRatingControl (web) — text contrast (WCAG 2.1 AA)', () => {
         const pips = [...screen.getByRole('radiogroup', { name: 'Your rating' }).querySelectorAll('svg')];
 
         expect(pips).toHaveLength(5);
+
         for (const [index, pip] of pips.slice(2).entries()) {
             expect(
                 utilityContrast(classListOf(pip)),

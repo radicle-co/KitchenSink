@@ -59,8 +59,8 @@ export default defineConfig({
             // The Expo native modules have no jsdom/react-native-web implementation; alias them to
             // lightweight stubs so the `.native` surface leaves render (and assert) under Vitest. The real
             // gradient/blur rendering is emulator-only (Maestro).
-            'expo-linear-gradient': path.join(stubDir, 'expo-linear-gradient.tsx'),
-            'expo-blur': path.join(stubDir, 'expo-blur.tsx'),
+            'expo-linear-gradient': path.join(stubDir, 'expoLinearGradientStub.tsx'),
+            'expo-blur': path.join(stubDir, 'expoBlurStub.tsx'),
         },
     },
 });

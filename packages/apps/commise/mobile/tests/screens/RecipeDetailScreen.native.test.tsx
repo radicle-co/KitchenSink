@@ -367,6 +367,7 @@ describe('RecipeDetailScreen — owner actions are design-system Buttons (U8)', 
         fireEvent.click(screen.getByRole('button', { name: 'More' }));
 
         const t = mobileMessages.en.recipes;
+
         for (const name of [t.editAction, t.versionsAction, t.deleteAction]) {
             expect(window.getComputedStyle(pillOf(name)).minHeight).toBe('44px');
         }

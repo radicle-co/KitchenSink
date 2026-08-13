@@ -42,9 +42,11 @@ export function searchPath() {
     const cuisine = CUISINES[__ITER % CUISINES.length];
 
     const params = [`query=${encodeURIComponent(query)}`, 'page=1', 'pageSize=20', 'sortBy=relevance'];
+
     if (cuisine) {
         params.push(`cuisine=${encodeURIComponent(cuisine)}`);
     }
+
     // Repeated (explode) query params, per the contract's array-style filters.
     params.push('dietaryFlags=vegetarian');
     params.push('tags=load-test');

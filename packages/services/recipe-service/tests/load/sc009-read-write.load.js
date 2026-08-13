@@ -64,6 +64,7 @@ export function setup() {
         tags: { operation: 'seedRecipe' },
     });
     let seedId = null;
+
     if (res.status === 201) {
         try {
             seedId = res.json('id');
@@ -71,6 +72,7 @@ export function setup() {
             seedId = null;
         }
     }
+
     return { seedId };
 }
 
@@ -83,6 +85,7 @@ export function readPath(data) {
     check(list, { 'listRecipes 200': (r) => r.status === 200 });
 
     const seedId = data && data.seedId;
+
     if (seedId) {
         const get = http.get(`${BASE_URL}/api/v1/recipes/${seedId}`, {
             headers: authHeaders(),
@@ -91,6 +94,7 @@ export function readPath(data) {
         getTrend.add(get.timings.duration);
         check(get, { 'getRecipe 200': (r) => r.status === 200 });
     }
+
     sleep(1);
 }
 

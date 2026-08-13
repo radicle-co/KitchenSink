@@ -301,6 +301,7 @@ export class RecipeWorkersStack extends Stack {
 
         // ── IAM: one least-privilege role per function (ARCH-IT-7) ─────────────────────────────────
         const vpcAccess = iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole');
+
         const makeRole = (roleId: string, description: string): iam.Role => {
             const role = new iam.Role(this, roleId, {
                 assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
@@ -332,6 +333,7 @@ export class RecipeWorkersStack extends Stack {
             resource: 'dbuser',
             resourceName: `${props.dbInstanceIdentifier}/${props.dbUser}`,
         });
+
         const grantRdsIam = (role: iam.Role): void => {
             role.addToPolicy(new iam.PolicyStatement({ actions: ['rds-db:connect'], resources: [rdsConnectArn] }));
         };

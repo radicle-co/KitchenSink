@@ -83,15 +83,20 @@ function workspacePackagesByName(): Map<string, WorkspacePackage> {
 
     for (const base of bases) {
         const baseDir = path.join(repoRoot, base);
+
         if (!existsSync(baseDir)) {
             continue;
         }
+
         for (const entry of readdirSync(baseDir, { withFileTypes: true })) {
             const manifestPath = path.join(baseDir, entry.name, 'package.json');
+
             if (!entry.isDirectory() || !existsSync(manifestPath)) {
                 continue;
             }
+
             const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+
             if (typeof manifest.name === 'string' && manifest.name.startsWith('@kitchensink/')) {
                 map.set(manifest.name, {
                     dir: path.posix.join(base, entry.name),
@@ -163,6 +168,7 @@ describe('Service Docker images bundle every shared @kitchensink runtime depende
 
             const missing = deps.flatMap((dep) => {
                 const pkg = workspacePkgs.get(dep);
+
                 // Every `@kitchensink/*` dependency MUST resolve to a scanned workspace package — an
                 // unresolvable dep means either a typo or a package the scan bases don't cover, and either
                 // way the image can't possibly bundle it.
@@ -189,6 +195,7 @@ describe('Service Docker images bundle every shared @kitchensink runtime depende
                 const dockerignoreGaps = [`${dir}/dist`, `${dir}/prod.package.json`].filter(
                     (allowlistedPath) => !dockerignore.includes(`!${allowlistedPath}`),
                 );
+
                 if (dockerignoreGaps.length > 0) {
                     return [`${dep} (.dockerignore does not un-ignore: ${dockerignoreGaps.join(', ')})`];
                 }

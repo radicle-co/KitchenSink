@@ -58,6 +58,7 @@ describe.skipIf(!canRun)('recipe_ratings aggregate trigger (CR-001 integration)'
              VALUES ($1, $2, 2, 5, 10, 15) RETURNING id`,
             [OWNER, title],
         );
+
         return rows[0]!.id;
     }
 
@@ -68,6 +69,7 @@ describe.skipIf(!canRun)('recipe_ratings aggregate trigger (CR-001 integration)'
             [recipeId],
         );
         const row = rows[0]!;
+
         return { count: row.rating_count, average: row.average_rating === null ? null : Number(row.average_rating) };
     }
 
@@ -136,10 +138,12 @@ describe.skipIf(!canRun)('recipe_ratings aggregate trigger (CR-001 integration)'
     it('re-derives EVERY affected recipe in ONE trigger firing on a bulk delete (statement-level, GDPR sweep)', async () => {
         // One heavy rater rates three recipes; other raters keep them from going to zero.
         const recipes = await Promise.all([newRecipe('B1'), newRecipe('B2'), newRecipe('B3')]);
+
         for (const recipe of recipes) {
             await rate(recipe, HEAVY_RATER, 5);
             await rate(recipe, RATER_1, 3);
         }
+
         for (const recipe of recipes) {
             expect(await readAggregate(recipe)).toEqual({ count: 2, average: 4 });
         }
@@ -241,18 +245,22 @@ describe.skipIf(!canRun)('recipe_ratings aggregate trigger (CR-001 integration)'
  */
 async function waitForBlockedBackend(pool: pg.Pool, marker: string): Promise<void> {
     const deadline = Date.now() + 5000;
+
     for (;;) {
         const { rows } = await pool.query<{ blocked: number }>(
             `SELECT count(*)::int AS blocked FROM pg_stat_activity
              WHERE wait_event_type = 'Lock' AND state = 'active' AND query LIKE '%' || $1 || '%'`,
             [marker],
         );
+
         if ((rows[0]?.blocked ?? 0) > 0) {
             return;
         }
+
         if (Date.now() >= deadline) {
             throw new Error(`Timed out waiting for a backend blocked on a lock (marker: ${marker}).`);
         }
+
         await new Promise((resolve) => setTimeout(resolve, 25));
     }
 }

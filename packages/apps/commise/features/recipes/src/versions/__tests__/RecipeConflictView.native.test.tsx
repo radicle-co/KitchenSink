@@ -151,7 +151,6 @@ describe('RecipeConflictView (native) — per-side banner (X3)', () => {
         const serverBanner = screen.getByText('Server version (v6): Saved 2 minutes ago on iPhone');
         const mineBanner = screen.getByText('Your version: local unsaved changes');
 
-        // eslint-disable-next-line no-bitwise
         expect(serverBanner.compareDocumentPosition(mineBanner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
@@ -257,7 +256,6 @@ describe('RecipeConflictView (native) — two-column per-side summary cards (wir
         const serverHeading = screen.getByText('Server version (v6)');
         const yourHeading = screen.getByText('Your version (v5)');
 
-        // eslint-disable-next-line no-bitwise
         expect(serverHeading.compareDocumentPosition(yourHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
@@ -494,7 +492,6 @@ describe('RecipeConflictView (native) — changed-only diff panel with markers +
         const serverValue = screen.getByText('Latest saved version: Weeknight Pasta');
         const mineValue = screen.getByText('Your version: My Draft Title');
 
-        // eslint-disable-next-line no-bitwise
         expect(serverValue.compareDocumentPosition(mineValue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 

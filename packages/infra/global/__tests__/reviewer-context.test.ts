@@ -54,18 +54,23 @@ function dependencyUniverse(): Set<string> {
         .filter((file) => file.length > 0 && !file.includes('node_modules'));
 
     const universe = new Set<string>();
+
     for (const file of manifests) {
         let manifest: Record<string, unknown>;
+
         try {
             manifest = JSON.parse(readFileSync(path.join(repoRoot, file), 'utf8'));
         } catch {
             continue;
         }
+
         if (typeof manifest['name'] === 'string') {
             universe.add(manifest['name']);
         }
+
         for (const kind of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
             const block = manifest[kind];
+
             if (block !== null && typeof block === 'object') {
                 for (const dep of Object.keys(block as Record<string, unknown>)) {
                     universe.add(dep);
@@ -73,6 +78,7 @@ function dependencyUniverse(): Set<string> {
             }
         }
     }
+
     return universe;
 }
 
@@ -94,32 +100,40 @@ function dependencyUniverse(): Set<string> {
 function claimedPackages(): string[] {
     const sections: string[] = [];
     const active = agentsMd.match(/## Active Technologies([\s\S]*?)(?=\n## )/);
+
     if (active?.[1] !== undefined) {
         sections.push(active[1]);
     }
+
     const recent = agentsMd.match(/## Recent Changes([\s\S]*?)(?=\n<!--|$)/);
+
     if (recent?.[1] !== undefined) {
         sections.push(recent[1]);
     }
 
     const tokens = new Set<string>();
+
     for (const section of sections) {
         for (const match of section.matchAll(/`([^`]+)`/g)) {
             const token = match[1];
+
             if (token === undefined) {
                 continue;
             }
+
             const wellFormed =
                 /^(@[a-z0-9][a-z0-9-]*\/)?[a-z0-9][a-z0-9-]*$/.test(token) &&
                 !token.includes('_') &&
                 !token.includes('.');
             // Scoped or hyphenated only — see the limitation note above.
             const unambiguous = token.startsWith('@') || token.includes('-');
+
             if (wellFormed && unambiguous) {
                 tokens.add(token);
             }
         }
     }
+
     return [...tokens].sort();
 }
 
@@ -127,11 +141,13 @@ function claimedPackages(): string[] {
 function deliberateAdrs(): string[] {
     const claudeMd = readFileSync(path.join(repoRoot, 'CLAUDE.md'), 'utf8');
     const cited = new Set<string>();
+
     for (const match of claudeMd.matchAll(/decisions\/(\d{4}-[a-z0-9-]+)\.md/g)) {
         if (match[1] !== undefined) {
             cited.add(match[1]);
         }
     }
+
     return [...cited].sort();
 }
 
@@ -164,6 +180,7 @@ describe('AI-reviewer context files are accurate', () => {
         // whole API surface, and a stale "Expo 53+" line tells a bot to reach for SDK-53 APIs on an
         // SDK-57 app. That exact confusion fed the wrong expo plugin to Gradle and cost a full task.
         const claims = [...agentsMd.matchAll(/Expo\s+(\d+)/g)].map((match) => match[1]);
+
         if (claims.length === 0) {
             return;
         }
@@ -207,9 +224,11 @@ describe('AI-reviewer context files are accurate', () => {
         // Copilot cannot follow links out of an instructions file, so each ruling must be INLINED
         // somewhere ingested — AGENTS.md or a path-scoped .github/instructions/*.instructions.md.
         const ingested = [agentsMd];
+
         if (existsSync(copilotInstructionsPath)) {
             ingested.push(readFileSync(copilotInstructionsPath, 'utf8'));
         }
+
         if (existsSync(instructionsDir)) {
             for (const entry of readdirSync(instructionsDir)) {
                 if (entry.endsWith('.instructions.md')) {
@@ -217,10 +236,12 @@ describe('AI-reviewer context files are accurate', () => {
                 }
             }
         }
+
         const corpus = ingested.join('\n');
 
         const uncovered = adrs.filter((adr) => {
             const number = adr.slice(0, 4);
+
             // Either the filename or a conventional "ADR-0004" reference counts as surfacing it.
             return !corpus.includes(adr) && !new RegExp(`ADR[-\\s]?${number}`, 'i').test(corpus);
         });
@@ -237,14 +258,17 @@ describe('AI-reviewer context files are accurate', () => {
         if (!existsSync(instructionsDir)) {
             return;
         }
+
         const files = readdirSync(instructionsDir).filter((entry) => entry.endsWith('.instructions.md'));
 
         const malformed = files.filter((file) => {
             const body = readFileSync(path.join(instructionsDir, file), 'utf8');
             const frontmatter = body.match(/^---\n([\s\S]*?)\n---/);
+
             if (frontmatter?.[1] === undefined) {
                 return true;
             }
+
             // `applyTo` is what scopes the instructions to paths; without it the file either applies
             // nowhere or everywhere, and per-path ADR binding silently stops working.
             return !/^applyTo:\s*\S+/m.test(frontmatter[1]);

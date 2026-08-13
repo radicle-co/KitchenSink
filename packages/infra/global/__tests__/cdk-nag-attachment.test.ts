@@ -103,6 +103,7 @@ function binFiles(packageDir: string): string[] {
 /** Every node of the parsed file, depth-first. */
 function nodesOf(source: ts.SourceFile): ts.Node[] {
     const nodes: ts.Node[] = [];
+
     const visit = (node: ts.Node): void => {
         nodes.push(node);
         ts.forEachChild(node, visit);

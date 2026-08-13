@@ -55,6 +55,7 @@ describe.skipIf(!hasDatabaseUrl)('enriched version conflict (e2e, assembled app)
             }),
         });
         expect(res.status).toBe(201);
+
         return ((await res.json()) as { id: string }).id;
     }
 

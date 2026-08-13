@@ -31,6 +31,7 @@ function renderList(overrides: Partial<RecipeListViewProps> = {}) {
         ...overrides,
     };
     render(<RecipeList {...props} />);
+
     return props;
 }
 

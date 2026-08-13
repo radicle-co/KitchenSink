@@ -147,6 +147,7 @@ const keypair = generateClerkKeypair();
 const untrusted = generateClerkKeypair();
 
 const warm: string[] = [];
+
 for (let index = 0; index < WARM_POOL_SIZE; index += 1) {
     const identity = warmIdentity(index);
     warm.push(
@@ -161,6 +162,7 @@ for (let index = 0; index < WARM_POOL_SIZE; index += 1) {
 }
 
 const cold: string[] = [];
+
 for (let index = 0; index < COLD_POOL_SIZE; index += 1) {
     const identity = coldIdentity(index);
     // No `external_id`: a genuinely new identity has no app ULID yet (the first-token sync race the

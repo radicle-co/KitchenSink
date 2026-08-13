@@ -99,9 +99,11 @@ describe.skipIf(!hasDatabaseUrl)('recipe-service rate limiting (e2e, assembled a
             // only the (writeLimit + 1)th crosses the limit.
             process.env['RECIPE_DEV_AUTH_USER_ID'] = userA;
             const aStatuses: number[] = [];
+
             for (let i = 0; i < writeLimit + 1; i += 1) {
                 aStatuses.push(await postInvalidRecipe());
             }
+
             expect(aStatuses.slice(0, writeLimit)).not.toContain(429);
             expect(aStatuses[aStatuses.length - 1]).toBe(429);
 

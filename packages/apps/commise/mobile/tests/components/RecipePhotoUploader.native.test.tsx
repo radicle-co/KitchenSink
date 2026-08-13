@@ -457,6 +457,7 @@ describe('RecipePhotoUploader — queueing a second pick while uploading (w3/e4)
             expiresIn: number;
             maxBytes: number;
         }) => void = () => {};
+
         const createMutateAsync = vi
             .fn()
             .mockImplementationOnce(

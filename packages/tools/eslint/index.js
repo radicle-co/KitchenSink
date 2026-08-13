@@ -176,7 +176,55 @@ function appServiceTypeOnlyConfig(rootDir) {
 export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir = process.cwd()) {
     return [
         {
-            ignores: ['dist/**', 'node_modules/**', '*.config.js', '*.config.ts', '**/*.mjs'],
+            /**
+             * ⚠️ These are the ONLY thing standing between `eslint .` and a package's build output.
+             *
+             * Every package's `lint` script is the bare `eslint .` (pinned by
+             * `packages/infra/global/__tests__/static-analysis-coverage.test.ts`) because a per-package glob is a
+             * claim about a file tree that only the tree can settle — `lib/**\/*.ts` looked correct beside a
+             * `lib/` directory while 62 conformance suites in the `__tests__/` next to it were linted by nothing.
+             * Handing ESLint the directory removes the glob, and moves the whole exclusion decision HERE, where
+             * it is written once.
+             *
+             * The generated-output entries are not speculative tidiness: measured before they were added,
+             * `eslint .` in `packages/infra/global` picked up 9 files from `cdk.out/` and 3 from `dist-lambda/`.
+             * They are all gitignored, so they are invisible to the coverage guard and would have failed the
+             * lint run instead — a synthesized CDK asset or an esbuild bundle is not source and is in no
+             * tsconfig project, so type-aware parsing reports it as a fatal error rather than a rule violation.
+             *
+             * ⚠️ EVERY output entry is `**\/`-prefixed, and that prefix is load-bearing. A flat-config `ignores`
+             * pattern with no slash-prefix is anchored at the config's directory, so a bare `dist/**` matches
+             * `<pkg>/dist` and NOT `<pkg>/infra/dist` — measured: 35 compiled `infra/dist/**` files became fatal
+             * parse errors in four services the first time `eslint .` ran.
+             *
+             * The `*.config.*` entry is the one that is deliberately NOT recursive: the exemption is for a
+             * workspace-ROOT tool manifest (`vitest.config.ts`, `playwright.config.ts`, `metro.config.cjs`),
+             * which most packages cannot put in a project rooted at `src` anyway (TS6059) and which fails loudly
+             * when its own tool runs it. A nested `src/sentry.server.config.ts` is ordinary application code and
+             * stays linted — `@commise/web` used a `**\/*.config.*` ignore and hid exactly that.
+             */
+            ignores: [
+                '**/node_modules/**',
+                // Compiler / bundler / framework output.
+                '**/dist/**',
+                '**/dist-lambda/**',
+                '**/.next/**',
+                '**/.expo/**',
+                '**/build/**',
+                '**/out/**',
+                // Tool caches and reports.
+                '**/cdk.out/**',
+                '**/.turbo/**',
+                '**/coverage/**',
+                '**/playwright-report/**',
+                '**/test-results/**',
+                // Workspace-ROOT tool manifests only — see the note above on why this one is not recursive.
+                '*.config.js',
+                '*.config.cjs',
+                '*.config.mjs',
+                '*.config.ts',
+                '**/*.mjs',
+            ],
         },
         eslint.configs.recommended,
         ...tseslint.configs.recommended,
@@ -204,6 +252,31 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                     { blankLine: 'always', prev: '*', next: 'function' },
                     { blankLine: 'always', prev: 'function', next: '*' },
                 ],
+            },
+        },
+        {
+            /**
+             * Plain-JS sources are parsed WITHOUT a project — and are therefore LINTED rather than skipped.
+             *
+             * `tseslint.configs.recommended` spreads its `base` block with no `files` restriction, so the
+             * TypeScript parser is applied to `.js` as well, and the `project` set above then makes every `.js`
+             * file outside a tsconfig a FATAL parse error. Measured when `eslint .` first ran: the 17 k6 load
+             * scripts under `packages/services/*\/tests/load/`, which the k6 BINARY (not Node) executes and which
+             * no tsconfig covers, plus `metro.config.cjs`.
+             *
+             * Adding them to `ignores` was the easy answer and the wrong one: they are real code, and
+             * `no-unused-vars`, `curly`, `no-irregular-whitespace` and the bracket-notation `process.env` rule
+             * all apply to them without needing a type. Clearing `project` costs nothing here because this config
+             * enables `recommended`, NOT `recommendedTypeChecked` — no enabled rule asks for type information.
+             *
+             * ⚠️ MUST come AFTER the block that sets `project`: flat config resolves later matching objects over
+             * earlier ones, so an override placed above the block it overrides does nothing.
+             */
+            files: ['**/*.js', '**/*.cjs', '**/*.jsx'],
+            languageOptions: {
+                parserOptions: {
+                    project: null,
+                },
             },
         },
         ...filenameConventionConfig(namingRegimeForRoot(tsconfigRootDir)),
@@ -255,6 +328,29 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
         },
         ...appServiceTypeOnlyConfig(tsconfigRootDir),
         {
+            /**
+             * The k6 load tier runs in the k6 BINARY's own JS runtime, not Node, so its four injected globals
+             * exist in no `globals` package: `__ENV` (the CLI's `-e` map), `__VU` / `__ITER` (the virtual-user and
+             * iteration counters) and `open()` (k6's synchronous init-context file read).
+             *
+             * Declared rather than silenced: measured at 79 `no-undef` errors across the three services' load
+             * tiers the first time those files were linted, and every one was this. Turning `no-undef` off for the
+             * directory instead would also stop it catching a genuine typo, which is the only reason to run it.
+             *
+             * Scoped by the `tests/load/` path because that is where `docs/CODING_STANDARDS.md` §7 puts the k6
+             * tier, and it is the only place these globals are legitimate.
+             */
+            files: ['**/tests/load/**/*.js'],
+            languageOptions: {
+                globals: {
+                    __ENV: 'readonly',
+                    __ITER: 'readonly',
+                    __VU: 'readonly',
+                    open: 'readonly',
+                },
+            },
+        },
+        {
             files: ['**/__tests__/**/*.ts', '**/*.test.ts'],
             rules: {
                 '@typescript-eslint/no-explicit-any': 'off',
@@ -284,10 +380,25 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                 // enclosing directory is still ignored, so `users/handle-sync-publisher`
                                 // needs the 3-line un-ignore/re-ignore/un-ignore dance below rather than a
                                 // single negation like the shallower subpaths above.
+                                //
+                                // ⚠️ THIS LIST IS A COPY OF THE MANIFESTS' `exports` MAPS, and a copy cannot
+                                // tell that the original has grown. It had: `recipe-core`'s
+                                // `./database-name` and `recipe-workers`' `./infra` were declared exports
+                                // that this list did not name, so the rule fired on five imports of a
+                                // PUBLISHED entry point — false positives against its own stated intent,
+                                // invisible until `infra/**` entered the lint subject. `__tests__/subpath-
+                                // exports.test.js` now discovers every declared `@kitchensink/*` subpath and
+                                // fails when one is missing here, so the divergence cannot recur silently.
                                 group: [
                                     '@kitchensink/*/*',
                                     '!@kitchensink/*/database',
                                     '!@kitchensink/*/database/*',
+                                    '!@kitchensink/*/database-name',
+                                    // `food-service` spells the same barrel `db/schema`, not `database/*`. It
+                                    // has no importer yet, which is exactly why the omission was invisible.
+                                    '!@kitchensink/*/db',
+                                    '!@kitchensink/*/db/*',
+                                    '!@kitchensink/*/infra',
                                     '!@kitchensink/*/types',
                                     '!@kitchensink/*/types/*',
                                     '!@kitchensink/*/hooks',
@@ -295,9 +406,19 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
                                     '!@kitchensink/*/users',
                                     '@kitchensink/*/users/*',
                                     '!@kitchensink/*/users/handle-sync-publisher',
+                                    // The four shared TOOLING packages, allowed per-package rather than
+                                    // per-name: each declares a wildcard `"./*"` export, so subpath import IS
+                                    // their entire API (`@kitchensink/eslint/nativeA11y`,
+                                    // `@kitchensink/esbuild/library`, `@kitchensink/vitest/base`,
+                                    // `@kitchensink/typescript/fix-declaration-paths`). There is no "internal"
+                                    // to protect, and naming each subpath would rebuild the copy above.
+                                    '!@kitchensink/esbuild/*',
+                                    '!@kitchensink/eslint/*',
+                                    '!@kitchensink/typescript/*',
+                                    '!@kitchensink/vitest/*',
                                 ],
                                 message:
-                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, types/*, hooks, testing, users/handle-sync-publisher) — don't reach into other internals.",
+                                    "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, infra, types/*, hooks, testing, users/handle-sync-publisher, or any subpath of the shared tooling packages) — don't reach into other internals.",
                             },
                         ],
                     },

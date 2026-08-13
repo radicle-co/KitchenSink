@@ -77,6 +77,7 @@ describe.skipIf(!hasDatabaseUrl)('rating write path (integration)', () => {
              VALUES ($1, $2, $3, 2, 5, 10, 15) RETURNING id`,
             [ownerId, title, visibility],
         );
+
         return rows[0]!.id;
     }
 

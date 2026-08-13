@@ -14,15 +14,27 @@ vi.mock('../../queue/deletion-enqueue.error.js', async (importOriginal) => ({
 }));
 
 import { AdminService } from '../admin.service.js';
+import type { AuthorizerContext } from '../../types/jwt.js';
+import type { UserId } from '../../types/user.js';
 
-const adminCtx = {
-    userId: '01HZZZZZZZZZZZZZZZZZZZZZZA',
+/**
+ * The admin caller every case below acts as.
+ *
+ * ⚠️ This was `as never`, and the cast was load-bearing in the wrong direction: `never` accepted the object at
+ * the call sites AND made every read of it a type error, so `actor: adminCtx.userId` in the audit-row assertion
+ * was checking a property of `never`. Nothing reported it because this spec sat outside the typecheck project.
+ * Typed as the real `AuthorizerContext` now, so a change to that interface breaks this fixture instead of
+ * silently passing. `UserId` is a server-side brand over `string`, hence the one narrow cast on that field
+ * rather than a blanket cast on the object.
+ */
+const adminCtx: AuthorizerContext = {
+    userId: '01HZZZZZZZZZZZZZZZZZZZZZZA' as UserId,
     clerkUserId: 'user_admin',
     email: 'admin@example.com',
-    tokenType: 'user' as const,
+    tokenType: 'user',
     scopes: ['admin:users'],
     permissions: [],
-} as never;
+};
 
 function makeSelectChain<T>(rows: T[]) {
     return { from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }) };

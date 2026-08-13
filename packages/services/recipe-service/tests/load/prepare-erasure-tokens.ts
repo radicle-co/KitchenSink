@@ -78,9 +78,11 @@ const { publicKey, privateKey } = await generateKeyPair(SERVICE_ERASURE_TOKEN_AL
 const signingKey = await importPKCS8(await exportPKCS8(privateKey), SERVICE_ERASURE_TOKEN_ALG);
 
 const valid: string[] = [];
+
 for (let i = 0; i < POOL_SIZE; i += 1) {
     valid.push(await sign(signingKey, syntheticOwnerId(i), TTL_SECONDS));
 }
+
 const expired = await sign(signingKey, syntheticOwnerId(POOL_SIZE), -60);
 
 writeFileSync(join(outDir, 'erasure-public-key.pem'), await exportSPKI(publicKey), 'utf-8');

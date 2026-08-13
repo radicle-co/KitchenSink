@@ -177,7 +177,7 @@ function repoRelative(workingDirectory: string, argument: string): string {
 // ---------------------------------------------------------------------------------------------------------
 
 /**
- * Every `packages/services/*​/tests/load/*.load.js`, repo-relative.
+ * Every `packages/services/*\/tests/load/*.load.js`, repo-relative.
  *
  * The `.load.js` suffix is the repo's own marker for "run by the k6 binary, excluded from every vitest glob"
  * (`docs/CODING_STANDARDS.md §7`), so it is a reliable discriminator and needs no allowlist.
@@ -339,7 +339,7 @@ function findScriptOrderDrift(workflows: readonly Workflow[]): readonly string[]
 // ---------------------------------------------------------------------------------------------------------
 
 /**
- * The `packages/services/*​/tests/load/…` patterns from `.gitignore`'s "CREDENTIAL MATERIAL" block.
+ * The `packages/services/*\/tests/load/…` patterns from `.gitignore`'s "CREDENTIAL MATERIAL" block.
  *
  * Read rather than restated so the ignore rule stays the ONE authoritative statement of what is secret. The
  * block is the comment line containing `CREDENTIAL MATERIAL` followed by its patterns, terminated by the
@@ -469,7 +469,7 @@ const OUT_DIR_ASSIGNMENT = /const\s+outDir\s*=\s*([^;]+);/;
 /**
  * The ONLY emit directory that keeps a minted pool inside the ignore rule.
  *
- * `.gitignore` protects `packages/services/*​/tests/load/<file>` — one level, no `**` — so a pool written
+ * `.gitignore` protects `packages/services/*\/tests/load/<file>` — one level, no `**` — so a pool written
  * anywhere other than beside the script that mints it falls outside the rule and becomes committable. That is
  * not hypothetical: the rule was once scoped to identity's path while the food tier emitted 50 live JWTs one
  * directory over. Pinning the expression is what lets {@link mintedCredentialFiles} derive a path at all

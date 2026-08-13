@@ -21,6 +21,7 @@ afterEach(cleanup);
 const placeholderRow = (container: HTMLElement): Element => {
     const node = container.firstElementChild;
     expect(node).not.toBeNull();
+
     return node as Element;
 };
 

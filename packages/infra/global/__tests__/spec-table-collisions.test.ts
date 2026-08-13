@@ -251,9 +251,11 @@ function collectDeclarations(): readonly TableDeclaration[] {
     for (const file of tracked('specs/**/*.md')) {
         const owner = featureOf(file);
         const text = readIfPresent(file);
+
         if (owner === undefined || text === undefined) {
             continue;
         }
+
         for (const hit of findMarkdownTableDeclarations(text)) {
             declarations.push({ ...hit, owner, origin: 'spec', file });
         }
@@ -264,10 +266,13 @@ function collectDeclarations(): readonly TableDeclaration[] {
         if (file.includes('/__tests__/') || file.includes('/tests/')) {
             continue;
         }
+
         const text = readIfPresent(file);
+
         if (text === undefined) {
             continue;
         }
+
         for (const hit of findPgTables(text, file)) {
             declarations.push({ ...hit, owner: packageOf(file), origin: 'shipped', file, form: 'drizzle-pgTable' });
         }
@@ -275,9 +280,11 @@ function collectDeclarations(): readonly TableDeclaration[] {
 
     for (const file of tracked('packages/**/*.sql')) {
         const text = readIfPresent(file);
+
         if (text === undefined) {
             continue;
         }
+
         for (const hit of findCreateTables(text)) {
             declarations.push({ ...hit, owner: packageOf(file), origin: 'shipped', file, form: 'sql-ddl' });
         }
@@ -298,6 +305,7 @@ const declarations = collectDeclarations();
 function canonicaliseOwners(all: readonly TableDeclaration[]): readonly TableDeclaration[] {
     return all.map((declaration) => {
         const implementations = IMPLEMENTED_FEATURES.get(declaration.owner);
+
         return implementations === undefined
             ? declaration
             : { ...declaration, owner: implementations[0] ?? declaration.owner };

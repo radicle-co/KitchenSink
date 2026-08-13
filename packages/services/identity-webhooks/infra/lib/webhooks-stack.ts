@@ -101,6 +101,7 @@ export class WebhooksStack extends Stack {
             deployStage.startsWith('sandbox-') ||
             deployStage.startsWith('mr-') ||
             deployStage.startsWith('pr-');
+
         if (!isValidStage) {
             throw new Error(
                 `Invalid STAGE="${deployStage}". Must be dev, staging, prod, test, sandbox, or sandbox-* / mr-* / pr-*.`,
@@ -207,6 +208,7 @@ export class WebhooksStack extends Stack {
         const vpcAccessManagedPolicy = iam.ManagedPolicy.fromAwsManagedPolicyName(
             'service-role/AWSLambdaVPCAccessExecutionRole',
         );
+
         const makeLambdaRole = (id: string, description: string): iam.Role => {
             const role = new iam.Role(this, id, {
                 assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
@@ -621,6 +623,7 @@ export class WebhooksStack extends Stack {
                 ),
             },
         ];
+
         for (const target of drainTargets) {
             new logs.SubscriptionFilter(this, target.id, {
                 logGroup: target.logGroup,

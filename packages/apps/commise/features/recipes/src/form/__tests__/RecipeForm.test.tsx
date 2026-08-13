@@ -357,9 +357,11 @@ describe('RecipeForm (web) — cuisine dropdown (w3/e5)', () => {
         renderForm({ values: filledValues({ cuisine: '' }) });
 
         const select = screen.getByRole('combobox', { name: 'Cuisine' });
+
         for (const cuisine of CUISINES) {
             expect(screen.getByRole('option', { name: cuisine })).toBeTruthy();
         }
+
         expect(select).toBeTruthy();
     });
 

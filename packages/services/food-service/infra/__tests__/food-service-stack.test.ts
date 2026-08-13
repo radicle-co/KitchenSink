@@ -232,6 +232,7 @@ describe('Food worker + service wiring', () => {
         );
 
         expect(configs).toHaveLength(2);
+
         for (const config of configs) {
             expect(config.AssignPublicIp).toBe('ENABLED');
             // The seeded VPC lookup exposes exactly one public subnet (subnet-public-1).
@@ -369,6 +370,7 @@ describe('USDA API-key secret grant (regression: suffix-less GetSecretValue neve
 
         // The grant must exist (otherwise the tasks could never read the key) ...
         expect(usdaGrants.length).toBeGreaterThan(0);
+
         // ... and EVERY USDA GetSecretValue grant must carry the wildcard suffix — a `usda-api-key` not
         // immediately followed by `-??????` is the suffix-less regression that produces AccessDenied.
         for (const grant of usdaGrants) {
@@ -714,6 +716,7 @@ describe('Base-stage platform imports (ADR-0006)', () => {
         );
 
         expect(dbNames.length).toBeGreaterThan(0);
+
         for (const value of dbNames) {
             expect(value).toBe('kitchensink_food_pr_7');
         }

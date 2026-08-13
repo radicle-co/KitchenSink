@@ -37,6 +37,7 @@ if (stage !== 'prod' && stage === baseStage) {
             '(stage `pr-{N}`). Only identity and packages/infra/global are shared and persistent.',
     );
 }
+
 // food is a non-global FEATURE service: a per-PR deploy (stage = pr-{N}) is ephemeral and tagged
 // Environment=pr-{N} so the PR-close cleanup deletes it (by tag OR pr-{N} name prefix). A persistent
 // (non-PR) food deploy tags 'global'. See ADR-0005.

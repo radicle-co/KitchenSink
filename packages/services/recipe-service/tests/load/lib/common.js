@@ -53,9 +53,11 @@ export function rampStages(peak) {
 // Read-only headers (Bearer + Accept).
 export function authHeaders(extra) {
     const headers = { Accept: 'application/json' };
+
     if (TOKEN) {
         headers['Authorization'] = `Bearer ${TOKEN}`;
     }
+
     return Object.assign(headers, extra || {});
 }
 
@@ -69,6 +71,7 @@ export function uuidv4() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
         const r = (Math.random() * 16) | 0;
         const v = c === 'x' ? r : (r & 0x3) | 0x8;
+
         return v.toString(16);
     });
 }

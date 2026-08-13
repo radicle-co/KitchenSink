@@ -218,6 +218,7 @@ describe('RecipeRatingControl (native) — text contrast (WCAG 2.1 AA)', () => {
         const pips = screen.getAllByText('★');
 
         expect(pips).toHaveLength(5);
+
         for (const [index, pip] of pips.slice(2).entries()) {
             expect(
                 computedContrast(pip, { surface: SCREEN }),
@@ -234,6 +235,7 @@ describe('RecipeRatingControl (native) — text contrast (WCAG 2.1 AA)', () => {
         const pips = screen.getAllByText('★');
 
         expect(pips).toHaveLength(5);
+
         for (const [index, pip] of pips.slice(2).entries()) {
             expect(
                 computedContrast(pip, { surface: SCREEN }),

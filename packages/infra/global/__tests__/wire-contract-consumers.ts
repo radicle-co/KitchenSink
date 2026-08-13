@@ -169,13 +169,25 @@ function lineOf(sourceFile: ts.SourceFile, node: ts.Node): number {
     return sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
 }
 
-/** Every descendant of `node` (inclusive) satisfying `predicate`. */
+/**
+ * Every descendant of `node` (inclusive) satisfying `predicate`.
+ *
+ * Overloaded so a TYPE-GUARD predicate narrows the result. The alternative was the call site casting
+ * `ts.Node[]` to the type it had just filtered for, and that cast was UNSOUND — `tsc` rejected
+ * `as readonly ts.SignatureDeclaration[]` outright (TS2352, "neither type sufficiently overlaps") the moment
+ * this file entered a typecheck project. A cast the compiler refuses is a claim nothing verifies; the guard
+ * carries the same information and is checked.
+ */
+function collect<T extends ts.Node>(node: ts.Node, predicate: (candidate: ts.Node) => candidate is T): T[];
+function collect(node: ts.Node, predicate: (candidate: ts.Node) => boolean): ts.Node[];
 function collect(node: ts.Node, predicate: (candidate: ts.Node) => boolean): ts.Node[] {
     const hits: ts.Node[] = [];
+
     const visit = (candidate: ts.Node): void => {
         if (predicate(candidate)) {
             hits.push(candidate);
         }
+
         ts.forEachChild(candidate, visit);
     };
 
@@ -427,22 +439,34 @@ function auditDeclarations(
     return violations;
 }
 
+/**
+ * The four node kinds that both declare a signature AND can carry a body.
+ *
+ * Named as a type guard (rather than inlined as a boolean arrow) so `collect` returns this union directly. The
+ * union — not the broader `ts.SignatureDeclaration` — is what makes `fn.body` a real property access: that type
+ * also admits `MethodSignature` and `CallSignatureDeclaration`, which have no body, and the previous code
+ * reached for it through a second `as { body?: ts.Node }` cast.
+ */
+function isFunctionWithBody(
+    candidate: ts.Node,
+): candidate is ts.FunctionDeclaration | ts.MethodDeclaration | ts.ArrowFunction | ts.FunctionExpression {
+    return (
+        ts.isFunctionDeclaration(candidate) ||
+        ts.isMethodDeclaration(candidate) ||
+        ts.isArrowFunction(candidate) ||
+        ts.isFunctionExpression(candidate)
+    );
+}
+
 /** Rule {@link RULE_UNVALIDATED_RESPONSE_BODY}: functions that read a body, cast it, and never parse. */
 function auditResponseValidation(pkg: ConsumerPackage, source: ConsumerSource): Violation[] {
     const sourceFile = parseSource(source);
     const violations: Violation[] = [];
 
-    const functions = collect(
-        sourceFile,
-        (candidate) =>
-            ts.isFunctionDeclaration(candidate) ||
-            ts.isMethodDeclaration(candidate) ||
-            ts.isArrowFunction(candidate) ||
-            ts.isFunctionExpression(candidate),
-    ) as readonly ts.SignatureDeclaration[];
+    const functions = collect(sourceFile, isFunctionWithBody);
 
     for (const fn of functions) {
-        const body = (fn as { body?: ts.Node }).body;
+        const { body } = fn;
 
         if (body === undefined) {
             continue;

@@ -195,18 +195,21 @@ export function stripSqlNoise(sql: string): string {
                 index += 2;
                 continue;
             }
+
             if (char === '/' && next === '*') {
                 state = 'block-comment';
                 out += '  ';
                 index += 2;
                 continue;
             }
+
             if (char === "'") {
                 state = 'string';
                 out += ' ';
                 index += 1;
                 continue;
             }
+
             out += char;
             index += 1;
             continue;
@@ -219,6 +222,7 @@ export function stripSqlNoise(sql: string): string {
             } else {
                 out += ' ';
             }
+
             index += 1;
             continue;
         }
@@ -230,6 +234,7 @@ export function stripSqlNoise(sql: string): string {
                 index += 2;
                 continue;
             }
+
             out += char === '\n' ? '\n' : ' ';
             index += 1;
             continue;
@@ -242,6 +247,7 @@ export function stripSqlNoise(sql: string): string {
             index += 1;
             continue;
         }
+
         out += char === '\n' ? '\n' : ' ';
         index += 1;
     }
@@ -269,9 +275,11 @@ export function findCreateTables(sql: string): readonly { readonly table: string
 
     for (const match of cleaned.matchAll(CREATE_TABLE_PATTERN)) {
         const table = (match[1] ?? '').toLowerCase();
+
         if (table === '') {
             continue;
         }
+
         const line = cleaned.slice(0, match.index).split('\n').length;
         found.push({ table, line });
     }
@@ -320,6 +328,7 @@ export function findPgTables(
 
             if (name === 'pgTable') {
                 const first = node.arguments[0];
+
                 if (first !== undefined && ts.isStringLiteralLike(first)) {
                     found.push({
                         table: first.text.toLowerCase(),
@@ -328,6 +337,7 @@ export function findPgTables(
                 }
             }
         }
+
         ts.forEachChild(node, visit);
     };
 
@@ -361,9 +371,12 @@ export function findMarkdownTableDeclarations(
         if (blockLang === undefined || blockLines.length === 0) {
             blockLang = undefined;
             blockLines = [];
+
             return;
         }
+
         const body = blockLines.join('\n');
+
         if (SQL_LANGS.has(blockLang)) {
             for (const hit of findCreateTables(body)) {
                 found.push({ table: hit.table, line: blockStart + hit.line - 1, form: 'sql-ddl' });
@@ -373,6 +386,7 @@ export function findMarkdownTableDeclarations(
                 found.push({ table: hit.table, line: blockStart + hit.line - 1, form: 'drizzle-pgTable' });
             }
         }
+
         blockLang = undefined;
         blockLines = [];
     };
@@ -380,13 +394,16 @@ export function findMarkdownTableDeclarations(
     tagged.forEach((entry, index) => {
         if (entry.lang === undefined) {
             flush();
+
             return;
         }
+
         if (blockLang === undefined) {
             blockLang = entry.lang;
             blockStart = index + 1;
             blockLines = [];
         }
+
         blockLines.push(entry.text);
     });
     flush();
@@ -440,12 +457,17 @@ export function findTaskIdDefinitions(markdown: string): readonly TaskIdDefiniti
         if (entry.lang !== undefined) {
             return;
         }
+
         const checkbox = CHECKBOX_TASK_PATTERN.exec(entry.text);
+
         if (checkbox !== null) {
             checkboxes.push({ id: checkbox[1] ?? '', line: index + 1, form: 'checkbox' });
+
             return;
         }
+
         const heading = HEADING_TASK_PATTERN.exec(entry.text);
+
         if (heading !== null) {
             headings.push({ id: heading[1] ?? '', line: index + 1, form: 'heading' });
         }
@@ -471,6 +493,7 @@ export function findDuplicateTaskIds(definitions: readonly TaskIdDefinition[]): 
 
     for (const definition of definitions) {
         const lines = byId.get(definition.id);
+
         if (lines === undefined) {
             byId.set(definition.id, [definition.line]);
         } else {
@@ -509,6 +532,7 @@ export function findTableCollisions(
 
     for (const declaration of declarations) {
         const list = byTable.get(declaration.table);
+
         if (list === undefined) {
             byTable.set(declaration.table, [declaration]);
         } else {
@@ -521,13 +545,17 @@ export function findTableCollisions(
 
     for (const [table, list] of [...byTable.entries()].sort(([a], [b]) => a.localeCompare(b))) {
         const owners = [...new Set(list.map((entry) => entry.owner))].sort();
+
         if (owners.length < 2) {
             continue;
         }
+
         const exemption = exemptByTable.get(table);
+
         if (exemption !== undefined && sameOwnerSet(exemption.owners, owners)) {
             continue;
         }
+
         collisions.push({ table, owners, declarations: [...list] });
     }
 
@@ -594,6 +622,7 @@ export function validateExemptions(exemptions: readonly TableExemption[]): reado
         if (seen.has(entry.table)) {
             problems.push(`${label} is declared twice. Merge them — only one entry can win the lookup.`);
         }
+
         seen.add(entry.table);
     }
 

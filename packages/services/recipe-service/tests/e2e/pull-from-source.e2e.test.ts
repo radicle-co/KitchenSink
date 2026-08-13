@@ -42,6 +42,7 @@ describe.skipIf(!hasDatabaseUrl)('pull-from-source preview + drift (e2e, assembl
              VALUES ($1, $2, 'public', 'published', 2, 5, 10, 15) RETURNING id`,
             [owner, title],
         );
+
         return rows[0]!.id;
     }
 
@@ -51,6 +52,7 @@ describe.skipIf(!hasDatabaseUrl)('pull-from-source preview + drift (e2e, assembl
              VALUES ($1, $2, 'private', $3) RETURNING id`,
             [owner, name, source],
         );
+
         return rows[0]!.id;
     }
 
@@ -67,6 +69,7 @@ describe.skipIf(!hasDatabaseUrl)('pull-from-source preview + drift (e2e, assembl
             'SELECT count(*)::text AS n FROM recipe_collections WHERE collection_id = $1',
             [collectionId],
         );
+
         return Number(rows[0]!.n);
     }
 

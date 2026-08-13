@@ -120,6 +120,7 @@ describe('RecipeCard (native)', () => {
 
         const pips = screen.getAllByText('★');
         expect(pips).toHaveLength(5);
+
         for (const pip of pips) {
             expect(window.getComputedStyle(pip).color).toBe('rgb(99, 110, 114)');
         }

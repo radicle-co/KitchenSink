@@ -4,7 +4,19 @@ Tactical conventions for the KitchenSink monorepo. This document is the authorit
 reference for day-to-day coding decisions. The [Constitution](../.specify/memory/constitution.md)
 defines immutable principles; this document translates them into enforceable rules.
 
-**Version**: 1.7.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-12
+**Version**: 1.8.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-12
+
+> **1.8.0** — **§8 gains the `{@link}` resolution rule** and **§9 gains the static-analysis coverage rule**, both
+> now mechanically enforced. A link must reach a declaration or be written in backticks; the obvious alternative
+> is forbidden with its measured reason, because an import added purely for a docstring passes `tsc` (JSDoc
+> counts as a use for `noUnusedLocals`) and then fails `@typescript-eslint/no-unused-vars`, which has no JSDoc
+> awareness. The gate parses comments, so writing the literal opener in prose reports your own explanation — it
+> did, on the gate's own module. Coverage now spans `.js`/`.jsx`/`.mjs`/`.cjs` as well: the first version was
+> `.ts`/`.tsx` only, which left six links in five files unchecked, and all six already resolved, so extending the
+> subject was free. §9's rule is written down because it was previously encoded only in tooling: measured across
+> 1782 tracked sources, **140 were in no typecheck project and 551 were linted by nothing** — including all 62
+> conformance suites and three deployed Lambda handlers in `packages/infra/global`. Every `lint` script is now
+> the bare `eslint .`, since a glob is a claim about a file tree that only the tree can settle.
 
 > **1.7.0** — **§8 rewritten** to be information-bearing rather than positional, by OWNER RULING 2026-08-12
 > ("don't comment on things that are self explanatory; if a variable isn't self explanatory it needs a good name").
@@ -662,6 +674,18 @@ This rule applies to all testing layers: unit tests (Testing Library), E2E tests
   message. Git already stores history.
 - **No near-duplicate comments in one block.** Where the same reason is restated two or three ways, keep the
   clearest and let the rest point at it.
+- A **`{@link}` MUST resolve to a declaration**; if the target is not in scope, write it in **backticks**
+  instead. An unresolved link is dead plain text — no editor navigates it and nothing warns the author, so it
+  rots exactly like a stale ADR path. ⛔ **Do NOT add an import to make a link resolve**: an import that exists
+  only for a docstring passes `tsc` (JSDoc counts as a use for `noUnusedLocals`) and then FAILS
+  `@typescript-eslint/no-unused-vars`, which has no JSDoc awareness — measured against this repo's config, so
+  nobody re-litigates it. Two further forms never resolve and must not be used: `{@link import('./x.js').Y}`
+  (TypeScript's JSDoc parser stops the entity name at the `(`) and a target wrapped onto the next comment line
+  (the leading `*` is read as the target). Also never write the literal opener sequence in prose — the check
+  parses comments, so an opener in your own explanation is reported as a dead link. Enforced across `.ts`,
+  `.tsx`, `.js`, `.jsx`, `.mjs` and `.cjs` by
+  `packages/infra/global/__tests__/doc-link-resolution.test.ts`, which resolves every target through the
+  compiler rather than by pattern-matching.
 - Non-trivial functions: `@param`, `@returns`, `@throws` tags required.
 - Impure functions: `@sideEffect` tag required.
 - Inline comments explain _why_, never _what_.
@@ -758,6 +782,22 @@ All formatting is enforced by Prettier and ESLint. These are not discretionary:
 - 120-character print width
 - Braces required for all control structures (even single-statement bodies)
 - Blank line after block statements and before `return`
+
+### Every package's `typecheck` and `lint` cover everything it owns
+
+A package's `lint` script is spelled exactly **`eslint .`** — never a glob. A glob is a claim about a file tree
+that only the tree can settle, and `lib/**/*.ts` looked correct beside a `lib/` directory while the 62
+conformance suites in the `__tests__/` next to it were linted by nothing. Correspondingly, the `tsconfig.json`
+a package's `typecheck` runs must `include` every `.ts`/`.tsx` the package owns — tests included, because
+vitest transpiles without typechecking, so a spec outside the project has no static analysis at all. Where the
+emit must be narrower, that belongs in `tsconfig.build.json`, not in the check project.
+
+The two halves are coupled: widening the lint glob without widening the tsconfig makes every newly-matched file
+a **fatal parse error**, which is worse than not linting it — ESLint opens the file, runs no rule on it, and the
+file still appears in a passing run. Directory-level exclusions (build output, workspace-root `*.config.*`) live
+once, in `packages/tools/eslint`. `packages/infra/global/__tests__/static-analysis-coverage.test.ts` enforces
+all of this by asking TypeScript's config parser and ESLint's own API for actual project membership, never by
+comparing glob text.
 
 ### Blank Lines After Blocks
 

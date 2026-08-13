@@ -93,6 +93,7 @@ describe.skipIf(!hasDatabaseUrl)('recipe version retention (integration)', () =>
 
         // Write 12 versions. Retention runs after each write, so versions 1 and 2 go over the limit.
         const total = 12;
+
         for (let versionNumber = 1; versionNumber <= total; versionNumber += 1) {
             await service.createSnapshot({
                 recipeId: recipe.id,

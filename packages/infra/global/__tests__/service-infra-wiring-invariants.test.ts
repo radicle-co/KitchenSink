@@ -370,6 +370,7 @@ function queueUrlInjections(source: SourceFile): readonly QueueUrlInjection[] {
  */
 function queueGrants(source: SourceFile): ReadonlyMap<string, ReadonlySet<QueueGrant>> {
     const grants = new Map<string, Set<QueueGrant>>();
+
     const add = (key: string, grant: QueueGrant): void => {
         const existing = grants.get(key) ?? new Set<QueueGrant>();
 
@@ -556,6 +557,7 @@ function deployedHandlers(source: SourceFile): readonly string[] {
  */
 function bundledEntryPoints(bundlerConfig: SourceFile): readonly string[] {
     const entries: string[] = [];
+
     const collect = (node: ts.Expression | undefined): void => {
         if (node !== undefined && ts.isArrayLiteralExpression(node)) {
             for (const element of node.elements) {

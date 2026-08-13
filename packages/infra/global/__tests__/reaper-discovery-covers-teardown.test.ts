@@ -283,6 +283,7 @@ describe('GH_ENVIRONMENT_ADMIN_TOKEN reaches both reclamation jobs', () => {
         // An admin-scoped credential belongs to the one step that needs it. Hoisting it to the job (let alone
         // the workflow) puts `Administration: write` in scope for `npm ci` and every action on the runner.
         expect(Object.values(workflow['env'] ?? {})).not.toContain(ADMIN_TOKEN_EXPRESSION);
+
         for (const [name, job] of Object.entries(jobs)) {
             expect(Object.values(job.env ?? {}), `${name} hoists the admin token to job scope`).not.toContain(
                 ADMIN_TOKEN_EXPRESSION,

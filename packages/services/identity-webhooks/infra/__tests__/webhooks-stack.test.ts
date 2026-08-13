@@ -102,6 +102,7 @@ describe('WebhooksStack (authoritative, consumes the consolidated global exports
         );
 
         expect(formats.length).toBeGreaterThan(0);
+
         for (const format of formats) {
             expect(format, 'access log format must include $context.path').toContain('$context.path');
             expect(format, 'access log format must include $context.domainName').toContain('$context.domainName');

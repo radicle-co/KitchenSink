@@ -114,6 +114,7 @@ describe('Identity env vars present', () => {
             ),
         );
     };
+
     const taskHasEnvVar = (name: string): boolean => templateHasEnvVar(serviceTemplate, name);
 
     it('service task has AUTH_SECRET_ARN env var', () => {
@@ -158,6 +159,7 @@ describe('Alarms notify via SNS (A4)', () => {
         const alarms = serviceTemplate.findResources('AWS::CloudWatch::Alarm');
         const ids = Object.keys(alarms);
         expect(ids.length).toBeGreaterThanOrEqual(3);
+
         for (const id of ids) {
             const actions = (alarms[id] as any).Properties?.AlarmActions;
             expect(Array.isArray(actions), `${id} has no AlarmActions`).toBe(true);
@@ -430,6 +432,7 @@ describe('Auth secret grant (regression: ECS NotStabilized / GetSecretValue Acce
                         resource !== null &&
                         'Fn::ImportValue' in resource &&
                         (resource as Record<string, unknown>)['Fn::ImportValue'] === 'kitchensink-data-test:SecretArn';
+
                     return actions.includes('secretsmanager:GetSecretValue') && isBareSecretArn;
                 },
             ),

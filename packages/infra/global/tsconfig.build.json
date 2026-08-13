@@ -1,0 +1,22 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "./tsconfig.json",
+    // The emit options live HERE, not in the check project: `rootDir: "."` is what fixes `dist/`'s layout, and
+    // the check project deliberately reaches outside the package (repo-root `scripts/*.mjs`, read via
+    // `allowJs`), which a `rootDir` would reject with TS6059. `allowJs` is off again so no `.mjs` can be emitted.
+    "compilerOptions": {
+        "outDir": "dist",
+        "rootDir": ".",
+        "allowJs": false
+    },
+    // The EMIT project: the CDK app entry point and the stacks it builds, and nothing else.
+    //
+    // `tsconfig.json` is the CHECK project and is deliberately WIDER — it adds `src/` (the deployed Lambda
+    // handlers) and `__tests__/` (the repo-wide conformance layer). Splitting the two is the convention every
+    // other TypeScript package here already follows; see the `build-inputs.test.ts` suites under
+    // `packages/services/*` for the same split and the defect that motivated it. Before the split this package
+    // had ONE project pinned to `bin` + `lib`, which is why 62 conformance suites and three deployed handlers
+    // were typechecked by nothing.
+    "include": ["bin/**/*.ts", "lib/**/*.ts"],
+    "exclude": ["node_modules", "dist"]
+}

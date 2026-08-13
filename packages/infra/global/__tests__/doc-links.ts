@@ -23,6 +23,14 @@
  * cannot exist in a file whose text does not contain the sequence, and skipping the rest keeps the walk to the
  * ~45% of sources that carry one.
  *
+ * `.js` / `.jsx` / `.mjs` / `.cjs` are in scope alongside TypeScript, via `allowJs` in
+ * {@link createUnitProgram}. The first version of this gate was `.ts`/`.tsx` only, which left six links
+ * unchecked in five files — the two k6 `tests/load/lib/common.js` modules, `packages/tools/eslint`'s
+ * `nativeA11y.test.js`, and `scripts/contractGenerate.mjs` / `contractOwners.mjs`. A dead link rots identically
+ * in JSDoc, so the extension-based exemption had nothing behind it; measured before extending, all six already
+ * resolved, so this widens the SUBJECT without changing any verdict. `checkJs` stays OFF — the job is link
+ * resolution, not typechecking untyped JavaScript.
+ *
  * DESIGN PATTERN: Specification module over ONE parser — {@link collectDocLinks} reads links out of a program
  * and {@link unresolvedDocLinks} is the pure verdict over them, so the DECISION is testable against a
  * synthetic in-memory program instead of the working tree.
@@ -46,6 +54,18 @@ export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)
  * bitten seven gates in this branch.
  */
 const LINK_OPENER = '{@link';
+
+/**
+ * The source extensions the guard reads. JavaScript is included because a dead TSDoc link is exactly as dead in
+ * a `.mjs` build script as in a `.ts` module; {@link createUnitProgram} turns on `allowJs` so the compiler will
+ * load them. `.json`, `.yaml` and the like carry no JSDoc and are not source.
+ *
+ * ⚠️ Do NOT write the literal opener sequence in prose here. The first draft of this docstring said "a dead
+ * `{@`link`}`" spelled out, and the guard immediately reported it: the opener appears in a COMMENT, so the
+ * parser counts it, finds no target, and classifies it `unparsed`. The self-match trap the header warns about,
+ * demonstrated on the header's own module. Say "TSDoc link", or write a resolvable link like the one above.
+ */
+const SUBJECT_PATHSPECS = ['*.ts', '*.tsx', '*.js', '*.jsx', '*.mjs', '*.cjs'];
 
 /** A link target that is a URL rather than a symbol reference, in either shape the parser produces. */
 const URL_SCHEME = /^(?:[a-z][a-z0-9+.-]*)?:\/\//u;
@@ -134,7 +154,7 @@ export function discoverDocLinkUnits(): readonly DocLinkUnit[] {
         .sort((left, right) => right.dir.length - left.dir.length);
     const units = new Map<string, string[]>(configs.map((config) => [config, []]));
 
-    for (const file of trackedFiles(['*.ts', '*.tsx'])) {
+    for (const file of trackedFiles(SUBJECT_PATHSPECS)) {
         if (!readFileSync(path.join(repoRoot, file), 'utf8').includes(LINK_OPENER)) {
             continue;
         }
@@ -173,7 +193,11 @@ export function createUnitProgram(unit: DocLinkUnit): ts.Program {
         ts.readConfigFile(configPath, ts.sys.readFile).config ?? {},
         ts.sys,
         path.dirname(configPath),
-        { noEmit: true, incremental: false, composite: false },
+        // `allowJs` (with `checkJs` off) is what admits the `.js`/`.mjs` subjects into the program at all —
+        // without it `getSourceFile` returns undefined for them and `collectDocLinks` throws. It cannot loosen
+        // the TypeScript verdicts: it only makes a `.js` module loadable, which can turn a dangling import into
+        // a resolvable one, never the reverse.
+        { noEmit: true, incremental: false, composite: false, allowJs: true, checkJs: false },
         configPath,
     );
 
@@ -237,6 +261,7 @@ export function collectDocLinks(program: ts.Program, files: readonly string[]): 
         }
 
         const seen = new Set<number>();
+
         const visitComment = (node: ts.Node): void => {
             if (ts.isJSDocLinkLike(node) && !seen.has(node.pos)) {
                 seen.add(node.pos);
@@ -245,6 +270,7 @@ export function collectDocLinks(program: ts.Program, files: readonly string[]): 
 
             ts.forEachChild(node, visitComment);
         };
+
         const visit = (node: ts.Node): void => {
             for (const comment of jsDocBlocks(node)) {
                 visitComment(comment);
@@ -301,6 +327,7 @@ function jsDocBlocks(node: ts.Node): readonly ts.JSDoc[] {
 function countCommentOpeners(source: ts.SourceFile): readonly number[] {
     const positions: number[] = [];
     const scanned = new Set<number>();
+
     const scanToken = (node: ts.Node): void => {
         for (const range of ts.getLeadingCommentRanges(source.text, node.pos) ?? []) {
             if (scanned.has(range.pos)) {

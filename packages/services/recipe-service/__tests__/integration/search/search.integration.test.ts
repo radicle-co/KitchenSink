@@ -298,6 +298,7 @@ describe.skipIf(!hasDatabaseUrl)('SearchDal search (integration: FTS + facets + 
                 [OWNER, title, 'public', [tag], title.toLowerCase(), createdAt],
             );
         };
+
         await insertAt('Oldest', 'drop', '2026-01-01T00:00:00.000Z');
         await insertAt('Middle', 'keep', '2026-02-01T00:00:00.000Z');
         await insertAt('Newest', 'keep', '2026-03-01T00:00:00.000Z');

@@ -52,21 +52,26 @@ export function savePath() {
     );
     saveTrend.add(createRes.timings.duration);
     const created = check(createRes, { 'createRecipe 201': (r) => r.status === 201 });
+
     if (!created) {
         sleep(1);
+
         return;
     }
 
-    let id = null;
+    let id;
     let version = 1;
+
     try {
         id = createRes.json('id');
         version = createRes.json('version') || 1;
     } catch {
         id = null;
     }
+
     if (!id) {
         sleep(1);
+
         return;
     }
 

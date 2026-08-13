@@ -17,6 +17,7 @@ import { ClerkAuthService } from '../clerk-auth.service.js';
 // duplicating its logic in a hand-maintained mock that can drift from the real implementation.
 vi.mock('@kitchensink/clerk-verify', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@kitchensink/clerk-verify')>();
+
     return { ...actual, verifyClerkToken: vi.fn() };
 });
 

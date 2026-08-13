@@ -3,13 +3,15 @@
     "extends": "@kitchensink/typescript/base.json",
     "compilerOptions": {
         "outDir": "dist",
-        "rootDir": "src",
         "module": "esnext",
         "moduleResolution": "bundler",
         "jsx": "react-jsx",
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "types": []
     },
-    "include": ["src/**/*.ts", "src/**/*.tsx"],
+    // The CHECK project. `test/stubs/` holds the expo-blur / expo-linear-gradient module doubles the
+    // vitest config aliases to; they were in no project. `rootDir` lives in `tsconfig.build.json` because a
+    // root-level `test/` cannot sit in a project rooted at `src` (TS6059).
+    "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
     "exclude": ["node_modules", "dist"]
 }

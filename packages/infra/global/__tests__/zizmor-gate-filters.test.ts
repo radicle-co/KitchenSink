@@ -100,6 +100,7 @@ export function zizmorInvocations(source: string): readonly Invocation[] {
 
         // Follow backslash continuations so a flag on the next line still counts.
         let command = line;
+
         while (command.trimEnd().endsWith('\\') && index + 1 < lines.length) {
             index += 1;
             command = `${command.trimEnd().slice(0, -1)} ${lines[index] ?? ''}`;

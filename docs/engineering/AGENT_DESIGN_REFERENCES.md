@@ -141,14 +141,41 @@ halves:
 The anchoring rules, HALT gates and confidence calibration exist to convert the second list into
 process rather than hope.
 
-### One premise deliberately not encoded
+### Owner ruling: MAXIMALIST (2026-08-13)
 
-"A codebase that uses patterns everywhere it possibly can is therefore clean" is **not** in the
-agent, because pattern density is not a quality metric and maximizing it is a documented failure
-mode. `CLAUDE.md` already states the sharper rule — _"Always use design patterns, unless applying one
-would break the pattern or the code"_, and _"the only misuse is forcing"_ — and that is what the
-agent enforces. Patterns are necessary for a clean system, not sufficient: boundaries, data model,
-and failure behaviour can each be wrong in a fully pattern-ed codebase.
+The agent applies a pattern **everywhere one genuinely fits**, individually and composed. It must not
+argue for fewer patterns, must not treat a small ad-hoc shape as exempt, and must not invoke
+YAGNI/KISS against a pattern that fits — those govern speculative _features_, not the expression of a
+shape that already exists.
+
+This matches `CLAUDE.md`, which is already maximalist: _"**Always** use design patterns, unless
+applying one would break the pattern or the code"_ and _"The only misuse is **forcing** a pattern onto
+a shape it doesn't match, or applying it in a way that violates the pattern's own contract."_
+
+**A first draft hedged this** with "density is not the goal" and a rule-of-three before reaching for a
+pattern. That was generic industry caution imported over the repo's own stated standard, and it was
+wrong on the merits too: rule-of-three governs **extracting a shared abstraction** from duplication,
+which is a different question from whether to express a shape as Strategy rather than a flag argument.
+Corrected on owner instruction.
+
+The two failure modes — the only two — are now stated explicitly in §1 and are about **correctness,
+not count**:
+
+1. **Wrong pattern, or wrong combination.** Forced onto a shape it doesn't match, or two patterns
+   stacked with overlapping responsibilities.
+2. **Right pattern, implemented wrong.** A pattern has a contract; breaching it forfeits the benefit,
+   keeps the cost, and actively misleads, because the name now lies.
+
+§1a exists for the second one — a named list of contract breaches to check rather than trusting the
+label: Strategy reaching back into its context, Observer without unsubscribe, Repository leaking ORM
+types, Facade grown into a layer, Adapter that adds behaviour, Decorator that isn't substitutable,
+transitions performed outside the statechart, Factory that is `new` with extra steps, Registry with no
+single registration point, Singleton as ambient mutable state, mutable value objects, ports pointing
+outward. **A breached pattern is a finding of the same severity as a missing one.**
+
+The one place the agent adds nothing is when the intent is **already satisfied** — a discriminated
+union with an exhaustive switch IS Visitor. That is not an exception to maximalism; the pattern is
+present and simply needed no ceremony. It gets credited in the register.
 
 ### The failure this was built around
 

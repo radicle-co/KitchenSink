@@ -84,12 +84,34 @@ import { DATABASE_URL, makeDb, makePool, resetSchema } from './support/db.js';
  * planner answers this statement with a plain Seq Scan even with every index available (measured at 6,000,
  * 12,000 and 20,000 rows, with both description shapes), and no combination of `enable_*` settings reaches
  * the trigram indexes either — forcing an index path just picks `food_status_idx`, which matches every
- * `RESOLVED` row. So both sides of the comparison were the same scan and it proved nothing. At 50,000 the
- * planner reaches the trigram BitmapOr, which is what makes the comparison real. The
+ * `RESOLVED` row. So both sides of the comparison were the same scan and it proved nothing. Past the
+ * crossover the planner reaches the trigram BitmapOr, which is what makes the comparison real. The
  * "really do get different plans" test below is the guard that keeps it real: if the crossover ever moves,
  * it fails with that instruction rather than passing silently.
+ *
+ * ## Why 100,000 and not the 50,000 this started at
+ *
+ * The guard FIRED in CI — twice, on commits identical in every relevant respect to two that passed, while the
+ * same postgres:16 image ran it green 5/5 locally. That pattern is a marginal cost decision rather than a
+ * defect, so the fix is the one this note already prescribed: move away from the crossover instead of
+ * re-rolling the dice at it.
+ *
+ * Measured on postgres:16.14 — the top node's estimated total cost for `raw chicken breast`:
+ *
+ * | rows    | natural (Bitmap Heap Scan) | Seq Scan forced | margin |
+ * |---------|----------------------------|-----------------|--------|
+ * | 50,000  | 3252.91                    | 4973.73         | 1.53x  |
+ * | 100,000 | 4080.14                    | 9634.23         | 2.36x  |
+ *
+ * Doubling the store doubles the scan while the trigram path grows ~25%, because its candidate set tracks
+ * MATCHES rather than pages — so the margin widens with size instead of drifting, which is what makes this a
+ * fix and not a bigger gamble. The whole file costs 10.7s at 100,000 against a 60s hook budget.
+ *
+ * ⛔ Do NOT "fix" a future firing by forcing the access path instead. `enable_seqscan = off` was measured and
+ * REJECTED for this statement (see the header): it buys an Index Scan with the whole `OR` in `Filter`, so no
+ * node names the trigram index and the comparison stops being about T-202's path at all.
  */
-const EQUIVALENCE_SIZE = 50_000;
+const EQUIVALENCE_SIZE = 100_000;
 
 // The name vocabulary. The four list LENGTHS are coprime-ish and large enough that a three-word needle is
 // selective (~1/1,771 of the store) rather than matching a twentieth of it — with a small vocabulary every
